@@ -181,7 +181,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 created_tasks.append(created_task)
 
                 # Build ref
-                ref = f"#{created_task.seq_num}" if created_task.seq_num else created_task.id[:8]
+                ref = f"#{created_task.seq_num}" if created_task.seq_num else created_task.id
                 created_refs.append(ref)
         except Exception as e:
             # Clean up any tasks created before failure

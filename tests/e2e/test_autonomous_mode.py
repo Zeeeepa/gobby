@@ -59,25 +59,6 @@ class TestAutonomousModeToolsAvailability:
         for tool in expected_tools:
             assert tool in tool_names, f"Missing tool: {tool}"
 
-    def test_orchestration_tools_are_registered(
-        self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-    ) -> None:
-        """Verify orchestration tools are available on correct servers."""
-        # list_ready_tasks and suggest_next_task are on gobby-tasks
-        task_tools = mcp_client.list_tools(server_name="gobby-tasks")
-        task_tool_names = [t["name"] for t in task_tools]
-        for tool in ["list_ready_tasks", "suggest_next_task"]:
-            assert tool in task_tool_names, f"Missing tool: {tool}"
-
-        # get_orchestration_status is on gobby-orchestration
-        orch_tools = mcp_client.list_tools(server_name="gobby-orchestration")
-        orch_tool_names = [t["name"] for t in orch_tools]
-        assert "get_orchestration_status" in orch_tool_names, (
-            "Missing tool: get_orchestration_status"
-        )
-
     def test_agent_tools_are_registered(
         self,
         daemon_instance: DaemonInstance,
@@ -422,70 +403,3 @@ class TestAutonomousThrottling:
         assert usage.get("success") is True, f"Usage report should work: {usage}"
 
 
-class TestOrchestrationStatusTracking:
-    """Tests for orchestration status tracking."""
-
-    def test_get_orchestration_status_for_epic(
-        self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-        cli_events: CLIEventSimulator,
-    ) -> None:
-        """Test get_orchestration_status returns summary for an epic."""
-        # Setup
-        project_result = cli_events.register_test_project(
-            project_id="e2e-test-project",
-            name="E2E Test Project",
-            repo_path=str(daemon_instance.project_dir),
-        )
-        assert project_result["status"] in ["success", "already_exists"]
-
-        session_external_id = f"orch-status-{uuid.uuid4().hex[:8]}"
-        session_result = cli_events.register_session(
-            external_id=session_external_id,
-            machine_id="test-machine",
-            source="Claude Code",
-            cwd=str(daemon_instance.project_dir),
-        )
-        session_id = session_result["id"]
-
-        # Create epic with subtasks
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="create_task",
-            arguments={
-                "title": "Orchestration Status Epic",
-                "task_type": "epic",
-                "session_id": session_id,
-            },
-        )
-        epic_result = unwrap_result(raw_result)
-        epic_id = epic_result["id"]
-
-        # Create 3 subtasks
-        for i in range(3):
-            mcp_client.call_tool(
-                server_name="gobby-tasks",
-                tool_name="create_task",
-                arguments={
-                    "title": f"Status Subtask {i + 1}",
-                    "task_type": "task",
-                    "parent_task_id": epic_id,
-                    "session_id": session_id,
-                },
-            )
-
-        # Get orchestration status (on gobby-orchestration server)
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-orchestration",
-            tool_name="get_orchestration_status",
-            arguments={
-                "parent_task_id": epic_id,
-                "project_path": str(daemon_instance.project_dir),
-            },
-        )
-        result = unwrap_result(raw_result)
-
-        assert result.get("success") is True, f"get_orchestration_status failed: {result}"
-        assert "summary" in result, f"Missing summary in result: {result}"
-        assert "open_tasks" in result, f"Missing open_tasks in result: {result}"

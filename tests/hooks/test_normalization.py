@@ -1,0 +1,368 @@
+"""Tests for shared MCP field normalization."""
+
+import pytest
+
+from gobby.hooks.normalization import normalize_mcp_fields, normalize_tool_fields
+
+pytestmark = pytest.mark.unit
+
+
+class TestMcpPrefixParsing:
+    """Tests for mcp__<server>__<tool> prefix parsing (Step 1a)."""
+
+    def test_parses_standard_mcp_prefix(self) -> None:
+        data = {"tool_name": "mcp__gobby-tasks__create_task"}
+        result = normalize_mcp_fields(data)
+        assert result["mcp_server"] == "gobby-tasks"
+        assert result["mcp_tool"] == "create_task"
+
+    def test_does_not_overwrite_existing_mcp_tool(self) -> None:
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "mcp_tool": "already_set",
+        }
+        result = normalize_mcp_fields(data)
+        # mcp_tool was already present, so prefix parsing should not overwrite
+        assert result["mcp_tool"] == "already_set"
+
+    def test_non_mcp_tool_unchanged(self) -> None:
+        data = {"tool_name": "Read", "tool_input": {"file": "foo.py"}}
+        result = normalize_mcp_fields(data)
+        assert "mcp_server" not in result
+        assert "mcp_tool" not in result
+
+    def test_empty_tool_name(self) -> None:
+        data = {"tool_name": ""}
+        result = normalize_mcp_fields(data)
+        assert "mcp_server" not in result
+        assert "mcp_tool" not in result
+
+    def test_malformed_prefix_only_two_parts(self) -> None:
+        data = {"tool_name": "mcp__incomplete"}
+        result = normalize_mcp_fields(data)
+        # Only 2 parts after split, no mcp_server/mcp_tool set
+        assert "mcp_server" not in result
+        assert "mcp_tool" not in result
+
+
+class TestCallToolExtraction:
+    """Tests for call_tool / mcp__gobby__call_tool inner extraction (Step 1b)."""
+
+    def test_mcp_gobby_call_tool_overrides_prefix(self) -> None:
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_input": {"server_name": "gobby-memory", "tool_name": "add_memory"},
+        }
+        result = normalize_mcp_fields(data)
+        # Inner values override prefix-parsed "gobby" / "call_tool"
+        assert result["mcp_server"] == "gobby-memory"
+        assert result["mcp_tool"] == "add_memory"
+
+    def test_plain_call_tool_sets_from_input(self) -> None:
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": {"server_name": "gobby-tasks", "tool_name": "list_tasks"},
+        }
+        result = normalize_mcp_fields(data)
+        assert result["mcp_server"] == "gobby-tasks"
+        assert result["mcp_tool"] == "list_tasks"
+
+    def test_plain_call_tool_preserves_existing(self) -> None:
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": {"server_name": "inner-server", "tool_name": "inner-tool"},
+            "mcp_server": "external-server",
+            "mcp_tool": "external-tool",
+        }
+        result = normalize_mcp_fields(data)
+        # Plain call_tool should NOT overwrite externally-set values
+        assert result["mcp_server"] == "external-server"
+        assert result["mcp_tool"] == "external-tool"
+
+    def test_call_tool_missing_inner_fields(self) -> None:
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": {},
+        }
+        result = normalize_mcp_fields(data)
+        assert "mcp_server" not in result
+        assert "mcp_tool" not in result
+
+    def test_call_tool_none_tool_input(self) -> None:
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": None,
+        }
+        result = normalize_mcp_fields(data)
+        assert "mcp_server" not in result
+
+
+class TestToolOutputNormalization:
+    """Tests for tool_result / tool_response → tool_output (Step 2)."""
+
+    def test_normalizes_tool_result(self) -> None:
+        data = {"tool_result": "success"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_output"] == "success"
+
+    def test_normalizes_tool_response(self) -> None:
+        data = {"tool_response": {"status": "ok"}}
+        result = normalize_mcp_fields(data)
+        assert result["tool_output"] == {"status": "ok"}
+
+    def test_tool_result_takes_precedence_over_tool_response(self) -> None:
+        data = {"tool_result": "from_result", "tool_response": "from_response"}
+        result = normalize_mcp_fields(data)
+        # tool_result is checked first, so it wins
+        assert result["tool_output"] == "from_result"
+
+    def test_existing_tool_output_not_overwritten(self) -> None:
+        data = {"tool_result": "from_result", "tool_output": "already_set"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_output"] == "already_set"
+
+    def test_no_tool_result_or_response(self) -> None:
+        data = {"tool_name": "Read"}
+        result = normalize_mcp_fields(data)
+        assert "tool_output" not in result
+
+
+class TestCombinedNormalization:
+    """Tests verifying all normalizations work together."""
+
+    def test_full_mcp_call_with_result(self) -> None:
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "Test"},
+            },
+            "tool_response": {"id": "task-123"},
+        }
+        result = normalize_mcp_fields(data)
+        assert result["mcp_server"] == "gobby-tasks"
+        assert result["mcp_tool"] == "create_task"
+        assert result["tool_output"] == {"id": "task-123"}
+
+    def test_mutates_in_place(self) -> None:
+        data = {"tool_name": "mcp__s__t"}
+        returned = normalize_mcp_fields(data)
+        assert returned is data
+        assert data["mcp_server"] == "s"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# normalize_tool_fields — field alias tests
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestFieldAliases:
+    """Tests for CLI-specific field alias normalization (Phase 1)."""
+
+    def test_function_name_to_tool_name(self) -> None:
+        """Gemini sends function_name instead of tool_name."""
+        data = {"function_name": "write_file"}
+        normalize_tool_fields(data)
+        assert data["tool_name"] == "write_file"
+
+    def test_function_name_does_not_overwrite_tool_name(self) -> None:
+        data = {"function_name": "write_file", "tool_name": "Write"}
+        normalize_tool_fields(data)
+        assert data["tool_name"] == "Write"
+
+    def test_toolName_to_tool_name(self) -> None:
+        """Copilot sends toolName (camelCase)."""
+        data = {"toolName": "Read"}
+        normalize_tool_fields(data)
+        assert data["tool_name"] == "Read"
+
+    def test_toolName_does_not_overwrite_tool_name(self) -> None:
+        data = {"toolName": "Read", "tool_name": "CustomRead"}
+        normalize_tool_fields(data)
+        assert data["tool_name"] == "CustomRead"
+
+    def test_toolArgs_string_parsed_to_tool_input(self) -> None:
+        """Copilot sends toolArgs as a JSON string."""
+        data = {"toolArgs": '{"path": "/foo.py"}'}
+        normalize_tool_fields(data)
+        assert data["tool_input"] == {"path": "/foo.py"}
+
+    def test_toolArgs_object_to_tool_input(self) -> None:
+        """toolArgs as a dict should pass through without JSON parsing."""
+        data = {"toolArgs": {"path": "/foo.py"}}
+        normalize_tool_fields(data)
+        assert data["tool_input"] == {"path": "/foo.py"}
+
+    def test_toolArgs_invalid_json_string_kept_as_string(self) -> None:
+        """Invalid JSON in toolArgs should be kept as-is."""
+        data = {"toolArgs": "not valid json"}
+        normalize_tool_fields(data)
+        assert data["tool_input"] == "not valid json"
+
+    def test_toolArgs_does_not_overwrite_tool_input(self) -> None:
+        data = {"toolArgs": '{"a": 1}', "tool_input": {"b": 2}}
+        normalize_tool_fields(data)
+        assert data["tool_input"] == {"b": 2}
+
+    def test_parameters_to_tool_input(self) -> None:
+        """Gemini sends parameters instead of tool_input."""
+        data = {"parameters": {"file": "test.py"}}
+        normalize_tool_fields(data)
+        assert data["tool_input"] == {"file": "test.py"}
+
+    def test_args_to_tool_input(self) -> None:
+        """Gemini fallback: args → tool_input."""
+        data = {"args": {"cmd": "ls"}}
+        normalize_tool_fields(data)
+        assert data["tool_input"] == {"cmd": "ls"}
+
+    def test_parameters_takes_precedence_over_args(self) -> None:
+        data = {"parameters": {"from_params": True}, "args": {"from_args": True}}
+        normalize_tool_fields(data)
+        assert data["tool_input"] == {"from_params": True}
+
+
+class TestMcpContextFlattening:
+    """Tests for mcp_context {} → mcp_server / mcp_tool (Gemini MCP)."""
+
+    def test_mcp_context_flattened(self) -> None:
+        data = {
+            "mcp_context": {"server_name": "gobby-memory", "tool_name": "recall"},
+        }
+        normalize_tool_fields(data)
+        assert data["mcp_server"] == "gobby-memory"
+        assert data["mcp_tool"] == "recall"
+
+    def test_mcp_context_does_not_overwrite_existing(self) -> None:
+        data = {
+            "mcp_context": {"server_name": "inner", "tool_name": "inner_tool"},
+            "mcp_server": "already_set",
+        }
+        normalize_tool_fields(data)
+        assert data["mcp_server"] == "already_set"
+        assert data["mcp_tool"] == "inner_tool"
+
+    def test_mcp_context_empty_dict_ignored(self) -> None:
+        data = {"mcp_context": {}}
+        normalize_tool_fields(data)
+        assert "mcp_server" not in data
+        assert "mcp_tool" not in data
+
+    def test_mcp_context_non_dict_ignored(self) -> None:
+        data = {"mcp_context": "not a dict"}
+        normalize_tool_fields(data)
+        assert "mcp_server" not in data
+
+
+class TestNormalizeToolFieldsAlias:
+    """Verify normalize_tool_fields runs the full pipeline."""
+
+    def test_is_callable(self) -> None:
+        assert callable(normalize_tool_fields)
+
+    def test_runs_mcp_prefix_parsing(self) -> None:
+        """Phase 2 (MCP prefix) should also run via normalize_tool_fields."""
+        data = {"tool_name": "mcp__gobby-tasks__create_task"}
+        normalize_tool_fields(data)
+        assert data["mcp_server"] == "gobby-tasks"
+        assert data["mcp_tool"] == "create_task"
+
+    def test_runs_output_normalization(self) -> None:
+        """Phase 2 (tool_result → tool_output) should also run."""
+        data = {"tool_result": "ok"}
+        normalize_tool_fields(data)
+        assert data["tool_output"] == "ok"
+
+    def test_mutates_in_place(self) -> None:
+        data = {"toolName": "Read"}
+        returned = normalize_tool_fields(data)
+        assert returned is data
+        assert data["tool_name"] == "Read"
+
+    def test_combined_copilot_style(self) -> None:
+        """Full Copilot-style event through normalize_tool_fields."""
+        data = {
+            "toolName": "mcp__gobby__call_tool",
+            "toolArgs": '{"server_name": "gobby-memory", "tool_name": "create_memory"}',
+            "tool_result": "ok",
+        }
+        normalize_tool_fields(data)
+        assert data["tool_name"] == "mcp__gobby__call_tool"
+        assert data["tool_input"] == {
+            "server_name": "gobby-memory",
+            "tool_name": "create_memory",
+        }
+        assert data["mcp_server"] == "gobby-memory"
+        assert data["mcp_tool"] == "create_memory"
+        assert data["tool_output"] == "ok"
+
+
+class TestEndToEndRuleMatch:
+    """Verify normalized data matches rule 'when' expressions."""
+
+    def test_create_memory_rule_match(self) -> None:
+        """Data from mcp__gobby__call_tool with create_memory should match
+        the clear-memory-review-on-create rule's when expression:
+        event.data.get('mcp_tool') == 'create_memory' and
+        event.data.get('mcp_server') == 'gobby-memory'
+        """
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_input": {
+                "server_name": "gobby-memory",
+                "tool_name": "create_memory",
+                "arguments": {"content": "test"},
+            },
+        }
+        normalize_tool_fields(data)
+
+        # Simulate rule engine `when` evaluation
+        assert data.get("mcp_tool") == "create_memory"
+        assert data.get("mcp_server") == "gobby-memory"
+
+    def test_gemini_create_memory_rule_match(self) -> None:
+        """Same rule match, but with Gemini-style fields."""
+        data = {
+            "function_name": "call_tool",
+            "parameters": {
+                "server_name": "gobby-memory",
+                "tool_name": "create_memory",
+            },
+        }
+        normalize_tool_fields(data)
+
+        assert data.get("mcp_tool") == "create_memory"
+        assert data.get("mcp_server") == "gobby-memory"
+
+    def test_after_tool_without_tool_input_does_not_match(self) -> None:
+        """after_tool (post-tool-use) omits tool_input in Claude Code.
+        Without tool_input, normalization falls back to prefix parsing which
+        yields mcp_server='gobby' and mcp_tool='call_tool' — neither matches
+        the clear-memory-review-on-create rule condition.
+        This is the root cause of the memory-review-gate never clearing.
+        """
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_result": '{"success": true}',
+            # No tool_input — this is what Claude Code sends for post-tool-use
+        }
+        normalize_tool_fields(data)
+
+        # Prefix parsing yields "gobby" / "call_tool", NOT the inner server/tool
+        assert data.get("mcp_server") == "gobby"
+        assert data.get("mcp_tool") == "call_tool"
+        # Therefore the rule condition does NOT match
+        assert data.get("mcp_tool") != "create_memory"
+        assert data.get("mcp_server") != "gobby-memory"
+
+    def test_copilot_create_memory_rule_match(self) -> None:
+        """Same rule match, but with Copilot-style fields (camelCase + JSON string)."""
+        data = {
+            "toolName": "mcp__gobby__call_tool",
+            "toolArgs": '{"server_name": "gobby-memory", "tool_name": "create_memory"}',
+        }
+        normalize_tool_fields(data)
+
+        assert data.get("mcp_tool") == "create_memory"
+        assert data.get("mcp_server") == "gobby-memory"

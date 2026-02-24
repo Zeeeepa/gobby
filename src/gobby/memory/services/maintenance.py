@@ -56,7 +56,7 @@ def get_stats(
                 created = created.replace(tzinfo=UTC)
             if created > cutoff:
                 recent_count += 1
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             pass
 
     stats: dict[str, Any] = {

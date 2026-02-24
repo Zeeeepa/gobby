@@ -131,8 +131,8 @@ class MemoryBackupManager:
             if project_ctx and project_ctx.get("project_path"):
                 project_path = Path(project_ctx["project_path"]).expanduser().resolve()
                 return project_path / self.export_path
-        except Exception:
-            pass  # nosec B110 - fall back to cwd if project context unavailable
+        except Exception as e:
+            logger.debug("Fallback to cwd since project context unavailable: %s", e)
 
         # Fall back to current working directory
         return Path.cwd() / self.export_path
@@ -321,8 +321,8 @@ class MemoryBackupManager:
                 tilde_path = repo_path.replace(home, "~")
                 for prefix in (tilde_path + "/", tilde_path):
                     content = content.replace(prefix, "")
-        except Exception:
-            pass  # nosec B110 - best-effort sanitization
+        except Exception as e:
+            logger.debug("Best-effort sanitization failed: %s", e)
 
         return content
 

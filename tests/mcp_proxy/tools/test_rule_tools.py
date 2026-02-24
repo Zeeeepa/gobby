@@ -144,6 +144,18 @@ class TestListRules:
         result = rule_tools["list_rules"]()
         assert result["count"] == 2
 
+    def test_brief_returns_minimal_fields(self, def_manager, rule_tools) -> None:
+        _create_test_rule(def_manager, name="verbose-rule", event="stop", group="g1")
+
+        result = rule_tools["list_rules"](brief=True)
+        assert result["success"] is True
+        rule = result["rules"][0]
+        assert set(rule.keys()) == {"name", "event", "group", "enabled"}
+        assert rule["name"] == "verbose-rule"
+        assert rule["event"] == "stop"
+        assert rule["group"] == "g1"
+        assert rule["enabled"] is True
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # get_rule

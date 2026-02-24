@@ -13,9 +13,13 @@ interface RulesTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  hideInstalled?: boolean
+  eventFilter: string | null
+  onEventTypesChange: (types: string[]) => void
+  onAllEnabledChange: (allEnabled: boolean) => void
 }
 
-export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby }: RulesTabProps) {
+export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby, hideInstalled, eventFilter, onEventTypesChange, onAllEnabledChange }: RulesTabProps) {
   const {
     rules,
     isLoading,
@@ -27,7 +31,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     deleteRule,
     installFromTemplate,
     fetchRules,
-    bulkToggleRules,
   } = useRules()
 
   // Re-fetch when refreshKey changes (skip initial render)
@@ -40,12 +43,20 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     fetchRules()
   }, [refreshKey, fetchRules])
 
-  const [eventFilter, setEventFilter] = useState<string | null>(null)
-
   // YAML editor state
   const [yamlRule, setYamlRule] = useState<RuleSummary | null>(null)
   const [yamlContent, setYamlContent] = useState('')
   const [yamlLoading, setYamlLoading] = useState(false)
+
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const r of rules) {
+      if (r.source === 'installed' && !(r as RuleSummary & { deleted_at?: string | null }).deleted_at) {
+        names.add(r.name)
+      }
+    }
+    return names
+  }, [rules])
 
   // Filter rules
   const filteredRules = useMemo(() => {
@@ -68,6 +79,9 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     if (hideGobby) {
       result = result.filter(r => !(r.tags && r.tags.includes('gobby')))
     }
+    if (hideInstalled) {
+      result = result.filter(r => !installedNames.has(r.name))
+    }
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
       result = result.filter(r =>
@@ -79,7 +93,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
 
     return result
-  }, [rules, eventFilter, searchText, sourceFilter, hideGobby])
+  }, [rules, installedNames, eventFilter, searchText, sourceFilter, hideGobby, hideInstalled])
 
   const handleToggle = useCallback(async (rule: RuleSummary) => {
     await toggleRule(rule.name, !rule.enabled)
@@ -221,72 +235,17 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
   }, [fetchRules])
 
-  const handleInstallAll = useCallback(async () => {
-    try {
-      const response = await fetch('/api/workflows/install-all-templates?workflow_type=rule', {
-        method: 'POST',
-      })
-      if (response.ok) {
-        await fetchRules()
-      }
-    } catch (e) {
-      console.error('Failed to install all template rules:', e)
-    }
-  }, [fetchRules])
+  useEffect(() => {
+    onEventTypesChange(eventTypes)
+  }, [eventTypes, onEventTypesChange])
 
-  const clearFilters = useCallback(() => {
-    setEventFilter(null)
-  }, [])
-
-  const hasFilters = !!eventFilter
+  useEffect(() => {
+    const allEnabled = filteredRules.length > 0 && filteredRules.every(r => r.enabled)
+    onAllEnabledChange(allEnabled)
+  }, [filteredRules, onAllEnabledChange])
 
   return (
     <div className="rules-tab">
-      {/* Filter chips */}
-      <div className="workflows-filter-bar">
-        <div className="rules-filter-chips">
-          {eventTypes.map(ev => (
-            <button
-              type="button"
-              key={ev}
-              className={`workflows-filter-chip ${eventFilter === ev ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setEventFilter(eventFilter === ev ? null : ev)}
-            >
-              {ev}
-            </button>
-          ))}
-          {hasFilters && (
-            <button
-              type="button"
-              className="workflows-filter-chip rules-filter-clear"
-              onClick={clearFilters}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        {(sourceFilter === 'installed' || sourceFilter === 'project') && filteredRules.length > 0 && (() => {
-          const allEnabled = filteredRules.every(r => r.enabled)
-          return (
-            <div className="rules-enforcement-toggle" onClick={() => bulkToggleRules(sourceFilter, !allEnabled)}>
-              <div className={`workflows-toggle-track ${allEnabled ? 'workflows-toggle-track--on' : ''}`}>
-                <div className="workflows-toggle-knob" />
-              </div>
-              <span>Enable All</span>
-            </div>
-          )
-        })()}
-        {sourceFilter === 'templates' && (
-          <button
-            type="button"
-            className="workflows-toolbar-btn"
-            onClick={handleInstallAll}
-          >
-            Install All
-          </button>
-        )}
-      </div>
-
       {/* Card grid */}
       <div className="workflows-content">
         {isLoading ? (
@@ -306,6 +265,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
                 onYamlEdit={() => handleYamlEdit(rule)}
                 onDuplicate={() => handleDuplicate(rule)}
                 onDownload={() => handleDownload(rule)}
+                isInstalled={installedNames.has(rule.name)}
                 onInstall={() => installFromTemplate(rule.id)}
                 onMoveToProject={() => handleMoveToProject(rule)}
                 onMoveToGlobal={() => handleMoveToGlobal(rule)}
@@ -350,10 +310,11 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, devMode, projectId, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
+function RuleCard({ rule, devMode, projectId, isInstalled, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
   rule: RuleSummary
   devMode: boolean
   projectId?: string
+  isInstalled: boolean
   onToggle: () => void
   onDelete: () => void
   onYamlEdit: () => void
@@ -401,7 +362,9 @@ function RuleCard({ rule, devMode, projectId, onToggle, onDelete, onYamlEdit, on
               {devMode ? (
                 <>
                   {isTemplate && (
-                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
+                    isInstalled
+                      ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                      : <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
                   )}
                   <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
@@ -417,7 +380,9 @@ function RuleCard({ rule, devMode, projectId, onToggle, onDelete, onYamlEdit, on
               ) : (
                 <>
                   {isTemplate && (
-                    <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
+                    isInstalled
+                      ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                      : <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
                   )}
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDownload() }} title="Download YAML" aria-label="Download rule as YAML">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>

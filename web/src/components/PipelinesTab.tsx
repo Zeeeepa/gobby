@@ -18,14 +18,16 @@ interface PipelinesTabProps {
   searchText: string
   sourceFilter: 'installed' | 'project' | 'templates' | 'deleted'
   devMode: boolean
-  showCreateDropdown: boolean
-  onCloseCreateDropdown: () => void
+  createMode: 'builder' | 'yaml' | null
+  onCreateModeHandled: () => void
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  hideInstalled?: boolean
+  enabledFilter: boolean | null
 }
 
-export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDropdown, onCloseCreateDropdown, refreshKey = 0, projectId, hideGobby }: PipelinesTabProps) {
+export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, onCreateModeHandled, refreshKey = 0, projectId, hideGobby, hideInstalled, enabledFilter }: PipelinesTabProps) {
   const {
     workflows,
     isLoading,
@@ -39,10 +41,8 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
     exportYaml,
     restoreWorkflow,
     installFromTemplate,
-    installAllTemplates,
   } = useWorkflows()
 
-  const [enabledFilter, setEnabledFilter] = useState<boolean | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
   const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
@@ -64,6 +64,34 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
     fetchWorkflows({ include_deleted: true })
   }, [refreshKey, fetchWorkflows])
 
+  // Handle create mode from parent dropdown
+  useEffect(() => {
+    if (createMode === 'builder') {
+      onCreateModeHandled()
+      const scaffoldDef = { name: 'new-pipeline', type: 'pipeline', description: '', steps: [{ id: 'step-1', exec: 'echo hello' }] }
+      createWorkflow({
+        name: 'new-pipeline',
+        definition_json: JSON.stringify(scaffoldDef),
+        workflow_type: 'pipeline',
+      }).then(result => {
+        if (result) setEditingWorkflow(result)
+      })
+    } else if (createMode === 'yaml') {
+      onCreateModeHandled()
+      setShowImportModal(true)
+    }
+  }, [createMode, onCreateModeHandled, createWorkflow])
+
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const w of workflows) {
+      if (w.workflow_type === 'pipeline' && w.source === 'installed' && !w.deleted_at) {
+        names.add(w.name)
+      }
+    }
+    return names
+  }, [workflows])
+
   // Filtering logic
   const filteredWorkflows = useMemo(() => {
     let result = workflows.filter(w => w.workflow_type === 'pipeline')
@@ -81,6 +109,9 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
     if (hideGobby) {
       result = result.filter(w => !(w.tags && w.tags.includes('gobby')))
     }
+    if (hideInstalled) {
+      result = result.filter(w => !installedNames.has(w.name))
+    }
     if (enabledFilter !== null) {
       result = result.filter(w => w.enabled === enabledFilter)
     }
@@ -95,7 +126,7 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
     }
 
     return result
-  }, [workflows, enabledFilter, searchText, sourceFilter, hideGobby])
+  }, [workflows, installedNames, enabledFilter, searchText, sourceFilter, hideGobby, hideInstalled])
 
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
     if (!window.confirm(`Delete "${wf.name}"?`)) return
@@ -220,67 +251,6 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
 
   return (
     <>
-      {/* Filter chips */}
-      <div className="workflows-filter-bar">
-        <div className="workflows-filter-chips">
-          <button
-            type="button"
-            className={`workflows-filter-chip ${enabledFilter === true ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setEnabledFilter(enabledFilter === true ? null : true)}
-          >
-            enabled
-          </button>
-          <button
-            type="button"
-            className={`workflows-filter-chip ${enabledFilter === false ? 'workflows-filter-chip--active' : ''}`}
-            onClick={() => setEnabledFilter(enabledFilter === false ? null : false)}
-          >
-            disabled
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {sourceFilter === 'templates' && (
-            <button
-              type="button"
-              className="workflows-toolbar-btn"
-              onClick={() => installAllTemplates('pipeline')}
-            >
-              Install All
-            </button>
-          )}
-          {showCreateDropdown && (
-            <div className="workflows-new-dropdown">
-              <button
-                type="button"
-                className="workflows-new-dropdown-item"
-                onClick={async () => {
-                  onCloseCreateDropdown()
-                  const scaffoldDef = { name: 'new-pipeline', type: 'pipeline', description: '', steps: [{ id: 'step-1', exec: 'echo hello' }] }
-                  const result = await createWorkflow({
-                    name: 'new-pipeline',
-                    definition_json: JSON.stringify(scaffoldDef),
-                    workflow_type: 'pipeline',
-                  })
-                  if (result) setEditingWorkflow(result)
-                }}
-              >
-                Builder
-              </button>
-              <button
-                type="button"
-                className="workflows-new-dropdown-item"
-                onClick={() => {
-                  onCloseCreateDropdown()
-                  setShowImportModal(true)
-                }}
-              >
-                YAML
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Card grid */}
       <div className="workflows-content">
         {isLoading ? (
@@ -346,7 +316,9 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
                         <div className="workflows-card-actions">
                           {devMode ? (
                             <>
-                              <button type="button" className="workflows-action-btn" onClick={() => installFromTemplate(wf.id)} title="Create an installed copy">Install</button>
+                              {installedNames.has(wf.name)
+                                ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                                : <button type="button" className="workflows-action-btn" onClick={() => installFromTemplate(wf.id)} title="Create an installed copy">Install</button>}
                               <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(wf)} title="Edit as YAML">YAML</button>
                               <button type="button" className="workflows-action-btn" onClick={() => setEditingWorkflow(wf)} title="Edit pipeline steps">Edit</button>
                               <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(wf)} title="Duplicate" aria-label="Duplicate workflow">
@@ -361,7 +333,9 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreateDrop
                             </>
                           ) : (
                             <>
-                              <button type="button" className="workflows-action-btn" onClick={() => installFromTemplate(wf.id)} title="Create an installed copy">Install</button>
+                              {installedNames.has(wf.name)
+                                ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                                : <button type="button" className="workflows-action-btn" onClick={() => installFromTemplate(wf.id)} title="Create an installed copy">Install</button>}
                               <button type="button" className="workflows-action-icon" onClick={() => handleExport(wf)} title="Download YAML" aria-label="Download workflow as YAML">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                               </button>

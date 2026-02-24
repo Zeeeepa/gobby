@@ -363,7 +363,7 @@ def kill_all_gobby_daemons() -> int:
             if not is_gobby_daemon:
                 try:
                     # Check if process has connections on daemon ports
-                    connections = proc.connections()
+                    connections = proc.net_connections()
                     for conn in connections:
                         if hasattr(conn, "laddr") and conn.laddr:
                             if conn.laddr.port in [http_port, ws_port]:
@@ -572,7 +572,7 @@ def _kill_port_holder(port: int) -> None:
     """
     for proc in psutil.process_iter(["pid", "name"]):
         try:
-            for conn in proc.connections():
+            for conn in proc.net_connections():
                 if (
                     hasattr(conn, "laddr")
                     and conn.laddr

@@ -276,7 +276,21 @@ class ChatMixin:
                     exc_info=e,
                 )
 
+        # Fire SESSION_START (informational, fire-and-forget)
+        asyncio.create_task(self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, {}))
+
         return session
+
+    async def _fire_session_end(self, conversation_id: str) -> None:
+        """Fire SESSION_END event for a chat session (best-effort).
+
+        Called before session cleanup in clear, delete, idle cleanup, and
+        server shutdown paths to maintain parity with CLI adapters.
+        """
+        try:
+            await self._fire_lifecycle(conversation_id, HookEventType.SESSION_END, {})
+        except Exception:
+            logger.debug("SESSION_END fire failed for %s", conversation_id[:8], exc_info=True)
 
     async def _fire_lifecycle(
         self,
@@ -300,17 +314,11 @@ class ChatMixin:
         db_session_id = getattr(session, "db_session_id", None) or conversation_id
         project_path = getattr(session, "project_path", None)
 
-        # Normalize MCP fields (CLI adapters do this; web chat has no adapter)
+        # Normalize MCP fields using shared logic (same as CLI adapters)
         if data:
-            tool_name = data.get("tool_name", "")
-            if tool_name in ("call_tool", "mcp__gobby__call_tool"):
-                tool_input = data.get("tool_input") or {}
-                if "mcp_server" not in data:
-                    data["mcp_server"] = tool_input.get("server_name")
-                if "mcp_tool" not in data:
-                    data["mcp_tool"] = tool_input.get("tool_name")
-            if "tool_response" in data and "tool_output" not in data:
-                data["tool_output"] = data["tool_response"]
+            from gobby.hooks.normalization import normalize_tool_fields
+
+            data = normalize_tool_fields(data)
 
         event = HookEvent(
             event_type=event_type,
@@ -337,12 +345,35 @@ class ChatMixin:
                 response.decision,
                 len(response.context) if response.context else 0,
             )
-            return {
+
+            # Dispatch mcp_call effects from rule engine (parity with CLI path)
+            mcp_calls = (response.metadata or {}).get("mcp_calls", [])
+            if mcp_calls:
+                mcp_manager = getattr(self, "mcp_manager", None)
+                if mcp_manager:
+                    from gobby.hooks.mcp_dispatch import dispatch_mcp_calls
+
+                    await dispatch_mcp_calls(mcp_calls, event, mcp_manager.call_tool, logger)
+
+            # Build result dict
+            result: dict[str, Any] = {
                 "decision": response.decision,
                 "context": response.context,
                 "reason": response.reason,
                 "system_message": response.system_message,
             }
+
+            # Session context enrichment (parity with CLI adapter)
+            if session and getattr(session, "seq_num", None):
+                session_ref = f"#{session.seq_num}"
+                ctx = result.get("context")
+                result["context"] = (
+                    f"Gobby Session ID: {session_ref}\n\n{ctx}"
+                    if ctx
+                    else f"Gobby Session ID: {session_ref}"
+                )
+
+            return result
         except Exception as e:
             logger.error("Lifecycle evaluation failed for %s: %s", event_type, e, exc_info=True)
             return None

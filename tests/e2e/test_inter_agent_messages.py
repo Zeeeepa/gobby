@@ -2,16 +2,16 @@
 E2E tests for inter-agent messaging via MCP tools.
 
 Tests verify:
-1. Parent-child message exchange works via gobby-agents MCP tools
-2. Messages are persisted and retrievable
-3. Message read status is tracked
+1. P2P message exchange works via gobby-agents MCP tools
+2. Messages are persisted and deliverable
+3. Message delivery status is tracked
 
 Test scenario:
 1. Start daemon
 2. Register parent and child sessions
-3. Parent sends message via send_to_child
-4. Child receives via poll_messages
-5. Child responds via send_to_parent
+3. Parent sends message via send_message
+4. Child receives via deliver_pending_messages
+5. Child responds via send_message
 6. Parent receives response
 """
 
@@ -46,13 +46,13 @@ class TestInterAgentMessagingE2E:
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
     ) -> None:
-        """Test complete parent↔child message exchange via MCP tools.
+        """Test complete parent<->child message exchange via MCP tools.
 
         This test verifies the full messaging flow:
-        1. Parent sends message via send_to_child
-        2. Child receives via poll_messages
-        3. Child responds via send_to_parent
-        4. Parent receives response via poll_messages
+        1. Parent sends message via send_message
+        2. Child receives via deliver_pending_messages
+        3. Child responds via send_message
+        4. Parent receives response via deliver_pending_messages
         """
         # Setup: Create parent and child sessions using register_session
         # (which creates entries in the sessions DB table)
@@ -96,30 +96,30 @@ class TestInterAgentMessagingE2E:
         )
         assert register_result["status"] == "success"
 
-        # Step 1: Parent sends message to child via send_to_child
+        # Step 1: Parent sends message to child via send_message
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
-            tool_name="send_to_child",
+            tool_name="send_message",
             arguments={
-                "parent_session_id": parent_session_id,
-                "child_session_id": child_session_id,
+                "from_session": parent_session_id,
+                "to_session": child_session_id,
                 "content": "Hello child, please process this task!",
             },
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is True, f"send_to_child failed: {result}"
+        assert result.get("success") is True, f"send_message failed: {result}"
         assert "message" in result, f"No message in result: {result}"
         parent_to_child_msg_id = result["message"]["id"]
         assert parent_to_child_msg_id is not None
 
-        # Step 2: Child receives message via poll_messages
+        # Step 2: Child receives message via deliver_pending_messages
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
-            tool_name="poll_messages",
-            arguments={"session_id": child_session_id, "unread_only": True},
+            tool_name="deliver_pending_messages",
+            arguments={"session_id": child_session_id},
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is True, f"poll_messages failed: {result}"
+        assert result.get("success") is True, f"deliver_pending_messages failed: {result}"
         messages = result.get("messages", [])
         assert len(messages) >= 1, "Child should have received at least 1 message"
 
@@ -135,38 +135,32 @@ class TestInterAgentMessagingE2E:
         )
         assert received_msg is not None, f"Expected message from parent not found in: {messages}"
 
-        # Step 3: Child marks message as read
+        # Step 3: Child responds to parent via send_message
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
-            tool_name="mark_message_read",
-            arguments={"message_id": received_msg["id"]},
-        )
-        result = unwrap_result(raw_result)
-        assert result.get("success") is True, f"mark_message_read failed: {result}"
-
-        # Step 4: Child responds to parent via send_to_parent
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-agents",
-            tool_name="send_to_parent",
+            tool_name="send_message",
             arguments={
-                "session_id": child_session_id,
+                "from_session": child_session_id,
+                "to_session": parent_session_id,
                 "content": "Task completed successfully, parent!",
             },
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is True, f"send_to_parent failed: {result}"
+        assert result.get("success") is True, f"send_message failed: {result}"
         assert "message" in result, f"No message in result: {result}"
         child_to_parent_msg_id = result["message"]["id"]
         assert child_to_parent_msg_id is not None
 
-        # Step 5: Parent receives response via poll_messages
+        # Step 4: Parent receives response via deliver_pending_messages
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
-            tool_name="poll_messages",
-            arguments={"session_id": parent_session_id, "unread_only": True},
+            tool_name="deliver_pending_messages",
+            arguments={"session_id": parent_session_id},
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is True, f"poll_messages (parent) failed: {result}"
+        assert result.get("success") is True, (
+            f"deliver_pending_messages (parent) failed: {result}"
+        )
         parent_messages = result.get("messages", [])
         assert len(parent_messages) >= 1, "Parent should have received at least 1 message"
 
@@ -187,13 +181,13 @@ class TestInterAgentMessagingE2E:
         # Cleanup: Unregister the test agent
         cli_events.unregister_test_agent(run_id)
 
-    def test_poll_messages_empty(
+    def test_deliver_pending_messages_empty(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
     ) -> None:
-        """Test polling messages returns empty list when no messages."""
+        """Test delivering messages returns empty list when no messages."""
         # First, register the project in the database (required for FK constraint)
         project_result = cli_events.register_test_project(
             project_id="e2e-test-project",
@@ -212,10 +206,10 @@ class TestInterAgentMessagingE2E:
         )
         session_id = session_result["id"]
 
-        # Poll messages should return empty
+        # Deliver pending messages should return empty
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
-            tool_name="poll_messages",
+            tool_name="deliver_pending_messages",
             arguments={"session_id": session_id},
         )
         result = unwrap_result(raw_result)
@@ -224,53 +218,20 @@ class TestInterAgentMessagingE2E:
         assert result.get("messages", []) == []
         assert result.get("count", 0) == 0
 
-    def test_poll_messages_with_unread_filter(
+    def test_deliver_marks_messages_as_delivered(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
     ) -> None:
-        """Test polling all messages (not just unread)."""
-        # First, register the project in the database (required for FK constraint)
-        project_result = cli_events.register_test_project(
-            project_id="e2e-test-project",
-            name="E2E Test Project",
-            repo_path=str(daemon_instance.project_dir),
-        )
-        assert project_result["status"] in ["success", "already_exists"]
+        """Test that deliver_pending_messages marks messages as delivered.
 
-        # Register a session via register_session to get internal ID
-        external_id = f"test-session-{uuid.uuid4().hex[:8]}"
-        session_result = cli_events.register_session(
-            external_id=external_id,
-            machine_id="test-machine",
-            source="Claude Code",
-            cwd=str(daemon_instance.project_dir),
-        )
-        session_id = session_result["id"]
-
-        # Poll all messages
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-agents",
-            tool_name="poll_messages",
-            arguments={"session_id": session_id, "unread_only": False},
-        )
-        result = unwrap_result(raw_result)
-
-        assert result.get("success") is True
-        assert isinstance(result.get("messages"), list)
-
-    def test_send_to_child_without_parent_relationship(
-        self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-        cli_events: CLIEventSimulator,
-    ) -> None:
-        """Test send_to_child fails when child has no parent relationship in DB."""
+        After delivering, a second call should return no new messages.
+        """
         parent_external_id = f"parent-{uuid.uuid4().hex[:8]}"
         child_external_id = f"child-{uuid.uuid4().hex[:8]}"
+        run_id = f"run-{uuid.uuid4().hex[:8]}"
 
-        # First, register the project in the database (required for FK constraint)
         project_result = cli_events.register_test_project(
             project_id="e2e-test-project",
             name="E2E Test Project",
@@ -278,8 +239,6 @@ class TestInterAgentMessagingE2E:
         )
         assert project_result["status"] in ["success", "already_exists"]
 
-        # Register sessions via register_session to get internal IDs
-        # (no parent-child relationship - child has no parent_session_id)
         parent_result = cli_events.register_session(
             external_id=parent_external_id,
             machine_id="test-machine",
@@ -292,37 +251,58 @@ class TestInterAgentMessagingE2E:
             external_id=child_external_id,
             machine_id="test-machine",
             source="Claude Code",
+            parent_session_id=parent_session_id,
             cwd=str(daemon_instance.project_dir),
-            # Note: no parent_session_id - child is not linked to parent
         )
         child_session_id = child_result["id"]
 
-        # Try to send message - should fail because child doesn't have this parent
-        raw_result = mcp_client.call_tool(
+        register_result = cli_events.register_test_agent(
+            run_id=run_id,
+            session_id=child_session_id,
+            parent_session_id=parent_session_id,
+            mode="terminal",
+        )
+        assert register_result["status"] == "success"
+
+        # Send a message from parent to child
+        mcp_client.call_tool(
             server_name="gobby-agents",
-            tool_name="send_to_child",
+            tool_name="send_message",
             arguments={
-                "parent_session_id": parent_session_id,
-                "child_session_id": child_session_id,
-                "content": "Hello child!",
+                "from_session": parent_session_id,
+                "to_session": child_session_id,
+                "content": "Test delivery tracking",
             },
         )
+
+        # First deliver - should return the message
+        raw_result = mcp_client.call_tool(
+            server_name="gobby-agents",
+            tool_name="deliver_pending_messages",
+            arguments={"session_id": child_session_id},
+        )
         result = unwrap_result(raw_result)
+        assert len(result.get("messages", [])) >= 1, "First deliver should return messages"
 
-        assert result.get("success") is False
-        # Should mention that the session is not a child of the parent
-        assert "not a child of" in result.get("error", "").lower()
+        # Second deliver - should return empty (already delivered)
+        raw_result = mcp_client.call_tool(
+            server_name="gobby-agents",
+            tool_name="deliver_pending_messages",
+            arguments={"session_id": child_session_id},
+        )
+        result = unwrap_result(raw_result)
+        assert len(result.get("messages", [])) == 0, "Second deliver should return no messages"
 
-    def test_send_to_parent_without_parent_relationship(
+        # Cleanup
+        cli_events.unregister_test_agent(run_id)
+
+    def test_send_message_to_nonexistent_session(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
     ) -> None:
-        """Test send_to_parent fails gracefully when session has no parent in DB."""
-        external_id = f"test-session-{uuid.uuid4().hex[:8]}"
-
-        # First, register the project in the database (required for FK constraint)
+        """Test send_message fails when target session doesn't exist."""
         project_result = cli_events.register_test_project(
             project_id="e2e-test-project",
             name="E2E Test Project",
@@ -330,84 +310,28 @@ class TestInterAgentMessagingE2E:
         )
         assert project_result["status"] in ["success", "already_exists"]
 
-        # Register session via register_session to get internal ID
-        # (no parent_session_id set)
-        result = cli_events.register_session(
+        external_id = f"test-session-{uuid.uuid4().hex[:8]}"
+        session_result = cli_events.register_session(
             external_id=external_id,
             machine_id="test-machine",
             source="Claude Code",
             cwd=str(daemon_instance.project_dir),
         )
-        session_id = result["id"]
+        session_id = session_result["id"]
 
-        # Try to send message to parent - should fail because session has no parent_session_id
+        # Try to send message to a non-existent session
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
-            tool_name="send_to_parent",
+            tool_name="send_message",
             arguments={
-                "session_id": session_id,
-                "content": "Hello parent!",
+                "from_session": session_id,
+                "to_session": "nonexistent-session-id",
+                "content": "Hello!",
             },
         )
         result = unwrap_result(raw_result)
 
         assert result.get("success") is False
-        assert "no parent" in result.get("error", "").lower()
-
-    def test_mark_message_read_nonexistent(
-        self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-    ) -> None:
-        """Test marking nonexistent message as read fails gracefully."""
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-agents",
-            tool_name="mark_message_read",
-            arguments={"message_id": "nonexistent-msg-id"},
-        )
-        result = unwrap_result(raw_result)
-
-        assert result.get("success") is False
-        assert "not found" in result.get("error", "").lower()
-
-    def test_broadcast_to_children_no_children(
-        self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-        cli_events: CLIEventSimulator,
-    ) -> None:
-        """Test broadcasting to children when none exist returns success with zero sent."""
-        # First, register the project in the database (required for FK constraint)
-        project_result = cli_events.register_test_project(
-            project_id="e2e-test-project",
-            name="E2E Test Project",
-            repo_path=str(daemon_instance.project_dir),
-        )
-        assert project_result["status"] in ["success", "already_exists"]
-
-        # Register parent session via register_session to get internal ID
-        parent_external_id = f"parent-{uuid.uuid4().hex[:8]}"
-        parent_result = cli_events.register_session(
-            external_id=parent_external_id,
-            machine_id="test-machine",
-            source="Claude Code",
-            cwd=str(daemon_instance.project_dir),
-        )
-        parent_session_id = parent_result["id"]
-
-        # Broadcast - should succeed with 0 sent
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-agents",
-            tool_name="broadcast_to_children",
-            arguments={
-                "parent_session_id": parent_session_id,
-                "content": "Hello all children!",
-            },
-        )
-        result = unwrap_result(raw_result)
-
-        assert result.get("success") is True
-        assert result.get("sent_count", -1) == 0
 
 
 class TestMessagingToolsAvailability:
@@ -423,40 +347,40 @@ class TestMessagingToolsAvailability:
         tool_names = [t["name"] for t in tools]
 
         expected_tools = [
-            "send_to_parent",
-            "send_to_child",
-            "poll_messages",
-            "mark_message_read",
-            "broadcast_to_children",
+            "send_message",
+            "send_command",
+            "complete_command",
+            "deliver_pending_messages",
+            "activate_command",
         ]
 
         for tool in expected_tools:
             assert tool in tool_names, f"Missing tool: {tool}"
 
-    def test_send_to_parent_schema(
+    def test_send_message_schema(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
     ) -> None:
-        """Verify send_to_parent tool schema can be retrieved."""
+        """Verify send_message tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-agents",
-            tool_name="send_to_parent",
+            tool_name="send_message",
         )
 
         # Schema endpoint returns response - just verify we get some response
         assert raw_schema is not None
         assert isinstance(raw_schema, dict)
 
-    def test_poll_messages_schema(
+    def test_deliver_pending_messages_schema(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
     ) -> None:
-        """Verify poll_messages tool schema can be retrieved."""
+        """Verify deliver_pending_messages tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-agents",
-            tool_name="poll_messages",
+            tool_name="deliver_pending_messages",
         )
 
         # Schema endpoint returns response - just verify we get some response

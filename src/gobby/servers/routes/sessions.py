@@ -813,8 +813,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             body: dict[str, Any] = {}
             try:
                 body = await request.json()
-            except Exception:
-                pass  # nosec B110 - empty body is fine
+            except Exception as e:
+                logger.debug("Empty body in stop_session request (expected): %s", e)
 
             reason = body.get("reason", "External stop request")
             source = body.get("source", "http_api")

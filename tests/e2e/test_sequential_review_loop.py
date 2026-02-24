@@ -370,72 +370,6 @@ class TestSequentialReviewLoopE2E:
             f"Subtask 2 should be unblocked after Subtask 1 review. Blocked: {blocked_task_ids}"
         )
 
-    def test_orchestration_status_tracking(
-        self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-        cli_events: CLIEventSimulator,
-    ) -> None:
-        """Test that orchestration status is tracked correctly."""
-        # Setup - use "e2e-test-project" to match fixture's project.json
-        project_result = cli_events.register_test_project(
-            project_id="e2e-test-project",
-            name="E2E Test Project",
-            repo_path=str(daemon_instance.project_dir),
-        )
-        assert project_result["status"] in ["success", "already_exists"]
-
-        session_external_id = f"orch-status-{uuid.uuid4().hex[:8]}"
-        session_result = cli_events.register_session(
-            external_id=session_external_id,
-            machine_id="test-machine",
-            source="Claude Code",
-            cwd=str(daemon_instance.project_dir),
-        )
-        session_id = session_result["id"]
-
-        # Create epic with subtasks
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="create_task",
-            arguments={
-                "title": "Orchestration Status Epic",
-                "task_type": "epic",
-                "session_id": session_id,
-            },
-        )
-        epic_result = unwrap_result(raw_result)
-        epic_id = epic_result["id"]
-
-        # Create subtasks
-        for i in range(2):
-            mcp_client.call_tool(
-                server_name="gobby-tasks",
-                tool_name="create_task",
-                arguments={
-                    "title": f"Status Test Subtask {i + 1}",
-                    "task_type": "task",
-                    "parent_task_id": epic_id,
-                    "session_id": session_id,
-                },
-            )
-
-        # Check orchestration status (on gobby-orchestration server)
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-orchestration",
-            tool_name="get_orchestration_status",
-            arguments={
-                "parent_task_id": epic_id,
-                "project_path": str(daemon_instance.project_dir),
-            },
-        )
-        result = unwrap_result(raw_result)
-
-        # Verify status structure
-        assert result.get("success") is True, f"get_orchestration_status failed: {result}"
-        assert "summary" in result, f"Missing summary in result: {result}"
-        assert "open_tasks" in result, f"Missing open_tasks in result: {result}"
-
     def test_suggest_next_task_follows_sequence(
         self,
         daemon_instance: DaemonInstance,
@@ -690,20 +624,13 @@ class TestWorkflowToolsAvailability:
         for tool in expected_tools:
             assert tool in tool_names, f"Missing tool: {tool}"
 
-    def test_orchestration_tools_are_registered(
+    def test_task_tools_are_registered(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
     ) -> None:
-        """Verify orchestration tools are available on correct servers."""
-        # suggest_next_task is on gobby-tasks
+        """Verify task tools needed for orchestration are available."""
         task_tools = mcp_client.list_tools(server_name="gobby-tasks")
         task_tool_names = [t["name"] for t in task_tools]
-        assert "suggest_next_task" in task_tool_names, "Missing tool: suggest_next_task"
-
-        # orchestrate_ready_tasks, get_orchestration_status, poll_agent_status
-        # are on gobby-orchestration
-        orch_tools = mcp_client.list_tools(server_name="gobby-orchestration")
-        orch_tool_names = [t["name"] for t in orch_tools]
-        for tool in ["orchestrate_ready_tasks", "get_orchestration_status", "poll_agent_status"]:
-            assert tool in orch_tool_names, f"Missing tool: {tool}"
+        for tool in ["suggest_next_task", "list_ready_tasks"]:
+            assert tool in task_tool_names, f"Missing tool: {tool}"

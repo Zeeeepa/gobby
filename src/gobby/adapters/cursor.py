@@ -175,12 +175,9 @@ class CursorAdapter(BaseAdapter):
     ) -> dict[str, Any]:
         """Normalize Cursor event data for CLI-agnostic processing.
 
-        This method enriches the input_data with normalized fields so downstream
-        code doesn't need to handle Cursor-specific formats.
-
-        Normalizations performed:
-        1. tool_input.server_name/tool_name → mcp_server/mcp_tool (for MCP calls)
-        2. Infer tool_name from hook_type for specific hooks
+        Handles Cursor-specific quirks (hook-type tool inference, MCP hook
+        JSON-string inputs, ``result_json``), then delegates to the shared
+        ``normalize_tool_fields`` for field aliases and MCP enrichment.
 
         Args:
             input_data: Raw input data from Cursor
@@ -189,48 +186,40 @@ class CursorAdapter(BaseAdapter):
         Returns:
             Enriched data dict with normalized fields added
         """
-        # Start with a copy to avoid mutating original
+        import json as _json
+
+        from gobby.hooks.normalization import normalize_tool_fields
+
         data = dict(input_data)
 
-        # Get tool info
+        # Cursor-specific: infer tool_name from hook type for granular hooks
         tool_name = data.get("tool_name", "")
-        tool_input = data.get("tool_input", {}) or {}
-
-        # Infer tool_name from hook type for specific hooks
         if not tool_name and hook_type in self.HOOK_TO_TOOL_TYPE:
             data["tool_name"] = self.HOOK_TO_TOOL_TYPE[hook_type]
 
-        # Parse mcp__<server>__<tool> prefix for ALL native MCP calls
-        if tool_name.startswith("mcp__") and "mcp_tool" not in data:
-            parts = tool_name.split("__", 2)  # ["mcp", "server", "tool"]
-            if len(parts) == 3:
-                data.setdefault("mcp_server", parts[1])
-                data.setdefault("mcp_tool", parts[2])
+        # Cursor-specific: MCP hook extraction
+        if hook_type in ("beforeMCPExecution", "afterMCPExecution"):
+            # Fix: parse tool_input if it's a JSON string (Cursor sends strings for MCP hooks)
+            tool_input = data.get("tool_input")
+            if isinstance(tool_input, str):
+                try:
+                    data["tool_input"] = _json.loads(tool_input)
+                except (ValueError, TypeError):
+                    pass
+            # Extract MCP server/tool from tool_input for MCP hooks
+            ti = data.get("tool_input")
+            if isinstance(ti, dict):
+                if ti.get("server_name") and "mcp_server" not in data:
+                    data["mcp_server"] = ti["server_name"]
+                if ti.get("tool_name") and "mcp_tool" not in data:
+                    data["mcp_tool"] = ti["tool_name"]
+            # Extract result_json → tool_output for afterMCPExecution
+            if hook_type == "afterMCPExecution":
+                if "result_json" in data and "tool_output" not in data:
+                    data["tool_output"] = data["result_json"]
 
-        # Extract MCP info from nested tool_input for MCP calls
-        # For mcp__gobby__call_tool: override prefix-parsed "gobby" with actual target
-        # For plain call_tool / MCP hooks: only set if not already present
-        is_call_tool = tool_name in ("call_tool", "mcp__gobby__call_tool")
-        is_mcp_hook = hook_type in ("beforeMCPExecution", "afterMCPExecution")
-        if is_call_tool or is_mcp_hook:
-            inner_server = tool_input.get("server_name")
-            inner_tool = tool_input.get("tool_name")
-            if tool_name.startswith("mcp__"):
-                # Override prefix-parsed values with actual inner target
-                if inner_server:
-                    data["mcp_server"] = inner_server
-                if inner_tool:
-                    data["mcp_tool"] = inner_tool
-            else:
-                # Plain call_tool / MCP hooks — don't overwrite externally-set values
-                if inner_server and "mcp_server" not in data:
-                    data["mcp_server"] = inner_server
-                if inner_tool and "mcp_tool" not in data:
-                    data["mcp_tool"] = inner_tool
-
-        # Normalize tool_result → tool_output
-        if "tool_result" in data and "tool_output" not in data:
-            data["tool_output"] = data["tool_result"]
+        # Shared field alias + MCP normalization
+        normalize_tool_fields(data)
 
         return data
 

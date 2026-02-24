@@ -117,24 +117,16 @@ class TestParallelOrchestratorWorkflow:
         for tool in expected_tools:
             assert tool in tool_names, f"Missing workflow tool: {tool}"
 
-    def test_orchestration_tools_available(
+    def test_task_readiness_tools_available(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
     ) -> None:
-        """Verify orchestration tools needed for parallel processing are available."""
-        # list_ready_tasks and suggest_next_task are on gobby-tasks
+        """Verify task readiness tools needed for parallel processing are available."""
         task_tools = mcp_client.list_tools(server_name="gobby-tasks")
         task_tool_names = [t["name"] for t in task_tools]
         for tool in ["list_ready_tasks", "suggest_next_task"]:
-            assert tool in task_tool_names, f"Missing orchestration tool: {tool}"
-
-        # orchestrate_ready_tasks, get_orchestration_status, poll_agent_status
-        # are on gobby-orchestration
-        orch_tools = mcp_client.list_tools(server_name="gobby-orchestration")
-        orch_tool_names = [t["name"] for t in orch_tools]
-        for tool in ["orchestrate_ready_tasks", "get_orchestration_status", "poll_agent_status"]:
-            assert tool in orch_tool_names, f"Missing orchestration tool: {tool}"
+            assert tool in task_tool_names, f"Missing task tool: {tool}"
 
 
 class TestEpicWithIndependentSubtasks:
@@ -216,71 +208,6 @@ class TestEpicWithIndependentSubtasks:
         ready_ids = [t["id"] for t in ready_tasks]
         for subtask_id in subtask_ids:
             assert subtask_id in ready_ids, f"Subtask {subtask_id} should be ready"
-
-    def test_orchestration_status_for_parallel_epic(
-        self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-        cli_events: CLIEventSimulator,
-    ) -> None:
-        """Test orchestration status tracking for parallel epic."""
-        # Setup
-        project_result = cli_events.register_test_project(
-            project_id="e2e-test-project",
-            name="E2E Test Project",
-            repo_path=str(daemon_instance.project_dir),
-        )
-        assert project_result["status"] in ["success", "already_exists"]
-
-        session_external_id = f"orch-parallel-{uuid.uuid4().hex[:8]}"
-        session_result = cli_events.register_session(
-            external_id=session_external_id,
-            machine_id="test-machine",
-            source="Claude Code",
-            cwd=str(daemon_instance.project_dir),
-        )
-        session_id = session_result["id"]
-
-        # Create epic with 3 subtasks
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="create_task",
-            arguments={
-                "title": "Status Tracking Epic",
-                "task_type": "epic",
-                "session_id": session_id,
-            },
-        )
-        epic_result = unwrap_result(raw_result)
-        epic_id = epic_result["id"]
-
-        for i in range(3):
-            mcp_client.call_tool(
-                server_name="gobby-tasks",
-                tool_name="create_task",
-                arguments={
-                    "title": f"Status Subtask {i + 1}",
-                    "task_type": "task",
-                    "parent_task_id": epic_id,
-                    "session_id": session_id,
-                },
-            )
-
-        # Get orchestration status (on gobby-orchestration server)
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-orchestration",
-            tool_name="get_orchestration_status",
-            arguments={
-                "parent_task_id": epic_id,
-                "project_path": str(daemon_instance.project_dir),
-            },
-        )
-        result = unwrap_result(raw_result)
-
-        assert result.get("success") is True, f"get_orchestration_status failed: {result}"
-        assert "summary" in result, f"Missing summary in result: {result}"
-        assert "open_tasks" in result, f"Missing open_tasks in result: {result}"
-
 
 class TestCloneLifecycle:
     """Tests for clone lifecycle operations."""

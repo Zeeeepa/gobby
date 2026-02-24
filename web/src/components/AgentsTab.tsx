@@ -149,16 +149,17 @@ interface AgentsTabProps {
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
+  hideInstalled?: boolean
+  filterProvider: string
+  onProvidersChange: (providers: string[]) => void
 }
 
-export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby }: AgentsTabProps) {
+export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, hideInstalled, filterProvider, onProvidersChange }: AgentsTabProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [showRecentRuns, setShowRecentRuns] = useState(false)
   const [expandedName, setExpandedName] = useState<string | null>(null)
-  const [filterSource, setFilterSource] = useState<string>('all')
-  const [filterProvider, setFilterProvider] = useState<string>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
@@ -232,6 +233,16 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       .catch(e => console.error('Failed to fetch model list:', e))
   }, [])
 
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const d of definitions) {
+      if (d.source === 'installed' && !d.deleted_at) {
+        names.add(d.definition.name)
+      }
+    }
+    return names
+  }, [definitions])
+
   const filtered = useMemo(() => definitions.filter(d => {
     // Hide gobby-tagged items
     if (hideGobby && d.tags && d.tags.includes('gobby')) return false
@@ -246,7 +257,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (!d.deleted_at) return false
     }
 
-    if (filterSource !== 'all' && d.source !== filterSource) return false
+    if (hideInstalled && installedNames.has(d.definition.name)) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
@@ -258,16 +269,16 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       ) return false
     }
     return true
-  }), [definitions, sourceFilter, filterSource, filterProvider, searchText, hideGobby])
+  }), [definitions, installedNames, sourceFilter, filterProvider, searchText, hideGobby, hideInstalled])
 
-  const sources = useMemo(
-    () => [...new Set(definitions.map(d => d.source))].sort(),
-    [definitions]
-  )
   const providers = useMemo(
     () => [...new Set(definitions.map(d => d.definition.provider))].sort(),
     [definitions]
   )
+
+  useEffect(() => {
+    onProvidersChange(providers)
+  }, [providers, onProvidersChange])
 
   const handleCreate = async () => {
     try {
@@ -501,7 +512,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       })
       if (res.ok) {
         fetchDefinitions(true)
-        showToast(`Installed "${name}"`, 'success')
       } else {
         const data = await res.json().catch(() => ({}))
         showToast(data.detail || 'Failed to install from template', 'error')
@@ -509,24 +519,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     } catch (e) {
       console.error('Failed to install agent from template:', e)
       showToast('Failed to install from template', 'error')
-    }
-  }
-
-  const handleInstallAllTemplates = async () => {
-    try {
-      const res = await fetch(`${getBaseUrl()}/api/workflows/install-all-templates?workflow_type=agent`, {
-        method: 'POST',
-      })
-      if (res.ok) {
-        const data = await res.json()
-        fetchDefinitions(true)
-        showToast(`Installed ${data.count || 0} templates`, 'success')
-      } else {
-        showToast('Failed to install all templates', 'error')
-      }
-    } catch (e) {
-      console.error('Failed to install all agent templates:', e)
-      showToast('Failed to install all templates', 'error')
     }
   }
 
@@ -586,50 +578,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
           {toastMessage.text}
         </div>
       )}
-
-      {/* Filter chips */}
-      <div className="workflows-filter-bar">
-        <div className="workflows-filter-chips">
-          {sources.map(s => (
-            <button
-              type="button"
-              key={s}
-              className={`workflows-filter-chip ${filterSource === s ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setFilterSource(filterSource === s ? 'all' : s)}
-            >
-              {SOURCE_LABELS[s] || s}
-            </button>
-          ))}
-          {providers.map(p => (
-            <button
-              type="button"
-              key={p}
-              className={`workflows-filter-chip ${filterProvider === p ? 'workflows-filter-chip--active' : ''}`}
-              onClick={() => setFilterProvider(filterProvider === p ? 'all' : p)}
-            >
-              {p}
-            </button>
-          ))}
-          {(filterSource !== 'all' || filterProvider !== 'all') && (
-            <button
-              type="button"
-              className="workflows-filter-chip rules-filter-clear"
-              onClick={() => { setFilterSource('all'); setFilterProvider('all') }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        {sourceFilter === 'templates' && (
-          <button
-            type="button"
-            className="workflows-toolbar-btn"
-            onClick={handleInstallAllTemplates}
-          >
-            Install All
-          </button>
-        )}
-      </div>
 
       {/* Create/edit form */}
       {showCreateForm && (
@@ -794,7 +742,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                         <div className="workflows-card-actions">
                           {devMode ? (
                             <>
-                              <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>
+                              {installedNames.has(d.name)
+                                ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                                : <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>}
                               <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
                               {item.db_id && (
                                 <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
@@ -810,7 +760,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                             </>
                           ) : (
                             <>
-                              <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>
+                              {installedNames.has(d.name)
+                                ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
+                                : <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>}
                               <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                               </button>
@@ -829,13 +781,13 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(item)} title="Move to global scope">To Global</button>
                           )}
                           <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
-                          {isDb && item.db_id && (
+                          {item.db_id && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
                           )}
                           <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                           </button>
-                          {isDb && item.db_id ? (
+                          {item.db_id ? (
                             <button type="button" className="workflows-action-icon workflows-action-icon--danger" onClick={() => handleDelete(item.db_id!)} title="Delete" aria-label="Delete agent">
                               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4.5M9.5 7v4.5" /><path d="M3.5 4.5 4 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l.5-8.5" /></svg>
                             </button>

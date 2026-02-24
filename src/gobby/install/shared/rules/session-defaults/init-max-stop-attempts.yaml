@@ -2,7 +2,7 @@ tags: [session-defaults, initialization]
 
 rules:
   init-max-stop-attempts:
-    description: "Default max_stop_attempts to 3"
+    description: "Default max_stop_attempts to 8"
     event: session_start
     enabled: false
     priority: 1
@@ -10,4 +10,4 @@ rules:
     effect:
       type: set_variable
       variable: max_stop_attempts
-      value: 3
+      value: 8

@@ -313,8 +313,8 @@ class LocalDatabase:
             for conn in self._all_connections:
                 try:
                     conn.close()
-                except Exception:
-                    pass  # nosec B110 - connection may already be closed
+                except Exception as e:
+                    logger.debug("Connection close failed: %s", e)
             self._all_connections.clear()
 
         # Clear thread-local reference
@@ -330,7 +330,7 @@ class LocalDatabase:
         try:
             self.close()
         except Exception:
-            pass  # nosec B110 - ignore errors during shutdown
+            return  # Not using logger.debug here as globals may be unloaded during shutdown
 
     def __del__(self) -> None:
         """Clean up connections when object is garbage collected.
@@ -342,7 +342,7 @@ class LocalDatabase:
             # Unregister atexit handler since we're being collected
             atexit.unregister(self._cleanup_at_exit)
         except Exception:
-            pass  # nosec B110 - ignore errors during gc
+            return  # Not using logger.debug here as globals may be unloaded during GC
 
     def __enter__(self) -> LocalDatabase:
         """Enter context manager."""

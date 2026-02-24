@@ -3,7 +3,7 @@ tags: [memory-lifecycle, enforcement]
 rules:
   clear-memory-review-on-create:
     description: "Clear pending_memory_review flag when create_memory is called"
-    event: after_tool
+    event: before_tool
     enabled: false
     priority: 85
     when: "event.data.get('mcp_tool') == 'create_memory' and event.data.get('mcp_server') == 'gobby-memory'"

@@ -172,10 +172,19 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     )
                 state.variables["task_claimed"] = True
                 state.variables["claimed_task_id"] = task.id  # Always use UUID
-                state.variables["task_ref"] = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+                state.variables["task_ref"] = f"#{task.seq_num}" if task.seq_num else task.id
                 ctx.workflow_state_manager.save_state(state)
-            except Exception:
-                pass  # nosec B110 - best-effort state update
+                # Mirror to session_variables (authoritative store for rule evaluation)
+                ctx.session_var_manager.merge_variables(
+                    resolved_session_id,
+                    {
+                        "task_claimed": True,
+                        "claimed_task_id": task.id,
+                        "task_ref": f"#{task.seq_num}" if task.seq_num else task.id,
+                    },
+                )
+            except Exception as e:
+                logger.debug("Best-effort workflow state update failed: %s", e)
 
         # Handle 'blocks' argument if provided (syntactic sugar)
         # Collect errors consistently with depends_on handling below

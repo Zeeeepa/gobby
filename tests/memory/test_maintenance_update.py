@@ -20,6 +20,7 @@ def _make_memory(memory_type="fact"):
     """Create a mock memory."""
     m = MagicMock()
     m.memory_type = memory_type
+    m.created_at = "2025-01-01T00:00:00+00:00"
     return m
 
 

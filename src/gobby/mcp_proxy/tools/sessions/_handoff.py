@@ -254,8 +254,10 @@ Args:
                     cwd=path.parent,
                 )
                 handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
-            except Exception:
-                pass  # nosec B110 - git status is optional, ignore failures
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).debug("Git status is optional, failed: %s", e)
 
         # Get recent git commits
         try:
@@ -274,8 +276,10 @@ Args:
                         commits.append({"hash": hash_val, "message": message})
                 if commits:
                     handoff_ctx.git_commits = commits
-        except Exception:
-            pass  # nosec B110 - git log is optional, ignore failures
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).debug("Git log is optional, failed: %s", e)
 
         # Determine what to generate (neither flag = both)
         generate_compact = compact or not full

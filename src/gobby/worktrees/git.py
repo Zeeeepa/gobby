@@ -691,8 +691,8 @@ class WorktreeGitManager:
                     branch = ref[len("refs/remotes/origin/") :]
                     logger.debug(f"Detected default branch from origin/HEAD: {branch}")
                     return branch
-        except Exception:
-            pass  # nosec B110 - method 1 failed, try next method
+        except Exception as e:
+            logger.debug("Method 1 (origin/HEAD) for default branch failed: %s", e)
 
         # Method 2: Check which common default branches exist
         for branch in ["main", "master", "develop"]:
@@ -714,8 +714,9 @@ class WorktreeGitManager:
                 if result.returncode == 0:
                     logger.debug(f"Detected default branch from remote ref: {branch}")
                     return branch
-            except Exception:
-                continue  # nosec B112 - try next branch if current one fails
+            except Exception as e:
+                logger.debug("Method 2 branch check failed for %s: %s", branch, e)
+                continue
 
         # Method 3: Fall back to "main"
         logger.debug("Could not detect default branch, falling back to 'main'")
