@@ -225,6 +225,7 @@
 [data-theme="light"] .projects-overview-card--tasks .projects-overview-count { color: #b45309; }
 [data-theme="light"] .skills-overview-card--enabled .skills-overview-count { color: #059669; }
 [data-theme="light"] .skills-overview-card--bundled .skills-overview-count { color: #b45309; }
+[data-theme="light"] .skills-overview-card--templates .skills-overview-count { color: #7c3aed; }
 
 /* Stop button */
 [data-theme="light"] .stop-button {
