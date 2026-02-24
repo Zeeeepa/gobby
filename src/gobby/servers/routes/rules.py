@@ -21,6 +21,7 @@ from gobby.mcp_proxy.tools.workflows._rules import (
     toggle_rule,
 )
 from gobby.storage.config_store import ConfigStore
+from gobby.workflows.definitions import RuleDefinitionBody
 from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
@@ -47,6 +48,9 @@ class RuleCreateRequest(BaseModel):
 class RuleUpdateRequest(BaseModel):
     """Request body for updating a rule."""
 
+    definition: dict[str, Any] | None = Field(
+        default=None, description="Full rule definition (replaces body + metadata)"
+    )
     description: str | None = Field(default=None, description="New description")
     enabled: bool | None = Field(default=None, description="New enabled state")
     priority: int | None = Field(default=None, description="New priority")
@@ -226,6 +230,26 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Rule '{name}' not found")
 
         fields = request.model_dump(exclude_unset=True)
+
+        # Handle full definition replacement from YAML editor
+        definition = fields.pop("definition", None)
+        if definition is not None:
+            # Validate the rule body
+            try:
+                RuleDefinitionBody.model_validate(definition)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid rule definition: {e}") from e
+
+            # Extract row-level metadata from definition into fields (don't override explicit values)
+            for key in ("description", "enabled", "priority", "tags"):
+                if key not in fields and key in definition:
+                    fields[key] = definition.pop(key)
+
+            # Strip non-body keys (e.g. name) from definition before serializing
+            definition.pop("name", None)
+
+            fields["definition_json"] = json.dumps(definition)
+
         if not fields:
             raise HTTPException(status_code=400, detail="No fields to update")
 

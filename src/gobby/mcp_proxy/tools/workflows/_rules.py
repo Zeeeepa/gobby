@@ -182,6 +182,11 @@ def create_rule(
     if existing is not None:
         return {"success": False, "error": f"Rule '{name}' already exists"}
 
+    # Hard-delete any soft-deleted row that would block the UNIQUE constraint
+    deleted_row = def_manager.get_by_name(name, include_deleted=True)
+    if deleted_row is not None and deleted_row.deleted_at:
+        def_manager.hard_delete(deleted_row.id)
+
     row = def_manager.create(
         name=name,
         definition_json=json.dumps(definition),

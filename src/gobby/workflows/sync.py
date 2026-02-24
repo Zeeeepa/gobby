@@ -271,6 +271,19 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
     if rules_path is None:
         rules_path = get_bundled_rules_path()
 
+    # Repair rows where workflow_type was silently changed from 'rule'
+    # (e.g. via PUT /api/workflows/{id} before workflow_type was made immutable).
+    # Identifies rules by their definition structure: having both event and effect.
+    repaired = db.execute(
+        "UPDATE workflow_definitions "
+        "SET workflow_type = 'rule', updated_at = datetime('now') "
+        "WHERE workflow_type != 'rule' "
+        "  AND json_extract(definition_json, '$.event') IS NOT NULL "
+        "  AND json_extract(definition_json, '$.effect') IS NOT NULL",
+    ).rowcount
+    if repaired:
+        logger.info("Repaired %d rows with incorrect workflow_type (should be 'rule')", repaired)
+
     result: dict[str, Any] = {
         "success": True,
         "synced": 0,
