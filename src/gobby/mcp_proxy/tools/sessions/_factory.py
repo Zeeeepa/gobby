@@ -54,7 +54,7 @@ def create_session_messages_registry(
     # --- Message Tools ---
     # Only register if message_manager is available
     if message_manager is not None:
-        register_message_tools(registry, message_manager)
+        register_message_tools(registry, message_manager, session_manager)
 
     # --- Handoff Tools ---
     # Only register if session_manager is available
