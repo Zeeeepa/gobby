@@ -313,6 +313,11 @@
   color: #2dd4bf;
 }
 
+.workflows-card-type--skill {
+  background: #1a2a3a;
+  color: #38bdf8;
+}
+
 .workflows-card-desc {
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);

@@ -90,10 +90,13 @@ class RuleEngine:
         agent_type = variables.get("_agent_type")
         rules = self._filter_by_agent_scope(rules, agent_type)
 
+        # 4. Filter by active rules (selector-based)
+        rules = self._filter_by_active_rules(rules, variables)
+
         if not rules:
             return HookResponse(decision="allow")
 
-        # 4. Evaluate rules in priority order
+        # 5. Evaluate rules in priority order
         context_parts: list[str] = []
         mcp_calls: list[dict[str, Any]] = []
         block_reason: str | None = None
@@ -166,7 +169,7 @@ class RuleEngine:
                     }
                 )
 
-        # 5. Build response
+        # 6. Build response
         if block_reason:
             return HookResponse(
                 decision="block",
@@ -237,6 +240,18 @@ class RuleEngine:
             if body.agent_scope is None
             or (agent_type is not None and agent_type in body.agent_scope)
         ]
+
+    def _filter_by_active_rules(
+        self,
+        rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]],
+        variables: dict[str, Any],
+    ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
+        """Filter rules based on resolved selectors (if any) stored in session variables."""
+        active_names = variables.get("_active_rule_names")
+        if active_names is None:
+            return rules  # no filter — current behavior preserved
+        active_set = set(active_names)
+        return [(row, body) for row, body in rules if row.name in active_set]
 
     def _build_eval_context(
         self,

@@ -21,7 +21,7 @@ The current agent-to-rule binding doesn't scale. `AgentWorkflows.rules` is a fla
 | 7 | Deep load default agent at session start + config (rules + skills) | 2, 3, 4 |
 | 8 | Skill filtering at serve time (list_skills, inject_context, system prompt) | 7 |
 | 9 | Update default.yaml template | 1 |
-| 10 | Delete SkillProfile + skill_profile field | 1 |
+| 10 | Delete SkillProfile + format resolution | 1 |
 | 11 | Create new `agents` skill (messaging, commands, dos/don'ts) | — |
 | 12 | Variable YAML templates + sync | 1 |
 | 13 | Variable loading at session start + deprecate init-* rules | 7, 12 |
@@ -29,7 +29,7 @@ The current agent-to-rule binding doesn't scale. `AgentWorkflows.rules` is a fla
 
 ---
 
-## Phase 1: Selectors + Extends + Inherit + mode:self + Skills + default_agent
+## Phase 1: Selectors + Extends + Inherit + mode:self + Skills + default_agent + Variables
 
 ### Step 1: Data Model Changes
 
@@ -47,9 +47,9 @@ Selector string format: `tag:X`, `group:X`, `name:X`, `source:X`, `category:X`, 
 Modify `AgentWorkflows`:
 - Add `rule_selectors: AgentSelector | None = None` (new selector-based activation)
 - Keep existing `rules: list[str]` (explicit names merged with selector results)
-- Add `variable_selectors: AgentSelector | None = None` (Phase 2)
+- Add `variable_selectors: AgentSelector | None = None` (variable filtering — null = all enabled session defaults loaded)
 - Add `skill_selectors: AgentSelector | None = None` (skill filtering — null = all skills available)
-- Add `skill_format: str | None = None` (override injection format for all agent skills — e.g., `"full"` for workers)
+- Add `skill_format: str | None = None` (default injection format for agent's skills — e.g., `"full"` for workers. NOTE: Explicit skill `injectionFormat` in SKILL.md takes precedence over this agent default)
 
 Modify `AgentDefinitionBody`:
 - `provider: str = "inherit"` (changed from `"claude"`)
@@ -62,14 +62,20 @@ Modify `AgentDefinitionBody`:
 
 **File**: `src/gobby/workflows/selectors.py`
 
-Three functions:
-- `parse_selector(s: str) -> tuple[str, str]` — splits `"tag:gobby"` into `("tag", "gobby")`. Bare strings (no known prefix) default to `("name", s)`.
+Four functions:
+- `parse_selector(s: str) -> tuple[str, str]` — splits `"tag:gobby"` into `("tag", "gobby")`. Uses `str.partition(":")` and checks against known prefixes (`tag`, `group`, `name`, `source`, `category`). If no known prefix, defaults to `("name", s)` (e.g., `feature:messaging` falls back to name match).
 - `resolve_rules_for_agent(agent: AgentDefinitionBody, all_rules: list[WorkflowDefinitionRow]) -> set[str]`
-  - Combines explicit `workflows.rules` names + `workflows.rule_selectors` matches
+  - Gathers explicit `workflows.rules` (merged parent + child)
+  - Gathers selector `include` matches
+  - Takes the union of explicit rules and include matches
+  - Subtracts `exclude` matches from the entire combined set
   - Returns set of rule names
 - `resolve_skills_for_agent(agent: AgentDefinitionBody, all_skills: list[Skill]) -> set[str]`
   - Uses `workflows.skill_selectors` matches
   - Returns set of skill names (or None if `skill_selectors` is null — meaning no filtering)
+- `resolve_variables_for_agent(agent: AgentDefinitionBody, all_variables: list[WorkflowDefinitionRow]) -> set[str]`
+  - Uses `workflows.variable_selectors` matches
+  - Returns set of variable definition names (or None if `variable_selectors` is null — meaning no filtering)
 
 Rule selector matching per dimension:
 - `tag:X` → `any(fnmatch(t, X) for t in row.tags)`
@@ -93,7 +99,7 @@ Include is OR (any match = included). Then exclude is subtracted (any match = ex
 
 - `resolve_agent(name: str, db: DatabaseProtocol, cli_source: str | None = None) -> AgentDefinitionBody | None`
   - Follows `extends` chain up to `MAX_EXTENDS_DEPTH = 5`
-  - Cycle detection via `seen: set[str]`
+  - Cycle detection via `seen: set[str]`. Any cycle or depth breach raises `AgentResolutionError`.
   - Merges from root ancestor → leaf (child overrides parent)
   - Resolves `"inherit"` provider from `cli_source`
 
@@ -103,6 +109,7 @@ Merge logic (`_merge_agent_bodies`):
 - `workflows.rules`: concatenate + deduplicate
 - `workflows.rule_selectors`: child wins if set, else parent's
 - `workflows.skill_selectors`: child wins if set, else parent's
+- `workflows.variable_selectors`: child wins if set, else parent's
 - `workflows.skill_format`: child wins if set, else parent's
 - `workflows.variables`: dict merge (child wins on key conflict)
 - `extends`: cleared in merged result
@@ -218,16 +225,19 @@ workflows:
     include:
       - "tag:gobby"
   # skill_selectors intentionally omitted (null) — all enabled skills available.
-  # Rules are enforcement (explicit), skills are informational (permissive by default).
+  # variable_selectors intentionally omitted (null) — all enabled session defaults apply.
+  # Rules are enforcement (explicit), skills/variables are permissive by default.
   # Derived agents narrow skills via skill_selectors when they need lean context.
   variables: {}
 ```
 
 Agent sync already handled by existing `src/gobby/agents/sync.py` — no new sync code needed.
 
-### Step 11: Delete SkillProfile
+### Step 11: Delete SkillProfile + Update Format Resolution
 
 Delete `SkillProfile` dataclass from `src/gobby/skills/injector.py` (lines 98-119). Remove `skill_profile` dict field from `src/gobby/servers/routes/agents.py`. Remove `_skill_profile` references from `src/gobby/agents/runner.py`. Clean up any imports. `skill_selectors` + `skill_format` on `AgentWorkflows` fully replace this.
+
+When updating the skill injector, invert the format resolution priority so `format_overrides` > `injectionFormat` (skill author) > `skill_format` (agent default), allowing explicit skill formats (like `full` for the agents skill) to override an agent's default `summary` format.
 
 ### Step 12: Create New `agents` Skill
 
@@ -291,7 +301,7 @@ Stored as `workflow_type='variable'` in `workflow_definitions`. No schema change
 
 **File**: `src/gobby/hooks/event_handlers/_session.py`
 
-Add `_load_variable_defaults(session_id)` — called after `_activate_default_agent()`. Loads enabled variable definitions, writes to session_variables if not already set. Uses selector system if agent has `variable_selectors`, else loads all enabled.
+Add `_load_variable_defaults(session_id)` — called after `_activate_default_agent()`. Loads enabled variable definitions. If the resolved agent has `variable_selectors`, it uses `resolve_variables_for_agent` to filter the enabled set; otherwise (null), it loads all enabled definitions. It writes the filtered set to `session_variables` if they are not already set.
 
 Disable the 14 init-* session-defaults rules (mark `enabled: false` in installed copies). The 6 conditional set_variable rules in other groups stay as rules — they have real conditions (progressive-disclosure resets, memory-lifecycle, plan-mode, context-handoff).
 
@@ -338,8 +348,8 @@ Child's `skill_selectors` overrides parent's permissive default (null = all) wit
 
 ```
 Steps 1-4 have no inter-dependencies, then sequential:
-  1. definitions.py          — model changes (AgentSelector, extends, mode:self, inherit, skill_selectors, skill_format, VariableDefinitionBody)
-  2. selectors.py            — NEW: selector parsing + rule/skill resolution
+  1. definitions.py          — model changes (AgentSelector, extends, mode:self, inherit, skill_selectors, variable_selectors, skill_format, VariableDefinitionBody)
+  2. selectors.py            — NEW: selector parsing + rule/skill/variable resolution
   3. agent_resolver.py       — NEW: extends chain resolution + merge + inherit
   4. config/app.py           — add default_agent field
   5. rule_engine.py          — add _filter_by_active_rules (depends on 1)
@@ -405,8 +415,8 @@ Steps 1-4 have no inter-dependencies, then sequential:
 
 ### Unit Tests
 ```bash
-uv run pytest tests/workflows/test_selectors.py -v          # selector parsing + matching (rules + skills)
-uv run pytest tests/workflows/test_agent_resolver.py -v      # extends chain, merge, inherit, cycles, skill merge
+uv run pytest tests/workflows/test_selectors.py -v          # selector parsing + matching (rules + skills + variables)
+uv run pytest tests/workflows/test_agent_resolver.py -v      # extends chain, merge, inherit, cycles, skill/variable merge
 uv run pytest tests/workflows/test_rule_engine.py -v -k active_rules  # _filter_by_active_rules
 ```
 

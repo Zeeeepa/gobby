@@ -26,7 +26,7 @@ from gobby.utils.project_context import get_project_context
 from gobby.workflows.definitions import AgentDefinitionBody
 
 from ._health import TMUX_HEALTH_CHECK_DELAY, _check_tmux_session_alive, _health_check_tasks
-from ._modes import _handle_self_mode
+from ._modes import _handle_self_mode, _handle_self_persona
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -143,8 +143,11 @@ async def spawn_agent_impl(
         if effective_isolation != "none":
             logger.debug(f"mode=self overrides isolation={effective_isolation} to 'none'")
             effective_isolation = "none"
-        if not effective_workflow:
-            return {"success": False, "error": "mode: self requires a workflow to activate"}
+        if not effective_workflow and not agent_body:
+            return {
+                "success": False,
+                "error": "mode: self requires a workflow to activate or an agent persona",
+            }
         if not parent_session_id:
             return {
                 "success": False,
@@ -179,17 +182,27 @@ async def spawn_agent_impl(
 
         workflow_loader = WorkflowLoader()
 
-        return await _handle_self_mode(
-            workflow=effective_workflow,
-            parent_session_id=parent_session_id,
-            step_variables=self_step_variables,
-            initial_step=initial_step,
-            workflow_loader=workflow_loader,
-            state_manager=state_manager,
-            session_manager=session_manager,
-            db=db,
-            project_path=project_path,
-        )
+        if effective_workflow:
+            return await _handle_self_mode(
+                workflow=effective_workflow,
+                parent_session_id=parent_session_id,
+                step_variables=self_step_variables,
+                initial_step=initial_step,
+                workflow_loader=workflow_loader,
+                state_manager=state_manager,
+                session_manager=session_manager,
+                db=db,
+                project_path=project_path,
+            )
+        else:
+            assert agent_body is not None
+            return await _handle_self_persona(
+                agent_body=agent_body,
+                agent_name=agent_lookup_name or agent_body.name,
+                parent_session_id=parent_session_id,
+                session_manager=session_manager,
+                db=db,
+            )
 
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_body:

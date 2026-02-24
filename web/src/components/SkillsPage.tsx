@@ -3,7 +3,7 @@ import { useSkills } from '../hooks/useSkills'
 import type { GobbySkill } from '../hooks/useSkills'
 import { SkillsOverview } from './SkillsOverview'
 import { SkillsFilters } from './SkillsFilters'
-import { SkillsTable } from './SkillsTable'
+import { SkillsGrid } from './SkillsGrid'
 import { SkillDetail } from './SkillDetail'
 import { SkillForm } from './SkillForm'
 import type { SkillFormData } from './SkillForm'
@@ -33,7 +33,7 @@ function HubIcon() {
 }
 
 type ViewMode = 'installed' | 'hub'
-type OverviewFilter = 'total' | 'enabled' | 'bundled' | 'hubs' | null
+type OverviewFilter = 'total' | 'enabled' | 'bundled' | 'hubs' | 'templates' | null
 
 export function SkillsPage() {
   const {
@@ -57,6 +57,10 @@ export function SkillsPage() {
     fetchHubs,
     searchHub,
     installFromHub,
+    installFromTemplate,
+    moveToProject,
+    moveToGlobal,
+    restoreSkill,
   } = useSkills()
 
   const [viewMode, setViewMode] = useState<ViewMode>('installed')
@@ -75,6 +79,17 @@ export function SkillsPage() {
     setTimeout(() => setErrorMessage(null), 4000)
   }, [])
 
+  // Compute installed names for template Install/Installed button
+  const installedNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const s of skills) {
+      if (s.source === 'installed' && !s.deleted_at) {
+        names.add(s.name)
+      }
+    }
+    return names
+  }, [skills])
+
   // Apply overview filter + search + source type filter to skills
   const filteredSkills = useMemo(() => {
     let result = skills
@@ -85,6 +100,8 @@ export function SkillsPage() {
       result = result.filter(s => s.source_type === 'filesystem')
     } else if (overviewFilter === 'hubs') {
       result = result.filter(s => s.hub_name !== null)
+    } else if (overviewFilter === 'templates') {
+      result = result.filter(s => s.source === 'template')
     }
 
     if (sourceTypeFilter) {
@@ -199,6 +216,43 @@ export function SkillsPage() {
     }
   }, [installFromHub, showError])
 
+  const handleInstallFromTemplate = useCallback(async (skillId: string) => {
+    try {
+      await installFromTemplate(skillId)
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Install failed')
+    }
+  }, [installFromTemplate, showError])
+
+  const handleMoveToProject = useCallback(async (skillId: string) => {
+    // TODO: get actual project ID from context; for now use a prompt
+    const pid = window.prompt('Project ID to move to:')
+    if (!pid) return
+    const result = await moveToProject(skillId, pid)
+    if (!result) showError('Failed to move skill to project')
+  }, [moveToProject, showError])
+
+  const handleMoveToGlobal = useCallback(async (skillId: string) => {
+    const result = await moveToGlobal(skillId)
+    if (!result) showError('Failed to move skill to global')
+  }, [moveToGlobal, showError])
+
+  const handleRestoreSkill = useCallback(async (skillId: string) => {
+    const result = await restoreSkill(skillId)
+    if (!result) showError('Failed to restore skill')
+  }, [restoreSkill, showError])
+
+  // Sync include_templates / include_deleted filters based on overview filter
+  const handleOverviewFilter = useCallback((f: string | null) => {
+    const newFilter = (overviewFilter === f ? null : f) as OverviewFilter
+    setOverviewFilter(newFilter)
+    setFilters(prev => ({
+      ...prev,
+      includeTemplates: newFilter === 'templates',
+      includeDeleted: false,
+    }))
+  }, [overviewFilter, setFilters])
+
   return (
     <main className="skills-page">
       {errorMessage && (
@@ -263,7 +317,7 @@ export function SkillsPage() {
           <SkillsOverview
             stats={stats}
             activeFilter={overviewFilter}
-            onFilter={(f) => setOverviewFilter(f as OverviewFilter)}
+            onFilter={handleOverviewFilter}
           />
 
           <SkillsFilters
@@ -279,12 +333,18 @@ export function SkillsPage() {
             {isLoading ? (
               <div className="skills-loading">Loading skills...</div>
             ) : (
-              <SkillsTable
+              <SkillsGrid
                 skills={filteredSkills}
+                installedNames={installedNames}
                 onSelect={setSelectedSkill}
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onExport={handleExport}
+                onInstallFromTemplate={handleInstallFromTemplate}
+                onMoveToProject={handleMoveToProject}
+                onMoveToGlobal={handleMoveToGlobal}
+                onRestore={handleRestoreSkill}
               />
             )}
           </div>

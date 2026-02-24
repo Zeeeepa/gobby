@@ -27,30 +27,28 @@ logger = logging.getLogger(__name__)
 def _load_agent_body(
     name: str,
     db: DatabaseProtocol | None,
+    project_id: str | None = None,
 ) -> AgentDefinitionBody | None:
-    """Load an agent definition from workflow_definitions.
+    """Load an agent definition from workflow_definitions, applying extends chain.
 
     Args:
         name: Agent name to look up.
         db: Database connection.
+        project_id: Optional project id for scoped agents.
 
     Returns:
-        AgentDefinitionBody if found with workflow_type='agent', None otherwise.
+        AgentDefinitionBody if found and resolved cleanly, None otherwise.
     """
     if db is None:
         return None
 
-    manager = LocalWorkflowDefinitionManager(db)
-    rows = manager.list_all(workflow_type="agent")
-    for row in rows:
-        if row.name == name:
-            try:
-                return AgentDefinitionBody.model_validate_json(row.definition_json)
-            except Exception as e:
-                logger.warning(f"Failed to parse agent definition '{name}': {e}")
-                return None
+    from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
 
-    return None
+    try:
+        return resolve_agent(name, db, project_id=project_id)
+    except AgentResolutionError as e:
+        logger.error(f"Agent resolution failed: {e}")
+        return None
 
 
 def create_spawn_agent_registry(
@@ -172,7 +170,9 @@ def create_spawn_agent_registry(
                 return {"success": False, "error": str(e)}
 
         # Load agent definition body from DB
-        agent_body = _load_agent_body(agent, db)
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+        agent_body = _load_agent_body(agent, db, project_id=project_id)
         if agent_body is None and agent != "default":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 

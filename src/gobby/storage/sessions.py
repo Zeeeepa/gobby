@@ -386,6 +386,20 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def update_step_variables(self, session_id: str, variables: dict[str, Any]) -> Session | None:
+        """Merge variables into the session's step_variables."""
+        session = self.get(session_id)
+        if not session:
+            return None
+        current = session.step_variables or {}
+        current.update(variables)
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            "UPDATE sessions SET step_variables = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(current), now, session_id),
+        )
+        return self.get(session_id)
+
     def update(
         self,
         session_id: str,

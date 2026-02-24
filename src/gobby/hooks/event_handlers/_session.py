@@ -243,6 +243,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if workflow_name and session_id:
             self._auto_activate_workflow(workflow_name, session_id, cwd)
 
+        # Step 2d: Deep load default agent (rules, skills, variables) for new session
+        if session_id:
+            try:
+                self._activate_default_agent(session_id, cli_source, project_id)
+            except Exception as e:
+                self.logger.error(f"Failed to activate default agent: {e}", exc_info=True)
+
         # Step 3: Track registered session
         if transcript_path and self._session_coordinator:
             try:
@@ -463,6 +470,86 @@ class SessionEventHandlerMixin(EventHandlersBase):
             task_id=event.task_id,
             is_pre_created=True,
         )
+
+    def _activate_default_agent(
+        self, session_id: str, cli_source: str, project_id: str | None
+    ) -> None:
+        """Deep load the default agent and merge its properties into the session."""
+        if not self._session_manager or not self._session_storage:
+            return
+
+        from gobby.config.store import ConfigStore
+
+        config = ConfigStore().get_daemon_config()
+        default_agent_name = getattr(config, "default_agent", "default")
+        if default_agent_name == "none" or not default_agent_name:
+            return
+
+        from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
+
+        try:
+            agent_body = resolve_agent(
+                default_agent_name, self._session_storage.db, project_id=project_id
+            )
+        except AgentResolutionError as e:
+            self.logger.error(f"Failed to resolve default agent '{default_agent_name}': {e}")
+            return
+
+        if not agent_body:
+            self.logger.debug(f"Default agent '{default_agent_name}' not found in DB")
+            return
+
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+        def_manager = LocalWorkflowDefinitionManager(self._session_storage.db)
+
+        all_rules = def_manager.list_all(workflow_type="rule")
+        enabled_rules = [r for r in all_rules if r.enabled]
+
+        from gobby.workflows.selectors import (
+            resolve_rules_for_agent,
+            resolve_skills_for_agent,
+            resolve_variables_for_agent,
+        )
+
+        active_rules = resolve_rules_for_agent(agent_body, enabled_rules)
+
+        changes: dict[str, Any] = {
+            "_agent_type": agent_body.name,
+            "_active_rule_names": list(active_rules),
+        }
+
+        from gobby.skills.manager import SkillManager
+
+        skill_mgr = SkillManager(self._session_storage.db)
+        all_skills = skill_mgr.list_skills()
+
+        active_skills = resolve_skills_for_agent(agent_body, all_skills)
+        if active_skills is not None:
+            changes["_active_skill_names"] = list(active_skills)
+
+        if agent_body.workflows and agent_body.workflows.skill_format:
+            changes["_skill_format"] = agent_body.workflows.skill_format
+
+        if agent_body.workflows and agent_body.workflows.variables:
+            changes.update(agent_body.workflows.variables)
+
+        import json
+
+        all_variables = def_manager.list_all(workflow_type="variable")
+        enabled_variables = [v for v in all_variables if v.enabled]
+
+        active_variables = resolve_variables_for_agent(agent_body, enabled_variables)
+        for var_row in enabled_variables:
+            if active_variables is None or var_row.name in active_variables:
+                try:
+                    var_body = json.loads(var_row.definition_json)
+                    if var_row.name not in changes:
+                        changes[var_row.name] = var_body.get("default")
+                except json.JSONDecodeError:
+                    pass
+
+        self._session_storage.update_step_variables(session_id, changes)
 
     def _get_step_workflow_state(self, session_id: str) -> WorkflowState | None:
         """Get the active step workflow state for a session.

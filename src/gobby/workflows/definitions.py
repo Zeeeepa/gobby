@@ -117,6 +117,21 @@ class RuleDefinitionBody(BaseModel):
     agent_scope: list[str] | None = None  # Only active for these agent types
 
 
+class VariableDefinitionBody(BaseModel):
+    """Stored as definition_json in workflow_definitions for workflow_type='variable'."""
+
+    variable: str  # variable name
+    value: Any  # default value
+    description: str | None = None
+
+
+class AgentSelector(BaseModel):
+    """Selector for dynamically filtering rules, variables, and skills."""
+
+    include: list[str] = Field(default_factory=lambda: ["*"])
+    exclude: list[str] = Field(default_factory=list)
+
+
 class AgentWorkflows(BaseModel):
     """Structured orchestration container for an agent definition.
 
@@ -128,6 +143,10 @@ class AgentWorkflows(BaseModel):
 
     pipeline: str | None = None
     rules: list[str] = Field(default_factory=list)
+    rule_selectors: AgentSelector | None = None
+    variable_selectors: AgentSelector | None = None
+    skill_selectors: AgentSelector | None = None
+    skill_format: str | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -141,17 +160,18 @@ class AgentDefinitionBody(BaseModel):
 
     name: str
     description: str | None = None
+    extends: str | None = None
     # Structured prompt fields (composed into preamble at spawn time)
     role: str | None = None
     goal: str | None = None
     personality: str | None = None
     instructions: str | None = None
     # Execution
-    provider: str = "claude"
+    provider: str = "inherit"
     model: str | None = None
-    mode: Literal["terminal", "embedded", "headless"] = "headless"
+    mode: Literal["terminal", "embedded", "headless", "self"] = "self"
     isolation: Literal["none", "worktree", "clone"] | None = None
-    base_branch: str = "main"
+    base_branch: str = "inherit"
     timeout: float = 120.0
     max_turns: int = 10
     # Orchestration

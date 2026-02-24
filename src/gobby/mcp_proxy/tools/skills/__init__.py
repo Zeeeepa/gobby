@@ -75,6 +75,7 @@ def create_skills_registry(
         enabled: bool | None = None,
         include_templates: bool = False,
         limit: int = 50,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         List skills with lightweight metadata.
@@ -92,14 +93,34 @@ def create_skills_registry(
             Dict with success status and list of skill metadata
         """
         try:
+            active_names = None
+            if session_id:
+                try:
+                    resolved_id = session_manager.resolve_session_reference(
+                        session_id, project_id=project_id
+                    )
+                    session = session_manager.get(resolved_id)
+                    if (
+                        session
+                        and session.step_variables
+                        and isinstance(session.step_variables, dict)
+                    ):
+                        active_names = session.step_variables.get("_active_skill_names")
+                except Exception:
+                    pass
+
             skills = storage.list_skills(
                 project_id=project_id,
                 category=category,
                 enabled=enabled,
-                limit=limit,
+                limit=limit * 5 if active_names is not None else limit,
                 include_global=True,
                 include_templates=include_templates,
             )
+
+            if active_names is not None:
+                active_set = set(active_names)
+                skills = [s for s in skills if s.name in active_set][:limit]
 
             # Extract lightweight metadata only
             skill_list = []
@@ -249,6 +270,7 @@ def create_skills_registry(
         tags_any: list[str] | None = None,
         tags_all: list[str] | None = None,
         top_k: int = 10,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Search for skills by natural language query.
@@ -270,13 +292,30 @@ def create_skills_registry(
             if not query or not query.strip():
                 return {"success": False, "error": "Query is required and cannot be empty"}
 
+            active_names = None
+            if session_id:
+                try:
+                    resolved_id = session_manager.resolve_session_reference(
+                        session_id, project_id=project_id
+                    )
+                    session = session_manager.get(resolved_id)
+                    if (
+                        session
+                        and session.step_variables
+                        and isinstance(session.step_variables, dict)
+                    ):
+                        active_names = session.step_variables.get("_active_skill_names")
+                except Exception:
+                    pass
+
             # Build filters
             filters = None
-            if category or tags_any or tags_all:
+            if category or tags_any or tags_all or active_names is not None:
                 filters = SearchFilters(
                     category=category,
                     tags_any=tags_any,
                     tags_all=tags_all,
+                    allowed_names=active_names,
                 )
 
             # Perform search

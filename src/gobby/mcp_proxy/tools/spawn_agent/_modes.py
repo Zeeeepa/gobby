@@ -105,3 +105,67 @@ async def _handle_self_mode(
         "steps": result.get("steps"),
         "message": f"Workflow '{workflow}' activated on session {parent_session_id}",
     }
+
+
+async def _handle_self_persona(
+    agent_body: Any,  # AgentDefinitionBody
+    agent_name: str,
+    parent_session_id: str,
+    session_manager: Any,
+    db: Any,
+) -> dict[str, Any]:
+    """
+    Activate persona on calling session for mode=self without a workflow.
+
+    Args:
+        agent_body: The resolved AgentDefinitionBody
+        agent_name: The name of the agent
+        parent_session_id: Session to apply the persona to
+        session_manager: LocalSessionManager instance
+        db: DatabaseProtocol instance
+
+    Returns:
+        Dict with success status and activation details
+    """
+    changes: dict[str, Any] = {
+        "_agent_type": agent_name,
+    }
+
+    # Preset variables
+    if agent_body.workflows and agent_body.workflows.variables:
+        changes.update(agent_body.workflows.variables)
+
+    if db:
+        from gobby.skills.manager import SkillManager
+        from gobby.storage.workflow_definitions import WorkflowDefinitionRow
+        from gobby.workflows.selectors import resolve_rules_for_agent, resolve_skills_for_agent
+
+        # Load all enabled rules manually
+        rows = db.fetchall(
+            "SELECT * FROM workflow_definitions WHERE workflow_type = 'rule' AND enabled = 1 AND deleted_at IS NULL"
+        )
+        all_rules = [WorkflowDefinitionRow.from_row(r) for r in rows]
+
+        active_rules = resolve_rules_for_agent(agent_body, all_rules)
+        changes["_active_rule_names"] = list(active_rules)
+
+        # Load skills to resolve selectors
+        skill_mgr = SkillManager(db)
+        all_skills = skill_mgr.list_skills()
+
+        active_skills = resolve_skills_for_agent(agent_body, all_skills)
+        if active_skills is not None:
+            changes["_active_skill_names"] = list(active_skills)
+
+        if agent_body.workflows and agent_body.workflows.skill_format:
+            changes["_skill_format"] = agent_body.workflows.skill_format
+
+    if session_manager and hasattr(session_manager, "update_step_variables"):
+        session_manager.update_step_variables(parent_session_id, changes)
+
+    return {
+        "success": True,
+        "mode": "self",
+        "persona_applied": agent_name,
+        "message": f"Agent persona '{agent_name}' applied to session {parent_session_id}",
+    }

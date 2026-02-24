@@ -96,6 +96,7 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         enabled: bool | None = Query(None, description="Filter by enabled state"),
         category: str | None = Query(None, description="Filter by category"),
         include_templates: bool = Query(False, description="Include template skills"),
+        include_deleted: bool = Query(False, description="Include soft-deleted skills"),
         limit: int = Query(50, description="Maximum results"),
         offset: int = Query(0, description="Pagination offset"),
     ) -> dict[str, Any]:
@@ -109,6 +110,7 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
                 limit=limit,
                 offset=offset,
                 include_templates=include_templates,
+                include_deleted=include_deleted,
             )
             return {"skills": [s.to_dict() for s in skills]}
         except Exception as e:

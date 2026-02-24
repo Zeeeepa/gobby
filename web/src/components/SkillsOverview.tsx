@@ -12,6 +12,7 @@ export function SkillsOverview({ stats, activeFilter, onFilter }: SkillsOverview
     { key: 'enabled', label: 'Enabled', count: stats?.enabled ?? 0, className: 'skills-overview-card--enabled' },
     { key: 'bundled', label: 'Bundled', count: stats?.bundled ?? 0, className: 'skills-overview-card--bundled' },
     { key: 'hubs', label: 'From Hubs', count: stats?.from_hubs ?? 0, className: 'skills-overview-card--hubs' },
+    { key: 'templates', label: 'Templates', count: stats?.templates ?? 0, className: 'skills-overview-card--templates' },
   ]
 
   return (

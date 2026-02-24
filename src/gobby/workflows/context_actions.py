@@ -230,6 +230,14 @@ def inject_context(
 
         skills = skill_manager.discover_core_skills()
 
+        if session_variable_manager:
+            active_names = session_variable_manager.get_variables(session_id).get(
+                "_active_skill_names"
+            )
+            if active_names is not None:
+                active_set = set(active_names)
+                skills = [s for s in skills if getattr(s, "name", "") in active_set]
+
         # Apply filter if specified
         if filter == "always_apply":
             skills = [s for s in skills if s.is_always_apply()]

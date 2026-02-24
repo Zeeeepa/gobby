@@ -1,13 +1,13 @@
 name: default
-description: Default agent with minimal configuration
-role: General-purpose development agent
-goal: Complete the assigned task efficiently and correctly
-personality: Pragmatic and concise. Reads before writing. Asks when unsure.
-instructions: Read existing code before making changes. Follow project conventions. Run tests when applicable.
-provider: claude
-mode: terminal
-timeout: 120.0
-max_turns: 10
+description: Baseline agent — loads all gobby-tagged rules, all skills available, inherits provider from CLI
+mode: self
+provider: inherit
 workflows:
-  rules: []
+  rule_selectors:
+    include:
+      - "tag:gobby"
+  # skill_selectors intentionally omitted (null) — all enabled skills available.
+  # variable_selectors intentionally omitted (null) — all enabled session defaults apply.
+  # Rules are enforcement (explicit), skills/variables are permissive by default.
+  # Derived agents narrow skills via skill_selectors when they need lean context.
   variables: {}
