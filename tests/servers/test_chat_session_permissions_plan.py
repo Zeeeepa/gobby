@@ -7,7 +7,6 @@ ExitPlanMode should deny (request_changes), not approve.
 import asyncio
 
 import pytest
-
 from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
 
 from gobby.servers.chat_session import ChatSession
@@ -160,3 +159,37 @@ class TestExitPlanModeDecision:
         assert isinstance(result, PermissionResultDeny)
         # chat_mode should remain "bypass" — not reset to "plan"
         assert session.chat_mode == "bypass"
+
+
+class TestSetChatModePersistCallback:
+    """set_chat_mode should fire _on_mode_persist callback."""
+
+    def test_callback_fires_on_mode_change(self) -> None:
+        """set_chat_mode should invoke _on_mode_persist with the new mode."""
+        session = ChatSession(conversation_id="test-persist-cb")
+        persisted: list[str] = []
+        session._on_mode_persist = lambda mode: persisted.append(mode)
+
+        session.set_chat_mode("bypass")
+        session.set_chat_mode("plan")
+        session.set_chat_mode("accept_edits")
+
+        assert persisted == ["bypass", "plan", "accept_edits"]
+
+    def test_callback_exception_is_swallowed(self) -> None:
+        """Exceptions in _on_mode_persist should not propagate."""
+        session = ChatSession(conversation_id="test-persist-err")
+
+        def _explode(mode: str) -> None:
+            raise RuntimeError("DB down")
+
+        session._on_mode_persist = _explode
+        # Should not raise
+        session.set_chat_mode("bypass")
+        assert session.chat_mode == "bypass"
+
+    def test_no_callback_is_fine(self) -> None:
+        """set_chat_mode should work without a persist callback."""
+        session = ChatSession(conversation_id="test-persist-none")
+        session.set_chat_mode("normal")
+        assert session.chat_mode == "normal"

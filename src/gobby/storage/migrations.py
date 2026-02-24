@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 125
+BASELINE_VERSION = 126
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -236,6 +236,7 @@ CREATE TABLE sessions (
     model TEXT,
     had_edits BOOLEAN DEFAULT 0,
     digest_markdown TEXT,
+    chat_mode TEXT DEFAULT 'plan',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1363,6 +1364,11 @@ DROP INDEX IF EXISTS idx_skills_name_global;
 CREATE UNIQUE INDEX idx_skills_name_project_source
     ON skills(name, COALESCE(project_id, '__global__'), source);
 CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
+    ),
+    (
+        126,
+        "Add chat_mode column to sessions",
+        "ALTER TABLE sessions ADD COLUMN chat_mode TEXT DEFAULT 'plan'",
     ),
 ]
 

@@ -129,6 +129,7 @@ class ChatSession(ChatSessionPermissionsMixin):
         default=None, repr=False
     )
     _on_mode_changed: Callable[[str, str], Awaitable[None]] | None = field(default=None, repr=False)
+    _on_mode_persist: Callable[[str], None] | None = field(default=None, repr=False)
 
     async def start(self, model: str | None = None) -> None:
         """Connect the ClaudeSDKClient with configured options."""

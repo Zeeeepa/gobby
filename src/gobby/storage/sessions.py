@@ -310,6 +310,13 @@ class LocalSessionManager:
             (session_id,),
         )
 
+    def update_chat_mode(self, session_id: str, chat_mode: str) -> None:
+        """Persist the chat mode (plan, accept_edits, normal, bypass) for a session."""
+        self.db.execute(
+            "UPDATE sessions SET chat_mode = ? WHERE id = ?",
+            (chat_mode, session_id),
+        )
+
     def update_title(self, session_id: str, title: str) -> Session | None:
         """Update session title."""
         now = datetime.now(UTC).isoformat()

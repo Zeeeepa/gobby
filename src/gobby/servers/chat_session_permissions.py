@@ -292,6 +292,12 @@ class ChatSessionPermissionsMixin:
             # Leaving plan mode — clear plan state
             self._plan_approved = False
             self._plan_feedback = None
+        # Persist to DB (best-effort, fire-and-forget)
+        if self._on_mode_persist:
+            try:
+                self._on_mode_persist(mode)
+            except Exception:
+                pass
 
     def approve_plan(self) -> None:
         """Mark the current plan as approved, unlocking write tools."""
