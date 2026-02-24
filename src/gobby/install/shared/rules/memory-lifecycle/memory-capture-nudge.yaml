@@ -15,5 +15,5 @@ rules:
         create_memory on gobby-memory. If not, carry on.
 
         Do NOT generalize one-time instructions into conventions. Only save
-        if the user explicitly asked you to remember, or the fact would take
-        >5 minutes to rediscover. It's fine to save nothing.
+        if the user explicitly asked you to remember, or the fact would
+        require multi-step exploration to rediscover. It's fine to save nothing.
