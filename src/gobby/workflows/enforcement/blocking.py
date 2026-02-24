@@ -31,8 +31,8 @@ MESSAGE_DELIVERY_TOOLS = {"deliver_pending_messages"}
 def is_message_delivery_tool(tool_name: str | None) -> bool:
     """Check if the tool is a message delivery tool.
 
-    These tools are allowed through the require-read-mail block so agents
-    can read their pending inter-session messages.
+    These tools are excluded from the notify-unread-mail context injection
+    so agents aren't nudged while already reading their mail.
 
     Args:
         tool_name: The MCP tool name (from event.data.mcp_tool)

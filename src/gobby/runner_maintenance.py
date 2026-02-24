@@ -91,8 +91,8 @@ async def cleanup_zombie_messages_loop(
 
     Marks undelivered inter-session messages as delivered when their target
     session has been closed/expired for longer than ``ttl_hours``.  This
-    prevents the require-read-mail rule from blocking a session that will
-    never read its mail.
+    prevents the notify-unread-mail rule from repeatedly nudging a session
+    that will never read its mail.
     """
     interval_seconds = interval_hours * 3600
 

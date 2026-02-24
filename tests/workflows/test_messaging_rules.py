@@ -5,7 +5,7 @@ Covers 5 rules:
 - activate-pending-command: activates on before_agent when has_pending_command
 - command-tool-restriction: blocks disallowed tools when command active
 - command-exit-condition: auto-completes on after_tool when exit condition met
-- require-read-mail: blocks tools until agent reads pending messages
+- notify-unread-mail: injects context nudge when agent has pending messages
 """
 
 from __future__ import annotations
@@ -354,7 +354,7 @@ class TestIsMessageDeliveryTool:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# require-read-mail helpers
+# notify-unread-mail helpers
 # ═══════════════════════════════════════════════════════════════════════
 
 _SENDER_SESSION = "sender-session-aaa"
@@ -422,42 +422,41 @@ def _make_event_with_metadata(
     )
 
 
-def _require_read_mail_body() -> RuleDefinitionBody:
-    """Build the require-read-mail rule body matching the YAML template."""
+def _notify_unread_mail_body() -> RuleDefinitionBody:
+    """Build the notify-unread-mail rule body matching the YAML template."""
     return RuleDefinitionBody(
         event=RuleEvent.BEFORE_TOOL,
         agent_scope=["*"],
         when=(
             "has_pending_messages(event.metadata.get('_platform_session_id', '')) "
-            "and not is_message_delivery_tool(event.data.get('mcp_tool')) "
-            "and not is_discovery_tool(tool_input.get('tool_name'))"
+            "and not is_message_delivery_tool(event.data.get('mcp_tool'))"
         ),
         effect=RuleEffect(
-            type="block",
-            reason=(
-                'You have {{ pending_message_count(event.metadata.get(\'_platform_session_id\', \'\')) }}'
-                " undelivered inter-session message(s). Read them before continuing.\n"
-                'Call: deliver_pending_messages(session_id="{{ event.metadata.get(\'_platform_session_id\', \'\') }}")'
+            type="inject_context",
+            template=(
+                "You have {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}"
+                " undelivered inter-session message(s).\n"
+                'Please read them soon by calling: deliver_pending_messages(session_id="{{ event.metadata.get(\'_platform_session_id\', \'\') }}")'
             ),
         ),
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# require-read-mail
+# notify-unread-mail
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestRequireReadMail:
-    """require-read-mail blocks tools until agent reads pending messages."""
+class TestNotifyUnreadMail:
+    """notify-unread-mail injects context nudge when agent has pending messages."""
 
     @pytest.mark.asyncio
-    async def test_blocks_when_messages_pending(
+    async def test_injects_context_when_messages_pending(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
         target_session = str(uuid.uuid4())
         _insert_undelivered_message(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+        _insert_rule(manager, "notify-unread-mail", _notify_unread_mail_body(), priority=8)
 
         engine = RuleEngine(db)
         event = _make_event_with_metadata(
@@ -468,16 +467,17 @@ class TestRequireReadMail:
         variables: dict[str, Any] = {"_agent_type": "worker"}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
-        assert response.decision == "block"
-        assert "undelivered" in (response.reason or "").lower()
+        assert response.decision == "allow"
+        assert "undelivered" in (response.context or "").lower()
 
     @pytest.mark.asyncio
-    async def test_allows_deliver_pending_messages(
+    async def test_no_context_on_deliver_pending_messages(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
+        """No nudge when the agent is already reading its mail."""
         target_session = str(uuid.uuid4())
         _insert_undelivered_message(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+        _insert_rule(manager, "notify-unread-mail", _notify_unread_mail_body(), priority=8)
 
         engine = RuleEngine(db)
         event = _make_event_with_metadata(
@@ -489,36 +489,15 @@ class TestRequireReadMail:
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
+        assert not response.context  # no nudge when already reading mail
 
     @pytest.mark.asyncio
-    async def test_allows_discovery_tools(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        target_session = str(uuid.uuid4())
-        _insert_undelivered_message(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
-
-        engine = RuleEngine(db)
-        event = _make_event_with_metadata(
-            HookEventType.BEFORE_TOOL,
-            data={
-                "tool_name": "mcp__gobby__call_tool",
-                "tool_input": {"tool_name": "list_mcp_servers"},
-            },
-            metadata={"_platform_session_id": target_session},
-        )
-        variables: dict[str, Any] = {"_agent_type": "worker"}
-        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
-
-        assert response.decision == "allow"
-
-    @pytest.mark.asyncio
-    async def test_allows_when_no_messages(
+    async def test_no_context_when_no_messages(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
         target_session = str(uuid.uuid4())
         _create_session(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+        _insert_rule(manager, "notify-unread-mail", _notify_unread_mail_body(), priority=8)
 
         engine = RuleEngine(db)
         event = _make_event_with_metadata(
@@ -530,14 +509,15 @@ class TestRequireReadMail:
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
+        assert not response.context
 
     @pytest.mark.asyncio
-    async def test_allows_when_messages_already_delivered(
+    async def test_no_context_when_messages_already_delivered(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
         target_session = str(uuid.uuid4())
         _insert_delivered_message(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+        _insert_rule(manager, "notify-unread-mail", _notify_unread_mail_body(), priority=8)
 
         engine = RuleEngine(db)
         event = _make_event_with_metadata(
@@ -549,15 +529,16 @@ class TestRequireReadMail:
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
+        assert not response.context
 
     @pytest.mark.asyncio
     async def test_skipped_for_root_sessions(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        """Root sessions (no _agent_type) should not be blocked by agent_scope: ['*']."""
+        """Root sessions (no _agent_type) should not get nudge from agent_scope: ['*']."""
         target_session = str(uuid.uuid4())
         _insert_undelivered_message(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+        _insert_rule(manager, "notify-unread-mail", _notify_unread_mail_body(), priority=8)
 
         engine = RuleEngine(db)
         event = _make_event_with_metadata(
@@ -570,15 +551,16 @@ class TestRequireReadMail:
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
+        assert not response.context
 
     @pytest.mark.asyncio
-    async def test_allows_when_platform_session_id_absent(
+    async def test_no_context_when_platform_session_id_absent(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        """Non-platform sessions (no _platform_session_id key at all) are never blocked."""
+        """Non-platform sessions (no _platform_session_id) get no nudge."""
         target_session = str(uuid.uuid4())
         _insert_undelivered_message(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+        _insert_rule(manager, "notify-unread-mail", _notify_unread_mail_body(), priority=8)
 
         engine = RuleEngine(db)
         event = _make_event_with_metadata(
@@ -590,16 +572,17 @@ class TestRequireReadMail:
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
+        assert not response.context
 
     @pytest.mark.asyncio
-    async def test_block_reason_renders_message_count(
+    async def test_context_renders_message_count(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        """Block reason should include the count from pending_message_count."""
+        """Injected context should include the count from pending_message_count."""
         target_session = str(uuid.uuid4())
         _insert_undelivered_message(db, target_session)
         _insert_undelivered_message(db, target_session)
-        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+        _insert_rule(manager, "notify-unread-mail", _notify_unread_mail_body(), priority=8)
 
         engine = RuleEngine(db)
         event = _make_event_with_metadata(
@@ -610,8 +593,8 @@ class TestRequireReadMail:
         variables: dict[str, Any] = {"_agent_type": "worker"}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
-        assert response.decision == "block"
-        assert "2 undelivered" in (response.reason or "")
+        assert response.decision == "allow"
+        assert "2 undelivered" in (response.context or "")
 
 
 # ═══════════════════════════════════════════════════════════════════════
