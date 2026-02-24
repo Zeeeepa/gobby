@@ -4,15 +4,18 @@ import { cn } from '../../lib/utils'
 import { Markdown } from './Markdown'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallCards } from './ToolCallCard'
+import type { A2UISurfaceState, UserAction } from '../canvas'
 
 interface MessageItemProps {
   message: ChatMessage
   isStreaming?: boolean
   isThinking?: boolean
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
+  canvasSurfaces?: Map<string, A2UISurfaceState>
+  onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
 
-export const MessageItem = memo(function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion, canvasSurfaces, onCanvasInteraction }: MessageItemProps) {
   const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
   const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
 
@@ -60,7 +63,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
         )}
 
         {message.toolCalls && message.toolCalls.length > 0 && (
-          <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} />
+          <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
         )}
 
         {message.content && (

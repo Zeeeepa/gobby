@@ -49,6 +49,7 @@ class BroadcastMixin:
             "pipeline_event",
             "terminal_output",
             "tmux_session_event",
+            "canvas_event",
         }
 
         # Non-event messages pass through for any subscribed client
@@ -268,6 +269,18 @@ class BroadcastMixin:
             "event": event,
             "from_session": from_session,
             "to_session": to_session,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+        await self.broadcast(message)
+
+    async def broadcast_canvas_event(
+        self,
+        **kwargs: Any,
+    ) -> None:
+        """Broadcast canvas interaction/update event."""
+        message = {
+            "type": "canvas_event",
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
         }

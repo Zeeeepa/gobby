@@ -21,8 +21,8 @@ from gobby.mcp_proxy.tools.workflows._rules import (
     toggle_rule,
 )
 from gobby.storage.config_store import ConfigStore
-from gobby.workflows.definitions import RuleDefinitionBody
 from gobby.utils.metrics import get_metrics_collector
+from gobby.workflows.definitions import RuleDefinitionBody
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer

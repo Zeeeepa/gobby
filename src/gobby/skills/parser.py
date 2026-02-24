@@ -66,6 +66,7 @@ class SkillAudienceConfig:
     depth: int | list[int] | str | None = None
     steps: list[str] | None = None
     task_categories: list[str] | None = None
+    sources: list[str] | None = None
     format_overrides: dict[str, str] | None = None
     priority: int = 50
 
@@ -181,6 +182,7 @@ class ParsedSkill:
                 "depth": self.audience_config.depth,
                 "steps": self.audience_config.steps,
                 "task_categories": self.audience_config.task_categories,
+                "sources": self.audience_config.sources,
                 "format_overrides": self.audience_config.format_overrides,
                 "priority": self.audience_config.priority,
             }
@@ -331,6 +333,7 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
                 "depth",
                 "steps",
                 "task_categories",
+                "sources",
                 "format_overrides",
                 "priority",
             )
@@ -358,6 +361,12 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
                 raw_cats = gobby_meta["task_categories"]
                 if isinstance(raw_cats, list):
                     ac_kwargs["task_categories"] = [str(c) for c in raw_cats]
+            if "sources" in gobby_meta:
+                raw_sources = gobby_meta["sources"]
+                if isinstance(raw_sources, list):
+                    ac_kwargs["sources"] = [str(s) for s in raw_sources]
+                elif isinstance(raw_sources, str):
+                    ac_kwargs["sources"] = [raw_sources]
             if "format_overrides" in gobby_meta:
                 raw_fo = gobby_meta["format_overrides"]
                 if isinstance(raw_fo, dict):

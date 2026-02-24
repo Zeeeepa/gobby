@@ -87,7 +87,7 @@ const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
   const { authRequired, authenticated, loading: authLoading, login, logout } = useAuth()
-  const { messages, conversationId, sessionRef, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, wsRef, handleVoiceMessageRef } = useChat()
+  const { messages, conversationId, sessionRef, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -515,6 +515,9 @@ export default function App() {
             onApprovePlan: approvePlan,
             onRequestPlanChanges: requestPlanChanges,
             setOnPlanReady,
+            canvasSurfaces,
+            canvasPanel,
+            onCanvasInteraction,
           }}
           conversations={{
             sessions: webChatSessions,

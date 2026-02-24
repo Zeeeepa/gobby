@@ -7,8 +7,7 @@ export const A2UIButton: React.FC<A2UIComponentProps> = ({ def, componentId, dat
   const style = def.style || 'secondary'; // primary, secondary, danger
   const disabled = completed || def.disabled;
   
-  // Map A2UI style to chat UI variant
-  let variant: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" = "secondary";
+  let variant: "default" | "destructive" | "outline" | "ghost" | "primary" = "outline";
   if (style === 'primary') variant = 'default';
   if (style === 'danger') variant = 'destructive';
 

@@ -8,16 +8,10 @@ import { SkillForm } from './SkillForm'
 import type { SkillFormData } from './SkillForm'
 import { SkillHubBrowser } from './SkillHubBrowser'
 import { SkillImportModal } from './SkillImportModal'
-import { TabBar } from './TabBar'
 import './WorkflowsPage.css'
 
 type ActiveTab = 'installed' | 'hub'
 type SourceFilter = 'installed' | 'project' | 'templates' | 'deleted'
-
-const TABS = [
-  { id: 'installed', label: 'Installed' },
-  { id: 'hub', label: 'Hub Browser' },
-]
 
 const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
   { value: 'installed', label: 'Installed' },
@@ -278,6 +272,22 @@ export function SkillsPage() {
           <span className="workflows-toolbar-count">{stats?.total ?? 0}</span>
         </div>
         <div className="workflows-toolbar-right">
+          <div className="skills-view-toggle" style={{ marginRight: activeTab === 'installed' ? '8px' : '0' }}>
+            <button
+              className={`skills-view-btn ${activeTab === 'installed' ? 'skills-view-btn--active' : ''}`}
+              onClick={() => setActiveTab('installed')}
+              title="Library"
+            >
+              <LibraryIcon />
+            </button>
+            <button
+              className={`skills-view-btn ${activeTab === 'hub' ? 'skills-view-btn--active' : ''}`}
+              onClick={() => setActiveTab('hub')}
+              title="Hub Browser"
+            >
+              <HubIcon />
+            </button>
+          </div>
           {activeTab === 'installed' && (
             <>
               <button className="workflows-toolbar-btn" onClick={() => setShowImport(true)} title="Import">
@@ -345,12 +355,7 @@ export function SkillsPage() {
         </button>
       </div>
 
-      {/* Tab bar */}
-      <TabBar
-        tabs={TABS}
-        activeTab={activeTab}
-        onTabChange={(id) => setActiveTab(id as ActiveTab)}
-      />
+
 
       {/* Installed View */}
       {activeTab === 'installed' && (
@@ -446,6 +451,28 @@ function RestoreIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="1 4 1 10 7 10" />
       <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+    </svg>
+  )
+}
+
+function LibraryIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <line x1="3" y1="3" x2="11" y2="3" />
+      <line x1="3" y1="7" x2="11" y2="7" />
+      <line x1="3" y1="11" x2="11" y2="11" />
+    </svg>
+  )
+}
+
+function HubIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <circle cx="7" cy="7" r="5.5" />
+      <line x1="7" y1="1.5" x2="7" y2="12.5" />
+      <path d="M1.5 7h11" />
+      <path d="M2.5 3.5Q7 5.5 11.5 3.5" />
+      <path d="M2.5 10.5Q7 8.5 11.5 10.5" />
     </svg>
   )
 }

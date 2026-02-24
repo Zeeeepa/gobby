@@ -10,6 +10,8 @@ import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { MobileChatDrawer } from './MobileChatDrawer'
 import { SessionStatusBar } from './SessionStatusBar'
+import { CanvasPanel } from '../canvas/CanvasPanel'
+import { useCanvasPanel } from '../canvas/hooks/useCanvasPanel'
 
 interface ChatPageProps {
   chat: ChatState
@@ -38,6 +40,16 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
     setVersion,
     setPanelWidth,
   } = useArtifacts()
+
+  const canvas = useCanvasPanel()
+
+  useEffect(() => {
+    if (chat.canvasPanel) {
+      canvas.openCanvas(chat.canvasPanel)
+    } else {
+      canvas.closeCanvas()
+    }
+  }, [chat.canvasPanel, canvas.openCanvas, canvas.closeCanvas])
 
   const planArtifactIdRef = useRef<string | null>(null)
 
@@ -108,6 +120,8 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                 planPendingApproval={chat.planPendingApproval}
                 onApprovePlan={chat.onApprovePlan}
                 onRequestPlanChanges={chat.onRequestPlanChanges}
+                canvasSurfaces={chat.canvasSurfaces}
+                onCanvasInteraction={chat.onCanvasInteraction}
               />
               <ChatInput
                 onSend={chat.onSend}
@@ -136,8 +150,15 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
               />
             </div>
 
-            {/* Artifact panel */}
-            {isPanelOpen && activeArtifact && (
+            {/* Artifact or Canvas panel */}
+            {canvas.isPanelOpen && canvas.activeCanvas ? (
+              <CanvasPanel 
+                state={canvas.activeCanvas} 
+                panelWidth={canvas.panelWidth} 
+                onResize={canvas.setPanelWidth} 
+                onClose={canvas.closeCanvas} 
+              />
+            ) : isPanelOpen && activeArtifact ? (
               <>
                 <ResizeHandle onResize={setPanelWidth} panelWidth={panelWidth} />
                 <ArtifactPanel
@@ -151,7 +172,7 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                   onRequestPlanChanges={chat.onRequestPlanChanges}
                 />
               </>
-            )}
+            ) : null}
 
           </div>
         </ArtifactContext.Provider>

@@ -57,6 +57,9 @@ export interface ContextUsage {
   cacheCreationTokens: number
 }
 
+import type { A2UISurfaceState, UserAction } from '../components/canvas/types'
+import type { CanvasPanelState } from '../components/canvas/hooks/useCanvasPanel'
+
 export interface ChatState {
   messages: ChatMessage[]
   sessionRef: string | null
@@ -72,6 +75,9 @@ export interface ChatState {
   onInputChange: (value: string) => void
   filteredCommands: CommandInfo[]
   onCommandSelect: (cmd: CommandInfo) => void
+  canvasSurfaces: Map<string, A2UISurfaceState>
+  canvasPanel: CanvasPanelState | null
+  onCanvasInteraction: (canvasId: string, action: UserAction) => void
   mode: ChatMode
   onModeChange: (mode: ChatMode) => void
   onWorktreeChange: (worktreePath: string, worktreeId?: string) => void

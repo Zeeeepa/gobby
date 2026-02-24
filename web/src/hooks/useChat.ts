@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ChatMessage, ToolCall, ChatMode } from '../types/chat'
 import type { QueuedFile } from '../types/chat'
+import type { A2UISurfaceState, UserAction } from '../components/canvas/types'
+import type { CanvasPanelState } from '../components/canvas/hooks/useCanvasPanel'
 
 const CONVERSATION_ID_KEY = 'gobby-conversation-id'
 const MAX_STORED_MESSAGES = 100
@@ -181,6 +183,10 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
 
+  // Canvas state
+  const [canvasSurfaces, setCanvasSurfaces] = useState<Map<string, A2UISurfaceState>>(new Map())
+  const [canvasPanel, setCanvasPanel] = useState<CanvasPanelState | null>(null)
+
   // Session ref tracking (e.g. "#158")
   const [sessionRef, setSessionRef] = useState<string | null>(null)
 
@@ -257,7 +263,7 @@ export function useChat() {
 
       ws.send(JSON.stringify({
         type: 'subscribe',
-        events: ['chat_stream', 'chat_error', 'tool_status', 'chat_thinking'],
+        events: ['chat_stream', 'chat_error', 'tool_status', 'chat_thinking', 'canvas_event'],
       }))
     }
 
@@ -356,6 +362,68 @@ export function useChat() {
             console.log('Reconnected to existing conversation:', conversationIdRef.current)
           }
           console.log('Connection established:', data)
+        } else if (data.type === 'canvas_event') {
+          const ev = data as any
+          if (ev.event === 'surface_update') {
+            setCanvasSurfaces((prev: Map<string, A2UISurfaceState>) => {
+              const next = new Map(prev)
+              next.set(ev.canvas_id, {
+                canvasId: ev.canvas_id,
+                conversationId: ev.conversation_id,
+                mode: ev.mode,
+                surface: ev.surface,
+                dataModel: ev.data_model,
+                rootComponentId: ev.root_component_id,
+                completed: ev.completed
+              })
+              return next
+            })
+          } else if (ev.event === 'interaction_confirmed' || ev.event === 'close_canvas') {
+            setCanvasSurfaces((prev: Map<string, A2UISurfaceState>) => {
+              const next = new Map(prev)
+              const s = next.get(ev.canvas_id)
+              if (s) {
+                next.set(ev.canvas_id, { ...s, completed: true })
+              }
+              return next
+            })
+            if (ev.event === 'close_canvas') {
+              setCanvasPanel((prev) => prev?.canvasId === ev.canvas_id ? null : prev)
+            }
+          } else if (ev.event === 'panel_present') {
+            setCanvasPanel((prev: CanvasPanelState | null) => ({
+              ...prev,
+              canvasId: ev.canvas_id,
+              title: ev.title,
+              url: ev.html_url,
+              width: ev.width || prev?.width,
+              height: ev.height || prev?.height
+            }))
+          } else if (ev.event === 'canvas_rehydrate') {
+            setCanvasSurfaces((prev: Map<string, A2UISurfaceState>) => {
+              const next = new Map(prev)
+              for (const s of ev.surfaces || []) {
+                if (s.mode === 'a2ui') {
+                  next.set(s.canvas_id, {
+                    canvasId: s.canvas_id,
+                    conversationId: s.conversation_id,
+                    mode: s.mode,
+                    surface: s.surface,
+                    dataModel: s.data_model,
+                    rootComponentId: s.root_component_id,
+                    completed: s.completed
+                  })
+                } else if (s.mode === 'html' && !s.completed) {
+                  setCanvasPanel({
+                    canvasId: s.canvas_id,
+                    title: s.title,
+                    url: s.html_url,
+                  })
+                }
+              }
+              return next
+            })
+          }
         } else if (data.type === 'subscribe_success') {
           console.log('Subscribed to events:', data)
         }
@@ -632,6 +700,8 @@ export function useChat() {
     setSessionRef(null)
     setCurrentBranch(null)
     setWorktreePath(null)
+    setCanvasSurfaces(new Map())
+    setCanvasPanel(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
     // Save current conversation's messages before switching (explicit save)
@@ -711,6 +781,8 @@ export function useChat() {
     setSessionRef(null)
     setCurrentBranch(null)
     setWorktreePath(null)
+    setCanvasSurfaces(new Map())
+    setCanvasPanel(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
     activeRequestIdRef.current = null
@@ -830,6 +902,8 @@ export function useChat() {
     }
     // Reset frontend state
     setMessages([])
+    setCanvasSurfaces(new Map())
+    setCanvasPanel(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
     localStorage.removeItem(chatStorageKey(oldConversationId))
     activeRequestIdRef.current = null
@@ -1035,6 +1109,17 @@ export function useChat() {
     }))
   }, [])
 
+  // Respond to a Canvas surface interaction
+  const respondToCanvas = useCallback((canvasId: string, action: UserAction) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({
+      type: 'canvas_interaction',
+      conversation_id: conversationIdRef.current,
+      canvas_id: canvasId,
+      action,
+    }))
+  }, [])
+
   // Approve the current plan — tells backend to unlock write tools
   const approvePlan = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
@@ -1090,6 +1175,9 @@ export function useChat() {
     executeCommand,
     respondToQuestion,
     respondToApproval,
+    canvasSurfaces,
+    canvasPanel,
+    onCanvasInteraction: respondToCanvas,
     planPendingApproval,
     approvePlan,
     requestPlanChanges,

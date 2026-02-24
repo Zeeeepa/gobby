@@ -232,6 +232,38 @@ Content
         skill = parse_skill_text(text)
         assert skill.allowed_tools == ["Bash", "Read"]
 
+    def test_parse_sources_from_frontmatter(self) -> None:
+        """Test parser extracts sources."""
+        text = """---
+name: test
+description: test
+metadata:
+  gobby:
+    sources: ["claude_sdk_web_chat"]
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        assert skill.audience_config is not None
+        assert skill.audience_config.sources == ["claude_sdk_web_chat"]
+
+    def test_parse_sources_single_string(self) -> None:
+        """Test coerces string to list."""
+        text = """---
+name: test
+description: test
+metadata:
+  gobby:
+    sources: "claude_sdk_web_chat"
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        assert skill.audience_config is not None
+        assert skill.audience_config.sources == ["claude_sdk_web_chat"]
+
     def test_missing_name_raises_error(self) -> None:
         """Test that missing name raises error."""
         text = """---

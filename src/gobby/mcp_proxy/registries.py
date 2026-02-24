@@ -173,6 +173,13 @@ def setup_internal_registries(
     manager.add_registry(workflows_registry)
     logger.debug("Workflows registry initialized")
 
+    # Initialize canvas registry (always available)
+    from gobby.mcp_proxy.tools.canvas import create_canvas_registry
+
+    canvas_registry = create_canvas_registry()
+    manager.add_registry(canvas_registry)
+    logger.debug("Canvas registry initialized")
+
     # Initialize metrics registry if metrics_manager is available
     if metrics_manager is not None:
         from gobby.mcp_proxy.tools.metrics import create_metrics_registry

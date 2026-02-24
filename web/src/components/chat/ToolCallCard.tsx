@@ -5,10 +5,14 @@ import type { ToolCall } from '../../types/chat'
 import { cn } from '../../lib/utils'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
+import type { A2UISurfaceState, UserAction } from '../canvas'
+import { A2UIRenderer } from '../canvas'
 
 interface ToolCallCardProps {
   toolCalls: ToolCall[]
   onRespond?: (toolCallId: string, answers: Record<string, string>) => void
+  canvasSurfaces?: Map<string, A2UISurfaceState>
+  onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
 
 interface AskUserOption {
@@ -218,9 +222,13 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   )
 }
 
-const ToolCallItem = memo(function ToolCallItem({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
+const ToolCallItem = memo(function ToolCallItem({ call, onRespond, canvasSurfaces, onCanvasInteraction }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void }) {
   const [expanded, setExpanded] = useState(false)
   const displayName = formatToolName(call.tool_name)
+
+  if (call.tool_name === 'render_surface') {
+    return <CanvasSurfaceCard call={call} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
+  }
 
   if (call.tool_name === 'AskUserQuestion') {
     return <AskUserQuestionCard call={call} onRespond={onRespond} />
@@ -453,12 +461,56 @@ function StatusIcon({ status }: { status: string }) {
   return null
 }
 
-export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond }: ToolCallCardProps) {
+function CanvasSurfaceCard({ call, canvasSurfaces, onCanvasInteraction }: { call: ToolCall; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void }) {
+  const [expanded, setExpanded] = useState(true)
+  const args = call.arguments as { canvas_id?: string } | undefined
+  const canvasId = args?.canvas_id
+  const surfaceState = canvasId ? canvasSurfaces?.get(canvasId) : undefined
+  const displayName = formatToolName(call.tool_name)
+
+  return (
+    <div className={cn(
+      'rounded-lg border border-accent/20 overflow-hidden my-1.5',
+      call.status === 'error' && 'border-destructive-foreground/30'
+    )}>
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/50 transition-colors bg-accent/5"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <StatusIcon status={call.status} />
+        <span className="font-mono text-foreground">{displayName}</span>
+        <span className="text-muted-foreground text-xs">{call.server_name}</span>
+        {surfaceState && <Badge variant="info" className="ml-2">Interactive</Badge>}
+        <div className="flex-1" />
+        <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
+      </div>
+      {expanded && (
+        <div className="border-t border-border px-3 py-2 text-xs space-y-2">
+          {surfaceState && onCanvasInteraction ? (
+            <A2UIRenderer surfaceState={surfaceState} onAction={onCanvasInteraction} />
+          ) : (
+            <div className="text-muted-foreground italic">Targeting {canvasId || 'an unknown canvas'}</div>
+          )}
+          {call.status === 'error' && call.error && (
+            <div>
+              <div className="text-destructive-foreground mb-1 font-medium mt-2">Error</div>
+              <pre className="bg-destructive/30 rounded p-2 overflow-x-auto text-destructive-foreground">
+                {call.error}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond, canvasSurfaces, onCanvasInteraction }: ToolCallCardProps) {
   if (!toolCalls.length) return null
   return (
     <div className="my-1">
       {toolCalls.map((call) => (
-        <ToolCallItem key={call.id} call={call} onRespond={onRespond} />
+        <ToolCallItem key={call.id} call={call} onRespond={onRespond} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
       ))}
     </div>
   )

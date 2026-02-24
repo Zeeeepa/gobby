@@ -8,10 +8,10 @@ export const A2UIBadge: React.FC<A2UIComponentProps> = ({ def, dataModel }) => {
   
   if (!text) return null;
 
-  let variant: "default" | "secondary" | "destructive" | "outline" = "default";
-  if (style === 'secondary') variant = 'secondary';
-  if (style === 'danger' || style === 'destructive') variant = 'destructive';
-  if (style === 'outline') variant = 'outline';
+  let variant: "default" | "success" | "warning" | "error" | "info" = "default";
+  if (style === 'secondary') variant = 'info';
+  if (style === 'danger' || style === 'destructive') variant = 'error';
+  if (style === 'outline') variant = 'default';
 
   return <Badge variant={variant}>{text}</Badge>;
 };

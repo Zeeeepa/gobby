@@ -3,6 +3,7 @@ import type { ChatMessage } from '../../types/chat'
 import { ScrollArea } from './ui/ScrollArea'
 import { MessageItem } from './MessageItem'
 import { PlanApprovalBar } from './PlanApprovalBar'
+import type { A2UISurfaceState, UserAction } from '../canvas'
 
 interface MessageListProps {
   messages: ChatMessage[]
@@ -12,9 +13,11 @@ interface MessageListProps {
   planPendingApproval?: boolean
   onApprovePlan?: () => void
   onRequestPlanChanges?: (feedback: string) => void
+  canvasSurfaces?: Map<string, A2UISurfaceState>
+  onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
 
-export function MessageList({ messages, isStreaming, isThinking, onRespondToQuestion, planPendingApproval, onApprovePlan, onRequestPlanChanges }: MessageListProps) {
+export function MessageList({ messages, isStreaming, isThinking, onRespondToQuestion, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
 
@@ -66,6 +69,8 @@ export function MessageList({ messages, isStreaming, isThinking, onRespondToQues
               isStreaming={isStreaming && i === messages.length - 1}
               isThinking={isThinking && i === messages.length - 1}
               onRespondToQuestion={onRespondToQuestion}
+              canvasSurfaces={canvasSurfaces}
+              onCanvasInteraction={onCanvasInteraction}
             />
           ))}
           {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
