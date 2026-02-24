@@ -245,6 +245,7 @@ def sync_bundled_content_to_db(
         ("agents", "gobby.agents.sync", "sync_bundled_agents"),
         ("workflows", "gobby.workflows.sync", "sync_bundled_workflows"),
         ("rules", "gobby.workflows.sync", "sync_bundled_rules"),
+        ("variables", "gobby.workflows.sync", "sync_bundled_variables"),
     ]
 
     for content_type, module_path, func_name in sync_targets:

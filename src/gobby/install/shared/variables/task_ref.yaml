@@ -1,0 +1,3 @@
+variable: task_ref
+value: ''
+description: Default task_ref to empty string

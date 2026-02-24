@@ -1,0 +1,3 @@
+variable: mode_level
+value: 2
+description: Default mode_level to 2 (Full Auto)

@@ -1,12 +1,13 @@
-tags: [session-defaults, initialization]
-
+tags:
+- session-defaults
+- initialization
 rules:
   init-mode-level:
-    description: "Default mode_level to 2 (Full Auto)"
+    description: Default mode_level to 2 (Full Auto)
     event: session_start
     enabled: false
     priority: 1
-    when: "variables.get('mode_level') is None"
+    when: variables.get('mode_level') is None
     effect:
       type: set_variable
       variable: mode_level

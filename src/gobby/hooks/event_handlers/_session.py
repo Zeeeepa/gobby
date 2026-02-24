@@ -545,7 +545,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 try:
                     var_body = json.loads(var_row.definition_json)
                     if var_row.name not in changes:
-                        changes[var_row.name] = var_body.get("default")
+                        changes[var_row.name] = var_body.get("value")
                 except json.JSONDecodeError:
                     pass
 

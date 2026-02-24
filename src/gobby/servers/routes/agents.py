@@ -40,7 +40,6 @@ class CreateAgentDefinitionRequest(BaseModel):
     max_turns: int = 10
     default_workflow: str | None = None
     sandbox_config: dict[str, Any] | None = None
-    skill_profile: dict[str, Any] | None = None
     workflows: dict[str, Any] | None = None
     lifecycle_variables: dict[str, Any] | None = None
     default_variables: dict[str, Any] | None = None
@@ -64,7 +63,6 @@ class UpdateAgentDefinitionRequest(BaseModel):
     max_turns: int | None = None
     default_workflow: str | None = None
     sandbox_config: dict[str, Any] | None = None
-    skill_profile: dict[str, Any] | None = None
     workflows: dict[str, Any] | None = None
     lifecycle_variables: dict[str, Any] | None = None
     default_variables: dict[str, Any] | None = None

@@ -1,0 +1,3 @@
+variable: require_uv
+value: true
+description: Default require_uv to true

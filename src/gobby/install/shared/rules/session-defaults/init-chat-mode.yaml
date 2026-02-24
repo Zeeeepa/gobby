@@ -1,12 +1,13 @@
-tags: [session-defaults, initialization]
-
+tags:
+- session-defaults
+- initialization
 rules:
   init-chat-mode:
-    description: "Default chat_mode to bypass"
+    description: Default chat_mode to bypass
     event: session_start
     enabled: false
     priority: 1
-    when: "variables.get('chat_mode') is None"
+    when: variables.get('chat_mode') is None
     effect:
       type: set_variable
       variable: chat_mode

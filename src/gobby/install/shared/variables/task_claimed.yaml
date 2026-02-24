@@ -1,0 +1,3 @@
+variable: task_claimed
+value: false
+description: Default task_claimed to false
