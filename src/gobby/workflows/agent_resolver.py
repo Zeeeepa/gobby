@@ -1,6 +1,6 @@
 import json
 
-from gobby.storage.base import DatabaseProtocol
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
