@@ -335,6 +335,27 @@ class TestEndToEndRuleMatch:
         assert data.get("mcp_tool") == "create_memory"
         assert data.get("mcp_server") == "gobby-memory"
 
+    def test_after_tool_without_tool_input_does_not_match(self) -> None:
+        """after_tool (post-tool-use) omits tool_input in Claude Code.
+        Without tool_input, normalization falls back to prefix parsing which
+        yields mcp_server='gobby' and mcp_tool='call_tool' — neither matches
+        the clear-memory-review-on-create rule condition.
+        This is the root cause of the memory-review-gate never clearing.
+        """
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_result": '{"success": true}',
+            # No tool_input — this is what Claude Code sends for post-tool-use
+        }
+        normalize_tool_fields(data)
+
+        # Prefix parsing yields "gobby" / "call_tool", NOT the inner server/tool
+        assert data.get("mcp_server") == "gobby"
+        assert data.get("mcp_tool") == "call_tool"
+        # Therefore the rule condition does NOT match
+        assert data.get("mcp_tool") != "create_memory"
+        assert data.get("mcp_server") != "gobby-memory"
+
     def test_copilot_create_memory_rule_match(self) -> None:
         """Same rule match, but with Copilot-style fields (camelCase + JSON string)."""
         data = {
