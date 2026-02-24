@@ -143,11 +143,15 @@ class WindsurfAdapter(BaseAdapter):
                     result["is_error"] = True
 
         elif "mcp_tool_use" in action_name:
-            # MCP tool call
-            result["mcp_server"] = tool_info.get("server_name")
-            result["mcp_tool"] = tool_info.get("tool_name")
-            result["tool_input"] = tool_info.get("arguments", {})
-            if "result" in tool_info:
+            # MCP tool call — use mcp_ prefixed names with fallback
+            result["mcp_server"] = tool_info.get("mcp_server_name") or tool_info.get("server_name")
+            result["mcp_tool"] = tool_info.get("mcp_tool_name") or tool_info.get("tool_name")
+            result["tool_input"] = (
+                tool_info.get("mcp_tool_arguments") or tool_info.get("arguments", {})
+            )
+            if "mcp_result" in tool_info:
+                result["tool_output"] = tool_info["mcp_result"]
+            elif "result" in tool_info:
                 result["tool_output"] = tool_info["result"]
 
         return result
@@ -155,8 +159,8 @@ class WindsurfAdapter(BaseAdapter):
     def _normalize_event_data(self, action_name: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Normalize Windsurf event data for CLI-agnostic processing.
 
-        Windsurf nests tool details in `tool_info` which needs to be flattened
-        and normalized for unified processing.
+        Flattens Windsurf's nested ``tool_info``, then delegates to the shared
+        ``normalize_tool_fields`` for MCP prefix handling on pass-through fields.
 
         Args:
             action_name: The Windsurf action name
@@ -165,7 +169,8 @@ class WindsurfAdapter(BaseAdapter):
         Returns:
             Enriched data dict with normalized fields added
         """
-        # Start with a copy to avoid mutating original
+        from gobby.hooks.normalization import normalize_tool_fields
+
         data = dict(input_data)
 
         # Extract and normalize tool_info if present
@@ -179,6 +184,9 @@ class WindsurfAdapter(BaseAdapter):
 
         # Store original action name for reference
         data["original_action"] = action_name
+
+        # Shared field alias + MCP normalization
+        normalize_tool_fields(data)
 
         return data
 

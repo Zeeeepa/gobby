@@ -128,10 +128,10 @@ class ClaudeCodeAdapter(BaseAdapter):
         Returns:
             Enriched data dict with normalized fields added
         """
-        from gobby.hooks.normalization import normalize_mcp_fields
+        from gobby.hooks.normalization import normalize_tool_fields
 
         # Copy to avoid mutating the original (shared function mutates in place)
-        return normalize_mcp_fields(dict(input_data))
+        return normalize_tool_fields(dict(input_data))
 
     # Map Claude Code hook types to hookEventName for hookSpecificOutput
     HOOK_EVENT_NAME_MAP: dict[str, str] = {

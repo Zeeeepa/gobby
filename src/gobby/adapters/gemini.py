@@ -132,14 +132,9 @@ class GeminiAdapter(BaseAdapter):
     def _normalize_event_data(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """Normalize Gemini event data for CLI-agnostic processing.
 
-        This method enriches the input_data with normalized fields so downstream
-        code doesn't need to handle Gemini-specific formats.
-
-        Normalizations performed:
-        1. mcp_context.server_name/tool_name → mcp_server/mcp_tool (top-level)
-        2. tool_response → tool_output
-        3. function_name → tool_name (if not already present)
-        4. parameters/args → tool_input (if not already present)
+        Delegates field-alias and MCP normalization to the shared
+        ``normalize_tool_fields`` helper, then applies the Gemini-specific
+        TOOL_MAP (e.g. ``write_file`` → ``Write``).
 
         Args:
             input_data: Raw input data from Gemini CLI
@@ -147,54 +142,14 @@ class GeminiAdapter(BaseAdapter):
         Returns:
             Enriched data dict with normalized fields added
         """
-        # Start with a copy to avoid mutating original
+        from gobby.hooks.normalization import normalize_tool_fields
+
         data = dict(input_data)
+        normalize_tool_fields(data)
 
-        # 1. Flatten mcp_context to top-level mcp_server/mcp_tool
-        mcp_context = data.get("mcp_context")
-        if mcp_context and isinstance(mcp_context, dict):
-            if "mcp_server" not in data:
-                data["mcp_server"] = mcp_context.get("server_name")
-            if "mcp_tool" not in data:
-                data["mcp_tool"] = mcp_context.get("tool_name")
-
-        # 1b. Parse mcp__<server>__<tool> prefix for ALL native MCP calls
-        tool_name = data.get("tool_name") or data.get("function_name", "")
-        if tool_name.startswith("mcp__") and "mcp_tool" not in data:
-            parts = tool_name.split("__", 2)  # ["mcp", "server", "tool"]
-            if len(parts) == 3:
-                data.setdefault("mcp_server", parts[1])
-                data.setdefault("mcp_tool", parts[2])
-
-        # 1c. Extract inner server/tool from gobby proxy calls (call_tool/mcp__gobby__call_tool)
-        # When using the gobby proxy, the actual MCP server/tool are in tool_input arguments
-        # (overrides prefix-parsed values with the actual inner target)
-        if tool_name in ("call_tool", "mcp__gobby__call_tool"):
-            tool_input = data.get("tool_input") or data.get("parameters") or data.get("args") or {}
-            if isinstance(tool_input, dict):
-                inner_server = tool_input.get("server_name")
-                inner_tool = tool_input.get("tool_name")
-                if inner_server and inner_tool:
-                    data["mcp_server"] = inner_server
-                    data["mcp_tool"] = inner_tool
-
-        # 2. Normalize tool_response → tool_output
-        if "tool_response" in data and "tool_output" not in data:
-            data["tool_output"] = data["tool_response"]
-
-        # 3. Normalize function_name → tool_name
-        if "function_name" in data and "tool_name" not in data:
-            data["tool_name"] = self.normalize_tool_name(data["function_name"])
-        elif "tool_name" in data:
-            # Normalize existing tool_name
+        # Gemini-specific: map tool names to Claude Code conventions
+        if "tool_name" in data:
             data["tool_name"] = self.normalize_tool_name(data["tool_name"])
-
-        # 4. Normalize parameters/args → tool_input
-        if "tool_input" not in data:
-            if "parameters" in data:
-                data["tool_input"] = data["parameters"]
-            elif "args" in data:
-                data["tool_input"] = data["args"]
 
         return data
 

@@ -78,15 +78,10 @@ class CopilotAdapter(BaseAdapter):
     def _normalize_event_data(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """Normalize Copilot event data for CLI-agnostic processing.
 
-        Copilot uses camelCase field names which need to be translated to
-        snake_case for unified processing.
-
-        Normalizations performed:
-        1. toolName → tool_name
-        2. toolArgs → tool_input
-        3. toolResult.textResultForLlm → tool_output
-        4. sessionId → session_id (if present at top level)
-        5. Extract MCP info from toolArgs for call_tool calls
+        Handles Copilot-specific nested ``toolResult`` extraction, then
+        delegates to the shared ``normalize_tool_fields`` for camelCase
+        aliases (``toolName`` → ``tool_name``, ``toolArgs`` → ``tool_input``
+        with JSON-string parsing) and MCP enrichment.
 
         Args:
             input_data: Raw input data from Copilot CLI
@@ -94,59 +89,27 @@ class CopilotAdapter(BaseAdapter):
         Returns:
             Enriched data dict with normalized fields added
         """
-        # Start with a copy to avoid mutating original
+        from gobby.hooks.normalization import normalize_tool_fields
+
         data = dict(input_data)
 
-        # 1. Normalize toolName → tool_name
-        if "toolName" in data and "tool_name" not in data:
-            data["tool_name"] = data["toolName"]
-
-        # 2. Normalize toolArgs → tool_input
-        if "toolArgs" in data and "tool_input" not in data:
-            data["tool_input"] = data["toolArgs"]
-
-        # 3. Normalize toolResult → tool_output
+        # Copilot-specific: extract toolResult.textResultForLlm → tool_output
         tool_result = data.get("toolResult", {})
         if tool_result and "tool_output" not in data:
-            # Copilot nests result in textResultForLlm
             if isinstance(tool_result, dict):
                 text_result = tool_result.get("textResultForLlm")
                 if text_result:
                     data["tool_output"] = text_result
-                # Also check for resultType to detect failures
                 result_type = tool_result.get("resultType")
                 if result_type == "error":
                     data["is_error"] = True
             else:
                 data["tool_output"] = tool_result
 
-        # 4. Extract MCP info
-        tool_name = data.get("tool_name", "")
-        tool_input = data.get("tool_input", {}) or {}
-
-        # 4a. Parse mcp__<server>__<tool> prefix for ALL native MCP calls
-        if tool_name.startswith("mcp__") and "mcp_tool" not in data:
-            parts = tool_name.split("__", 2)  # ["mcp", "server", "tool"]
-            if len(parts) == 3:
-                data.setdefault("mcp_server", parts[1])
-                data.setdefault("mcp_tool", parts[2])
-
-        # 4b. Extract inner MCP info from nested toolArgs for call_tool calls
-        # For mcp__gobby__call_tool: override prefix-parsed "gobby" with actual target
-        # For plain call_tool: only set if not already present
-        if tool_name in ("call_tool", "mcp__gobby__call_tool"):
-            inner_server = tool_input.get("server_name")
-            inner_tool = tool_input.get("tool_name")
-            if tool_name.startswith("mcp__"):
-                if inner_server:
-                    data["mcp_server"] = inner_server
-                if inner_tool:
-                    data["mcp_tool"] = inner_tool
-            else:
-                if inner_server and "mcp_server" not in data:
-                    data["mcp_server"] = inner_server
-                if inner_tool and "mcp_tool" not in data:
-                    data["mcp_tool"] = inner_tool
+        # Shared field alias + MCP normalization
+        # (handles toolName→tool_name, toolArgs→tool_input with JSON parsing,
+        #  mcp__ prefix extraction, tool_result→tool_output)
+        normalize_tool_fields(data)
 
         return data
 

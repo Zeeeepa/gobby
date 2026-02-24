@@ -292,20 +292,25 @@ class CodexAdapter(BaseAdapter):
             tool_name = "unknown"
             tool_input = params
 
+        from gobby.hooks.normalization import normalize_tool_fields
+
+        data = {
+            "tool_name": tool_name,
+            "tool_input": tool_input,
+            "item_id": item_id,
+            "turn_id": params.get("turnId", ""),
+            "reason": params.get("reason"),
+            "risk": params.get("risk"),
+        }
+        normalize_tool_fields(data)
+
         return HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
             session_id=thread_id,
             source=self.source,
             timestamp=datetime.now(UTC),
             machine_id=self._get_machine_id(),
-            data={
-                "tool_name": tool_name,
-                "tool_input": tool_input,
-                "item_id": item_id,
-                "turn_id": params.get("turnId", ""),
-                "reason": params.get("reason"),
-                "risk": params.get("risk"),
-            },
+            data=data,
             metadata={
                 "requires_response": True,
                 "item_id": item_id,
@@ -395,17 +400,22 @@ class CodexAdapter(BaseAdapter):
 
             # Only translate tool-related items
             if item_type in self.TOOL_ITEM_TYPES:
+                from gobby.hooks.normalization import normalize_tool_fields
+
+                item_data: dict[str, Any] = {
+                    "item_id": item.get("id", ""),
+                    "item_type": item_type,
+                    "status": item.get("status", ""),
+                }
+                normalize_tool_fields(item_data)
+
                 return HookEvent(
                     event_type=HookEventType.AFTER_TOOL,
                     session_id=params.get("threadId", ""),
                     source=self.source,
                     timestamp=datetime.now(UTC),
                     machine_id=self._get_machine_id(),
-                    data={
-                        "item_id": item.get("id", ""),
-                        "item_type": item_type,
-                        "status": item.get("status", ""),
-                    },
+                    data=item_data,
                 )
 
         # Unknown/unsupported event

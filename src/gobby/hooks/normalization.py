@@ -1,15 +1,80 @@
-"""Shared MCP field normalization for hook events.
+"""Shared tool field normalization for hook events.
 
-Extracts and normalizes MCP server/tool fields from tool call data so rules
-can match consistently regardless of whether the event originates from a CLI
-adapter or the web chat UI.
+Provides two-phase normalization so every CLI adapter produces consistent
+canonical fields (``tool_name``, ``tool_input``, ``tool_output``,
+``mcp_server``, ``mcp_tool``, ``is_error``) and rules match uniformly.
 
-Used by:
-- ``claude_code.py`` (ClaudeCodeAdapter._normalize_event_data)
-- ``chat.py`` (ChatMixin._fire_lifecycle)
+Phase 1 (``normalize_tool_fields``): flatten CLI-specific field aliases
+Phase 2 (``normalize_mcp_fields``):  MCP prefix/inner extraction + output aliases
+
+Used by all adapters and the web-chat path.
 """
 
+import json as _json
 from typing import Any
+
+
+def normalize_tool_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize tool-related fields in hook event data.
+
+    Two-phase normalization:
+
+    1. **Field aliases** – flatten CLI-specific naming into canonical fields
+       (``tool_name``, ``tool_input``) using ``setdefault`` semantics so
+       adapter-specific pre-processing is never overwritten.
+    2. **MCP enrichment** – delegates to :func:`normalize_mcp_fields` for
+       ``mcp__`` prefix parsing, ``call_tool`` inner extraction, and
+       ``tool_result``/``tool_response`` → ``tool_output``.
+
+    This is the primary entry point.  All adapters should call this instead
+    of ``normalize_mcp_fields()`` directly.
+
+    Args:
+        data: Event data dict (mutated in place).
+
+    Returns:
+        The same *data* dict, enriched with normalized fields.
+    """
+    # ── Phase 1: field alias normalization ──────────────────────────────
+
+    # function_name → tool_name  (Gemini)
+    if "function_name" in data and "tool_name" not in data:
+        data["tool_name"] = data["function_name"]
+
+    # toolName → tool_name  (Copilot)
+    if "toolName" in data and "tool_name" not in data:
+        data["tool_name"] = data["toolName"]
+
+    # toolArgs → tool_input  (Copilot; may be a JSON string)
+    if "toolArgs" in data and "tool_input" not in data:
+        tool_args = data["toolArgs"]
+        if isinstance(tool_args, str):
+            try:
+                tool_args = _json.loads(tool_args)
+            except (ValueError, TypeError):
+                pass
+        data["tool_input"] = tool_args
+
+    # parameters → tool_input  (Gemini)
+    if "parameters" in data and "tool_input" not in data:
+        data["tool_input"] = data["parameters"]
+
+    # args → tool_input  (Gemini fallback)
+    if "args" in data and "tool_input" not in data:
+        data["tool_input"] = data["args"]
+
+    # mcp_context {} → mcp_server / mcp_tool  (Gemini MCP)
+    mcp_context = data.get("mcp_context")
+    if mcp_context and isinstance(mcp_context, dict):
+        server = mcp_context.get("server_name")
+        if server and "mcp_server" not in data:
+            data["mcp_server"] = server
+        tool = mcp_context.get("tool_name")
+        if tool and "mcp_tool" not in data:
+            data["mcp_tool"] = tool
+
+    # ── Phase 2: MCP prefix/inner extraction + output aliases ──────────
+    return normalize_mcp_fields(data)
 
 
 def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:

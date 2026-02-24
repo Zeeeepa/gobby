@@ -7,6 +7,7 @@ Verifies memory lifecycle rules sync correctly and have proper structure:
 - memory-background-digest: mcp_call on before_agent (background)
 - memory-capture-nudge: inject_context on before_agent
 - suggest-memory-after-close: inject_context on after_tool
+- clear-memory-review-on-create: set_variable on after_tool
 - memory-extraction-on-end: mcp_call on session_end
 - memory-sync-export-on-end: mcp_call on session_end
 - reset-memory-tracking-on-compact: set_variable on pre_compact
@@ -35,6 +36,7 @@ MEMORY_RULES = {
     "memory-background-digest",
     "memory-capture-nudge",
     "suggest-memory-after-close",
+    "clear-memory-review-on-create",
     "memory-extraction-on-end",
     "memory-sync-export-on-end",
     "reset-memory-tracking-on-compact",
@@ -67,7 +69,7 @@ class TestMemoryLifecycleSync:
     """Test that memory-lifecycle.yaml syncs correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
-        """All 11 memory-lifecycle rules should sync to workflow_definitions."""
+        """All 12 memory-lifecycle rules should sync to workflow_definitions."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
@@ -250,6 +252,34 @@ class TestSuggestMemoryAfterClose:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "close_task" in body.when
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# clear-memory-review-on-create
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestClearMemoryReviewOnCreate:
+    """Clear pending_memory_review flag when create_memory is called."""
+
+    def test_event_and_effect(self, db, manager) -> None:
+        _sync_bundled(db)
+        row = manager.get_by_name("clear-memory-review-on-create", include_templates=True)
+        assert row is not None
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.event.value == "after_tool"
+        assert body.effect.type == "set_variable"
+        assert body.effect.variable == "pending_memory_review"
+        assert body.effect.value is False
+
+    def test_has_when_condition(self, db, manager) -> None:
+        """Must match create_memory on gobby-memory server."""
+        _sync_bundled(db)
+        row = manager.get_by_name("clear-memory-review-on-create", include_templates=True)
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.when is not None
+        assert "create_memory" in body.when
+        assert "gobby-memory" in body.when
 
 
 # ═══════════════════════════════════════════════════════════════════════

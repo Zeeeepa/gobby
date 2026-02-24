@@ -316,9 +316,9 @@ class ChatMixin:
 
         # Normalize MCP fields using shared logic (same as CLI adapters)
         if data:
-            from gobby.hooks.normalization import normalize_mcp_fields
+            from gobby.hooks.normalization import normalize_tool_fields
 
-            data = normalize_mcp_fields(data)
+            data = normalize_tool_fields(data)
 
         event = HookEvent(
             event_type=event_type,
