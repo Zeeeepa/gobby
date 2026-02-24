@@ -123,7 +123,7 @@ class ChatSessionPermissionsMixin:
                 # request_changes — deny the tool so agent stays in plan mode
                 feedback = self._plan_feedback or "User requested changes."
                 self._plan_feedback = None
-                if self._on_mode_changed:
+                if self.chat_mode == "plan" and self._on_mode_changed:
                     await self._on_mode_changed("plan", "plan_changes_requested")
                 return PermissionResultDeny(message=feedback)
 

@@ -262,6 +262,10 @@ class SessionControlMixin:
         session = self._chat_sessions.get(conversation_id) if conversation_id else None
         if session is not None and conversation_id:
             session.set_chat_mode(mode)
+            # If user toggles away from plan while ExitPlanMode is blocking,
+            # cancel the pending approval to unblock the streaming loop.
+            if mode != "plan" and session.has_pending_plan:
+                session.provide_plan_decision("request_changes")
             # Sync mode_level to workflow state
             workflow_handler = getattr(self, "workflow_handler", None)
             db_sid = getattr(session, "db_session_id", None)

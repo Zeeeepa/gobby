@@ -112,3 +112,51 @@ class TestExitPlanModeDecision:
         await task
 
         assert session.chat_mode == "plan"
+
+    @pytest.mark.asyncio
+    async def test_reject_does_not_broadcast_plan_if_mode_changed(
+        self, session: ChatSession
+    ) -> None:
+        """If user toggled away from plan during the wait, reject should NOT broadcast 'plan'."""
+        mode_changes: list[tuple[str, str]] = []
+
+        async def track_mode_change(mode: str, reason: str) -> None:
+            mode_changes.append((mode, reason))
+
+        session._on_mode_changed = track_mode_change
+
+        async def toggle_then_reject() -> None:
+            await asyncio.sleep(0.05)
+            # Simulate user toggling to bypass via the web UI
+            session.set_chat_mode("bypass")
+            session.provide_plan_decision("request_changes")
+
+        task = asyncio.create_task(toggle_then_reject())
+        result = await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
+        await task
+
+        assert isinstance(result, PermissionResultDeny)
+        # The reject path should NOT have broadcast ("plan", "plan_changes_requested")
+        # because chat_mode was already changed to "bypass".
+        assert ("plan", "plan_changes_requested") not in mode_changes
+
+    @pytest.mark.asyncio
+    async def test_mode_toggle_cancels_pending_exit_plan_mode(
+        self, session: ChatSession
+    ) -> None:
+        """set_chat_mode + provide_plan_decision simulates _handle_set_mode cancellation."""
+
+        async def cancel_via_mode_toggle() -> None:
+            await asyncio.sleep(0.05)
+            # Simulate what _handle_set_mode does when toggling away from plan
+            session.set_chat_mode("bypass")
+            if session.has_pending_plan:
+                session.provide_plan_decision("request_changes")
+
+        task = asyncio.create_task(cancel_via_mode_toggle())
+        result = await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
+        await task
+
+        assert isinstance(result, PermissionResultDeny)
+        # chat_mode should remain "bypass" — not reset to "plan"
+        assert session.chat_mode == "bypass"
