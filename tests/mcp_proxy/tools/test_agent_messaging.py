@@ -1,4 +1,4 @@
-"""Tests for rewritten agent_messaging module (v2).
+"""Tests for agent_messaging module.
 
 Covers:
 - send_message: P2P messaging with same-project validation, auto-writes agent_runs.result
@@ -6,6 +6,7 @@ Covers:
 - complete_command: clears session variables and sends result to parent
 - deliver_pending_messages: returns undelivered messages and marks them delivered
 - activate_command: sets session variables from command fields
+- get_inter_session_messages: read-only message history query
 """
 
 from __future__ import annotations
@@ -100,6 +101,7 @@ def mock_message_manager():
     mgr.create_message = MagicMock(return_value=MockMessage())
     mgr.get_undelivered_messages = MagicMock(return_value=[])
     mgr.mark_delivered = MagicMock(return_value=MockMessage(delivered_at="2026-01-01T00:01:00"))
+    mgr.list_messages = MagicMock(return_value=[])
     return mgr
 
 
@@ -328,8 +330,11 @@ class TestSendCommand:
 
         assert result["success"] is True
         call_kwargs = mock_command_manager.create_command.call_args
-        assert call_kwargs[1].get("allowed_tools") == ["Read", "Grep"] or \
-            call_kwargs[0][3] if len(call_kwargs[0]) > 3 else True
+        assert (
+            call_kwargs[1].get("allowed_tools") == ["Read", "Grep"] or call_kwargs[0][3]
+            if len(call_kwargs[0]) > 3
+            else True
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -350,10 +355,14 @@ class TestCompleteCommand:
     ) -> None:
         """Completing a command clears variables and sends result to parent."""
         mock_command_manager.get_command.return_value = MockCommand(
-            id="cmd-1", from_session="s-parent", to_session="s-child", status="running",
+            id="cmd-1",
+            from_session="s-parent",
+            to_session="s-child",
+            status="running",
         )
         mock_command_manager.update_status.return_value = MockCommand(
-            id="cmd-1", status="completed",
+            id="cmd-1",
+            status="completed",
         )
 
         result = await messaging_registry.call(
@@ -392,7 +401,8 @@ class TestCompleteCommand:
     ) -> None:
         """Error when session_id doesn't match command's to_session."""
         mock_command_manager.get_command.return_value = MockCommand(
-            id="cmd-1", to_session="s-other",
+            id="cmd-1",
+            to_session="s-other",
         )
 
         result = await messaging_registry.call(
@@ -432,9 +442,7 @@ class TestDeliverPendingMessages:
         assert mock_message_manager.mark_delivered.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_deliver_empty(
-        self, messaging_registry, mock_message_manager
-    ) -> None:
+    async def test_deliver_empty(self, messaging_registry, mock_message_manager) -> None:
         """Returns empty list when no undelivered messages."""
         mock_message_manager.get_undelivered_messages.return_value = []
 
@@ -472,7 +480,8 @@ class TestActivateCommand:
             exit_condition="task_complete()",
         )
         mock_command_manager.update_status.return_value = MockCommand(
-            id="cmd-1", status="running",
+            id="cmd-1",
+            status="running",
         )
 
         result = await messaging_registry.call(
@@ -511,7 +520,8 @@ class TestActivateCommand:
     ) -> None:
         """Error when session_id doesn't match command's to_session."""
         mock_command_manager.get_command.return_value = MockCommand(
-            id="cmd-1", to_session="s-other",
+            id="cmd-1",
+            to_session="s-other",
         )
 
         result = await messaging_registry.call(
@@ -539,3 +549,101 @@ class TestToolRegistration:
         assert "complete_command" in tool_names
         assert "deliver_pending_messages" in tool_names
         assert "activate_command" in tool_names
+        assert "get_inter_session_messages" in tool_names
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# get_inter_session_messages
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestGetInterSessionMessages:
+    """get_inter_session_messages is a read-only message history query."""
+
+    @pytest.mark.asyncio
+    async def test_returns_messages(self, messaging_registry, mock_message_manager) -> None:
+        """Returns messages from list_messages as dicts."""
+        msg1 = MockMessage(id="msg-1", content="hello")
+        msg2 = MockMessage(id="msg-2", content="world")
+        mock_message_manager.list_messages.return_value = [msg1, msg2]
+
+        result = await messaging_registry.call(
+            "get_inter_session_messages",
+            {"session_id": "s-child"},
+        )
+
+        assert result["success"] is True
+        assert result["count"] == 2
+        assert len(result["messages"]) == 2
+        assert result["messages"][0]["id"] == "msg-1"
+
+    @pytest.mark.asyncio
+    async def test_passes_direction(self, messaging_registry, mock_message_manager) -> None:
+        """Direction parameter is forwarded to list_messages."""
+        mock_message_manager.list_messages.return_value = []
+
+        await messaging_registry.call(
+            "get_inter_session_messages",
+            {"session_id": "s-child", "direction": "inbox"},
+        )
+
+        call_kwargs = mock_message_manager.list_messages.call_args
+        assert call_kwargs[1].get("direction") == "inbox" or (
+            len(call_kwargs[0]) > 1 and call_kwargs[0][1] == "inbox"
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_side_effects(self, messaging_registry, mock_message_manager) -> None:
+        """Does not call mark_delivered or mark_read."""
+        mock_message_manager.list_messages.return_value = [
+            MockMessage(id="msg-1"),
+        ]
+
+        await messaging_registry.call(
+            "get_inter_session_messages",
+            {"session_id": "s-child"},
+        )
+
+        mock_message_manager.mark_delivered.assert_not_called()
+        mock_message_manager.mark_read.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_list(self, messaging_registry, mock_message_manager) -> None:
+        """Returns empty list when no messages match."""
+        mock_message_manager.list_messages.return_value = []
+
+        result = await messaging_registry.call(
+            "get_inter_session_messages",
+            {"session_id": "s-child"},
+        )
+
+        assert result["success"] is True
+        assert result["messages"] == []
+        assert result["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_passes_all_filters(self, messaging_registry, mock_message_manager) -> None:
+        """All filter parameters are forwarded to list_messages."""
+        mock_message_manager.list_messages.return_value = []
+
+        await messaging_registry.call(
+            "get_inter_session_messages",
+            {
+                "session_id": "s-child",
+                "direction": "sent",
+                "unread_only": True,
+                "undelivered_only": True,
+                "message_type": "command_result",
+                "limit": 10,
+                "offset": 5,
+            },
+        )
+
+        mock_message_manager.list_messages.assert_called_once()
+        kwargs = mock_message_manager.list_messages.call_args[1]
+        assert kwargs["direction"] == "sent"
+        assert kwargs["unread_only"] is True
+        assert kwargs["undelivered_only"] is True
+        assert kwargs["message_type"] == "command_result"
+        assert kwargs["limit"] == 10
+        assert kwargs["offset"] == 5

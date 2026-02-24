@@ -427,6 +427,123 @@ class TestInterSessionMessageManagerGetMessage:
         assert result is None
 
 
+class TestInterSessionMessageManagerListMessages:
+    """Tests for list_messages read-only query method."""
+
+    @pytest.fixture
+    def setup(self, temp_db: LocalDatabase):
+        """Create project, sessions, manager, and seed messages."""
+        from gobby.storage.inter_session_messages import InterSessionMessageManager
+        from gobby.storage.projects import LocalProjectManager
+        from gobby.storage.sessions import LocalSessionManager
+
+        project_mgr = LocalProjectManager(temp_db)
+        project = project_mgr.create(name="test-project", repo_path="/tmp/test")
+
+        session_mgr = LocalSessionManager(temp_db)
+        s_alpha = session_mgr.register(
+            external_id="alpha", machine_id="m1", source="claude", project_id=project.id
+        )
+        s_beta = session_mgr.register(
+            external_id="beta", machine_id="m1", source="claude", project_id=project.id
+        )
+
+        mgr = InterSessionMessageManager(temp_db)
+
+        import time
+
+        # alpha → beta (inbox for beta, sent for alpha)
+        m1 = mgr.create_message(from_session=s_alpha.id, to_session=s_beta.id, content="msg-1")
+        time.sleep(0.01)
+        m2 = mgr.create_message(
+            from_session=s_alpha.id,
+            to_session=s_beta.id,
+            content="msg-2",
+            message_type="command_result",
+        )
+        time.sleep(0.01)
+        # beta → alpha (inbox for alpha, sent for beta)
+        m3 = mgr.create_message(from_session=s_beta.id, to_session=s_alpha.id, content="msg-3")
+
+        # Mark m1 as read and delivered
+        mgr.mark_read(m1.id)
+        mgr.mark_delivered(m1.id)
+
+        class Setup:
+            alpha = s_alpha
+            beta = s_beta
+            manager = mgr
+            messages = (m1, m2, m3)
+
+        return Setup()
+
+    def test_direction_inbox(self, setup) -> None:
+        """direction='inbox' returns only received messages."""
+        msgs = setup.manager.list_messages(setup.beta.id, direction="inbox")
+        assert len(msgs) == 2
+        assert all(m.to_session == setup.beta.id for m in msgs)
+
+    def test_direction_sent(self, setup) -> None:
+        """direction='sent' returns only sent messages."""
+        msgs = setup.manager.list_messages(setup.beta.id, direction="sent")
+        assert len(msgs) == 1
+        assert msgs[0].from_session == setup.beta.id
+
+    def test_direction_all(self, setup) -> None:
+        """direction='all' returns both sent and received."""
+        msgs = setup.manager.list_messages(setup.beta.id, direction="all")
+        assert len(msgs) == 3
+
+    def test_unread_only(self, setup) -> None:
+        """unread_only=True excludes messages with read_at set."""
+        msgs = setup.manager.list_messages(setup.beta.id, direction="inbox", unread_only=True)
+        # m1 was marked read, m2 is unread
+        assert len(msgs) == 1
+        assert msgs[0].content == "msg-2"
+
+    def test_undelivered_only(self, setup) -> None:
+        """undelivered_only=True excludes messages with delivered_at set."""
+        msgs = setup.manager.list_messages(setup.beta.id, direction="inbox", undelivered_only=True)
+        # m1 was marked delivered, m2 is undelivered
+        assert len(msgs) == 1
+        assert msgs[0].content == "msg-2"
+
+    def test_message_type_filter(self, setup) -> None:
+        """message_type filters to a specific type."""
+        msgs = setup.manager.list_messages(
+            setup.beta.id,
+            direction="inbox",
+            message_type="command_result",
+        )
+        assert len(msgs) == 1
+        assert msgs[0].message_type == "command_result"
+
+    def test_limit_and_offset(self, setup) -> None:
+        """limit and offset control pagination."""
+        all_msgs = setup.manager.list_messages(setup.beta.id, direction="all")
+        assert len(all_msgs) == 3
+
+        page1 = setup.manager.list_messages(setup.beta.id, direction="all", limit=2, offset=0)
+        assert len(page1) == 2
+
+        page2 = setup.manager.list_messages(setup.beta.id, direction="all", limit=2, offset=2)
+        assert len(page2) == 1
+
+    def test_ordered_by_sent_at_desc(self, setup) -> None:
+        """Results are ordered by sent_at DESC (newest first)."""
+        msgs = setup.manager.list_messages(setup.beta.id, direction="all")
+        sent_times = [m.sent_at for m in msgs]
+        assert sent_times == sorted(sent_times, reverse=True)
+
+    def test_empty_result(self, temp_db: LocalDatabase) -> None:
+        """Returns empty list when no messages match."""
+        from gobby.storage.inter_session_messages import InterSessionMessageManager
+
+        mgr = InterSessionMessageManager(temp_db)
+        msgs = mgr.list_messages("nonexistent-session", direction="all")
+        assert msgs == []
+
+
 class TestInterSessionMessageManagerExport:
     """TDD tests for module exports."""
 

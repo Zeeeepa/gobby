@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Mock helpers (reused from test_agent_messaging_v2)
+# Mock helpers (reused from test_agent_messaging)
 # ═══════════════════════════════════════════════════════════════════════
 
 

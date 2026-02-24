@@ -6,6 +6,7 @@ Provides P2P messaging and command coordination between sessions:
 - complete_command: Descendant completes command, clears state, sends result
 - deliver_pending_messages: Fetch and mark undelivered messages
 - activate_command: Activate a pending command, set session variables
+- get_inter_session_messages: Read-only query of message history
 """
 
 from __future__ import annotations
@@ -300,6 +301,47 @@ def add_messaging_tools(
 
         except Exception as e:
             logger.error("deliver_pending_messages failed: %s", e)
+            return {"success": False, "error": str(e)}
+
+    # ── get_inter_session_messages ────────────────────────────────
+
+    @registry.tool(
+        name="get_inter_session_messages",
+        description=(
+            "Read-only query of inter-session message history. "
+            "Returns sent and/or received messages without marking them "
+            "as delivered or read. Use for debugging, audit, and visibility."
+        ),
+    )
+    async def get_inter_session_messages(
+        session_id: str,
+        direction: str = "all",
+        unread_only: bool = False,
+        undelivered_only: bool = False,
+        message_type: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        try:
+            resolved_id = _resolve(session_id)
+            messages = message_manager.list_messages(
+                session_id=resolved_id,
+                direction=direction,
+                unread_only=unread_only,
+                undelivered_only=undelivered_only,
+                message_type=message_type,
+                limit=limit,
+                offset=offset,
+            )
+
+            return {
+                "success": True,
+                "messages": [m.to_dict() for m in messages],
+                "count": len(messages),
+            }
+
+        except Exception as e:
+            logger.error("get_inter_session_messages failed: %s", e)
             return {"success": False, "error": str(e)}
 
     # ── activate_command ──────────────────────────────────────────

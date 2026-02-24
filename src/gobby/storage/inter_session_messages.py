@@ -235,6 +235,63 @@ class InterSessionMessageManager:
         )
         return [InterSessionMessage.from_row(row) for row in rows]
 
+    def list_messages(
+        self,
+        session_id: str,
+        direction: str = "all",
+        unread_only: bool = False,
+        undelivered_only: bool = False,
+        message_type: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[InterSessionMessage]:
+        """List messages for a session with flexible filtering.
+
+        Read-only query — does not mark messages as read or delivered.
+
+        Args:
+            session_id: Session to query messages for
+            direction: "inbox" (received), "sent", or "all"
+            unread_only: If True, only return messages with read_at IS NULL
+            undelivered_only: If True, only return messages with delivered_at IS NULL
+            message_type: Filter by message_type (e.g. "message", "command_result")
+            limit: Max rows to return (default 50)
+            offset: Rows to skip for pagination (default 0)
+
+        Returns:
+            List of InterSessionMessage instances ordered by sent_at DESC
+        """
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if direction == "inbox":
+            conditions.append("to_session = ?")
+            params.append(session_id)
+        elif direction == "sent":
+            conditions.append("from_session = ?")
+            params.append(session_id)
+        else:  # "all"
+            conditions.append("(from_session = ? OR to_session = ?)")
+            params.extend([session_id, session_id])
+
+        if unread_only:
+            conditions.append("read_at IS NULL")
+        if undelivered_only:
+            conditions.append("delivered_at IS NULL")
+        if message_type is not None:
+            conditions.append("message_type = ?")
+            params.append(message_type)
+
+        where = " AND ".join(conditions)
+        query = (
+            f"SELECT * FROM inter_session_messages WHERE {where} "
+            f"ORDER BY sent_at DESC LIMIT ? OFFSET ?"
+        )
+        params.extend([limit, offset])
+
+        rows = self.db.fetchall(query, tuple(params))
+        return [InterSessionMessage.from_row(row) for row in rows]
+
     def mark_delivered(self, message_id: str) -> InterSessionMessage:
         """Mark a message as delivered.
 
