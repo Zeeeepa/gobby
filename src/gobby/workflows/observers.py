@@ -203,9 +203,16 @@ def detect_plan_mode_from_context(prompt: str, state: "WorkflowState") -> None:
     if not prompt:
         return
 
+    # Strip <conversation-history> blocks first — they contain restored system reminders
+    # from earlier turns that would cause false positives (e.g. plan mode indicators
+    # from a session that has since exited plan mode).
+    cleaned = re.sub(
+        r"<conversation-history>.*?</conversation-history>", "", prompt, flags=re.DOTALL
+    )
+
     # Extract only content within <system-reminder> tags to avoid false positives
     # from handoff context or user messages mentioning plan mode
-    system_reminders = re.findall(r"<system-reminder>(.*?)</system-reminder>", prompt, re.DOTALL)
+    system_reminders = re.findall(r"<system-reminder>(.*?)</system-reminder>", cleaned, re.DOTALL)
     reminder_text = " ".join(system_reminders)
 
     # Claude Code injects these phrases in system reminders when plan mode is active

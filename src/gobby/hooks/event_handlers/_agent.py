@@ -177,13 +177,10 @@ class AgentEventHandlerMixin(EventHandlersBase):
 
         if session_id and self._session_manager:
             try:
-                session = self._session_manager.get(session_id)
-                if (
-                    session
-                    and getattr(session, "step_variables", None)
-                    and isinstance(session.step_variables, dict)
-                ):
-                    active_names = session.step_variables.get("_active_skill_names")
+                session = self._session_manager.get_session(session_id)
+                step_vars = (session or {}).get("step_variables")
+                if isinstance(step_vars, dict):
+                    active_names = step_vars.get("_active_skill_names")
                     if active_names is not None:
                         active_set = set(active_names)
                         skills = [s for s in skills if s.name in active_set]

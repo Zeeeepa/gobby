@@ -165,6 +165,50 @@ class TestDetectPlanModeFromContext:
 
         assert "mode_level" not in workflow_state.variables
 
+    def test_ignores_plan_mode_inside_conversation_history(self, workflow_state) -> None:
+        """Does NOT detect plan mode from historical context in <conversation-history> blocks.
+
+        Regression test for bug #9129: conversation history restoration wraps
+        old system reminders (including plan mode indicators) inside a
+        <conversation-history> block that is itself inside a <system-reminder>.
+        These must be stripped before detection to avoid false positives.
+        """
+        prompt = (
+            "<system-reminder>\n"
+            "<conversation-history>\n"
+            "The following is prior conversation history.\n\n"
+            "**Assistant:** Let me enter plan mode.\n\n"
+            "<system-reminder>\n"
+            '<plan-mode status="active">\n'
+            "You are in PLAN MODE. Your role is to research and design, not execute.\n"
+            "</plan-mode>\n"
+            "</system-reminder>\n"
+            "</conversation-history>\n"
+            "</system-reminder>\n"
+            "How about now?"
+        )
+
+        detect_plan_mode_from_context(prompt, workflow_state)
+
+        assert "mode_level" not in workflow_state.variables
+
+    def test_detects_plan_mode_outside_conversation_history(self, workflow_state) -> None:
+        """Still detects plan mode from current (non-historical) system reminders
+        even when conversation history is also present."""
+        prompt = (
+            "<system-reminder>\n"
+            "<conversation-history>\n"
+            "Some old context here.\n"
+            "</conversation-history>\n"
+            "</system-reminder>\n"
+            "<system-reminder>Plan mode is active</system-reminder>\n"
+            "Please plan the changes."
+        )
+
+        detect_plan_mode_from_context(prompt, workflow_state)
+
+        assert workflow_state.variables.get("mode_level") == 0
+
 
 # =============================================================================
 # Tests for handle_detect_plan_mode_from_context (action handler)
