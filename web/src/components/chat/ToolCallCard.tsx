@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { ToolCall } from '../../types/chat'
@@ -31,6 +31,67 @@ interface AskUserQuestionItem {
 function formatToolName(fullName: string): string {
   const parts = fullName.split('__')
   return parts[parts.length - 1] || fullName
+}
+
+// --- Tool call grouping types and logic ---
+
+export interface ToolCallGroup {
+  kind: 'group'
+  toolName: string
+  displayName: string
+  calls: ToolCall[]
+  hasErrors: boolean
+  allCompleted: boolean
+  hasInFlight: boolean
+}
+export interface ToolCallSingle { kind: 'single'; call: ToolCall }
+export type ToolCallSegment = ToolCallGroup | ToolCallSingle
+
+const UNGROUPABLE_TOOLS = new Set(['render_surface', 'AskUserQuestion'])
+
+export function groupToolCalls(toolCalls: ToolCall[]): ToolCallSegment[] {
+  const segments: ToolCallSegment[] = []
+  let i = 0
+
+  while (i < toolCalls.length) {
+    const call = toolCalls[i]
+
+    if (UNGROUPABLE_TOOLS.has(call.tool_name) || call.status === 'pending_approval') {
+      segments.push({ kind: 'single', call })
+      i++
+      continue
+    }
+
+    let j = i + 1
+    while (
+      j < toolCalls.length &&
+      toolCalls[j].tool_name === call.tool_name &&
+      !UNGROUPABLE_TOOLS.has(toolCalls[j].tool_name) &&
+      toolCalls[j].status !== 'pending_approval'
+    ) {
+      j++
+    }
+
+    const runLength = j - i
+    if (runLength >= 2) {
+      const calls = toolCalls.slice(i, j)
+      segments.push({
+        kind: 'group',
+        toolName: call.tool_name,
+        displayName: formatToolName(call.tool_name),
+        calls,
+        hasErrors: calls.some(c => c.status === 'error'),
+        allCompleted: calls.every(c => c.status === 'completed'),
+        hasInFlight: calls.some(c => c.status === 'calling'),
+      })
+    } else {
+      segments.push({ kind: 'single', call })
+    }
+
+    i = j
+  }
+
+  return segments
 }
 
 const EXT_TO_LANGUAGE: Record<string, string> = {
@@ -223,7 +284,7 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   )
 }
 
-const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void }) {
+const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const displayName = formatToolName(call.tool_name)
 
@@ -243,7 +304,9 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
 
   return (
     <div className={cn(
-      'rounded-lg border border-border overflow-hidden my-1.5',
+      nested
+        ? 'border-b border-border last:border-b-0 overflow-hidden'
+        : 'rounded-lg border border-border overflow-hidden my-1.5',
       call.status === 'error' && 'border-destructive-foreground/30'
     )}>
       <div
@@ -506,13 +569,122 @@ function CanvasSurfaceCard({ call, canvasSurfaces, onCanvasInteraction }: { call
   )
 }
 
+function GroupStatusIcon({ hasErrors, allCompleted, hasInFlight }: { hasErrors: boolean; allCompleted: boolean; hasInFlight: boolean }) {
+  if (hasInFlight) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent animate-spin">
+        <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="16" />
+      </svg>
+    )
+  }
+  if (hasErrors) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-destructive-foreground">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    )
+  }
+  if (allCompleted) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-success-foreground">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    )
+  }
+  return null
+}
+
+function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: {
+  group: ToolCallGroup
+  expanded: boolean
+  onToggle: () => void
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  canvasSurfaces?: Map<string, A2UISurfaceState>
+  onCanvasInteraction?: (canvasId: string, action: UserAction) => void
+}) {
+  const serverName = group.calls[0]?.server_name
+
+  return (
+    <div className={cn(
+      'rounded-lg border overflow-hidden my-1.5',
+      group.hasErrors ? 'border-destructive-foreground/30' : group.hasInFlight ? 'border-accent/30' : 'border-border'
+    )}>
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={onToggle}
+      >
+        <GroupStatusIcon hasErrors={group.hasErrors} allCompleted={group.allCompleted} hasInFlight={group.hasInFlight} />
+        <span className="font-mono text-foreground">{group.displayName}</span>
+        <Badge variant="default">×{group.calls.length}</Badge>
+        {serverName && <span className="text-muted-foreground text-xs">{serverName}</span>}
+        <div className="flex-1" />
+        <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
+      </div>
+      {expanded && (
+        <div className="border-t border-border">
+          {group.calls.map(call => (
+            <ToolCallItem
+              key={call.id}
+              call={call}
+              nested
+              onRespond={onRespond}
+              onRespondToApproval={onRespondToApproval}
+              canvasSurfaces={canvasSurfaces}
+              onCanvasInteraction={onCanvasInteraction}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: ToolCallCardProps) {
+  const segments = useMemo(() => groupToolCalls(toolCalls), [toolCalls])
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set())
+
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
   if (!toolCalls.length) return null
+
   return (
     <div className="my-1">
-      {toolCalls.map((call) => (
-        <ToolCallItem key={call.id} call={call} onRespond={onRespond} onRespondToApproval={onRespondToApproval} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
-      ))}
+      {segments.map(segment => {
+        if (segment.kind === 'single') {
+          return (
+            <ToolCallItem
+              key={segment.call.id}
+              call={segment.call}
+              onRespond={onRespond}
+              onRespondToApproval={onRespondToApproval}
+              canvasSurfaces={canvasSurfaces}
+              onCanvasInteraction={onCanvasInteraction}
+            />
+          )
+        }
+        const groupKey = `${segment.calls[0].id}-${segment.toolName}`
+        return (
+          <ToolCallGroupHeader
+            key={groupKey}
+            group={segment}
+            expanded={expandedGroups.has(groupKey)}
+            onToggle={() => toggleGroup(groupKey)}
+            onRespond={onRespond}
+            onRespondToApproval={onRespondToApproval}
+            canvasSurfaces={canvasSurfaces}
+            onCanvasInteraction={onCanvasInteraction}
+          />
+        )
+      })}
     </div>
   )
 })
