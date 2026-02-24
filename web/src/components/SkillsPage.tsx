@@ -1,7 +1,6 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useSkills } from '../hooks/useSkills'
 import type { GobbySkill } from '../hooks/useSkills'
-import { SkillsOverview } from './SkillsOverview'
 import { SkillsFilters } from './SkillsFilters'
 import { SkillsGrid } from './SkillsGrid'
 import { SkillDetail } from './SkillDetail'
@@ -9,31 +8,23 @@ import { SkillForm } from './SkillForm'
 import type { SkillFormData } from './SkillForm'
 import { SkillHubBrowser } from './SkillHubBrowser'
 import { SkillImportModal } from './SkillImportModal'
+import { TabBar } from './TabBar'
+import './WorkflowsPage.css'
 
-function InstalledIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <line x1="3" y1="3" x2="11" y2="3" />
-      <line x1="3" y1="7" x2="11" y2="7" />
-      <line x1="3" y1="11" x2="11" y2="11" />
-    </svg>
-  )
-}
+type ActiveTab = 'installed' | 'hub'
+type SourceFilter = 'installed' | 'project' | 'templates' | 'deleted'
 
-function HubIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="7" cy="7" r="5.5" />
-      <line x1="7" y1="1.5" x2="7" y2="12.5" />
-      <path d="M1.5 7h11" />
-      <path d="M2.5 3.5Q7 5.5 11.5 3.5" />
-      <path d="M2.5 10.5Q7 8.5 11.5 10.5" />
-    </svg>
-  )
-}
+const TABS = [
+  { id: 'installed', label: 'Installed' },
+  { id: 'hub', label: 'Hub Browser' },
+]
 
-type ViewMode = 'installed' | 'hub'
-type OverviewFilter = 'total' | 'enabled' | 'bundled' | 'hubs' | 'templates' | null
+const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
+  { value: 'installed', label: 'Installed' },
+  { value: 'project', label: 'Project' },
+  { value: 'templates', label: 'Templates' },
+  { value: 'deleted', label: 'Deleted' },
+]
 
 export function SkillsPage() {
   const {
@@ -63,16 +54,32 @@ export function SkillsPage() {
     restoreSkill,
   } = useSkills()
 
-  const [viewMode, setViewMode] = useState<ViewMode>('installed')
+  const [activeTab, setActiveTab] = useState<ActiveTab>('installed')
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('installed')
   const [showForm, setShowForm] = useState(false)
   const [editSkill, setEditSkill] = useState<GobbySkill | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<GobbySkill | null>(null)
-  const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [searchText, setSearchText] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [sourceTypeFilter, setSourceTypeFilter] = useState<string | null>(null)
   const [installing, setInstalling] = useState<string | null>(null)
+
+  const [refreshing, setRefreshing] = useState(false)
+  const [showFilterPopover, setShowFilterPopover] = useState(false)
+  const filterRef = useRef<HTMLDivElement>(null)
+
+  // Click-outside to close popover
+  useEffect(() => {
+    if (!showFilterPopover) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setShowFilterPopover(false)
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [showFilterPopover])
 
   const showError = useCallback((msg: string) => {
     setErrorMessage(msg)
@@ -90,18 +97,18 @@ export function SkillsPage() {
     return names
   }, [skills])
 
-  // Apply overview filter + search + source type filter to skills
+  // Apply source filter + search + source type filter to skills
   const filteredSkills = useMemo(() => {
     let result = skills
 
-    if (overviewFilter === 'enabled') {
-      result = result.filter(s => s.enabled)
-    } else if (overviewFilter === 'bundled') {
-      result = result.filter(s => s.source_type === 'filesystem')
-    } else if (overviewFilter === 'hubs') {
-      result = result.filter(s => s.hub_name !== null)
-    } else if (overviewFilter === 'templates') {
-      result = result.filter(s => s.source === 'template')
+    if (sourceFilter === 'installed') {
+      result = result.filter(s => s.source === 'installed' && !s.deleted_at)
+    } else if (sourceFilter === 'project') {
+      result = result.filter(s => s.source === 'project' && !s.deleted_at)
+    } else if (sourceFilter === 'templates') {
+      result = result.filter(s => s.source === 'template' && !s.deleted_at)
+    } else if (sourceFilter === 'deleted') {
+      result = result.filter(s => s.deleted_at)
     }
 
     if (sourceTypeFilter) {
@@ -117,7 +124,22 @@ export function SkillsPage() {
     }
 
     return result
-  }, [skills, overviewFilter, searchText, sourceTypeFilter])
+  }, [skills, sourceFilter, searchText, sourceTypeFilter])
+
+  const handleSourceFilter = useCallback((f: SourceFilter) => {
+    setSourceFilter(f)
+    setFilters(prev => ({
+      ...prev,
+      includeTemplates: f === 'templates',
+      includeDeleted: f === 'deleted',
+    }))
+  }, [setFilters])
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    refreshSkills()
+    setTimeout(() => setRefreshing(false), 600)
+  }, [refreshSkills])
 
   const handleCreate = useCallback(() => {
     setEditSkill(null)
@@ -159,7 +181,6 @@ export function SkillsPage() {
   const handleExport = useCallback(async (skillId: string) => {
     const result = await exportSkill(skillId)
     if (result) {
-      // Create download
       const blob = new Blob([result.content], { type: 'text/markdown' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -201,7 +222,6 @@ export function SkillsPage() {
   const handleClearFilters = useCallback(() => {
     setFilters(prev => ({ ...prev, category: null }))
     setSourceTypeFilter(null)
-    setOverviewFilter(null)
   }, [setFilters])
 
   const handleHubInstall = useCallback(async (hubName: string, slug: string) => {
@@ -225,7 +245,6 @@ export function SkillsPage() {
   }, [installFromTemplate, showError])
 
   const handleMoveToProject = useCallback(async (skillId: string) => {
-    // TODO: get actual project ID from context; for now use a prompt
     const pid = window.prompt('Project ID to move to:')
     if (!pid) return
     const result = await moveToProject(skillId, pid)
@@ -242,84 +261,100 @@ export function SkillsPage() {
     if (!result) showError('Failed to restore skill')
   }, [restoreSkill, showError])
 
-  // Sync include_templates / include_deleted filters based on overview filter
-  const handleOverviewFilter = useCallback((f: string | null) => {
-    const newFilter = (overviewFilter === f ? null : f) as OverviewFilter
-    setOverviewFilter(newFilter)
-    setFilters(prev => ({
-      ...prev,
-      includeTemplates: newFilter === 'templates',
-      includeDeleted: false,
-    }))
-  }, [overviewFilter, setFilters])
+  const activeFilterCount = sourceFilter !== 'installed' ? 1 : 0
 
   return (
-    <main className="skills-page">
+    <main className="workflows-page">
       {errorMessage && (
         <div className="skills-error-toast" onClick={() => setErrorMessage(null)}>
           {errorMessage}
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="skills-toolbar">
-        <div className="skills-toolbar-left">
-          <h2 className="skills-toolbar-title">Skills</h2>
-          <span className="skills-toolbar-count">{stats?.total ?? 0}</span>
+      {/* Title row */}
+      <div className="workflows-toolbar">
+        <div className="workflows-toolbar-left">
+          <h2 className="workflows-toolbar-title">Skills</h2>
+          <span className="workflows-toolbar-count">{stats?.total ?? 0}</span>
         </div>
-        <div className="skills-toolbar-right">
-          <div className="skills-view-toggle">
-            <button
-              className={`skills-view-btn ${viewMode === 'installed' ? 'skills-view-btn--active' : ''}`}
-              onClick={() => setViewMode('installed')}
-              title="Installed"
-            >
-              <InstalledIcon />
-            </button>
-            <button
-              className={`skills-view-btn ${viewMode === 'hub' ? 'skills-view-btn--active' : ''}`}
-              onClick={() => setViewMode('hub')}
-              title="Hub"
-            >
-              <HubIcon />
-            </button>
-          </div>
-
-          {viewMode === 'installed' && (
-            <input
-              className="skills-search"
-              type="text"
-              value={searchText}
-              onChange={handleSearch}
-              placeholder="Search..."
-            />
-          )}
-
-          <button className="skills-toolbar-btn" onClick={refreshSkills} title="Refresh">&#x21bb;</button>
-
-          {viewMode === 'installed' && (
+        <div className="workflows-toolbar-right">
+          {activeTab === 'installed' && (
             <>
-              <button className="skills-toolbar-btn" onClick={() => setShowImport(true)} title="Import">
+              <button className="workflows-toolbar-btn" onClick={() => setShowImport(true)} title="Import">
                 <ImportIcon />
               </button>
-              <button className="skills-toolbar-btn" onClick={handleRestore} title="Restore Defaults">
+              <button className="workflows-toolbar-btn" onClick={handleRestore} title="Restore Defaults">
                 <RestoreIcon />
               </button>
-              <button className="skills-new-btn" onClick={handleCreate}>+ New</button>
+              <button className="workflows-new-btn" onClick={handleCreate}>+ New</button>
             </>
           )}
         </div>
       </div>
 
-      {/* Installed View */}
-      {viewMode === 'installed' && (
-        <>
-          <SkillsOverview
-            stats={stats}
-            activeFilter={overviewFilter}
-            onFilter={handleOverviewFilter}
+      {/* Filter row */}
+      <div className="workflows-filter-row">
+        {activeTab === 'installed' && (
+          <input
+            className="workflows-search"
+            type="text"
+            value={searchText}
+            onChange={handleSearch}
+            placeholder="Search..."
           />
+        )}
+        {activeTab === 'installed' && (
+          <div className="workflows-filter-wrapper" ref={filterRef}>
+            <button
+              type="button"
+              className="workflows-filter-btn"
+              onClick={() => setShowFilterPopover(v => !v)}
+            >
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="workflows-filter-badge">{activeFilterCount}</span>
+              )}
+            </button>
+            {showFilterPopover && (
+              <div className="workflows-filter-popover">
+                <div className="workflows-filter-popover-section">
+                  <div className="workflows-filter-popover-label">Source</div>
+                  <div className="workflows-filter-popover-chips">
+                    {SOURCE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`workflows-filter-chip ${sourceFilter === opt.value ? 'workflows-filter-chip--active' : ''}`}
+                        onClick={() => handleSourceFilter(opt.value)}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <button
+          className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
+          onClick={handleRefresh}
+          title="Refresh"
+        >
+          &#x21bb;
+        </button>
+      </div>
 
+      {/* Tab bar */}
+      <TabBar
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as ActiveTab)}
+      />
+
+      {/* Installed View */}
+      {activeTab === 'installed' && (
+        <>
           <SkillsFilters
             stats={stats}
             category={filters.category}
@@ -329,9 +364,9 @@ export function SkillsPage() {
             onClear={handleClearFilters}
           />
 
-          <div className="skills-content">
+          <div className="workflows-content">
             {isLoading ? (
-              <div className="skills-loading">Loading skills...</div>
+              <div className="workflows-loading">Loading skills...</div>
             ) : (
               <SkillsGrid
                 skills={filteredSkills}
@@ -352,8 +387,8 @@ export function SkillsPage() {
       )}
 
       {/* Hub View */}
-      {viewMode === 'hub' && (
-        <div className="skills-content">
+      {activeTab === 'hub' && (
+        <div className="workflows-content">
           <SkillHubBrowser
             hubs={hubs}
             hubResults={hubResults}
