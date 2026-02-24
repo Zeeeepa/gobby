@@ -163,7 +163,7 @@ class InternalToolRegistry:
             required = []
 
             for param_name, param in sig.parameters.items():
-                if param_name == "self":
+                if param_name == "self" or param_name.startswith("_"):
                     continue
 
                 annotation = resolved_hints.get(param_name, param.annotation)
@@ -224,13 +224,17 @@ class InternalToolRegistry:
 
         return coerced
 
-    async def call(self, name: str, arguments: dict[str, Any]) -> Any:
+    async def call(
+        self, name: str, arguments: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> Any:
         """
         Call a tool by name with the given arguments.
 
         Args:
             name: Tool name
             arguments: Tool arguments
+            context: Optional context dict to inject as ``_context`` (SimpleNamespace)
+                for tools that declare that parameter.
 
         Returns:
             Tool execution result
@@ -246,6 +250,12 @@ class InternalToolRegistry:
 
         # Coerce string arguments to declared schema types
         coerced_arguments = self._coerce_arguments(arguments, tool.input_schema)
+
+        # Inject _context for tools that declare it
+        if context:
+            sig = inspect.signature(tool.func)
+            if "_context" in sig.parameters:
+                coerced_arguments["_context"] = types.SimpleNamespace(**context)
 
         # Call the function (handle both sync and async)
         if inspect.iscoroutinefunction(tool.func):

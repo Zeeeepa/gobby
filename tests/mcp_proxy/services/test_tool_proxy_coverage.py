@@ -1000,7 +1000,7 @@ class TestProxyNamespaceResolution:
 
         assert result["id"] == "task-123"
         mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
-        mock_registry.call.assert_called_once_with("create_task", {"title": "Test"})
+        mock_registry.call.assert_called_once_with("create_task", {"title": "Test"}, context=None)
 
     async def test_call_tool_gobby_tool_not_found(
         self, mock_mcp_manager, mock_internal_manager

@@ -197,10 +197,11 @@ def create_canvas_registry(
         _context: Any = None,
     ) -> dict[str, Any]:
         """Render an inline A2UI surface."""
-        # Note: we use _context to pass the agent context so we can extract session_id
         actual_convo_id = conversation_id
-        if not actual_convo_id and _context and hasattr(_context, "session_id"):
-            actual_convo_id = _context.session_id
+        if not actual_convo_id and _context:
+            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
+                _context, "session_id", None
+            )
 
         if not actual_convo_id:
             return {"success": False, "error": "conversation_id (or session context) is required"}
@@ -288,8 +289,10 @@ def create_canvas_registry(
     ) -> dict[str, Any]:
         """Update an existing A2UI surface."""
         actual_convo_id = conversation_id
-        if not actual_convo_id and _context and hasattr(_context, "session_id"):
-            actual_convo_id = _context.session_id
+        if not actual_convo_id and _context:
+            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
+                _context, "session_id", None
+            )
 
         if not actual_convo_id:
             return {"success": False, "error": "conversation_id (or session context) is required"}
@@ -406,8 +409,10 @@ def create_canvas_registry(
     ) -> dict[str, Any]:
         """Present a local HTML file in the Canvas panel sandbox."""
         actual_convo_id = conversation_id
-        if not actual_convo_id and _context and hasattr(_context, "session_id"):
-            actual_convo_id = _context.session_id
+        if not actual_convo_id and _context:
+            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
+                _context, "session_id", None
+            )
 
         if not actual_convo_id:
             return {"success": False, "error": "conversation_id (or session context) is required"}
