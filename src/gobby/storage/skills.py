@@ -95,6 +95,10 @@ class Skill:
     injection_format: str = "summary"  # "summary", "full", "content"
     project_id: str | None = None
 
+    # Template pattern (mirrors workflow_definitions)
+    source: str = "installed"  # 'template' or 'installed'
+    deleted_at: str | None = None
+
     # Timestamps
     created_at: str = ""
     updated_at: str = ""
@@ -138,6 +142,8 @@ class Skill:
             if "injection_format" in row.keys()
             else "summary",
             project_id=row["project_id"],
+            source=row["source"] if "source" in row.keys() else "installed",
+            deleted_at=row["deleted_at"] if "deleted_at" in row.keys() else None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -168,6 +174,8 @@ class Skill:
             "always_apply": self.always_apply,
             "injection_format": self.injection_format,
             "project_id": self.project_id,
+            "source": self.source,
+            "deleted_at": self.deleted_at,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -422,6 +430,7 @@ class LocalSkillManager:
         always_apply: bool = False,
         injection_format: str = "summary",
         project_id: str | None = None,
+        source: str = "installed",
     ) -> Skill:
         """Create a new skill.
 
@@ -444,21 +453,24 @@ class LocalSkillManager:
             always_apply: Whether skill should always be injected at session start
             injection_format: How to inject skill (summary, full, content)
             project_id: Project scope (None for global)
+            source: 'template' or 'installed' (default 'installed')
 
         Returns:
             The created Skill
 
         Raises:
-            ValueError: If a skill with the same name exists in the project scope
+            ValueError: If a skill with the same name and source exists in the project scope
         """
         now = datetime.now(UTC).isoformat()
-        skill_id = generate_prefixed_id("skl", f"{name}:{project_id or 'global'}")
+        skill_id = generate_prefixed_id("skl", f"{name}:{project_id or 'global'}:{source}")
 
-        # Check if skill already exists in this project scope
-        existing = self.get_by_name(name, project_id=project_id)
+        # Check if skill already exists in this project scope with same source
+        existing = self.get_by_name(
+            name, project_id=project_id, source=source, include_deleted=True
+        )
         if existing:
             raise ValueError(
-                f"Skill '{name}' already exists"
+                f"Skill '{name}' (source={source}) already exists"
                 + (f" in project {project_id}" if project_id else " globally")
             )
 
@@ -474,8 +486,8 @@ class LocalSkillManager:
                     compatibility, allowed_tools, metadata, source_path,
                     source_type, source_ref, hub_name, hub_slug, hub_version,
                     enabled, always_apply, injection_format, project_id,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     skill_id,
@@ -497,6 +509,7 @@ class LocalSkillManager:
                     always_apply,
                     injection_format,
                     project_id,
+                    source,
                     now,
                     now,
                 ),
@@ -506,11 +519,12 @@ class LocalSkillManager:
         self._notify_change("create", skill_id, name)
         return skill
 
-    def get_skill(self, skill_id: str) -> Skill:
+    def get_skill(self, skill_id: str, include_deleted: bool = False) -> Skill:
         """Get a skill by ID.
 
         Args:
             skill_id: The skill ID
+            include_deleted: If True, include soft-deleted skills.
 
         Returns:
             The Skill
@@ -518,7 +532,12 @@ class LocalSkillManager:
         Raises:
             ValueError: If skill not found
         """
-        row = self.db.fetchone("SELECT * FROM skills WHERE id = ?", (skill_id,))
+        if include_deleted:
+            row = self.db.fetchone("SELECT * FROM skills WHERE id = ?", (skill_id,))
+        else:
+            row = self.db.fetchone(
+                "SELECT * FROM skills WHERE id = ? AND deleted_at IS NULL", (skill_id,)
+            )
         if not row:
             raise ValueError(f"Skill {skill_id} not found")
         return Skill.from_row(row)
@@ -528,35 +547,58 @@ class LocalSkillManager:
         name: str,
         project_id: str | None = None,
         include_global: bool = True,
+        include_deleted: bool = False,
+        include_templates: bool = False,
+        source: str | None = None,
     ) -> Skill | None:
         """Get a skill by name within a project scope.
+
+        By default returns only non-deleted, non-template (installed) skills,
+        matching the workflow_definitions pattern. When an installed copy exists
+        it shadows the template.
 
         Args:
             name: The skill name
             project_id: Project scope (None for global)
             include_global: Include global skills when project_id is set.
-                           When True and project_id is set, first looks for
-                           project-scoped skill, then falls back to global.
+            include_deleted: If True, include soft-deleted skills.
+            include_templates: If True, include template skills.
+            source: If set, filter to this exact source value.
 
         Returns:
             The Skill if found, None otherwise
         """
+        # Build WHERE clause
+        conditions = ["name = ?"]
+        params: list[Any] = [name]
+
+        if not include_deleted:
+            conditions.append("deleted_at IS NULL")
+
+        if source is not None:
+            conditions.append("source = ?")
+            params.append(source)
+        elif not include_templates:
+            conditions.append("source != 'template'")
+
+        where = " AND ".join(conditions)
+
         if project_id:
             # First try project-scoped skill
             row = self.db.fetchone(
-                "SELECT * FROM skills WHERE name = ? AND project_id = ?",
-                (name, project_id),
+                f"SELECT * FROM skills WHERE {where} AND project_id = ?",  # nosec B608
+                tuple([*params, project_id]),
             )
             # If not found and include_global, try global
             if row is None and include_global:
                 row = self.db.fetchone(
-                    "SELECT * FROM skills WHERE name = ? AND project_id IS NULL",
-                    (name,),
+                    f"SELECT * FROM skills WHERE {where} AND project_id IS NULL",  # nosec B608
+                    tuple(params),
                 )
         else:
             row = self.db.fetchone(
-                "SELECT * FROM skills WHERE name = ? AND project_id IS NULL",
-                (name,),
+                f"SELECT * FROM skills WHERE {where} AND project_id IS NULL",  # nosec B608
+                tuple(params),
             )
         return Skill.from_row(row) if row else None
 
@@ -683,7 +725,7 @@ class LocalSkillManager:
         return skill
 
     def delete_skill(self, skill_id: str) -> bool:
-        """Delete a skill by ID.
+        """Soft-delete a skill by ID (sets deleted_at).
 
         Args:
             skill_id: The skill ID to delete
@@ -691,9 +733,35 @@ class LocalSkillManager:
         Returns:
             True if deleted, False if not found
         """
-        # Get skill name before deletion for notification
         try:
             skill = self.get_skill(skill_id)
+            skill_name = skill.name
+        except ValueError:
+            return False
+
+        now = datetime.now(UTC).isoformat()
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE skills SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                (now, now, skill_id),
+            )
+            if cursor.rowcount == 0:
+                return False
+
+        self._notify_change("delete", skill_id, skill_name)
+        return True
+
+    def hard_delete(self, skill_id: str) -> bool:
+        """Permanently delete a skill by ID.
+
+        Args:
+            skill_id: The skill ID to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        try:
+            skill = self.get_skill(skill_id, include_deleted=True)
             skill_name = skill.name
         except ValueError:
             return False
@@ -706,6 +774,116 @@ class LocalSkillManager:
         self._notify_change("delete", skill_id, skill_name)
         return True
 
+    def restore(self, skill_id: str) -> Skill:
+        """Restore a soft-deleted skill.
+
+        Args:
+            skill_id: The skill ID to restore
+
+        Returns:
+            The restored Skill
+
+        Raises:
+            ValueError: If skill not found
+        """
+        now = datetime.now(UTC).isoformat()
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE skills SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+                (now, skill_id),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Skill {skill_id} not found")
+
+        skill = self.get_skill(skill_id)
+        self._notify_change("create", skill_id, skill.name)
+        return skill
+
+    def install_from_template(self, skill_id: str) -> Skill:
+        """Create an installed copy from a template skill.
+
+        Copies all fields from the template, sets source='installed' and enabled=True.
+        Does not disable the template (it remains for future updates/propagation).
+
+        Args:
+            skill_id: ID of the template skill
+
+        Returns:
+            The newly created installed Skill
+
+        Raises:
+            ValueError: If template not found or installed copy already exists
+        """
+        template = self.get_skill(skill_id, include_deleted=True)
+        if template.source != "template":
+            raise ValueError(f"Skill {skill_id} is not a template (source={template.source})")
+
+        # Check if installed copy already exists
+        existing = self.get_by_name(
+            template.name, project_id=template.project_id, source="installed"
+        )
+        if existing:
+            raise ValueError(
+                f"Installed copy of '{template.name}' already exists (id={existing.id})"
+            )
+
+        return self.create_skill(
+            name=template.name,
+            description=template.description,
+            content=template.content,
+            version=template.version,
+            license=template.license,
+            compatibility=template.compatibility,
+            allowed_tools=template.allowed_tools,
+            metadata=template.metadata,
+            source_path=template.source_path,
+            source_type=template.source_type,
+            source_ref=template.source_ref,
+            hub_name=template.hub_name,
+            hub_slug=template.hub_slug,
+            hub_version=template.hub_version,
+            enabled=True,
+            always_apply=template.always_apply,
+            injection_format=template.injection_format,
+            project_id=template.project_id,
+            source="installed",
+        )
+
+    def install_all_templates(self, project_id: str | None = None) -> int:
+        """Install all eligible template skills that don't have installed copies.
+
+        Args:
+            project_id: Project scope (None for global)
+
+        Returns:
+            Number of templates installed
+        """
+        # Get all non-deleted templates
+        templates = self.list_skills(
+            project_id=project_id,
+            include_templates=True,
+            include_deleted=False,
+            source="template",
+            limit=10000,
+        )
+
+        installed_count = 0
+        for template in templates:
+            # Check if installed copy already exists
+            existing = self.get_by_name(
+                template.name, project_id=template.project_id, source="installed"
+            )
+            if existing:
+                continue
+
+            try:
+                self.install_from_template(template.id)
+                installed_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to install template '{template.name}': {e}")
+
+        return installed_count
+
     def list_skills(
         self,
         project_id: str | None = None,
@@ -714,8 +892,13 @@ class LocalSkillManager:
         limit: int = 50,
         offset: int = 0,
         include_global: bool = True,
+        include_deleted: bool = False,
+        include_templates: bool = False,
+        source: str | None = None,
     ) -> list[Skill]:
         """List skills with optional filtering.
+
+        By default excludes soft-deleted and template skills.
 
         Args:
             project_id: Filter by project (None for global only)
@@ -724,12 +907,24 @@ class LocalSkillManager:
             limit: Maximum number of results
             offset: Number of results to skip
             include_global: Include global skills when project_id is set
+            include_deleted: If True, include soft-deleted skills
+            include_templates: If True, include template skills
+            source: If set, filter to this exact source value
 
         Returns:
             List of matching Skills
         """
         query = "SELECT * FROM skills WHERE 1=1"
         params: list[Any] = []
+
+        if not include_deleted:
+            query += " AND deleted_at IS NULL"
+
+        if source is not None:
+            query += " AND source = ?"
+            params.append(source)
+        elif not include_templates:
+            query += " AND source != 'template'"
 
         if project_id:
             if include_global:
@@ -765,6 +960,8 @@ class LocalSkillManager:
         query_text: str,
         project_id: str | None = None,
         limit: int = 20,
+        include_deleted: bool = False,
+        include_templates: bool = False,
     ) -> list[Skill]:
         """Search skills by name and description.
 
@@ -775,6 +972,8 @@ class LocalSkillManager:
             query_text: Text to search for
             project_id: Optional project scope
             limit: Maximum number of results
+            include_deleted: If True, include soft-deleted skills
+            include_templates: If True, include template skills
 
         Returns:
             List of matching Skills
@@ -786,6 +985,11 @@ class LocalSkillManager:
             WHERE (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')
         """
         params: list[Any] = [f"%{escaped_query}%", f"%{escaped_query}%"]
+
+        if not include_deleted:
+            sql += " AND deleted_at IS NULL"
+        if not include_templates:
+            sql += " AND source != 'template'"
 
         if project_id:
             sql += " AND (project_id = ? OR project_id IS NULL)"
@@ -800,13 +1004,18 @@ class LocalSkillManager:
     def list_core_skills(self, project_id: str | None = None) -> list[Skill]:
         """List skills with always_apply=true (efficiently via column query).
 
+        Excludes soft-deleted and template skills.
+
         Args:
             project_id: Optional project scope
 
         Returns:
             List of core skills (always-apply skills)
         """
-        query = "SELECT * FROM skills WHERE always_apply = 1 AND enabled = 1"
+        query = (
+            "SELECT * FROM skills WHERE always_apply = 1 AND enabled = 1"
+            " AND deleted_at IS NULL AND source != 'template'"
+        )
         params: list[Any] = []
 
         if project_id:
@@ -820,34 +1029,55 @@ class LocalSkillManager:
         rows = self.db.fetchall(query, tuple(params))
         return [Skill.from_row(row) for row in rows]
 
-    def skill_exists(self, skill_id: str) -> bool:
+    def skill_exists(self, skill_id: str, include_deleted: bool = False) -> bool:
         """Check if a skill with the given ID exists.
 
         Args:
             skill_id: The skill ID to check
+            include_deleted: If True, include soft-deleted skills
 
         Returns:
             True if exists, False otherwise
         """
-        row = self.db.fetchone("SELECT 1 FROM skills WHERE id = ?", (skill_id,))
+        if include_deleted:
+            row = self.db.fetchone("SELECT 1 FROM skills WHERE id = ?", (skill_id,))
+        else:
+            row = self.db.fetchone(
+                "SELECT 1 FROM skills WHERE id = ? AND deleted_at IS NULL", (skill_id,)
+            )
         return row is not None
 
     def count_skills(
         self,
         project_id: str | None = None,
         enabled: bool | None = None,
+        include_deleted: bool = False,
+        include_templates: bool = False,
+        source: str | None = None,
     ) -> int:
         """Count skills matching criteria.
 
         Args:
             project_id: Filter by project
             enabled: Filter by enabled state
+            include_deleted: If True, include soft-deleted skills
+            include_templates: If True, include template skills
+            source: If set, filter to this exact source value
 
         Returns:
             Number of matching skills
         """
         query = "SELECT COUNT(*) as count FROM skills WHERE 1=1"
         params: list[Any] = []
+
+        if not include_deleted:
+            query += " AND deleted_at IS NULL"
+
+        if source is not None:
+            query += " AND source = ?"
+            params.append(source)
+        elif not include_templates:
+            query += " AND source != 'template'"
 
         if project_id:
             query += " AND (project_id = ? OR project_id IS NULL)"

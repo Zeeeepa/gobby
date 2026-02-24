@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 124
+BASELINE_VERSION = 125
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -621,6 +621,8 @@ CREATE TABLE skills (
     always_apply INTEGER DEFAULT 0,
     injection_format TEXT DEFAULT 'summary',
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    source TEXT DEFAULT 'installed',
+    deleted_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -628,8 +630,9 @@ CREATE INDEX idx_skills_name ON skills(name);
 CREATE INDEX idx_skills_project_id ON skills(project_id);
 CREATE INDEX idx_skills_enabled ON skills(enabled);
 CREATE INDEX idx_skills_always_apply ON skills(always_apply);
-CREATE UNIQUE INDEX idx_skills_name_project ON skills(name, project_id);
-CREATE UNIQUE INDEX idx_skills_name_global ON skills(name) WHERE project_id IS NULL;
+CREATE UNIQUE INDEX idx_skills_name_project_source
+    ON skills(name, COALESCE(project_id, '__global__'), source);
+CREATE INDEX idx_skills_deleted_at ON skills(deleted_at);
 
 CREATE TABLE clones (
     id TEXT PRIMARY KEY,
@@ -1347,6 +1350,18 @@ UPDATE workflow_definitions SET source = 'installed' WHERE source = 'custom'""",
         "Consolidate source values: imported→installed, installed+project_id→project",
         """UPDATE workflow_definitions SET source = 'installed' WHERE source = 'imported';
 UPDATE workflow_definitions SET source = 'project' WHERE source = 'installed' AND project_id IS NOT NULL""",
+    ),
+    (
+        125,
+        "Add source and deleted_at columns to skills table for template pattern",
+        """ALTER TABLE skills ADD COLUMN source TEXT DEFAULT 'installed';
+ALTER TABLE skills ADD COLUMN deleted_at TEXT;
+UPDATE skills SET source = 'installed' WHERE source IS NULL;
+DROP INDEX IF EXISTS idx_skills_name_project;
+DROP INDEX IF EXISTS idx_skills_name_global;
+CREATE UNIQUE INDEX idx_skills_name_project_source
+    ON skills(name, COALESCE(project_id, '__global__'), source);
+CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
     ),
 ]
 
