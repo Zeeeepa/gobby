@@ -317,17 +317,42 @@ class ChatSessionPermissionsMixin:
         return self._pending_plan_event is not None
 
     def _read_plan_file(self) -> str | None:
-        """Read the plan file written during plan mode, if any."""
-        if not self._plan_file_path:
-            return None
-        try:
-            from pathlib import Path
+        """Read the plan file written during plan mode, if any.
 
-            path = Path(self._plan_file_path)
-            if path.exists():
-                return path.read_text(encoding="utf-8")
+        If _plan_file_path was tracked (from a Write/Edit to a plan path),
+        read that file directly. Otherwise, fall back to finding the most
+        recently modified .md file in .gobby/plans/ or .claude/plans/.
+        """
+        from pathlib import Path
+
+        if self._plan_file_path:
+            try:
+                path = Path(self._plan_file_path)
+                if path.exists():
+                    return path.read_text(encoding="utf-8")
+            except Exception as e:
+                logger.warning("Failed to read plan file %s: %s", self._plan_file_path, e)
+
+        # Fallback: find the most recently modified plan file
+        try:
+            plan_dirs = [Path(".gobby/plans"), Path(".claude/plans")]
+            # Also check home directory
+            home = Path.home()
+            plan_dirs.append(home / ".claude" / "plans")
+
+            candidates: list[Path] = []
+            for d in plan_dirs:
+                if d.is_dir():
+                    candidates.extend(d.glob("*.md"))
+
+            if candidates:
+                newest = max(candidates, key=lambda p: p.stat().st_mtime)
+                logger.info("Plan file path not tracked; using most recent: %s", newest)
+                self._plan_file_path = str(newest)
+                return newest.read_text(encoding="utf-8")
         except Exception as e:
-            logger.warning("Failed to read plan file %s: %s", self._plan_file_path, e)
+            logger.warning("Failed to find fallback plan file: %s", e)
+
         return None
 
     def _consume_plan_mode_context(self) -> str | None:
