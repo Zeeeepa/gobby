@@ -572,6 +572,26 @@ class TestRequireReadMail:
         assert response.decision == "allow"
 
     @pytest.mark.asyncio
+    async def test_allows_when_platform_session_id_absent(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Non-platform sessions (no _platform_session_id key at all) are never blocked."""
+        target_session = str(uuid.uuid4())
+        _insert_undelivered_message(db, target_session)
+        _insert_rule(manager, "require-read-mail", _require_read_mail_body(), priority=8)
+
+        engine = RuleEngine(db)
+        event = _make_event_with_metadata(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Edit"},
+            metadata={},  # no _platform_session_id key
+        )
+        variables: dict[str, Any] = {"_agent_type": "worker"}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
     async def test_block_reason_renders_message_count(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:

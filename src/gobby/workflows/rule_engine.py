@@ -324,7 +324,7 @@ class RuleEngine:
             return template
 
     def _has_pending_messages(self, session_id: str) -> bool:
-        """O(1) index probe: are there any undelivered messages for this session?"""
+        """Index probe: are there any undelivered messages for this session?"""
         if not session_id:
             return False
         row = self.db.fetchone(

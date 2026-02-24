@@ -96,19 +96,29 @@ async def cleanup_zombie_messages_loop(
     """
     interval_seconds = interval_hours * 3600
 
+    def _expire_zombies() -> None:
+        expired = db.execute(
+            "UPDATE inter_session_messages SET delivered_at = datetime('now') "
+            "WHERE delivered_at IS NULL AND to_session IN ("
+            "  SELECT id FROM sessions WHERE status IN ('closed', 'expired') "
+            "  AND (ended_at < datetime('now', ? || ' hours')"
+            "       OR (ended_at IS NULL AND started_at < datetime('now', ? || ' hours')))"
+            ")",
+            (f"-{ttl_hours}", f"-{ttl_hours}"),
+        )
+        if expired.rowcount:
+            logger.info(f"Expired {expired.rowcount} zombie messages")
+
+    # Run once immediately on startup, then loop.
+    try:
+        _expire_zombies()
+    except Exception as e:
+        logger.error(f"Error in initial zombie message cleanup: {e}")
+
     while not is_shutdown_requested():
         try:
             await asyncio.sleep(interval_seconds)
-            expired = db.execute(
-                "UPDATE inter_session_messages SET delivered_at = datetime('now') "
-                "WHERE delivered_at IS NULL AND to_session IN ("
-                "  SELECT id FROM sessions WHERE status IN ('closed', 'expired') "
-                "  AND ended_at < datetime('now', ? || ' hours')"
-                ")",
-                (f"-{ttl_hours}",),
-            )
-            if expired.rowcount:
-                logger.info(f"Expired {expired.rowcount} zombie messages")
+            _expire_zombies()
         except asyncio.CancelledError:
             break
         except Exception as e:
