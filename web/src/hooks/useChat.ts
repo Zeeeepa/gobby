@@ -190,6 +190,10 @@ export function useChat() {
   // Session ref tracking (e.g. "#158")
   const [sessionRef, setSessionRef] = useState<string | null>(null)
 
+  // DB session ID — used by title synthesis to call session APIs directly
+  // without waiting for sessions list polling
+  const [dbSessionId, setDbSessionId] = useState<string | null>(null)
+
   // Branch/worktree tracking
   const [currentBranch, setCurrentBranch] = useState<string | null>(null)
   const [worktreePath, setWorktreePath] = useState<string | null>(null)
@@ -346,6 +350,8 @@ export function useChat() {
           const info = data as Record<string, unknown>
           const ref = info.session_ref as string | undefined
           if (ref) setSessionRef(ref)
+          const dbSid = info.db_session_id as string | undefined
+          if (dbSid) setDbSessionId(dbSid)
           const branch = info.current_branch as string | undefined
           if (branch !== undefined) setCurrentBranch(branch)
           const wtPath = info.worktree_path as string | undefined
@@ -698,6 +704,7 @@ export function useChat() {
     setIsStreaming(false)
     setIsThinking(false)
     setSessionRef(null)
+    setDbSessionId(null)
     setCurrentBranch(null)
     setWorktreePath(null)
     setCanvasSurfaces(new Map())
@@ -779,6 +786,7 @@ export function useChat() {
     saveConversationId(newId)
     setMessages([])
     setSessionRef(null)
+    setDbSessionId(null)
     setCurrentBranch(null)
     setWorktreePath(null)
     setCanvasSurfaces(new Map())
@@ -1159,6 +1167,7 @@ export function useChat() {
     messages,
     conversationId,
     sessionRef,
+    dbSessionId,
     currentBranch,
     worktreePath,
     isConnected,

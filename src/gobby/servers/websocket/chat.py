@@ -556,6 +556,11 @@ class ChatMixin:
                         type="session_info",
                         conversation_id=conversation_id,
                     )
+                    # Include DB session ID so frontend can call session APIs
+                    # (e.g. synthesize-title) without waiting for sessions list poll
+                    db_sid = getattr(session, "db_session_id", None)
+                    if db_sid:
+                        session_info_msg["db_session_id"] = db_sid
                     if ref:
                         session_info_msg["session_ref"] = ref
                     branch, wt_path = await _resolve_git_branch(
