@@ -246,3 +246,4 @@ playwright-report/
 # Moat task system
 .moat/
 drawbridge/
+node_modules/
