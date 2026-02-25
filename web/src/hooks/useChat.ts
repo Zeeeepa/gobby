@@ -5,51 +5,6 @@ import type { A2UISurfaceState, UserAction } from '../components/canvas/types'
 import type { CanvasPanelState } from '../components/canvas/hooks/useCanvasPanel'
 
 const CONVERSATION_ID_KEY = 'gobby-conversation-id'
-const MAX_STORED_MESSAGES = 100
-
-// Per-conversation storage key
-function chatStorageKey(conversationId: string): string {
-  return `gobby-chat-${conversationId}`
-}
-
-// Serialized message format for localStorage
-interface StoredMessage {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: string // ISO string
-  toolCalls?: ToolCall[]
-  thinkingContent?: string
-}
-
-function loadMessagesForConversation(conversationId: string): ChatMessage[] {
-  try {
-    const stored = localStorage.getItem(chatStorageKey(conversationId))
-    if (stored) {
-      const parsed: StoredMessage[] = JSON.parse(stored)
-      return parsed.map((m) => ({
-        ...m,
-        timestamp: new Date(m.timestamp),
-      }))
-    }
-  } catch (e) {
-    console.error('Failed to load chat history:', e)
-  }
-  return []
-}
-
-function saveMessagesForConversation(conversationId: string, messages: ChatMessage[]): void {
-  try {
-    const toStore = messages.slice(-MAX_STORED_MESSAGES)
-    const serialized: StoredMessage[] = toStore.map((m) => ({
-      ...m,
-      timestamp: m.timestamp.toISOString(),
-    }))
-    localStorage.setItem(chatStorageKey(conversationId), JSON.stringify(serialized))
-  } catch (e) {
-    console.error('Failed to save chat history:', e)
-  }
-}
 
 interface WebSocketMessage {
   type: string
@@ -172,29 +127,9 @@ function mapApiMessages(messages: Array<{ id?: string; role: string; content: st
     }))
 }
 
-// Migrate from old single-key storage to per-conversation storage
-function migrateOldStorage(conversationId: string): void {
-  const OLD_KEY = 'gobby-chat-history'
-  try {
-    const old = localStorage.getItem(OLD_KEY)
-    if (old) {
-      localStorage.setItem(chatStorageKey(conversationId), old)
-      localStorage.removeItem(OLD_KEY)
-      console.log('Migrated old chat history to per-conversation storage')
-    }
-  } catch (e) {
-    console.error('Failed to migrate old chat history:', e)
-  }
-}
-
 export function useChat() {
   const conversationIdRef = useRef<string>(loadConversationId())
   const [conversationId, setConversationId] = useState<string>(conversationIdRef.current)
-
-  // Run migration once on first load
-  useEffect(() => {
-    migrateOldStorage(conversationIdRef.current)
-  }, [])
 
   // Fetch messages from DB on mount if we have a persisted dbSessionId
   useEffect(() => {
@@ -212,16 +147,13 @@ export function useChat() {
         const mapped = mapApiMessages(data.messages)
         if (mapped.length > 0) {
           setMessages(mapped)
-          saveMessagesForConversation(convId, mapped)
         }
       })
       .catch(err => console.error('Failed to fetch initial messages from DB:', err))
     return () => { cancelled = true }
   }, [])
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    loadMessagesForConversation(conversationIdRef.current)
-  )
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const messagesRef = useRef(messages)
   messagesRef.current = messages
   const [isConnected, setIsConnected] = useState(false)
@@ -799,11 +731,6 @@ export function useChat() {
     handleErrorRef.current = handleError
   }, [handleChatStream, handleChatError, handleToolStatus, handleChatThinking, handleModelSwitched, handleToolResult, handleError])
 
-  // Persist messages to localStorage (per-conversation)
-  useEffect(() => {
-    saveMessagesForConversation(conversationIdRef.current, messages)
-  }, [messages])
-
   // Persist dbSessionId to localStorage so next page load can fetch from DB immediately
   useEffect(() => {
     saveDbSessionId(dbSessionId)
@@ -832,24 +759,15 @@ export function useChat() {
     setCanvasPanel(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
 
-    // Save current conversation's messages before switching (explicit save)
-    if (conversationIdRef.current) {
-      saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
-    }
-
     conversationIdRef.current = id
     setConversationId(id)
     saveConversationId(id)
 
-    // Load cached messages for instant display (no flash)
-    const cached = loadMessagesForConversation(id)
-    if (cached.length > 0) {
-      setMessages(cached)
-    }
+    // Clear messages; DB fetch below will populate
+    setMessages([])
 
-    // Always fetch from server when dbSessionId is available (replaces stale cache)
+    // Fetch from server when dbSessionId is available
     if (dbSessionId) {
-      if (cached.length === 0) setMessages([])
       const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
       fetch(`${baseUrl}/sessions/${dbSessionId}/messages?limit=100&offset=0`)
         .then(res => res.ok ? res.json() : null)
@@ -858,7 +776,6 @@ export function useChat() {
           const mapped = mapApiMessages(data.messages)
           if (mapped.length > 0) {
             setMessages(mapped)
-            saveMessagesForConversation(id, mapped)
           }
         })
         .catch(err => console.error('Failed to fetch session messages:', err))
@@ -888,16 +805,11 @@ export function useChat() {
           }
         })
         .catch(() => {})
-    } else if (cached.length === 0) {
-      setMessages([])
     }
   }, [])
 
   // Start a new chat conversation
   const startNewChat = useCallback(() => {
-    // Save current messages before switching
-    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
-
     const newId = uuid()
     conversationIdRef.current = newId
     setConversationId(newId)
@@ -919,15 +831,11 @@ export function useChat() {
   // Resume a CLI session (e.g., Claude) — sets the conversation ID
   // so the next message triggers server-side resume
   const resumeSession = useCallback((externalId: string) => {
-    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
-
     conversationIdRef.current = externalId
     setConversationId(externalId)
     saveConversationId(externalId)
 
-    // Load any existing messages for this conversation (may be empty for CLI sessions)
-    const loaded = loadMessagesForConversation(externalId)
-    setMessages(loaded.length > 0 ? loaded : [{
+    setMessages([{
       id: `system-resume-${Date.now()}`,
       role: 'system' as const,
       content: 'Resuming session. Send a message to continue.',
@@ -946,8 +854,7 @@ export function useChat() {
   ): Promise<string> => {
     const newConversationId = uuid()
 
-    // Save current conversation, switch to new one
-    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
+    // Switch to new conversation
     conversationIdRef.current = newConversationId
     setConversationId(newConversationId)
     saveConversationId(newConversationId)
@@ -965,7 +872,6 @@ export function useChat() {
         const mapped = mapApiMessages(data.messages || [])
         if (mapped.length > 0) {
           setMessages(mapped)
-          saveMessagesForConversation(newConversationId, mapped)
         }
       }
     } catch (err) {
@@ -1029,7 +935,6 @@ export function useChat() {
     setCanvasPanel(null)
     setDbSessionId(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
-    localStorage.removeItem(chatStorageKey(oldConversationId))
     activeRequestIdRef.current = null
     // Start a fresh conversation
     const newId = uuid()
@@ -1050,7 +955,6 @@ export function useChat() {
       }
       wsRef.current.send(JSON.stringify(payload))
     }
-    localStorage.removeItem(chatStorageKey(id))
     // If deleting the active conversation, start a new one
     if (id === conversationIdRef.current) {
       const newId = uuid()
@@ -1278,9 +1182,6 @@ export function useChat() {
   const attachToSession = useCallback((sessionId: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
-    // Save current conversation before switching
-    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
-
     // Reset chat state
     activeRequestIdRef.current = null
     setIsStreaming(false)
@@ -1312,9 +1213,19 @@ export function useChat() {
     setSessionRef(null)
     setDbSessionId(null)
 
-    // Restore previous conversation
-    const cached = loadMessagesForConversation(conversationIdRef.current)
-    if (cached.length > 0) setMessages(cached)
+    // Restore previous conversation messages from DB
+    const prevDbSid = loadDbSessionId()
+    if (prevDbSid) {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      fetch(`${baseUrl}/sessions/${prevDbSid}/messages?limit=100&offset=0`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data?.messages?.length) return
+          const mapped = mapApiMessages(data.messages)
+          if (mapped.length > 0) setMessages(mapped)
+        })
+        .catch(err => console.error('Failed to restore messages after detach:', err))
+    }
   }, [])
 
   // Add a local system message to the chat (no backend round-trip)
