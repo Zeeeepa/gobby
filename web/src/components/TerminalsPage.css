@@ -284,6 +284,10 @@
     display: none;
   }
 
+  .terminals-terminal-header {
+    display: none;
+  }
+
   .terminals-mobile-toolbar {
     display: flex;
   }
@@ -311,5 +315,27 @@
   .terminal-content {
     min-width: 700px;
     min-height: 500px;
+  }
+
+  .mobile-drawer-attach-btn {
+    padding: 0.125rem 0.5rem;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 0.375rem;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .mobile-drawer-detach-btn {
+    padding: 0.125rem 0.5rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
   }
 }

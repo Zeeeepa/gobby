@@ -202,9 +202,11 @@ export function TerminalsPage({
           attachedSession={attachedSession}
           streamingId={streamingId}
           terminalNames={terminalNames}
+          isInteractive={isInteractive && !sessionEnded}
           onAttach={handleAttach}
           onCreate={() => createSession()}
           onRefresh={refreshSessions}
+          onSetInteractive={setIsInteractive}
         />
         {streamingId ? (
           <div className="terminals-terminal-outer">
@@ -268,6 +270,11 @@ export function TerminalsPage({
         {/* Mobile special-key toolbar */}
         {streamingId && isInteractive && (
           <div className="terminals-mobile-toolbar">
+            <button onClick={() => {
+              if (attachedSession && attachedSocketRef.current) {
+                refreshTerminal(attachedSession, attachedSocketRef.current)
+              }
+            }}>Redraw</button>
             <button onClick={() => sendInput('\x1b')}>Esc</button>
             <button onClick={() => sendInput('\t')}>Tab</button>
             <button onClick={() => sendInput('\x03')}>Ctrl+C</button>

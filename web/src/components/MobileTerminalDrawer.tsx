@@ -6,9 +6,11 @@ interface MobileTerminalDrawerProps {
   attachedSession: string | null
   streamingId: string | null
   terminalNames: Record<string, string>
+  isInteractive: boolean
   onAttach: (name: string, socket: string) => void
   onCreate: () => void
   onRefresh: () => void
+  onSetInteractive: (interactive: boolean) => void
 }
 
 export function MobileTerminalDrawer({
@@ -16,9 +18,11 @@ export function MobileTerminalDrawer({
   attachedSession,
   streamingId,
   terminalNames,
+  isInteractive,
   onAttach,
   onCreate,
   onRefresh,
+  onSetInteractive,
 }: MobileTerminalDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -44,7 +48,7 @@ export function MobileTerminalDrawer({
           {isOpen ? 'Terminals' : activeTitle}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {isOpen && (
+          {isOpen ? (
             <>
               <button
                 type="button"
@@ -61,6 +65,19 @@ export function MobileTerminalDrawer({
                 title="New terminal"
               >
                 <PlusIcon />
+              </button>
+            </>
+          ) : streamingId && (
+            <>
+              {!isInteractive && (
+                <span className="read-only-badge">read-only</span>
+              )}
+              <button
+                type="button"
+                className={isInteractive ? 'mobile-drawer-detach-btn' : 'mobile-drawer-attach-btn'}
+                onClick={(e) => { e.stopPropagation(); onSetInteractive(!isInteractive) }}
+              >
+                {isInteractive ? 'Detach' : 'Attach'}
               </button>
             </>
           )}
