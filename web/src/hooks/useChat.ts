@@ -749,7 +749,7 @@ export function useChat() {
         })
         .catch(err => console.error('Failed to fetch session messages:', err))
 
-      // Hydrate context usage from persisted session data
+      // Hydrate context usage and chat mode from persisted session data
       fetch(`${baseUrl}/sessions/${dbSessionId}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
@@ -767,6 +767,10 @@ export function useChat() {
               cacheReadTokens: cacheRead,
               cacheCreationTokens: cacheCreation,
             })
+          }
+          // Restore chat mode from DB (corrects stale sessions list data)
+          if (s.chat_mode) {
+            onModeChangedRef.current?.(s.chat_mode as ChatMode)
           }
         })
         .catch(() => {})
@@ -861,7 +865,7 @@ export function useChat() {
       console.error('Failed to fetch source session messages:', err)
     }
 
-    // Hydrate context usage from source session
+    // Hydrate context usage and chat mode from source session
     try {
       const sessionRes = await fetch(`${baseUrl}/sessions/${sourceDbSessionId}`)
       if (sessionRes.ok) {
@@ -879,6 +883,10 @@ export function useChat() {
             cacheReadTokens: cacheRead,
             cacheCreationTokens: cacheCreation,
           })
+        }
+        // Restore chat mode from source session
+        if (s?.chat_mode) {
+          onModeChangedRef.current?.(s.chat_mode as ChatMode)
         }
       }
     } catch {

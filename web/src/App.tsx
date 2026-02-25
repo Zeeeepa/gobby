@@ -7,7 +7,7 @@ import { useTerminal } from './hooks/useTerminal'
 import { useTmuxSessions } from './hooks/useTmuxSessions'
 import { useSlashCommands } from './hooks/useSlashCommands'
 import { useSessions } from './hooks/useSessions'
-import type { QueuedFile } from './types/chat'
+import type { QueuedFile, ChatMode } from './types/chat'
 import { Settings } from './components/Settings'
 import { Sidebar } from './components/Sidebar'
 import { ChatPage } from './components/chat/ChatPage'
@@ -90,7 +90,7 @@ export default function App() {
   const { authRequired, authenticated, loading: authLoading, login, logout } = useAuth()
   const { messages, conversationId, sessionRef, dbSessionId, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, respondToApproval, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, addSystemMessage, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
   const voice = useVoice(wsRef, conversationId)
-  const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
+  const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, updateDefaultChatMode, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
   const tmux = useTmuxSessions()
   const { filteredCommands, filterCommands } = useSlashCommands()
@@ -356,11 +356,14 @@ export default function App() {
     setOnModeChanged(updateChatMode)
   }, [updateChatMode, setOnModeChanged])
 
-  // Reset mode to Plan on conversation switch (mode is per-conversation, not global)
+  // Restore persisted mode on conversation switch (DB value > user default > plan)
   useEffect(() => {
-    updateChatMode('plan')
-    sendMode('plan')
-  }, [conversationId]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (sessionsHook.isLoading) return
+    const session = webChatSessions.find(s => s.external_id === conversationId)
+    const restoredMode = (session?.chat_mode as ChatMode | null) || settings.defaultChatMode
+    updateChatMode(restoredMode)
+    sendMode(restoredMode)
+  }, [conversationId, sessionsHook.isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleInputChange = useCallback((value: string) => {
     filterCommands(value)
@@ -584,6 +587,7 @@ export default function App() {
         onFontSizeChange={updateFontSize}
         onModelChange={updateModel}
         onThemeChange={updateTheme}
+        onDefaultChatModeChange={updateDefaultChatMode}
         onReset={resetSettings}
       />
 

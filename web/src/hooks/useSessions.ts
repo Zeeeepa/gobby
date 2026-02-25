@@ -20,6 +20,7 @@ export interface GobbySession {
   usage_total_cost_usd: number
   had_edits: boolean
   agent_depth: number
+  chat_mode: string | null
   parent_session_id: string | null
   tasks_closed?: number
   memories_created?: number

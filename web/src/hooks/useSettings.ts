@@ -8,6 +8,7 @@ export interface Settings {
   model: string // Selected LLM model short name
   chatMode: ChatMode // Active chat mode
   theme: Theme // UI theme
+  defaultChatMode: ChatMode // Default mode for new conversations
 }
 
 export const MODEL_OPTIONS = [
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS: Settings = {
   model: 'opus',
   chatMode: 'plan',
   theme: 'dark',
+  defaultChatMode: 'plan',
 }
 
 const STORAGE_KEY = 'gobby-settings'
@@ -72,6 +74,10 @@ export function useSettings() {
     }
   }, [settings])
 
+  const updateDefaultChatMode = useCallback((defaultChatMode: ChatMode) => {
+    setSettings((prev) => ({ ...prev, defaultChatMode }))
+  }, [])
+
   const updateFontSize = useCallback((size: number) => {
     setSettings((prev) => ({ ...prev, fontSize: size }))
   }, [])
@@ -98,6 +104,7 @@ export function useSettings() {
     updateModel,
     updateChatMode,
     updateTheme,
+    updateDefaultChatMode,
     resetSettings,
   }
 }
