@@ -101,7 +101,7 @@ export function ChatInput({
   useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
-      textarea.style.height = 'auto'
+      textarea.style.height = '0'
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
     }
   }, [input])
@@ -344,7 +344,7 @@ export function ChatInput({
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
-            className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-accent min-h-[40px]"
+            className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-accent min-h-[36px]"
             value={input}
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}

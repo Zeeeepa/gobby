@@ -1347,16 +1347,8 @@
   margin-bottom: 0.25rem;
 }
 
-/* Mobile: hide sidebar, use top drawer instead */
-@media (max-width: 768px) {
-  .conversation-picker {
-    display: none;
-  }
-
-  .sessions-browser {
-    display: none;
-  }
-}
+/* NOTE: mobile hide rules for .conversation-picker and .sessions-sidebar
+   are placed AFTER their base definitions (end of file) to win in cascade */
 
 /* ============================================
    Mobile Chat Drawer (top pulldown)
@@ -1642,14 +1634,6 @@
   background: var(--bg-tertiary);
 }
 
-/* Mobile: hide sidebar, use top drawer instead */
-@media (max-width: 768px) {
-  .sessions-sidebar {
-    display: none;
-  }
-}
-
-
 /* ConversationPicker */
 .conversation-picker {
   width: var(--sidebar-width);
@@ -1716,4 +1700,15 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+}
+
+/* Mobile: hide sidebars, use top drawer instead */
+@media (max-width: 768px) {
+  .conversation-picker {
+    display: none;
+  }
+
+  .sessions-sidebar {
+    display: none;
+  }
 }
