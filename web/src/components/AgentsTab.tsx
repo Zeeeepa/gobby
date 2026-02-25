@@ -64,11 +64,6 @@ const SOURCE_LABELS: Record<string, string> = {
   'template': 'Template',
   'installed': 'Installed',
   'project': 'Project',
-  'project-file': 'Project',
-  'user-file': 'User',
-  'built-in-file': 'Built-in',
-  'project-db': 'Project DB',
-  'global-db': 'Global DB',
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -657,7 +652,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
             {filtered.map(item => {
               const d = item.definition
               const isExpanded = expandedName === d.name
-              const isDb = item.source.endsWith('-db')
+              const isDb = !!item.db_id
               const isTemplate = item.source === 'template'
               const wfMeta = ['rules', 'variables', 'pipeline']
               const workflowEntries = d.workflows
