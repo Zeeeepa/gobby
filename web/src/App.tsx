@@ -469,20 +469,16 @@ export default function App() {
     [sessionsHook.filteredSessions],
   );
 
-  // CLI sessions: only show sessions with a live (non-dead) tmux pane
+  // CLI sessions: only show sessions whose terminal process is still alive
   const cliSessions = useMemo(() => {
-    const liveSessionIds = new Set(
-      tmux.sessions
-        .filter((t) => !t.pane_dead && t.gobby_session_id)
-        .map((t) => t.gobby_session_id),
-    );
+    const liveIds = new Set(tmux.liveCliSessionIds);
     return sessionsHook.filteredSessions.filter(
       (s) =>
         s.source !== "claude_sdk_web_chat" &&
         (s.status === "active" || s.status === "paused") &&
-        liveSessionIds.has(s.id),
+        liveIds.has(s.id),
     );
-  }, [sessionsHook.filteredSessions, tmux.sessions]);
+  }, [sessionsHook.filteredSessions, tmux.liveCliSessionIds]);
 
   // Auto-select most recent server session on initial load (cross-device sync)
   const initialReconciliationDone = useRef(false);

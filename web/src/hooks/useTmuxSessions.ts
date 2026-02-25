@@ -16,6 +16,7 @@ export interface TmuxSession {
 
 interface TmuxSessionsResult {
   sessions: TmuxSession[]
+  liveCliSessionIds: string[]
   attachedSession: string | null
   streamingId: string | null
   isLoading: boolean
@@ -34,6 +35,7 @@ interface TmuxSessionsResult {
 
 export function useTmuxSessions(): TmuxSessionsResult {
   const [sessions, setSessions] = useState<TmuxSession[]>([])
+  const [liveCliSessionIds, setLiveCliSessionIds] = useState<string[]>([])
   const [attachedSession, setAttachedSession] = useState<string | null>(null)
   const [streamingId, setStreamingId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -99,6 +101,7 @@ export function useTmuxSessions(): TmuxSessionsResult {
       case 'tmux_sessions_list': {
         const newSessions = data.sessions as TmuxSession[]
         setSessions(newSessions)
+        setLiveCliSessionIds((data.live_cli_session_ids as string[]) || [])
         // Detect if the attached session has died
         const attached = attachedSessionRef.current
         if (attached && !newSessions.some(s => s.name === attached)) {
@@ -260,6 +263,7 @@ export function useTmuxSessions(): TmuxSessionsResult {
 
   return {
     sessions,
+    liveCliSessionIds,
     attachedSession,
     streamingId,
     isLoading,
