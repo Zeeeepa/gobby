@@ -5,8 +5,6 @@ import type { RunningAgent, AgentRun } from '../hooks/useAgentRuns'
 import { YamlEditorModal } from './WorkflowsPage'
 import { AgentEditForm } from './agents/AgentEditForm'
 import type { AgentFormData } from './agents/AgentEditForm'
-import { AgentRulesEditor } from './agents/AgentRulesEditor'
-import { AgentVariablesEditor } from './agents/AgentVariablesEditor'
 
 // =============================================================================
 // Types
@@ -45,15 +43,6 @@ interface AgentDefInfo {
   overridden_by: string | null
   deleted_at: string | null
   tags: string[] | null
-}
-
-interface WorkflowSummary {
-  file?: string
-  type?: string
-  description?: string
-  mode?: string
-  internal?: boolean
-  step_count?: number
 }
 
 // =============================================================================
@@ -164,7 +153,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [showRecentRuns, setShowRecentRuns] = useState(false)
-  const [expandedName, setExpandedName] = useState<string | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<AgentDefInfo | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importingName, setImportingName] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ name: string; ok: boolean } | null>(null)
@@ -220,8 +209,10 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   useEffect(() => {
     if (!showCreateForm) {
       setEditingId(null)
+      setSelectedAgent(null)
     } else if (!editingId) {
       setCreateForm({ ...DEFAULT_FORM })
+      setSelectedAgent(null)
     }
   }, [showCreateForm, editingId])
 
@@ -361,6 +352,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     setEditingId(item.db_id)
     setEditRules((d.workflows?.rules as string[]) || [])
     setEditVariables((d.workflows?.variables as Record<string, unknown>) || {})
+    setSelectedAgent(null)
     onToggleCreateForm(true)
   }
 
@@ -619,25 +611,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         </div>
       )}
 
-      {/* Create/edit form */}
-      {showCreateForm && (
-        <AgentEditForm
-          form={createForm}
-          onChange={setCreateForm}
-          onSave={editingId ? handleUpdate : handleCreate}
-          onCancel={() => { onToggleCreateForm(false); setEditingId(null) }}
-          isEditing={!!editingId}
-          providerModels={providerModels}
-          saveDisabled={!createForm.name.trim()}
-          editingId={editingId}
-          branches={branches}
-          isGitProject={isGitProject}
-          rules={editRules}
-          onRulesChange={handleEditRulesChange}
-          variables={editVariables}
-          onVariablesChange={handleEditVariablesChange}
-        />
-      )}
 
       {/* Running agents */}
       {(running.length > 0 || recentRuns.length > 0) && (
@@ -703,26 +676,29 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
           <div className="workflows-grid">
             {filtered.map(item => {
               const d = item.definition
-              const isExpanded = expandedName === d.name
               const isDb = !!item.db_id
               const isTemplate = item.source === 'template'
               const wfMeta = ['rules', 'variables', 'pipeline']
-              const workflowEntries = d.workflows
-                ? Object.entries(d.workflows).filter(([k]) => !wfMeta.includes(k) && typeof d.workflows![k] === 'object' && d.workflows![k] !== null && !Array.isArray(d.workflows![k]))
-                : []
-              const workflowCount = workflowEntries.length
-              const workflowRules = (d.workflows?.rules as string[] | undefined) || []
-              const workflowVars = (d.workflows?.variables as Record<string, unknown> | undefined) || {}
+              const workflowCount = d.workflows
+                ? Object.entries(d.workflows).filter(([k]) => !wfMeta.includes(k) && typeof d.workflows![k] === 'object' && d.workflows![k] !== null && !Array.isArray(d.workflows![k])).length
+                : 0
 
               return (
                 <div
                   key={d.name}
-                  className={`agent-def-card${isExpanded ? ' agent-def-card--expanded' : ''}${item.deleted_at ? ' agent-def-card--deleted' : ''}${isTemplate ? ' workflows-card--template' : ''}`}
+                  className={`agent-def-card${item.deleted_at ? ' agent-def-card--deleted' : ''}${isTemplate ? ' workflows-card--template' : ''}`}
                 >
-                  {/* Collapsed header */}
+                  {/* Card header */}
                   <button
                     className="agent-def-header"
-                    onClick={() => setExpandedName(isExpanded ? null : d.name)}
+                    onClick={() => {
+                      if (item.deleted_at) return
+                      if (isDb) {
+                        handleEdit(item)
+                      } else {
+                        setSelectedAgent(item)
+                      }
+                    }}
                   >
                     <div className="agent-def-header-top">
                       <span className={`agent-def-name${item.deleted_at ? ' agent-def-name--deleted' : ''}`}>{d.name}</span>
@@ -853,147 +829,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                     )}
                   </div>
 
-                  {/* Expanded detail */}
-                  {isExpanded && (
-                    <div className="agent-def-detail">
-                      {/* Property grid */}
-                      <div className="agent-def-props">
-                        <PropRow label="Provider" value={d.provider} />
-                        <PropRow label="Model" value={d.model || '(default)'} />
-                        <PropRow label="Mode" value={d.mode} />
-                        <PropRow label="Isolation" value={d.isolation || 'none'} />
-                        <PropRow label="Base branch" value={d.base_branch} />
-                        <PropRow label="Timeout" value={`${d.timeout}s`} />
-                        <PropRow label="Max turns" value={String(d.max_turns)} />
-                        {d.default_workflow && (
-                          <PropRow label="Default workflow" value={d.default_workflow} />
-                        )}
-                      </div>
-
-                      {/* Role / Goal / Personality as full-width sections */}
-                      {d.role && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Role</div>
-                          <pre className="agent-def-description-full">{d.role}</pre>
-                        </div>
-                      )}
-                      {d.goal && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Goal</div>
-                          <pre className="agent-def-description-full">{d.goal}</pre>
-                        </div>
-                      )}
-                      {d.personality && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Personality</div>
-                          <pre className="agent-def-description-full">{d.personality}</pre>
-                        </div>
-                      )}
-
-                      {/* Full description */}
-                      {d.description && d.description.includes('\n') && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Description</div>
-                          <pre className="agent-def-description-full">{d.description}</pre>
-                        </div>
-                      )}
-
-                      {/* Instructions */}
-                      {d.instructions && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Instructions</div>
-                          <pre className="agent-def-description-full">{d.instructions}</pre>
-                        </div>
-                      )}
-
-                      {/* Workflows */}
-                      {workflowCount > 0 && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Workflows</div>
-                          <div className="agent-def-workflow-list">
-                            {workflowEntries.map(([wfName, wfRaw]) => {
-                              const wf = wfRaw as WorkflowSummary
-                              return (
-                                <div key={wfName} className="agent-def-workflow-item">
-                                  <span className="agent-def-workflow-name">{wfName}</span>
-                                  {wf.type && <span className="agent-def-badge agent-def-badge--dim">{wf.type}</span>}
-                                  {wf.file && <span className="agent-def-badge agent-def-badge--dim">{wf.file}</span>}
-                                  {wf.mode && <span className="agent-def-badge agent-def-badge--filled" style={{ background: MODE_COLORS[wf.mode] || '#666' }}>{wf.mode}</span>}
-                                  {wf.internal && <span className="agent-def-badge agent-def-badge--dim">internal</span>}
-                                  {wf.step_count != null && <span className="agent-def-badge agent-def-badge--dim">{wf.step_count} steps</span>}
-                                  {wf.description && <span className="agent-def-workflow-desc">{wf.description}</span>}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Rules editor */}
-                      {isDb && item.db_id && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Rules</div>
-                          <AgentRulesEditor
-                            definitionId={item.db_id}
-                            rules={workflowRules}
-                            onRulesChange={(newRules) => {
-                              setDefinitions(prev => prev.map(def =>
-                                def.definition.name === d.name
-                                  ? { ...def, definition: { ...def.definition, workflows: { ...def.definition.workflows, rules: newRules } } }
-                                  : def
-                              ))
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Variables editor */}
-                      {isDb && item.db_id && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Variables</div>
-                          <AgentVariablesEditor
-                            definitionId={item.db_id}
-                            variables={workflowVars}
-                            onVariablesChange={(newVars) => {
-                              setDefinitions(prev => prev.map(def =>
-                                def.definition.name === d.name
-                                  ? { ...def, definition: { ...def.definition, workflows: { ...def.definition.workflows, variables: newVars } } }
-                                  : def
-                              ))
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Sandbox config */}
-                      {d.sandbox && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Sandbox</div>
-                          <pre className="agent-def-json">{JSON.stringify(d.sandbox, null, 2)}</pre>
-                        </div>
-                      )}
-
-                      {/* Skill profile */}
-                      {d.skill_profile && (
-                        <div className="agent-def-section">
-                          <div className="agent-def-section-title">Skill Profile</div>
-                          <pre className="agent-def-json">{JSON.stringify(d.skill_profile, null, 2)}</pre>
-                        </div>
-                      )}
-
-                      {/* Source info */}
-                      <div className="agent-def-section">
-                        <div className="agent-def-section-title">Source</div>
-                        <div className="agent-def-source-info">
-                          {item.source_path ? (
-                            <code>{item.source_path}</code>
-                          ) : (
-                            <span>Database ({item.source}){item.db_id ? ` — ${item.db_id.slice(0, 8)}` : ''}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             })}
@@ -1012,6 +847,27 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
           onClose={() => setYamlAgent(null)}
         />
       )}
+
+      {/* Agent detail/edit panel */}
+      <AgentEditForm
+        isOpen={showCreateForm || selectedAgent !== null}
+        readOnly={!showCreateForm && selectedAgent !== null && !selectedAgent.db_id}
+        agentItem={selectedAgent}
+        form={createForm}
+        onChange={setCreateForm}
+        onSave={editingId ? handleUpdate : handleCreate}
+        onCancel={() => { onToggleCreateForm(false); setEditingId(null); setSelectedAgent(null) }}
+        isEditing={!!editingId}
+        providerModels={providerModels}
+        saveDisabled={!createForm.name.trim()}
+        editingId={editingId}
+        branches={branches}
+        isGitProject={isGitProject}
+        rules={editRules}
+        onRulesChange={handleEditRulesChange}
+        variables={editVariables}
+        onVariablesChange={handleEditVariablesChange}
+      />
     </div>
   )
 }
@@ -1019,15 +875,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
 // =============================================================================
 // Sub-components
 // =============================================================================
-
-function PropRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="agent-def-prop-row">
-      <span className="agent-def-prop-label">{label}</span>
-      <span className="agent-def-prop-value">{value}</span>
-    </div>
-  )
-}
 
 function formatDuration(startIso: string, endIso?: string | null): string {
   const start = new Date(startIso).getTime()
