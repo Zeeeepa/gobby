@@ -101,8 +101,8 @@ async def cleanup_zombie_messages_loop(
             "UPDATE inter_session_messages SET delivered_at = datetime('now') "
             "WHERE delivered_at IS NULL AND to_session IN ("
             "  SELECT id FROM sessions WHERE status IN ('closed', 'expired') "
-            "  AND (ended_at < datetime('now', ? || ' hours')"
-            "       OR (ended_at IS NULL AND started_at < datetime('now', ? || ' hours')))"
+            "  AND (updated_at < datetime('now', ? || ' hours')"
+            "       OR (updated_at IS NULL AND created_at < datetime('now', ? || ' hours')))"
             ")",
             (f"-{ttl_hours}", f"-{ttl_hours}"),
         )

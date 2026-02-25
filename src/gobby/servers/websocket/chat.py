@@ -232,9 +232,7 @@ class ChatMixin:
         # Override chat mode with DB-persisted value (for returning sessions)
         if session_manager and session.db_session_id:
             try:
-                db_session = await asyncio.to_thread(
-                    session_manager.get, session.db_session_id
-                )
+                db_session = await asyncio.to_thread(session_manager.get, session.db_session_id)
                 if db_session and db_session.chat_mode:
                     session.chat_mode = db_session.chat_mode
             except Exception:
@@ -392,7 +390,19 @@ class ChatMixin:
                 if mcp_manager:
                     from gobby.hooks.mcp_dispatch import dispatch_mcp_calls
 
-                    await dispatch_mcp_calls(mcp_calls, event, mcp_manager.call_tool, logger)
+                    internal_mgr = getattr(self, "internal_manager", None)
+
+                    async def _call_tool(
+                        server: str, tool: str, arguments: dict[str, Any]
+                    ) -> Any:
+                        """Route to internal registries first, then external."""
+                        if internal_mgr and internal_mgr.is_internal(server):
+                            registry = internal_mgr.get_registry(server)
+                            if registry:
+                                return await registry.call(tool, arguments)
+                        return await mcp_manager.call_tool(server, tool, arguments)
+
+                    await dispatch_mcp_calls(mcp_calls, event, _call_tool, logger)
 
             # Build result dict
             result: dict[str, Any] = {

@@ -511,6 +511,7 @@ class GobbyRunner:
                 session_manager=self.session_manager,
                 message_manager=self.message_manager,
                 daemon_config=self.config,
+                internal_manager=self.http_server._internal_manager,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server

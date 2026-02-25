@@ -69,6 +69,7 @@ class WebSocketServer(
         session_manager: "LocalSessionManager | None" = None,
         message_manager: "LocalSessionMessageManager | None" = None,
         daemon_config: Any = None,
+        internal_manager: Any = None,
     ):
         """
         Initialize WebSocket server.
@@ -82,11 +83,13 @@ class WebSocketServer(
             session_manager: Optional LocalSessionManager for persisting web-chat sessions.
             message_manager: Optional LocalSessionMessageManager for persisting chat messages.
             daemon_config: Optional DaemonConfig for voice and other features.
+            internal_manager: Optional InternalRegistryManager for routing to internal MCP servers.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
+        self.internal_manager = internal_manager
         self.session_manager = session_manager
         self.message_manager = message_manager
         self.daemon_config = daemon_config

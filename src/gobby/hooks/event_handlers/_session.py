@@ -492,11 +492,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if not self._session_manager or not self._session_storage:
             return
 
-        from gobby.config.store import ConfigStore
+        from gobby.storage.config_store import ConfigStore
 
-        config = ConfigStore().get_daemon_config()
-        default_agent_name = getattr(config, "default_agent", "default")
-        if default_agent_name == "none" or not default_agent_name:
+        config_store = ConfigStore(self._session_storage.db)
+        default_agent_name = config_store.get("default_agent") or "default"
+        if default_agent_name == "none":
             return
 
         from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
