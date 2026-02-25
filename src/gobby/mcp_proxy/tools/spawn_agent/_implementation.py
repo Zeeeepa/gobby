@@ -120,17 +120,20 @@ async def spawn_agent_impl(
     effective_isolation = isolation
     if effective_isolation is None and agent_body:
         effective_isolation = agent_body.isolation
-    effective_isolation = effective_isolation or "none"
+    if effective_isolation in (None, "inherit"):
+        effective_isolation = "none"
 
     effective_provider = provider
     if effective_provider is None and agent_body:
         effective_provider = agent_body.provider
-    effective_provider = effective_provider or "claude"
+    if effective_provider in (None, "inherit"):
+        effective_provider = "claude"
 
-    effective_mode: Literal["terminal", "embedded", "headless", "self"] | None = mode
+    effective_mode: Literal["terminal", "embedded", "headless", "self", "inherit"] | None = mode
     if effective_mode is None and agent_body:
         effective_mode = agent_body.mode
-    effective_mode = effective_mode or "terminal"
+    if effective_mode in (None, "inherit"):
+        effective_mode = "self"
 
     effective_model = model
     if effective_model is None and agent_body:

@@ -89,7 +89,7 @@ const ISOLATION_COLORS: Record<string, string> = {
 
 const DEFAULT_FORM: AgentFormData = {
   name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-  provider: 'inherit', model: '', mode: 'self', isolation: '',
+  provider: 'inherit', model: '', mode: 'inherit', isolation: 'inherit',
   base_branch: 'inherit', timeout: 0, max_turns: 0,
 }
 
@@ -286,7 +286,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       const body: Record<string, unknown> = {
         name: createForm.name,
         provider: createForm.provider,
-        mode: createForm.mode || 'self',
+        mode: createForm.mode,
+        isolation: createForm.isolation,
         base_branch: createForm.base_branch,
         timeout: createForm.timeout,
         max_turns: createForm.max_turns,
@@ -297,7 +298,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (createForm.personality) body.personality = createForm.personality
       if (createForm.instructions) body.instructions = createForm.instructions
       if (createForm.model) body.model = createForm.model
-      if (createForm.isolation) body.isolation = createForm.isolation
       // Nest rules, rule_selectors, and variables under workflows
       const workflows: Record<string, unknown> = {}
       if (editRules.length > 0) workflows.rules = editRules
@@ -336,7 +336,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       provider: d.provider,
       model: d.model || '',
       mode: d.mode,
-      isolation: d.isolation || '',
+      isolation: d.isolation || 'inherit',
       base_branch: d.base_branch,
       timeout: d.timeout,
       max_turns: d.max_turns,
@@ -362,8 +362,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         instructions: createForm.instructions || null,
         provider: createForm.provider,
         model: createForm.model || null,
-        mode: createForm.mode || 'self',
-        isolation: createForm.isolation || null,
+        mode: createForm.mode,
+        isolation: createForm.isolation,
         base_branch: createForm.base_branch,
         timeout: createForm.timeout,
         max_turns: createForm.max_turns,

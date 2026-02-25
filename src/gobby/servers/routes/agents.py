@@ -31,13 +31,13 @@ class CreateAgentDefinitionRequest(BaseModel):
     goal: str | None = None
     personality: str | None = None
     instructions: str | None = None
-    provider: str = "claude"
+    provider: str = "inherit"
     model: str | None = None
-    mode: str = "headless"
-    isolation: str | None = None
-    base_branch: str = "main"
-    timeout: float = 120.0
-    max_turns: int = 10
+    mode: str = "inherit"
+    isolation: str | None = "inherit"
+    base_branch: str = "inherit"
+    timeout: float = 0
+    max_turns: int = 0
     default_workflow: str | None = None
     sandbox_config: dict[str, Any] | None = None
     workflows: dict[str, Any] | None = None
@@ -197,7 +197,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 instructions=request.instructions,
                 provider=request.provider,
                 model=request.model,
-                mode=request.mode if request.mode != "self" else "headless",
+                mode=request.mode,
                 isolation=request.isolation,
                 base_branch=request.base_branch,
                 timeout=request.timeout,

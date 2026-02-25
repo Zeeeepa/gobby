@@ -310,7 +310,7 @@ export function AgentEditForm({
 
               <MetaRow label="Mode">
                 <select className="agent-edit-input" value={form.mode} onChange={e => set('mode', e.target.value)}>
-                  <option value="">(default)</option>
+                  <option value="inherit">(default)</option>
                   <option value="self">Self</option>
                   <option value="terminal">Terminal</option>
                   <option value="embedded">Embedded</option>
@@ -321,11 +321,11 @@ export function AgentEditForm({
               <MetaRow label="Isolation">
                 <select
                   className="agent-edit-input"
-                  value={isGitProject ? form.isolation : ''}
+                  value={isGitProject ? form.isolation : 'inherit'}
                   onChange={e => set('isolation', e.target.value)}
                   disabled={!isGitProject}
                 >
-                  <option value="">(default)</option>
+                  <option value="inherit">(default)</option>
                   <option value="none">None</option>
                   <option value="worktree">Worktree</option>
                   <option value="clone">Clone</option>
