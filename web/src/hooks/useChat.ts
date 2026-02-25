@@ -950,6 +950,13 @@ export function useChat() {
       setConversationId(newId)
       saveConversationId(newId)
       setMessages([])
+      setSessionRef(null)
+      setDbSessionId(null)
+      setCurrentBranch(null)
+      setWorktreePath(null)
+      setCanvasSurfaces(new Map())
+      setCanvasPanel(null)
+      setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
       activeRequestIdRef.current = null
       setIsStreaming(false)
       setIsThinking(false)
