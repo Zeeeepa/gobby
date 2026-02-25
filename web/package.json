@@ -11,7 +11,9 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "postinstall": "node scripts/copy-vad-assets.cjs",
     "setup": "tsx src/setup/cli.tsx",
-    "build:setup": "node scripts/build-setup.mjs"
+    "build:setup": "node scripts/build-setup.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
