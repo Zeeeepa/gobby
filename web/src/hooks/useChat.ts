@@ -150,6 +150,28 @@ function saveConversationId(id: string): void {
   localStorage.setItem(CONVERSATION_ID_KEY, id)
 }
 
+const DB_SESSION_ID_KEY = 'gobby-db-session-id'
+
+function loadDbSessionId(): string | null {
+  return localStorage.getItem(DB_SESSION_ID_KEY)
+}
+
+function saveDbSessionId(id: string | null): void {
+  if (id) localStorage.setItem(DB_SESSION_ID_KEY, id)
+  else localStorage.removeItem(DB_SESSION_ID_KEY)
+}
+
+function mapApiMessages(messages: Array<{ id?: string; role: string; content: string; timestamp: string; message_index?: number }>): ChatMessage[] {
+  return messages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map((m, i) => ({
+      id: m.id || `msg-${m.message_index ?? i}`,
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+      timestamp: new Date(m.timestamp),
+    }))
+}
+
 // Migrate from old single-key storage to per-conversation storage
 function migrateOldStorage(conversationId: string): void {
   const OLD_KEY = 'gobby-chat-history'
@@ -174,6 +196,29 @@ export function useChat() {
     migrateOldStorage(conversationIdRef.current)
   }, [])
 
+  // Fetch messages from DB on mount if we have a persisted dbSessionId
+  useEffect(() => {
+    const storedDbSid = loadDbSessionId()
+    const convId = conversationIdRef.current
+    if (!storedDbSid) return
+
+    let cancelled = false
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    fetch(`${baseUrl}/sessions/${storedDbSid}/messages?limit=100&offset=0`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled || !data?.messages?.length) return
+        if (conversationIdRef.current !== convId) return
+        const mapped = mapApiMessages(data.messages)
+        if (mapped.length > 0) {
+          setMessages(mapped)
+          saveMessagesForConversation(convId, mapped)
+        }
+      })
+      .catch(err => console.error('Failed to fetch initial messages from DB:', err))
+    return () => { cancelled = true }
+  }, [])
+
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     loadMessagesForConversation(conversationIdRef.current)
   )
@@ -192,7 +237,7 @@ export function useChat() {
 
   // DB session ID — used by title synthesis to call session APIs directly
   // without waiting for sessions list polling
-  const [dbSessionId, setDbSessionId] = useState<string | null>(null)
+  const [dbSessionId, setDbSessionId] = useState<string | null>(() => loadDbSessionId())
 
   // Branch/worktree tracking
   const [currentBranch, setCurrentBranch] = useState<string | null>(null)
@@ -693,6 +738,11 @@ export function useChat() {
     saveMessagesForConversation(conversationIdRef.current, messages)
   }, [messages])
 
+  // Persist dbSessionId to localStorage so next page load can fetch from DB immediately
+  useEffect(() => {
+    saveDbSessionId(dbSessionId)
+  }, [dbSessionId])
+
   // Switch to a different conversation
   const switchConversation = useCallback((id: string, dbSessionId?: string) => {
     if (!id) return
@@ -704,7 +754,7 @@ export function useChat() {
     setIsStreaming(false)
     setIsThinking(false)
     setSessionRef(null)
-    setDbSessionId(null)
+    setDbSessionId(dbSessionId ?? null)
     setCurrentBranch(null)
     setWorktreePath(null)
     setCanvasSurfaces(new Map())
@@ -734,14 +784,7 @@ export function useChat() {
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (!data?.messages?.length || conversationIdRef.current !== id) return
-          const mapped: ChatMessage[] = data.messages
-            .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
-            .map((m: { id: string; role: string; content: string; timestamp: string; message_index?: number }, i: number) => ({
-              id: m.id || `msg-${m.message_index ?? i}`,
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
-              timestamp: new Date(m.timestamp),
-            }))
+          const mapped = mapApiMessages(data.messages)
           if (mapped.length > 0) {
             setMessages(mapped)
             saveMessagesForConversation(id, mapped)
@@ -848,14 +891,7 @@ export function useChat() {
       const res = await fetch(`${baseUrl}/sessions/${sourceDbSessionId}/messages?limit=100`)
       if (res.ok) {
         const data = await res.json()
-        const mapped: ChatMessage[] = (data.messages || [])
-          .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
-          .map((m: { id?: string; role: string; content: string; timestamp: string; message_index?: number }, i: number) => ({
-            id: m.id || `history-${i}`,
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-            timestamp: new Date(m.timestamp),
-          }))
+        const mapped = mapApiMessages(data.messages || [])
         if (mapped.length > 0) {
           setMessages(mapped)
           saveMessagesForConversation(newConversationId, mapped)
@@ -920,6 +956,7 @@ export function useChat() {
     setMessages([])
     setCanvasSurfaces(new Map())
     setCanvasPanel(null)
+    setDbSessionId(null)
     setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
     localStorage.removeItem(chatStorageKey(oldConversationId))
     activeRequestIdRef.current = null
