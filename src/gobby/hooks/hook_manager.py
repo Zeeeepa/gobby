@@ -181,12 +181,23 @@ class HookManager:
         self._hook_assembler = components.hook_assembler
         self._event_handlers = components.event_handlers
 
+        # Inter-session message manager (for web chat -> CLI piggyback delivery)
+        from gobby.storage.inter_session_messages import InterSessionMessageManager
+
+        self._inter_session_msg_manager: InterSessionMessageManager | None = None
+        if self._database:
+            try:
+                self._inter_session_msg_manager = InterSessionMessageManager(self._database)
+            except Exception as e:
+                self.logger.warning(f"Failed to create InterSessionMessageManager: {e}")
+
         # Response metadata enrichment service
         from gobby.hooks.event_enrichment import EventEnricher
 
         self._enricher = EventEnricher(
             session_storage=self._session_storage,
             injected_sessions=self._injected_sessions,
+            inter_session_msg_manager=self._inter_session_msg_manager,
         )
 
         # Session lookup service (resolves platform session IDs from CLI external IDs)

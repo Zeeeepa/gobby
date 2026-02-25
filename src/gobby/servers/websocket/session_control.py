@@ -552,9 +552,7 @@ class SessionControlMixin:
             session = None
 
         if not session:
-            await self._send_error(
-                websocket, f"Session not found: {session_id}", code="NOT_FOUND"
-            )
+            await self._send_error(websocket, f"Session not found: {session_id}", code="NOT_FOUND")
             return
 
         # Load recent messages
@@ -610,13 +608,123 @@ class SessionControlMixin:
             )
         )
         logger.info(
-            f"Client attached to session {session_id} ({ref}): "
-            f"{total_count} messages loaded"
+            f"Client attached to session {session_id} ({ref}): {total_count} messages loaded"
         )
 
-    async def _handle_detach_from_session(
-        self, websocket: Any, data: dict[str, Any]
-    ) -> None:
+    async def _handle_send_to_cli_session(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Send a message from the web UI to a CLI session.
+
+        Uses two delivery paths:
+        - Idle (at prompt): tmux send-keys injects text directly
+        - Mid-execution: message persists in DB; hook piggyback picks it up
+
+        Message format:
+        {
+            "type": "send_to_cli_session",
+            "session_id": "db-uuid-of-target-session",
+            "content": "message text"
+        }
+        """
+        session_id = data.get("session_id")
+        content = data.get("content", "").strip()
+        if not session_id or not content:
+            await self._send_error(websocket, "send_to_cli_session requires session_id and content")
+            return
+
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            await self._send_error(websocket, "Session manager not available")
+            return
+
+        # Look up the target session
+        try:
+            session = await asyncio.to_thread(session_manager.get, session_id)
+        except Exception as e:
+            logger.warning(f"Failed to look up session {session_id}: {e}")
+            session = None
+
+        if not session:
+            await self._send_error(
+                websocket, f"Session not found: {session_id}", code="NOT_FOUND"
+            )
+            return
+
+        # Persist the message via InterSessionMessageManager
+        from gobby.storage.inter_session_messages import InterSessionMessageManager
+
+        inter_msg_manager: InterSessionMessageManager | None = None
+        if session_manager and hasattr(session_manager, "db"):
+            try:
+                inter_msg_manager = InterSessionMessageManager(session_manager.db)
+            except Exception as e:
+                logger.warning(f"Failed to create InterSessionMessageManager: {e}")
+
+        web_session_id = (self.clients.get(websocket) or {}).get(
+            "attached_session_id", "web-ui"
+        )
+
+        msg_id: str | None = None
+        if inter_msg_manager:
+            try:
+                msg = await asyncio.to_thread(
+                    inter_msg_manager.create_message,
+                    from_session=f"web:{web_session_id}",
+                    to_session=session_id,
+                    content=content,
+                    message_type="web_chat",
+                )
+                msg_id = msg.id
+            except Exception as e:
+                logger.warning(f"Failed to persist inter-session message: {e}")
+
+        # Try tmux delivery for idle sessions
+        delivered_via_tmux = False
+        tmux_pane = None
+        if hasattr(session, "terminal_context") and session.terminal_context:
+            ctx = session.terminal_context if isinstance(session.terminal_context, dict) else {}
+            tmux_pane = ctx.get("tmux_pane")
+
+        if not tmux_pane and hasattr(session, "metadata") and session.metadata:
+            meta = session.metadata if isinstance(session.metadata, dict) else {}
+            tmux_pane = meta.get("terminal_tmux_pane")
+
+        if tmux_pane:
+            try:
+                from gobby.agents.tmux import get_tmux_session_manager
+
+                tmux_manager = get_tmux_session_manager()
+                ok = await tmux_manager.send_keys(tmux_pane, content + "\n")
+                if ok:
+                    delivered_via_tmux = True
+                    # Mark as delivered
+                    if inter_msg_manager and msg_id:
+                        try:
+                            await asyncio.to_thread(
+                                inter_msg_manager.mark_delivered, msg_id
+                            )
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.warning(f"tmux send_keys failed for {tmux_pane}: {e}")
+
+        # Respond to the client
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "send_to_cli_session_result",
+                    "session_id": session_id,
+                    "delivered": delivered_via_tmux,
+                    "delivery_method": "tmux" if delivered_via_tmux else "hook_piggyback",
+                    "message_id": msg_id,
+                }
+            )
+        )
+        logger.info(
+            f"Message sent to CLI session {session_id[:8]}: "
+            f"delivered={'tmux' if delivered_via_tmux else 'queued for hook piggyback'}"
+        )
+
+    async def _handle_detach_from_session(self, websocket: Any, data: dict[str, Any]) -> None:
         """Detach a WebSocket client from an observed CLI session.
 
         Removes session-scoped subscriptions and clears attached state.

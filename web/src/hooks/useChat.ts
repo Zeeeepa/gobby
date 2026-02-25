@@ -473,6 +473,9 @@ export function useChat() {
               }
             }
           }
+        } else if (data.type === 'send_to_cli_session_result') {
+          const result = data as Record<string, unknown>
+          console.log('Message sent to CLI session:', result.delivery_method)
         } else if (data.type === 'subscribe_success') {
           console.log('Subscribed to events:', data)
         }
@@ -1028,6 +1031,26 @@ export function useChat() {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected, state:', wsRef.current?.readyState)
       return false
+    }
+
+    // Route to CLI session if attached (bidirectional messaging)
+    if (attachedSessionIdRef.current) {
+      const messageId = `user-${uuid()}`
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: messageId,
+          role: 'user',
+          content,
+          timestamp: new Date(),
+        },
+      ])
+      wsRef.current.send(JSON.stringify({
+        type: 'send_to_cli_session',
+        session_id: attachedSessionIdRef.current,
+        content,
+      }))
+      return true
     }
 
     const messageId = `user-${uuid()}`

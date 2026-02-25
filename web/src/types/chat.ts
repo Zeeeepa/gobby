@@ -108,6 +108,10 @@ export interface ConversationState {
   onRefresh?: () => void
   agents: Array<{ run_id: string; provider: string; pid?: number; mode?: string; started_at?: string; tmux_session_name?: string }>
   onNavigateToAgent: (agent: { run_id: string; tmux_session_name?: string }) => void
+  cliSessions?: GobbySession[]
+  attachedSessionId?: string | null
+  onAttachCliSession?: (session: GobbySession) => void
+  onDetachFromSession?: () => void
 }
 
 export interface ProjectProps {

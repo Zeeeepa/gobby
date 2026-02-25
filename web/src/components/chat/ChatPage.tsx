@@ -104,6 +104,10 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
         onRefresh={conversations.onRefresh}
         agents={conversations.agents}
         onNavigateToAgent={conversations.onNavigateToAgent}
+        cliSessions={conversations.cliSessions}
+        attachedSessionId={conversations.attachedSessionId}
+        onAttachCliSession={conversations.onAttachCliSession}
+        onDetachFromSession={conversations.onDetachFromSession}
       />
 
       <div className="flex flex-col flex-1 min-w-0">
@@ -154,7 +158,7 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                 onSend={chat.onSend}
                 onStop={chat.onStop}
                 isStreaming={chat.isStreaming}
-                disabled={!chat.isConnected || !!chat.attachedSessionId}
+                disabled={!chat.isConnected}
                 onInputChange={chat.onInputChange}
                 filteredCommands={chat.filteredCommands}
                 onCommandSelect={chat.onCommandSelect}

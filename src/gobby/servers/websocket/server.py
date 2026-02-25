@@ -241,6 +241,7 @@ class WebSocketServer(
                 "continue_in_chat": self._handle_continue_in_chat,
                 "attach_to_session": self._handle_attach_to_session,
                 "detach_from_session": self._handle_detach_from_session,
+                "send_to_cli_session": self._handle_send_to_cli_session,
                 "voice_audio": self._handle_voice_audio,
                 "voice_mode_toggle": self._handle_voice_mode_toggle,
                 "canvas_interaction": self._handle_canvas_interaction,

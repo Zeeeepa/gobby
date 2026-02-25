@@ -21,12 +21,26 @@ interface ConversationPickerProps {
   onRefresh?: () => void
   agents?: AgentInfo[]
   onNavigateToAgent?: (agent: AgentInfo) => void
+  cliSessions?: GobbySession[]
+  attachedSessionId?: string | null
+  onAttachCliSession?: (session: GobbySession) => void
+  onDetachFromSession?: () => void
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
   claude: '#c084fc',
   gemini: '#4ade80',
   codex: '#3b82f6',
+  unknown: '#737373',
+}
+
+const SOURCE_COLORS: Record<string, string> = {
+  claude_code: '#c084fc',
+  gemini_cli: '#4ade80',
+  codex: '#3b82f6',
+  windsurf: '#38bdf8',
+  cursor: '#f472b6',
+  copilot: '#818cf8',
   unknown: '#737373',
 }
 
@@ -40,6 +54,10 @@ export function ConversationPicker({
   onRefresh,
   agents = [],
   onNavigateToAgent,
+  cliSessions = [],
+  attachedSessionId,
+  onAttachCliSession,
+  onDetachFromSession,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(true)
@@ -188,6 +206,56 @@ export function ConversationPicker({
             })}
           </div>
           </div>
+
+          {cliSessions.length > 0 && (
+            <div className="session-group">
+              <div className="session-group-label">CLI Sessions ({cliSessions.length})</div>
+              {cliSessions.map((session) => {
+                const title = session.title || session.ref || 'CLI Session'
+                const isAttached = session.id === attachedSessionId
+                return (
+                  <div
+                    key={session.id}
+                    className={`session-item ${isAttached ? 'attached' : ''}`}
+                    onClick={() => {
+                      if (isAttached) {
+                        onDetachFromSession?.()
+                      } else {
+                        onAttachCliSession?.(session)
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        if (isAttached) onDetachFromSession?.()
+                        else onAttachCliSession?.(session)
+                      }
+                    }}
+                  >
+                    <div className="session-item-main">
+                      <span
+                        className="session-source-dot"
+                        style={{ background: SOURCE_COLORS[session.source] ?? SOURCE_COLORS.unknown }}
+                      />
+                      <span className="session-name" title={title}>
+                        {title}
+                      </span>
+                      {session.model && (
+                        <span className="session-badge">{session.model}</span>
+                      )}
+                    </div>
+                    <div className="session-item-actions">
+                      <span className="session-pid">
+                        {formatRelativeTime(session.updated_at)}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {agents.length > 0 && (
             <div className="session-group">

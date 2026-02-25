@@ -262,6 +262,14 @@ export default function App() {
     [sessionsHook.filteredSessions]
   )
 
+  // CLI sessions (non-web-chat, active) for sidebar quick access
+  const cliSessions = useMemo(
+    () => sessionsHook.filteredSessions.filter(
+      (s) => s.source !== 'claude_sdk_web_chat' && s.status === 'active'
+    ),
+    [sessionsHook.filteredSessions]
+  )
+
   // Auto-select most recent server session on initial load (cross-device sync)
   const initialReconciliationDone = useRef(false)
 
@@ -290,10 +298,19 @@ export default function App() {
     sendMessage(content, settings.model, files, effectiveProjectId)
   }, [sendMessage, settings.model, effectiveProjectId])
 
+  // Attach to a CLI session from the sidebar
+  const handleAttachCliSession = useCallback((session: GobbySession) => {
+    attachToSession(session.id)
+  }, [attachToSession])
+
   // Chat page: only web-chat sessions are selectable
   const handleSelectConversation = useCallback((session: GobbySession) => {
+    // Detach from any observed CLI session before switching
+    if (attachedSessionId) {
+      detachFromSession()
+    }
     switchConversation(session.external_id, session.id)
-  }, [switchConversation])
+  }, [switchConversation, attachedSessionId, detachFromSession])
 
   const handleDeleteConversation = useCallback((session: GobbySession) => {
     deleteConversation(session.external_id, session.id)
@@ -531,6 +548,10 @@ export default function App() {
             onRefresh: sessionsHook.refresh,
             agents,
             onNavigateToAgent: handleNavigateToAgent,
+            cliSessions,
+            attachedSessionId,
+            onAttachCliSession: handleAttachCliSession,
+            onDetachFromSession: detachFromSession,
           }}
           voice={{
             voiceMode: voice.voiceMode,
