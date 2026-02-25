@@ -611,27 +611,3 @@
   white-space: nowrap;
 }
 
-/* ── Active Agent Indicator ──────────────────────── */
-
-.active-agent-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: calc(var(--font-size-base) * 0.75);
-  white-space: nowrap;
-}
-
-.active-agent-name {
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@media (max-width: 768px) {
-  .active-agent-name {
-    display: none;
-  }
-}
