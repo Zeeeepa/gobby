@@ -45,6 +45,8 @@ const SOURCE_COLORS: Record<string, string> = {
   unknown: "#737373",
 };
 
+const TERMINAL_INITIAL_LIMIT = 5;
+
 export function ConversationPicker({
   sessions,
   activeSessionId,
@@ -67,6 +69,7 @@ export function ConversationPicker({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const saveOnBlurRef = useRef(true);
+  const [showAllTerminal, setShowAllTerminal] = useState(false);
 
   const filtered = search
     ? sessions.filter(
@@ -225,66 +228,10 @@ export function ConversationPicker({
             </div>
           </div>
 
-          {cliSessions.length > 0 && (
+          {(agents.length > 0 || cliSessions.length > 0) && (
             <div className="session-group">
               <div className="session-group-label">
-                CLI Sessions ({cliSessions.length})
-              </div>
-              {cliSessions.map((session) => {
-                const title = session.title || session.ref || "CLI Session";
-                const isAttached = session.id === attachedSessionId;
-                return (
-                  <div
-                    key={session.id}
-                    className={`session-item ${isAttached ? "attached" : ""}`}
-                    onClick={() => {
-                      if (isAttached) {
-                        onDetachFromSession?.();
-                      } else {
-                        onAttachCliSession?.(session);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        if (isAttached) onDetachFromSession?.();
-                        else onAttachCliSession?.(session);
-                      }
-                    }}
-                  >
-                    <div className="session-item-main">
-                      <span
-                        className="session-source-dot"
-                        style={{
-                          background:
-                            SOURCE_COLORS[session.source] ??
-                            SOURCE_COLORS.unknown,
-                        }}
-                      />
-                      <span className="session-name" title={title}>
-                        {title}
-                      </span>
-                      {session.model && (
-                        <span className="session-badge">{session.model}</span>
-                      )}
-                    </div>
-                    <div className="session-item-actions">
-                      <span className="session-pid">
-                        {formatRelativeTime(session.updated_at)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {agents.length > 0 && (
-            <div className="session-group">
-              <div className="session-group-label">
-                Active Agents ({agents.length})
+                Terminal Sessions ({agents.length + cliSessions.length})
               </div>
               {agents.map((agent) => (
                 <div
@@ -327,6 +274,76 @@ export function ConversationPicker({
                   </div>
                 </div>
               ))}
+              {(showAllTerminal
+                ? cliSessions
+                : cliSessions.slice(0, Math.max(0, TERMINAL_INITIAL_LIMIT - agents.length))
+              ).map((session) => {
+                const title = session.title || session.ref || "CLI Session";
+                const isAttached = session.id === attachedSessionId;
+                const isPaused = session.status === "paused";
+                return (
+                  <div
+                    key={session.id}
+                    className={`session-item ${isAttached ? "attached" : ""} ${isPaused ? "session-item-muted" : ""}`}
+                    onClick={() => {
+                      if (isAttached) {
+                        onDetachFromSession?.();
+                      } else {
+                        onAttachCliSession?.(session);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (isAttached) onDetachFromSession?.();
+                        else onAttachCliSession?.(session);
+                      }
+                    }}
+                  >
+                    <div className="session-item-main">
+                      <span
+                        className="session-source-dot"
+                        style={{
+                          background:
+                            SOURCE_COLORS[session.source] ??
+                            SOURCE_COLORS.unknown,
+                        }}
+                      />
+                      <span className="session-name" title={title}>
+                        {title}
+                      </span>
+                      {session.model && (
+                        <span className="session-badge">{session.model}</span>
+                      )}
+                    </div>
+                    <div className="session-item-actions">
+                      <span className="session-pid">
+                        {formatRelativeTime(session.updated_at)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {!showAllTerminal && agents.length + cliSessions.length > TERMINAL_INITIAL_LIMIT && (
+                <button
+                  type="button"
+                  className="session-show-more"
+                  onClick={() => setShowAllTerminal(true)}
+                >
+                  Show {agents.length + cliSessions.length - TERMINAL_INITIAL_LIMIT} more
+                </button>
+              )}
+              {showAllTerminal && agents.length + cliSessions.length > TERMINAL_INITIAL_LIMIT && (
+                <button
+                  type="button"
+                  className="session-show-more"
+                  onClick={() => setShowAllTerminal(false)}
+                >
+                  Show less
+                </button>
+              )}
             </div>
           )}
         </>

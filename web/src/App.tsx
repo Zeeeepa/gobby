@@ -461,11 +461,13 @@ export default function App() {
     [sessionsHook.filteredSessions],
   );
 
-  // CLI sessions (non-web-chat, active) for sidebar quick access
+  // CLI sessions (non-web-chat, active or paused) for sidebar quick access
   const cliSessions = useMemo(
     () =>
       sessionsHook.filteredSessions.filter(
-        (s) => s.source !== "claude_sdk_web_chat" && s.status === "active",
+        (s) =>
+          s.source !== "claude_sdk_web_chat" &&
+          (s.status === "active" || s.status === "paused"),
       ),
     [sessionsHook.filteredSessions],
   );

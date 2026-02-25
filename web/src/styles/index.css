@@ -4165,6 +4165,22 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   opacity: 0.6;
 }
 
+.session-show-more {
+  display: block;
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.session-show-more:hover {
+  background: var(--bg-tertiary);
+}
+
 /* Mobile: sidebar overlays */
 @media (max-width: 768px) {
   .sessions-sidebar {
