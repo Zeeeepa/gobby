@@ -11837,6 +11837,8 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 /* Property grid */
