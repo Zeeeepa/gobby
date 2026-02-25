@@ -118,15 +118,17 @@ class TmuxMixin:
         session_mgr = getattr(self, "session_manager", None)
         if session_mgr:
             try:
-                for gs in session_mgr.list(status="active"):
-                    if gs.terminal_context:
-                        tmux_pane = gs.terminal_context.get("tmux_pane")
-                        if tmux_pane:
-                            if gs.title:
-                                pane_to_title[tmux_pane] = gs.title
-                            pane_to_session_id[tmux_pane] = gs.id
-                            if tmux_pane in live_pane_ids:
-                                live_cli_session_ids.append(gs.id)
+                # Check both active and paused sessions (mirrors frontend filter)
+                for status in ("active", "paused"):
+                    for gs in session_mgr.list(status=status):
+                        if gs.terminal_context:
+                            tmux_pane = gs.terminal_context.get("tmux_pane")
+                            if tmux_pane:
+                                if gs.title:
+                                    pane_to_title[tmux_pane] = gs.title
+                                pane_to_session_id[tmux_pane] = gs.id
+                                if tmux_pane in live_pane_ids:
+                                    live_cli_session_ids.append(gs.id)
             except Exception:
                 logger.debug("Failed to build pane-to-title map", exc_info=True)
 
