@@ -8,6 +8,7 @@ export interface TmuxSession {
   pane_title: string | null
   window_name: string | null
   session_title: string | null
+  gobby_session_id: string | null
   agent_managed: boolean
   agent_run_id: string | null
   attached_bridge: string | null

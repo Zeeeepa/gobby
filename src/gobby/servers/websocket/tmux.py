@@ -100,18 +100,21 @@ class TmuxMixin:
         sessions: list[dict[str, Any]] = []
         registry = get_running_agent_registry()
 
-        # Build tmux_pane -> session_title map from active Gobby sessions
+        # Build tmux_pane -> (session_title, gobby_session_id) map from active Gobby sessions
         # Uses tmux_pane (e.g. "%64") which is stable, unlike parent_pid which
         # goes stale when the CLI process exits and the shell reclaims the pane.
         pane_to_title: dict[str, str] = {}
+        pane_to_session_id: dict[str, str] = {}
         session_mgr = getattr(self, "session_manager", None)
         if session_mgr:
             try:
                 for gs in session_mgr.list(status="active"):
-                    if gs.title and gs.terminal_context:
+                    if gs.terminal_context:
                         tmux_pane = gs.terminal_context.get("tmux_pane")
                         if tmux_pane:
-                            pane_to_title[tmux_pane] = gs.title
+                            if gs.title:
+                                pane_to_title[tmux_pane] = gs.title
+                            pane_to_session_id[tmux_pane] = gs.id
             except Exception:
                 logger.debug("Failed to build pane-to-title map", exc_info=True)
 
@@ -142,9 +145,10 @@ class TmuxMixin:
                             attached_bridge = sid
                             break
 
-                    # Look up synthesized session title via tmux pane ID
+                    # Look up synthesized session title and gobby session ID via tmux pane ID
                     pane_id = getattr(s, "pane_id", None)
                     session_title = pane_to_title.get(pane_id) if pane_id else None
+                    gobby_session_id = pane_to_session_id.get(pane_id) if pane_id else None
 
                     sessions.append(
                         {
@@ -155,6 +159,7 @@ class TmuxMixin:
                             "pane_title": s.pane_title,
                             "window_name": s.window_name,
                             "session_title": session_title,
+                            "gobby_session_id": gobby_session_id,
                             "agent_managed": agent_managed,
                             "agent_run_id": agent_run_id,
                             "attached_bridge": attached_bridge,
