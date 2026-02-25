@@ -32,7 +32,7 @@ class CanvasState:
     html_url: str | None  # URL for html mode
     conversation_id: str
     pending_event: asyncio.Event | None
-    interaction_result: dict | None
+    interaction_result: dict[str, Any] | None
     created_at: datetime
     expires_at: datetime
     completed: bool = False

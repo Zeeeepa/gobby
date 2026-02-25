@@ -242,7 +242,7 @@ class RuleEngine:
         row: WorkflowDefinitionRow,
         variables: dict[str, Any],
         ctx: dict[str, Any],
-        allowed_funcs: dict[str, Callable],
+        allowed_funcs: dict[str, Callable[..., Any]],
         context_parts: list[str],
         mcp_calls: list[dict[str, Any]],
     ) -> None:
@@ -328,7 +328,7 @@ class RuleEngine:
 
         return ctx
 
-    def _build_allowed_funcs(self, ctx: dict[str, Any]) -> dict[str, Callable]:
+    def _build_allowed_funcs(self, ctx: dict[str, Any]) -> dict[str, Callable[..., Any]]:
         """Build the shared helper-function dict for condition evaluation and template rendering."""
         variables = ctx.get("variables", {})
         funcs = build_condition_helpers(context=ctx)
@@ -343,7 +343,7 @@ class RuleEngine:
         return funcs
 
     def _render_template(
-        self, template: str, ctx: dict[str, Any], allowed_funcs: dict[str, Callable]
+        self, template: str, ctx: dict[str, Any], allowed_funcs: dict[str, Callable[..., Any]]
     ) -> str:
         """Render a Jinja2 template string with eval context and helper functions."""
         if "{{" not in template:
@@ -383,7 +383,7 @@ class RuleEngine:
         condition: str,
         context: dict[str, Any],
         effect_type: str = "block",
-        allowed_funcs: dict[str, Callable] | None = None,
+        allowed_funcs: dict[str, Callable[..., Any]] | None = None,
     ) -> bool:
         """Evaluate a `when` condition string using SafeExpressionEvaluator.
 

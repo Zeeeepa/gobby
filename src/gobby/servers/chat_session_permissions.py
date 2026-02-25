@@ -47,6 +47,7 @@ class ChatSessionPermissionsMixin:
     _plan_file_path: str | None
     _pending_plan_event: asyncio.Event | None
     _pending_plan_decision: str | None
+    _on_mode_persist: Callable[[str], None] | None
     _on_plan_ready: Callable[[str | None, dict[str, Any]], Awaitable[None]] | None
     _pending_approval: PendingApproval | None
     _pending_approval_decision: str | None
