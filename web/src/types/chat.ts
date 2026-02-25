@@ -75,6 +75,18 @@ export interface ContextUsage {
 import type { A2UISurfaceState, UserAction } from "../components/canvas/types";
 import type { CanvasPanelState } from "../components/canvas/hooks/useCanvasPanel";
 
+export interface SessionObservationMeta {
+  ref: string | null;
+  source: string;
+  title: string | null;
+  status: string;
+  model: string | null;
+  externalId: string;
+  chatMode?: string | null;
+  gitBranch?: string | null;
+  contextWindow?: number | null;
+}
+
 export interface ChatState {
   messages: ChatMessage[];
   sessionRef: string | null;
@@ -109,15 +121,11 @@ export interface ChatState {
   onApprovePlan: () => void;
   onRequestPlanChanges: (feedback: string) => void;
   setOnPlanReady?: (fn: (content: string | null) => void) => void;
+  viewingSessionId?: string | null;
+  viewingSessionMeta?: SessionObservationMeta | null;
   attachedSessionId?: string | null;
-  attachedSessionMeta?: {
-    ref: string | null;
-    source: string;
-    title: string | null;
-    status: string;
-    model: string | null;
-    externalId: string;
-  } | null;
+  attachedSessionMeta?: SessionObservationMeta | null;
+  onAttachToViewed?: () => void;
   onDetachFromSession?: () => void;
 }
 
@@ -143,8 +151,9 @@ export interface ConversationState {
     tmux_session_name?: string;
   }) => void;
   cliSessions?: GobbySession[];
+  viewingSessionId?: string | null;
   attachedSessionId?: string | null;
-  onAttachCliSession?: (session: GobbySession) => void;
+  onViewCliSession?: (session: GobbySession) => void;
   onDetachFromSession?: () => void;
 }
 

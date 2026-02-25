@@ -148,8 +148,9 @@ export function ChatPage({
         agents={conversations.agents}
         onNavigateToAgent={conversations.onNavigateToAgent}
         cliSessions={conversations.cliSessions}
+        viewingSessionId={conversations.viewingSessionId}
         attachedSessionId={conversations.attachedSessionId}
-        onAttachCliSession={conversations.onAttachCliSession}
+        onViewCliSession={conversations.onViewCliSession}
         onDetachFromSession={conversations.onDetachFromSession}
         agentDefinitions={agentDefinitions}
         agentGlobalDefs={agentGlobalDefs}
@@ -175,25 +176,13 @@ export function ChatPage({
             >
               <SessionStatusBar
                 sessionRef={effectiveSessionRef}
-                title={chat.attachedSessionMeta?.title ?? activeTitle}
+                title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
                 mode={chat.mode}
+                viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
+                isAttached={!!chat.attachedSessionId}
+                onAttach={chat.onAttachToViewed}
+                onDetach={chat.onDetachFromSession}
               />
-              {chat.attachedSessionId && chat.attachedSessionMeta && (
-                <div className="session-observation-banner">
-                  <span className="session-observation-indicator" />
-                  Observing <b>{chat.attachedSessionMeta.source}</b> session
-                  {chat.attachedSessionMeta.ref &&
-                    ` ${chat.attachedSessionMeta.ref}`}
-                  {chat.attachedSessionMeta.status === "active" && " (live)"}
-                  <button
-                    className="session-observation-detach"
-                    onClick={chat.onDetachFromSession}
-                    title="Stop watching"
-                  >
-                    Detach
-                  </button>
-                </div>
-              )}
               <MessageList
                 messages={chat.messages}
                 isStreaming={chat.isStreaming}
@@ -210,7 +199,8 @@ export function ChatPage({
                 onSend={chat.onSend}
                 onStop={chat.onStop}
                 isStreaming={chat.isStreaming}
-                disabled={!chat.isConnected}
+                disabled={!chat.isConnected || (!!chat.viewingSessionId && !chat.attachedSessionId)}
+                viewingSession={!!chat.viewingSessionId && !chat.attachedSessionId}
                 onInputChange={chat.onInputChange}
                 filteredCommands={chat.filteredCommands}
                 onCommandSelect={chat.onCommandSelect}

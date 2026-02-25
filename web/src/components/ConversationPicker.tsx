@@ -25,8 +25,9 @@ interface ConversationPickerProps {
   agents?: AgentInfo[];
   onNavigateToAgent?: (agent: AgentInfo) => void;
   cliSessions?: GobbySession[];
+  viewingSessionId?: string | null;
   attachedSessionId?: string | null;
-  onAttachCliSession?: (session: GobbySession) => void;
+  onViewCliSession?: (session: GobbySession) => void;
   onDetachFromSession?: () => void;
   agentDefinitions?: AgentDefInfo[];
   agentGlobalDefs?: AgentDefInfo[];
@@ -67,8 +68,8 @@ export function ConversationPicker({
   agents = [],
   onNavigateToAgent,
   cliSessions = [],
-  attachedSessionId,
-  onAttachCliSession,
+  viewingSessionId,
+  onViewCliSession,
   onDetachFromSession,
   agentDefinitions = [],
   agentGlobalDefs = [],
@@ -179,7 +180,7 @@ export function ConversationPicker({
               )}
               {filtered.map((session) => {
                 const title = session.title || `Chat ${session.ref}`;
-                const isActive = session.external_id === activeSessionId;
+                const isActive = session.external_id === activeSessionId && !viewingSessionId;
                 const isDeleting = deletingIds?.has(session.id) ?? false;
                 return (
                   <div
@@ -320,17 +321,17 @@ export function ConversationPicker({
                 : cliSessions.slice(0, Math.max(0, TERMINAL_INITIAL_LIMIT - agents.length))
               ).map((session) => {
                 const title = session.title || session.ref || "CLI Session";
-                const isAttached = session.id === attachedSessionId;
+                const isViewing = session.id === viewingSessionId;
                 const isPaused = session.status === "paused";
                 return (
                   <div
                     key={session.id}
-                    className={`session-item ${isAttached ? "attached" : ""} ${isPaused ? "session-item-muted" : ""}`}
+                    className={`session-item ${isViewing ? "attached" : ""} ${isPaused ? "session-item-muted" : ""}`}
                     onClick={() => {
-                      if (isAttached) {
+                      if (isViewing) {
                         onDetachFromSession?.();
                       } else {
-                        onAttachCliSession?.(session);
+                        onViewCliSession?.(session);
                       }
                     }}
                     role="button"
@@ -338,8 +339,8 @@ export function ConversationPicker({
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        if (isAttached) onDetachFromSession?.();
-                        else onAttachCliSession?.(session);
+                        if (isViewing) onDetachFromSession?.();
+                        else onViewCliSession?.(session);
                       }
                     }}
                   >

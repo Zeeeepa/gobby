@@ -14,6 +14,7 @@ interface ChatInputProps {
   onStop?: () => void
   isStreaming?: boolean
   disabled?: boolean
+  viewingSession?: boolean
   onInputChange?: (value: string) => void
   filteredCommands?: CommandInfo[]
   onCommandSelect?: (command: CommandInfo) => void
@@ -48,6 +49,7 @@ export function ChatInput({
   onStop,
   isStreaming = false,
   disabled = false,
+  viewingSession = false,
   onInputChange,
   filteredCommands = [],
   onCommandSelect,
@@ -346,7 +348,7 @@ export function ChatInput({
             value={input}
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on...' : 'Message or /command...'}
+            placeholder={viewingSession ? 'Attach to send messages...' : disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on...' : 'Message or /command...'}
             aria-label={disabled ? 'Message input — connecting' : isStreaming ? 'Message input — streaming' : voiceMode ? 'Message input — voice mode' : 'Message input'}
             disabled={disabled}
             rows={1}

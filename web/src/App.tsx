@@ -235,7 +235,11 @@ export default function App() {
     setOnModeChanged,
     setOnPlanReady,
     addSystemMessage,
-    attachToSession,
+    viewSession,
+    clearViewingSession,
+    viewingSessionId,
+    viewingSessionMeta,
+    attachToViewed,
     detachFromSession,
     attachedSessionId,
     attachedSessionMeta,
@@ -513,24 +517,31 @@ export default function App() {
     [sendMessage, settings.model, effectiveProjectId],
   );
 
-  // Attach to a CLI session from the sidebar
-  const handleAttachCliSession = useCallback(
+  // View a CLI session from the sidebar (read-only, no WS subscription)
+  const handleViewCliSession = useCallback(
     (session: GobbySession) => {
-      attachToSession(session.id);
+      viewSession(session.id);
     },
-    [attachToSession],
+    [viewSession],
   );
+
+  // Clear terminal session view and restore web chat
+  const handleClearViewing = useCallback(() => {
+    clearViewingSession();
+  }, [clearViewingSession]);
 
   // Chat page: only web-chat sessions are selectable
   const handleSelectConversation = useCallback(
     (session: GobbySession) => {
-      // Detach from any observed CLI session before switching
-      if (attachedSessionId) {
+      // Clear terminal session viewing state before switching
+      if (viewingSessionId) {
+        clearViewingSession();
+      } else if (attachedSessionId) {
         detachFromSession();
       }
       switchConversation(session.external_id, session.id);
     },
-    [switchConversation, attachedSessionId, detachFromSession],
+    [switchConversation, viewingSessionId, attachedSessionId, clearViewingSession, detachFromSession],
   );
 
   const showToast = useCallback((msg: string, durationMs = 3000) => {
@@ -650,9 +661,9 @@ export default function App() {
   const handleWatchInChat = useCallback(
     (session: GobbySession) => {
       setActiveTab("chat");
-      attachToSession(session.id);
+      viewSession(session.id);
     },
-    [attachToSession],
+    [viewSession],
   );
 
   // Wire voice message handler into useChat's WebSocket routing
@@ -896,8 +907,11 @@ export default function App() {
                 canvasSurfaces,
                 canvasPanel,
                 onCanvasInteraction,
+                viewingSessionId,
+                viewingSessionMeta,
                 attachedSessionId,
                 attachedSessionMeta,
+                onAttachToViewed: attachToViewed,
                 onDetachFromSession: detachFromSession,
                 activeAgent,
                 onAgentChange: sendAgentChange,
@@ -914,9 +928,10 @@ export default function App() {
                 agents,
                 onNavigateToAgent: handleNavigateToAgent,
                 cliSessions,
+                viewingSessionId,
                 attachedSessionId,
-                onAttachCliSession: handleAttachCliSession,
-                onDetachFromSession: detachFromSession,
+                onViewCliSession: handleViewCliSession,
+                onDetachFromSession: handleClearViewing,
               }}
               agentDefinitions={agentDefs.definitions}
               agentGlobalDefs={agentDefs.globalDefs}

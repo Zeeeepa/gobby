@@ -125,23 +125,133 @@ function saveDbSessionId(id: string | null): void {
   else localStorage.removeItem(DB_SESSION_ID_KEY);
 }
 
-function mapApiMessages(
-  messages: Array<{
-    id?: string;
-    role: string;
-    content: string;
-    timestamp: string;
-    message_index?: number;
-  }>,
-): ChatMessage[] {
-  return messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m, i) => ({
-      id: m.id || `msg-${m.message_index ?? i}`,
-      role: m.role as "user" | "assistant",
-      content: m.content,
-      timestamp: new Date(m.timestamp),
-    }));
+interface ApiMessage {
+  id?: string;
+  role: string;
+  content: string;
+  content_type?: string;
+  tool_name?: string;
+  tool_input?: string;
+  tool_result?: string;
+  timestamp: string;
+  message_index?: number;
+}
+
+function tryParseJSON(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
+  const result: ChatMessage[] = [];
+  let currentAssistant: ChatMessage | null = null;
+
+  function flushAssistant() {
+    if (currentAssistant) {
+      result.push(currentAssistant);
+      currentAssistant = null;
+    }
+  }
+
+  for (const m of messages) {
+    const id = m.id || `msg-${m.message_index ?? result.length}`;
+
+    if (m.role === "user") {
+      if (m.content_type === "tool_result") {
+        // Tool result in a user message — attach to the last pending tool call
+        if (currentAssistant?.toolCalls) {
+          const pending = currentAssistant.toolCalls.find(
+            (tc) => tc.status !== "completed",
+          );
+          if (pending) {
+            pending.result = tryParseJSON(m.content);
+            pending.status = "completed";
+          }
+        }
+        continue;
+      }
+      // Regular user message
+      flushAssistant();
+      result.push({
+        id,
+        role: "user",
+        content: m.content || "",
+        timestamp: new Date(m.timestamp),
+      });
+    } else if (m.role === "assistant") {
+      if (m.content_type === "tool_use") {
+        // Tool invocation — attach to current assistant message or create one
+        if (!currentAssistant) {
+          currentAssistant = {
+            id,
+            role: "assistant",
+            content: "",
+            timestamp: new Date(m.timestamp),
+            toolCalls: [],
+          };
+        }
+        const toolCall: ToolCall = {
+          id,
+          tool_name: m.tool_name || "unknown",
+          server_name: "builtin",
+          status: "completed",
+          arguments: tryParseJSON(m.tool_input) as
+            | Record<string, unknown>
+            | undefined,
+          result: m.tool_result ? tryParseJSON(m.tool_result) : undefined,
+        };
+        currentAssistant.toolCalls = [
+          ...(currentAssistant.toolCalls || []),
+          toolCall,
+        ];
+      } else if (m.content_type === "thinking") {
+        if (!currentAssistant) {
+          currentAssistant = {
+            id,
+            role: "assistant",
+            content: "",
+            timestamp: new Date(m.timestamp),
+          };
+        }
+        currentAssistant.thinkingContent =
+          (currentAssistant.thinkingContent || "") + (m.content || "");
+      } else {
+        // Regular assistant text
+        if (currentAssistant) {
+          if (m.content) {
+            currentAssistant.content +=
+              (currentAssistant.content ? "\n" : "") + m.content;
+          }
+        } else {
+          currentAssistant = {
+            id,
+            role: "assistant",
+            content: m.content || "",
+            timestamp: new Date(m.timestamp),
+          };
+        }
+      }
+    } else if (m.role === "tool") {
+      // Tool result message — attach to last pending tool call
+      if (currentAssistant?.toolCalls) {
+        const pending = currentAssistant.toolCalls.find(
+          (tc) => tc.status !== "completed",
+        );
+        if (pending) {
+          pending.result = tryParseJSON(m.content);
+          pending.status = "completed";
+        }
+      }
+    }
+  }
+
+  flushAssistant();
+  return result;
 }
 
 export function useChat() {
@@ -205,19 +315,19 @@ export function useChat() {
   // Active agent tracking
   const [activeAgent, setActiveAgent] = useState<string>("default");
 
-  // Session attachment tracking (read-only observation of CLI sessions)
+  // Session viewing tracking (read-only observation of CLI sessions via REST)
+  const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
+  const viewingSessionIdRef = useRef<string | null>(null);
+  const [viewingSessionMeta, setViewingSessionMeta] =
+    useState<import("../types/chat").SessionObservationMeta | null>(null);
+
+  // Session attachment tracking (interactive observation via WS subscription)
   const [attachedSessionId, setAttachedSessionId] = useState<string | null>(
     null,
   );
   const attachedSessionIdRef = useRef<string | null>(null);
-  const [attachedSessionMeta, setAttachedSessionMeta] = useState<{
-    ref: string | null;
-    source: string;
-    title: string | null;
-    status: string;
-    model: string | null;
-    externalId: string;
-  } | null>(null);
+  const [attachedSessionMeta, setAttachedSessionMeta] =
+    useState<import("../types/chat").SessionObservationMeta | null>(null);
 
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false);
@@ -563,24 +673,24 @@ export function useChat() {
         } else if (data.type === "attach_to_session_result") {
           const result = data as Record<string, unknown>;
           const sid = result.session_id as string;
-          setAttachedSessionId(sid);
-          setAttachedSessionMeta({
+          const meta = {
             ref: (result.ref as string) ?? null,
             source: (result.source as string) ?? "unknown",
             title: (result.title as string) ?? null,
             status: (result.status as string) ?? "unknown",
             model: (result.model as string) ?? null,
             externalId: (result.external_id as string) ?? "",
-          });
-          // Map initial messages into chat format
-          const msgs =
-            (result.messages as Array<{
-              id?: string;
-              role: string;
-              content: string;
-              timestamp: string;
-              message_index?: number;
-            }>) || [];
+            chatMode: (result.chat_mode as string) ?? null,
+            gitBranch: (result.git_branch as string) ?? null,
+            contextWindow: (result.context_window as number) ?? null,
+          };
+          setAttachedSessionId(sid);
+          setAttachedSessionMeta(meta);
+          // Also set viewing state (attached implies viewing)
+          setViewingSessionId(sid);
+          setViewingSessionMeta(meta);
+          // Map initial messages into chat format with proper tool call grouping
+          const msgs = (result.messages as ApiMessage[]) || [];
           const mapped = mapApiMessages(msgs);
           setMessages(mapped);
           setIsStreaming(false);
@@ -590,6 +700,7 @@ export function useChat() {
         } else if (data.type === "detach_from_session_result") {
           setAttachedSessionId(null);
           setAttachedSessionMeta(null);
+          // Keep viewingSessionId/Meta — return to view-only mode
         } else if (
           data.type === "session_message" &&
           (data as Record<string, unknown>).session_id
@@ -602,21 +713,141 @@ export function useChat() {
             const msg = sm.message as Record<string, unknown> | undefined;
             if (msg) {
               const role = msg.role as string;
-              if (role === "user" || role === "assistant") {
+              const contentType = msg.content_type as string | undefined;
+              const idx = msg.index as number | undefined;
+              const msgId = `cli-msg-${idx ?? Date.now()}`;
+
+              if (
+                role === "assistant" &&
+                contentType === "tool_use"
+              ) {
+                // Tool invocation — append to last assistant message's toolCalls
                 setMessages((prev) => {
-                  // Deduplicate by message_index
-                  const idx = msg.index as number | undefined;
-                  if (
-                    idx !== undefined &&
-                    prev.some((m) => m.id === `cli-msg-${idx}`)
-                  ) {
+                  if (idx !== undefined && prev.some((m) => m.id === msgId))
                     return prev;
+                  const lastIdx = prev.length - 1;
+                  const last = lastIdx >= 0 ? prev[lastIdx] : null;
+                  const toolCall: ToolCall = {
+                    id: msgId,
+                    tool_name: (msg.tool_name as string) || "unknown",
+                    server_name: "builtin",
+                    status: "calling",
+                    arguments: tryParseJSON(msg.tool_input) as
+                      | Record<string, unknown>
+                      | undefined,
+                  };
+                  if (last?.role === "assistant") {
+                    const updated = [...prev];
+                    updated[lastIdx] = {
+                      ...last,
+                      toolCalls: [...(last.toolCalls || []), toolCall],
+                    };
+                    return updated;
                   }
                   return [
                     ...prev,
                     {
-                      id: `cli-msg-${idx ?? Date.now()}`,
-                      role: role as "user" | "assistant",
+                      id: msgId,
+                      role: "assistant" as const,
+                      content: "",
+                      timestamp: new Date(),
+                      toolCalls: [toolCall],
+                    },
+                  ];
+                });
+              } else if (
+                contentType === "tool_result" ||
+                role === "tool"
+              ) {
+                // Tool result — update last pending tool call
+                setMessages((prev) => {
+                  for (let i = prev.length - 1; i >= 0; i--) {
+                    const m = prev[i];
+                    if (m.role !== "assistant" || !m.toolCalls) continue;
+                    const pendingIdx = m.toolCalls.findIndex(
+                      (tc) => tc.status !== "completed",
+                    );
+                    if (pendingIdx < 0) continue;
+                    const updated = [...prev];
+                    const updatedCalls = [...m.toolCalls];
+                    updatedCalls[pendingIdx] = {
+                      ...updatedCalls[pendingIdx],
+                      result: tryParseJSON(
+                        msg.tool_result ?? msg.content,
+                      ),
+                      status: "completed",
+                    };
+                    updated[i] = { ...m, toolCalls: updatedCalls };
+                    return updated;
+                  }
+                  return prev;
+                });
+              } else if (role === "user" && contentType !== "tool_result") {
+                // Regular user message
+                setMessages((prev) => {
+                  if (idx !== undefined && prev.some((m) => m.id === msgId))
+                    return prev;
+                  return [
+                    ...prev,
+                    {
+                      id: msgId,
+                      role: "user" as const,
+                      content: (msg.content as string) ?? "",
+                      timestamp: new Date(
+                        (msg.timestamp as string) ?? Date.now(),
+                      ),
+                    },
+                  ];
+                });
+              } else if (role === "assistant") {
+                // Regular assistant text or thinking
+                setMessages((prev) => {
+                  if (idx !== undefined && prev.some((m) => m.id === msgId))
+                    return prev;
+                  if (contentType === "thinking") {
+                    const lastIdx = prev.length - 1;
+                    const last = lastIdx >= 0 ? prev[lastIdx] : null;
+                    if (last?.role === "assistant") {
+                      const updated = [...prev];
+                      updated[lastIdx] = {
+                        ...last,
+                        thinkingContent:
+                          (last.thinkingContent || "") +
+                          ((msg.content as string) || ""),
+                      };
+                      return updated;
+                    }
+                    return [
+                      ...prev,
+                      {
+                        id: msgId,
+                        role: "assistant" as const,
+                        content: "",
+                        timestamp: new Date(),
+                        thinkingContent: (msg.content as string) || "",
+                      },
+                    ];
+                  }
+                  // Regular text — append to existing assistant msg or create new
+                  const lastIdx = prev.length - 1;
+                  const last = lastIdx >= 0 ? prev[lastIdx] : null;
+                  if (
+                    last?.role === "assistant" &&
+                    !last.toolCalls?.length
+                  ) {
+                    const updated = [...prev];
+                    updated[lastIdx] = {
+                      ...last,
+                      content:
+                        last.content + ((msg.content as string) ?? ""),
+                    };
+                    return updated;
+                  }
+                  return [
+                    ...prev,
+                    {
+                      id: msgId,
+                      role: "assistant" as const,
                       content: (msg.content as string) ?? "",
                       timestamp: new Date(
                         (msg.timestamp as string) ?? Date.now(),
@@ -952,10 +1183,13 @@ export function useChat() {
     saveDbSessionId(dbSessionId);
   }, [dbSessionId]);
 
-  // Keep attachedSessionId ref in sync
+  // Keep refs in sync
   useEffect(() => {
     attachedSessionIdRef.current = attachedSessionId;
   }, [attachedSessionId]);
+  useEffect(() => {
+    viewingSessionIdRef.current = viewingSessionId;
+  }, [viewingSessionId]);
 
   // Switch to a different conversation
   const switchConversation = useCallback((id: string, dbSessionId?: string) => {
@@ -1578,15 +1812,108 @@ export function useChat() {
     // Don't eagerly clear — let mode_changed be the single source of truth
   }, []);
 
-  // Attach to a CLI session for read-only observation
-  const attachToSession = useCallback((sessionId: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+  // View a CLI session (read-only, no WS subscription — loads via REST)
+  const viewSession = useCallback((sessionId: string) => {
+    // Detach from any active WS subscription first
+    if (attachedSessionIdRef.current) {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "detach_from_session",
+            session_id: attachedSessionIdRef.current,
+          }),
+        );
+      }
+      setAttachedSessionId(null);
+      setAttachedSessionMeta(null);
+    }
 
     // Reset chat state
     activeRequestIdRef.current = null;
     setIsStreaming(false);
     setIsThinking(false);
     setMessages([]);
+
+    // Set viewing state
+    setViewingSessionId(sessionId);
+
+    // Fetch messages via REST
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+    fetch(`${baseUrl}/sessions/${sessionId}/messages?limit=100&offset=0`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.messages?.length) return;
+        if (viewingSessionIdRef.current !== sessionId) return;
+        const mapped = mapApiMessages(data.messages);
+        setMessages(mapped);
+      })
+      .catch((err) =>
+        console.error("Failed to fetch session messages:", err),
+      );
+
+    // Fetch session metadata
+    fetch(`${baseUrl}/sessions/${sessionId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const s = data?.session;
+        if (!s || viewingSessionIdRef.current !== sessionId) return;
+        const ref = s.seq_num ? `#${s.seq_num}` : null;
+        setSessionRef(ref);
+        setViewingSessionMeta({
+          ref,
+          source: s.source || "unknown",
+          title: s.title || null,
+          status: s.status || "unknown",
+          model: s.model || null,
+          externalId: s.external_id || "",
+          chatMode: s.chat_mode || null,
+          gitBranch: s.git_branch || null,
+          contextWindow: s.context_window || null,
+        });
+        // Populate context usage from session metadata
+        if (
+          s.usage_input_tokens > 0 ||
+          s.usage_output_tokens > 0 ||
+          s.context_window
+        ) {
+          const totalIn = s.usage_input_tokens ?? 0;
+          const cacheRead = s.usage_cache_read_tokens ?? 0;
+          const cacheCreation = s.usage_cache_creation_tokens ?? 0;
+          setContextUsage({
+            totalInputTokens: totalIn,
+            outputTokens: s.usage_output_tokens ?? 0,
+            contextWindow: s.context_window ?? null,
+            uncachedInputTokens: totalIn - cacheRead - cacheCreation,
+            cacheReadTokens: cacheRead,
+            cacheCreationTokens: cacheCreation,
+          });
+        }
+      })
+      .catch((err) =>
+        console.error("Failed to fetch session metadata:", err),
+      );
+  }, []);
+
+  // Clear viewing state and restore previous web chat
+  const clearViewingSession = useCallback(() => {
+    // Detach from any active WS subscription
+    if (attachedSessionIdRef.current) {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "detach_from_session",
+            session_id: attachedSessionIdRef.current,
+          }),
+        );
+      }
+      setAttachedSessionId(null);
+      setAttachedSessionMeta(null);
+    }
+
+    setViewingSessionId(null);
+    setViewingSessionMeta(null);
+    setMessages([]);
+    setSessionRef(null);
     setContextUsage({
       totalInputTokens: 0,
       outputTokens: 0,
@@ -1596,6 +1923,43 @@ export function useChat() {
       cacheCreationTokens: 0,
     });
 
+    // Restore previous conversation messages from DB
+    const prevDbSid = loadDbSessionId();
+    if (prevDbSid) {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      fetch(`${baseUrl}/sessions/${prevDbSid}/messages?limit=100&offset=0`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data?.messages?.length) return;
+          const mapped = mapApiMessages(data.messages);
+          if (mapped.length > 0) setMessages(mapped);
+        })
+        .catch((err) =>
+          console.error("Failed to restore messages:", err),
+        );
+    }
+  }, []);
+
+  // Attach to a CLI session (interactive mode with WS subscription)
+  const attachToSession = useCallback((sessionId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    // Don't reset messages if already viewing this session
+    if (viewingSessionIdRef.current !== sessionId) {
+      activeRequestIdRef.current = null;
+      setIsStreaming(false);
+      setIsThinking(false);
+      setMessages([]);
+      setContextUsage({
+        totalInputTokens: 0,
+        outputTokens: 0,
+        contextWindow: null,
+        uncachedInputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+      });
+    }
+
     wsRef.current.send(
       JSON.stringify({
         type: "attach_to_session",
@@ -1604,7 +1968,15 @@ export function useChat() {
     );
   }, []);
 
-  // Detach from the observed CLI session and return to normal chat
+  // Attach to the currently viewed session (button click from view-only mode)
+  const attachToViewed = useCallback(() => {
+    const sid = viewingSessionIdRef.current;
+    if (sid) {
+      attachToSession(sid);
+    }
+  }, [attachToSession]);
+
+  // Detach from the attached session — returns to view-only mode
   const detachFromSession = useCallback(() => {
     const sid = attachedSessionIdRef.current;
     if (!sid) return;
@@ -1620,25 +1992,8 @@ export function useChat() {
 
     setAttachedSessionId(null);
     setAttachedSessionMeta(null);
-    setMessages([]);
-    setSessionRef(null);
-    setDbSessionId(null);
-
-    // Restore previous conversation messages from DB
-    const prevDbSid = loadDbSessionId();
-    if (prevDbSid) {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-      fetch(`${baseUrl}/sessions/${prevDbSid}/messages?limit=100&offset=0`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!data?.messages?.length) return;
-          const mapped = mapApiMessages(data.messages);
-          if (mapped.length > 0) setMessages(mapped);
-        })
-        .catch((err) =>
-          console.error("Failed to restore messages after detach:", err),
-        );
-    }
+    // Keep viewingSessionId and viewingSessionMeta — return to view-only mode
+    // Messages stay as-is (snapshot of what was loaded)
   }, []);
 
   // Add a local system message to the chat (no backend round-trip)
@@ -1702,7 +2057,12 @@ export function useChat() {
     setOnModeChanged,
     setOnPlanReady,
     addSystemMessage,
+    viewSession,
+    clearViewingSession,
+    viewingSessionId,
+    viewingSessionMeta,
     attachToSession,
+    attachToViewed,
     detachFromSession,
     attachedSessionId,
     attachedSessionMeta,

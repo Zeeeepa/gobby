@@ -625,6 +625,8 @@ class SessionControlMixin:
                         "content": m.get("content", ""),
                         "content_type": m.get("content_type"),
                         "tool_name": m.get("tool_name"),
+                        "tool_input": m.get("tool_input"),
+                        "tool_result": m.get("tool_result"),
                         "timestamp": m.get("timestamp", ""),
                         "message_index": m.get("message_index"),
                     }
@@ -658,6 +660,9 @@ class SessionControlMixin:
                     "status": getattr(session, "status", "unknown"),
                     "model": getattr(session, "model", None),
                     "ref": ref,
+                    "chat_mode": getattr(session, "chat_mode", None),
+                    "git_branch": getattr(session, "git_branch", None),
+                    "context_window": getattr(session, "context_window", None),
                     "messages": messages,
                     "total_count": total_count,
                 }
