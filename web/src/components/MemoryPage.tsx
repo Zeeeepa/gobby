@@ -6,12 +6,13 @@ import { MemoryTable } from './MemoryTable'
 import { MemoryForm } from './MemoryForm'
 import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
+import { IS_MOBILE, IS_IOS, WEBGL_CAP } from '../utils/platform'
 
 const DEFAULT_MEMORY_GRAPH_LIMIT = 200
-const DEFAULT_KNOWLEDGE_GRAPH_LIMIT = 500
+const DEFAULT_KNOWLEDGE_GRAPH_LIMIT = IS_IOS ? 150 : IS_MOBILE ? 250 : 500
 const GRAPH_LIMIT_MIN = 50
 const GRAPH_LIMIT_MAX = 1000
-const KNOWLEDGE_LIMIT_MAX = 5000
+const KNOWLEDGE_LIMIT_MAX = IS_IOS ? 300 : IS_MOBILE ? 500 : 5000
 const GRAPH_LIMIT_STEP = 50
 
 const MemoryGraph = lazy(() => import('./MemoryGraph').then(m => ({ default: m.MemoryGraph })))
@@ -357,6 +358,17 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
       {/* Content area */}
       <div className="memory-content">
         {viewMode === 'knowledge' ? (
+          !WEBGL_CAP.supported ? (
+            <div style={{ padding: '2rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+              <div>WebGL is not available on this device.</div>
+              <button
+                onClick={() => setViewMode('graph')}
+                style={{ marginTop: '0.75rem', padding: '0.35rem 0.75rem', borderRadius: 4, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
+              >
+                Switch to 2D
+              </button>
+            </div>
+          ) : (
           <KnowledgeGraphErrorBoundary onFallback={handleKnowledgeGraphError}>
             <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Loading 3D graph...</div>}>
               <KnowledgeGraph
@@ -367,6 +379,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
               />
             </Suspense>
           </KnowledgeGraphErrorBoundary>
+          )
         ) : viewMode === 'graph' ? (
           <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Loading graph...</div>}>
             <MemoryGraph

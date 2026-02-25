@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
 import SpriteText from 'three-spritetext'
+import { SphereGeometry, MeshLambertMaterial, Mesh } from 'three'
+import { IS_MOBILE, IS_IOS } from '../utils/platform'
 import type { KnowledgeGraphData, KnowledgeEntity, KnowledgeRelationship } from '../hooks/useMemory'
 
 interface KnowledgeGraphProps {
@@ -226,13 +228,20 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
     return buildForceData(graphData)
   }, [graphData])
 
-  // Configure D3 force simulation for better node spread
+  // Configure D3 force simulation for better node spread + mobile pixel ratio cap
   useEffect(() => {
     const fg = fgRef.current
     if (!fg) return
     fg.d3Force('charge')?.strength(-120)
     fg.d3Force('link')?.distance(60)
     fg.d3Force('center')?.strength(0.05)
+
+    // Cap pixel ratio on mobile — iPhone 16 PM is 3x; capping at 2x cuts framebuffer 9x → 4x
+    if (IS_MOBILE) {
+      try {
+        fg.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      } catch { /* renderer may not be ready */ }
+    }
   }, [forceData])
 
   // Search
@@ -252,22 +261,43 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
     }).catch(() => setExpandingNode(null))
   }, [fetchEntityNeighbors, expandingNode])
 
-  // Custom node rendering with three-spritetext
+  // Shared sphere geometry (reused across all iOS nodes to reduce GPU allocations)
+  const sphereGeo = useMemo(() => IS_IOS ? new SphereGeometry(3, 12, 8) : null, [])
+
+  // Custom node rendering — iOS: simple colored spheres (zero per-node textures);
+  // other mobile: lightweight SpriteText; desktop: full SpriteText with backgrounds
   const nodeThreeObject = useCallback((node: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     try {
       const label = node.name as string
       const color = node.color as string
       const dimmed = isSearchActive && !label.toLowerCase().includes(searchLower)
 
+      // iOS: simple sphere mesh — no canvas textures at all
+      if (IS_IOS && sphereGeo) {
+        const mat = new MeshLambertMaterial({
+          color: dimmed ? '#333333' : color,
+          transparent: dimmed,
+          opacity: dimmed ? 0.4 : 1,
+        })
+        return new Mesh(sphereGeo, mat)
+      }
+
       const sprite = new SpriteText(label)
       sprite.color = dimmed ? '#444444' : color
-      sprite.textHeight = 3
       sprite.fontFace = 'SF Mono, Menlo, monospace'
-      sprite.backgroundColor = dimmed ? 'rgba(20,20,20,0.3)' : 'rgba(20,20,30,0.75)'
-      sprite.borderColor = dimmed ? 'transparent' : color
-      sprite.borderWidth = 0.3
-      sprite.borderRadius = 3
-      sprite.padding = [2, 4] as any // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      if (IS_MOBILE) {
+        // Other mobile: smaller text, no background/border (smaller canvas textures)
+        sprite.textHeight = 2
+      } else {
+        // Desktop: full styling
+        sprite.textHeight = 3
+        sprite.backgroundColor = dimmed ? 'rgba(20,20,20,0.3)' : 'rgba(20,20,30,0.75)'
+        sprite.borderColor = dimmed ? 'transparent' : color
+        sprite.borderWidth = 0.3
+        sprite.borderRadius = 3
+        sprite.padding = [2, 4] as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      }
       return sprite
     } catch (e) {
       console.error('[KnowledgeGraph] SpriteText creation failed:', e)
@@ -276,7 +306,7 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
       fallback.textHeight = 3
       return fallback
     }
-  }, [isSearchActive, searchLower])
+  }, [isSearchActive, searchLower, sphereGeo])
 
   // Link styling
   const linkColor = useCallback((link: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -375,16 +405,17 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
         linkColor={linkColor}
         linkWidth={0.5}
         linkOpacity={0.6}
-        linkDirectionalArrowLength={3}
+        linkDirectionalArrowLength={IS_MOBILE ? 0 : 3}
         linkDirectionalArrowRelPos={1}
-        linkDirectionalParticles={2}
+        linkDirectionalParticles={IS_MOBILE ? 0 : 2}
         linkDirectionalParticleSpeed={0.004}
         linkDirectionalParticleWidth={0.8}
         linkDirectionalParticleColor={linkColor}
-        nodePositionUpdate={nodePositionUpdate}
+        nodePositionUpdate={IS_MOBILE ? undefined : nodePositionUpdate}
         backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
         enableNodeDrag={true}
+        {...(IS_MOBILE ? { rendererConfig: { antialias: false, powerPreference: 'low-power' as const } } : {})}
       />
 
       {/* Expanding indicator */}
