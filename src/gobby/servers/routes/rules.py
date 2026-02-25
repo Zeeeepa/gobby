@@ -102,6 +102,7 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         try:
             manager = _get_manager()
             rows = manager.list_all(workflow_type="rule")
+            rows = [r for r in rows if r.source != "template"]
             groups: set[str] = set()
             for row in rows:
                 body = json.loads(row.definition_json)
@@ -116,6 +117,26 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             logger.exception("Error listing rule groups")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.get("/tags")
+    async def list_tags() -> dict[str, Any]:
+        """List distinct rule tags."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            manager = _get_manager()
+            rows = manager.list_all(workflow_type="rule")
+            rows = [r for r in rows if r.source != "template"]
+            tags: set[str] = set()
+            for row in rows:
+                for tag in row.tags or []:
+                    tags.add(tag)
+            return {
+                "status": "success",
+                "tags": sorted(tags),
+            }
+        except Exception as e:
+            logger.exception("Error listing rule tags")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     # -----------------------------------------------------------------
     # GET /api/rules
     # -----------------------------------------------------------------
@@ -125,12 +146,13 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         event: str | None = Query(None, description="Filter by event type"),
         group: str | None = Query(None, description="Filter by group"),
         enabled: bool | None = Query(None, description="Filter by enabled status"),
+        project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> dict[str, Any]:
         """List rules with optional filters."""
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
-            result = list_rules(manager, event=event, group=group, enabled=enabled)
+            result = list_rules(manager, event=event, group=group, enabled=enabled, project_id=project_id)
             config_store = ConfigStore(server.services.database)
             enforcement = config_store.get("rules.enforcement_enabled")
             return {

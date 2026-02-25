@@ -11721,6 +11721,72 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   align-self: flex-start;
 }
 
+/* Rule selectors */
+.agent-rule-selectors {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-rule-selectors-label {
+  font-size: calc(var(--font-size-base) * 0.75);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.agent-rule-selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-rule-selector-heading {
+  font-size: calc(var(--font-size-base) * 0.6875);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.agent-rules-chip--selector {
+  border-style: dashed;
+}
+
+.agent-rules-chip--include {
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+.agent-rules-chip--exclude {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.agent-rule-selector-input-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.agent-rule-selector-prefix {
+  width: 80px;
+  flex-shrink: 0;
+  font-size: calc(var(--font-size-base) * 0.75) !important;
+}
+
+.agent-rule-selector-value-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-rule-selector-input-row .agent-defs-btn {
+  font-size: calc(var(--font-size-base) * 0.6875) !important;
+  padding: 2px 8px !important;
+  white-space: nowrap;
+}
+
 /* Variables editor */
 .agent-vars-editor {
   display: flex;

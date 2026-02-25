@@ -51,6 +51,11 @@ export interface AgentItemForPanel {
   db_id: string | null
 }
 
+interface RuleSelectors {
+  include: string[]
+  exclude: string[]
+}
+
 interface AgentEditFormProps {
   isOpen: boolean
   readOnly?: boolean
@@ -65,8 +70,11 @@ interface AgentEditFormProps {
   editingId?: string | null
   branches?: string[]
   isGitProject?: boolean
+  projectId?: string
   rules?: string[]
   onRulesChange?: (rules: string[]) => void
+  ruleSelectors?: RuleSelectors | null
+  onRuleSelectorsChange?: (selectors: RuleSelectors) => void
   variables?: Record<string, unknown>
   onVariablesChange?: (variables: Record<string, unknown>) => void
 }
@@ -114,8 +122,9 @@ const MODE_COLORS: Record<string, string> = {
 export function AgentEditForm({
   isOpen, readOnly, agentItem,
   form, onChange, onSave, onCancel, isEditing, providerModels, saveDisabled,
-  editingId, branches = [], isGitProject = true,
-  rules, onRulesChange, variables, onVariablesChange,
+  editingId, branches = [], isGitProject = true, projectId,
+  rules, onRulesChange, ruleSelectors, onRuleSelectorsChange,
+  variables, onVariablesChange,
 }: AgentEditFormProps) {
   const [customModelInput, setCustomModelInput] = useState(false)
   const [customBranchInput, setCustomBranchInput] = useState(false)
@@ -266,7 +275,7 @@ export function AgentEditForm({
                     onChange({ ...form, provider: v, model: valid ? form.model : '' })
                   }
                 }}>
-                  <option value="inherit">Inherit</option>
+                  <option value="inherit">(default)</option>
                   <option value="claude">Claude</option>
                   <option value="gemini">Gemini</option>
                   <option value="codex">Codex</option>
@@ -301,10 +310,11 @@ export function AgentEditForm({
 
               <MetaRow label="Mode">
                 <select className="agent-edit-input" value={form.mode} onChange={e => set('mode', e.target.value)}>
-                  <option value="self">Self (inherit)</option>
-                  <option value="headless">Headless</option>
+                  <option value="">(default)</option>
+                  <option value="self">Self</option>
                   <option value="terminal">Terminal</option>
                   <option value="embedded">Embedded</option>
+                  <option value="headless">Headless</option>
                 </select>
               </MetaRow>
 
@@ -315,8 +325,8 @@ export function AgentEditForm({
                   onChange={e => set('isolation', e.target.value)}
                   disabled={!isGitProject}
                 >
-                  <option value="">None</option>
-                  <option value="none">None (explicit)</option>
+                  <option value="">(default)</option>
+                  <option value="none">None</option>
                   <option value="worktree">Worktree</option>
                   <option value="clone">Clone</option>
                 </select>
@@ -325,7 +335,7 @@ export function AgentEditForm({
               <MetaRow label="Base branch">
                 {!isGitProject ? (
                   <select className="agent-edit-input" disabled value="inherit">
-                    <option value="inherit">Inherit</option>
+                    <option value="inherit">(default)</option>
                   </select>
                 ) : showCustomBranch ? (
                   <div className="agent-edit-model-field">
@@ -343,7 +353,7 @@ export function AgentEditForm({
                     if (e.target.value === '__custom__') { setCustomBranchInput(true); set('base_branch', '') }
                     else set('base_branch', e.target.value)
                   }}>
-                    <option value="inherit">Inherit</option>
+                    <option value="inherit">(default)</option>
                     {branches.map(b => <option key={b} value={b}>{b}</option>)}
                     <option value="__custom__">Custom...</option>
                   </select>
@@ -393,19 +403,22 @@ export function AgentEditForm({
             </div>
 
             {/* Rules */}
-            {editingId && onRulesChange && rules !== undefined && (
+            {onRulesChange && rules !== undefined && (
               <div className="agent-edit-section">
                 <h4 className="agent-edit-section-title">Rules</h4>
                 <AgentRulesEditor
                   definitionId={editingId}
                   rules={rules}
                   onRulesChange={onRulesChange}
+                  projectId={projectId}
+                  ruleSelectors={ruleSelectors}
+                  onRuleSelectorsChange={onRuleSelectorsChange}
                 />
               </div>
             )}
 
             {/* Variables */}
-            {editingId && onVariablesChange && variables !== undefined && (
+            {onVariablesChange && variables !== undefined && (
               <div className="agent-edit-section">
                 <h4 className="agent-edit-section-title">Variables</h4>
                 <AgentVariablesEditor

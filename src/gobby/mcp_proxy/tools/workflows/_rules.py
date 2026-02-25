@@ -44,6 +44,7 @@ def _rule_summary(row: WorkflowDefinitionRow) -> dict[str, Any]:
         "priority": row.priority,
         "source": row.source,
         "tags": row.tags,
+        "project_id": row.project_id,
     }
 
 
@@ -63,6 +64,7 @@ def _rule_detail(row: WorkflowDefinitionRow) -> dict[str, Any]:
         "priority": row.priority,
         "source": row.source,
         "tags": row.tags,
+        "project_id": row.project_id,
     }
 
 
@@ -71,6 +73,7 @@ def list_rules(
     event: str | None = None,
     group: str | None = None,
     enabled: bool | None = None,
+    project_id: str | None = None,
     brief: bool = False,
 ) -> dict[str, Any]:
     """
@@ -84,17 +87,19 @@ def list_rules(
         event: Filter by event type (e.g. 'before_tool', 'stop')
         group: Filter by group name
         enabled: Filter by enabled status
+        project_id: Filter by project ID
         brief: If True, return minimal fields (name, event, group, enabled)
 
     Returns:
         Dict with success, rules list, and count
     """
     if event:
-        rows = def_manager.list_rules_by_event(event, enabled=enabled)
+        rows = def_manager.list_rules_by_event(event, project_id=project_id, enabled=enabled)
     elif group:
-        rows = def_manager.list_rules_by_group(group, enabled=enabled)
+        rows = def_manager.list_rules_by_group(group, project_id=project_id, enabled=enabled)
     else:
-        rows = def_manager.list_all(workflow_type="rule", enabled=enabled)
+        rows = def_manager.list_all(workflow_type="rule", enabled=enabled, project_id=project_id)
+        rows = [r for r in rows if r.source != "template"]
 
     formatter = _rule_brief if brief else _rule_summary
     rules = [formatter(r) for r in rows]

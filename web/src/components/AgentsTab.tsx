@@ -812,9 +812,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                                 ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
                                 : <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>}
                               <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
-                              {item.db_id && (
-                                <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
-                              )}
+                              <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(item)} title="Duplicate" aria-label="Duplicate agent">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
+                              </button>
                               <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                               </button>
@@ -847,9 +847,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(item)} title="Move to global scope">To Global</button>
                           )}
                           <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
-                          {item.db_id && (
-                            <button type="button" className="workflows-action-btn" onClick={() => handleEdit(item)} title="Edit agent definition">Edit</button>
-                          )}
+                          <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(item)} title="Duplicate" aria-label="Duplicate agent">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
+                          </button>
                           <button type="button" className="workflows-action-icon" onClick={() => handleDownload(d.name)} title="Download YAML" aria-label="Download agent as YAML">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m0 0L5 8m3 3 3-3M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" /></svg>
                           </button>
@@ -906,8 +906,11 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         editingId={editingId}
         branches={branches}
         isGitProject={isGitProject}
+        projectId={projectId}
         rules={editRules}
         onRulesChange={handleEditRulesChange}
+        ruleSelectors={editRuleSelectors}
+        onRuleSelectorsChange={handleEditRuleSelectorsChange}
         variables={editVariables}
         onVariablesChange={handleEditVariablesChange}
       />

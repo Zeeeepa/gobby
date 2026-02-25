@@ -184,6 +184,10 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         try:
             from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
+            workflows = AgentWorkflows()
+            if request.workflows:
+                workflows = AgentWorkflows(**request.workflows)
+
             body = AgentDefinitionBody(
                 name=request.name,
                 description=request.description,
@@ -198,7 +202,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 base_branch=request.base_branch,
                 timeout=request.timeout,
                 max_turns=request.max_turns,
-                workflows=AgentWorkflows(),
+                workflows=workflows,
             )
 
             manager = _get_manager()
@@ -313,6 +317,14 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         add: list[str] | None = None
         remove: list[str] | None = None
 
+    class PatchRuleSelectorsRequest(BaseModel):
+        """Request body for patching agent rule selectors."""
+
+        add_include: list[str] | None = None
+        remove_include: list[str] | None = None
+        add_exclude: list[str] | None = None
+        remove_exclude: list[str] | None = None
+
     class PatchVariablesRequest(BaseModel):
         """Request body for patching agent variables."""
 
@@ -349,6 +361,49 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except Exception as e:
             logger.error(f"Error patching rules: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.patch("/definitions/{definition_id}/rule-selectors")
+    async def patch_rule_selectors(
+        definition_id: str, request: PatchRuleSelectorsRequest
+    ) -> dict[str, Any]:
+        """Add or remove rule selectors from an agent definition."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            import json as _json
+
+            manager = _get_manager()
+            row = manager.get(definition_id)
+            body_dict: dict[str, Any] = _json.loads(row.definition_json)
+
+            workflows = body_dict.get("workflows", {})
+            selectors = workflows.get("rule_selectors") or {"include": [], "exclude": []}
+            include: list[str] = list(selectors.get("include", []))
+            exclude: list[str] = list(selectors.get("exclude", []))
+
+            if request.remove_include:
+                include = [s for s in include if s not in request.remove_include]
+            if request.add_include:
+                for s in request.add_include:
+                    if s not in include:
+                        include.append(s)
+            if request.remove_exclude:
+                exclude = [s for s in exclude if s not in request.remove_exclude]
+            if request.add_exclude:
+                for s in request.add_exclude:
+                    if s not in exclude:
+                        exclude.append(s)
+
+            rule_selectors = {"include": include, "exclude": exclude}
+            workflows["rule_selectors"] = rule_selectors
+            body_dict["workflows"] = workflows
+            manager.update(definition_id, definition_json=_json.dumps(body_dict))
+
+            return {"status": "success", "rule_selectors": rule_selectors}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error patching rule selectors: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.patch("/definitions/{definition_id}/variables")
