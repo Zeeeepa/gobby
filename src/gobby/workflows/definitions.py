@@ -199,8 +199,8 @@ class AgentDefinitionBody(BaseModel):
     mode: Literal["terminal", "embedded", "headless", "self"] = "self"
     isolation: Literal["none", "worktree", "clone"] | None = None
     base_branch: str = "inherit"
-    timeout: float = 120.0
-    max_turns: int = 10
+    timeout: float = 0
+    max_turns: int = 0
     # Orchestration
     workflows: AgentWorkflows = Field(default_factory=AgentWorkflows)
     enabled: bool = True
