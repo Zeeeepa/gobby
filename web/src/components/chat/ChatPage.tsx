@@ -1,5 +1,6 @@
 import './styles.css'
 import { useCallback, useEffect, useRef } from 'react'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import type { ChatState, ConversationState, VoiceProps } from '../../types/chat'
 import { ConversationPicker } from '../ConversationPicker'
 import { useArtifacts } from '../../hooks/useArtifacts'
@@ -41,6 +42,7 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
     setPanelWidth,
   } = useArtifacts()
 
+  const isMobile = useIsMobile()
   const canvas = useCanvasPanel()
 
   useEffect(() => {
@@ -120,8 +122,8 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
         />
         <ArtifactContext.Provider value={{ openCodeAsArtifact }}>
           <div className="flex flex-1 min-h-0">
-            {/* Chat column */}
-            <div className="flex flex-col flex-1 min-w-0">
+            {/* Chat column — hidden on mobile when artifact/canvas panel is open */}
+            <div className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? ' hidden' : ''}`}>
               <SessionStatusBar
                 sessionRef={effectiveSessionRef}
                 title={chat.attachedSessionMeta?.title ?? activeTitle}
@@ -191,10 +193,10 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
               />
             ) : isPanelOpen && activeArtifact ? (
               <>
-                <ResizeHandle onResize={setPanelWidth} panelWidth={panelWidth} />
+                {!isMobile && <ResizeHandle onResize={setPanelWidth} panelWidth={panelWidth} />}
                 <ArtifactPanel
                   artifact={activeArtifact}
-                  width={panelWidth}
+                  width={isMobile ? undefined : panelWidth}
                   onClose={closePanel}
                   onUpdateContent={updateArtifact}
                   onSetVersion={setVersion}
