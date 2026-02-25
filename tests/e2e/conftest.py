@@ -72,16 +72,24 @@ class DaemonInstance:
         return ""
 
 
-def prepare_daemon_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
+def prepare_daemon_env(
+    base_env: dict[str, str] | None = None,
+    *,
+    home_dir: str | Path | None = None,
+) -> dict[str, str]:
     """Prepare environment variables for spawning a daemon subprocess.
 
     This handles the critical setup that's easy to miss when manually spawning daemons:
     1. Sets PYTHONPATH to include the src directory
     2. Removes GOBBY_DATABASE_PATH so daemon uses its config file's database_path
     3. Clears LLM API keys to avoid external calls
+    4. Overrides HOME to isolate the daemon from the real ~/.gobby/
 
     Args:
         base_env: Base environment dict to modify. If None, copies os.environ.
+        home_dir: Override HOME to this directory. When set, all paths using
+            ``~/.gobby`` (database, logs, qdrant, session summaries, MCP config)
+            resolve inside the test temp dir instead of the real home.
 
     Returns:
         Environment dict ready for subprocess.Popen
@@ -105,6 +113,12 @@ def prepare_daemon_env(base_env: dict[str, str] | None = None) -> dict[str, str]
     env["ANTHROPIC_API_KEY"] = ""
     env["OPENAI_API_KEY"] = ""
     env["GEMINI_API_KEY"] = ""
+
+    # Override HOME so that ~/.gobby resolves to <temp>/.gobby instead of
+    # the user's real home directory. This is the single most effective
+    # isolation measure: it catches every expanduser() call in the daemon.
+    if home_dir is not None:
+        env["HOME"] = str(home_dir)
 
     return env
 
@@ -335,6 +349,9 @@ gobby_tasks:
 memory:
   qdrant_path: "{gobby_home}/services/qdrant"
 
+session_summary:
+  summary_file_path: "{gobby_home}/session_summaries"
+
 watchdog:
   enabled: false
 
@@ -378,27 +395,11 @@ def daemon_instance(
     log_file = log_dir / "daemon.log"
     error_log_file = log_dir / "daemon_error.log"
 
-    # Environment with custom config
-    env = os.environ.copy()
+    # Use prepare_daemon_env for consistent isolation (PYTHONPATH, API keys,
+    # env cleanup, and HOME override so ~/.gobby resolves inside the temp dir)
+    env = prepare_daemon_env(home_dir=gobby_home)
     env["GOBBY_CONFIG"] = str(config_path)
     env["GOBBY_HOME"] = str(gobby_home)
-    # Remove test-process env vars so daemon uses its own isolated config/DB
-    # (protect_production_resources sets these for the test process, but we don't
-    # want the daemon subprocess to inherit them)
-    env.pop("GOBBY_DATABASE_PATH", None)
-    env.pop("GOBBY_TEST_PROTECT", None)
-    env.pop("GOBBY_CONFIG_FILE", None)
-    # Disable any LLM providers to avoid external calls
-    env["ANTHROPIC_API_KEY"] = ""
-    env["OPENAI_API_KEY"] = ""
-    env["GEMINI_API_KEY"] = ""
-
-    # Ensure daemon uses the local source code
-    root_dir = Path(__file__).parent.parent.parent
-    src_dir = root_dir / "src"
-    current_pythonpath = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else str(src_dir)
-    print(f"DEBUG: src_dir={src_dir} PYTHONPATH={env['PYTHONPATH']}")
 
     # Start daemon process
     with open(log_file, "w") as log_f, open(error_log_file, "w") as err_f:
@@ -841,6 +842,67 @@ async def async_mcp_client(
     client = AsyncMCPTestClient(daemon_instance.http_url)
     yield client
     await client.close()
+
+
+# --- Production Leak Detection ---
+
+
+def _snapshot_dir(path: Path) -> dict[str, float]:
+    """Return {relative_path: mtime} for all files under *path*."""
+    if not path.exists():
+        return {}
+    return {
+        str(p.relative_to(path)): p.stat().st_mtime
+        for p in path.rglob("*")
+        if p.is_file()
+    }
+
+
+def _production_daemon_running() -> bool:
+    """Check if a production gobby daemon is listening on port 60887."""
+    try:
+        with socket.create_connection(("localhost", 60887), timeout=0.2):
+            return True
+    except (ConnectionRefusedError, OSError, TimeoutError):
+        return False
+
+
+@pytest.fixture(autouse=True)
+def assert_no_external_writes() -> Generator[None]:
+    """Fail the test if the E2E daemon created new files in real ~/.gobby/.
+
+    This catches regressions where a new feature uses an un-overridden
+    default path (database, qdrant, session_summaries, MCP config, etc.)
+    that resolves to the user's real home directory instead of the test
+    temp dir.
+
+    When a production daemon is running concurrently, existing files
+    (database, logs) will be modified by that daemon — so we only flag
+    *newly created* files. In CI where no production daemon runs,
+    we flag both creations and modifications.
+    """
+    real_gobby = Path.home() / ".gobby"
+    prod_running = _production_daemon_running()
+    before = _snapshot_dir(real_gobby)
+
+    yield
+
+    after = _snapshot_dir(real_gobby)
+
+    leaked: list[str] = []
+    for rel_path, mtime in after.items():
+        if rel_path not in before:
+            leaked.append(f"  CREATED: ~/.gobby/{rel_path}")
+        elif mtime != before[rel_path] and not prod_running:
+            # Only flag modifications when no production daemon is running,
+            # since a running daemon continuously writes to its db and logs.
+            leaked.append(f"  MODIFIED: ~/.gobby/{rel_path}")
+
+    if leaked:
+        pytest.fail(
+            "E2E test wrote to real ~/.gobby/ — the daemon escaped its sandbox!\n"
+            + "\n".join(leaked)
+        )
 
 
 # --- Process Cleanup ---
