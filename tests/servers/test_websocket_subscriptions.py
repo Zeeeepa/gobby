@@ -136,3 +136,66 @@ async def test_broadcast_filtering(mock_config, mock_mcp_manager):
     )  # Non-hook/non-session messages pass through for subscribed clients
     assert len(ws3.sent_messages) == 2
     assert len(ws4.sent_messages) == 3
+
+
+@pytest.mark.asyncio
+async def test_parametric_subscription_matches(mock_config, mock_mcp_manager):
+    """Parametric subscription 'type:key=value' filters by message field."""
+    server = WebSocketServer(mock_config, mock_mcp_manager)
+
+    ws1 = MockWebSocket("client1")
+    ws1.subscriptions = {"session_message:session_id=abc123"}
+    server.clients[ws1] = {"id": "1"}
+
+    ws2 = MockWebSocket("client2")
+    ws2.subscriptions = {"session_message:session_id=other456"}
+    server.clients[ws2] = {"id": "2"}
+
+    # Broadcast session_message for abc123
+    msg = {"type": "session_message", "session_id": "abc123", "message": {"role": "user"}}
+    await server.broadcast(msg)
+
+    assert len(ws1.sent_messages) == 1  # Matches
+    assert len(ws2.sent_messages) == 0  # Different session_id
+
+
+@pytest.mark.asyncio
+async def test_parametric_subscription_no_match(mock_config, mock_mcp_manager):
+    """Parametric subscription doesn't match if the value is different."""
+    server = WebSocketServer(mock_config, mock_mcp_manager)
+
+    ws = MockWebSocket("client1")
+    ws.subscriptions = {"session_message:session_id=abc123"}
+    server.clients[ws] = {"id": "1"}
+
+    # Broadcast session_message for a different session
+    msg = {"type": "session_message", "session_id": "xyz789", "message": {"role": "user"}}
+    await server.broadcast(msg)
+
+    assert len(ws.sent_messages) == 0
+
+
+@pytest.mark.asyncio
+async def test_parametric_and_type_subscription_coexist(mock_config, mock_mcp_manager):
+    """A client can have both type-level and parametric subscriptions."""
+    server = WebSocketServer(mock_config, mock_mcp_manager)
+
+    # Client subscribed to all session_message AND parametric hook_event
+    ws = MockWebSocket("client1")
+    ws.subscriptions = {"session_message", "hook_event:session_id=ext-123"}
+    server.clients[ws] = {"id": "1"}
+
+    # session_message: type-level match
+    msg1 = {"type": "session_message", "session_id": "any", "message": {}}
+    await server.broadcast(msg1)
+    assert len(ws.sent_messages) == 1
+
+    # hook_event with matching session_id: parametric match
+    msg2 = {"type": "hook_event", "session_id": "ext-123", "event_type": "after_tool"}
+    await server.broadcast(msg2)
+    assert len(ws.sent_messages) == 2
+
+    # hook_event with non-matching session_id: no match
+    msg3 = {"type": "hook_event", "session_id": "other", "event_type": "after_tool"}
+    await server.broadcast(msg3)
+    assert len(ws.sent_messages) == 2  # No change

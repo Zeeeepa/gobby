@@ -243,6 +243,18 @@ export function useChat() {
   const [currentBranch, setCurrentBranch] = useState<string | null>(null)
   const [worktreePath, setWorktreePath] = useState<string | null>(null)
 
+  // Session attachment tracking (read-only observation of CLI sessions)
+  const [attachedSessionId, setAttachedSessionId] = useState<string | null>(null)
+  const attachedSessionIdRef = useRef<string | null>(null)
+  const [attachedSessionMeta, setAttachedSessionMeta] = useState<{
+    ref: string | null
+    source: string
+    title: string | null
+    status: string
+    model: string | null
+    externalId: string
+  } | null>(null)
+
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false)
   const planContentRef = useRef<string | null>(null)
@@ -474,6 +486,60 @@ export function useChat() {
               }
               return next
             })
+          }
+        } else if (data.type === 'attach_to_session_result') {
+          const result = data as Record<string, unknown>
+          const sid = result.session_id as string
+          setAttachedSessionId(sid)
+          setAttachedSessionMeta({
+            ref: (result.ref as string) ?? null,
+            source: (result.source as string) ?? 'unknown',
+            title: (result.title as string) ?? null,
+            status: (result.status as string) ?? 'unknown',
+            model: (result.model as string) ?? null,
+            externalId: (result.external_id as string) ?? '',
+          })
+          // Map initial messages into chat format
+          const msgs = (result.messages as Array<{
+            id?: string; role: string; content: string; timestamp: string; message_index?: number
+          }>) || []
+          const mapped = mapApiMessages(msgs)
+          setMessages(mapped)
+          setIsStreaming(false)
+          setIsThinking(false)
+          setSessionRef((result.ref as string) ?? null)
+          setDbSessionId(sid)
+        } else if (data.type === 'detach_from_session_result') {
+          setAttachedSessionId(null)
+          setAttachedSessionMeta(null)
+        } else if (data.type === 'session_message' && (data as Record<string, unknown>).session_id) {
+          // Real-time message from an attached CLI session
+          const sm = data as Record<string, unknown>
+          const smSessionId = sm.session_id as string
+          // Only append if we're attached to this session
+          if (smSessionId && smSessionId === attachedSessionIdRef.current) {
+            const msg = sm.message as Record<string, unknown> | undefined
+            if (msg) {
+              const role = msg.role as string
+              if (role === 'user' || role === 'assistant') {
+                setMessages((prev) => {
+                  // Deduplicate by message_index
+                  const idx = msg.index as number | undefined
+                  if (idx !== undefined && prev.some((m) => m.id === `cli-msg-${idx}`)) {
+                    return prev
+                  }
+                  return [
+                    ...prev,
+                    {
+                      id: `cli-msg-${idx ?? Date.now()}`,
+                      role: role as 'user' | 'assistant',
+                      content: (msg.content as string) ?? '',
+                      timestamp: new Date((msg.timestamp as string) ?? Date.now()),
+                    },
+                  ]
+                })
+              }
+            }
           }
         } else if (data.type === 'subscribe_success') {
           console.log('Subscribed to events:', data)
@@ -742,6 +808,11 @@ export function useChat() {
   useEffect(() => {
     saveDbSessionId(dbSessionId)
   }, [dbSessionId])
+
+  // Keep attachedSessionId ref in sync
+  useEffect(() => {
+    attachedSessionIdRef.current = attachedSessionId
+  }, [attachedSessionId])
 
   // Switch to a different conversation
   const switchConversation = useCallback((id: string, dbSessionId?: string) => {
@@ -1203,6 +1274,49 @@ export function useChat() {
     // Don't eagerly clear — let mode_changed be the single source of truth
   }, [])
 
+  // Attach to a CLI session for read-only observation
+  const attachToSession = useCallback((sessionId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+
+    // Save current conversation before switching
+    saveMessagesForConversation(conversationIdRef.current, messagesRef.current)
+
+    // Reset chat state
+    activeRequestIdRef.current = null
+    setIsStreaming(false)
+    setIsThinking(false)
+    setMessages([])
+    setContextUsage({ totalInputTokens: 0, outputTokens: 0, contextWindow: null, uncachedInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 })
+
+    wsRef.current.send(JSON.stringify({
+      type: 'attach_to_session',
+      session_id: sessionId,
+    }))
+  }, [])
+
+  // Detach from the observed CLI session and return to normal chat
+  const detachFromSession = useCallback(() => {
+    const sid = attachedSessionIdRef.current
+    if (!sid) return
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'detach_from_session',
+        session_id: sid,
+      }))
+    }
+
+    setAttachedSessionId(null)
+    setAttachedSessionMeta(null)
+    setMessages([])
+    setSessionRef(null)
+    setDbSessionId(null)
+
+    // Restore previous conversation
+    const cached = loadMessagesForConversation(conversationIdRef.current)
+    if (cached.length > 0) setMessages(cached)
+  }, [])
+
   // Add a local system message to the chat (no backend round-trip)
   const addSystemMessage = useCallback((content: string) => {
     setMessages((prev) => [
@@ -1262,6 +1376,10 @@ export function useChat() {
     setOnModeChanged,
     setOnPlanReady,
     addSystemMessage,
+    attachToSession,
+    detachFromSession,
+    attachedSessionId,
+    attachedSessionMeta,
     wsRef,
     handleVoiceMessageRef,
   }

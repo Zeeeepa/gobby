@@ -12888,6 +12888,48 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Session observation banner (Watch in Chat) */
+.session-observation-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(59, 130, 246, 0.08);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.session-observation-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  animation: observation-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes observation-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.session-observation-detach {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.session-observation-detach:hover {
+  background: var(--bg-tertiary, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
 /* Reduced motion: disable animations for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   *,

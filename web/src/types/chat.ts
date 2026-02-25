@@ -86,6 +86,16 @@ export interface ChatState {
   onApprovePlan: () => void
   onRequestPlanChanges: (feedback: string) => void
   setOnPlanReady?: (fn: (content: string | null) => void) => void
+  attachedSessionId?: string | null
+  attachedSessionMeta?: {
+    ref: string | null
+    source: string
+    title: string | null
+    status: string
+    model: string | null
+    externalId: string
+  } | null
+  onDetachFromSession?: () => void
 }
 
 export interface ConversationState {

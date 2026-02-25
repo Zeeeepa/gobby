@@ -60,6 +60,19 @@ class BroadcastMixin:
         if msg_type in subs:
             return True
 
+        # Parametric subscriptions: "type:key=value"
+        # e.g., "session_message:session_id=abc123" matches session_message
+        # events where the session_id field equals "abc123".
+        for sub in subs:
+            if ":" not in sub:
+                continue
+            sub_type, param_str = sub.split(":", 1)
+            if sub_type != msg_type or "=" not in param_str:
+                continue
+            key, value = param_str.split("=", 1)
+            if message.get(key) == value:
+                return True
+
         # Special casing for hook_event granularity (subscribe by event_type)
         if msg_type == "hook_event":
             event_type = message.get("event_type")

@@ -17,6 +17,7 @@ interface SessionDetailProps {
   onLoadMore: () => void
   onAskGobby?: (context: string) => void
   onContinueInChat?: (session: GobbySession) => void
+  onWatchInChat?: (session: GobbySession) => void
   onRenameSession?: (id: string, title: string) => void
   onGenerateSummary: () => void
   isGeneratingSummary: boolean
@@ -58,6 +59,7 @@ export function SessionDetail({
   onLoadMore,
   onAskGobby,
   onContinueInChat,
+  onWatchInChat,
   onRenameSession,
   onGenerateSummary,
   isGeneratingSummary,
@@ -130,12 +132,13 @@ export function SessionDetail({
                 <BranchIcon /> {session.git_branch}
               </span>
             )}
-            {(onAskGobby || onContinueInChat) && (
+            {(onAskGobby || onContinueInChat || onWatchInChat) && (
               <SessionActions
                 session={session}
                 title={title}
                 onAskGobby={onAskGobby}
                 onContinueInChat={onContinueInChat}
+                onWatchInChat={onWatchInChat}
               />
             )}
           </div>
@@ -212,11 +215,13 @@ function SessionActions({
   title,
   onAskGobby,
   onContinueInChat,
+  onWatchInChat,
 }: {
   session: GobbySession
   title: string
   onAskGobby?: (context: string) => void
   onContinueInChat?: (session: GobbySession) => void
+  onWatchInChat?: (session: GobbySession) => void
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -245,6 +250,19 @@ function SessionActions({
       </button>
       {dropdownOpen && (
         <div className="session-detail-dropdown">
+          {onWatchInChat && session.source !== 'claude_sdk_web_chat' && (
+            <button
+              className="session-detail-dropdown-item"
+              disabled={!hasMessages}
+              title={!hasMessages ? 'No messages recorded' : 'Watch this CLI session live in chat'}
+              onClick={() => {
+                setDropdownOpen(false)
+                onWatchInChat(session)
+              }}
+            >
+              <WatchIcon /> Watch in Chat
+            </button>
+          )}
           {onContinueInChat && (
             <button
               className="session-detail-dropdown-item"
@@ -287,6 +305,15 @@ function ChevronIcon() {
   return (
     <svg className="session-metadata-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+function WatchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   )
 }

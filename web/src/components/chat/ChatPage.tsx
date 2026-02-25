@@ -120,9 +120,24 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
             <div className="flex flex-col flex-1 min-w-0">
               <SessionStatusBar
                 sessionRef={effectiveSessionRef}
-                title={activeTitle}
+                title={chat.attachedSessionMeta?.title ?? activeTitle}
                 mode={chat.mode}
               />
+              {chat.attachedSessionId && chat.attachedSessionMeta && (
+                <div className="session-observation-banner">
+                  <span className="session-observation-indicator" />
+                  Observing <b>{chat.attachedSessionMeta.source}</b> session
+                  {chat.attachedSessionMeta.ref && ` ${chat.attachedSessionMeta.ref}`}
+                  {chat.attachedSessionMeta.status === 'active' && ' (live)'}
+                  <button
+                    className="session-observation-detach"
+                    onClick={chat.onDetachFromSession}
+                    title="Stop watching"
+                  >
+                    Detach
+                  </button>
+                </div>
+              )}
               <MessageList
                 messages={chat.messages}
                 isStreaming={chat.isStreaming}
@@ -139,7 +154,7 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                 onSend={chat.onSend}
                 onStop={chat.onStop}
                 isStreaming={chat.isStreaming}
-                disabled={!chat.isConnected}
+                disabled={!chat.isConnected || !!chat.attachedSessionId}
                 onInputChange={chat.onInputChange}
                 filteredCommands={chat.filteredCommands}
                 onCommandSelect={chat.onCommandSelect}

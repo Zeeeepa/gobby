@@ -88,7 +88,7 @@ const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
   const { authRequired, authenticated, loading: authLoading, login, logout } = useAuth()
-  const { messages, conversationId, sessionRef, dbSessionId, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, respondToApproval, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, addSystemMessage, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
+  const { messages, conversationId, sessionRef, dbSessionId, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, respondToApproval, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, addSystemMessage, attachToSession, detachFromSession, attachedSessionId, attachedSessionMeta, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, updateDefaultChatMode, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -372,6 +372,12 @@ export default function App() {
     await continueSessionInChat(session.id, session.project_id)
   }, [continueSessionInChat])
 
+  /* "Watch in Chat" from Sessions page — observe CLI session in real-time */
+  const handleWatchInChat = useCallback((session: GobbySession) => {
+    setActiveTab('chat')
+    attachToSession(session.id)
+  }, [attachToSession])
+
   // Wire voice message handler into useChat's WebSocket routing
   useEffect(() => {
     handleVoiceMessageRef.current = voice.handleVoiceMessage
@@ -529,6 +535,9 @@ export default function App() {
             canvasSurfaces,
             canvasPanel,
             onCanvasInteraction,
+            attachedSessionId,
+            attachedSessionMeta,
+            onDetachFromSession: detachFromSession,
           }}
           conversations={{
             sessions: webChatSessions,
@@ -562,6 +571,7 @@ export default function App() {
           onRefresh={sessionsHook.refresh}
           onAskGobby={handleAskGobby}
           onContinueInChat={handleContinueInChat}
+          onWatchInChat={handleWatchInChat}
           onRenameSession={sessionsHook.renameSession}
         />
       ) : activeTab === 'terminals' ? (

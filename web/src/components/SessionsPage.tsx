@@ -15,6 +15,7 @@ interface SessionsPageProps {
   onRefresh: () => void
   onAskGobby?: (context: string) => void
   onContinueInChat?: (session: GobbySession) => void
+  onWatchInChat?: (session: GobbySession) => void
   onRenameSession?: (id: string, title: string) => void
 }
 
@@ -36,6 +37,7 @@ export function SessionsPage({
   onRefresh,
   onAskGobby,
   onContinueInChat,
+  onWatchInChat,
   onRenameSession,
 }: SessionsPageProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -242,6 +244,7 @@ export function SessionsPage({
             onLoadMore={detail.loadMore}
             onAskGobby={onAskGobby}
             onContinueInChat={onContinueInChat}
+            onWatchInChat={onWatchInChat}
             onRenameSession={onRenameSession}
             onGenerateSummary={detail.generateSummary}
             isGeneratingSummary={detail.isGeneratingSummary}

@@ -522,6 +522,136 @@ class SessionControlMixin:
         )
         logger.info(f"Chat deleted for conversation {conversation_id[:8]}")
 
+    async def _handle_attach_to_session(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Attach a WebSocket client to observe a CLI session in real-time.
+
+        Loads recent messages from the session, auto-subscribes the client
+        to session-scoped events, and returns the initial message batch.
+
+        Message format:
+        {
+            "type": "attach_to_session",
+            "session_id": "db-uuid-of-session"
+        }
+        """
+        session_id = data.get("session_id")
+        if not session_id:
+            await self._send_error(websocket, "attach_to_session requires session_id")
+            return
+
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            await self._send_error(websocket, "Session manager not available")
+            return
+
+        # Look up session
+        try:
+            session = await asyncio.to_thread(session_manager.get, session_id)
+        except Exception as e:
+            logger.warning(f"Failed to look up session {session_id}: {e}")
+            session = None
+
+        if not session:
+            await self._send_error(
+                websocket, f"Session not found: {session_id}", code="NOT_FOUND"
+            )
+            return
+
+        # Load recent messages
+        message_manager = getattr(self, "message_manager", None)
+        messages: list[dict[str, Any]] = []
+        total_count = 0
+        if message_manager:
+            try:
+                raw_messages = await message_manager.get_messages(session_id, limit=100)
+                messages = [
+                    {
+                        "id": m.get("id", ""),
+                        "role": m.get("role", ""),
+                        "content": m.get("content", ""),
+                        "content_type": m.get("content_type"),
+                        "tool_name": m.get("tool_name"),
+                        "timestamp": m.get("timestamp", ""),
+                        "message_index": m.get("message_index"),
+                    }
+                    for m in raw_messages
+                ]
+                total_count = len(messages)
+            except Exception as e:
+                logger.warning(f"Failed to load messages for session {session_id}: {e}")
+
+        # Auto-subscribe to session-scoped events
+        if not hasattr(websocket, "subscriptions") or websocket.subscriptions is None:
+            websocket.subscriptions = set()
+        websocket.subscriptions.add(f"session_message:session_id={session_id}")
+        websocket.subscriptions.add(f"hook_event:session_id={session.external_id}")
+
+        # Track attached session on websocket metadata
+        metadata = self.clients.get(websocket)
+        if metadata:
+            metadata["attached_session_id"] = session_id
+
+        # Send response with initial messages and session metadata
+        ref = f"#{session.seq_num}" if getattr(session, "seq_num", None) else None
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "attach_to_session_result",
+                    "session_id": session_id,
+                    "external_id": session.external_id,
+                    "source": getattr(session, "source", "unknown"),
+                    "title": getattr(session, "title", None),
+                    "status": getattr(session, "status", "unknown"),
+                    "model": getattr(session, "model", None),
+                    "ref": ref,
+                    "messages": messages,
+                    "total_count": total_count,
+                }
+            )
+        )
+        logger.info(
+            f"Client attached to session {session_id} ({ref}): "
+            f"{total_count} messages loaded"
+        )
+
+    async def _handle_detach_from_session(
+        self, websocket: Any, data: dict[str, Any]
+    ) -> None:
+        """Detach a WebSocket client from an observed CLI session.
+
+        Removes session-scoped subscriptions and clears attached state.
+
+        Message format:
+        {
+            "type": "detach_from_session",
+            "session_id": "db-uuid-of-session"
+        }
+        """
+        session_id = data.get("session_id")
+        if not session_id:
+            await self._send_error(websocket, "detach_from_session requires session_id")
+            return
+
+        subs: set[str] = getattr(websocket, "subscriptions", set())
+        # Remove all parametric subscriptions for this session
+        to_remove = {s for s in subs if session_id in s}
+        subs -= to_remove
+
+        # Clear attached session metadata
+        metadata = self.clients.get(websocket)
+        if metadata:
+            metadata.pop("attached_session_id", None)
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "detach_from_session_result",
+                    "session_id": session_id,
+                }
+            )
+        )
+        logger.info(f"Client detached from session {session_id}")
+
     async def _cleanup_idle_sessions(self) -> None:
         """Periodically disconnect chat sessions that have been idle too long."""
         while True:
