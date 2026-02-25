@@ -1,9 +1,9 @@
-"""Tests for auto-task.yaml rules.
+"""Tests for auto-task rules.
 
 Verifies auto-task rules sync correctly and have proper structure:
-- inject-autonomous-mode: inject_context on before_agent (when session_task set)
+- block-in-auto-task-mode: inject_context on before_agent (when auto_task_ref set)
 - guide-task-continuation: block on stop (when task tree incomplete)
-- notify-task-tree-complete: inject_context on before_agent (when task tree complete)
+- notify-task-tree-complete: inject_context on stop (when task tree complete)
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from gobby.workflows.sync import sync_bundled_rules
 pytestmark = pytest.mark.unit
 
 AUTO_TASK_RULES = {
-    "inject-autonomous-mode",
+    "block-in-auto-task-mode",
     "guide-task-continuation",
     "notify-task-tree-complete",
 }
@@ -88,35 +88,35 @@ class TestAutoTaskSync:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# inject-autonomous-mode
+# block-in-auto-task-mode
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestInjectAutonomousMode:
-    """Inject autonomous mode context when session_task is set."""
+class TestBlockInAutoTaskMode:
+    """Inject autonomous mode context when auto_task_ref is set."""
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("inject-autonomous-mode")
+        row = manager.get_by_name("block-in-auto-task-mode")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
         assert body.effect.type == "inject_context"
         assert body.effect.template is not None
-        assert "autonomous" in body.effect.template.lower() or "session_task" in body.effect.template
+        assert "autonomous" in body.effect.template.lower() or "auto_task_ref" in body.effect.template
 
-    def test_has_session_task_condition(self, db, manager) -> None:
-        """Only inject when session_task is set."""
+    def test_has_auto_task_ref_condition(self, db, manager) -> None:
+        """Only inject when auto_task_ref is set."""
         _sync_bundled(db)
-        row = manager.get_by_name("inject-autonomous-mode")
+        row = manager.get_by_name("block-in-auto-task-mode")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
-        assert "session_task" in body.when
+        assert "auto_task_ref" in body.when
 
     def test_template_mentions_suggest_next_task(self, db, manager) -> None:
         """Template should guide agent to use suggest_next_task."""
         _sync_bundled(db)
-        row = manager.get_by_name("inject-autonomous-mode")
+        row = manager.get_by_name("block-in-auto-task-mode")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert "suggest_next_task" in body.effect.template
 
@@ -139,12 +139,12 @@ class TestGuideTaskContinuation:
         assert body.effect.reason is not None
 
     def test_has_task_tree_condition(self, db, manager) -> None:
-        """Should check task_tree_complete and session_task."""
+        """Should check task_tree_complete and auto_task_ref."""
         _sync_bundled(db)
         row = manager.get_by_name("guide-task-continuation")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
-        assert "session_task" in body.when
+        assert "auto_task_ref" in body.when
         assert "task_tree_complete" in body.when
 
     def test_has_escape_hatch(self, db, manager) -> None:
@@ -176,17 +176,17 @@ class TestNotifyTaskTreeComplete:
         row = manager.get_by_name("notify-task-tree-complete")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "before_agent"
+        assert body.event.value == "stop"
         assert body.effect.type == "inject_context"
         assert body.effect.template is not None
 
     def test_has_completion_condition(self, db, manager) -> None:
-        """Should check both session_task set and task_tree_complete."""
+        """Should check both auto_task_ref set and task_tree_complete."""
         _sync_bundled(db)
         row = manager.get_by_name("notify-task-tree-complete")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
-        assert "session_task" in body.when
+        assert "auto_task_ref" in body.when
         assert "task_tree_complete" in body.when
 
     def test_template_mentions_complete(self, db, manager) -> None:
