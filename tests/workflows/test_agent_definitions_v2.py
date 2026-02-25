@@ -59,11 +59,11 @@ class TestAgentDefinitionBodyModel:
         assert body.instructions is None
         assert body.provider == "inherit"
         assert body.model is None
-        assert body.mode == "self"
-        assert body.isolation is None
+        assert body.mode == "inherit"
+        assert body.isolation == "inherit"
         assert body.base_branch == "inherit"
-        assert body.timeout == 120.0
-        assert body.max_turns == 10
+        assert body.timeout == 0
+        assert body.max_turns == 0
         assert body.workflows.rules == []
         assert body.workflows.pipeline is None
         assert body.workflows.variables == {}
@@ -140,7 +140,7 @@ class TestAgentDefinitionBodyModel:
             assert body.isolation == iso
 
         body = AgentDefinitionBody(name="test")
-        assert body.isolation is None
+        assert body.isolation == "inherit"
 
 
 class TestAgentDefinitionBodySerialization:
