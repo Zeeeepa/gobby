@@ -257,6 +257,12 @@ export function useChat() {
     [],
   );
 
+  // Stable ref to sendMessage for use inside WS handlers / callbacks
+  // defined before sendMessage itself. Updated after sendMessage is created.
+  const sendMessageRef = useRef<
+    ((content: string) => boolean) | null
+  >(null);
+
   // Context usage tracking — accumulated across turns.
   // totalInputTokens = uncached + cacheRead + cacheCreation (the real context size).
   const [contextUsage, setContextUsage] = useState<{
@@ -437,6 +443,21 @@ export function useChat() {
               planContentRef.current = null;
             }
             onModeChangedRef.current?.(newMode);
+            // After plan approval, auto-send a message to prompt the agent
+            // to begin execution. The agent's turn has already ended by the
+            // time the user clicks "Approve", so we send immediately here
+            // rather than waiting for a "done" handler that won't fire.
+            if (
+              reason === "plan_approved" &&
+              pendingPlanExecutionRef.current
+            ) {
+              pendingPlanExecutionRef.current = false;
+              setTimeout(() => {
+                sendMessageRef.current?.(
+                  "Plan approved — proceed with implementation.",
+                );
+              }, 200);
+            }
           }
         } else if (data.type === "session_info") {
           const info = data as Record<string, unknown>;
@@ -700,6 +721,18 @@ export function useChat() {
           ...prev,
           contextWindow: chunk.context_window ?? prev.contextWindow,
         }));
+      }
+
+      // Plan approval auto-send is handled in the mode_changed handler above,
+      // since the agent's turn has already ended by the time the user approves.
+      // Safety fallback: if somehow still pending here, consume it.
+      if (pendingPlanExecutionRef.current) {
+        pendingPlanExecutionRef.current = false;
+        setTimeout(() => {
+          sendMessageRef.current?.(
+            "Plan approved — proceed with implementation.",
+          );
+        }, 200);
       }
     }
   }, []);
@@ -1385,6 +1418,9 @@ export function useChat() {
     [],
   );
 
+  // Update sendMessageRef with the latest sendMessage callback
+  sendMessageRef.current = sendMessage;
+
   // Execute a slash command directly (no LLM round-trip)
   const executeCommand = useCallback(
     (server: string, tool: string, args: Record<string, string> = {}) => {
@@ -1472,9 +1508,14 @@ export function useChat() {
     [],
   );
 
-  // Approve the current plan — tells backend to unlock write tools
+  // Track whether we're waiting for plan_approved mode_changed to auto-send
+  const pendingPlanExecutionRef = useRef(false);
+
+  // Approve the current plan — tells backend to unlock write tools,
+  // then sends a follow-up message to prompt the agent to begin execution.
   const approvePlan = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    pendingPlanExecutionRef.current = true;
     wsRef.current.send(
       JSON.stringify({
         type: "plan_approval_response",
@@ -1482,7 +1523,9 @@ export function useChat() {
         decision: "approve",
       }),
     );
-    // Don't eagerly clear — let mode_changed be the single source of truth
+    // Don't eagerly clear — let mode_changed be the single source of truth.
+    // The pendingPlanExecutionRef flag is consumed by the mode_changed handler
+    // to auto-send a "proceed" message once the backend confirms the switch.
   }, []);
 
   // Request changes to the plan with feedback
