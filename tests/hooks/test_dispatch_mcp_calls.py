@@ -203,6 +203,98 @@ class TestDispatchMcpCallsBackgroundMode:
         stub.logger.error.assert_called()
 
 
+class TestDispatchMcpCallsNoEventLoop:
+    """Tests for the asyncio.run() fallback when no event loop is available."""
+
+    def test_blocking_call_falls_back_to_asyncio_run(self) -> None:
+        """When no event loop exists, blocking calls use asyncio.run()."""
+        proxy = AsyncMock()
+        # _loop is None to simulate hook manager subprocess
+        stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy, loop=None)
+        event = _make_event(platform_session_id="plat-456")
+
+        calls = [
+            {
+                "server": "gobby-sessions",
+                "tool": "set_handoff_context",
+                "arguments": {"full": True},
+                "background": False,
+            }
+        ]
+
+        stub._dispatch_mcp_calls(calls, event)
+
+        proxy.call_tool.assert_called_once()
+        call_args = proxy.call_tool.call_args[0]
+        assert call_args[0] == "gobby-sessions"
+        assert call_args[1] == "set_handoff_context"
+        assert call_args[2]["full"] is True
+        assert call_args[2]["session_id"] == "plat-456"
+
+    def test_background_call_falls_back_to_asyncio_run(self) -> None:
+        """When no event loop exists, background calls also use asyncio.run()."""
+        proxy = AsyncMock()
+        stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy, loop=None)
+        event = _make_event()
+
+        calls = [
+            {
+                "server": "gobby-memory",
+                "tool": "extract_from_session",
+                "arguments": {"max_memories": 5},
+                "background": True,
+            }
+        ]
+
+        stub._dispatch_mcp_calls(calls, event)
+
+        proxy.call_tool.assert_called_once()
+
+    def test_blocking_asyncio_run_error_is_logged(self) -> None:
+        """Errors in asyncio.run() fallback for blocking calls are logged."""
+        mock_proxy = AsyncMock()
+        mock_proxy.call_tool = AsyncMock(side_effect=RuntimeError("connection refused"))
+        stub = _make_hook_manager_stub(tool_proxy_getter=lambda: mock_proxy, loop=None)
+        event = _make_event()
+
+        calls = [
+            {
+                "server": "gobby-sessions",
+                "tool": "set_handoff_context",
+                "arguments": {},
+                "background": False,
+            }
+        ]
+
+        # Should not raise
+        stub._dispatch_mcp_calls(calls, event)
+        stub.logger.error.assert_called()
+
+    def test_multiple_calls_all_execute(self) -> None:
+        """Multiple MCP calls in sequence all execute via asyncio.run()."""
+        proxy = AsyncMock()
+        stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy, loop=None)
+        event = _make_event()
+
+        calls = [
+            {
+                "server": "gobby-sessions",
+                "tool": "set_handoff_context",
+                "arguments": {"compact": True},
+            },
+            {
+                "server": "gobby-memory",
+                "tool": "extract_from_session",
+                "arguments": {"max_memories": 5},
+            },
+            {"server": "gobby-tasks", "tool": "sync_export", "arguments": {}},
+        ]
+
+        stub._dispatch_mcp_calls(calls, event)
+
+        assert proxy.call_tool.call_count == 3
+
+
 class TestDispatchMcpCallsProxyNone:
     """Tests for when tool_proxy_getter returns None."""
 

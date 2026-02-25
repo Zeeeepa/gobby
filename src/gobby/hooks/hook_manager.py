@@ -666,7 +666,7 @@ class HookManager:
                     loop = asyncio.get_running_loop()
                     loop.create_task(coro)
                 except RuntimeError:
-                    if self._loop:
+                    if self._loop and self._loop.is_running():
                         try:
                             asyncio.run_coroutine_threadsafe(coro, self._loop)
                         except Exception as e:
@@ -677,14 +677,24 @@ class HookManager:
                                 e,
                             )
                     else:
-                        self.logger.debug("_dispatch_mcp_calls: no event loop for background call")
+                        # No running event loop (e.g. hook manager subprocess) —
+                        # run synchronously via asyncio.run()
+                        try:
+                            asyncio.run(coro)
+                        except Exception as e:
+                            self.logger.warning(
+                                "_dispatch_mcp_calls: background %s/%s failed: %s",
+                                server,
+                                tool,
+                                e,
+                            )
             else:
                 # Blocking dispatch with timeout
                 try:
                     loop = asyncio.get_running_loop()
                     loop.create_task(coro)
                 except RuntimeError:
-                    if self._loop:
+                    if self._loop and self._loop.is_running():
                         try:
                             future = asyncio.run_coroutine_threadsafe(coro, self._loop)
                             future.result(timeout=30)
@@ -696,7 +706,17 @@ class HookManager:
                                 e,
                             )
                     else:
-                        self.logger.debug("_dispatch_mcp_calls: no event loop for blocking call")
+                        # No running event loop (e.g. hook manager subprocess) —
+                        # run synchronously via asyncio.run()
+                        try:
+                            asyncio.run(coro)
+                        except Exception as e:
+                            self.logger.error(
+                                "_dispatch_mcp_calls: blocking %s/%s failed: %s",
+                                server,
+                                tool,
+                                e,
+                            )
 
     def shutdown(self) -> None:
         """
