@@ -317,14 +317,15 @@ class TestGenerateHandoffOnEnd:
         assert body.event.value == "session_end"
         assert body.effect.type == "mcp_call"
         assert body.effect.server == "gobby-sessions"
-        assert body.effect.tool == "generate_handoff"
+        assert body.effect.tool == "set_handoff_context"
 
     def test_has_arguments(self, db, manager) -> None:
         _sync_bundled(db)
         row = manager.get_by_name("generate-handoff-on-end")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.effect.arguments is not None
-        assert body.effect.arguments.get("prompt") == "handoff/session_end"
+        assert body.effect.arguments.get("full") is True
+        assert body.effect.arguments.get("write_file") is True
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -387,7 +388,7 @@ class TestExtractHandoffContextOnCompact:
         assert body.event.value == "pre_compact"
         assert body.effect.type == "mcp_call"
         assert body.effect.server == "gobby-sessions"
-        assert body.effect.tool == "extract_handoff_context"
+        assert body.effect.tool == "set_handoff_context"
 
     def test_has_gemini_filter(self, db, manager) -> None:
         _sync_bundled(db)
@@ -439,14 +440,15 @@ class TestGenerateHandoffOnCompact:
         assert body.event.value == "pre_compact"
         assert body.effect.type == "mcp_call"
         assert body.effect.server == "gobby-sessions"
-        assert body.effect.tool == "generate_handoff"
+        assert body.effect.tool == "set_handoff_context"
 
-    def test_has_compact_mode_arg(self, db, manager) -> None:
+    def test_has_full_and_write_file_args(self, db, manager) -> None:
         _sync_bundled(db)
         row = manager.get_by_name("generate-handoff-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.effect.arguments is not None
-        assert body.effect.arguments.get("mode") == "compact"
+        assert body.effect.arguments.get("full") is True
+        assert body.effect.arguments.get("write_file") is True
 
     def test_has_gemini_filter(self, db, manager) -> None:
         _sync_bundled(db)

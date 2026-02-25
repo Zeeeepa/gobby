@@ -10,8 +10,7 @@ rules:
     effect:
       type: mcp_call
       server: gobby-sessions
-      tool: generate_handoff
+      tool: set_handoff_context
       arguments:
-        mode: compact
-        prompt: handoff/compact
+        full: true
         write_file: true

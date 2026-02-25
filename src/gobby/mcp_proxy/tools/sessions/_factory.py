@@ -30,6 +30,7 @@ def create_session_messages_registry(
     config: Any | None = None,
     db: Any | None = None,
     worktree_manager: Any | None = None,
+    inter_session_message_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a sessions tool registry with session and message tools.
@@ -59,7 +60,13 @@ def create_session_messages_registry(
     # --- Handoff Tools ---
     # Only register if session_manager is available
     if session_manager is not None:
-        register_handoff_tools(registry, session_manager)
+        register_handoff_tools(
+            registry,
+            session_manager,
+            llm_service=llm_service,
+            transcript_processor=transcript_processor,
+            inter_session_message_manager=inter_session_message_manager,
+        )
 
     # --- Session CRUD Tools ---
     # Only register if session_manager is available

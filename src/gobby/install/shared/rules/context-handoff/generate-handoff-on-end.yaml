@@ -9,9 +9,7 @@ rules:
     effect:
       type: mcp_call
       server: gobby-sessions
-      tool: generate_handoff
+      tool: set_handoff_context
       arguments:
-        include:
-          - pending_tasks
-        prompt: handoff/session_end
+        full: true
         write_file: true

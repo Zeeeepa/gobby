@@ -389,8 +389,8 @@ def create_handoff(
     import time
     from pathlib import Path
 
-    from gobby.mcp_proxy.tools.sessions._handoff import _format_handoff_markdown
     from gobby.sessions.analyzer import TranscriptAnalyzer
+    from gobby.workflows.context_actions import format_handoff_as_markdown
 
     manager = get_session_manager()
 
@@ -507,7 +507,7 @@ def create_handoff(
     full_markdown = None
 
     if generate_compact:
-        compact_markdown = _format_handoff_markdown(handoff_ctx, notes)
+        compact_markdown = format_handoff_as_markdown(handoff_ctx)
 
     if generate_full:
         # Generate LLM-powered full summary

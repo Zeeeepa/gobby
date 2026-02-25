@@ -141,6 +141,7 @@ def setup_internal_registries(
             config=_config,
             db=db,
             worktree_manager=worktree_storage,
+            inter_session_message_manager=inter_session_message_manager,
         )
         manager.add_registry(session_messages_registry)
         logger.debug("Sessions registry initialized")
