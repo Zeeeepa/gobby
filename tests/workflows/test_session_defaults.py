@@ -1,4 +1,4 @@
-"""Tests for session-defaults rule-based initialization and variable sync."""
+"""Tests for session-defaults variable sync and rule sync mechanics."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import pytest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-from gobby.workflows.definitions import RuleDefinitionBody
 from gobby.workflows.sync import sync_bundled_rules, sync_bundled_variables
 
 pytestmark = pytest.mark.unit
@@ -84,71 +83,15 @@ rules:
         assert stop_rule.enabled
 
 
-class TestBundledSessionDefaults:
-    """Test that bundled session-defaults rules sync correctly."""
+class TestBundledRulesSync:
+    """Test that bundled rules sync correctly."""
 
-    def test_bundled_defaults_dir_exists(self) -> None:
-        """The bundled session-defaults directory should exist with YAML files."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        defaults_dir = get_bundled_rules_path() / "session-defaults"
-        assert defaults_dir.is_dir(), f"Expected {defaults_dir} to be a directory"
-        yaml_files = list(defaults_dir.glob("*.yaml"))
-        assert len(yaml_files) >= 1, f"Expected >= 1 rule files, got {len(yaml_files)}"
-
-    def test_bundled_defaults_sync_to_db(self, db) -> None:
-        """The bundled session-defaults rules should sync to DB."""
+    def test_bundled_rules_sync_to_db(self, db) -> None:
+        """Bundled rules should sync to DB without errors."""
         from gobby.workflows.sync import get_bundled_rules_path
 
         result = sync_bundled_rules(db, get_bundled_rules_path())
         assert result["errors"] == [], f"Sync errors: {result['errors']}"
-
-    def test_synced_defaults_have_set_variable_effects(self, db) -> None:
-        """initialize-session-defaults should use set_variable effects with per-effect when."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
-        mgr = LocalWorkflowDefinitionManager(db)
-        rule = mgr.get_by_name("initialize-session-defaults", include_templates=True)
-        assert rule is not None
-        body = RuleDefinitionBody.model_validate_json(rule.definition_json)
-        effects = body.resolved_effects
-        assert len(effects) >= 14
-        for effect in effects:
-            assert effect.type == "set_variable"
-            assert effect.when is not None  # each has per-effect when guard
-            assert "is None" in effect.when
-
-    def test_initializes_all_expected_variables(self, db) -> None:
-        """initialize-session-defaults should set all expected session variables."""
-        from gobby.workflows.sync import get_bundled_rules_path
-
-        sync_bundled_rules(db, get_bundled_rules_path())
-        mgr = LocalWorkflowDefinitionManager(db)
-        rule = mgr.get_by_name("initialize-session-defaults", include_templates=True)
-        assert rule is not None
-        body = RuleDefinitionBody.model_validate_json(rule.definition_json)
-
-        initialized_vars = {e.variable for e in body.resolved_effects}
-        expected_vars = {
-            "require_uv",
-            "chat_mode",
-            "mode_level",
-            "stop_attempts",
-            "max_stop_attempts",
-            "task_claimed",
-            "task_ref",
-            "require_task_before_edit",
-            "require_commit_before_close",
-            "pre_existing_errors_triaged",
-            "enforce_tool_schema_check",
-            "servers_listed",
-            "listed_servers",
-            "unlocked_tools",
-        }
-        assert expected_vars.issubset(initialized_vars), (
-            f"Missing: {expected_vars - initialized_vars}"
-        )
 
 
 class TestBundledVariablesSync:
