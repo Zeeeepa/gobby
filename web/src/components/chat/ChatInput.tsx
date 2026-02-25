@@ -63,6 +63,7 @@ export function ChatInput({
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const paletteRef = useRef<HTMLDivElement>(null)
 
   const showPalette = input.startsWith('/') && filteredCommands.length > 0
 
@@ -86,6 +87,14 @@ export function ChatInput({
   }, [input])
 
   useEffect(() => { setSelectedIndex(0) }, [filteredCommands])
+
+  // Scroll selected command into view when navigating with arrow keys
+  useEffect(() => {
+    const list = paletteRef.current
+    if (!list) return
+    const selected = list.children[selectedIndex] as HTMLElement | undefined
+    selected?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim()
@@ -165,7 +174,7 @@ export function ChatInput({
       <div className="max-w-3xl mx-auto">
         {/* Command palette */}
         {showPalette && (
-          <div className="mb-2 rounded-lg border border-border bg-muted overflow-hidden max-h-48 overflow-y-auto">
+          <div ref={paletteRef} className="mb-2 rounded-lg border border-border bg-muted overflow-hidden max-h-48 overflow-y-auto">
             {filteredCommands.map((cmd, i) => (
               <div
                 key={cmd.name}
