@@ -223,12 +223,39 @@ export default function App() {
 
   const effectiveProjectId = selectedProjectId ?? defaultProjectId
 
-  // Persist project selection
+  // On mount: fetch persisted project from API (DB wins over localStorage)
   useEffect(() => {
+    let cancelled = false
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    fetch(`${baseUrl}/api/config/ui-settings`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled || !data?.selectedProjectId) return
+        setSelectedProjectId(data.selectedProjectId)
+        try { localStorage.setItem('gobby-project', data.selectedProjectId) } catch { /* noop */ }
+      })
+      .catch(() => { /* API unavailable — localStorage fallback already loaded */ })
+    return () => { cancelled = true }
+  }, [])
+
+  // Persist project selection (write-through: localStorage + API)
+  const isFirstProjectRender = useRef(true)
+  useEffect(() => {
+    if (isFirstProjectRender.current) {
+      isFirstProjectRender.current = false
+      return
+    }
     try {
       if (selectedProjectId) localStorage.setItem('gobby-project', selectedProjectId)
       else localStorage.removeItem('gobby-project')
     } catch { /* noop */ }
+    // Best-effort write to API
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    fetch(`${baseUrl}/api/config/ui-settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selectedProjectId }),
+    }).catch(() => { /* best-effort */ })
   }, [selectedProjectId])
 
   // When project changes, start fresh chat context for the new project.

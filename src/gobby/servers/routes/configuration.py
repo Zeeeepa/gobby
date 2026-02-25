@@ -81,6 +81,7 @@ class SaveUISettingsRequest(BaseModel):
     model: str | None = None
     theme: str | None = None
     defaultChatMode: str | None = None
+    selectedProjectId: str | None = None
 
 
 class ImportConfigRequest(BaseModel):
@@ -757,7 +758,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     # =========================================================================
 
     _UI_SETTINGS_PREFIX = "ui_settings."
-    _UI_SETTINGS_KEYS = ("fontSize", "model", "theme", "defaultChatMode")
+    _UI_SETTINGS_KEYS = ("fontSize", "model", "theme", "defaultChatMode", "selectedProjectId")
 
     @router.get("/ui-settings")
     async def get_ui_settings() -> JSONResponse:
