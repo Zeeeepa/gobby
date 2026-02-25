@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import './PipelinesPage.css'
 import type { PipelineExecution, PipelineStep } from '../hooks/usePipeline'
 
 interface PipelinePanelProps {

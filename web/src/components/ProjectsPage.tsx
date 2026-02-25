@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import './projects/ProjectsPage.css'
 import { useProjects } from '../hooks/useProjects'
 import type { ProjectWithStats } from '../hooks/useProjects'
 import { useFiles } from '../hooks/useFiles'

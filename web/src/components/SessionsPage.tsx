@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
+import './SessionsPage.css'
 import type { GobbySession, SessionFilters } from '../hooks/useSessions'
 import { KNOWN_SOURCES } from '../hooks/useSessions'
 import { useSessionDetail } from '../hooks/useSessionDetail'

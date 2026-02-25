@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense, Component, type ReactNode } from 'react'
+import './MemoryPage.css'
 import { useMemory, useNeo4jStatus } from '../hooks/useMemory'
 import type { GobbyMemory } from '../hooks/useMemory'
 import { MemoryFilters } from './MemoryFilters'

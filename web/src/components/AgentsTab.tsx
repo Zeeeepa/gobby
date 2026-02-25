@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import './agents/agents.css'
 import * as yaml from 'js-yaml'
 import { useAgentRuns } from '../hooks/useAgentRuns'
 import type { RunningAgent, AgentRun } from '../hooks/useAgentRuns'

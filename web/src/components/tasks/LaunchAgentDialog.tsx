@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import '../LaunchAgentModal.css'
 import { useAgentSpawn } from '../../hooks/useAgentSpawn'
 import type { AgentDefinition, SpawnResult } from '../../hooks/useAgentSpawn'
 

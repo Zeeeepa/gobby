@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import './task-detail.css'
+import './task-execution.css'
+import './task-advanced.css'
 import type { GobbyTask, GobbyTaskDetail, DependencyTree } from '../../hooks/useTasks'
 import { StatusBadge, PriorityBadge, TypeBadge, StatusDot } from './TaskBadges'
 import { ReasoningTimeline } from './ReasoningTimeline'

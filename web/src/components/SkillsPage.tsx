@@ -9,6 +9,7 @@ import type { SkillFormData } from './SkillForm'
 import { SkillHubBrowser } from './SkillHubBrowser'
 import { SkillImportModal } from './SkillImportModal'
 import './WorkflowsPage.css'
+import './SkillsPage.css'
 
 type ActiveTab = 'installed' | 'hub'
 type SourceFilter = 'installed' | 'project' | 'templates' | 'deleted'

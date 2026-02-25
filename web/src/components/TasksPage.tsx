@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import './tasks/tasks-page.css'
+import './tasks/task-views.css'
 import { useTasks } from '../hooks/useTasks'
 import type { GobbyTask, GobbyTaskDetail } from '../hooks/useTasks'
 import { StatusDot, PriorityBadge, TypeBadge } from './tasks/TaskBadges'
