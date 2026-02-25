@@ -94,36 +94,18 @@ const DEFAULT_FORM: AgentFormData = {
 }
 
 const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
-  inherit: [
-    { value: '', label: '(default)' },
-  ],
+  inherit: [{ value: '', label: '(default)' }],
   claude: [
     { value: '', label: '(default)' },
     { value: 'opus', label: 'Opus' },
     { value: 'sonnet', label: 'Sonnet' },
     { value: 'haiku', label: 'Haiku' },
   ],
-  gemini: [
-    { value: '', label: '(default)' },
-    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  ],
-  codex: [
-    { value: '', label: '(default)' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'o3', label: 'o3' },
-    { value: 'o4-mini', label: 'o4-mini' },
-  ],
-  cursor: [
-    { value: '', label: '(default)' },
-  ],
-  windsurf: [
-    { value: '', label: '(default)' },
-  ],
-  copilot: [
-    { value: '', label: '(default)' },
-  ],
+  gemini: [{ value: '', label: '(default)' }],
+  codex: [{ value: '', label: '(default)' }],
+  cursor: [{ value: '', label: '(default)' }],
+  windsurf: [{ value: '', label: '(default)' }],
+  copilot: [{ value: '', label: '(default)' }],
 }
 
 function getBaseUrl(): string {
@@ -175,6 +157,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   const [branches, setBranches] = useState<string[]>([])
   const [isGitProject, setIsGitProject] = useState(true)
   const [editRules, setEditRules] = useState<string[]>([])
+  const [editRuleSelectors, setEditRuleSelectors] = useState<{ include: string[]; exclude: string[] } | null>(null)
   const [editVariables, setEditVariables] = useState<Record<string, unknown>>({})
 
   const fetchDefinitions = useCallback(async (includeDeleted = false) => {
@@ -212,6 +195,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       setSelectedAgent(null)
     } else if (!editingId) {
       setCreateForm({ ...DEFAULT_FORM })
+      setEditRules([])
+      setEditRuleSelectors(null)
+      setEditVariables({})
       setSelectedAgent(null)
     }
   }, [showCreateForm, editingId])
@@ -243,7 +229,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     fetch(`${getBaseUrl()}/admin/models`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data) setProviderModels(prev => ({ ...prev, ...data }))
+        if (data?.models) setProviderModels(prev => ({ ...prev, ...data.models }))
       })
       .catch(e => console.error('Failed to fetch model list:', e))
   }, [])
@@ -300,7 +286,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       const body: Record<string, unknown> = {
         name: createForm.name,
         provider: createForm.provider,
-        mode: createForm.mode,
+        mode: createForm.mode || 'self',
         base_branch: createForm.base_branch,
         timeout: createForm.timeout,
         max_turns: createForm.max_turns,
@@ -312,6 +298,12 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (createForm.instructions) body.instructions = createForm.instructions
       if (createForm.model) body.model = createForm.model
       if (createForm.isolation) body.isolation = createForm.isolation
+      // Nest rules, rule_selectors, and variables under workflows
+      const workflows: Record<string, unknown> = {}
+      if (editRules.length > 0) workflows.rules = editRules
+      if (editRuleSelectors) workflows.rule_selectors = editRuleSelectors
+      if (Object.keys(editVariables).length > 0) workflows.variables = editVariables
+      if (Object.keys(workflows).length > 0) body.workflows = workflows
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions`, {
         method: 'POST',
@@ -351,6 +343,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     })
     setEditingId(item.db_id)
     setEditRules((d.workflows?.rules as string[]) || [])
+    const rs = d.workflows?.rule_selectors as { include: string[]; exclude: string[] } | undefined
+    setEditRuleSelectors(rs || null)
     setEditVariables((d.workflows?.variables as Record<string, unknown>) || {})
     setSelectedAgent(null)
     onToggleCreateForm(true)
@@ -368,7 +362,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         instructions: createForm.instructions || null,
         provider: createForm.provider,
         model: createForm.model || null,
-        mode: createForm.mode,
+        mode: createForm.mode || 'self',
         isolation: createForm.isolation || null,
         base_branch: createForm.base_branch,
         timeout: createForm.timeout,
@@ -385,7 +379,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         setEditingId(null)
         setCreateForm({ ...DEFAULT_FORM })
         fetchDefinitions(true)
-        showToast(`Agent "${createForm.name}" updated`, 'success')
+        // silent success — panel closes, grid refreshes
       } else {
         showToast('Failed to update agent definition', 'error')
       }
@@ -406,6 +400,17 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     }
   }, [editingId])
 
+  const handleEditRuleSelectorsChange = useCallback((newSelectors: { include: string[]; exclude: string[] }) => {
+    setEditRuleSelectors(newSelectors)
+    if (editingId) {
+      setDefinitions(prev => prev.map(def =>
+        def.db_id === editingId
+          ? { ...def, definition: { ...def.definition, workflows: { ...def.definition.workflows, rule_selectors: newSelectors } } }
+          : def
+      ))
+    }
+  }, [editingId])
+
   const handleEditVariablesChange = useCallback((newVars: Record<string, unknown>) => {
     setEditVariables(newVars)
     if (editingId) {
@@ -416,6 +421,44 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       ))
     }
   }, [editingId])
+
+  const handleDuplicate = useCallback(async (item: AgentDefInfo) => {
+    const newName = window.prompt('New agent name:', `${item.definition.name}-copy`)
+    if (!newName) return
+    const d = item.definition
+    const body: Record<string, unknown> = {
+      name: newName,
+      provider: d.provider,
+      mode: d.mode,
+      base_branch: d.base_branch,
+      timeout: d.timeout,
+      max_turns: d.max_turns,
+    }
+    if (d.description) body.description = d.description
+    if (d.role) body.role = d.role
+    if (d.goal) body.goal = d.goal
+    if (d.personality) body.personality = d.personality
+    if (d.instructions) body.instructions = d.instructions
+    if (d.model) body.model = d.model
+    if (d.isolation) body.isolation = d.isolation
+    if (d.workflows) body.workflows = d.workflows
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        fetchDefinitions(true)
+        showToast(`Agent "${newName}" duplicated`, 'success')
+      } else {
+        showToast('Failed to duplicate agent definition', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to duplicate agent definition:', e)
+      showToast('Failed to duplicate agent definition', 'error')
+    }
+  }, [fetchDefinitions, showToast])
 
   const handleDelete = async (dbId: string) => {
     if (!confirm('Delete this agent definition?')) return

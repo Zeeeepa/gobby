@@ -61,12 +61,16 @@ class TestAdminRoutesExtended:
     def test_models_endpoint(self, client, mock_server) -> None:
         """Test GET /models endpoint with LiteLLM discovery."""
         mock_model_cost = {
-            "claude-opus-4-6": {},
-            "claude-sonnet-4-5": {},
-            "claude-haiku-4-5": {},
-            "gpt-5": {},
-            "claude-sonnet-4-5-20250929": {},  # dated variant — should be excluded
+            "gemini-2.5-pro": {},
+            "gemini-2.5-flash": {},
+            "gemini-1.5-pro": {},  # old generation — should be excluded
+            "gpt-5.3-codex": {},
+            "gpt-4o": {},  # retired generation — should be excluded
+            "gpt-5.3-codex-20250601": {},  # dated variant — should be excluded
             "anthropic/claude-opus-4-6": {},  # provider-scoped — should be excluded
+            "gemini-2.5-pro-image": {},  # image model — should be excluded
+            "o3-pro": {},  # o1 prefix mapped to codex but o1 is excluded by min version
+            "o4-mini": {},
         }
         mock_litellm = MagicMock()
         mock_litellm.model_cost = mock_model_cost
@@ -76,34 +80,47 @@ class TestAdminRoutesExtended:
         assert response.status_code == 200
         data = response.json()
 
-        assert "claude" in data["models"]
-        claude_models = data["models"]["claude"]
-        assert "claude-opus-4-6" in claude_models
-        assert "claude-sonnet-4-5" in claude_models
-        assert "claude-haiku-4-5" in claude_models
-        # Dated variant should be filtered out
-        assert "claude-sonnet-4-5-20250929" not in claude_models
+        # Gemini models returned as {value, label} dicts with (default) prepended
+        assert "gemini" in data["models"]
+        gemini = data["models"]["gemini"]
+        gemini_values = [e["value"] for e in gemini]
+        assert gemini[0] == {"value": "", "label": "(default)"}
+        assert "gemini-2.5-pro" in gemini_values
+        assert "gemini-2.5-flash" in gemini_values
+        assert "gemini-1.5-pro" not in gemini_values  # old generation filtered
+        assert "gemini-2.5-pro-image" not in gemini_values  # image model filtered
+
+        # Codex (gpt/o3/o4) models
+        assert "codex" in data["models"]
+        codex = data["models"]["codex"]
+        codex_values = [e["value"] for e in codex]
+        assert codex[0] == {"value": "", "label": "(default)"}
+        assert "gpt-5.3-codex" in codex_values
+        assert "o3-pro" in codex_values
+        assert "o4-mini" in codex_values
+        assert "gpt-4o" not in codex_values  # retired
+        assert "gpt-5.3-codex-20250601" not in codex_values  # dated variant
+
         assert data["default_model"] is not None
 
     def test_models_endpoint_provider_filter(self, client, mock_server) -> None:
-        """Test GET /models?provider=claude filters to Claude only."""
+        """Test GET /models?provider=gemini filters to Gemini only."""
         mock_model_cost = {
-            "claude-opus-4-6": {},
-            "claude-sonnet-4-5": {},
-            "gpt-5": {},
-            "gemini-2-flash": {},
+            "gemini-2.5-pro": {},
+            "gemini-2.5-flash": {},
+            "gpt-5.3-codex": {},
+            "o4-mini": {},
         }
         mock_litellm = MagicMock()
         mock_litellm.model_cost = mock_model_cost
         with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            response = client.get("/admin/models?provider=claude")
+            response = client.get("/admin/models?provider=gemini")
 
         assert response.status_code == 200
         data = response.json()
 
-        assert "claude" in data["models"]
-        assert "gpt" not in data["models"]
-        assert "gemini" not in data["models"]
+        assert "gemini" in data["models"]
+        assert "codex" not in data["models"]
 
     def test_reload_workflows_endpoint(self, client, mock_server) -> None:
         """Test POST /workflows/reload endpoint."""
