@@ -99,19 +99,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
-    try {
-      const saved = localStorage.getItem('gobby-project')
-      if (saved) return saved
-      const old = localStorage.getItem('gobby-chat-project')
-      if (old) {
-        localStorage.setItem('gobby-project', old)
-        localStorage.removeItem('gobby-chat-project')
-        return old
-      }
-      return null
-    } catch { return null }
-  })
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const showPlanRef = useRef<(() => void) | null>(null)
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -223,7 +211,7 @@ export default function App() {
 
   const effectiveProjectId = selectedProjectId ?? defaultProjectId
 
-  // On mount: fetch persisted project from API (DB wins over localStorage)
+  // On mount: fetch persisted project from API (DB is source of truth)
   useEffect(() => {
     let cancelled = false
     const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
@@ -232,30 +220,24 @@ export default function App() {
       .then(data => {
         if (cancelled || !data?.selectedProjectId) return
         setSelectedProjectId(data.selectedProjectId)
-        try { localStorage.setItem('gobby-project', data.selectedProjectId) } catch { /* noop */ }
       })
-      .catch(() => { /* API unavailable — localStorage fallback already loaded */ })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [])
 
-  // Persist project selection (write-through: localStorage + API)
+  // Persist project selection to API
   const isFirstProjectRender = useRef(true)
   useEffect(() => {
     if (isFirstProjectRender.current) {
       isFirstProjectRender.current = false
       return
     }
-    try {
-      if (selectedProjectId) localStorage.setItem('gobby-project', selectedProjectId)
-      else localStorage.removeItem('gobby-project')
-    } catch { /* noop */ }
-    // Best-effort write to API
     const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
     fetch(`${baseUrl}/api/config/ui-settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ selectedProjectId }),
-    }).catch(() => { /* best-effort */ })
+    }).catch(() => {})
   }, [selectedProjectId])
 
   // When project changes, start fresh chat context for the new project.
