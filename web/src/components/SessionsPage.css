@@ -734,3 +734,10 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
+
+/* Mobile: hide sidebar, use top drawer instead */
+@media (max-width: 768px) {
+  .sessions-browser {
+    display: none;
+  }
+}
