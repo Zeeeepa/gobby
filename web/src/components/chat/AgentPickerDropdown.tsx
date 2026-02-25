@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/Dialog'
 import type { AgentDefInfo } from '../../hooks/useAgentDefinitions'
+import '../LaunchAgentModal.css'
 
 interface AgentPickerDropdownProps {
   definitions: AgentDefInfo[]
@@ -29,7 +30,7 @@ export function AgentPickerDropdown({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden" onOpenAutoFocus={(e) => e.preventDefault()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <DialogTitle className="text-sm font-semibold">Select Agent</DialogTitle>
           <button
