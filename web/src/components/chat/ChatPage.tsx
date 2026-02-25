@@ -1,34 +1,45 @@
-import './styles.css'
-import { useCallback, useEffect, useRef } from 'react'
-import { useIsMobile } from '../../hooks/useIsMobile'
-import type { ChatState, ConversationState, VoiceProps } from '../../types/chat'
-import { ConversationPicker } from '../ConversationPicker'
-import { useArtifacts } from '../../hooks/useArtifacts'
-import { ArtifactContext } from './artifacts/ArtifactContext'
-import { ArtifactPanel } from './artifacts/ArtifactPanel'
-import { ResizeHandle } from './artifacts/ResizeHandle'
-import { MessageList } from './MessageList'
-import { ChatInput } from './ChatInput'
-import { MobileChatDrawer } from './MobileChatDrawer'
-import { SessionStatusBar } from './SessionStatusBar'
-import { CanvasPanel } from '../canvas/CanvasPanel'
-import { useCanvasPanel } from '../canvas/hooks/useCanvasPanel'
+import "./styles.css";
+import { useCallback, useEffect, useRef } from "react";
+import { useIsMobile } from "../../hooks/useIsMobile";
+import type {
+  ChatState,
+  ConversationState,
+  VoiceProps,
+} from "../../types/chat";
+import { ConversationPicker } from "../ConversationPicker";
+import { useArtifacts } from "../../hooks/useArtifacts";
+import { ArtifactContext } from "./artifacts/ArtifactContext";
+import { ArtifactPanel } from "./artifacts/ArtifactPanel";
+import { ResizeHandle } from "./artifacts/ResizeHandle";
+import { MessageList } from "./MessageList";
+import { ChatInput } from "./ChatInput";
+import { MobileChatDrawer } from "./MobileChatDrawer";
+import { SessionStatusBar } from "./SessionStatusBar";
+import { CanvasPanel } from "../canvas/CanvasPanel";
+import { useCanvasPanel } from "../canvas/hooks/useCanvasPanel";
 
 interface ChatPageProps {
-  chat: ChatState
-  conversations: ConversationState
-  voice: VoiceProps
-  projectId?: string | null
-  showPlanRef?: React.MutableRefObject<(() => void) | null>
+  chat: ChatState;
+  conversations: ConversationState;
+  voice: VoiceProps;
+  projectId?: string | null;
+  showPlanRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }: ChatPageProps) {
+export function ChatPage({
+  chat,
+  conversations,
+  voice,
+  projectId,
+  showPlanRef,
+}: ChatPageProps) {
   const activeSession = conversations.sessions.find(
-    s => s.external_id === conversations.activeSessionId
-  )
-  const activeTitle = activeSession?.title ?? null
-  const effectiveSessionRef = chat.sessionRef
-    ?? (activeSession?.seq_num != null ? `#${activeSession.seq_num}` : null)
+    (s) => s.external_id === conversations.activeSessionId,
+  );
+  const activeTitle = activeSession?.title ?? null;
+  const effectiveSessionRef =
+    chat.sessionRef ??
+    (activeSession?.seq_num != null ? `#${activeSession.seq_num}` : null);
 
   const {
     activeArtifact,
@@ -40,65 +51,82 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
     closePanel,
     setVersion,
     setPanelWidth,
-  } = useArtifacts()
+  } = useArtifacts();
 
-  const isMobile = useIsMobile()
-  const canvas = useCanvasPanel()
+  const isMobile = useIsMobile();
+  const canvas = useCanvasPanel();
 
   useEffect(() => {
     if (chat.canvasPanel) {
-      canvas.openCanvas(chat.canvasPanel)
+      canvas.openCanvas(chat.canvasPanel);
     } else {
-      canvas.closeCanvas()
+      canvas.closeCanvas();
     }
-  }, [chat.canvasPanel, canvas.openCanvas, canvas.closeCanvas])
+  }, [chat.canvasPanel, canvas.openCanvas, canvas.closeCanvas]);
 
-  const planArtifactIdRef = useRef<string | null>(null)
+  const planArtifactIdRef = useRef<string | null>(null);
 
-  const openCodeAsArtifact = useCallback((language: string, content: string, title?: string) => {
-    createArtifact('code', content, language, title)
-  }, [createArtifact])
+  const openCodeAsArtifact = useCallback(
+    (language: string, content: string, title?: string) => {
+      createArtifact("code", content, language, title);
+    },
+    [createArtifact],
+  );
 
   // Wire plan content to artifact panel when ExitPlanMode fires
-  const onPlanReady = useCallback((content: string | null) => {
-    if (content) {
-      const id = createArtifact('text', content, 'markdown', 'Implementation Plan')
-      planArtifactIdRef.current = id
-    }
-  }, [createArtifact])
+  const onPlanReady = useCallback(
+    (content: string | null) => {
+      if (content) {
+        const id = createArtifact(
+          "text",
+          content,
+          "markdown",
+          "Implementation Plan",
+        );
+        planArtifactIdRef.current = id;
+      }
+    },
+    [createArtifact],
+  );
 
   useEffect(() => {
-    chat.setOnPlanReady?.(onPlanReady)
-  }, [chat.setOnPlanReady, onPlanReady])
+    chat.setOnPlanReady?.(onPlanReady);
+  }, [chat.setOnPlanReady, onPlanReady]);
 
   // Wrap approve/reject to also close the artifact panel
   const handleApprovePlan = useCallback(() => {
-    chat.onApprovePlan?.()
-    closePanel()
-  }, [chat.onApprovePlan, closePanel])
+    chat.onApprovePlan?.();
+    closePanel();
+  }, [chat.onApprovePlan, closePanel]);
 
-  const handleRequestPlanChanges = useCallback((feedback: string) => {
-    chat.onRequestPlanChanges?.(feedback)
-    closePanel()
-  }, [chat.onRequestPlanChanges, closePanel])
+  const handleRequestPlanChanges = useCallback(
+    (feedback: string) => {
+      chat.onRequestPlanChanges?.(feedback);
+      closePanel();
+    },
+    [chat.onRequestPlanChanges, closePanel],
+  );
 
   // Expose callback for /plan command to reopen plan artifact
   useEffect(() => {
     if (showPlanRef) {
       showPlanRef.current = () => {
         if (planArtifactIdRef.current) {
-          openArtifact(planArtifactIdRef.current)
+          openArtifact(planArtifactIdRef.current);
         }
-      }
+      };
     }
-    return () => { if (showPlanRef) showPlanRef.current = null }
-  }, [showPlanRef, openArtifact])
+    return () => {
+      if (showPlanRef) showPlanRef.current = null;
+    };
+  }, [showPlanRef, openArtifact]);
 
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">
       <ConversationPicker
         sessions={conversations.sessions}
         activeSessionId={conversations.activeSessionId}
+        deletingIds={conversations.deletingIds}
         onNewChat={conversations.onNewChat}
         onSelectSession={conversations.onSelectSession}
         onDeleteSession={conversations.onDeleteSession}
@@ -123,7 +151,9 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
         <ArtifactContext.Provider value={{ openCodeAsArtifact }}>
           <div className="flex flex-1 min-h-0">
             {/* Chat column — hidden on mobile when artifact/canvas panel is open */}
-            <div className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? ' hidden' : ''}`}>
+            <div
+              className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}
+            >
               <SessionStatusBar
                 sessionRef={effectiveSessionRef}
                 title={chat.attachedSessionMeta?.title ?? activeTitle}
@@ -133,8 +163,9 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                 <div className="session-observation-banner">
                   <span className="session-observation-indicator" />
                   Observing <b>{chat.attachedSessionMeta.source}</b> session
-                  {chat.attachedSessionMeta.ref && ` ${chat.attachedSessionMeta.ref}`}
-                  {chat.attachedSessionMeta.status === 'active' && ' (live)'}
+                  {chat.attachedSessionMeta.ref &&
+                    ` ${chat.attachedSessionMeta.ref}`}
+                  {chat.attachedSessionMeta.status === "active" && " (live)"}
                   <button
                     className="session-observation-detach"
                     onClick={chat.onDetachFromSession}
@@ -193,7 +224,12 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
               />
             ) : isPanelOpen && activeArtifact ? (
               <>
-                {!isMobile && <ResizeHandle onResize={setPanelWidth} panelWidth={panelWidth} />}
+                {!isMobile && (
+                  <ResizeHandle
+                    onResize={setPanelWidth}
+                    panelWidth={panelWidth}
+                  />
+                )}
                 <ArtifactPanel
                   artifact={activeArtifact}
                   width={isMobile ? undefined : panelWidth}
@@ -206,10 +242,9 @@ export function ChatPage({ chat, conversations, voice, projectId, showPlanRef }:
                 />
               </>
             ) : null}
-
           </div>
         </ArtifactContext.Provider>
       </div>
     </div>
-  )
+  );
 }

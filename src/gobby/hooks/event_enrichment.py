@@ -124,22 +124,16 @@ class EventEnricher:
             and event.metadata.get("_platform_session_id")
         ):
             try:
-                self._inject_pending_messages(
-                    event.metadata["_platform_session_id"], response
-                )
+                self._inject_pending_messages(event.metadata["_platform_session_id"], response)
             except Exception as e:
                 logger.debug(f"Piggyback message injection failed: {e}")
 
-    def _inject_pending_messages(
-        self, platform_session_id: str, response: HookResponse
-    ) -> None:
+    def _inject_pending_messages(self, platform_session_id: str, response: HookResponse) -> None:
         """Check for and inject undelivered messages into response context."""
         if not self._inter_session_msg_manager:
             return
 
-        undelivered = self._inter_session_msg_manager.get_undelivered_messages(
-            platform_session_id
-        )
+        undelivered = self._inter_session_msg_manager.get_undelivered_messages(platform_session_id)
         if not undelivered:
             return
 

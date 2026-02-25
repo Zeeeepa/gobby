@@ -644,9 +644,7 @@ class SessionControlMixin:
             session = None
 
         if not session:
-            await self._send_error(
-                websocket, f"Session not found: {session_id}", code="NOT_FOUND"
-            )
+            await self._send_error(websocket, f"Session not found: {session_id}", code="NOT_FOUND")
             return
 
         # Persist the message via InterSessionMessageManager
@@ -659,9 +657,7 @@ class SessionControlMixin:
             except Exception as e:
                 logger.warning(f"Failed to create InterSessionMessageManager: {e}")
 
-        web_session_id = (self.clients.get(websocket) or {}).get(
-            "attached_session_id", "web-ui"
-        )
+        web_session_id = (self.clients.get(websocket) or {}).get("attached_session_id", "web-ui")
 
         msg_id: str | None = None
         if inter_msg_manager:
@@ -699,9 +695,7 @@ class SessionControlMixin:
                     # Mark as delivered
                     if inter_msg_manager and msg_id:
                         try:
-                            await asyncio.to_thread(
-                                inter_msg_manager.mark_delivered, msg_id
-                            )
+                            await asyncio.to_thread(inter_msg_manager.mark_delivered, msg_id)
                         except Exception:
                             pass
             except Exception as e:
