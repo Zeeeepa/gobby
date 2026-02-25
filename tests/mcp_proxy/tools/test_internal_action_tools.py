@@ -3,7 +3,7 @@
 Verifies that workflow action functions are exposed as MCP tools:
 - gobby-memory: sync_import, sync_export, extract_from_session
 - gobby-tasks: sync_import, sync_export
-- gobby-sessions: generate_handoff, extract_handoff_context, capture_baseline_dirty_files
+- gobby-sessions: set_handoff_context, get_handoff_context, capture_baseline_dirty_files
 """
 
 from __future__ import annotations

@@ -291,7 +291,7 @@ class TestRuleDefinitionBody:
             effect=RuleEffect(
                 type="mcp_call",
                 server="gobby-sessions",
-                tool="extract_handoff_context",
+                tool="set_handoff_context",
             ),
             group="context-handoff",
         )

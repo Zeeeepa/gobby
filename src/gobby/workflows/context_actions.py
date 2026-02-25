@@ -1,7 +1,7 @@
 """Context injection and handoff workflow actions.
 
 Extracted from actions.py as part of strangler fig decomposition.
-These functions handle context injection, message injection, and handoff extraction.
+These functions handle context injection, message injection, and handoff formatting.
 """
 
 from __future__ import annotations
@@ -15,8 +15,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from gobby.workflows.actions import ActionContext
     from gobby.workflows.templates import TemplateRenderer
-
-from gobby.workflows.git_utils import get_git_status, get_recent_git_commits
 
 logger = logging.getLogger(__name__)
 
@@ -376,142 +374,6 @@ def inject_message(
     return {"inject_message": rendered_content}
 
 
-def extract_handoff_context(
-    session_manager: Any,
-    session_id: str,
-    config: Any | None = None,
-    db: Any | None = None,
-    worktree_manager: Any | None = None,
-) -> dict[str, Any] | None:
-    """Extract handoff context from transcript and save to session.compact_markdown.
-
-    Args:
-        session_manager: The session manager instance
-        session_id: Current session ID
-        config: Optional config with compact_handoff settings
-        db: Optional LocalDatabase instance for dependency injection
-        worktree_manager: Optional LocalWorktreeManager instance for dependency injection
-
-    Returns:
-        Dict with extraction result or error
-    """
-    if config:
-        compact_config = getattr(config, "compact_handoff", None)
-        if compact_config and not compact_config.enabled:
-            return {"skipped": True, "reason": "compact_handoff disabled"}
-
-    current_session = session_manager.get(session_id)
-    if not current_session:
-        return {"error": "Session not found"}
-
-    transcript_path = getattr(current_session, "jsonl_path", None)
-    if not transcript_path:
-        return {"error": "No transcript path"}
-
-    try:
-        # Check if session has a rolling digest — use it as the narrative portion
-        digest = getattr(current_session, "digest_markdown", None)
-        if isinstance(digest, str) and digest.strip():
-            # Build compact context from digest + structured data
-            sections: list[str] = [f"### Session Digest\n{digest}"]
-
-            # Append real-time git status
-            git_status = get_git_status()
-            if git_status:
-                sections.append(f"### Uncommitted Changes\n```\n{git_status}\n```")
-
-            real_commits = get_recent_git_commits()
-            if real_commits:
-                commit_lines = ["### Commits This Session"]
-                for commit in real_commits:
-                    commit_lines.append(
-                        f"- `{commit.get('hash', '')[:7]}` {commit.get('message', '')}"
-                    )
-                sections.append("\n".join(commit_lines))
-
-            markdown = "\n\n".join(sections)
-            session_manager.update_compact_markdown(session_id, markdown)
-            logger.debug(
-                "Saved digest-based compact handoff (%d chars) to session %s",
-                len(markdown),
-                session_id,
-            )
-            return {
-                "handoff_context_extracted": True,
-                "markdown_length": len(markdown),
-                "source": "digest",
-            }
-
-        # Fallback: full transcript analysis when digest is empty
-        from gobby.sessions.analyzer import TranscriptAnalyzer
-
-        path = Path(transcript_path)
-        if not path.exists():
-            return {"error": "Transcript file not found"}
-
-        turns = []
-        with open(path) as f:
-            for line in f:
-                if line.strip():
-                    turns.append(json.loads(line))
-
-        analyzer = TranscriptAnalyzer()
-        handoff_ctx = analyzer.extract_handoff_context(turns, max_turns=100)
-
-        # Enrich with real-time git status
-        if not handoff_ctx.git_status:
-            handoff_ctx.git_status = get_git_status()
-
-        # Enrich with real git commits
-        real_commits = get_recent_git_commits()
-        if real_commits:
-            handoff_ctx.git_commits = real_commits
-
-        # Enrich with worktree context if session is in a worktree
-        try:
-            # Use injected worktree_manager, or create one from injected db
-            wt_manager = worktree_manager
-            if wt_manager is None and db is not None:
-                from gobby.storage.worktrees import LocalWorktreeManager
-
-                wt_manager = LocalWorktreeManager(db)
-
-            if wt_manager is not None:
-                worktrees = wt_manager.list(agent_session_id=session_id, limit=1)
-                if worktrees:
-                    wt = worktrees[0]
-                    handoff_ctx.active_worktree = {
-                        "id": wt.id,
-                        "branch_name": wt.branch_name,
-                        "worktree_path": wt.worktree_path,
-                        "base_branch": wt.base_branch,
-                        "task_id": wt.task_id,
-                        "status": wt.status,
-                    }
-            else:
-                logger.debug("Skipping worktree enrichment: no worktree_manager or db provided")
-        except Exception as wt_err:
-            logger.debug(f"Failed to get worktree context: {wt_err}")
-
-        # Note: active_skills population removed - redundant with _build_skill_injection_context()
-        # which already handles skill restoration on session start
-
-        # Format as markdown (like /clear stores formatted summary)
-        markdown = format_handoff_as_markdown(handoff_ctx)
-
-        # Save to session.compact_markdown
-        session_manager.update_compact_markdown(session_id, markdown)
-
-        logger.debug(
-            f"Saved compact handoff markdown ({len(markdown)} chars) to session {session_id}"
-        )
-        return {"handoff_context_extracted": True, "markdown_length": len(markdown)}
-
-    except Exception as e:
-        logger.error(f"extract_handoff_context: Failed: {e}")
-        return {"error": str(e)}
-
-
 def _format_memories(memories: list[Any]) -> str:
     """Format memory objects as markdown for injection.
 
@@ -825,18 +687,4 @@ async def handle_inject_message(context: ActionContext, **kwargs: Any) -> dict[s
         template_engine=context.template_engine,
         content=kwargs.get("content"),
         **{k: v for k, v in kwargs.items() if k != "content"},
-    )
-
-
-async def handle_extract_handoff_context(
-    context: ActionContext, **kwargs: Any
-) -> dict[str, Any] | None:
-    """ActionHandler wrapper for extract_handoff_context."""
-    return await asyncio.to_thread(
-        extract_handoff_context,
-        session_manager=context.session_manager,
-        session_id=context.session_id,
-        config=context.config,
-        db=context.db,
-        worktree_manager=kwargs.get("worktree_manager"),
     )
