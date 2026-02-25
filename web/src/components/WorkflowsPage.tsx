@@ -99,7 +99,10 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
       const res = await fetch(`/api/workflows/install-all-templates?workflow_type=${typeMap[activeTab]}`, {
         method: 'POST',
       })
-      if (res.ok) setRefreshKey(k => k + 1)
+      if (res.ok) {
+        setSourceFilter('installed')
+        setRefreshKey(k => k + 1)
+      }
     } catch (e) {
       console.error('Failed to install all templates:', e)
     }
