@@ -323,7 +323,7 @@ class TestSecretsEndpoints:
         data = response.json()
         assert len(data["secrets"]) >= 1
         names = [s["name"] for s in data["secrets"]]
-        assert "MY_KEY" in names
+        assert "my_key" in names
 
     def test_create_secret(self, client: TestClient, mock_machine_id) -> None:
         response = client.post(
@@ -338,7 +338,7 @@ class TestSecretsEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["ok"] is True
-        assert data["secret"]["name"] == "TEST_SECRET"
+        assert data["secret"]["name"] == "test_secret"
 
     def test_create_secret_default_category(self, client: TestClient, mock_machine_id) -> None:
         response = client.post(

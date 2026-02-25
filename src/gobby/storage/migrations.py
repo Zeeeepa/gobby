@@ -1038,6 +1038,83 @@ def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
     logger.info(f"Secret name migration complete: {migrated} renamed, {deleted} duplicates removed")
 
 
+def _normalize_secret_names_lowercase(db: LocalDatabase) -> None:
+    """Normalize all secret names to lowercase, deduplicating as needed.
+
+    When duplicates exist (e.g., ELEVENLABS_API_KEY and elevenlabs_api_key),
+    the most recently updated row is kept and others are deleted.
+    Also updates $secret: references in config_store to lowercase.
+    """
+    rows = db.fetchall("SELECT id, name, updated_at FROM secrets ORDER BY name")
+    if not rows:
+        logger.info("No secrets to normalize")
+        return
+
+    # Group by lowercase name to find duplicates
+    groups: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        lower = row["name"].lower()
+        groups.setdefault(lower, []).append(dict(row))
+
+    migrated = 0
+    deleted = 0
+
+    with db.transaction() as conn:
+        for lower_name, group in groups.items():
+            if len(group) == 1:
+                # No duplicate — just lowercase if needed
+                entry = group[0]
+                if entry["name"] != lower_name:
+                    # Update config_store references first
+                    old_ref = json.dumps(f"$secret:{entry['name']}")
+                    new_ref = json.dumps(f"$secret:{lower_name}")
+                    conn.execute(
+                        "UPDATE config_store SET value = ? WHERE value = ?",
+                        (new_ref, old_ref),
+                    )
+                    conn.execute(
+                        "UPDATE secrets SET name = ? WHERE id = ?",
+                        (lower_name, entry["id"]),
+                    )
+                    migrated += 1
+                    logger.debug(f"Lowercased secret '{entry['name']}' -> '{lower_name}'")
+            else:
+                # Duplicates — keep the most recently updated one
+                group.sort(key=lambda r: r["updated_at"], reverse=True)
+                keeper = group[0]
+                for dup in group[1:]:
+                    # Update any config_store refs pointing to the dup
+                    old_ref = json.dumps(f"$secret:{dup['name']}")
+                    new_ref = json.dumps(f"$secret:{lower_name}")
+                    conn.execute(
+                        "UPDATE config_store SET value = ? WHERE value = ?",
+                        (new_ref, old_ref),
+                    )
+                    conn.execute("DELETE FROM secrets WHERE id = ?", (dup["id"],))
+                    deleted += 1
+                    logger.debug(
+                        f"Deleted duplicate secret '{dup['name']}' "
+                        f"(keeping '{keeper['name']}' as '{lower_name}')"
+                    )
+                # Lowercase the keeper
+                if keeper["name"] != lower_name:
+                    old_ref = json.dumps(f"$secret:{keeper['name']}")
+                    new_ref = json.dumps(f"$secret:{lower_name}")
+                    conn.execute(
+                        "UPDATE config_store SET value = ? WHERE value = ?",
+                        (new_ref, old_ref),
+                    )
+                    conn.execute(
+                        "UPDATE secrets SET name = ? WHERE id = ?",
+                        (lower_name, keeper["id"]),
+                    )
+                    migrated += 1
+
+    logger.info(
+        f"Secret name normalization complete: {migrated} lowercased, {deleted} duplicates removed"
+    )
+
+
 def _migrate_agent_defs_to_workflow_defs(db: LocalDatabase) -> None:
     """Migrate agent_definitions rows to workflow_definitions with workflow_type='agent'.
 
@@ -1369,6 +1446,11 @@ CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
         126,
         "Add chat_mode column to sessions",
         "ALTER TABLE sessions ADD COLUMN chat_mode TEXT DEFAULT 'plan'",
+    ),
+    (
+        127,
+        "Normalize secret names to lowercase and deduplicate",
+        _normalize_secret_names_lowercase,
     ),
 ]
 
