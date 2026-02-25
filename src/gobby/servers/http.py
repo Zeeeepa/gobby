@@ -744,6 +744,7 @@ class HTTPServer:
         """
         from gobby.servers.routes import (
             create_admin_router,
+            create_agent_spawn_router,
             create_agents_router,
             create_configuration_router,
             create_cron_router,
@@ -767,6 +768,7 @@ class HTTPServer:
         # Include all routers
         app.include_router(create_auth_router(self))
         app.include_router(create_admin_router(self))
+        app.include_router(create_agent_spawn_router(self))
         app.include_router(create_agents_router(self))
         app.include_router(create_sessions_router(self))
         app.include_router(create_memory_router(self))

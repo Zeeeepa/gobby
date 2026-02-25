@@ -13,6 +13,7 @@ import { AuditLog } from './tasks/AuditLog'
 import { GanttChart } from './tasks/GanttChart'
 import { DigestView } from './tasks/DigestView'
 import { DependencyGraph } from './tasks/DependencyGraph'
+import { TaskSelectionToolbar } from './tasks/TaskSelectionToolbar'
 
 // =============================================================================
 // Constants
@@ -175,11 +176,26 @@ function SortArrow({ column, sortColumn, sortDirection }: { column: SortColumn; 
 // TaskRow
 // =============================================================================
 
-function TaskRow({ task, onSelect }: { task: GobbyTask; onSelect: (id: string) => void }) {
+function TaskRow({ task, onSelect, isSelected, onToggleSelect }: {
+  task: GobbyTask
+  onSelect: (id: string) => void
+  isSelected?: boolean
+  onToggleSelect?: (id: string, e: React.MouseEvent) => void
+}) {
   return (
-    <tr className="tasks-row" onClick={() => onSelect(task.id)} style={{ cursor: 'pointer' }}>
+    <tr className={`tasks-row ${isSelected ? 'tasks-row--selected' : ''}`} onClick={() => onSelect(task.id)} style={{ cursor: 'pointer' }}>
       <td className="tasks-cell tasks-cell--status">
-        <StatusDot status={task.status} />
+        {onToggleSelect ? (
+          <input
+            type="checkbox"
+            className="task-select-checkbox"
+            checked={isSelected || false}
+            onChange={() => {}}
+            onClick={e => { e.stopPropagation(); onToggleSelect(task.id, e as any) }}
+          />
+        ) : (
+          <StatusDot status={task.status} />
+        )}
       </td>
       <td className="tasks-cell tasks-cell--ref">
         <span className="tasks-ref">{task.ref}</span>
@@ -219,6 +235,16 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
   const [sortColumn, setSortColumn] = useState<SortColumn>('ref')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [subtreeRootId, setSubtreeRootId] = useState<string | null>(null)
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
+
+  const toggleTaskSelection = useCallback((taskId: string, _event?: React.MouseEvent) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }, [])
 
   const handleSort = useCallback((col: SortColumn) => {
     setSortColumn(prev => {
@@ -256,6 +282,14 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
       t => completed.has(t.status) && new Date(t.updated_at).getTime() > cutoff
     )
   }, [scopedTasks, filters.status])
+
+  const selectedTaskObjects = useMemo(() => {
+    return displayTasks.filter(t => selectedTaskIds.has(t.id)).map(t => ({
+      id: t.id,
+      title: t.title,
+      category: null as string | null,
+    }))
+  }, [displayTasks, selectedTaskIds])
 
   // Subtree kanban: filter to leaf tasks under a specific parent
   const kanbanTasks = useMemo(() => {
@@ -540,7 +574,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
                     </thead>
                     <tbody>
                       {agentTasks.map(task => (
-                        <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
+                        <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} isSelected={selectedTaskIds.has(task.id)} onToggleSelect={toggleTaskSelection} />
                       ))}
                     </tbody>
                   </table>
@@ -561,13 +595,20 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
               </thead>
               <tbody>
                 {displayTasks.map(task => (
-                  <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} />
+                  <TaskRow key={task.id} task={task} onSelect={setSelectedTaskId} isSelected={selectedTaskIds.has(task.id)} onToggleSelect={toggleTaskSelection} />
                 ))}
               </tbody>
             </table>
           )}
         </div>
       )}
+
+      <TaskSelectionToolbar
+        selectedTasks={selectedTaskObjects}
+        projectId={projectFilter}
+        onClearSelection={() => setSelectedTaskIds(new Set())}
+        onBatchSpawned={() => refreshTasks()}
+      />
 
       <TaskDetail
         taskId={selectedTaskId}
