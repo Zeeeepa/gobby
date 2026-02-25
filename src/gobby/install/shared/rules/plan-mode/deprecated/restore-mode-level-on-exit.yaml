@@ -1,0 +1,13 @@
+tags: [plan-mode, state-tracking]
+
+rules:
+  restore-mode-level-on-exit:
+    description: "Restore mode_level from chat_mode when exiting plan mode"
+    event: after_tool
+    enabled: false
+    priority: 11
+    when: "event.data.get('tool_name') == 'ExitPlanMode'"
+    effect:
+      type: set_variable
+      variable: mode_level
+      value: "{{ {'plan': 0, 'accept_edits': 1, 'normal': 1}.get(variables.get('chat_mode', 'bypass'), 2) }}"

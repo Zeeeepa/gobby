@@ -1,0 +1,38 @@
+tags: [context-handoff, context, handoff, lifecycle]
+
+rules:
+  preserve-context-on-compact:
+    description: "Reset tracking, extract context, and export data before compaction"
+    event: pre_compact
+    enabled: false
+    priority: 5
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effects:
+      - type: set_variable
+        variable: injected_memory_ids
+        value: []
+      - type: set_variable
+        variable: pending_context_reset
+        value: true
+      - type: mcp_call
+        server: gobby-sessions
+        tool: set_handoff_context
+        arguments:
+          compact: true
+      - type: mcp_call
+        server: gobby-memory
+        tool: extract_from_session
+        arguments:
+          max_memories: 5
+      - type: mcp_call
+        server: gobby-tasks
+        tool: sync_export
+      - type: mcp_call
+        server: gobby-memory
+        tool: sync_export
+      - type: mcp_call
+        server: gobby-sessions
+        tool: set_handoff_context
+        arguments:
+          full: true
+          write_file: true

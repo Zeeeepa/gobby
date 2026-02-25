@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # --- Workflow Definition Models (YAML) ---
 
@@ -54,6 +54,9 @@ class RuleEffect(BaseModel):
 
     type: Literal["block", "set_variable", "inject_context", "mcp_call", "observe"]
 
+    # Per-effect condition (gates this individual effect within a multi-effect rule)
+    when: str | None = None
+
     # block — prevent the action
     reason: str | None = None
     tools: list[str] | None = None
@@ -90,7 +93,7 @@ class RuleEffect(BaseModel):
             "observe": {"category", "message"},
         }
         # Fields with non-None defaults that shouldn't trigger warnings
-        _default_skip = {"background"}
+        _default_skip = {"background", "when"}
         relevant = _fields_by_type.get(self.type, set())
         for field_name, field_set in _fields_by_type.items():
             if field_name == self.type:
@@ -112,9 +115,33 @@ class RuleDefinitionBody(BaseModel):
     event: RuleEvent
     when: str | None = None
     match: dict[str, Any] | None = None
-    effect: RuleEffect
+    effect: RuleEffect | None = None
+    effects: list[RuleEffect] | None = None
     group: str | None = None
     agent_scope: list[str] | None = None  # Only active for these agent types
+
+    @model_validator(mode="after")
+    def _validate_effects(self) -> "RuleDefinitionBody":
+        has_effect = self.effect is not None
+        has_effects = self.effects is not None and len(self.effects) > 0
+        if has_effect and has_effects:
+            raise ValueError("Specify either 'effect' or 'effects', not both")
+        if not has_effect and not has_effects:
+            raise ValueError("Specify either 'effect' or 'effects'")
+        if has_effects:
+            block_count = sum(e.type == "block" for e in self.effects)  # type: ignore[union-attr]
+            if block_count > 1:
+                raise ValueError("At most one 'block' effect is allowed per rule")
+        return self
+
+    @property
+    def resolved_effects(self) -> list[RuleEffect]:
+        """Return the canonical list of effects (works for both singular and plural)."""
+        if self.effects:
+            return self.effects
+        if self.effect:
+            return [self.effect]
+        return []
 
 
 class VariableDefinitionBody(BaseModel):

@@ -1,0 +1,65 @@
+tags: [session-defaults, initialization]
+
+rules:
+  initialize-session-defaults:
+    description: "Set all session variable defaults on session start"
+    event: session_start
+    enabled: false
+    priority: 1
+    effects:
+      - type: set_variable
+        variable: require_uv
+        value: true
+        when: "variables.get('require_uv') is None"
+      - type: set_variable
+        variable: chat_mode
+        value: bypass
+        when: "variables.get('chat_mode') is None"
+      - type: set_variable
+        variable: mode_level
+        value: 2
+        when: "variables.get('mode_level') is None"
+      - type: set_variable
+        variable: stop_attempts
+        value: 0
+        when: "variables.get('stop_attempts') is None"
+      - type: set_variable
+        variable: max_stop_attempts
+        value: 8
+        when: "variables.get('max_stop_attempts') is None"
+      - type: set_variable
+        variable: task_claimed
+        value: false
+        when: "variables.get('task_claimed') is None"
+      - type: set_variable
+        variable: task_ref
+        value: ""
+        when: "variables.get('task_ref') is None"
+      - type: set_variable
+        variable: require_task_before_edit
+        value: true
+        when: "variables.get('require_task_before_edit') is None"
+      - type: set_variable
+        variable: require_commit_before_close
+        value: true
+        when: "variables.get('require_commit_before_close') is None"
+      - type: set_variable
+        variable: pre_existing_errors_triaged
+        value: false
+        when: "variables.get('pre_existing_errors_triaged') is None"
+      - type: set_variable
+        variable: enforce_tool_schema_check
+        value: true
+        when: "variables.get('enforce_tool_schema_check') is None"
+      - type: set_variable
+        variable: servers_listed
+        value: false
+        when: "variables.get('servers_listed') is None"
+      - type: set_variable
+        variable: listed_servers
+        value: []
+        when: "variables.get('listed_servers') is None"
+      - type: set_variable
+        variable: unlocked_tools
+        value: []
+        when: "variables.get('unlocked_tools') is None"

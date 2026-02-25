@@ -18,7 +18,7 @@ from gobby.storage.workflow_definitions import (
     LocalWorkflowDefinitionManager,
     WorkflowDefinitionRow,
 )
-from gobby.workflows.definitions import RuleDefinitionBody, RuleEvent
+from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect, RuleEvent
 from gobby.workflows.enforcement.blocking import (
     is_discovery_tool,
     is_message_delivery_tool,
@@ -106,56 +106,48 @@ class RuleEngine:
         for _row, body in rules:
             # Build fresh eval context with current variables
             ctx = self._build_eval_context(event, variables, eval_context)
-            effect = body.effect
 
             # Build allowed_funcs once per iteration — shared by condition and templates
             allowed_funcs = self._build_allowed_funcs(ctx)
 
-            # Check `when` condition
+            # Check rule-level `when` condition
             if body.when:
-                if not self._evaluate_condition(body.when, ctx, effect.type, allowed_funcs):
+                # Use first effect type for fail-open/closed heuristic
+                first_type = body.resolved_effects[0].type if body.resolved_effects else "block"
+                if not self._evaluate_condition(body.when, ctx, first_type, allowed_funcs):
                     continue
 
-            # Apply effect
-            if effect.type == "block":
-                if self._should_block(effect, event):
-                    block_reason = effect.reason or "Blocked by rule"
+            # Process effects: non-block effects first, then block (if any)
+            effects = body.resolved_effects
+            deferred_block: RuleEffect | None = None
+
+            for effect in effects:
+                # Check per-effect `when` condition
+                if effect.when:
+                    if not self._evaluate_condition(effect.when, ctx, effect.type, allowed_funcs):
+                        continue
+
+                if effect.type == "block":
+                    # Defer block to after all sibling non-block effects
+                    deferred_block = effect
+                    continue
+
+                # Apply non-block effects immediately
+                self._apply_effect(
+                    effect, _row, variables, ctx, allowed_funcs, context_parts, mcp_calls
+                )
+
+            # Now apply deferred block (if any)
+            if deferred_block is not None:
+                if self._should_block(deferred_block, event):
+                    block_reason = deferred_block.reason or "Blocked by rule"
                     block_reason = self._render_template(block_reason, ctx, allowed_funcs)
                     block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
+                    # Auto-set tool_block_pending on before_tool blocks
+                    if rule_event == RuleEvent.BEFORE_TOOL:
+                        variables["tool_block_pending"] = True
                     # First block wins — stop evaluating
                     break
-
-            elif effect.type == "set_variable":
-                self._apply_set_variable(effect, variables, ctx)
-
-            elif effect.type == "inject_context":
-                if effect.template:
-                    template_text = self._render_template(effect.template, ctx, allowed_funcs)
-                    context_parts.append(template_text)
-
-            elif effect.type == "observe":
-                obs_list = variables.get("_observations", [])
-                msg = effect.message or ""
-                msg = self._render_template(msg, ctx, allowed_funcs)
-                obs_list.append(
-                    {
-                        "category": effect.category or "general",
-                        "message": msg,
-                        "timestamp": datetime.now(UTC).isoformat(),
-                        "rule": _row.name,
-                    }
-                )
-                variables["_observations"] = obs_list
-
-            elif effect.type == "mcp_call":
-                mcp_calls.append(
-                    {
-                        "server": effect.server,
-                        "tool": effect.tool,
-                        "arguments": effect.arguments or {},
-                        "background": effect.background,
-                    }
-                )
 
         # 6. Build response
         if block_reason:
@@ -243,6 +235,49 @@ class RuleEngine:
             return rules  # no filter — current behavior preserved
         active_set = set(active_names)
         return [(row, body) for row, body in rules if row.name in active_set]
+
+    def _apply_effect(
+        self,
+        effect: Any,
+        row: WorkflowDefinitionRow,
+        variables: dict[str, Any],
+        ctx: dict[str, Any],
+        allowed_funcs: dict[str, Callable],
+        context_parts: list[str],
+        mcp_calls: list[dict[str, Any]],
+    ) -> None:
+        """Apply a single non-block effect."""
+        if effect.type == "set_variable":
+            self._apply_set_variable(effect, variables, ctx)
+
+        elif effect.type == "inject_context":
+            if effect.template:
+                template_text = self._render_template(effect.template, ctx, allowed_funcs)
+                context_parts.append(template_text)
+
+        elif effect.type == "observe":
+            obs_list = variables.get("_observations", [])
+            msg = effect.message or ""
+            msg = self._render_template(msg, ctx, allowed_funcs)
+            obs_list.append(
+                {
+                    "category": effect.category or "general",
+                    "message": msg,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "rule": row.name,
+                }
+            )
+            variables["_observations"] = obs_list
+
+        elif effect.type == "mcp_call":
+            mcp_calls.append(
+                {
+                    "server": effect.server,
+                    "tool": effect.tool,
+                    "arguments": effect.arguments or {},
+                    "background": effect.background,
+                }
+            )
 
     def _build_eval_context(
         self,

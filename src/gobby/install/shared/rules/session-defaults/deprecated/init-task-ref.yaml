@@ -1,0 +1,14 @@
+tags:
+- session-defaults
+- initialization
+rules:
+  init-task-ref:
+    description: Default task_ref to empty string
+    event: session_start
+    enabled: false
+    priority: 1
+    when: variables.get('task_ref') is None
+    effect:
+      type: set_variable
+      variable: task_ref
+      value: ''

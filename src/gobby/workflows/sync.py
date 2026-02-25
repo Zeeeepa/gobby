@@ -281,7 +281,8 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
         "SET workflow_type = 'rule', updated_at = datetime('now') "
         "WHERE workflow_type != 'rule' "
         "  AND json_extract(definition_json, '$.event') IS NOT NULL "
-        "  AND json_extract(definition_json, '$.effect') IS NOT NULL",
+        "  AND (json_extract(definition_json, '$.effect') IS NOT NULL "
+        "       OR json_extract(definition_json, '$.effects') IS NOT NULL)",
     ).rowcount
     if repaired:
         logger.info("Repaired %d rows with incorrect workflow_type (should be 'rule')", repaired)
@@ -456,8 +457,12 @@ def _sync_single_rule(
     # Build the RuleDefinitionBody dict
     body_dict: dict[str, Any] = {
         "event": rule_data.get("event"),
-        "effect": rule_data.get("effect"),
     }
+    # Support both singular 'effect' and plural 'effects'
+    if "effects" in rule_data:
+        body_dict["effects"] = rule_data["effects"]
+    else:
+        body_dict["effect"] = rule_data.get("effect")
     if rule_data.get("when"):
         body_dict["when"] = rule_data["when"]
     if rule_data.get("match"):

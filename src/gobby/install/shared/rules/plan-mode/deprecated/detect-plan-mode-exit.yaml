@@ -1,0 +1,13 @@
+tags: [plan-mode, state-tracking]
+
+rules:
+  detect-plan-mode-exit:
+    description: "Set plan_mode=false when ExitPlanMode is called"
+    event: after_tool
+    enabled: false
+    priority: 10
+    when: "event.data.get('tool_name') == 'ExitPlanMode'"
+    effect:
+      type: set_variable
+      variable: plan_mode
+      value: false

@@ -1,6 +1,10 @@
-"""Tests for memory-lifecycle.yaml rules.
+"""Tests for memory-lifecycle rules.
 
-Verifies memory lifecycle rules sync correctly and have proper structure:
+Verifies memory lifecycle rules sync correctly and have proper structure.
+Rules that were merged into context-handoff (preserve-context-on-compact,
+preserve-context-on-end) are tested there instead.
+
+Active memory-lifecycle rules:
 - reset-memory-tracking-on-start: set_variable on session_start
 - memory-sync-import: mcp_call on session_start
 - memory-recall-on-prompt: mcp_call on before_agent
@@ -8,11 +12,6 @@ Verifies memory lifecycle rules sync correctly and have proper structure:
 - memory-capture-nudge: inject_context on before_agent
 - suggest-memory-after-close: inject_context on after_tool
 - clear-memory-review-on-create: set_variable on before_tool
-- memory-extraction-on-end: mcp_call on session_end
-- memory-sync-export-on-end: mcp_call on session_end
-- reset-memory-tracking-on-compact: set_variable on pre_compact
-- memory-extraction-on-compact: mcp_call on pre_compact
-- memory-sync-export-on-compact: mcp_call on pre_compact
 """
 
 from __future__ import annotations
@@ -37,11 +36,6 @@ MEMORY_RULES = {
     "memory-capture-nudge",
     "suggest-memory-after-close",
     "clear-memory-review-on-create",
-    "memory-extraction-on-end",
-    "memory-sync-export-on-end",
-    "reset-memory-tracking-on-compact",
-    "memory-extraction-on-compact",
-    "memory-sync-export-on-compact",
 }
 
 
@@ -66,10 +60,10 @@ def _sync_bundled(db):
 
 
 class TestMemoryLifecycleSync:
-    """Test that memory-lifecycle.yaml syncs correctly."""
+    """Test that memory-lifecycle rules sync correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
-        """All 12 memory-lifecycle rules should sync to workflow_definitions."""
+        """All memory-lifecycle rules should sync to workflow_definitions."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
@@ -96,11 +90,12 @@ class TestMemoryLifecycleSync:
         for row in rules:
             if row.name in MEMORY_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type in {
-                    "set_variable",
-                    "inject_context",
-                    "mcp_call",
-                }
+                for effect in body.resolved_effects:
+                    assert effect.type in {
+                        "set_variable",
+                        "inject_context",
+                        "mcp_call",
+                    }
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -109,7 +104,7 @@ class TestMemoryLifecycleSync:
 
 
 class TestResetMemoryTrackingOnStart:
-    """Reset _injected_memory_ids on context loss (session_start)."""
+    """Reset injected_memory_ids on context loss (session_start)."""
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
@@ -118,7 +113,7 @@ class TestResetMemoryTrackingOnStart:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
         assert body.effect.type == "set_variable"
-        assert body.effect.variable == "_injected_memory_ids"
+        assert body.effect.variable == "injected_memory_ids"
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
@@ -280,126 +275,3 @@ class TestClearMemoryReviewOnCreate:
         assert body.when is not None
         assert "create_memory" in body.when
         assert "gobby-memory" in body.when
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# memory-extraction-on-end
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestMemoryExtractionOnEnd:
-    """Extract memories as safety net on session end."""
-
-    def test_event_and_effect(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-end", include_templates=True)
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_end"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "extract_from_session"
-
-    def test_has_max_memories_arg(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-end", include_templates=True)
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.effect.arguments is not None
-        assert body.effect.arguments.get("max_memories") == 5
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# memory-sync-export-on-end
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestMemorySyncExportOnEnd:
-    """Export memories to JSONL on session end."""
-
-    def test_event_and_effect(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-export-on-end", include_templates=True)
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_end"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "sync_export"
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# reset-memory-tracking-on-compact
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestResetMemoryTrackingOnCompact:
-    """Reset _injected_memory_ids before compaction."""
-
-    def test_event_and_effect(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-compact", include_templates=True)
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "pre_compact"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "_injected_memory_ids"
-
-    def test_has_gemini_filter(self, db, manager) -> None:
-        """Respects Gemini auto-compress skip."""
-        _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-compact", include_templates=True)
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.when is not None
-        assert "gemini" in body.when
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# memory-extraction-on-compact
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestMemoryExtractionOnCompact:
-    """Extract memories before context loss on compaction."""
-
-    def test_event_and_effect(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-compact", include_templates=True)
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "pre_compact"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "extract_from_session"
-
-    def test_has_gemini_filter(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-extraction-on-compact", include_templates=True)
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.when is not None
-        assert "gemini" in body.when
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# memory-sync-export-on-compact
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestMemorySyncExportOnCompact:
-    """Export memories to JSONL before compaction."""
-
-    def test_event_and_effect(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-export-on-compact", include_templates=True)
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "pre_compact"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "sync_export"
-
-    def test_has_gemini_filter(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-export-on-compact", include_templates=True)
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.when is not None
-        assert "gemini" in body.when

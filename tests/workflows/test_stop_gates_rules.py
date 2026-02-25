@@ -1,7 +1,7 @@
-"""Tests for stop-gates.yaml rules.
+"""Tests for stop-gates rules.
 
 Verifies stop attempt counting, stop blocking gates (tool block,
-error triage, memory review, task close), and per-turn/per-tool resets.
+error triage, task close), and per-turn/per-tool resets via multi-effect rules.
 """
 
 from __future__ import annotations
@@ -49,20 +49,17 @@ STOP_GATES_RULES = {
     "increment-stop-attempts",
     "block-stop-after-tool-block",
     "require-error-triage",
-    "memory-review-gate",
     "require-task-close",
-    "clear-tool-block-on-prompt",
-    "reset-error-triage-on-prompt",
-    "reset-stop-on-any-tool",
-    "clear-tool-block-on-tool",
+    "reset-stop-cycle-on-prompt",
+    "reset-stop-cycle-on-tool",
 }
 
 
 class TestStopGatesSync:
-    """Test that stop-gates.yaml syncs correctly."""
+    """Test that stop-gates rules sync correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
-        """All 9 stop-gates rules should sync to workflow_definitions."""
+        """All stop-gates rules should sync to workflow_definitions."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
@@ -92,7 +89,8 @@ class TestStopGatesSync:
         for row in rules:
             if row.name in STOP_GATES_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type in {"block", "set_variable"}
+                for effect in body.resolved_effects:
+                    assert effect.type in {"block", "set_variable"}
 
 
 class TestIncrementStopAttempts:
@@ -135,14 +133,14 @@ class TestBlockStopAfterToolBlock:
         assert body.effect.type == "block"
 
     def test_when_checks_tool_block_pending(self, db, manager) -> None:
-        """Should check _tool_block_pending and stop_attempts."""
+        """Should check tool_block_pending and stop_attempts."""
         _sync_bundled(db)
 
         row = _get_rule(manager, "block-stop-after-tool-block")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
-        assert "_tool_block_pending" in body.when
+        assert "tool_block_pending" in body.when
         assert "stop_attempts" in body.when
 
 
@@ -170,31 +168,6 @@ class TestRequireErrorTriage:
         assert body.when is not None
         assert "pre_existing_errors_triaged" in body.when
         assert "task_has_commits" in body.when
-
-
-class TestMemoryReviewGate:
-    """Verify memory-review-gate blocks stop for memory review."""
-
-    def test_blocks_on_stop(self, db, manager) -> None:
-        """Should be a block effect on stop event."""
-        _sync_bundled(db)
-
-        row = _get_rule(manager, "memory-review-gate")
-        assert row is not None
-
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "stop"
-        assert body.effect.type == "block"
-
-    def test_when_checks_pending_memory_review(self, db, manager) -> None:
-        """Should check pending_memory_review."""
-        _sync_bundled(db)
-
-        row = _get_rule(manager, "memory-review-gate")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-
-        assert body.when is not None
-        assert "pending_memory_review" in body.when
 
 
 class TestRequireTaskClose:
@@ -260,19 +233,17 @@ class TestRequireTaskClose:
         )
 
 
-class TestBeforeAgentResets:
-    """Verify before_agent reset rules clear state on genuine new prompt.
+class TestResetStopCycleOnPrompt:
+    """Verify reset-stop-cycle-on-prompt multi-effect rule.
 
-    These rules are gated by stop_attempts == 0 to avoid resetting state
-    during stop cycles (where before_agent fires for hook feedback, not
-    genuine user prompts). stop_attempts itself is only reset by
-    reset-stop-on-any-tool (after_tool) to preserve the escape hatch.
+    Merges clear-tool-block-on-prompt + reset-error-triage-on-prompt.
+    Gated by stop_attempts == 0 to avoid resetting during stop cycles.
     """
 
     def test_no_reset_stop_attempts_on_prompt(self, db, manager) -> None:
         """stop_attempts should NOT be reset on before_agent.
 
-        It's only reset by reset-stop-on-any-tool (after_tool).
+        It's only reset by reset-stop-cycle-on-tool (after_tool).
         Resetting on before_agent would break the escape hatch because
         stop-hook feedback triggers before_agent.
         """
@@ -281,60 +252,51 @@ class TestBeforeAgentResets:
         row = _get_rule(manager, "reset-stop-attempts-on-prompt")
         assert row is None, "reset-stop-attempts-on-prompt should not exist"
 
-    def test_clear_tool_block_gated_by_stop_cycle(self, db, manager) -> None:
-        """Should clear _tool_block_pending only when not in stop cycle."""
+    def test_clears_both_flags(self, db, manager) -> None:
+        """Should clear tool_block_pending and pre_existing_errors_triaged."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "clear-tool-block-on-prompt")
+        row = _get_rule(manager, "reset-stop-cycle-on-prompt")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
-        assert body.effect.variable == "_tool_block_pending"
-        assert body.effect.value is False
-        assert body.when is not None
-        assert "stop_attempts" in body.when
 
-    def test_reset_error_triage_gated_by_stop_cycle(self, db, manager) -> None:
-        """Should reset pre_existing_errors_triaged only when not in stop cycle."""
+        effects = body.resolved_effects
+        assert len(effects) == 2
+        vars_and_values = {e.variable: e.value for e in effects}
+        assert vars_and_values["tool_block_pending"] is False
+        assert vars_and_values["pre_existing_errors_triaged"] is False
+
+    def test_gated_by_stop_cycle(self, db, manager) -> None:
+        """Should only fire when stop_attempts == 0 (genuine new prompt)."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "reset-error-triage-on-prompt")
-        assert row is not None
-
+        row = _get_rule(manager, "reset-stop-cycle-on-prompt")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "before_agent"
-        assert body.effect.variable == "pre_existing_errors_triaged"
-        assert body.effect.value is False
         assert body.when is not None
         assert "stop_attempts" in body.when
 
 
-class TestAfterToolResets:
-    """Verify after_tool reset rules clear state on tool use."""
+class TestResetStopCycleOnTool:
+    """Verify reset-stop-cycle-on-tool multi-effect rule.
 
-    def test_reset_stop_on_any_tool(self, db, manager) -> None:
-        """Should reset stop_attempts on any tool use (native or MCP)."""
+    Merges reset-stop-on-any-tool + clear-tool-block-on-tool.
+    """
+
+    def test_resets_both_variables(self, db, manager) -> None:
+        """Should reset stop_attempts and tool_block_pending on any tool use."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "reset-stop-on-any-tool")
+        row = _get_rule(manager, "reset-stop-cycle-on-tool")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.effect.variable == "stop_attempts"
-        assert body.effect.value == 0
-        assert body.when is None  # fires on all tools, not just native
-
-    def test_clear_tool_block_on_tool(self, db, manager) -> None:
-        """Should clear _tool_block_pending on any tool use."""
-        _sync_bundled(db)
-
-        row = _get_rule(manager, "clear-tool-block-on-tool")
-        assert row is not None
-
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "after_tool"
-        assert body.effect.variable == "_tool_block_pending"
-        assert body.effect.value is False
         assert body.when is None  # fires on all tools
+
+        effects = body.resolved_effects
+        assert len(effects) == 2
+        vars_and_values = {e.variable: e.value for e in effects}
+        assert vars_and_values["stop_attempts"] == 0
+        assert vars_and_values["tool_block_pending"] is False
