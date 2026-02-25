@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 from uuid import uuid4
 
@@ -20,16 +19,6 @@ from gobby.agents.tmux.pty_bridge import TmuxPTYBridge
 from gobby.agents.tmux.session_manager import TmuxSessionManager
 
 logger = logging.getLogger(__name__)
-
-
-def _is_process_alive(pid: int) -> bool:
-    """Check if a process with the given PID is still running."""
-    try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, ProcessLookupError):
-        return False
-
 
 # Default server config (no socket = user's default tmux)
 _DEFAULT_CONFIG = TmuxConfig(socket_name="")
@@ -112,12 +101,20 @@ class TmuxMixin:
         registry = get_running_agent_registry()
 
         # Build tmux_pane -> (session_title, gobby_session_id) map from active Gobby sessions
-        # and collect IDs of sessions whose parent process is still alive.
+        # and collect IDs of sessions whose tmux pane is still alive.
         # Uses tmux_pane (e.g. "%64") which is stable, unlike parent_pid which
         # goes stale when the CLI process exits and the shell reclaims the pane.
         pane_to_title: dict[str, str] = {}
         pane_to_session_id: dict[str, str] = {}
         live_cli_session_ids: list[str] = []
+
+        # Collect all live pane IDs from the user's default tmux server
+        live_pane_ids: set[str] = set()
+        try:
+            live_pane_ids = await self._tmux_mgr_default.list_pane_ids()
+        except Exception:
+            logger.debug("Failed to list live tmux panes", exc_info=True)
+
         session_mgr = getattr(self, "session_manager", None)
         if session_mgr:
             try:
@@ -128,10 +125,8 @@ class TmuxMixin:
                             if gs.title:
                                 pane_to_title[tmux_pane] = gs.title
                             pane_to_session_id[tmux_pane] = gs.id
-                        # Check parent process liveness
-                        pid = gs.terminal_context.get("parent_pid")
-                        if pid and _is_process_alive(int(pid)):
-                            live_cli_session_ids.append(gs.id)
+                            if tmux_pane in live_pane_ids:
+                                live_cli_session_ids.append(gs.id)
             except Exception:
                 logger.debug("Failed to build pane-to-title map", exc_info=True)
 

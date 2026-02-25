@@ -290,6 +290,15 @@ class TmuxSessionManager:
                 )
         return results
 
+    async def list_pane_ids(self) -> set[str]:
+        """Return the set of all live pane IDs (e.g. {"%0", "%5"}) across all sessions."""
+        rc, stdout, _stderr = await self._run(
+            "list-panes", "-a", "-F", "#{pane_id}",
+        )
+        if rc != 0:
+            return set()
+        return {line.strip() for line in stdout.splitlines() if line.strip()}
+
     async def has_session(self, name: str) -> bool:
         """Check whether a session with *name* exists."""
         rc, _stdout, _stderr = await self._run("has-session", "-t", name)
