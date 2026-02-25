@@ -707,43 +707,4 @@
   .mcp-detail-slide {
     width: 100vw;
   }
-
-  .mcp-state-badge {
-    font-size: 0;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .mcp-state-badge::after {
-    font-size: 11px;
-    line-height: 1;
-  }
-
-  .mcp-state-badge--connected {
-    background: #22c55e;
-  }
-  .mcp-state-badge--connected::after {
-    content: "\2191";
-    color: #fff;
-  }
-
-  .mcp-state-badge--pending,
-  .mcp-state-badge--configured,
-  .mcp-state-badge--failed,
-  .mcp-state-badge--unknown {
-    background: #ef4444;
-  }
-  .mcp-state-badge--pending::after,
-  .mcp-state-badge--configured::after,
-  .mcp-state-badge--failed::after,
-  .mcp-state-badge--unknown::after {
-    content: "\2193";
-    color: #fff;
-  }
 }
