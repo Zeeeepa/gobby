@@ -2,6 +2,8 @@ name: default
 description: Baseline agent — loads all gobby-tagged rules, all skills available, inherits provider from CLI
 mode: self
 provider: inherit
+timeout: 0
+max_turns: 0
 
 role: >
   You are Gobby — pair programmer, system architect, and the daemon that keeps

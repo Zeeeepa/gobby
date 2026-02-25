@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { CodeMirrorEditor } from '../CodeMirrorEditor'
+import { AgentRulesEditor } from './AgentRulesEditor'
+import { AgentVariablesEditor } from './AgentVariablesEditor'
 
 export interface AgentFormData {
   name: string
@@ -24,6 +27,13 @@ interface AgentEditFormProps {
   isEditing: boolean
   providerModels: Record<string, { value: string; label: string }[]>
   saveDisabled?: boolean
+  editingId?: string | null
+  branches?: string[]
+  isGitProject?: boolean
+  rules?: string[]
+  onRulesChange?: (rules: string[]) => void
+  variables?: Record<string, unknown>
+  onVariablesChange?: (variables: Record<string, unknown>) => void
 }
 
 function FormInput({ label, value, onChange, placeholder, required }: {
@@ -42,46 +52,34 @@ function FormInput({ label, value, onChange, placeholder, required }: {
   )
 }
 
-function FormSelect({ label, value, onChange, options }: {
+function FormSelect({ label, value, onChange, options, disabled }: {
   label: string; value: string; onChange: (v: string) => void
   options: { value: string; label: string }[]
+  disabled?: boolean
 }) {
   return (
-    <label className="agent-edit-field">
+    <label className={`agent-edit-field${disabled ? ' agent-edit-field--disabled' : ''}`}>
       <span className="agent-edit-label">{label}</span>
-      <select className="agent-edit-input" value={value} onChange={e => onChange(e.target.value)}>
+      <select className="agent-edit-input" value={value} onChange={e => onChange(e.target.value)} disabled={disabled}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
   )
 }
 
-function FormTextarea({ label, value, onChange, placeholder, rows = 3 }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number
-}) {
-  return (
-    <label className="agent-edit-field agent-edit-field--wide">
-      <span className="agent-edit-label">{label}</span>
-      <textarea
-        className="agent-edit-input agent-edit-textarea"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-      />
-    </label>
-  )
-}
-
-function FormNumber({ label, value, onChange }: {
-  label: string; value: number; onChange: (v: number) => void
+function FormNumber({ label, value, onChange, hint }: {
+  label: string; value: number; onChange: (v: number) => void; hint?: string
 }) {
   return (
     <label className="agent-edit-field">
-      <span className="agent-edit-label">{label}</span>
+      <span className="agent-edit-label">
+        {label}
+        {hint && <span className="agent-edit-hint">{hint}</span>}
+      </span>
       <input
         className="agent-edit-input"
         type="number"
+        min={0}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
       />
@@ -89,11 +87,21 @@ function FormNumber({ label, value, onChange }: {
   )
 }
 
-export function AgentEditForm({ form, onChange, onSave, onCancel, isEditing, providerModels, saveDisabled }: AgentEditFormProps) {
+export function AgentEditForm({
+  form, onChange, onSave, onCancel, isEditing, providerModels, saveDisabled,
+  editingId, branches = [], isGitProject = true,
+  rules, onRulesChange, variables, onVariablesChange,
+}: AgentEditFormProps) {
   const [customModelInput, setCustomModelInput] = useState(false)
-  const models = providerModels[form.provider]
+  const [customBranchInput, setCustomBranchInput] = useState(false)
+
+  const isInheritProvider = form.provider === 'inherit'
+  const models = isInheritProvider ? [{ value: '', label: '(default)' }] : providerModels[form.provider]
   const isKnown = models?.some(m => m.value === form.model)
-  const showCustomModel = customModelInput || !models || (!isKnown && form.model !== '')
+  const showCustomModel = !isInheritProvider && (customModelInput || !models || (!isKnown && form.model !== ''))
+
+  const branchKnown = form.base_branch === 'inherit' || branches.includes(form.base_branch)
+  const showCustomBranch = isGitProject && (customBranchInput || (!branchKnown && form.base_branch !== ''))
 
   const set = <K extends keyof AgentFormData>(key: K, value: AgentFormData[K]) =>
     onChange({ ...form, [key]: value })
@@ -104,11 +112,17 @@ export function AgentEditForm({ form, onChange, onSave, onCancel, isEditing, pro
         {/* Left column: dropdowns */}
         <div className="agent-edit-col-left">
           <FormSelect label="Provider" value={form.provider} onChange={v => {
-            const newModels = providerModels[v]
-            const valid = newModels?.some(m => m.value === form.model)
-            setCustomModelInput(false)
-            onChange({ ...form, provider: v, model: valid ? form.model : '' })
+            if (v === 'inherit') {
+              setCustomModelInput(false)
+              onChange({ ...form, provider: v, model: '' })
+            } else {
+              const newModels = providerModels[v]
+              const valid = newModels?.some(m => m.value === form.model)
+              setCustomModelInput(false)
+              onChange({ ...form, provider: v, model: valid ? form.model : '' })
+            }
           }} options={[
+            { value: 'inherit', label: 'Inherit' },
             { value: 'claude', label: 'Claude' },
             { value: 'gemini', label: 'Gemini' },
             { value: 'codex', label: 'Codex' },
@@ -136,27 +150,62 @@ export function AgentEditForm({ form, onChange, onSave, onCancel, isEditing, pro
                 else set('model', e.target.value)
               }}>
                 {models?.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                <option value="__custom__">Custom...</option>
+                {!isInheritProvider && <option value="__custom__">Custom...</option>}
               </select>
             )}
           </label>
 
           <FormSelect label="Mode" value={form.mode} onChange={v => set('mode', v)} options={[
+            { value: 'self', label: 'Self (inherit)' },
             { value: 'headless', label: 'Headless' },
             { value: 'terminal', label: 'Terminal' },
             { value: 'embedded', label: 'Embedded' },
           ]} />
 
-          <FormSelect label="Isolation" value={form.isolation} onChange={v => set('isolation', v)} options={[
-            { value: '', label: 'None' },
-            { value: 'none', label: 'None (explicit)' },
-            { value: 'worktree', label: 'Worktree' },
-            { value: 'clone', label: 'Clone' },
-          ]} />
+          <FormSelect
+            label="Isolation"
+            value={isGitProject ? form.isolation : ''}
+            onChange={v => set('isolation', v)}
+            options={[
+              { value: '', label: 'None' },
+              { value: 'none', label: 'None (explicit)' },
+              { value: 'worktree', label: 'Worktree' },
+              { value: 'clone', label: 'Clone' },
+            ]}
+            disabled={!isGitProject}
+          />
 
-          <FormInput label="Base branch" value={form.base_branch} onChange={v => set('base_branch', v)} placeholder="main" />
-          <FormNumber label="Timeout (s)" value={form.timeout} onChange={v => set('timeout', v)} />
-          <FormNumber label="Max turns" value={form.max_turns} onChange={v => set('max_turns', v)} />
+          <label className={`agent-edit-field${!isGitProject ? ' agent-edit-field--disabled' : ''}`}>
+            <span className="agent-edit-label">Base branch</span>
+            {!isGitProject ? (
+              <select className="agent-edit-input" disabled value="inherit">
+                <option value="inherit">Inherit</option>
+              </select>
+            ) : showCustomBranch ? (
+              <div className="agent-edit-model-field">
+                <input
+                  className="agent-edit-input"
+                  value={form.base_branch}
+                  onChange={e => set('base_branch', e.target.value)}
+                  placeholder="branch name"
+                  autoFocus={customBranchInput}
+                />
+                <button type="button" className="agent-edit-model-toggle" onClick={() => { setCustomBranchInput(false); set('base_branch', 'inherit') }}>&times;</button>
+              </div>
+            ) : (
+              <select className="agent-edit-input" value={form.base_branch} onChange={e => {
+                if (e.target.value === '__custom__') { setCustomBranchInput(true); set('base_branch', '') }
+                else set('base_branch', e.target.value)
+              }}>
+                <option value="inherit">Inherit</option>
+                {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                <option value="__custom__">Custom...</option>
+              </select>
+            )}
+          </label>
+
+          <FormNumber label="Timeout (s)" value={form.timeout} onChange={v => set('timeout', v)} hint="0 = unlimited" />
+          <FormNumber label="Max turns" value={form.max_turns} onChange={v => set('max_turns', v)} hint="0 = unlimited" />
         </div>
 
         {/* Right column: text fields */}
@@ -166,9 +215,40 @@ export function AgentEditForm({ form, onChange, onSave, onCancel, isEditing, pro
           <FormInput label="Role" value={form.role} onChange={v => set('role', v)} placeholder="e.g. Senior security engineer" />
           <FormInput label="Goal" value={form.goal} onChange={v => set('goal', v)} placeholder="What success looks like..." />
           <FormInput label="Personality" value={form.personality} onChange={v => set('personality', v)} placeholder="Communication style, tone..." />
-          <FormTextarea label="Instructions" value={form.instructions} onChange={v => set('instructions', v)} placeholder="Detailed rules, constraints, approach..." rows={4} />
+          <div className="agent-edit-field agent-edit-field--wide">
+            <span className="agent-edit-label">Instructions</span>
+            <div className="agent-edit-codemirror">
+              <CodeMirrorEditor
+                content={form.instructions}
+                language="markdown"
+                onChange={v => set('instructions', v)}
+              />
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Rules & Variables editors — only for existing DB agents */}
+      {editingId && onRulesChange && rules !== undefined && (
+        <div className="agent-edit-section">
+          <span className="agent-edit-label">Rules</span>
+          <AgentRulesEditor
+            definitionId={editingId}
+            rules={rules}
+            onRulesChange={onRulesChange}
+          />
+        </div>
+      )}
+      {editingId && onVariablesChange && variables !== undefined && (
+        <div className="agent-edit-section">
+          <span className="agent-edit-label">Variables</span>
+          <AgentVariablesEditor
+            definitionId={editingId}
+            variables={variables}
+            onVariablesChange={onVariablesChange}
+          />
+        </div>
+      )}
 
       <div className="agent-edit-actions">
         <button className="agent-defs-btn" onClick={onCancel}>Cancel</button>

@@ -67,6 +67,7 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
+  inherit: '#9ca3af',
   claude: '#6366f1',
   gemini: '#a855f7',
   codex: '#22c55e',
@@ -97,7 +98,16 @@ const ISOLATION_COLORS: Record<string, string> = {
   none: '#6b7280',
 }
 
+const DEFAULT_FORM: AgentFormData = {
+  name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+  provider: 'inherit', model: '', mode: 'self', isolation: '',
+  base_branch: 'inherit', timeout: 0, max_turns: 0,
+}
+
 const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
+  inherit: [
+    { value: '', label: '(default)' },
+  ],
   claude: [
     { value: '', label: '(default)' },
     { value: 'opus', label: 'Opus' },
@@ -170,11 +180,13 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     setTimeout(() => setToastMessage(null), 4000)
   }, [])
 
-  const [createForm, setCreateForm] = useState<AgentFormData>({
-    name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-    provider: 'claude', model: '', mode: 'headless', isolation: '',
-    base_branch: 'main', timeout: 120, max_turns: 10,
-  })
+  const [createForm, setCreateForm] = useState<AgentFormData>({ ...DEFAULT_FORM })
+
+  // Branch / git state for the edit form
+  const [branches, setBranches] = useState<string[]>([])
+  const [isGitProject, setIsGitProject] = useState(true)
+  const [editRules, setEditRules] = useState<string[]>([])
+  const [editVariables, setEditVariables] = useState<Record<string, unknown>>({})
 
   const fetchDefinitions = useCallback(async (includeDeleted = false) => {
     setLoading(true)
@@ -209,13 +221,30 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     if (!showCreateForm) {
       setEditingId(null)
     } else if (!editingId) {
-      setCreateForm({
-        name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-        provider: 'claude', model: '', mode: 'headless', isolation: '',
-        base_branch: 'main', timeout: 120, max_turns: 10,
-      })
+      setCreateForm({ ...DEFAULT_FORM })
     }
   }, [showCreateForm, editingId])
+
+  // Fetch git branches and project status
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (projectId) params.set('project_id', projectId)
+    Promise.allSettled([
+      fetch(`${getBaseUrl()}/api/source-control/branches?${params}`),
+      fetch(`${getBaseUrl()}/api/source-control/status?${params}`),
+    ]).then(([brRes, statusRes]) => {
+      if (brRes.status === 'fulfilled' && brRes.value.ok) {
+        brRes.value.json().then((data: { branches?: { name: string; is_remote: boolean }[] }) => {
+          setBranches((data.branches || []).filter(b => !b.is_remote).map(b => b.name))
+        })
+      }
+      if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
+        statusRes.value.json().then((data: { repo_path?: string }) => {
+          setIsGitProject(!!data.repo_path)
+        })
+      }
+    })
+  }, [projectId])
 
   const [providerModels, setProviderModels] = useState(PROVIDER_MODELS)
 
@@ -300,11 +329,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       })
       if (res.ok) {
         onToggleCreateForm(false)
-        setCreateForm({
-          name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-          provider: 'claude', model: '', mode: 'headless', isolation: '',
-          base_branch: 'main', timeout: 120, max_turns: 10,
-        })
+        setCreateForm({ ...DEFAULT_FORM })
         fetchDefinitions(true)
         showToast(`Agent "${createForm.name}" created`, 'success')
       } else {
@@ -334,6 +359,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       max_turns: d.max_turns,
     })
     setEditingId(item.db_id)
+    setEditRules((d.workflows?.rules as string[]) || [])
+    setEditVariables((d.workflows?.variables as Record<string, unknown>) || {})
     onToggleCreateForm(true)
   }
 
@@ -364,11 +391,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (res.ok) {
         onToggleCreateForm(false)
         setEditingId(null)
-        setCreateForm({
-          name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-          provider: 'claude', model: '', mode: 'headless', isolation: '',
-          base_branch: 'main', timeout: 120, max_turns: 10,
-        })
+        setCreateForm({ ...DEFAULT_FORM })
         fetchDefinitions(true)
         showToast(`Agent "${createForm.name}" updated`, 'success')
       } else {
@@ -379,6 +402,28 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       showToast('Failed to update agent definition', 'error')
     }
   }
+
+  const handleEditRulesChange = useCallback((newRules: string[]) => {
+    setEditRules(newRules)
+    if (editingId) {
+      setDefinitions(prev => prev.map(def =>
+        def.db_id === editingId
+          ? { ...def, definition: { ...def.definition, workflows: { ...def.definition.workflows, rules: newRules } } }
+          : def
+      ))
+    }
+  }, [editingId])
+
+  const handleEditVariablesChange = useCallback((newVars: Record<string, unknown>) => {
+    setEditVariables(newVars)
+    if (editingId) {
+      setDefinitions(prev => prev.map(def =>
+        def.db_id === editingId
+          ? { ...def, definition: { ...def.definition, workflows: { ...def.definition.workflows, variables: newVars } } }
+          : def
+      ))
+    }
+  }, [editingId])
 
   const handleDelete = async (dbId: string) => {
     if (!confirm('Delete this agent definition?')) return
@@ -584,6 +629,13 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
           isEditing={!!editingId}
           providerModels={providerModels}
           saveDisabled={!createForm.name.trim()}
+          editingId={editingId}
+          branches={branches}
+          isGitProject={isGitProject}
+          rules={editRules}
+          onRulesChange={handleEditRulesChange}
+          variables={editVariables}
+          onVariablesChange={handleEditVariablesChange}
         />
       )}
 

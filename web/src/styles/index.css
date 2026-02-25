@@ -11552,10 +11552,58 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
   color: var(--text-primary);
 }
 
+.agent-edit-field--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.agent-edit-hint {
+  font-weight: 400;
+  font-style: italic;
+  margin-left: 4px;
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.agent-edit-codemirror {
+  min-height: 200px;
+  max-height: 400px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.agent-edit-codemirror .codemirror-container {
+  height: 200px;
+}
+
+.agent-edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
 .agent-edit-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .agent-edit-columns {
+    flex-direction: column;
+  }
+  .agent-edit-col-left {
+    width: 100%;
+  }
+  .agent-edit-form {
+    max-height: 80vh;
+    overflow-y: auto;
+  }
 }
 
 /* Rules editor */
