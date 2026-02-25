@@ -1702,6 +1702,13 @@
   min-height: 0;
 }
 
+.conversation-picker .terminals-empty-sidebar {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.85);
+}
+
 /* Mobile: hide sidebars, use top drawer instead */
 @media (max-width: 768px) {
   .conversation-picker {
