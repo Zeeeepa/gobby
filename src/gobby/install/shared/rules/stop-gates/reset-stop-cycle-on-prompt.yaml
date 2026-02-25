@@ -2,11 +2,10 @@ tags: [stop-gates, enforcement, lifecycle]
 
 rules:
   reset-stop-cycle-on-prompt:
-    description: "Clear tool block and error triage flags on genuine new prompt"
+    description: "Clear tool block and error triage flags on every prompt"
     event: before_agent
     enabled: false
     priority: 11
-    when: "variables.get('stop_attempts', 0) == 0"
     effects:
       - type: set_variable
         variable: tool_block_pending
