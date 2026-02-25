@@ -11,4 +11,4 @@ rules:
       type: block
       tools: ["mcp__gobby__get_tool_schema"]
       reason: |
-        Call list_tools(server_name="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
+        You did not follow progressive disclosure.

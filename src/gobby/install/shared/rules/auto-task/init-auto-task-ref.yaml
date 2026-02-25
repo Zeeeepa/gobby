@@ -1,0 +1,14 @@
+tags:
+- session-defaults
+- initialization
+rules:
+  init-auto-task-ref:
+    description: If auto_task_ref is set to a task_ref, agent will not stop until task is closed
+    event: session_start
+    enabled: false
+    priority: 1
+    when: variables.get('auto_task_ref') is not None
+    effect:
+      type: set_variable
+      variable: auto_task_ref
+      value: ''

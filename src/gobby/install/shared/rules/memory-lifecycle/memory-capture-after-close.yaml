@@ -1,0 +1,15 @@
+tags: [memory-lifecycle, memory, lifecycle]
+
+rules:
+  suggest-memory-after-close:
+    description: "Suggest memory extraction after closing a task with a commit"
+    event: after_tool
+    enabled: false
+    priority: 50
+    when: "event.data.get('mcp_tool') == 'close_task' and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
+    effect:
+      type: inject_context
+      template: |
+        Consider saving any valuable memories from this task before stopping.
+        Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+        If nothing new was learned, no action needed.
