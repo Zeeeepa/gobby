@@ -185,6 +185,17 @@ class AgentDefinitionBody(BaseModel):
     and optional pipeline, not embedded workflows.
     """
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_empty_strings(cls, data: Any) -> Any:
+        """Replace empty strings with 'inherit' for Literal fields that don't accept ''."""
+        if isinstance(data, dict):
+            defaults = {"mode": "inherit", "isolation": "inherit", "provider": "inherit"}
+            for field, default in defaults.items():
+                if field in data and data[field] == "":
+                    data[field] = default
+        return data
+
     name: str
     description: str | None = None
     extends: str | None = None

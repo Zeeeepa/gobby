@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from gobby.utils.metrics import get_metrics_collector
 
@@ -87,11 +87,21 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
 
         return LocalWorkflowDefinitionManager(server.services.database)
 
-    def _row_to_api_dict(row: Any) -> dict[str, Any]:
-        """Convert a workflow_definitions DB row to API response dict."""
+    def _row_to_api_dict(row: Any) -> dict[str, Any] | None:
+        """Convert a workflow_definitions DB row to API response dict.
+
+        Returns None if the row fails Pydantic validation (logged and skipped).
+        """
         from gobby.workflows.definitions import AgentDefinitionBody
 
-        body = AgentDefinitionBody.model_validate_json(row.definition_json)
+        try:
+            body = AgentDefinitionBody.model_validate_json(row.definition_json)
+        except ValidationError as e:
+            logger.warning(
+                f"Skipping agent definition '{getattr(row, 'name', '?')}' "
+                f"(id={getattr(row, 'id', '?')}): {e}"
+            )
+            return None
         return {
             "definition": body.model_dump(exclude_none=True),
             "source": row.source,
@@ -114,7 +124,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 project_id=project_id,
                 include_deleted=include_deleted,
             )
-            items = [_row_to_api_dict(r) for r in rows]
+            items = [d for r in rows if (d := _row_to_api_dict(r)) is not None]
             return {
                 "status": "success",
                 "definitions": items,

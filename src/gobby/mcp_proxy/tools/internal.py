@@ -251,11 +251,26 @@ class InternalToolRegistry:
         # Coerce string arguments to declared schema types
         coerced_arguments = self._coerce_arguments(arguments, tool.input_schema)
 
+        # Inspect signature once for both _context injection and kwarg filtering
+        sig = inspect.signature(tool.func)
+        params = sig.parameters
+
         # Inject _context for tools that declare it
-        if context:
-            sig = inspect.signature(tool.func)
-            if "_context" in sig.parameters:
-                coerced_arguments["_context"] = types.SimpleNamespace(**context)
+        if context and "_context" in params:
+            coerced_arguments["_context"] = types.SimpleNamespace(**context)
+
+        # Strip unknown kwargs (unless function accepts **kwargs)
+        has_var_keyword = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+        )
+        if not has_var_keyword:
+            accepted = {
+                p.name
+                for p in params.values()
+                if p.kind
+                in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+            }
+            coerced_arguments = {k: v for k, v in coerced_arguments.items() if k in accepted}
 
         # Call the function (handle both sync and async)
         if inspect.iscoroutinefunction(tool.func):
