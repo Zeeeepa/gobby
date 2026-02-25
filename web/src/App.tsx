@@ -1039,7 +1039,7 @@ export default function App() {
         }}
         onRunSkill={(skillName) => {
           sendMessage(
-            `/skill:${skillName}`,
+            `/gobby:${skillName}`,
             settings.model,
             undefined,
             effectiveProjectId,
