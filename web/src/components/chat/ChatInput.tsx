@@ -6,6 +6,8 @@ import { Button } from './ui/Button'
 import { ModeSelector } from './ModeSelector'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { BranchIndicator } from './BranchIndicator'
+import { ActiveAgentIndicator } from './ActiveAgentIndicator'
+import type { AgentDefInfo } from '../../hooks/useAgentDefinitions'
 
 interface ChatInputProps {
   onSend: (message: string, files?: QueuedFile[]) => void
@@ -31,6 +33,14 @@ interface ChatInputProps {
   worktreePath?: string | null
   projectId?: string | null
   onWorktreeChange?: (worktreePath: string, worktreeId?: string) => void
+  agentName?: string
+  onAgentChange?: (agentName: string) => void
+  agentDefinitions?: AgentDefInfo[]
+  agentGlobalDefs?: AgentDefInfo[]
+  agentProjectDefs?: AgentDefInfo[]
+  agentShowScopeToggle?: boolean
+  agentHasGlobal?: boolean
+  agentHasProject?: boolean
 }
 
 export function ChatInput({
@@ -57,6 +67,14 @@ export function ChatInput({
   worktreePath,
   projectId,
   onWorktreeChange,
+  agentName,
+  onAgentChange,
+  agentDefinitions = [],
+  agentGlobalDefs = [],
+  agentProjectDefs = [],
+  agentShowScopeToggle = false,
+  agentHasGlobal = false,
+  agentHasProject = false,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -205,6 +223,18 @@ export function ChatInput({
           >
             <PaperclipIcon />
           </button>
+          {onAgentChange && agentName && agentDefinitions.length > 0 && (
+            <ActiveAgentIndicator
+              agentName={agentName}
+              onAgentChange={onAgentChange}
+              definitions={agentDefinitions}
+              globalDefs={agentGlobalDefs}
+              projectDefs={agentProjectDefs}
+              showScopeToggle={agentShowScopeToggle}
+              hasGlobal={agentHasGlobal}
+              hasProject={agentHasProject}
+            />
+          )}
           {onToggleVoice && voiceAvailable && (
             <button
               className={cn('p-1.5 rounded transition-colors', voiceMode ? 'text-accent bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted')}

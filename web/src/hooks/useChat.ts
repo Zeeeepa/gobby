@@ -202,6 +202,9 @@ export function useChat() {
   const [currentBranch, setCurrentBranch] = useState<string | null>(null);
   const [worktreePath, setWorktreePath] = useState<string | null>(null);
 
+  // Active agent tracking
+  const [activeAgent, setActiveAgent] = useState<string>("default");
+
   // Session attachment tracking (read-only observation of CLI sessions)
   const [attachedSessionId, setAttachedSessionId] = useState<string | null>(
     null,
@@ -469,10 +472,16 @@ export function useChat() {
           if (branch !== undefined) setCurrentBranch(branch);
           const wtPath = info.worktree_path as string | undefined;
           if (wtPath !== undefined) setWorktreePath(wtPath);
+          const agentName = info.agent_name as string | undefined;
+          if (agentName) setActiveAgent(agentName);
         } else if (data.type === "worktree_switched") {
           const wt = data as Record<string, unknown>;
           setCurrentBranch((wt.new_branch as string) ?? null);
           setWorktreePath((wt.worktree_path as string) ?? null);
+        } else if (data.type === "agent_changed") {
+          const ac = data as Record<string, unknown>;
+          const agentName = ac.agent_name as string | undefined;
+          if (agentName) setActiveAgent(agentName);
         } else if (data.type === "session_continued") {
           console.log("Session continued:", data);
         } else if (data.type === "connection_established") {
@@ -1034,8 +1043,8 @@ export function useChat() {
     }
   }, []);
 
-  // Start a new chat conversation
-  const startNewChat = useCallback(() => {
+  // Start a new chat conversation, optionally with a specific agent
+  const startNewChat = useCallback((agentName?: string) => {
     const newId = uuid();
     conversationIdRef.current = newId;
     setConversationId(newId);
@@ -1059,6 +1068,19 @@ export function useChat() {
     activeRequestIdRef.current = null;
     setIsStreaming(false);
     setIsThinking(false);
+
+    // Set active agent and send set_agent if non-default
+    const effectiveAgent = agentName || "default";
+    setActiveAgent(effectiveAgent);
+    if (agentName && agentName !== "default" && wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "set_agent",
+          conversation_id: newId,
+          agent_name: agentName,
+        }),
+      );
+    }
   }, []);
 
   // Resume a CLI session (e.g., Claude) — sets the conversation ID
@@ -1283,6 +1305,20 @@ export function useChat() {
       JSON.stringify({
         type: "set_project",
         project_id: projectId,
+        conversation_id: conversationIdRef.current,
+      }),
+    );
+  }, []);
+
+  // Notify backend that the agent changed — stops the CLI subprocess
+  // so the next chat_message recreates it with the new agent context.
+  const sendAgentChange = useCallback((agentName: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    setActiveAgent(agentName);
+    wsRef.current.send(
+      JSON.stringify({
+        type: "set_agent",
+        agent_name: agentName,
         conversation_id: conversationIdRef.current,
       }),
     );
@@ -1645,6 +1681,8 @@ export function useChat() {
     sendMode,
     sendProjectChange,
     sendWorktreeChange,
+    sendAgentChange,
+    activeAgent,
     stopStreaming,
     clearHistory,
     deleteConversation,

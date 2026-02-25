@@ -17,6 +17,7 @@ import { useTerminal } from "./hooks/useTerminal";
 import { useTmuxSessions } from "./hooks/useTmuxSessions";
 import { useSlashCommands } from "./hooks/useSlashCommands";
 import { useSessions } from "./hooks/useSessions";
+import { useAgentDefinitions } from "./hooks/useAgentDefinitions";
 import type { QueuedFile, ChatMode } from "./types/chat";
 import { Settings } from "./components/Settings";
 import { Sidebar } from "./components/Sidebar";
@@ -244,6 +245,8 @@ export default function App() {
     canvasPanel,
     onCanvasInteraction,
     setOnChatDeleted,
+    activeAgent,
+    sendAgentChange,
   } = useChat();
   const voice = useVoice(wsRef, conversationId);
   const {
@@ -397,6 +400,7 @@ export default function App() {
   const isPersonalProject =
     projectOptions.find((p) => p.id === effectiveProjectId)?.name ===
     "Personal";
+  const agentDefs = useAgentDefinitions(effectiveProjectId);
 
   // On mount: fetch persisted project from API (DB is source of truth)
   useEffect(() => {
@@ -895,6 +899,8 @@ export default function App() {
                 attachedSessionId,
                 attachedSessionMeta,
                 onDetachFromSession: detachFromSession,
+                activeAgent,
+                onAgentChange: sendAgentChange,
               }}
               conversations={{
                 sessions: webChatSessions,
@@ -912,6 +918,12 @@ export default function App() {
                 onAttachCliSession: handleAttachCliSession,
                 onDetachFromSession: detachFromSession,
               }}
+              agentDefinitions={agentDefs.definitions}
+              agentGlobalDefs={agentDefs.globalDefs}
+              agentProjectDefs={agentDefs.projectDefs}
+              agentShowScopeToggle={agentDefs.showScopeToggle}
+              agentHasGlobal={agentDefs.hasGlobal}
+              agentHasProject={agentDefs.hasProject}
               voice={{
                 voiceMode: voice.voiceMode,
                 voiceAvailable: voice.voiceAvailable,

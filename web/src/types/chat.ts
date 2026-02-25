@@ -103,6 +103,8 @@ export interface ChatState {
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
   onWorktreeChange?: (worktreePath: string, worktreeId?: string) => void;
+  activeAgent?: string;
+  onAgentChange?: (agentName: string) => void;
   planPendingApproval: boolean;
   onApprovePlan: () => void;
   onRequestPlanChanges: (feedback: string) => void;
@@ -123,7 +125,7 @@ export interface ConversationState {
   sessions: GobbySession[];
   activeSessionId: string | null;
   deletingIds?: Set<string>;
-  onNewChat: () => void;
+  onNewChat: (agentName?: string) => void;
   onSelectSession: (session: GobbySession) => void;
   onDeleteSession?: (session: GobbySession) => void;
   onRenameSession?: (id: string, title: string) => void;

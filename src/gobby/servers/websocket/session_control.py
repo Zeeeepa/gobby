@@ -43,6 +43,7 @@ class SessionControlMixin:
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
+    _pending_agents: dict[str, str]
 
     # Provided by ChatMixin / HandlerMixin – declared for type checking only.
     if TYPE_CHECKING:
@@ -428,6 +429,61 @@ class SessionControlMixin:
         logger.info(
             f"Worktree switched for conversation {conversation_id[:8]}: "
             f"branch={new_branch}, path={worktree_path}"
+        )
+
+    async def _handle_set_agent(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_agent message to switch the active agent for a conversation.
+
+        Stops the existing CLI subprocess so the next message creates a fresh
+        session with the new agent context. Conversation history is preserved
+        via database-backed history injection.
+
+        Message format:
+        {
+            "type": "set_agent",
+            "conversation_id": "stable-id",
+            "agent_name": "agent-definition-name"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        agent_name = data.get("agent_name")
+
+        if not conversation_id or not agent_name:
+            await self._send_error(websocket, "set_agent requires conversation_id and agent_name")
+            return
+
+        # Tear down existing session (same pattern as set_worktree)
+        session = self._chat_sessions.get(conversation_id)
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            if session.db_session_id:
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        await asyncio.to_thread(
+                            session_manager.update,
+                            session.db_session_id,
+                            status="paused",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update session on agent switch: {e}")
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        # Store agent name for next session creation
+        self._pending_agents[conversation_id] = agent_name
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "agent_changed",
+                    "conversation_id": conversation_id,
+                    "agent_name": agent_name,
+                }
+            )
+        )
+        logger.info(
+            f"Agent switched for conversation {conversation_id[:8]}: {agent_name}"
         )
 
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:

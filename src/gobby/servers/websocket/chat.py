@@ -79,6 +79,7 @@ class ChatMixin:
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
+    _pending_agents: dict[str, str]
 
     # Provided by HandlerMixin – declared here only for type checking
     # to avoid shadowing the real implementation at runtime (MRO).
@@ -298,8 +299,17 @@ class ChatMixin:
                     exc_info=e,
                 )
 
+        # Pop pending agent override (from set_agent WS message)
+        pending_agents = getattr(self, "_pending_agents", {})
+        pending_agent = pending_agents.pop(conversation_id, None)
+        if pending_agent:
+            session._pending_agent_name = pending_agent
+
         # Fire SESSION_START (informational, fire-and-forget)
-        asyncio.create_task(self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, {}))
+        start_data: dict[str, Any] = {}
+        if pending_agent:
+            start_data["agent_name_override"] = pending_agent
+        asyncio.create_task(self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, start_data))
 
         # Broadcast authoritative mode to frontend so it can override local storage
         mode_msg = json.dumps(
@@ -619,6 +629,9 @@ class ChatMixin:
                         session_info_msg["current_branch"] = branch
                     if wt_path:
                         session_info_msg["worktree_path"] = wt_path
+                    # Include active agent name so frontend can display it
+                    agent_name = getattr(session, "_pending_agent_name", None) or "default"
+                    session_info_msg["agent_name"] = agent_name
                     await websocket.send(json.dumps(session_info_msg))
                 except Exception as e:
                     logger.error(f"Failed to start chat session: {e}")

@@ -246,7 +246,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Step 2d: Deep load default agent (rules, skills, variables) for new session
         if session_id:
             try:
-                self._activate_default_agent(session_id, cli_source, project_id)
+                agent_override = input_data.get("agent_name_override")
+                self._activate_default_agent(
+                    session_id, cli_source, project_id,
+                    agent_name_override=agent_override,
+                )
             except Exception as e:
                 self.logger.error(f"Failed to activate default agent: {e}", exc_info=True)
 
@@ -486,16 +490,31 @@ class SessionEventHandlerMixin(EventHandlersBase):
         )
 
     def _activate_default_agent(
-        self, session_id: str, cli_source: str, project_id: str | None
+        self,
+        session_id: str,
+        cli_source: str,
+        project_id: str | None,
+        agent_name_override: str | None = None,
     ) -> None:
-        """Deep load the default agent and merge its properties into the session."""
+        """Deep load the default agent and merge its properties into the session.
+
+        Args:
+            session_id: Session ID to activate agent for
+            cli_source: CLI source name
+            project_id: Project ID for agent resolution
+            agent_name_override: If provided, use this agent name instead of
+                the config store default. Used by web chat agent selection.
+        """
         if not self._session_manager or not self._session_storage:
             return
 
-        from gobby.storage.config_store import ConfigStore
+        if agent_name_override:
+            default_agent_name = agent_name_override
+        else:
+            from gobby.storage.config_store import ConfigStore
 
-        config_store = ConfigStore(self._session_storage.db)
-        default_agent_name = config_store.get("default_agent") or "default"
+            config_store = ConfigStore(self._session_storage.db)
+            default_agent_name = config_store.get("default_agent") or "default"
         if default_agent_name == "none":
             return
 

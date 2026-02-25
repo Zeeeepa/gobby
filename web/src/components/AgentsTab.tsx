@@ -840,7 +840,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                       <>
                         <div />
                         <div className="workflows-card-actions">
-                          {item.source === 'installed' && projectId && item.db_id && (
+                          {item.source === 'installed' && projectId && item.db_id && d.name !== 'default' && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToProject(item)} title="Move to current project">To Project</button>
                           )}
                           {item.source === 'project' && item.db_id && (

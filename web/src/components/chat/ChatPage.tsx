@@ -6,6 +6,7 @@ import type {
   ConversationState,
   VoiceProps,
 } from "../../types/chat";
+import type { AgentDefInfo } from "../../hooks/useAgentDefinitions";
 import { ConversationPicker } from "../ConversationPicker";
 import { useArtifacts } from "../../hooks/useArtifacts";
 import { ArtifactContext } from "./artifacts/ArtifactContext";
@@ -24,6 +25,12 @@ interface ChatPageProps {
   voice: VoiceProps;
   projectId?: string | null;
   showPlanRef?: React.MutableRefObject<(() => void) | null>;
+  agentDefinitions?: AgentDefInfo[];
+  agentGlobalDefs?: AgentDefInfo[];
+  agentProjectDefs?: AgentDefInfo[];
+  agentShowScopeToggle?: boolean;
+  agentHasGlobal?: boolean;
+  agentHasProject?: boolean;
 }
 
 export function ChatPage({
@@ -32,6 +39,12 @@ export function ChatPage({
   voice,
   projectId,
   showPlanRef,
+  agentDefinitions = [],
+  agentGlobalDefs = [],
+  agentProjectDefs = [],
+  agentShowScopeToggle = false,
+  agentHasGlobal = false,
+  agentHasProject = false,
 }: ChatPageProps) {
   const activeSession = conversations.sessions.find(
     (s) => s.external_id === conversations.activeSessionId,
@@ -138,6 +151,12 @@ export function ChatPage({
         attachedSessionId={conversations.attachedSessionId}
         onAttachCliSession={conversations.onAttachCliSession}
         onDetachFromSession={conversations.onDetachFromSession}
+        agentDefinitions={agentDefinitions}
+        agentGlobalDefs={agentGlobalDefs}
+        agentProjectDefs={agentProjectDefs}
+        agentShowScopeToggle={agentShowScopeToggle}
+        agentHasGlobal={agentHasGlobal}
+        agentHasProject={agentHasProject}
       />
 
       <div className="flex flex-col flex-1 min-w-0">
@@ -202,6 +221,14 @@ export function ChatPage({
                 worktreePath={chat.worktreePath}
                 projectId={projectId ?? null}
                 onWorktreeChange={chat.onWorktreeChange}
+                agentName={chat.activeAgent}
+                onAgentChange={chat.onAgentChange}
+                agentDefinitions={agentDefinitions}
+                agentGlobalDefs={agentGlobalDefs}
+                agentProjectDefs={agentProjectDefs}
+                agentShowScopeToggle={agentShowScopeToggle}
+                agentHasGlobal={agentHasGlobal}
+                agentHasProject={agentHasProject}
                 voiceMode={voice.voiceMode}
                 voiceAvailable={voice.voiceAvailable}
                 isListening={voice.isListening}

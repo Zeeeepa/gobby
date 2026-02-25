@@ -110,6 +110,9 @@ class WebSocketServer(
         # Pending worktree path overrides queued before session creation
         self._pending_worktree_paths: dict[str, str] = {}
 
+        # Pending agent name overrides queued before session creation
+        self._pending_agents: dict[str, str] = {}
+
         # Dispatch table for message routing (lazily populated in _handle_message)
         self._dispatch_table: dict[str, Callable[..., Coroutine[Any, Any, None]]] = {}
 
@@ -241,6 +244,7 @@ class WebSocketServer(
                 "plan_approval_response": self._handle_plan_approval_response,
                 "set_project": self._handle_set_project,
                 "set_worktree": self._handle_set_worktree,
+                "set_agent": self._handle_set_agent,
                 "continue_in_chat": self._handle_continue_in_chat,
                 "attach_to_session": self._handle_attach_to_session,
                 "detach_from_session": self._handle_detach_from_session,

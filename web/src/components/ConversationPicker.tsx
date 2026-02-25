@@ -1,6 +1,8 @@
 import type { GobbySession } from "../hooks/useSessions";
+import type { AgentDefInfo } from "../hooks/useAgentDefinitions";
 import { formatRelativeTime } from "../utils/formatTime";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { AgentPickerDropdown } from "./chat/AgentPickerDropdown";
 
 interface AgentInfo {
   run_id: string;
@@ -15,7 +17,7 @@ interface ConversationPickerProps {
   sessions: GobbySession[];
   activeSessionId: string | null;
   deletingIds?: Set<string>;
-  onNewChat: () => void;
+  onNewChat: (agentName?: string) => void;
   onSelectSession: (session: GobbySession) => void;
   onDeleteSession?: (session: GobbySession) => void;
   onRenameSession?: (id: string, title: string) => void;
@@ -26,6 +28,12 @@ interface ConversationPickerProps {
   attachedSessionId?: string | null;
   onAttachCliSession?: (session: GobbySession) => void;
   onDetachFromSession?: () => void;
+  agentDefinitions?: AgentDefInfo[];
+  agentGlobalDefs?: AgentDefInfo[];
+  agentProjectDefs?: AgentDefInfo[];
+  agentShowScopeToggle?: boolean;
+  agentHasGlobal?: boolean;
+  agentHasProject?: boolean;
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -62,6 +70,12 @@ export function ConversationPicker({
   attachedSessionId,
   onAttachCliSession,
   onDetachFromSession,
+  agentDefinitions = [],
+  agentGlobalDefs = [],
+  agentProjectDefs = [],
+  agentShowScopeToggle = false,
+  agentHasGlobal = false,
+  agentHasProject = false,
 }: ConversationPickerProps) {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(true);
@@ -70,6 +84,7 @@ export function ConversationPicker({
   const [editValue, setEditValue] = useState("");
   const saveOnBlurRef = useRef(true);
   const [showAllTerminal, setShowAllTerminal] = useState(false);
+  const [showAgentPicker, setShowAgentPicker] = useState(false);
 
   const filtered = search
     ? sessions.filter(
@@ -99,14 +114,39 @@ export function ConversationPicker({
             </button>
           )}
           {isOpen && (
-            <button
-              type="button"
-              className="terminals-action-btn"
-              onClick={onNewChat}
-              title="New Chat"
-            >
-              <PlusIcon />
-            </button>
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                className="terminals-action-btn"
+                onClick={() => {
+                  // If only 1 agent (or none), start chat immediately
+                  if (agentDefinitions.length <= 1) {
+                    onNewChat();
+                  } else {
+                    setShowAgentPicker(!showAgentPicker);
+                  }
+                }}
+                title="New Chat"
+              >
+                <PlusIcon />
+              </button>
+              {showAgentPicker && (
+                <AgentPickerDropdown
+                  definitions={agentDefinitions}
+                  globalDefs={agentGlobalDefs}
+                  projectDefs={agentProjectDefs}
+                  showScopeToggle={agentShowScopeToggle}
+                  hasGlobal={agentHasGlobal}
+                  hasProject={agentHasProject}
+                  onSelect={(agentName) => {
+                    onNewChat(agentName);
+                    setShowAgentPicker(false);
+                  }}
+                  onClose={() => setShowAgentPicker(false)}
+                  position="below"
+                />
+              )}
+            </div>
           )}
           <button
             type="button"
