@@ -230,6 +230,79 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return frontmatter, content
 
 
+def extract_audience_config(metadata: dict[str, Any] | None) -> SkillAudienceConfig | None:
+    """Extract audience config from metadata.gobby namespace.
+
+    Shared helper used by both parse_skill_text() (filesystem path) and
+    _db_skill_to_parsed() (DB round-trip path) to avoid duplicating
+    the extraction logic.
+
+    Args:
+        metadata: Full metadata dict (may contain gobby namespace)
+
+    Returns:
+        SkillAudienceConfig if gobby audience keys are present, None otherwise
+    """
+    if not metadata or not isinstance(metadata, dict):
+        return None
+
+    gobby_meta = metadata.get("gobby", {})
+    if not isinstance(gobby_meta, dict):
+        return None
+
+    audience_keys = (
+        "audience",
+        "depth",
+        "steps",
+        "task_categories",
+        "sources",
+        "format_overrides",
+        "priority",
+    )
+    if not any(k in gobby_meta for k in audience_keys):
+        return None
+
+    ac_kwargs: dict[str, Any] = {}
+    if "audience" in gobby_meta:
+        ac_kwargs["audience"] = str(gobby_meta["audience"])
+    if "depth" in gobby_meta:
+        raw_depth = gobby_meta["depth"]
+        # Support int, list[int], or str range like "0-2"
+        if isinstance(raw_depth, int):
+            ac_kwargs["depth"] = raw_depth
+        elif isinstance(raw_depth, list):
+            try:
+                ac_kwargs["depth"] = [int(d) for d in raw_depth]
+            except (ValueError, TypeError):
+                pass  # skip invalid depth list elements
+        elif isinstance(raw_depth, str):
+            ac_kwargs["depth"] = raw_depth
+    if "steps" in gobby_meta:
+        raw_steps = gobby_meta["steps"]
+        if isinstance(raw_steps, list):
+            ac_kwargs["steps"] = [str(s) for s in raw_steps]
+    if "task_categories" in gobby_meta:
+        raw_cats = gobby_meta["task_categories"]
+        if isinstance(raw_cats, list):
+            ac_kwargs["task_categories"] = [str(c) for c in raw_cats]
+    if "sources" in gobby_meta:
+        raw_sources = gobby_meta["sources"]
+        if isinstance(raw_sources, list):
+            ac_kwargs["sources"] = [str(s) for s in raw_sources]
+        elif isinstance(raw_sources, str):
+            ac_kwargs["sources"] = [raw_sources]
+    if "format_overrides" in gobby_meta:
+        raw_fo = gobby_meta["format_overrides"]
+        if isinstance(raw_fo, dict):
+            ac_kwargs["format_overrides"] = {str(k): str(v) for k, v in raw_fo.items()}
+    if "priority" in gobby_meta:
+        try:
+            ac_kwargs["priority"] = int(gobby_meta["priority"])
+        except (ValueError, TypeError):
+            pass
+    return SkillAudienceConfig(**ac_kwargs)
+
+
 def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
     """Parse a skill from text content.
 
@@ -322,61 +395,7 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
         elif isinstance(triggers_raw, list):
             triggers = [str(t).strip() for t in triggers_raw if str(t).strip()]
 
-    # Extract audience config from metadata.gobby namespace
-    audience_config: SkillAudienceConfig | None = None
-    if metadata and isinstance(metadata, dict):
-        gobby_meta = metadata.get("gobby", {})
-        if isinstance(gobby_meta, dict) and any(
-            k in gobby_meta
-            for k in (
-                "audience",
-                "depth",
-                "steps",
-                "task_categories",
-                "sources",
-                "format_overrides",
-                "priority",
-            )
-        ):
-            ac_kwargs: dict[str, Any] = {}
-            if "audience" in gobby_meta:
-                ac_kwargs["audience"] = str(gobby_meta["audience"])
-            if "depth" in gobby_meta:
-                raw_depth = gobby_meta["depth"]
-                # Support int, list[int], or str range like "0-2"
-                if isinstance(raw_depth, int):
-                    ac_kwargs["depth"] = raw_depth
-                elif isinstance(raw_depth, list):
-                    try:
-                        ac_kwargs["depth"] = [int(d) for d in raw_depth]
-                    except (ValueError, TypeError):
-                        pass  # skip invalid depth list elements
-                elif isinstance(raw_depth, str):
-                    ac_kwargs["depth"] = raw_depth
-            if "steps" in gobby_meta:
-                raw_steps = gobby_meta["steps"]
-                if isinstance(raw_steps, list):
-                    ac_kwargs["steps"] = [str(s) for s in raw_steps]
-            if "task_categories" in gobby_meta:
-                raw_cats = gobby_meta["task_categories"]
-                if isinstance(raw_cats, list):
-                    ac_kwargs["task_categories"] = [str(c) for c in raw_cats]
-            if "sources" in gobby_meta:
-                raw_sources = gobby_meta["sources"]
-                if isinstance(raw_sources, list):
-                    ac_kwargs["sources"] = [str(s) for s in raw_sources]
-                elif isinstance(raw_sources, str):
-                    ac_kwargs["sources"] = [raw_sources]
-            if "format_overrides" in gobby_meta:
-                raw_fo = gobby_meta["format_overrides"]
-                if isinstance(raw_fo, dict):
-                    ac_kwargs["format_overrides"] = {str(k): str(v) for k, v in raw_fo.items()}
-            if "priority" in gobby_meta:
-                try:
-                    ac_kwargs["priority"] = int(gobby_meta["priority"])
-                except (ValueError, TypeError):
-                    pass
-            audience_config = SkillAudienceConfig(**ac_kwargs)
+    audience_config = extract_audience_config(metadata)
 
     return ParsedSkill(
         name=name,

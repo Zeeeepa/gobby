@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.skills.loader import SkillLoader
-from gobby.skills.parser import ParsedSkill
+from gobby.skills.parser import ParsedSkill, extract_audience_config
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
@@ -41,6 +41,8 @@ def _db_skill_to_parsed(skill: Any) -> ParsedSkill:
             elif isinstance(raw_triggers, str):
                 triggers = [t.strip() for t in raw_triggers.split(",")]
 
+    audience_config = extract_audience_config(skill.metadata)
+
     return ParsedSkill(
         name=skill.name,
         description=skill.description,
@@ -56,6 +58,7 @@ def _db_skill_to_parsed(skill: Any) -> ParsedSkill:
         always_apply=skill.always_apply,
         injection_format=skill.injection_format,
         triggers=triggers if triggers else None,
+        audience_config=audience_config,
     )
 
 

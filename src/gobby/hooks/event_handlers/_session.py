@@ -272,7 +272,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
         # Build additional context (task context)
-        # Note: Skill injection is now handled by workflows via inject_context action
+        # Note: Skill injection is handled by _activate_default_agent() which sets
+        # _active_skill_names as a session variable for the rule engine.
         additional_context: list[str] = []
         if event.task_id:
             task_title = event.metadata.get("_task_title", "Unknown Task")
@@ -446,6 +447,19 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 session_id,
                 cwd,
                 variables=existing_session.step_variables,
+            )
+
+        # Deep load default agent (rules, skills, variables) for pre-created session
+        try:
+            self._activate_default_agent(
+                session_id,
+                cli_source,
+                existing_session.project_id,
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to activate default agent for pre-created session: {e}",
+                exc_info=True,
             )
 
         # Update event metadata

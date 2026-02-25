@@ -242,8 +242,6 @@ def inject_context(
             if skills:
                 content = _format_skills(skills)
                 logger.debug(f"Formatted {len(skills)} skills for injection")
-        elif filter == "context_aware":
-            content = _inject_context_aware_skills(skills, session_manager, session_id, state)
         else:
             if skills:
                 content = _format_skills(skills)
@@ -449,30 +447,6 @@ def _format_skills(skills: list[Any]) -> str:
     return _format_skills_with_formats(
         [(skill, getattr(skill, "injection_format", "summary")) for skill in skills]
     )
-
-
-def _inject_context_aware_skills(
-    skills: list[Any],
-    session_manager: Any,
-    session_id: str,
-    state: Any,
-) -> str:
-    """Return empty string — skill discovery is now handled by the
-    ``discovery`` always-apply skill injected via lifecycle workflows.
-
-    The full skill list is available on-demand via ``list_skills()`` /
-    ``get_skill(name)`` on the ``gobby-skills`` MCP server.
-
-    Args:
-        skills: All discovered core skills (unused, kept for API compat)
-        session_manager: Session manager (unused, kept for API compat)
-        session_id: Current session ID (unused, kept for API compat)
-        state: WorkflowState instance (unused, kept for API compat)
-
-    Returns:
-        Empty string (discovery guide injected via always-apply skill)
-    """
-    return ""
 
 
 def _format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> str:

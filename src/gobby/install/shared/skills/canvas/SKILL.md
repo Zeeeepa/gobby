@@ -3,8 +3,12 @@ name: canvas
 description: Instructions for rendering rich A2UI canvas elements to the chat interface. Auto-injected for web UI sessions.
 category: core
 triggers: canvas, ui, interface, form, a2ui, interactive
-conditions:
-  - "{{ session.source in ['claude_sdk_web_chat', 'gemini_sdk_web_chat'] }}"
+alwaysApply: true
+injectionFormat: content
+metadata:
+  gobby:
+    audience: all
+    sources: [claude_sdk_web_chat, gemini_sdk_web_chat]
 ---
 
 # Canvas Frontend Integration
