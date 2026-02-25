@@ -1,7 +1,8 @@
-"""Tests for session-defaults rule-based initialization."""
+"""Tests for session-defaults rule-based initialization and variable sync."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import RuleDefinitionBody
-from gobby.workflows.sync import sync_bundled_rules
+from gobby.workflows.sync import sync_bundled_rules, sync_bundled_variables
 
 pytestmark = pytest.mark.unit
 
@@ -147,4 +148,146 @@ class TestBundledSessionDefaults:
         }
         assert expected_vars.issubset(initialized_vars), (
             f"Missing: {expected_vars - initialized_vars}"
+        )
+
+
+class TestBundledVariablesSync:
+    """Test that bundled variable definitions sync via multi-variable format."""
+
+    def test_bundled_variables_dir_exists(self) -> None:
+        """The bundled variables directory should exist with YAML files."""
+        from gobby.workflows.sync import get_bundled_variables_path
+
+        var_dir = get_bundled_variables_path()
+        assert var_dir.is_dir(), f"Expected {var_dir} to be a directory"
+        yaml_files = list(var_dir.glob("*.yaml"))
+        assert len(yaml_files) >= 1, f"Expected >= 1 variable files, got {len(yaml_files)}"
+
+    def test_bundled_variables_sync_to_db(self, db) -> None:
+        """Bundled variable definitions should sync to DB without errors."""
+        result = sync_bundled_variables(db)
+        assert result["errors"] == [], f"Sync errors: {result['errors']}"
+        assert result["synced"] == 14
+
+    def test_synced_variables_have_correct_type(self, db) -> None:
+        """All synced variables should have workflow_type='variable'."""
+        sync_bundled_variables(db)
+        mgr = LocalWorkflowDefinitionManager(db)
+        rows = mgr.list_all(workflow_type="variable", include_deleted=False)
+        assert len(rows) >= 14
+        for row in rows:
+            assert row.workflow_type == "variable"
+            assert row.source == "template"
+
+    def test_multi_variable_file_format(self, db, tmp_path) -> None:
+        """A file with variables: dict should create multiple variable rows."""
+        import gobby.workflows.sync as sync_mod
+
+        var_dir = tmp_path / "variables"
+        var_dir.mkdir()
+        (var_dir / "test-vars.yaml").write_text(
+            """
+tags: [test-tag]
+
+variables:
+  my_var_a:
+    value: true
+    description: Variable A
+  my_var_b:
+    value: 42
+    description: Variable B
+"""
+        )
+
+        original = sync_mod.get_bundled_variables_path
+        sync_mod.get_bundled_variables_path = lambda: var_dir
+        try:
+            result = sync_bundled_variables(db)
+        finally:
+            sync_mod.get_bundled_variables_path = original
+
+        assert result["synced"] == 2
+        assert result["errors"] == []
+
+        mgr = LocalWorkflowDefinitionManager(db)
+        var_a = mgr.get_by_name("my_var_a", include_templates=True)
+        assert var_a is not None
+        assert var_a.workflow_type == "variable"
+        body_a = json.loads(var_a.definition_json)
+        assert body_a["value"] is True
+        assert "test-tag" in (var_a.tags or [])
+
+        var_b = mgr.get_by_name("my_var_b", include_templates=True)
+        assert var_b is not None
+        body_b = json.loads(var_b.definition_json)
+        assert body_b["value"] == 42
+
+    def test_variable_idempotent_resync(self, db) -> None:
+        """Running sync twice should skip already-synced variables."""
+        result1 = sync_bundled_variables(db)
+        assert result1["synced"] == 14
+
+        result2 = sync_bundled_variables(db)
+        assert result2["synced"] == 0
+        assert result2["skipped"] == 14
+
+    def test_variable_orphan_cleanup(self, db, tmp_path) -> None:
+        """Variables removed from disk should be soft-deleted."""
+        import gobby.workflows.sync as sync_mod
+
+        var_dir = tmp_path / "variables"
+        var_dir.mkdir()
+        (var_dir / "vars.yaml").write_text(
+            """
+variables:
+  temp_var:
+    value: hello
+"""
+        )
+
+        original = sync_mod.get_bundled_variables_path
+        sync_mod.get_bundled_variables_path = lambda: var_dir
+        try:
+            sync_bundled_variables(db)
+
+            # Remove from disk
+            (var_dir / "vars.yaml").write_text(
+                """
+variables:
+  other_var:
+    value: world
+"""
+            )
+            result = sync_bundled_variables(db)
+        finally:
+            sync_mod.get_bundled_variables_path = original
+
+        assert result["orphaned"] == 1
+
+    def test_all_expected_variables_synced(self, db) -> None:
+        """All 14 expected session-default variables should be synced."""
+        sync_bundled_variables(db)
+        mgr = LocalWorkflowDefinitionManager(db)
+
+        expected_vars = {
+            "require_uv",
+            "chat_mode",
+            "mode_level",
+            "stop_attempts",
+            "max_stop_attempts",
+            "task_claimed",
+            "task_ref",
+            "require_task_before_edit",
+            "require_commit_before_close",
+            "pre_existing_errors_triaged",
+            "enforce_tool_schema_check",
+            "servers_listed",
+            "listed_servers",
+            "unlocked_tools",
+        }
+
+        rows = mgr.list_all(workflow_type="variable", include_deleted=False)
+        synced_names = {r.name for r in rows}
+        assert expected_vars.issubset(synced_names), (
+            f"Missing: {expected_vars - synced_names}"
         )
