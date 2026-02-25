@@ -142,6 +142,31 @@ class TestAdminRoutes:
         # verify the method was called.
         mock_server._process_shutdown.assert_called()
 
+    @patch("gobby.servers.routes.admin.subprocess.Popen")
+    def test_restart_endpoint(self, mock_popen, client, mock_server) -> None:
+        response = client.post("/admin/restart")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "restarting"
+        assert data["message"] == "Daemon restart initiated"
+        assert "response_time_ms" in data
+
+        # Verify restarter subprocess was spawned
+        mock_popen.assert_called_once()
+
+        # Verify shutdown was initiated
+        mock_server._process_shutdown.assert_called()
+
+    @patch("gobby.servers.routes.admin.subprocess.Popen")
+    def test_restart_endpoint_double_restart_guard(self, mock_popen, client, mock_server) -> None:
+        # First restart should succeed
+        response1 = client.post("/admin/restart")
+        assert response1.json()["status"] == "restarting"
+
+        # Second restart should be rejected
+        response2 = client.post("/admin/restart")
+        assert response2.json()["status"] == "already_restarting"
+
 
 class TestHealthEndpoint:
     """Tests for GET /admin/health."""

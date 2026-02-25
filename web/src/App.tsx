@@ -88,7 +88,7 @@ const HIDDEN_PROJECTS = new Set(['_orphaned', '_migrated'])
 
 export default function App() {
   const { authRequired, authenticated, loading: authLoading, login, logout } = useAuth()
-  const { messages, conversationId, sessionRef, dbSessionId, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, respondToApproval, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
+  const { messages, conversationId, sessionRef, dbSessionId, currentBranch, worktreePath, isConnected, isStreaming, isThinking, contextUsage, sendMessage, sendMode, sendWorktreeChange, stopStreaming, clearHistory, deleteConversation, executeCommand, respondToQuestion, respondToApproval, planPendingApproval, approvePlan, requestPlanChanges, switchConversation, startNewChat, continueSessionInChat, setOnModeChanged, setOnPlanReady, addSystemMessage, wsRef, handleVoiceMessageRef, canvasSurfaces, canvasPanel, onCanvasInteraction } = useChat()
   const voice = useVoice(wsRef, conversationId)
   const { settings, updateFontSize, updateModel, updateChatMode, updateTheme, resetSettings } = useSettings()
   const { agents, refreshAgents } = useTerminal()
@@ -376,6 +376,13 @@ export default function App() {
       sendMessage('/compact', settings.model, undefined, effectiveProjectId)
       return
     }
+    if (cmd.action === 'restart_daemon') {
+      addSystemMessage('Restarting daemon...')
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      fetch(`${baseUrl}/admin/restart`, { method: 'POST' })
+        .catch(err => console.error('Restart request failed:', err))
+      return
+    }
     if (cmd.action === 'show_plan') {
       if (settings.chatMode !== 'plan') {
         updateChatMode('plan')
@@ -383,7 +390,7 @@ export default function App() {
       }
       showPlanRef.current?.()
     }
-  }, [clearHistory, sendMessage, settings.model, effectiveProjectId, updateChatMode, sendMode])
+  }, [clearHistory, sendMessage, settings.model, effectiveProjectId, updateChatMode, sendMode, addSystemMessage])
 
   // Auth guard — shown after all hooks (React rules)
   if (authLoading) {

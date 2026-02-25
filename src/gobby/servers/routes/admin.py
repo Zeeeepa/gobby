@@ -8,6 +8,8 @@ import asyncio
 import logging
 import os
 import re
+import subprocess  # nosec B404 - subprocess needed for daemon restart
+import sys
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -449,6 +451,118 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             logger.error("Error initiating shutdown: %s", e, exc_info=True)
             return {
                 "message": "Shutdown failed to initiate",
+            }
+
+    _restart_in_progress = False
+
+    @router.post("/restart")
+    async def restart() -> dict[str, Any]:
+        """
+        Graceful daemon restart endpoint.
+
+        Spawns a detached restarter subprocess that waits for the current
+        daemon to exit, then starts a new one. Returns immediately.
+        """
+        nonlocal _restart_in_progress
+
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        if _restart_in_progress:
+            return {"status": "already_restarting", "message": "Restart already in progress"}
+
+        try:
+            _restart_in_progress = True
+            logger.info("Restart requested via HTTP endpoint")
+
+            current_pid = os.getpid()
+            port = server.port
+
+            # Inline Python script for the detached restarter process.
+            # It waits for the current daemon PID to exit, then spawns a new one.
+            restarter_script = f"""
+import os, sys, time, signal, subprocess
+pid = {current_pid}
+port = {port}
+python = {sys.executable!r}
+
+# Wait for current daemon to exit (up to 30s)
+for _ in range(300):
+    try:
+        os.kill(pid, 0)
+        time.sleep(0.1)
+    except ProcessLookupError:
+        break
+else:
+    # Force kill if still running
+    try:
+        os.kill(pid, signal.SIGKILL)
+        time.sleep(0.5)
+    except ProcessLookupError:
+        pass
+
+# Wait for port release
+time.sleep(2.0)
+
+# Clean up stale PID file
+gobby_home = os.environ.get("GOBBY_HOME", os.path.expanduser("~/.gobby"))
+pid_file = os.path.join(gobby_home, "gobby.pid")
+try:
+    os.unlink(pid_file)
+except FileNotFoundError:
+    pass
+
+# Start new daemon
+import json
+log_dir = os.path.join(gobby_home, "logs")
+os.makedirs(log_dir, exist_ok=True)
+log_file = open(os.path.join(log_dir, "gobby-client.log"), "a")
+err_file = open(os.path.join(log_dir, "gobby-client-error.log"), "a")
+try:
+    proc = subprocess.Popen(
+        [python, "-m", "gobby.runner"],
+        stdout=log_file, stderr=err_file,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+        env=os.environ.copy(),
+    )
+    with open(pid_file, "w") as f:
+        f.write(str(proc.pid))
+finally:
+    log_file.close()
+    err_file.close()
+"""
+            # Spawn the restarter as a fully detached subprocess
+            subprocess.Popen(  # nosec B603
+                [sys.executable, "-c", restarter_script],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                env=os.environ.copy(),
+            )
+
+            # Schedule shutdown of the current daemon
+            task = asyncio.create_task(server._process_shutdown())
+            server._background_tasks.add(task)
+            task.add_done_callback(server._background_tasks.discard)
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "restarting",
+                "message": "Daemon restart initiated",
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            _restart_in_progress = False
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error("Error initiating restart: %s", e, exc_info=True)
+            return {
+                "status": "error",
+                "message": f"Restart failed to initiate: {e}",
             }
 
     @router.post("/workflows/reload")

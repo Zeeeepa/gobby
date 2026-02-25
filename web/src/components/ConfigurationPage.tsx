@@ -310,7 +310,7 @@ function ConfigFormTab({ schema, values: initialValues, onSave, onReset, secretK
       {showRestart && (
         <div className="config-restart-banner">
           <span>Configuration saved. Restart the daemon to apply changes.</span>
-          <button onClick={() => fetch('/api/admin/restart', { method: 'POST' }).then(() => setShowRestart(false))}>
+          <button onClick={() => fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/admin/restart`, { method: 'POST' }).then(() => setShowRestart(false))}>
             Restart Now
           </button>
         </div>
@@ -727,7 +727,7 @@ function TemplateTab({ content, onFetch, onSave }: TemplateTabProps) {
       {showRestart && (
         <div className="config-restart-banner">
           <span>Configuration saved to database. Restart the daemon to apply changes.</span>
-          <button onClick={() => fetch('/api/admin/restart', { method: 'POST' }).then(() => setShowRestart(false))}>
+          <button onClick={() => fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/admin/restart`, { method: 'POST' }).then(() => setShowRestart(false))}>
             Restart Now
           </button>
         </div>

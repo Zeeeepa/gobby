@@ -14,6 +14,7 @@ const COMMANDS: CommandInfo[] = [
   { name: 'compact', description: 'Compact conversation history', action: 'compact_chat' },
   { name: 'plan', description: 'Enter plan mode or show plan', action: 'show_plan' },
   { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
+  { name: 'restart', description: 'Restart the Gobby daemon', action: 'restart_daemon' },
 ]
 
 export function useSlashCommands() {

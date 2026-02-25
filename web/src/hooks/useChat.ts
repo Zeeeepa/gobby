@@ -1151,6 +1151,19 @@ export function useChat() {
     // Don't eagerly clear — let mode_changed be the single source of truth
   }, [])
 
+  // Add a local system message to the chat (no backend round-trip)
+  const addSystemMessage = useCallback((content: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `system-${Date.now()}`,
+        role: 'system' as const,
+        content,
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
+
   // Connect on mount
   useEffect(() => {
     connect()
@@ -1196,6 +1209,7 @@ export function useChat() {
     continueSessionInChat,
     setOnModeChanged,
     setOnPlanReady,
+    addSystemMessage,
     wsRef,
     handleVoiceMessageRef,
   }
