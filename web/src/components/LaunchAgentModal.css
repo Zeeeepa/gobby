@@ -518,29 +518,7 @@
   }
 }
 
-/* ── Agent Picker Dropdown ────────────────────────── */
-
-.agent-picker-dropdown {
-  position: absolute;
-  z-index: 100;
-  top: 100%;
-  left: 0;
-  min-width: 220px;
-  max-width: 320px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  padding: 0.25rem 0;
-  margin-top: 4px;
-}
-
-.agent-picker-dropdown--above {
-  top: auto;
-  bottom: 100%;
-  margin-top: 0;
-  margin-bottom: 4px;
-}
+/* ── Agent Picker (inside Radix Dialog) ──────────── */
 
 .agent-picker-scope-toggle {
   display: flex;
@@ -635,11 +613,6 @@
 
 /* ── Active Agent Indicator ──────────────────────── */
 
-.active-agent-indicator-wrap {
-  position: relative;
-  display: inline-flex;
-}
-
 .active-agent-indicator {
   display: inline-flex;
   align-items: center;
@@ -655,4 +628,10 @@
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .active-agent-name {
+    display: none;
+  }
 }

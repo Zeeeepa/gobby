@@ -115,7 +115,7 @@ export function ConversationPicker({
             </button>
           )}
           {isOpen && (
-            <div style={{ position: "relative" }}>
+            <>
               <button
                 type="button"
                 className="terminals-action-btn"
@@ -144,10 +144,9 @@ export function ConversationPicker({
                     setShowAgentPicker(false);
                   }}
                   onClose={() => setShowAgentPicker(false)}
-                  position="below"
                 />
               )}
-            </div>
+            </>
           )}
           <button
             type="button"

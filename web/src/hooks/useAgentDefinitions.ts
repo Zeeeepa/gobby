@@ -38,15 +38,27 @@ export function useAgentDefinitions(projectId?: string | null) {
     fetchDefs()
   }, [fetchDefs])
 
-  const globalDefs = useMemo(
-    () => definitions.filter((d) => d.source === 'installed' || d.source === 'template'),
-    [definitions],
-  )
+  const globalDefs = useMemo(() => {
+    const seen = new Set<string>()
+    return definitions
+      .filter((d) => d.source === 'installed')
+      .filter((d) => {
+        if (seen.has(d.definition.name)) return false
+        seen.add(d.definition.name)
+        return true
+      })
+  }, [definitions])
 
-  const projectDefs = useMemo(
-    () => definitions.filter((d) => d.source === 'project'),
-    [definitions],
-  )
+  const projectDefs = useMemo(() => {
+    const seen = new Set<string>()
+    return definitions
+      .filter((d) => d.source === 'project')
+      .filter((d) => {
+        if (seen.has(d.definition.name)) return false
+        seen.add(d.definition.name)
+        return true
+      })
+  }, [definitions])
 
   const hasGlobal = globalDefs.length > 0
   const hasProject = projectDefs.length > 0
