@@ -40,7 +40,7 @@ triggers:
   - action: increment_variable
     name: stop_attempts
   - action: block_stop
-    when: variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts',
+    when: variables.get('tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts',
       3)
     reason: 'Do not stop. A tool was blocked — follow the instructions in the error message to resolve it, then continue working.
 
@@ -153,7 +153,7 @@ triggers:
     name: stop_attempts
     value: 0
   - action: set_variable
-    name: _tool_block_pending
+    name: tool_block_pending
     value: false
   - action: set_variable
     name: pre_existing_errors_triaged
@@ -301,7 +301,7 @@ triggers:
     value: 0
     when: not event.data.get('mcp_tool')
   - action: set_variable
-    name: _tool_block_pending
+    name: tool_block_pending
     value: false
   - action: track_schema_lookup
   - action: track_discovery_step

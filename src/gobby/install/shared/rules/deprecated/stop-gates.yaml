@@ -19,7 +19,7 @@ rules:
     description: "Block stop when a tool was just blocked"
     event: stop
     priority: 20
-    when: "variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    when: "variables.get('tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
     effect:
       type: block
       reason: "Do not stop. A tool was blocked — follow the instructions in the error message."
@@ -69,7 +69,7 @@ rules:
     when: "variables.get('stop_attempts', 0) == 0"
     effect:
       type: set_variable
-      variable: _tool_block_pending
+      variable: tool_block_pending
       value: false
 
   reset-error-triage-on-prompt:
@@ -98,5 +98,5 @@ rules:
     priority: 81
     effect:
       type: set_variable
-      variable: _tool_block_pending
+      variable: tool_block_pending
       value: false

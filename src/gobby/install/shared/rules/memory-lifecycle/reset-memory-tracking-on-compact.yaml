@@ -9,5 +9,5 @@ rules:
     when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
     effect:
       type: set_variable
-      variable: _injected_memory_ids
+      variable: injected_memory_ids
       value: []

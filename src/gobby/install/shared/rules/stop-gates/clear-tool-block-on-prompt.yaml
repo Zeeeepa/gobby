@@ -9,5 +9,5 @@ rules:
     when: "variables.get('stop_attempts', 0) == 0"
     effect:
       type: set_variable
-      variable: _tool_block_pending
+      variable: tool_block_pending
       value: false
