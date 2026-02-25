@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ChatMode } from '../types/chat'
 
 export type Theme = 'dark' | 'light' | 'system'
@@ -27,18 +27,79 @@ const DEFAULT_SETTINGS: Settings = {
 
 const STORAGE_KEY = 'gobby-settings'
 
+/** Keys persisted to the backend (excludes per-conversation chatMode). */
+type PersistableKey = 'fontSize' | 'model' | 'theme' | 'defaultChatMode'
+const PERSISTABLE_KEYS: PersistableKey[] = ['fontSize', 'model', 'theme', 'defaultChatMode']
+
+function loadFromLocalStorage(): Partial<Settings> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) return JSON.parse(stored)
+  } catch (e) {
+    console.error('Failed to load settings from localStorage:', e)
+  }
+  return {}
+}
+
+function saveToLocalStorage(settings: Settings): void {
+  try {
+    const { chatMode: _, ...persistable } = settings
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable))
+  } catch (e) {
+    console.error('Failed to save settings to localStorage:', e)
+  }
+}
+
+async function fetchUISettings(): Promise<Partial<Settings> | null> {
+  try {
+    const res = await fetch('/api/config/ui-settings')
+    if (res.ok) return await res.json()
+  } catch {
+    // API unavailable — fall back to localStorage only
+  }
+  return null
+}
+
+async function saveUISettings(settings: Settings): Promise<void> {
+  try {
+    const body: Record<string, unknown> = {}
+    for (const key of PERSISTABLE_KEYS) {
+      body[key] = settings[key]
+    }
+    await fetch('/api/config/ui-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    // Best-effort; localStorage is the fast cache
+  }
+}
+
 export function useSettings() {
   const [settings, setSettings] = useState<Settings>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
-      }
-    } catch (e) {
-      console.error('Failed to load settings:', e)
-    }
-    return DEFAULT_SETTINGS
+    // Immediate render from localStorage; API fetch overwrites in useEffect
+    return { ...DEFAULT_SETTINGS, ...loadFromLocalStorage() }
   })
+
+  const initialized = useRef(false)
+
+  // On mount: fetch from API and merge (API wins over localStorage)
+  useEffect(() => {
+    let cancelled = false
+    fetchUISettings().then((remote) => {
+      if (cancelled || !remote) return
+      setSettings((prev) => {
+        const merged = { ...prev, ...remote }
+        // Also update localStorage with the API values
+        saveToLocalStorage(merged)
+        return merged
+      })
+      initialized.current = true
+    })
+    return () => { cancelled = true }
+  }, [])
+
   // Apply font size to document
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -64,14 +125,16 @@ export function useSettings() {
     }
   }, [settings.theme])
 
-  // Persist settings (exclude chatMode — it's per-conversation, not global)
+  // Persist settings on change (localStorage + API)
+  // Skip the initial render to avoid writing defaults before API fetch
+  const isFirstRender = useRef(true)
   useEffect(() => {
-    try {
-      const { chatMode: _, ...persistable } = settings
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable))
-    } catch (e) {
-      console.error('Failed to save settings:', e)
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
     }
+    saveToLocalStorage(settings)
+    saveUISettings(settings)
   }, [settings])
 
   const updateDefaultChatMode = useCallback((defaultChatMode: ChatMode) => {
