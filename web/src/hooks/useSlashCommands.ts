@@ -7,14 +7,14 @@ export interface CommandInfo {
 }
 
 const COMMANDS: CommandInfo[] = [
-  { name: 'skills', description: 'Browse and run skills', action: 'open_skills' },
-  { name: 'gobby', description: 'Browse internal Gobby tools', action: 'open_gobby' },
-  { name: 'mcp', description: 'Browse external MCP tools', action: 'open_mcp' },
   { name: 'clear', description: 'Clear chat history', action: 'clear_history' },
   { name: 'compact', description: 'Compact conversation history', action: 'compact_chat' },
+  { name: 'gobby', description: 'Browse internal Gobby tools', action: 'open_gobby' },
+  { name: 'mcp', description: 'Browse external MCP tools', action: 'open_mcp' },
   { name: 'plan', description: 'Enter plan mode or show plan', action: 'show_plan' },
-  { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
   { name: 'restart', description: 'Restart the Gobby daemon', action: 'restart_daemon' },
+  { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
+  { name: 'skills', description: 'Browse and run skills', action: 'open_skills' },
 ]
 
 export function useSlashCommands() {
