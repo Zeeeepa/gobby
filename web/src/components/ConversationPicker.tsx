@@ -131,6 +131,7 @@ export function ConversationPicker({
             />
           </div>
 
+          <div className="conversation-picker-content">
           <div className="session-group">
             <div className="sessions-list">
               {filtered.length === 0 && (
@@ -346,6 +347,7 @@ export function ConversationPicker({
               )}
             </div>
           )}
+          </div>
         </>
       )}
     </div>

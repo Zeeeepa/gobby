@@ -1976,6 +1976,12 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.conversation-picker-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
 /* Sessions Page */
 .sessions-page {
   flex: 1;
@@ -4124,8 +4130,6 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 
 /* Session list */
 .sessions-list {
-  flex: 1;
-  overflow-y: auto;
   padding: 0.5rem 0;
 }
 
