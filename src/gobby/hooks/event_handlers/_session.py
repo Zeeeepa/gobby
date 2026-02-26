@@ -27,6 +27,7 @@ class AgentActivationResult:
     rules_count: int
     skills_count: int
     variables_count: int
+    injected_skill_names: list[str]  # skills with format "full" or "content"
 
 
 class SessionEventHandlerMixin(EventHandlersBase):
@@ -645,6 +646,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         )
         parsed = [_db_skill_to_parsed(s) for s in eligible if s.enabled]
         skills_count = 0
+        injected_names: list[str] = []
 
         if parsed:
             agent_ctx = AgentContext(
@@ -657,6 +659,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
             selected = SkillInjector().select_skills(parsed, agent_ctx, profile=profile)
             skills_count = len(selected)
             if selected:
+                injected_names = [
+                    skill.name for skill, fmt in selected if fmt in ("full", "content")
+                ]
                 from gobby.workflows.context_actions import _format_skills_with_formats
 
                 formatted = _format_skills_with_formats(selected)
@@ -673,6 +678,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             rules_count=len(active_rules),
             skills_count=skills_count,
             variables_count=variables_count,
+            injected_skill_names=injected_names,
         )
 
     def _get_step_workflow_state(self, session_id: str) -> WorkflowState | None:
@@ -774,9 +780,15 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Agent info (only if agent loaded — absence signals activation failure)
         if agent_info:
             system_message += f"\nAgent: {agent_info.agent_name}"
-            system_message += f"\nRules Active: {agent_info.rules_count}"
-            system_message += f"\nSkills Active: {agent_info.skills_count}"
-            system_message += f"\nVariables Active: {agent_info.variables_count}"
+            system_message += f"\n├─ Rules: {agent_info.rules_count}"
+            system_message += f"\n├─ Variables: {agent_info.variables_count}"
+            if agent_info.injected_skill_names:
+                system_message += f"\n└─ Skills: {agent_info.skills_count}"
+                system_message += (
+                    f"\n   └─ Injected: {', '.join(agent_info.injected_skill_names)}"
+                )
+            else:
+                system_message += f"\n└─ Skills: {agent_info.skills_count}"
 
         # Workflow (only if active step workflow)
         if session_id:
