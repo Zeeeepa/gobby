@@ -189,8 +189,13 @@ class AgentRunner:
                 project_path=config.project_path,
             )
             if workflow_definition:
+                from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
+
                 # Reject lifecycle workflows - they run automatically via hooks
-                if getattr(workflow_definition, "type", None) == "lifecycle":
+                if (
+                    isinstance(workflow_definition, WorkflowDefinition)
+                    and workflow_definition.type == "lifecycle"
+                ):
                     self.logger.error(
                         f"Cannot use lifecycle workflow '{effective_workflow}' for agent spawning"
                     )
@@ -202,6 +207,14 @@ class AgentRunner:
                             f"Lifecycle workflows run automatically on events. "
                             f"Use a step workflow like 'plan-execute' instead."
                         ),
+                        turns_used=0,
+                    )
+                # Ensure the loaded workflow is actually a PipelineDefinition or a valid WorkflowDefinition
+                elif not isinstance(workflow_definition, (PipelineDefinition, WorkflowDefinition)):
+                    return AgentResult(
+                        output="",
+                        status="error",
+                        error=f"Loaded workflow '{effective_workflow}' is not a valid Agent Definition",
                         turns_used=0,
                     )
 

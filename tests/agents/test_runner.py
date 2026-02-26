@@ -410,8 +410,9 @@ class TestAgentRunnerTerminalPickupMetadata:
         # Mock the session storage's update method
         mock_session_storage.update_terminal_pickup_metadata = MagicMock()
 
-        # Mock the workflow loader
-        mock_pipeline = MagicMock()
+        from gobby.workflows.definitions import PipelineDefinition
+
+        mock_pipeline = MagicMock(spec=PipelineDefinition)
         mock_pipeline.type = "pipeline"
         mock_pipeline.name = "legacy-workflow"
         runner._workflow_loader = MagicMock()
@@ -487,8 +488,9 @@ class TestAgentRunnerTerminalPickupMetadata:
 
         mock_session_storage.update_terminal_pickup_metadata = MagicMock()
 
-        # Mock the workflow loader
-        mock_pipeline = MagicMock()
+        from gobby.workflows.definitions import PipelineDefinition
+
+        mock_pipeline = MagicMock(spec=PipelineDefinition)
         mock_pipeline.type = "pipeline"
         mock_pipeline.name = "legacy-workflow"
         runner._workflow_loader = MagicMock()
