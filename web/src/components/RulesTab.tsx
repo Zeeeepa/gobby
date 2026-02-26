@@ -1,8 +1,18 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import * as yaml from 'js-yaml'
 import { useRules } from '../hooks/useRules'
-import type { RuleSummary, RuleDetail } from '../hooks/useRules'
+import type { RuleSummary } from '../hooks/useRules'
 import { YamlEditorModal } from './WorkflowsPage'
+
+const NEW_RULE_TEMPLATE = yaml.dump({
+  name: 'my-rule',
+  event: 'before_tool',
+  enabled: true,
+  effect: { type: 'block', message: 'Blocked by rule' },
+}, { lineWidth: 120, noRefs: true })
+
+// Sentinel object used to indicate "create new rule" mode in the YAML editor
+const NEW_RULE_SENTINEL: RuleSummary = { id: '__new__', name: 'New Rule', event: '', source: 'installed', enabled: true, priority: 100, effect: null, tags: [], description: null, group: null, when: null }
 
 interface RulesTabProps {
   searchText: string
@@ -47,6 +57,16 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
   const [yamlRule, setYamlRule] = useState<RuleSummary | null>(null)
   const [yamlContent, setYamlContent] = useState('')
   const [yamlLoading, setYamlLoading] = useState(false)
+
+  // Open YAML editor in create mode when "+ Rule" is clicked
+  useEffect(() => {
+    if (showCreateModal) {
+      setYamlRule(NEW_RULE_SENTINEL)
+      setYamlContent(NEW_RULE_TEMPLATE)
+      setYamlLoading(false)
+      onCloseCreateModal()
+    }
+  }, [showCreateModal, onCloseCreateModal])
 
   const installedNames = useMemo(() => {
     const names = new Set<string>()
@@ -108,15 +128,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     await deleteRule(rule.name, isTemplate)
   }, [deleteRule])
 
-  const handleCreate = useCallback(async (name: string, definitionJson: string) => {
-    const definition = JSON.parse(definitionJson)
-    const result = await createRule(name, definition)
-    if (result) {
-      onCloseCreateModal()
-    }
-    return result
-  }, [createRule, onCloseCreateModal])
-
   const handleYamlEdit = useCallback(async (rule: RuleSummary) => {
     setYamlLoading(true)
     setYamlRule(rule)
@@ -161,9 +172,16 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('Invalid YAML: expected an object')
     }
-    await updateRule(yamlRule.name, parsed)
+    if (yamlRule.id === '__new__') {
+      const name = typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name.trim() : ''
+      if (!name) throw new Error('Rule must have a "name" field')
+      const { name: _name, ...definition } = parsed
+      await createRule(name, definition)
+    } else {
+      await updateRule(yamlRule.name, parsed)
+    }
     setYamlRule(null)
-  }, [yamlRule, yamlContent, updateRule])
+  }, [yamlRule, yamlContent, updateRule, createRule])
 
   const handleDuplicate = useCallback(async (rule: RuleSummary) => {
     const newName = window.prompt('New rule name:', `${rule.name}-copy`)
@@ -275,18 +293,10 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
         )}
       </div>
 
-      {/* Create modal */}
-      {showCreateModal && (
-        <RuleCreateModal
-          onClose={onCloseCreateModal}
-          onCreate={handleCreate}
-        />
-      )}
-
       {/* YAML editor modal */}
       {yamlRule && (
         <YamlEditorModal
-          workflowName={yamlRule.name}
+          workflowName={yamlRule.id === '__new__' ? 'New Rule' : yamlRule.name}
           yamlContent={yamlContent}
           loading={yamlLoading}
           onChange={setYamlContent}
@@ -429,67 +439,3 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onToggle, onDelete, o
   )
 }
 
-function RuleCreateModal({ onClose, onCreate }: {
-  onClose: () => void
-  onCreate: (name: string, definitionJson: string) => Promise<RuleDetail | null>
-}) {
-  const [name, setName] = useState('')
-  const [definitionJson, setDefinitionJson] = useState(JSON.stringify({
-    event: 'before_tool',
-    effect: { type: 'block', message: 'Blocked by rule' },
-  }, null, 2))
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = async () => {
-    if (!name.trim()) return
-    setError(null)
-    setSubmitting(true)
-    try {
-      JSON.parse(definitionJson) // validate
-      await onCreate(name.trim(), definitionJson)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid JSON')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="workflows-modal-overlay" onClick={onClose}>
-      <div className="workflows-modal" onClick={e => e.stopPropagation()}>
-        <h3>New Rule</h3>
-        <div className="workflows-modal-field">
-          <label>Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="my-rule"
-            autoFocus
-          />
-        </div>
-        <div className="workflows-modal-field">
-          <label>Definition JSON</label>
-          <textarea
-            value={definitionJson}
-            onChange={e => setDefinitionJson(e.target.value)}
-            rows={10}
-          />
-        </div>
-        {error && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-        <div className="workflows-modal-actions">
-          <button type="button" className="workflows-modal-cancel" onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className="workflows-modal-submit"
-            onClick={handleSubmit}
-            disabled={!name.trim() || submitting}
-          >
-            {submitting ? 'Creating...' : 'Create'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
