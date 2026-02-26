@@ -94,6 +94,7 @@ class WebSocketServer(
         self.message_manager = message_manager
         self.daemon_config = daemon_config
         self.workflow_handler: Any = None  # WorkflowHookHandler from HookManager
+        self.event_handlers: Any = None  # EventHandlers from HookManager
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}

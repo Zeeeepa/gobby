@@ -421,10 +421,39 @@ class ChatMixin:
 
                     await dispatch_mcp_calls(mcp_calls, event, _call_tool, logger)
 
+            # Dispatch to event handler (parity with CLI HookManager.handle)
+            # This is where skill interception lives (handle_before_agent)
+            event_handlers = getattr(self, "event_handlers", None)
+            handler_context: str | None = None
+            if event_handlers:
+                handler = event_handlers.get_handler(event_type)
+                if handler:
+                    try:
+                        handler_response: HookResponse = await asyncio.to_thread(
+                            handler, event
+                        )
+                        if handler_response and handler_response.context:
+                            handler_context = handler_response.context
+                    except Exception as exc:
+                        logger.error(
+                            "_fire_lifecycle: event handler %s failed: %s",
+                            event_type.name,
+                            exc,
+                            exc_info=True,
+                        )
+
+            # Merge handler context with rule engine context
+            merged_context = response.context
+            if handler_context:
+                if merged_context:
+                    merged_context = merged_context + "\n\n" + handler_context
+                else:
+                    merged_context = handler_context
+
             # Build result dict
             result: dict[str, Any] = {
                 "decision": response.decision,
-                "context": response.context,
+                "context": merged_context,
                 "reason": response.reason,
                 "system_message": response.system_message,
             }

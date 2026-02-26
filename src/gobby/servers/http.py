@@ -428,6 +428,15 @@ class HTTPServer:
                 ws_server.workflow_handler = app.state.hook_manager._workflow_handler
                 logger.debug("Workflow handler connected to WebSocket server")
 
+            # Wire event handlers to WebSocket server for skill interception
+            if (
+                ws_server
+                and hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_event_handlers")
+            ):
+                ws_server.event_handlers = app.state.hook_manager._event_handlers
+                logger.debug("Event handlers connected to WebSocket server")
+
             # Initialize canvas broadcaster
             from gobby.mcp_proxy.tools.canvas import set_broadcaster
 
