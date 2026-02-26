@@ -97,7 +97,7 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
             try:
                 await ws.broadcast_skill_event(event, skill_id, **kwargs)
             except Exception as e:
-                logger.debug(f"Failed to broadcast skill event {event}: {e}")
+                logger.warning(f"Failed to broadcast skill event '{event}' for skill {skill_id}: {e}")
 
     @router.get("")
     def list_skills(

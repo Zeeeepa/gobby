@@ -49,7 +49,6 @@ def mock_sync_manager():
 def mock_task_validator():
     """Create a mock task validator."""
     validator = AsyncMock()
-    validator.generate_criteria = AsyncMock(return_value="Generated criteria")
     validator.validate_task = AsyncMock()
     return validator
 
@@ -1871,7 +1870,6 @@ class TestRegistryIntegration:
         merged_tools = [
             # From task_validation
             "validate_task",
-            "generate_validation_criteria",
             # From task_expansion (skill-based)
             "save_expansion_spec",
             "execute_expansion",

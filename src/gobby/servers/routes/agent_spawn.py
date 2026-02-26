@@ -204,7 +204,8 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         # Resolve task
         try:
             task = task_manager.get_task(req.task_id)
-        except (ValueError, Exception):
+        except Exception as e:
+            logger.debug(f"Failed to get task {req.task_id}: {e}")
             task = None
         if not task:
             return AgentSpawnResponse(

@@ -104,7 +104,7 @@ class TestGetConfigValues:
         """Keys matching secret patterns are reported in secret_keys."""
         response = client.get("/api/config/values")
         data = response.json()
-        assert "voice.ELEVENLABS_API_KEY" in data["secret_keys"]
+        assert "voice.elevenlabs_api_key" in data["secret_keys"]
 
 
 # ---------------------------------------------------------------------------
@@ -665,29 +665,29 @@ class TestSecretAwareConfig:
         """Auto-detected secret keys (like elevenlabs_api_key) are masked."""
         response = client.get("/api/config/values")
         data = response.json()
-        assert "voice.ELEVENLABS_API_KEY" in data["secret_keys"]
+        assert "voice.elevenlabs_api_key" in data["secret_keys"]
 
     def test_put_secret_value_encrypts(self, client: TestClient, temp_db, mock_machine_id) -> None:
         """PUT with a secret-pattern key encrypts via SecretStore."""
         response = client.put(
             "/api/config/values",
-            json={"values": {"voice": {"ELEVENLABS_API_KEY": "sk-test-789"}}},
+            json={"values": {"voice": {"elevenlabs_api_key": "sk-test-789"}}},
         )
         assert response.status_code == 200
         assert response.json()["ok"] is True
 
         # Verify the config_store has the $secret: reference
         store = ConfigStore(temp_db)
-        raw = store.get("voice.ELEVENLABS_API_KEY")
+        raw = store.get("voice.elevenlabs_api_key")
         assert raw is not None
         assert raw.startswith("$secret:")
 
         # Verify it's flagged as secret
-        assert "voice.ELEVENLABS_API_KEY" in store.get_secret_keys()
+        assert "voice.elevenlabs_api_key" in store.get_secret_keys()
 
         # Verify the actual value is encrypted in secrets table
         secret_store = SecretStore(temp_db)
-        decrypted = secret_store.get("ELEVENLABS_API_KEY")
+        decrypted = secret_store.get("elevenlabs_api_key")
         assert decrypted == "sk-test-789"
 
     def test_put_masked_value_skipped(self, client: TestClient, temp_db, mock_machine_id) -> None:
@@ -695,34 +695,34 @@ class TestSecretAwareConfig:
         # First set a secret
         store = ConfigStore(temp_db)
         secret_store = SecretStore(temp_db)
-        store.set_secret("voice.ELEVENLABS_API_KEY", "sk-original", secret_store)
+        store.set_secret("voice.elevenlabs_api_key", "sk-original", secret_store)
 
         # Now PUT with masked value
         response = client.put(
             "/api/config/values",
-            json={"values": {"voice": {"ELEVENLABS_API_KEY": "********"}}},
+            json={"values": {"voice": {"elevenlabs_api_key": "********"}}},
         )
         assert response.status_code == 200
 
         # Original secret should be unchanged
-        decrypted = secret_store.get("ELEVENLABS_API_KEY")
+        decrypted = secret_store.get("elevenlabs_api_key")
         assert decrypted == "sk-original"
 
     def test_put_empty_secret_clears(self, client: TestClient, temp_db, mock_machine_id) -> None:
         """PUT with empty string for a secret key clears it."""
         store = ConfigStore(temp_db)
         secret_store = SecretStore(temp_db)
-        store.set_secret("voice.ELEVENLABS_API_KEY", "sk-to-delete", secret_store)
+        store.set_secret("voice.elevenlabs_api_key", "sk-to-delete", secret_store)
 
         response = client.put(
             "/api/config/values",
-            json={"values": {"voice": {"ELEVENLABS_API_KEY": ""}}},
+            json={"values": {"voice": {"elevenlabs_api_key": ""}}},
         )
         assert response.status_code == 200
 
         # Secret should be cleared
-        assert store.get("voice.ELEVENLABS_API_KEY") is None
-        assert secret_store.get("ELEVENLABS_API_KEY") is None
+        assert store.get("voice.elevenlabs_api_key") is None
+        assert secret_store.get("elevenlabs_api_key") is None
 
     def test_get_values_masks_set_secret(
         self, client: TestClient, temp_db, mock_machine_id
@@ -731,13 +731,13 @@ class TestSecretAwareConfig:
         # Set a secret
         client.put(
             "/api/config/values",
-            json={"values": {"voice": {"ELEVENLABS_API_KEY": "sk-hidden"}}},
+            json={"values": {"voice": {"elevenlabs_api_key": "sk-hidden"}}},
         )
 
         # GET should show masked value
         response = client.get("/api/config/values")
         data = response.json()
-        assert data["values"]["voice"]["ELEVENLABS_API_KEY"] == "********"
+        assert data["values"]["voice"]["elevenlabs_api_key"] == "********"
 
     def test_export_includes_config_secret_keys(
         self, client: TestClient, temp_db, mock_machine_id
@@ -745,13 +745,13 @@ class TestSecretAwareConfig:
         """Export bundle includes config_secret_keys list."""
         store = ConfigStore(temp_db)
         secret_store = SecretStore(temp_db)
-        store.set_secret("voice.ELEVENLABS_API_KEY", "sk-export", secret_store)
+        store.set_secret("voice.elevenlabs_api_key", "sk-export", secret_store)
 
         response = client.post("/api/config/export")
         assert response.status_code == 200
         data = response.json()
         assert "config_secret_keys" in data
-        assert "voice.ELEVENLABS_API_KEY" in data["config_secret_keys"]
+        assert "voice.elevenlabs_api_key" in data["config_secret_keys"]
 
     def test_import_restores_secret_flags(self, client: TestClient, temp_db) -> None:
         """Import with config_secret_keys restores is_secret flags."""
@@ -760,15 +760,15 @@ class TestSecretAwareConfig:
             json={
                 "config_store": {
                     "daemon_port": 9999,
-                    "voice.ELEVENLABS_API_KEY": "$secret:ELEVENLABS_API_KEY",
+                    "voice.elevenlabs_api_key": "$secret:elevenlabs_api_key",
                 },
-                "config_secret_keys": ["voice.ELEVENLABS_API_KEY"],
+                "config_secret_keys": ["voice.elevenlabs_api_key"],
             },
         )
         assert response.status_code == 200
 
         store = ConfigStore(temp_db)
-        assert "voice.ELEVENLABS_API_KEY" in store.get_secret_keys()
+        assert "voice.elevenlabs_api_key" in store.get_secret_keys()
 
 
 # ---------------------------------------------------------------------------

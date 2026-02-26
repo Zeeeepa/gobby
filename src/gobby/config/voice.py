@@ -11,9 +11,7 @@ class VoiceConfig(BaseModel):
     STT uses local Whisper (faster-whisper) for privacy and low latency.
     TTS uses ElevenLabs streaming WebSocket API for natural speech.
 
-    Fields for secrets (e.g. ELEVENLABS_API_KEY) use uppercase by convention to
-    distinguish them. During loading, lowercase variations from the persistent
-    store are automatically normalized to uppercase using model_validator.
+    API key fields use snake_case consistent with other config fields.
     """
 
     enabled: bool = Field(
@@ -32,7 +30,7 @@ class VoiceConfig(BaseModel):
         default="int8",
         description="Compute type for Whisper: int8, float16, float32.",
     )
-    ELEVENLABS_API_KEY: str = Field(
+    elevenlabs_api_key: str = Field(
         default="",
         description="ElevenLabs API key. Supports ${ELEVENLABS_API_KEY} env var expansion.",
     )

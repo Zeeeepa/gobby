@@ -371,10 +371,12 @@ export function useVoice(
             const config: TTSConfig = await res.json()
             ttsConfigRef.current = config
             connectTTS(config)
+            setVoiceError(null)
           } else {
-            console.warn('TTS not available — voice will work without speech output')
+            setVoiceError('TTS not available — voice will work without speech output')
           }
         } catch (err) {
+          setVoiceError('Failed to fetch TTS config')
           console.warn('Failed to fetch TTS config:', err)
         }
       } catch (err) {

@@ -131,6 +131,7 @@ export function useSkills() {
   const [hubs, setHubs] = useState<HubInfo[]>([])
   const [hubResults, setHubResults] = useState<HubSkillResult[]>([])
   const debounceRef = useRef<number | null>(null)
+  const wsDebounceRef = useRef<number | null>(null)
 
   // Fetch skills list
   const fetchSkills = useCallback(async () => {
@@ -507,10 +508,11 @@ export function useSkills() {
     fetchStats()
   }, [fetchSkills, fetchStats])
 
-  // Cleanup debounce on unmount
+  // Cleanup debounce timers on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current)
+      if (wsDebounceRef.current) window.clearTimeout(wsDebounceRef.current)
     }
   }, [])
 
@@ -518,8 +520,8 @@ export function useSkills() {
   useWebSocketEvent(
     'skill_event',
     useCallback(() => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current)
-      debounceRef.current = window.setTimeout(() => {
+      if (wsDebounceRef.current) window.clearTimeout(wsDebounceRef.current)
+      wsDebounceRef.current = window.setTimeout(() => {
         fetchSkills()
         fetchStats()
       }, 500)

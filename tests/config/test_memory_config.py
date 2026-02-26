@@ -25,7 +25,7 @@ def test_qdrant_url_defaults_to_none() -> None:
 def test_qdrant_api_key_defaults_to_none() -> None:
     """qdrant_api_key should default to None."""
     config = MemoryConfig()
-    assert config.QDRANT_API_KEY is None
+    assert config.qdrant_api_key is None
 
 
 def test_qdrant_path_accepted() -> None:
@@ -42,8 +42,8 @@ def test_qdrant_url_accepted() -> None:
 
 def test_qdrant_api_key_accepts_env_var_syntax() -> None:
     """qdrant_api_key should accept ${ENV_VAR} syntax."""
-    config = MemoryConfig(QDRANT_API_KEY="${QDRANT_API_KEY}")
-    assert config.QDRANT_API_KEY == "${QDRANT_API_KEY}"
+    config = MemoryConfig(qdrant_api_key="${qdrant_api_key}")
+    assert config.qdrant_api_key == "${qdrant_api_key}"
 
 
 def test_qdrant_path_and_url_mutual_exclusivity() -> None:

@@ -13,15 +13,18 @@ export class SentenceBuffer {
     const sentences: string[] = []
 
     // Split on sentence boundaries: punctuation followed by whitespace
-    const re = /(?<=[.!?\n])\s+/
+    // Uses capture group instead of lookbehind for Safari < 16.4 compatibility
+    const re = /([.!?\n])\s+/g
     let match: RegExpExecArray | null
+    let lastIndex = 0
     while ((match = re.exec(this.buffer)) !== null) {
-      const sentence = this.buffer.slice(0, match.index).trim()
+      const sentence = this.buffer.slice(lastIndex, match.index + match[1].length).trim()
       if (sentence) {
         sentences.push(sentence)
       }
-      this.buffer = this.buffer.slice(match.index + match[0].length)
+      lastIndex = match.index + match[0].length
     }
+    this.buffer = this.buffer.slice(lastIndex)
 
     return sentences
   }

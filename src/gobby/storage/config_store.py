@@ -42,8 +42,8 @@ def config_key_to_secret_name(key: str) -> str:
     Uses the last segment of the dotted key as the natural secret name.
 
     Examples:
-        ``voice.ELEVENLABS_API_KEY`` -> ``ELEVENLABS_API_KEY``
-        ``secrets.OPENAI_API_KEY`` -> ``OPENAI_API_KEY``
+        ``voice.elevenlabs_api_key`` -> ``elevenlabs_api_key``
+        ``secrets.openai_api_key`` -> ``openai_api_key``
     """
     return key.rsplit(".", 1)[-1]
 

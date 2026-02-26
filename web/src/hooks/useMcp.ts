@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useWebSocketEvent } from './useWebSocketEvent'
 
 export interface McpServer {
@@ -48,6 +48,7 @@ export function useMcp() {
   const [status, setStatus] = useState<McpStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
+  const mcpDebounceRef = useRef<number | null>(null)
 
   const fetchServers = useCallback(async () => {
     try {
@@ -251,11 +252,21 @@ export function useMcp() {
     refreshAll()
   }, [refreshAll])
 
-  // Real-time updates via WebSocket
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (mcpDebounceRef.current) window.clearTimeout(mcpDebounceRef.current)
+    }
+  }, [])
+
+  // Real-time updates via WebSocket (debounced to avoid redundant fetches)
   useWebSocketEvent(
     'mcp_event',
     useCallback(() => {
-      refreshAll()
+      if (mcpDebounceRef.current) window.clearTimeout(mcpDebounceRef.current)
+      mcpDebounceRef.current = window.setTimeout(() => {
+        refreshAll()
+      }, 500)
     }, [refreshAll]),
   )
 

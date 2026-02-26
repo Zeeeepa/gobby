@@ -53,7 +53,7 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
             stt_reason = "Voice not enabled in config"
 
         # Check TTS availability
-        tts_available = bool(voice_config.ELEVENLABS_API_KEY)
+        tts_available = bool(voice_config.elevenlabs_api_key)
         tts_reason = "" if tts_available else "No ElevenLabs API key configured"
 
         return {
@@ -121,7 +121,7 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
                 content={"error": "Voice not enabled in config"},
             )
 
-        api_key = voice_config.ELEVENLABS_API_KEY
+        api_key = voice_config.elevenlabs_api_key
         if not api_key:
             return JSONResponse(
                 status_code=404,

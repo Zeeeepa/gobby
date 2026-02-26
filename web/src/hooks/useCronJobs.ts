@@ -244,6 +244,13 @@ export function useCronJobs() {
     }
   }, [fetchRuns])
 
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current)
+    }
+  }, [])
+
   // Fetch on mount and when filters change
   useEffect(() => {
     setIsLoading(true)
