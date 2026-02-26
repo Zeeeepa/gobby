@@ -10,7 +10,9 @@ The AgentRunner coordinates:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.agents import runner_queries as _queries
@@ -88,8 +90,20 @@ class AgentRunner:
 
         self.logger = logger
 
+        # Workflow handler for hook evaluation on spawned agent tool calls
+        self._workflow_handler: Any = None
+
         # Thread-safe in-memory tracking of running agents
         self._tracker = RunTracker()
+
+    @property
+    def workflow_handler(self) -> Any:
+        """Workflow handler for hook evaluation on spawned agent tool calls."""
+        return self._workflow_handler
+
+    @workflow_handler.setter
+    def workflow_handler(self, value: Any) -> None:
+        self._workflow_handler = value
 
     @property
     def child_session_manager(self) -> ChildSessionManager:
@@ -397,12 +411,56 @@ class AgentRunner:
             )
             return await handler(tool_name, arguments)
 
+        async def hook_aware_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
+            """Wrap tracking_handler with AFTER_TOOL hook evaluation."""
+            result = await tracking_handler(tool_name, arguments)
+            if not self._workflow_handler:
+                return result
+            try:
+                from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+
+                event = HookEvent(
+                    event_type=HookEventType.AFTER_TOOL,
+                    session_id=child_session.id,
+                    source=SessionSource.EMBEDDED,
+                    timestamp=datetime.now(UTC),
+                    data={
+                        "tool_name": tool_name,
+                        "tool_input": arguments,
+                        "is_error": not result.success,
+                    },
+                    metadata={
+                        "is_failure": not result.success,
+                        "_platform_session_id": child_session.id,
+                    },
+                )
+                response = await asyncio.to_thread(self._workflow_handler.evaluate, event)
+                if response and response.context:
+                    if not result.success:
+                        result.error = (
+                            f"{result.error}\n\n{response.context}"
+                            if result.error
+                            else response.context
+                        )
+                    else:
+                        result_str = str(result.result) if result.result else ""
+                        result.result = (
+                            f"{result_str}\n\n{response.context}"
+                            if result_str
+                            else response.context
+                        )
+            except Exception:
+                logger.debug(
+                    "AFTER_TOOL hook eval failed for %s (fail-open)", tool_name, exc_info=True
+                )
+            return result
+
         # Execute the agent
         try:
             result = await executor.run(
                 prompt=config.prompt,
                 tools=config.tools or [],
-                tool_handler=tracking_handler,
+                tool_handler=hook_aware_handler,
                 system_prompt=config.system_prompt,
                 model=config.model,
                 max_turns=config.max_turns,

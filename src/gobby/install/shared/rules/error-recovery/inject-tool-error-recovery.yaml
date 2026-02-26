@@ -1,0 +1,18 @@
+tags: [error-recovery, resilience]
+
+rules:
+  inject-tool-error-recovery:
+    description: "Inject recovery guidance when a tool call fails"
+    event: after_tool
+    enabled: false
+    priority: 50
+    when: "event.metadata.get('is_failure', False) or event.data.get('is_error', False)"
+    effect:
+      type: inject_context
+      template: |
+        The previous tool call failed. Do NOT retry the same command with identical arguments.
+        Instead:
+        1. Read the error message carefully — it tells you what went wrong
+        2. Try a different approach (different command, different query, different tool)
+        3. If you made an assumption (e.g., column exists, file path, API shape), verify it first
+        4. If stuck after 2 failed attempts at the same goal, step back and reconsider your approach entirely

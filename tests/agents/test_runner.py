@@ -7,7 +7,8 @@ import pytest
 from gobby.agents.registry import RunningAgent
 from gobby.agents.runner import AgentRunner
 from gobby.agents.runner_models import AgentConfig, AgentRunContext
-from gobby.llm.executor import AgentResult
+from gobby.hooks.events import HookResponse
+from gobby.llm.executor import AgentResult, ToolResult
 
 pytestmark = pytest.mark.unit
 
@@ -1045,3 +1046,264 @@ class TestAgentRunnerExecuteRunStatusHandling:
 
         # Verify not in tracking after exception
         assert not runner.is_agent_running("run-exc-track")
+
+
+class TestAgentRunnerHookIntegration:
+    """Tests for workflow handler hook integration in execute_run."""
+
+    @pytest.fixture
+    def tool_results(self):
+        """Track tool results captured by the executor."""
+        return []
+
+    @pytest.fixture
+    def failing_tool_handler(self):
+        """Tool handler that returns a failure."""
+
+        async def handler(tool_name: str, arguments: dict) -> ToolResult:
+            return ToolResult(
+                tool_name=tool_name,
+                success=False,
+                error="column 'foo' does not exist",
+            )
+
+        return handler
+
+    @pytest.fixture
+    def succeeding_tool_handler(self):
+        """Tool handler that returns success."""
+
+        async def handler(tool_name: str, arguments: dict) -> ToolResult:
+            return ToolResult(
+                tool_name=tool_name,
+                success=True,
+                result="query returned 3 rows",
+            )
+
+        return handler
+
+    @pytest.fixture
+    def capturing_executor(self, tool_results):
+        """Executor that invokes the tool handler once and captures the result."""
+
+        executor = MagicMock()
+
+        async def run_impl(
+            prompt, tools, tool_handler, system_prompt=None, model=None,
+            max_turns=10, timeout=120.0,
+        ):
+            # Simulate a single tool call
+            result = await tool_handler("Bash", {"command": "sqlite3 test.db"})
+            tool_results.append(result)
+            return AgentResult(
+                output="done",
+                status="success",
+                turns_used=1,
+                tool_calls=[],
+            )
+
+        executor.run = AsyncMock(side_effect=run_impl)
+        return executor
+
+    @pytest.fixture
+    def mock_workflow_handler(self):
+        """Mock workflow handler that returns recovery context."""
+        handler = MagicMock()
+        handler.evaluate = MagicMock(
+            return_value=HookResponse(
+                context="Recovery guidance: try a different approach",
+            )
+        )
+        return handler
+
+    @pytest.fixture
+    def hook_runner(self, mock_db, mock_session_storage, capturing_executor):
+        """AgentRunner with a capturing executor."""
+        return AgentRunner(
+            db=mock_db,
+            session_storage=mock_session_storage,
+            executors={"claude": capturing_executor},
+            max_agent_depth=2,
+        )
+
+    def _make_context(self):
+        """Create a valid AgentRunContext for tests."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-hook-test"
+        mock_run = MagicMock()
+        mock_run.id = "run-hook-test"
+        return AgentRunContext(session=mock_session, run=mock_run)
+
+    async def test_hook_enriches_failed_tool_error(
+        self, hook_runner, mock_workflow_handler, failing_tool_handler,
+        capturing_executor, tool_results,
+    ):
+        """When workflow_handler is set and tool fails, error is enriched with context."""
+        hook_runner.workflow_handler = mock_workflow_handler
+
+        # Re-wire executor to use the failing handler
+        async def run_impl(
+            prompt, tools, tool_handler, system_prompt=None, model=None,
+            max_turns=10, timeout=120.0,
+        ):
+            result = await tool_handler("Bash", {"command": "sqlite3 test.db"})
+            tool_results.append(result)
+            return AgentResult(output="done", status="success", turns_used=1, tool_calls=[])
+
+        capturing_executor.run = AsyncMock(side_effect=run_impl)
+
+        config = AgentConfig(prompt="Test", provider="claude")
+        context = self._make_context()
+
+        await hook_runner.execute_run(context, config, tool_handler=failing_tool_handler)
+
+        # The tool result should have the original error + injected context
+        assert len(tool_results) == 1
+        assert "column 'foo' does not exist" in tool_results[0].error
+        assert "Recovery guidance" in tool_results[0].error
+        mock_workflow_handler.evaluate.assert_called_once()
+
+    async def test_hook_enriches_success_result(
+        self, hook_runner, mock_workflow_handler, succeeding_tool_handler,
+        capturing_executor, tool_results,
+    ):
+        """When workflow_handler is set and tool succeeds, result gets context appended."""
+        hook_runner.workflow_handler = mock_workflow_handler
+
+        async def run_impl(
+            prompt, tools, tool_handler, system_prompt=None, model=None,
+            max_turns=10, timeout=120.0,
+        ):
+            result = await tool_handler("Bash", {"command": "echo hi"})
+            tool_results.append(result)
+            return AgentResult(output="done", status="success", turns_used=1, tool_calls=[])
+
+        capturing_executor.run = AsyncMock(side_effect=run_impl)
+
+        config = AgentConfig(prompt="Test", provider="claude")
+        context = self._make_context()
+
+        await hook_runner.execute_run(context, config, tool_handler=succeeding_tool_handler)
+
+        assert len(tool_results) == 1
+        assert "query returned 3 rows" in str(tool_results[0].result)
+        assert "Recovery guidance" in str(tool_results[0].result)
+
+    async def test_no_handler_works_without_enrichment(
+        self, hook_runner, failing_tool_handler, capturing_executor, tool_results,
+    ):
+        """When workflow_handler is None, tool results pass through unmodified."""
+        assert hook_runner.workflow_handler is None
+
+        async def run_impl(
+            prompt, tools, tool_handler, system_prompt=None, model=None,
+            max_turns=10, timeout=120.0,
+        ):
+            result = await tool_handler("Bash", {"command": "bad cmd"})
+            tool_results.append(result)
+            return AgentResult(output="done", status="success", turns_used=1, tool_calls=[])
+
+        capturing_executor.run = AsyncMock(side_effect=run_impl)
+
+        config = AgentConfig(prompt="Test", provider="claude")
+        context = self._make_context()
+
+        await hook_runner.execute_run(context, config, tool_handler=failing_tool_handler)
+
+        assert len(tool_results) == 1
+        assert tool_results[0].error == "column 'foo' does not exist"
+        assert "Recovery guidance" not in tool_results[0].error
+
+    async def test_hook_eval_exception_is_fail_open(
+        self, hook_runner, failing_tool_handler, capturing_executor, tool_results,
+    ):
+        """If workflow_handler.evaluate raises, the tool result passes through unmodified."""
+        bad_handler = MagicMock()
+        bad_handler.evaluate = MagicMock(side_effect=RuntimeError("handler crashed"))
+        hook_runner.workflow_handler = bad_handler
+
+        async def run_impl(
+            prompt, tools, tool_handler, system_prompt=None, model=None,
+            max_turns=10, timeout=120.0,
+        ):
+            result = await tool_handler("Bash", {"command": "bad cmd"})
+            tool_results.append(result)
+            return AgentResult(output="done", status="success", turns_used=1, tool_calls=[])
+
+        capturing_executor.run = AsyncMock(side_effect=run_impl)
+
+        config = AgentConfig(prompt="Test", provider="claude")
+        context = self._make_context()
+
+        await hook_runner.execute_run(context, config, tool_handler=failing_tool_handler)
+
+        # Should still work, just without enrichment
+        assert len(tool_results) == 1
+        assert tool_results[0].error == "column 'foo' does not exist"
+        assert "Recovery guidance" not in tool_results[0].error
+
+    async def test_hook_no_context_leaves_result_unchanged(
+        self, hook_runner, failing_tool_handler, capturing_executor, tool_results,
+    ):
+        """When workflow_handler returns no context, result is unchanged."""
+        empty_handler = MagicMock()
+        empty_handler.evaluate = MagicMock(return_value=HookResponse(context=None))
+        hook_runner.workflow_handler = empty_handler
+
+        async def run_impl(
+            prompt, tools, tool_handler, system_prompt=None, model=None,
+            max_turns=10, timeout=120.0,
+        ):
+            result = await tool_handler("Bash", {"command": "bad cmd"})
+            tool_results.append(result)
+            return AgentResult(output="done", status="success", turns_used=1, tool_calls=[])
+
+        capturing_executor.run = AsyncMock(side_effect=run_impl)
+
+        config = AgentConfig(prompt="Test", provider="claude")
+        context = self._make_context()
+
+        await hook_runner.execute_run(context, config, tool_handler=failing_tool_handler)
+
+        assert len(tool_results) == 1
+        assert tool_results[0].error == "column 'foo' does not exist"
+
+    async def test_hook_event_has_correct_fields(
+        self, hook_runner, failing_tool_handler, capturing_executor, tool_results,
+    ):
+        """Verify the HookEvent passed to evaluate has correct structure."""
+        from gobby.hooks.events import HookEventType, SessionSource
+
+        captured_events = []
+
+        def capture_evaluate(event):
+            captured_events.append(event)
+            return HookResponse()
+
+        handler = MagicMock()
+        handler.evaluate = MagicMock(side_effect=capture_evaluate)
+        hook_runner.workflow_handler = handler
+
+        async def run_impl(
+            prompt, tools, tool_handler, system_prompt=None, model=None,
+            max_turns=10, timeout=120.0,
+        ):
+            result = await tool_handler("Bash", {"command": "sqlite3 test.db"})
+            tool_results.append(result)
+            return AgentResult(output="done", status="success", turns_used=1, tool_calls=[])
+
+        capturing_executor.run = AsyncMock(side_effect=run_impl)
+
+        config = AgentConfig(prompt="Test", provider="claude")
+        context = self._make_context()
+
+        await hook_runner.execute_run(context, config, tool_handler=failing_tool_handler)
+
+        assert len(captured_events) == 1
+        event = captured_events[0]
+        assert event.event_type == HookEventType.AFTER_TOOL
+        assert event.source == SessionSource.EMBEDDED
+        assert event.session_id == "sess-hook-test"
+        assert event.data["tool_name"] == "Bash"
+        assert event.data["is_error"] is True
+        assert event.metadata["is_failure"] is True

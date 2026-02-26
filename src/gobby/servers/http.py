@@ -437,6 +437,17 @@ class HTTPServer:
                 ws_server.event_handlers = app.state.hook_manager._event_handlers
                 logger.debug("Event handlers connected to WebSocket server")
 
+            # Wire workflow handler to AgentRunner for embedded agent hooks
+            if (
+                self.services.agent_runner
+                and hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_workflow_handler")
+            ):
+                self.services.agent_runner.workflow_handler = (
+                    app.state.hook_manager._workflow_handler
+                )
+                logger.debug("Workflow handler connected to AgentRunner")
+
             # Wire session_coordinator to lifecycle monitor for worktree cleanup
             if (
                 hasattr(app.state, "hook_manager")
