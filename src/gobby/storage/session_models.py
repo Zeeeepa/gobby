@@ -38,7 +38,6 @@ class Session:
     spawned_by_agent_id: str | None = None  # ID of agent that spawned this session
     # Terminal pickup metadata fields
     workflow_name: str | None = None  # Workflow to activate on terminal pickup
-    step_variables: dict[str, Any] | None = None  # Variables for workflow activation
     agent_run_id: str | None = None  # Link back to agent run record
     context_injected: bool = False  # Whether context was injected into prompt
     original_prompt: str | None = None  # Original prompt for terminal mode
@@ -58,6 +57,8 @@ class Session:
     had_edits: bool = False
     # Rolling conversation digest
     digest_markdown: str | None = None
+    # Persisted chat mode (plan, accept_edits, normal, bypass)
+    chat_mode: str = "plan"
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -81,7 +82,6 @@ class Session:
             agent_depth=row["agent_depth"] or 0,
             spawned_by_agent_id=row["spawned_by_agent_id"],
             workflow_name=row["workflow_name"],
-            step_variables=cls._parse_json_field(row, "step_variables"),
             agent_run_id=row["agent_run_id"],
             context_injected=bool(row["context_injected"]),
             original_prompt=row["original_prompt"],
@@ -96,6 +96,7 @@ class Session:
             seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
             had_edits=bool(row["had_edits"]) if "had_edits" in row.keys() else False,
             digest_markdown=row["digest_markdown"] if "digest_markdown" in row.keys() else None,
+            chat_mode=row["chat_mode"] if "chat_mode" in row.keys() else "plan",
         )
 
     @classmethod
@@ -151,7 +152,6 @@ class Session:
             "agent_depth": self.agent_depth,
             "spawned_by_agent_id": self.spawned_by_agent_id,
             "workflow_name": self.workflow_name,
-            "step_variables": self.step_variables,
             "agent_run_id": self.agent_run_id,
             "context_injected": self.context_injected,
             "original_prompt": self.original_prompt,
@@ -165,6 +165,7 @@ class Session:
             "terminal_context": self.terminal_context,
             "had_edits": self.had_edits,
             "digest_markdown": self.digest_markdown,
+            "chat_mode": self.chat_mode,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,

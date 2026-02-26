@@ -42,7 +42,6 @@ class UpdateWorkflowRequest(BaseModel):
 
     name: str | None = None
     definition_json: str | None = None
-    workflow_type: str | None = None
     description: str | None = None
     version: str | None = None
     enabled: bool | None = None

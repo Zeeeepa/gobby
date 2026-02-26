@@ -6,7 +6,7 @@ sources: [claude_sdk, claude_sdk_web_chat]
 
 # Workflow-scoped variables
 variables:
-  _sdk_initialized: false
+  sdk_initialized: false
 
 triggers:
   on_before_agent:
@@ -15,21 +15,21 @@ triggers:
     # SDK clients never get session_start, so this block runs on their
     # first on_before_agent turn instead.
     - action: set_variable
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
       name: mode_level
       value: 2
 
     - action: capture_baseline_dirty_files
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
 
     - action: memory_sync_import
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
 
     - action: task_sync_import
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
 
     - action: inject_context
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
       template: |
         ## Session Context
         - Gobby Session ID: {{ ('#' ~ session.seq_num|string) if session.seq_num else session.id }} <- Use this for MCP tool calls (session_id parameter)
@@ -37,20 +37,20 @@ triggers:
         - Source: {{ session.source }}
 
     - action: inject_context
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
       source: skills
       filter: always_apply
       template: |
         {{ skills_list }}
 
     - action: inject_context
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
       source: task_context
       template: |
         {{ task_context }}
 
     - action: inject_context
-      when: "not variables.get('_sdk_initialized')"
+      when: "not variables.get('sdk_initialized')"
       template: |
         ## Pre-Existing Error/Warning/Failure Policy
 
@@ -65,12 +65,12 @@ triggers:
 
     # Mark initialization complete (must be last init action)
     - action: set_variable
-      when: "not variables.get('_sdk_initialized')"
-      name: _sdk_initialized
+      when: "not variables.get('sdk_initialized')"
+      name: sdk_initialized
       value: true
 
   on_pre_compact:
     # Reset so re-init fires after context loss
     - action: set_variable
-      name: _sdk_initialized
+      name: sdk_initialized
       value: false

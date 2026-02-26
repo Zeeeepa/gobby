@@ -486,61 +486,6 @@ async def generate_summary(
     return result
 
 
-async def generate_handoff(
-    session_manager: Any,
-    session_id: str,
-    llm_service: Any,
-    transcript_processor: Any,
-    template: str | None = None,
-    previous_summary: str | None = None,
-    mode: Literal["clear", "compact"] = "clear",
-    write_file: bool = False,
-    output_path: str | None = None,
-) -> dict[str, Any] | None:
-    """Generate a handoff record by summarizing the session.
-
-    This is a convenience action that combines generate_summary + mark status.
-
-    Args:
-        session_manager: The session manager instance
-        session_id: Current session ID
-        llm_service: LLM service instance
-        transcript_processor: Transcript processor instance
-        template: Optional prompt template
-        previous_summary: Previous summary for cumulative compression (compact mode)
-        mode: "clear" or "compact"
-
-    Returns:
-        Dict with handoff_created and summary_length, or error
-
-    Raises:
-        ValueError: If mode is not "clear" or "compact" (via generate_summary)
-    """
-    # Reuse generate_summary logic
-    summary_result = await generate_summary(
-        session_manager=session_manager,
-        session_id=session_id,
-        llm_service=llm_service,
-        transcript_processor=transcript_processor,
-        template=template,
-        previous_summary=previous_summary,
-        mode=mode,
-        write_file=write_file,
-        output_path=output_path,
-    )
-
-    if summary_result and "error" in summary_result:
-        return summary_result
-
-    # Mark Session Status
-    session_manager.update_status(session_id, "handoff_ready")
-
-    if not summary_result:
-        return {"error": "Failed to generate summary"}
-
-    return {"handoff_created": True, "summary_length": summary_result.get("summary_length", 0)}
-
-
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
@@ -555,63 +500,6 @@ async def handle_generate_summary(context: ActionContext, **kwargs: Any) -> dict
         template=kwargs.get("template"),
         mode=kwargs.get("mode", "clear"),
         previous_summary=kwargs.get("previous_summary"),
-        write_file=kwargs.get("write_file", False),
-        output_path=kwargs.get("output_path"),
-    )
-
-
-async def handle_generate_handoff(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for generate_handoff.
-
-    Handles mode detection from event_data and previous summary fetching for compact mode.
-    Also supports loading templates from prompts collection via 'prompt' parameter.
-    """
-    # Detect mode from kwargs or event data
-    mode = kwargs.get("mode", "clear")
-
-    # Check if this is a compact event based on event_data
-    COMPACT_EVENT_TYPES = {"pre_compact", "compact"}
-    if context.event_data:
-        raw_event_type = context.event_data.get("event_type") or ""
-        normalized_event_type = str(raw_event_type).strip().lower()
-        if normalized_event_type in COMPACT_EVENT_TYPES:
-            mode = "compact"
-
-    # For compact mode, fetch previous summary for cumulative compression
-    previous_summary = None
-    if mode == "compact":
-        current_session = context.session_manager.get(context.session_id)
-        if current_session:
-            previous_summary = getattr(current_session, "summary_markdown", None)
-            if previous_summary:
-                logger.debug(
-                    f"Compact mode: using previous summary ({len(previous_summary)} chars) "
-                    f"for cumulative compression"
-                )
-
-    # Load template from prompts collection if 'prompt' parameter provided
-    template = kwargs.get("template")
-    prompt_path = kwargs.get("prompt")
-    if prompt_path and not template:
-        try:
-            from gobby.prompts.loader import PromptLoader
-
-            loader = PromptLoader(db=context.db)
-            prompt_template = loader.load(prompt_path)
-            template = prompt_template.content
-            logger.debug(f"Loaded prompt template from: {prompt_path}")
-        except Exception as e:
-            logger.warning(f"Failed to load prompt from {prompt_path}: {e}")
-            # Fall back to inline template or default
-
-    return await generate_handoff(
-        session_manager=context.session_manager,
-        session_id=context.session_id,
-        llm_service=context.llm_service,
-        transcript_processor=context.transcript_processor,
-        template=template,
-        previous_summary=previous_summary,
-        mode=mode,
         write_file=kwargs.get("write_file", False),
         output_path=kwargs.get("output_path"),
     )

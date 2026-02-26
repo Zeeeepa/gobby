@@ -49,6 +49,7 @@ class BroadcastMixin:
             "pipeline_event",
             "terminal_output",
             "tmux_session_event",
+            "canvas_event",
         }
 
         # Non-event messages pass through for any subscribed client
@@ -58,6 +59,19 @@ class BroadcastMixin:
         # Check for message type subscription
         if msg_type in subs:
             return True
+
+        # Parametric subscriptions: "type:key=value"
+        # e.g., "session_message:session_id=abc123" matches session_message
+        # events where the session_id field equals "abc123".
+        for sub in subs:
+            if ":" not in sub:
+                continue
+            sub_type, param_str = sub.split(":", 1)
+            if sub_type != msg_type or "=" not in param_str:
+                continue
+            key, value = param_str.split("=", 1)
+            if message.get(key) == value:
+                return True
 
         # Special casing for hook_event granularity (subscribe by event_type)
         if msg_type == "hook_event":
@@ -268,6 +282,18 @@ class BroadcastMixin:
             "event": event,
             "from_session": from_session,
             "to_session": to_session,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+        await self.broadcast(message)
+
+    async def broadcast_canvas_event(
+        self,
+        **kwargs: Any,
+    ) -> None:
+        """Broadcast canvas interaction/update event."""
+        message = {
+            "type": "canvas_event",
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
         }

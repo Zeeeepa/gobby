@@ -22,6 +22,7 @@ from gobby.mcp_proxy.tools.workflows._rules import (
 )
 from gobby.storage.config_store import ConfigStore
 from gobby.utils.metrics import get_metrics_collector
+from gobby.workflows.definitions import RuleDefinitionBody
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -47,6 +48,9 @@ class RuleCreateRequest(BaseModel):
 class RuleUpdateRequest(BaseModel):
     """Request body for updating a rule."""
 
+    definition: dict[str, Any] | None = Field(
+        default=None, description="Full rule definition (replaces body + metadata)"
+    )
     description: str | None = Field(default=None, description="New description")
     enabled: bool | None = Field(default=None, description="New enabled state")
     priority: int | None = Field(default=None, description="New priority")
@@ -98,6 +102,7 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         try:
             manager = _get_manager()
             rows = manager.list_all(workflow_type="rule")
+            rows = [r for r in rows if r.source != "template"]
             groups: set[str] = set()
             for row in rows:
                 body = json.loads(row.definition_json)
@@ -112,6 +117,26 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             logger.exception("Error listing rule groups")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.get("/tags")
+    async def list_tags() -> dict[str, Any]:
+        """List distinct rule tags."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            manager = _get_manager()
+            rows = manager.list_all(workflow_type="rule")
+            rows = [r for r in rows if r.source != "template"]
+            tags: set[str] = set()
+            for row in rows:
+                for tag in row.tags or []:
+                    tags.add(tag)
+            return {
+                "status": "success",
+                "tags": sorted(tags),
+            }
+        except Exception as e:
+            logger.exception("Error listing rule tags")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     # -----------------------------------------------------------------
     # GET /api/rules
     # -----------------------------------------------------------------
@@ -121,12 +146,13 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         event: str | None = Query(None, description="Filter by event type"),
         group: str | None = Query(None, description="Filter by group"),
         enabled: bool | None = Query(None, description="Filter by enabled status"),
+        project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> dict[str, Any]:
         """List rules with optional filters."""
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
-            result = list_rules(manager, event=event, group=group, enabled=enabled)
+            result = list_rules(manager, event=event, group=group, enabled=enabled, project_id=project_id)
             config_store = ConfigStore(server.services.database)
             enforcement = config_store.get("rules.enforcement_enabled")
             return {
@@ -226,6 +252,26 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Rule '{name}' not found")
 
         fields = request.model_dump(exclude_unset=True)
+
+        # Handle full definition replacement from YAML editor
+        definition = fields.pop("definition", None)
+        if definition is not None:
+            # Validate the rule body
+            try:
+                RuleDefinitionBody.model_validate(definition)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid rule definition: {e}") from e
+
+            # Extract row-level metadata from definition into fields (don't override explicit values)
+            for key in ("description", "enabled", "priority", "tags"):
+                if key not in fields and key in definition:
+                    fields[key] = definition.pop(key)
+
+            # Strip non-body keys (e.g. name) from definition before serializing
+            definition.pop("name", None)
+
+            fields["definition_json"] = json.dumps(definition)
+
         if not fields:
             raise HTTPException(status_code=400, detail="No fields to update")
 

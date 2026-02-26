@@ -95,6 +95,8 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None, description="Filter by project ID"),
         enabled: bool | None = Query(None, description="Filter by enabled state"),
         category: str | None = Query(None, description="Filter by category"),
+        include_templates: bool = Query(False, description="Include template skills"),
+        include_deleted: bool = Query(False, description="Include soft-deleted skills"),
         limit: int = Query(50, description="Maximum results"),
         offset: int = Query(0, description="Pagination offset"),
     ) -> dict[str, Any]:
@@ -107,6 +109,8 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
                 category=category,
                 limit=limit,
                 offset=offset,
+                include_templates=include_templates,
+                include_deleted=include_deleted,
             )
             return {"skills": [s.to_dict() for s in skills]}
         except Exception as e:
@@ -190,12 +194,21 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
                 if s.hub_name:
                     hub_count += 1
 
+            template_count = server.skill_manager.count_skills(
+                project_id=project_id, source="template", include_templates=True
+            )
+            installed_count = server.skill_manager.count_skills(
+                project_id=project_id, source="installed"
+            )
+
             return {
                 "total": total,
                 "enabled": enabled,
                 "disabled": disabled,
                 "bundled": bundled_count,
                 "from_hubs": hub_count,
+                "templates": template_count,
+                "installed_count": installed_count,
                 "by_category": by_category,
                 "by_source_type": by_source_type,
             }
@@ -398,6 +411,19 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to install from hub: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/install-all-templates")
+    def install_all_templates(
+        project_id: str | None = Query(None, description="Project scope"),
+    ) -> dict[str, Any]:
+        """Install all eligible template skills."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            count = server.skill_manager.install_all_templates(project_id=project_id)
+            return {"installed_count": count}
+        except Exception as e:
+            logger.error(f"Failed to install all templates: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/{skill_id}")
     def get_skill(skill_id: str) -> Any:
         """Get a specific skill by ID."""
@@ -445,6 +471,61 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         if not result:
             raise HTTPException(status_code=404, detail="Skill not found")
         return {"deleted": True, "id": skill_id}
+
+    @router.post("/{skill_id}/install")
+    def install_from_template(skill_id: str) -> dict[str, Any]:
+        """Install a skill from its template."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            skill = server.skill_manager.install_from_template(skill_id)
+            return {"installed": True, "skill": skill.to_dict()}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Failed to install from template {skill_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{skill_id}/move-to-project")
+    def move_to_project(
+        skill_id: str,
+        project_id: str = Query(..., description="Target project ID"),
+    ) -> dict[str, Any]:
+        """Move a skill to project scope."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            skill = server.skill_manager.move_to_project(skill_id, project_id)
+            return {"moved": True, "skill": skill.to_dict()}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Failed to move skill {skill_id} to project: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{skill_id}/move-to-installed")
+    def move_to_installed(skill_id: str) -> dict[str, Any]:
+        """Move a project-scoped skill back to installed scope."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            skill = server.skill_manager.move_to_installed(skill_id)
+            return {"moved": True, "skill": skill.to_dict()}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Failed to move skill {skill_id} to installed: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{skill_id}/restore")
+    def restore_skill(skill_id: str) -> dict[str, Any]:
+        """Restore a soft-deleted skill."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            skill = server.skill_manager.restore_skill(skill_id)
+            return {"restored": True, "skill": skill.to_dict()}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Failed to restore skill {skill_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/{skill_id}/export")
     def export_skill(skill_id: str) -> dict[str, Any]:

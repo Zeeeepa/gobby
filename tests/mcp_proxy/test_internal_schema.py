@@ -166,3 +166,59 @@ def test_decorator_required_vs_optional() -> None:
     assert schema is not None
     assert "required_param" in schema["inputSchema"]["required"]
     assert "optional_param" not in schema["inputSchema"]["required"]
+
+
+# --- _context injection tests ---
+
+
+def test_underscore_prefixed_params_excluded_from_schema() -> None:
+    """Parameters starting with _ should not appear in the tool's JSON schema."""
+    registry = InternalToolRegistry(name="test-registry")
+
+    @registry.tool(name="ctx_tool", description="Tool with _context")
+    def ctx_tool(name: str, _context: Any = None) -> dict[str, Any]:
+        return {}
+
+    schema = registry.get_schema("ctx_tool")
+    assert schema is not None
+    props = schema["inputSchema"]["properties"]
+    assert "name" in props
+    assert "_context" not in props
+    assert "_context" not in schema["inputSchema"].get("required", [])
+
+
+@pytest.mark.asyncio
+async def test_context_injected_as_simplenamespace() -> None:
+    """When context dict is passed to call(), tools declaring _context receive a SimpleNamespace."""
+    import types
+
+    registry = InternalToolRegistry(name="test-registry")
+    captured: list[Any] = []
+
+    @registry.tool(name="capture_ctx", description="Captures context")
+    def capture_ctx(query: str, _context: Any = None) -> dict[str, Any]:
+        captured.append(_context)
+        return {"query": query}
+
+    ctx = {"session_id": "sess-1", "conversation_id": "conv-1"}
+    result = await registry.call("capture_ctx", {"query": "hello"}, context=ctx)
+
+    assert result["query"] == "hello"
+    assert len(captured) == 1
+    assert isinstance(captured[0], types.SimpleNamespace)
+    assert captured[0].session_id == "sess-1"
+    assert captured[0].conversation_id == "conv-1"
+
+
+@pytest.mark.asyncio
+async def test_context_not_injected_when_tool_lacks_param() -> None:
+    """Passing context to a tool that doesn't declare _context should not cause errors."""
+    registry = InternalToolRegistry(name="test-registry")
+
+    @registry.tool(name="no_ctx", description="No context param")
+    def no_ctx(query: str) -> dict[str, Any]:
+        return {"query": query}
+
+    ctx = {"session_id": "sess-1", "conversation_id": "conv-1"}
+    result = await registry.call("no_ctx", {"query": "hello"}, context=ctx)
+    assert result["query"] == "hello"

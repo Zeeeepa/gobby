@@ -79,6 +79,7 @@ class ChatMixin:
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
+    _pending_agents: dict[str, str]
 
     # Provided by HandlerMixin – declared here only for type checking
     # to avoid shadowing the real implementation at runtime (MRO).
@@ -197,17 +198,11 @@ class ChatMixin:
             if tool_approval_cfg is not None and tool_approval_cfg.enabled:
                 session._tool_approval_config = tool_approval_cfg
 
-        # Apply pending chat mode (set before session existed)
-        pending_modes = getattr(self, "_pending_modes", {})
-        pending_mode = pending_modes.pop(conversation_id, None)
-        if pending_mode:
-            session.chat_mode = pending_mode
-        else:
-            # Apply configured default from daemon config
-            if daemon_cfg is not None:
-                chat_cfg = getattr(daemon_cfg, "chat", None)
-                if chat_cfg is not None:
-                    session.chat_mode = chat_cfg.default_mode
+        # Apply daemon config default chat mode (lowest priority — overridden below)
+        if daemon_cfg is not None:
+            chat_cfg = getattr(daemon_cfg, "chat", None)
+            if chat_cfg is not None:
+                session.chat_mode = chat_cfg.default_mode
 
         # Set project context on session BEFORE start() so env vars and CWD
         # are correctly configured for the CLI subprocess.
@@ -234,6 +229,34 @@ class ChatMixin:
                 )
             except Exception as e:
                 logger.warning(f"Failed to register web-chat session in DB: {e}")
+
+        # Override chat mode with DB-persisted value (for returning sessions)
+        if session_manager and session.db_session_id:
+            try:
+                db_session = await asyncio.to_thread(session_manager.get, session.db_session_id)
+                if db_session and db_session.chat_mode:
+                    session.chat_mode = db_session.chat_mode
+            except Exception:
+                pass  # Best-effort — fall back to daemon default
+
+        # Override with pending mode (highest priority — user toggled before session existed)
+        pending_modes = getattr(self, "_pending_modes", {})
+        pending_mode = pending_modes.pop(conversation_id, None)
+        if pending_mode:
+            session.chat_mode = pending_mode
+
+        # Wire DB persistence callback for chat_mode changes
+        if session_manager and session.db_session_id:
+            _db_sid = session.db_session_id
+            _sm = session_manager
+
+            def _persist_mode(mode: str) -> None:
+                try:
+                    _sm.update_chat_mode(_db_sid, mode)
+                except Exception:
+                    logger.debug("Failed to persist chat_mode", exc_info=True)
+
+            session._on_mode_persist = _persist_mode
 
         # Look up repo_path from DB so the subprocess CWD matches the selected project
         if session_manager and not session.project_path:
@@ -276,8 +299,32 @@ class ChatMixin:
                     exc_info=e,
                 )
 
+        # Pop pending agent override (from set_agent WS message)
+        pending_agents = getattr(self, "_pending_agents", {})
+        pending_agent = pending_agents.pop(conversation_id, None)
+        if pending_agent:
+            session._pending_agent_name = pending_agent
+
         # Fire SESSION_START (informational, fire-and-forget)
-        asyncio.create_task(self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, {}))
+        start_data: dict[str, Any] = {}
+        if pending_agent:
+            start_data["agent_name_override"] = pending_agent
+        asyncio.create_task(self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, start_data))
+
+        # Broadcast authoritative mode to frontend so it can override local storage
+        mode_msg = json.dumps(
+            {
+                "type": "mode_changed",
+                "conversation_id": conversation_id,
+                "mode": session.chat_mode,
+                "reason": "session_restored",
+            }
+        )
+        for ws in list(self.clients.keys()):
+            try:
+                await ws.send(mode_msg)
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
 
         return session
 
@@ -353,7 +400,19 @@ class ChatMixin:
                 if mcp_manager:
                     from gobby.hooks.mcp_dispatch import dispatch_mcp_calls
 
-                    await dispatch_mcp_calls(mcp_calls, event, mcp_manager.call_tool, logger)
+                    internal_mgr = getattr(self, "internal_manager", None)
+
+                    async def _call_tool(
+                        server: str, tool: str, arguments: dict[str, Any]
+                    ) -> Any:
+                        """Route to internal registries first, then external."""
+                        if internal_mgr and internal_mgr.is_internal(server):
+                            registry = internal_mgr.get_registry(server)
+                            if registry:
+                                return await registry.call(tool, arguments)
+                        return await mcp_manager.call_tool(server, tool, arguments)
+
+                    await dispatch_mcp_calls(mcp_calls, event, _call_tool, logger)
 
             # Build result dict
             result: dict[str, Any] = {
@@ -556,6 +615,11 @@ class ChatMixin:
                         type="session_info",
                         conversation_id=conversation_id,
                     )
+                    # Include DB session ID so frontend can call session APIs
+                    # (e.g. synthesize-title) without waiting for sessions list poll
+                    db_sid = getattr(session, "db_session_id", None)
+                    if db_sid:
+                        session_info_msg["db_session_id"] = db_sid
                     if ref:
                         session_info_msg["session_ref"] = ref
                     branch, wt_path = await _resolve_git_branch(
@@ -565,6 +629,9 @@ class ChatMixin:
                         session_info_msg["current_branch"] = branch
                     if wt_path:
                         session_info_msg["worktree_path"] = wt_path
+                    # Include active agent name so frontend can display it
+                    agent_name = getattr(session, "_pending_agent_name", None) or "default"
+                    session_info_msg["agent_name"] = agent_name
                     await websocket.send(json.dumps(session_info_msg))
                 except Exception as e:
                     logger.error(f"Failed to start chat session: {e}")

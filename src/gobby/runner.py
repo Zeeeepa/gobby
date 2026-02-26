@@ -100,6 +100,7 @@ class GobbyRunner:
         self._shutdown_requested = False
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
         self._vector_rebuild_task: asyncio.Task[None] | None = None
+        self._zombie_messages_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
@@ -510,6 +511,7 @@ class GobbyRunner:
                 session_manager=self.session_manager,
                 message_manager=self.message_manager,
                 daemon_config=self.config,
+                internal_manager=self.http_server._internal_manager,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
@@ -551,6 +553,7 @@ class GobbyRunner:
         from gobby.runner_maintenance import (
             cleanup_pid_file,
             cleanup_stale_tmux_sessions,
+            cleanup_zombie_messages_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
             setup_signal_handlers,
@@ -626,6 +629,12 @@ class GobbyRunner:
             self._metrics_cleanup_task = asyncio.create_task(
                 metrics_cleanup_loop(self.metrics_manager, lambda: self._shutdown_requested),
                 name="metrics-cleanup",
+            )
+
+            # Start periodic zombie message cleanup (every 6 hours)
+            self._zombie_messages_task = asyncio.create_task(
+                cleanup_zombie_messages_loop(self.database, lambda: self._shutdown_requested),
+                name="zombie-message-cleanup",
             )
 
             # Start WebSocket server
@@ -733,6 +742,14 @@ class GobbyRunner:
                 self._metrics_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel zombie message cleanup task
+            if self._zombie_messages_task and not self._zombie_messages_task.done():
+                self._zombie_messages_task.cancel()
+                try:
+                    await asyncio.wait_for(self._zombie_messages_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 

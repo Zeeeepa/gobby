@@ -1,8 +1,8 @@
-"""Handoff helper functions and tools for session management.
+"""Handoff tools for session management.
 
 This module contains:
-- Helper functions for formatting handoff context
-- MCP tools for creating and retrieving handoffs
+- Helper function for formatting transcript turns for LLM analysis
+- MCP tools for setting and retrieving handoff context
 """
 
 from __future__ import annotations
@@ -11,73 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-    from gobby.sessions.analyzer import HandoffContext
+    from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
-
-
-def _format_handoff_markdown(ctx: HandoffContext, notes: str | None = None) -> str:
-    """
-    Format HandoffContext as markdown for session handoff.
-
-    Args:
-        ctx: HandoffContext with extracted session data
-        notes: Optional additional notes to include
-
-    Returns:
-        Formatted markdown string
-    """
-    sections: list[str] = ["## Continuation Context", ""]
-
-    # Active task section
-    if ctx.active_gobby_task:
-        task = ctx.active_gobby_task
-        sections.append("### Active Task")
-        sections.append(f"**{task.get('title', 'Untitled')}** ({task.get('id', 'unknown')})")
-        sections.append(f"Status: {task.get('status', 'unknown')}")
-        sections.append("")
-
-    # Git commits section
-    if ctx.git_commits:
-        sections.append("### Commits This Session")
-        for commit in ctx.git_commits:
-            sections.append(f"- `{commit.get('hash', '')[:7]}` {commit.get('message', '')}")
-        sections.append("")
-
-    # Git status section
-    if ctx.git_status:
-        sections.append("### Uncommitted Changes")
-        sections.append("```")
-        sections.append(ctx.git_status)
-        sections.append("```")
-        sections.append("")
-
-    # Files modified section
-    if ctx.files_modified:
-        sections.append("### Files Being Modified")
-        for f in ctx.files_modified:
-            sections.append(f"- {f}")
-        sections.append("")
-
-    # Initial goal section
-    if ctx.initial_goal:
-        sections.append("### Original Goal")
-        sections.append(ctx.initial_goal)
-        sections.append("")
-
-    # Recent activity section
-    if ctx.recent_activity:
-        sections.append("### Recent Activity")
-        for activity in ctx.recent_activity[-5:]:
-            sections.append(f"- {activity}")
-        sections.append("")
-
-    # Notes section (if provided)
-    if notes:
-        sections.append("### Notes")
-        sections.append(notes)
-        sections.append("")
-
-    return "\n".join(sections)
 
 
 def _format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
@@ -106,6 +41,9 @@ def _format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
 def register_handoff_tools(
     registry: InternalToolRegistry,
     session_manager: LocalSessionManager,
+    llm_service: Any | None = None,
+    transcript_processor: Any | None = None,
+    inter_session_message_manager: InterSessionMessageManager | None = None,
 ) -> None:
     """
     Register handoff tools with a registry.
@@ -113,6 +51,9 @@ def register_handoff_tools(
     Args:
         registry: The InternalToolRegistry to register tools with
         session_manager: LocalSessionManager instance for session operations
+        llm_service: LLM service for generating full summaries (optional)
+        transcript_processor: Transcript processor for parsing transcripts (optional)
+        inter_session_message_manager: For sending P2P messages between sessions (optional)
     """
     from gobby.utils.project_context import get_project_context
 
@@ -123,89 +64,79 @@ def register_handoff_tools(
 
         return session_manager.resolve_session_reference(ref, project_id)
 
-    @registry.tool(
-        name="get_handoff_context",
-        description="Get the handoff context (compact_markdown) for a session. Accepts #N, N, UUID, or prefix.",
-    )
-    def get_handoff_context(session_id: str) -> dict[str, Any]:
-        """
-        Retrieve stored handoff context.
+    def _send_to_peer(from_session_id: str, to_session_ref: str, content: str) -> dict[str, Any]:
+        """Send handoff content to a peer session via P2P message."""
+        if inter_session_message_manager is None:
+            return {"success": False, "error": "Inter-session message manager not available"}
 
-        Args:
-            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix
-
-        Returns:
-            Session ID, compact_markdown, and whether context exists
-        """
-        if not session_manager:
-            raise RuntimeError("Session manager not available")
-
-        # Get project_id for project-scoped resolution
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
-
-        # Resolve #N format, UUID, or prefix
         try:
-            resolved_id = session_manager.resolve_session_reference(session_id, project_id)
-            session = session_manager.get(resolved_id)
-        except ValueError:
-            session = None
-        if not session:
-            return {"success": False, "error": f"Session {session_id} not found", "found": False}
+            resolved_to = _resolve_session_id(to_session_ref)
+            to_session_obj = session_manager.get(resolved_to)
+            if not to_session_obj:
+                return {"success": False, "error": f"Target session {to_session_ref} not found"}
 
-        return {
-            "success": True,
-            "session_id": session.id,
-            "ref": f"#{session.seq_num}" if session.seq_num else session.id[:8],
-            "compact_markdown": session.compact_markdown,
-            "has_context": bool(session.compact_markdown),
-        }
+            # Validate same project
+            from_session_obj = session_manager.get(from_session_id)
+            if from_session_obj and to_session_obj:
+                from_proj = getattr(from_session_obj, "project_id", None)
+                to_proj = getattr(to_session_obj, "project_id", None)
+                if from_proj and to_proj and from_proj != to_proj:
+                    return {"success": False, "error": "Sessions belong to different projects"}
+
+            msg = inter_session_message_manager.create_message(
+                from_session=from_session_id,
+                to_session=resolved_to,
+                content=content,
+                message_type="handoff",
+            )
+            return {"success": True, "message_id": msg.id, "to_session": resolved_to}
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
-        name="create_handoff",
-        description="""Create handoff context by extracting structured data from the session transcript. Accepts #N, N, UUID, or prefix for session_id.
-
-Args:
-    session_id: (REQUIRED) Your session ID. Accepts #N, N, UUID, or prefix. Get it from:
-        1. Your injected context (look for 'Session Ref: #N' or 'session_id: xxx')
-        2. Or call get_current_session(external_id, source) first""",
+        name="set_handoff_context",
+        description=(
+            "Set handoff context for a session. Two modes:\n"
+            "1. Agent-authored (fast): Pass `content` directly — writes to summary_markdown, "
+            "sets handoff_ready.\n"
+            "2. Automated fallback: Omit `content` — uses TranscriptAnalyzer and/or LLM.\n"
+            "Optionally sends context to a peer session via `to_session`.\n\n"
+            "Args:\n"
+            "    session_id: (REQUIRED) Your session ID. Accepts #N, N, UUID, or prefix."
+        ),
     )
-    async def create_handoff(
+    async def set_handoff_context(
         session_id: str,
+        content: str | None = None,
+        to_session: str | None = None,
         notes: str | None = None,
         compact: bool = False,
         full: bool = False,
-        write_file: bool = True,
+        write_file: bool = False,
         output_path: str = ".gobby/session_summaries/",
+        set_handoff_ready: bool = True,
     ) -> dict[str, Any]:
         """
-        Create handoff context for a session.
-
-        Generates compact (TranscriptAnalyzer) and/or full (LLM) summaries.
-        Always saves to database. Optionally writes to file.
+        Set handoff context for a session.
 
         Args:
             session_id: Session reference - supports #N, N (seq_num), UUID, or prefix (REQUIRED)
+            content: Agent-authored handoff content (fast path, skips transcript analysis)
+            to_session: Target session to send handoff context to via P2P message
             notes: Additional notes to include in handoff
-            compact: Generate compact summary only (default: False, neither = both)
-            full: Generate full LLM summary only (default: False, neither = both)
-            write_file: Also write to file (default: True). DB is always written.
-            output_path: Directory for file output (default: .gobby/session_summaries/ in project)
+            compact: Generate compact summary only (TranscriptAnalyzer)
+            full: Generate full LLM summary only
+            write_file: Also write to file (default: False). DB is always written.
+            output_path: Directory for file output (default: .gobby/session_summaries/)
+            set_handoff_ready: Set session status to handoff_ready (default: True)
 
         Returns:
-            Success status, markdown lengths, and extracted context summary
+            Success status, markdown lengths, and context summary
         """
-        import json
-        import subprocess  # nosec B404 - subprocess needed for git commands
-        import time
-        from pathlib import Path
-
-        from gobby.sessions.analyzer import TranscriptAnalyzer
-
         if session_manager is None:
             return {"success": False, "error": "Session manager not available"}
 
-        # Resolve session reference (#N, N, UUID, or prefix)
+        # Resolve session reference
         try:
             resolved_id = _resolve_session_id(session_id)
             session = session_manager.get(resolved_id)
@@ -214,6 +145,34 @@ Args:
 
         if not session:
             return {"success": False, "error": "No session found", "session_id": session_id}
+
+        # --- Agent-authored fast path ---
+        if content is not None:
+            session_manager.update_summary(session.id, summary_markdown=content)
+
+            if set_handoff_ready:
+                session_manager.update_status(session.id, "handoff_ready")
+
+            result: dict[str, Any] = {
+                "success": True,
+                "session_id": session.id,
+                "mode": "agent_authored",
+                "summary_length": len(content),
+            }
+
+            if to_session:
+                result["send_result"] = _send_to_peer(session.id, to_session, content)
+
+            return result
+
+        # --- Automated fallback ---
+        import json
+        import subprocess  # nosec B404 - subprocess needed for git commands
+        import time
+        from pathlib import Path
+
+        from gobby.sessions.analyzer import TranscriptAnalyzer
+        from gobby.workflows.context_actions import format_handoff_as_markdown
 
         # Get transcript path
         transcript_path = session.jsonl_path
@@ -246,14 +205,16 @@ Args:
         # Enrich with real-time git status
         if not handoff_ctx.git_status:
             try:
-                result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+                result_proc = subprocess.run(  # nosec B603 B607 - hardcoded git command
                     ["git", "status", "--short"],
                     capture_output=True,
                     text=True,
                     timeout=5,
                     cwd=path.parent,
                 )
-                handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
+                handoff_ctx.git_status = (
+                    result_proc.stdout.strip() if result_proc.returncode == 0 else ""
+                )
             except Exception as e:
                 import logging
 
@@ -261,16 +222,16 @@ Args:
 
         # Get recent git commits
         try:
-            result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+            result_proc = subprocess.run(  # nosec B603 B607 - hardcoded git command
                 ["git", "log", "--oneline", "-10", "--format=%H|%s"],
                 capture_output=True,
                 text=True,
                 timeout=5,
                 cwd=path.parent,
             )
-            if result.returncode == 0:
+            if result_proc.returncode == 0:
                 commits = []
-                for line in result.stdout.strip().split("\n"):
+                for line in result_proc.stdout.strip().split("\n"):
                     if "|" in line:
                         hash_val, message = line.split("|", 1)
                         commits.append({"hash": hash_val, "message": message})
@@ -291,19 +252,29 @@ Args:
         full_error = None
 
         if generate_compact:
-            compact_markdown = _format_handoff_markdown(handoff_ctx, notes)
+            compact_markdown = format_handoff_as_markdown(handoff_ctx)
 
         if generate_full:
             try:
-                from gobby.config.app import load_config
-                from gobby.llm.claude import ClaudeLLMProvider
-                from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+                # Use injected llm_service, fallback to ClaudeLLMProvider
+                provider = None
+                if llm_service:
+                    provider = llm_service.get_default_provider()
+                if not provider:
+                    from gobby.config.app import load_config
+                    from gobby.llm.claude import ClaudeLLMProvider
 
-                config = load_config()
-                provider = ClaudeLLMProvider(config)
-                transcript_parser = ClaudeTranscriptParser()
+                    config = load_config()
+                    provider = ClaudeLLMProvider(config)
 
-                # Get prompt template: try PromptLoader first, then config fallback
+                # Use injected transcript_processor, fallback to ClaudeTranscriptParser
+                parser = transcript_processor
+                if not parser:
+                    from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+
+                    parser = ClaudeTranscriptParser()
+
+                # Get prompt template
                 prompt_template = None
                 try:
                     from gobby.prompts.loader import PromptLoader
@@ -318,8 +289,8 @@ Args:
                     raise ValueError("No prompt template found for handoff/session_end")
 
                 # Prepare context for LLM
-                last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)
-                last_messages = transcript_parser.extract_last_messages(turns, num_pairs=2)
+                last_turns = parser.extract_turns_since_clear(turns, max_turns=50)
+                last_messages = parser.extract_last_messages(turns, num_pairs=2)
 
                 context = {
                     "transcript_summary": _format_turns_for_llm(last_turns),
@@ -350,8 +321,12 @@ Args:
         if full_markdown:
             session_manager.update_summary(session.id, summary_markdown=full_markdown)
 
+        # Set handoff_ready status
+        if set_handoff_ready:
+            session_manager.update_status(session.id, "handoff_ready")
+
         # Save to file if requested
-        files_written = []
+        files_written: list[str] = []
         if write_file:
             try:
                 summary_dir = Path(output_path)
@@ -377,9 +352,10 @@ Args:
                     "session_id": session.id,
                 }
 
-        return {
+        result_dict: dict[str, Any] = {
             "success": True,
             "session_id": session.id,
+            "mode": "automated",
             "compact_length": len(compact_markdown) if compact_markdown else 0,
             "full_length": len(full_markdown) if full_markdown else 0,
             "full_error": full_error,
@@ -392,22 +368,30 @@ Args:
             },
         }
 
+        # Send to peer if requested
+        if to_session:
+            send_content = full_markdown or compact_markdown or ""
+            if send_content:
+                result_dict["send_result"] = _send_to_peer(session.id, to_session, send_content)
+
+        return result_dict
+
     @registry.tool(
-        name="pickup",
-        description="Restore context from a previous session's handoff. For CLIs/IDEs without hooks. Accepts #N, N, UUID, or prefix for session_id.",
+        name="get_handoff_context",
+        description=(
+            "Get handoff context from a session. Finds sessions by ID, project/source, "
+            "or most recent handoff_ready.\n"
+            "Accepts #N, N, UUID, or prefix for session_id and link_child_session_id."
+        ),
     )
-    def pickup(
+    def get_handoff_context(
         session_id: str | None = None,
         project_id: str | None = None,
         source: str | None = None,
         link_child_session_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Restore context from a previous session's handoff.
-
-        This tool is designed for CLIs and IDEs that don't have a hooks system.
-        It finds the most recent handoff-ready session and returns its context
-        for injection into a new session.
+        Retrieve handoff context from a session.
 
         Args:
             session_id: Session reference - supports #N, N (seq_num), UUID, or prefix (optional)
@@ -461,8 +445,8 @@ Args:
                 },
             }
 
-        # Get handoff context (prefer compact_markdown, fall back to summary_markdown)
-        context = parent_session.compact_markdown or parent_session.summary_markdown
+        # Get handoff context (prefer summary_markdown, fall back to compact_markdown)
+        context = parent_session.summary_markdown or parent_session.compact_markdown
 
         if not context:
             return {
@@ -480,7 +464,6 @@ Args:
                 resolved_child_id = _resolve_session_id(link_child_session_id)
                 session_manager.update_parent_session_id(resolved_child_id, parent_session.id)
             except ValueError as e:
-                # Do not fallback to raw reference - propagate the error
                 return {
                     "success": False,
                     "found": True,
@@ -497,7 +480,7 @@ Args:
             "has_context": True,
             "context": context,
             "context_type": (
-                "compact_markdown" if parent_session.compact_markdown else "summary_markdown"
+                "summary_markdown" if parent_session.summary_markdown else "compact_markdown"
             ),
             "parent_title": parent_session.title,
             "parent_status": parent_session.status,

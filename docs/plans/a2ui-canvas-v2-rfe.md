@@ -133,22 +133,21 @@ def create_canvas_registry(
 ) -> InternalToolRegistry:
 ```
 
-**6 Tools**:
+**5 Tools**:
 
-1. `render_surface(components, root_id, canvas_id?, data_model?, blocking=True, timeout=300, conversation_id?)` — Validate types against A2UI_CATALOG, validate component count/data model size, check rate limit, store CanvasState(mode="a2ui"), broadcast `surface_update`, optionally block on asyncio.Event.
+1. `render_surface(components, root_id, canvas_id?, data_model?, blocking=True, timeout=300, conversation_id?)` — Validate types against A2UI_CATALOG, validate component count/data model size, check rate limit, store CanvasState(mode="a2ui"), broadcast `surface_update`, optionally block on asyncio.Event. Note: `conversation_id` is automatically inferred from `context.session_id` if omitted.
 
-2. `update_surface(canvas_id, components?, data_model?)` — Canvas must exist + not completed. Merge components dict, merge data_model (shallow). Validate after merge. Broadcast `surface_update`.
+2. `update_surface(canvas_id, components?, data_model?)` — Canvas must exist + not completed. Merge components dict, merge data_model (shallow). Validate after merge. Broadcast `surface_update`. Note: `conversation_id` inferred if omitted for rate-limiting.
 
-3. `delete_surface(canvas_id)` — Mark completed, clear pending event, broadcast `delete_surface`, remove from _canvases.
+3. `close_canvas(canvas_id)` — Checks mode ("a2ui" or "html"). For A2UI, mark completed, clear pending event, broadcast `close_canvas`, remove from internal canvas state. For html, mark completed, broadcast `close_canvas`.
 
 4. `wait_for_interaction(canvas_id, timeout=300)` — Canvas must exist + not completed. Create asyncio.Event if absent, await with timeout.
 
-5. `canvas_present(target, canvas_id?, title?, width?, height?, conversation_id?)` — Create CanvasState(mode="html", html_url=target), broadcast `panel_present`.
-
-6. `canvas_hide(canvas_id)` — Mark completed, broadcast `panel_hide`.
+5. `canvas_present(file_path, canvas_id?, title?, width?, height?, conversation_id?)` — Takes an absolute `file_path`. Backend reads file and writes to `canvas_dir/{uuid}.html` (never serves workspace directory directly). Creates CanvasState(mode="html", html_url="/__gobby__/canvas/{uuid}.html") and broadcasts `panel_present`. Note: `conversation_id` inferred if omitted.
 
 **Registry API** (module-level functions, not tools):
 - `get_canvas(canvas_id) -> CanvasState | None`
+- `get_active_canvases(conversation_id) -> list[CanvasState]` — for WebSocket connect rehydration
 - `resolve_interaction(canvas_id, action) -> bool` — per-canvas lock, first-wins semantics
 - `cancel_conversation_canvases(conversation_id) -> int` — for WebSocket disconnect
 - `sweep_expired() -> int` — remove expired canvases
@@ -159,13 +158,12 @@ def create_canvas_registry(
 **Tests** (`tests/mcp_proxy/tools/test_canvas.py`):
 - render creates state, rejects unknown types, enforces rate limit, blocking unblocks on resolve, timeout returns error
 - update merges components/data_model, rejects on completed
-- delete removes state
+- close_canvas removes state and broadcasts close
 - wait_for_interaction creates event and blocks
 - resolve_interaction first-wins (second returns False)
 - cancel_conversation_canvases cancels all for convo
 - sweep_expired removes expired
-- canvas_present creates html state
-- canvas_hide completes
+- canvas_present safely copies file to canvas dir and creates html state
 - max component count enforced, max data model size enforced
 
 ### 2.2 Wire canvas registry into daemon infrastructure [category: code] (depends: 2.1)
@@ -184,8 +182,15 @@ manager.add_registry(canvas_registry)
 "canvas_interaction": self._handle_canvas_interaction,
 ```
 
-**chat.py** (new method, after `_handle_ask_user_response` at line 757):
+**chat.py** (add rehydration logic on connect, and new interaction method):
 ```python
+# In websocket connection handler (e.g., near line 160):
+from gobby.mcp_proxy.tools.canvas import get_active_canvases
+active_canvases = get_active_canvases(self.session_id)
+if active_canvases:
+    await websocket.send_json({"route": "canvas_event", "event": "canvas_rehydrate", "surfaces": [c.__dict__ for c in active_canvases]})
+
+# New method after `_handle_ask_user_response`:
 async def _handle_canvas_interaction(self, websocket, data):
     canvas_id = data.get("canvas_id")
     action = data.get("action", {})
@@ -234,7 +239,7 @@ const COMPONENT_MAP: Record<string, A2UIComponent> = {
   Icon: A2UIIcon, Badge: A2UIBadge,
 }
 ```
-Exports `RenderComponent` (renders single component by type) and `RenderChildren` (renders child list).
+Exports `RenderComponent` (renders single component by type, securely wrapped in an `ErrorBoundary` to prevent malformed components from crashing the chat UI) and `RenderChildren` (renders child list).
 
 **11 Components** (each in `components/` subdirectory, all use `A2UIComponentProps`):
 
@@ -309,7 +314,7 @@ Target: `web/src/components/chat/ToolCallCard.tsx`, `web/src/hooks/useChat.ts`, 
 **useChat.ts** changes:
 1. Add `'canvas_event'` to WebSocket subscription (line 248)
 2. Add state: `canvasSurfaces: Map<string, A2UISurfaceState>`, `canvasPanel: CanvasPanelState | null`
-3. Handle `canvas_event` messages: `surface_update` → add/update surface, `interaction_confirmed`/`delete_surface` → mark completed, `panel_present` → set panel, `panel_hide` → clear panel
+3. Handle `canvas_event` messages: `surface_update` → add/update surface, `interaction_confirmed`/`close_canvas` → mark completed/clear panel, `panel_present` → set panel. Also handle `canvas_rehydrate` event to restore UI state on WebSocket reconnect.
 4. Add `respondToCanvas(canvasId, action)` callback — sends `canvas_interaction` via WebSocket
 5. Add to return value
 
@@ -356,7 +361,7 @@ metadata:
 3. Data binding — BoundValue literals vs JSON pointer paths
 4. Actions — definition, context resolution, interaction result format
 5. Copy-paste patterns — approval form, input form, status card, selection list (complete JSON, not pseudo-code)
-6. Canvas panel workflow — write HTML → `canvas_present` → interact → `canvas_hide`
+6. Canvas panel workflow — write HTML → `canvas_present` → interact → `close_canvas`. Explicitly document that the HTML iframe is sandboxed (`allow-scripts`) and CANNOT make XHR/fetch requests to external APIs or local servers (no SPAs).
 7. When to use what — AskUserQuestion vs inline A2UI vs canvas panel
 
 ### 5.2 End-to-end tests and skill verification [category: code] (depends: Phase 1, Phase 2, Phase 3, Phase 4, 5.1)
@@ -401,11 +406,11 @@ Target: `tests/skills/test_canvas_skill.py` (new)
 
 ## Verification
 
-1. **Backend unit tests**: `uv run pytest tests/mcp_proxy/tools/test_canvas.py -v` — render, update, delete, wait, resolve, cancel, sweep, rate limit, bounds
+1. **Backend unit tests**: `uv run pytest tests/mcp_proxy/tools/test_canvas.py -v` — render, update, close, wait, resolve, cancel, sweep, rate limit, bounds
 2. **Skill tests**: `uv run pytest tests/skills/test_canvas_skill.py -v` — parse, source injection, source rejection
 3. **Source filter tests**: `uv run pytest tests/skills/test_parser.py tests/skills/test_injector.py -v -k sources`
-4. **Frontend**: Vitest — A2UI renderer builds tree, BoundValue resolution, unknown type error, action callbacks, panel open/close
+4. **Frontend**: Vitest — A2UI renderer builds tree, BoundValue resolution, unknown type error, action callbacks, panel open/close, ErrorBoundary catches render failures.
 5. **A2UI E2E**: Agent calls `render_surface` with approval form → renders inline → click Approve → agent gets result → surface dims
-6. **Canvas panel E2E**: Agent writes HTML → `canvas_present` → panel opens with iframe → `canvas_hide` closes
-7. **Security**: Unknown A2UI types rejected, BoundValue never renders as HTML, iframe sandboxed, canvas host validates paths (StaticFiles handles traversal)
+6. **Canvas panel E2E**: Agent writes HTML → `canvas_present` → panel opens with iframe → `close_canvas` closes
+7. **Security**: Unknown A2UI types rejected, BoundValue never renders as HTML, iframe sandboxed, `canvas_present` avoids exposing workspace by managing copying directly.
 8. **Skill source filtering**: Canvas skill injected for `source="claude_sdk_web_chat"`, NOT for `source="claude"` or `source="gemini"`

@@ -1,7 +1,7 @@
 """Tests for AgentDefinitionBody, AgentWorkflows, and agent_scope on RuleDefinitionBody.
 
 Covers:
-- AgentDefinitionBody model (15 fields: name, description, role, goal, personality,
+- AgentDefinitionBody model (16 fields: name, description, extends, role, goal, personality,
   instructions, provider, model, mode, isolation, base_branch, timeout, max_turns,
   workflows, enabled)
 - AgentWorkflows model (pipeline, rules, variables)
@@ -43,7 +43,7 @@ def manager(db: LocalDatabase) -> LocalWorkflowDefinitionManager:
 
 
 class TestAgentDefinitionBodyModel:
-    """AgentDefinitionBody has exactly 15 fields with correct defaults."""
+    """AgentDefinitionBody has exactly 16 fields with correct defaults."""
 
     def test_minimal_creation(self) -> None:
         """Create with only required field (name)."""
@@ -52,17 +52,18 @@ class TestAgentDefinitionBodyModel:
         body = AgentDefinitionBody(name="developer")
         assert body.name == "developer"
         assert body.description is None
+        assert body.extends is None
         assert body.role is None
         assert body.goal is None
         assert body.personality is None
         assert body.instructions is None
-        assert body.provider == "claude"
+        assert body.provider == "inherit"
         assert body.model is None
-        assert body.mode == "headless"
-        assert body.isolation is None
-        assert body.base_branch == "main"
-        assert body.timeout == 120.0
-        assert body.max_turns == 10
+        assert body.mode == "inherit"
+        assert body.isolation == "inherit"
+        assert body.base_branch == "inherit"
+        assert body.timeout == 0
+        assert body.max_turns == 0
         assert body.workflows.rules == []
         assert body.workflows.pipeline is None
         assert body.workflows.variables == {}
@@ -106,11 +107,11 @@ class TestAgentDefinitionBodyModel:
         assert body.enabled is False
 
     def test_field_count(self) -> None:
-        """AgentDefinitionBody has exactly 15 fields."""
+        """AgentDefinitionBody has exactly 16 fields."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
         fields = AgentDefinitionBody.model_fields
-        assert len(fields) == 15, f"Expected 15 fields, got {len(fields)}: {list(fields.keys())}"
+        assert len(fields) == 16, f"Expected 16 fields, got {len(fields)}: {list(fields.keys())}"
 
     def test_workflows_default_empty(self) -> None:
         """Workflows defaults to empty AgentWorkflows."""
@@ -139,7 +140,7 @@ class TestAgentDefinitionBodyModel:
             assert body.isolation == iso
 
         body = AgentDefinitionBody(name="test")
-        assert body.isolation is None
+        assert body.isolation == "inherit"
 
 
 class TestAgentDefinitionBodySerialization:

@@ -1,19 +1,19 @@
 tags: [auto-task, task, autonomous, lifecycle]
 
 rules:
-  inject-autonomous-mode:
-    description: "Inject autonomous task execution context when session_task is set"
+  block-in-auto-task-mode:
+    description: "Inject autonomous task execution context when auto_task_ref is set"
     event: before_agent
     enabled: false
     priority: 60
-    when: "variables.get('session_task')"
+    when: "variables.get('auto_task_ref')"
     effect:
       type: inject_context
       template: |
         You are in autonomous task execution mode.
 
-        Session task: {{ variables.session_task }}
+        Auto-task: {{ variables.auto_task_ref or '(unknown)' }}
 
         Work on this task and its subtasks until completion.
         Use suggest_next_task() to find available work.
-        When all subtasks are closed, the task will be marked complete.
+        When {{ variables.auto_task_ref or '(unknown)' }} is completed, you may stop.

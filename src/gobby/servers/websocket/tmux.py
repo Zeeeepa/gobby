@@ -100,18 +100,35 @@ class TmuxMixin:
         sessions: list[dict[str, Any]] = []
         registry = get_running_agent_registry()
 
-        # Build tmux_pane -> session_title map from active Gobby sessions
+        # Build tmux_pane -> (session_title, gobby_session_id) map from active Gobby sessions
+        # and collect IDs of sessions whose tmux pane is still alive.
         # Uses tmux_pane (e.g. "%64") which is stable, unlike parent_pid which
         # goes stale when the CLI process exits and the shell reclaims the pane.
         pane_to_title: dict[str, str] = {}
+        pane_to_session_id: dict[str, str] = {}
+        live_cli_session_ids: list[str] = []
+
+        # Collect all live pane IDs from the user's default tmux server
+        live_pane_ids: set[str] = set()
+        try:
+            live_pane_ids = await self._tmux_mgr_default.list_pane_ids()
+        except Exception:
+            logger.debug("Failed to list live tmux panes", exc_info=True)
+
         session_mgr = getattr(self, "session_manager", None)
         if session_mgr:
             try:
-                for gs in session_mgr.list(status="active"):
-                    if gs.title and gs.terminal_context:
-                        tmux_pane = gs.terminal_context.get("tmux_pane")
-                        if tmux_pane:
-                            pane_to_title[tmux_pane] = gs.title
+                # Check both active and paused sessions (mirrors frontend filter)
+                for status in ("active", "paused"):
+                    for gs in session_mgr.list(status=status):
+                        if gs.terminal_context:
+                            tmux_pane = gs.terminal_context.get("tmux_pane")
+                            if tmux_pane:
+                                if gs.title:
+                                    pane_to_title[tmux_pane] = gs.title
+                                pane_to_session_id[tmux_pane] = gs.id
+                                if tmux_pane in live_pane_ids:
+                                    live_cli_session_ids.append(gs.id)
             except Exception:
                 logger.debug("Failed to build pane-to-title map", exc_info=True)
 
@@ -142,9 +159,10 @@ class TmuxMixin:
                             attached_bridge = sid
                             break
 
-                    # Look up synthesized session title via tmux pane ID
+                    # Look up synthesized session title and gobby session ID via tmux pane ID
                     pane_id = getattr(s, "pane_id", None)
                     session_title = pane_to_title.get(pane_id) if pane_id else None
+                    gobby_session_id = pane_to_session_id.get(pane_id) if pane_id else None
 
                     sessions.append(
                         {
@@ -155,6 +173,7 @@ class TmuxMixin:
                             "pane_title": s.pane_title,
                             "window_name": s.window_name,
                             "session_title": session_title,
+                            "gobby_session_id": gobby_session_id,
                             "agent_managed": agent_managed,
                             "agent_run_id": agent_run_id,
                             "attached_bridge": attached_bridge,
@@ -166,6 +185,7 @@ class TmuxMixin:
         response: dict[str, Any] = {
             "type": "tmux_sessions_list",
             "sessions": sessions,
+            "live_cli_session_ids": live_cli_session_ids,
         }
         if request_id:
             response["request_id"] = request_id

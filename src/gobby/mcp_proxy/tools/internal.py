@@ -163,7 +163,7 @@ class InternalToolRegistry:
             required = []
 
             for param_name, param in sig.parameters.items():
-                if param_name == "self":
+                if param_name == "self" or param_name.startswith("_"):
                     continue
 
                 annotation = resolved_hints.get(param_name, param.annotation)
@@ -224,13 +224,17 @@ class InternalToolRegistry:
 
         return coerced
 
-    async def call(self, name: str, arguments: dict[str, Any]) -> Any:
+    async def call(
+        self, name: str, arguments: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> Any:
         """
         Call a tool by name with the given arguments.
 
         Args:
             name: Tool name
             arguments: Tool arguments
+            context: Optional context dict to inject as ``_context`` (SimpleNamespace)
+                for tools that declare that parameter.
 
         Returns:
             Tool execution result
@@ -246,6 +250,27 @@ class InternalToolRegistry:
 
         # Coerce string arguments to declared schema types
         coerced_arguments = self._coerce_arguments(arguments, tool.input_schema)
+
+        # Inspect signature once for both _context injection and kwarg filtering
+        sig = inspect.signature(tool.func)
+        params = sig.parameters
+
+        # Inject _context for tools that declare it
+        if context and "_context" in params:
+            coerced_arguments["_context"] = types.SimpleNamespace(**context)
+
+        # Strip unknown kwargs (unless function accepts **kwargs)
+        has_var_keyword = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+        )
+        if not has_var_keyword:
+            accepted = {
+                p.name
+                for p in params.values()
+                if p.kind
+                in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+            }
+            coerced_arguments = {k: v for k, v in coerced_arguments.items() if k in accepted}
 
         # Call the function (handle both sync and async)
         if inspect.iscoroutinefunction(tool.func):

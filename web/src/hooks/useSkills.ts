@@ -13,6 +13,7 @@ export interface GobbySkill {
   source_path: string | null
   source_type: string | null
   source_ref: string | null
+  source: string | null
   hub_name: string | null
   hub_slug: string | null
   hub_version: string | null
@@ -20,6 +21,7 @@ export interface GobbySkill {
   always_apply: boolean
   injection_format: string
   project_id: string | null
+  deleted_at: string | null
   created_at: string
   updated_at: string
 }
@@ -30,6 +32,8 @@ export interface SkillStats {
   disabled: number
   bundled: number
   from_hubs: number
+  templates: number
+  installed_count: number
   by_category: Record<string, number>
   by_source_type: Record<string, number>
 }
@@ -39,6 +43,8 @@ export interface SkillFilters {
   enabled: boolean | null
   category: string | null
   search: string
+  includeTemplates: boolean
+  includeDeleted: boolean
 }
 
 export interface HubInfo {
@@ -117,6 +123,8 @@ export function useSkills() {
     enabled: null,
     category: null,
     search: '',
+    includeTemplates: false,
+    includeDeleted: false,
   })
   const [isLoading, setIsLoading] = useState(true)
   const [hubs, setHubs] = useState<HubInfo[]>([])
@@ -131,6 +139,8 @@ export function useSkills() {
       if (filters.projectId) params.set('project_id', filters.projectId)
       if (filters.enabled !== null) params.set('enabled', String(filters.enabled))
       if (filters.category) params.set('category', filters.category)
+      if (filters.includeTemplates) params.set('include_templates', 'true')
+      if (filters.includeDeleted) params.set('include_deleted', 'true')
 
       const response = await fetch(`${baseUrl}/skills?${params}`)
       if (response.ok) {
@@ -142,7 +152,7 @@ export function useSkills() {
     } finally {
       setIsLoading(false)
     }
-  }, [filters.projectId, filters.enabled, filters.category])
+  }, [filters.projectId, filters.enabled, filters.category, filters.includeTemplates, filters.includeDeleted])
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -407,6 +417,89 @@ export function useSkills() {
     [fetchSkills, fetchStats]
   )
 
+  // Install from template
+  const installFromTemplate = useCallback(
+    async (skillId: string): Promise<GobbySkill | null> => {
+      try {
+        const baseUrl = getBaseUrl()
+        const response = await fetch(`${baseUrl}/skills/${skillId}/install`, { method: 'POST' })
+        if (response.ok) {
+          const data = await response.json()
+          await fetchSkills()
+          await fetchStats()
+          return data.skill
+        }
+        const err = await response.json().catch(() => null)
+        throw new Error(err?.detail || `HTTP ${response.status}`)
+      } catch (e) {
+        console.error('Failed to install from template:', e)
+        throw e
+      }
+    },
+    [fetchSkills, fetchStats]
+  )
+
+  // Move to project scope
+  const moveToProject = useCallback(
+    async (skillId: string, projectId: string): Promise<GobbySkill | null> => {
+      try {
+        const baseUrl = getBaseUrl()
+        const params = new URLSearchParams({ project_id: projectId })
+        const response = await fetch(`${baseUrl}/skills/${skillId}/move-to-project?${params}`, { method: 'POST' })
+        if (response.ok) {
+          const data = await response.json()
+          await fetchSkills()
+          await fetchStats()
+          return data.skill
+        }
+      } catch (e) {
+        console.error('Failed to move skill to project:', e)
+      }
+      return null
+    },
+    [fetchSkills, fetchStats]
+  )
+
+  // Move to global (installed) scope
+  const moveToGlobal = useCallback(
+    async (skillId: string): Promise<GobbySkill | null> => {
+      try {
+        const baseUrl = getBaseUrl()
+        const response = await fetch(`${baseUrl}/skills/${skillId}/move-to-installed`, { method: 'POST' })
+        if (response.ok) {
+          const data = await response.json()
+          await fetchSkills()
+          await fetchStats()
+          return data.skill
+        }
+      } catch (e) {
+        console.error('Failed to move skill to global:', e)
+      }
+      return null
+    },
+    [fetchSkills, fetchStats]
+  )
+
+  // Restore a soft-deleted skill
+  const restoreSkill = useCallback(
+    async (skillId: string): Promise<GobbySkill | null> => {
+      try {
+        const baseUrl = getBaseUrl()
+        const response = await fetch(`${baseUrl}/skills/${skillId}/restore`, { method: 'POST' })
+        if (response.ok) {
+          const data = await response.json()
+          await fetchSkills()
+          await fetchStats()
+          return data.skill
+        }
+      } catch (e) {
+        console.error('Failed to restore skill:', e)
+      }
+      return null
+    },
+    [fetchSkills, fetchStats]
+  )
+
   // Fetch on mount and when filters change
   useEffect(() => {
     fetchSkills()
@@ -447,5 +540,9 @@ export function useSkills() {
     fetchHubs,
     searchHub,
     installFromHub,
+    installFromTemplate,
+    moveToProject,
+    moveToGlobal,
+    restoreSkill,
   }
 }

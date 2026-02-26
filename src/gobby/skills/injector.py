@@ -211,6 +211,11 @@ class SkillInjector:
             if context.task_category not in config.task_categories:
                 return False
 
+        # Source check (web UI vs CLI)
+        if config.sources is not None:
+            if context.source not in config.sources:
+                return False
+
         return True
 
     def _matches_depth(self, depth_spec: int | list[int] | str, actual_depth: int) -> bool:

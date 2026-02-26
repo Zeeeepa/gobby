@@ -243,6 +243,17 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if workflow_name and session_id:
             self._auto_activate_workflow(workflow_name, session_id, cwd)
 
+        # Step 2d: Deep load default agent (rules, skills, variables) for new session
+        if session_id:
+            try:
+                agent_override = input_data.get("agent_name_override")
+                self._activate_default_agent(
+                    session_id, cli_source, project_id,
+                    agent_name_override=agent_override,
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to activate default agent: {e}", exc_info=True)
+
         # Step 3: Track registered session
         if transcript_path and self._session_coordinator:
             try:
@@ -265,7 +276,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
         # Build additional context (task context)
-        # Note: Skill injection is now handled by workflows via inject_context action
+        # Note: Skill injection is handled by _activate_default_agent() which sets
+        # _active_skill_names as a session variable for the rule engine.
         additional_context: list[str] = []
         if event.task_id:
             task_title = event.metadata.get("_task_title", "Unknown Task")
@@ -434,11 +446,36 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Auto-activate workflow if specified for this session
         if existing_session.workflow_name and session_id:
+            # Read initial variables from session_variables table (canonical store)
+            initial_vars: dict[str, Any] | None = None
+            try:
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv = sv_mgr.get_variables(session_id)
+                if sv:
+                    initial_vars = sv
+            except Exception as e:
+                self.logger.debug(f"Could not load session variables for workflow activation: {e}")
+
             self._auto_activate_workflow(
                 existing_session.workflow_name,
                 session_id,
                 cwd,
-                variables=existing_session.step_variables,
+                variables=initial_vars,
+            )
+
+        # Deep load default agent (rules, skills, variables) for pre-created session
+        try:
+            self._activate_default_agent(
+                session_id,
+                cli_source,
+                existing_session.project_id,
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to activate default agent for pre-created session: {e}",
+                exc_info=True,
             )
 
         # Update event metadata
@@ -463,6 +500,103 @@ class SessionEventHandlerMixin(EventHandlersBase):
             task_id=event.task_id,
             is_pre_created=True,
         )
+
+    def _activate_default_agent(
+        self,
+        session_id: str,
+        cli_source: str,
+        project_id: str | None,
+        agent_name_override: str | None = None,
+    ) -> None:
+        """Deep load the default agent and merge its properties into the session.
+
+        Args:
+            session_id: Session ID to activate agent for
+            cli_source: CLI source name
+            project_id: Project ID for agent resolution
+            agent_name_override: If provided, use this agent name instead of
+                the config store default. Used by web chat agent selection.
+        """
+        if not self._session_manager or not self._session_storage:
+            return
+
+        if agent_name_override:
+            default_agent_name = agent_name_override
+        else:
+            from gobby.storage.config_store import ConfigStore
+
+            config_store = ConfigStore(self._session_storage.db)
+            default_agent_name = config_store.get("default_agent") or "default"
+        if default_agent_name == "none":
+            return
+
+        from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
+
+        try:
+            agent_body = resolve_agent(
+                default_agent_name, self._session_storage.db, project_id=project_id
+            )
+        except AgentResolutionError as e:
+            self.logger.error(f"Failed to resolve default agent '{default_agent_name}': {e}")
+            return
+
+        if not agent_body:
+            self.logger.debug(f"Default agent '{default_agent_name}' not found in DB")
+            return
+
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+        def_manager = LocalWorkflowDefinitionManager(self._session_storage.db)
+
+        all_rules = def_manager.list_all(workflow_type="rule")
+        enabled_rules = [r for r in all_rules if r.enabled]
+
+        from gobby.workflows.selectors import (
+            resolve_rules_for_agent,
+            resolve_skills_for_agent,
+            resolve_variables_for_agent,
+        )
+
+        active_rules = resolve_rules_for_agent(agent_body, enabled_rules)
+
+        changes: dict[str, Any] = {
+            "_agent_type": agent_body.name,
+            "_active_rule_names": list(active_rules),
+        }
+
+        from gobby.skills.manager import SkillManager
+
+        skill_mgr = SkillManager(self._session_storage.db)
+        all_skills = skill_mgr.list_skills()
+
+        active_skills = resolve_skills_for_agent(agent_body, all_skills)
+        if active_skills is not None:
+            changes["_active_skill_names"] = list(active_skills)
+
+        if agent_body.workflows and agent_body.workflows.skill_format:
+            changes["_skill_format"] = agent_body.workflows.skill_format
+
+        if agent_body.workflows and agent_body.workflows.variables:
+            changes.update(agent_body.workflows.variables)
+
+        import json
+
+        all_variables = def_manager.list_all(workflow_type="variable")
+        enabled_variables = [v for v in all_variables if v.enabled]
+
+        active_variables = resolve_variables_for_agent(agent_body, enabled_variables)
+        for var_row in enabled_variables:
+            if active_variables is None or var_row.name in active_variables:
+                try:
+                    var_body = json.loads(var_row.definition_json)
+                    if var_row.name not in changes:
+                        changes[var_row.name] = var_body.get("value")
+                except json.JSONDecodeError:
+                    pass
+
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        SessionVariableManager(self._session_storage.db).merge_variables(session_id, changes)
 
     def _get_step_workflow_state(self, session_id: str) -> WorkflowState | None:
         """Get the active step workflow state for a session.

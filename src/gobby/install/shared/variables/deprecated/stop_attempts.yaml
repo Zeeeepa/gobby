@@ -1,0 +1,3 @@
+variable: stop_attempts
+value: 0
+description: Default stop_attempts to 0

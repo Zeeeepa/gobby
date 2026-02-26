@@ -7,11 +7,31 @@ from gobby.storage.tasks import Task
 
 logger = logging.getLogger(__name__)
 
-SessionTaskAction = Literal["worked_on", "discovered", "mentioned", "closed"]
+SessionTaskAction = Literal[
+    "worked_on",
+    "discovered",
+    "mentioned",
+    "closed",
+    "created",
+    "claimed",
+    "escalated",
+    "needs_review",
+    "review_approved",
+]
 
 
 class SessionTaskManager:
-    VALID_ACTIONS = {"worked_on", "discovered", "mentioned", "closed"}
+    VALID_ACTIONS = {
+        "worked_on",
+        "discovered",
+        "mentioned",
+        "closed",
+        "created",
+        "claimed",
+        "escalated",
+        "needs_review",
+        "review_approved",
+    }
 
     def __init__(self, db: DatabaseProtocol):
         self.db = db
@@ -24,7 +44,8 @@ class SessionTaskManager:
     ) -> None:
         """
         Link a task to a session with a specific action.
-        Actions: worked_on, discovered, mentioned, closed
+        Actions: worked_on, discovered, mentioned, closed, created, claimed,
+                 escalated, needs_review, review_approved
         """
         if action not in self.VALID_ACTIONS:
             raise ValueError(f"Invalid action '{action}'. Must be one of {self.VALID_ACTIONS}")

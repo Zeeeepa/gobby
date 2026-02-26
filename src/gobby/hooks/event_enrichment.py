@@ -2,14 +2,22 @@
 
 EventEnricher copies session metadata, terminal context, and workflow context
 from the hook event into the response for adapter injection.
+Also checks for undelivered inter-session messages (web chat -> CLI) and
+injects them into the response context for hook piggyback delivery.
 Extracted from HookManager.handle() as part of the Strangler Fig decomposition.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import logging
+from typing import TYPE_CHECKING, Any
 
-from gobby.hooks.events import HookEvent, HookResponse
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+
+if TYPE_CHECKING:
+    from gobby.storage.inter_session_messages import InterSessionMessageManager
+
+logger = logging.getLogger(__name__)
 
 # Terminal context keys copied from event metadata to response metadata
 TERMINAL_CONTEXT_KEYS = [
@@ -24,6 +32,12 @@ TERMINAL_CONTEXT_KEYS = [
     "terminal_alacritty_socket",
 ]
 
+# Hook events that fire frequently during execution — good piggyback candidates
+_PIGGYBACK_EVENTS = {
+    HookEventType.AFTER_TOOL,
+    HookEventType.BEFORE_TOOL,
+}
+
 
 class EventEnricher:
     """Enriches hook responses with session metadata and context.
@@ -31,15 +45,18 @@ class EventEnricher:
     Copies platform session ID, external ID, machine ID, project ID,
     terminal context, and workflow context from the event into the response.
     Tracks first-hook-per-session for token optimization.
+    Injects undelivered inter-session messages for hook piggyback delivery.
     """
 
     def __init__(
         self,
         session_storage: Any,  # Avoid runtime import of LocalSessionManager
         injected_sessions: set[str],
+        inter_session_msg_manager: InterSessionMessageManager | None = None,
     ):
         self._session_storage = session_storage
         self._injected_sessions = injected_sessions
+        self._inter_session_msg_manager = inter_session_msg_manager
 
     def enrich(
         self,
@@ -98,3 +115,40 @@ class EventEnricher:
                 response.context = f"{response.context}\n\n{workflow_context}"
             else:
                 response.context = workflow_context
+
+        # Hook piggyback: inject undelivered inter-session messages
+        # Only on high-frequency events to avoid checking on every hook
+        if (
+            self._inter_session_msg_manager
+            and event.event_type in _PIGGYBACK_EVENTS
+            and event.metadata.get("_platform_session_id")
+        ):
+            try:
+                self._inject_pending_messages(event.metadata["_platform_session_id"], response)
+            except Exception as e:
+                logger.debug(f"Piggyback message injection failed: {e}")
+
+    def _inject_pending_messages(self, platform_session_id: str, response: HookResponse) -> None:
+        """Check for and inject undelivered messages into response context."""
+        if not self._inter_session_msg_manager:
+            return
+
+        undelivered = self._inter_session_msg_manager.get_undelivered_messages(platform_session_id)
+        if not undelivered:
+            return
+
+        # Format messages for agent context
+        lines = ["[Pending messages from web chat user]:"]
+        for msg in undelivered:
+            lines.append(f"- {msg.content}")
+            # Mark as delivered
+            try:
+                self._inter_session_msg_manager.mark_delivered(msg.id)
+            except Exception:
+                pass
+
+        pending_context = "\n".join(lines)
+        if response.context:
+            response.context = f"{response.context}\n\n{pending_context}"
+        else:
+            response.context = pending_context

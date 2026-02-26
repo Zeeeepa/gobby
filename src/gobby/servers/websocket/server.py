@@ -69,6 +69,7 @@ class WebSocketServer(
         session_manager: "LocalSessionManager | None" = None,
         message_manager: "LocalSessionMessageManager | None" = None,
         daemon_config: Any = None,
+        internal_manager: Any = None,
     ):
         """
         Initialize WebSocket server.
@@ -82,11 +83,13 @@ class WebSocketServer(
             session_manager: Optional LocalSessionManager for persisting web-chat sessions.
             message_manager: Optional LocalSessionMessageManager for persisting chat messages.
             daemon_config: Optional DaemonConfig for voice and other features.
+            internal_manager: Optional InternalRegistryManager for routing to internal MCP servers.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
+        self.internal_manager = internal_manager
         self.session_manager = session_manager
         self.message_manager = message_manager
         self.daemon_config = daemon_config
@@ -106,6 +109,9 @@ class WebSocketServer(
 
         # Pending worktree path overrides queued before session creation
         self._pending_worktree_paths: dict[str, str] = {}
+
+        # Pending agent name overrides queued before session creation
+        self._pending_agents: dict[str, str] = {}
 
         # Dispatch table for message routing (lazily populated in _handle_message)
         self._dispatch_table: dict[str, Callable[..., Coroutine[Any, Any, None]]] = {}
@@ -238,9 +244,14 @@ class WebSocketServer(
                 "plan_approval_response": self._handle_plan_approval_response,
                 "set_project": self._handle_set_project,
                 "set_worktree": self._handle_set_worktree,
+                "set_agent": self._handle_set_agent,
                 "continue_in_chat": self._handle_continue_in_chat,
+                "attach_to_session": self._handle_attach_to_session,
+                "detach_from_session": self._handle_detach_from_session,
+                "send_to_cli_session": self._handle_send_to_cli_session,
                 "voice_audio": self._handle_voice_audio,
                 "voice_mode_toggle": self._handle_voice_mode_toggle,
+                "canvas_interaction": self._handle_canvas_interaction,
             }
 
         handler = self._dispatch_table.get(msg_type)
@@ -249,6 +260,17 @@ class WebSocketServer(
         else:
             logger.warning(f"Unknown message type: {msg_type}")
             await self._send_error(websocket, f"Unknown message type: {msg_type}")
+
+    async def _handle_canvas_interaction(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle user interaction on an A2UI canvas."""
+        canvas_id = data.get("canvas_id")
+        action = data.get("action")
+        if not canvas_id or not action:
+            return
+
+        from gobby.mcp_proxy.tools.canvas import resolve_interaction
+
+        await resolve_interaction(canvas_id, action)
 
     async def start(self) -> None:
         """
@@ -305,6 +327,10 @@ class WebSocketServer(
 
         # Stop all chat sessions (fire SESSION_END before each)
         for conv_id, session in list(self._chat_sessions.items()):
+            from gobby.mcp_proxy.tools.canvas import cancel_conversation_canvases
+
+            cancel_conversation_canvases(conv_id)
+
             await self._fire_session_end(conv_id)
             await self._cancel_active_chat(conv_id)
             await session.stop()

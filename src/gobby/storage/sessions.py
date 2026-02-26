@@ -37,7 +37,6 @@ class LocalSessionManager:
         spawned_by_agent_id: str | None = None,
         terminal_context: dict[str, Any] | None = None,
         workflow_name: str | None = None,
-        step_variables: dict[str, Any] | None = None,
     ) -> Session:
         """
         Register a new session or return existing one.
@@ -113,9 +112,9 @@ class LocalSessionManager:
                         id, external_id, machine_id, source, project_id, title,
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
-                        workflow_name, step_variables, status, created_at, updated_at, seq_num, had_edits
+                        workflow_name, status, created_at, updated_at, seq_num, had_edits
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
                     """,
                     (
                         session_id,
@@ -131,7 +130,6 @@ class LocalSessionManager:
                         spawned_by_agent_id,
                         json.dumps(terminal_context) if terminal_context else None,
                         workflow_name,
-                        json.dumps(step_variables) if step_variables else None,
                         now,
                         now,
                         next_seq_num,
@@ -308,6 +306,13 @@ class LocalSessionManager:
         self.db.execute(
             "UPDATE sessions SET had_edits = 0 WHERE id = ?",
             (session_id,),
+        )
+
+    def update_chat_mode(self, session_id: str, chat_mode: str) -> None:
+        """Persist the chat mode (plan, accept_edits, normal, bypass) for a session."""
+        self.db.execute(
+            "UPDATE sessions SET chat_mode = ? WHERE id = ?",
+            (chat_mode, session_id),
         )
 
     def update_title(self, session_id: str, title: str) -> Session | None:

@@ -56,9 +56,7 @@ PROGRESSIVE_DISCLOSURE_RULES = {
     "track-schema-lookup",
     "track-servers-listed",
     "track-listed-servers",
-    "reset-unlocked-tools",
-    "reset-servers-listed",
-    "reset-listed-servers",
+    "reset-progressive-disclosure",
 }
 
 
@@ -95,7 +93,8 @@ class TestProgressiveDisclosureSync:
         for row in rules:
             if row.name in PROGRESSIVE_DISCLOSURE_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type in {"block", "set_variable"}
+                for effect in body.resolved_effects:
+                    assert effect.type in {"block", "set_variable"}
 
 
 class TestRequireServersListed:
@@ -258,50 +257,31 @@ class TestTrackListedServers:
 
 
 class TestResetRules:
-    """Verify reset rules clear state on context loss."""
+    """Verify reset-progressive-disclosure multi-effect rule clears all state on context loss."""
 
-    def test_reset_unlocked_tools(self, db, manager) -> None:
-        """Should reset unlocked_tools to empty list on session_start."""
+    def test_resets_all_three_variables(self, db, manager) -> None:
+        """Should reset unlocked_tools, servers_listed, and listed_servers."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("reset-unlocked-tools")
+        row = manager.get_by_name("reset-progressive-disclosure")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "unlocked_tools"
-        assert body.effect.value == []
 
-    def test_reset_servers_listed(self, db, manager) -> None:
-        """Should reset servers_listed to false on session_start."""
-        _sync_bundled(db)
+        effects = body.resolved_effects
+        assert len(effects) == 3
 
-        row = manager.get_by_name("reset-servers-listed")
-        assert row is not None
-
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_start"
-        assert body.effect.variable == "servers_listed"
-        assert body.effect.value is False
-
-    def test_reset_listed_servers(self, db, manager) -> None:
-        """Should reset listed_servers to empty list on session_start."""
-        _sync_bundled(db)
-
-        row = manager.get_by_name("reset-listed-servers")
-        assert row is not None
-
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_start"
-        assert body.effect.variable == "listed_servers"
-        assert body.effect.value == []
+        vars_and_values = {e.variable: e.value for e in effects}
+        assert vars_and_values["unlocked_tools"] == []
+        assert vars_and_values["servers_listed"] is False
+        assert vars_and_values["listed_servers"] == []
 
     def test_resets_fire_on_clear_compact_resume(self, db, manager) -> None:
-        """Reset rules should fire on clear, compact, and conditional resume."""
+        """Reset rule should fire on clear, compact, and conditional resume."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("reset-unlocked-tools")
+        row = manager.get_by_name("reset-progressive-disclosure")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None

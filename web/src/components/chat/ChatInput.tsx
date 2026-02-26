@@ -6,12 +6,15 @@ import { Button } from './ui/Button'
 import { ModeSelector } from './ModeSelector'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { BranchIndicator } from './BranchIndicator'
+import { ActiveAgentIndicator } from './ActiveAgentIndicator'
+import type { AgentDefInfo } from '../../hooks/useAgentDefinitions'
 
 interface ChatInputProps {
   onSend: (message: string, files?: QueuedFile[]) => void
   onStop?: () => void
   isStreaming?: boolean
   disabled?: boolean
+  viewingSession?: boolean
   onInputChange?: (value: string) => void
   filteredCommands?: CommandInfo[]
   onCommandSelect?: (command: CommandInfo) => void
@@ -31,6 +34,14 @@ interface ChatInputProps {
   worktreePath?: string | null
   projectId?: string | null
   onWorktreeChange?: (worktreePath: string, worktreeId?: string) => void
+  agentName?: string
+  onAgentChange?: (agentName: string) => void
+  agentDefinitions?: AgentDefInfo[]
+  agentGlobalDefs?: AgentDefInfo[]
+  agentProjectDefs?: AgentDefInfo[]
+  agentShowScopeToggle?: boolean
+  agentHasGlobal?: boolean
+  agentHasProject?: boolean
 }
 
 export function ChatInput({
@@ -38,6 +49,7 @@ export function ChatInput({
   onStop,
   isStreaming = false,
   disabled = false,
+  viewingSession = false,
   onInputChange,
   filteredCommands = [],
   onCommandSelect,
@@ -57,12 +69,21 @@ export function ChatInput({
   worktreePath,
   projectId,
   onWorktreeChange,
+  agentName,
+  onAgentChange,
+  agentDefinitions = [],
+  agentGlobalDefs = [],
+  agentProjectDefs = [],
+  agentShowScopeToggle = false,
+  agentHasGlobal = false,
+  agentHasProject = false,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const paletteRef = useRef<HTMLDivElement>(null)
 
   const showPalette = input.startsWith('/') && filteredCommands.length > 0
 
@@ -80,12 +101,20 @@ export function ChatInput({
   useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
-      textarea.style.height = 'auto'
+      textarea.style.height = '0'
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
     }
   }, [input])
 
   useEffect(() => { setSelectedIndex(0) }, [filteredCommands])
+
+  // Scroll selected command into view when navigating with arrow keys
+  useEffect(() => {
+    const list = paletteRef.current
+    if (!list) return
+    const selected = list.children[selectedIndex] as HTMLElement | undefined
+    selected?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim()
@@ -165,10 +194,10 @@ export function ChatInput({
       <div className="max-w-3xl mx-auto">
         {/* Command palette */}
         {showPalette && (
-          <div className="mb-2 rounded-lg border border-border bg-muted overflow-hidden max-h-48 overflow-y-auto">
+          <div ref={paletteRef} className="mb-2 rounded-lg border border-border bg-muted overflow-hidden max-h-48 overflow-y-auto">
             {filteredCommands.map((cmd, i) => (
               <div
-                key={`${cmd.server}.${cmd.tool}`}
+                key={cmd.name}
                 className={cn(
                   'px-3 py-2 text-sm cursor-pointer',
                   i === selectedIndex ? 'bg-accent/20 text-foreground' : 'text-muted-foreground hover:bg-muted'
@@ -196,6 +225,18 @@ export function ChatInput({
           >
             <PaperclipIcon />
           </button>
+          {onAgentChange && agentName && agentDefinitions.length > 0 && (
+            <ActiveAgentIndicator
+              agentName={agentName}
+              onAgentChange={onAgentChange}
+              definitions={agentDefinitions}
+              globalDefs={agentGlobalDefs}
+              projectDefs={agentProjectDefs}
+              showScopeToggle={agentShowScopeToggle}
+              hasGlobal={agentHasGlobal}
+              hasProject={agentHasProject}
+            />
+          )}
           {onToggleVoice && voiceAvailable && (
             <button
               className={cn('p-1.5 rounded transition-colors', voiceMode ? 'text-accent bg-accent/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted')}
@@ -303,11 +344,11 @@ export function ChatInput({
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
-            className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-accent min-h-[40px]"
+            className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-accent min-h-[36px]"
             value={input}
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on...' : 'Message or /command...'}
+            placeholder={viewingSession ? 'Attach to send messages...' : disabled ? 'Connecting...' : isStreaming ? 'Interrupt...' : voiceMode ? 'Voice mode on...' : 'Message or /command...'}
             aria-label={disabled ? 'Message input — connecting' : isStreaming ? 'Message input — streaming' : voiceMode ? 'Message input — voice mode' : 'Message input'}
             disabled={disabled}
             rows={1}

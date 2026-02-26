@@ -843,6 +843,297 @@ class TestToggleRuleRejectsTemplate:
         assert result["rule"]["enabled"] is True
 
 
+class TestMultipleEffects:
+    """Tests for rules with multiple effects (effects: [...])."""
+
+    @pytest.mark.asyncio
+    async def test_block_and_set_variable(self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager) -> None:
+        """Multi-effect rule with block + set_variable: variable set AND block fires."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "block-and-set",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effects=[
+                    RuleEffect(type="set_variable", variable="was_blocked", value=True),
+                    RuleEffect(type="block", reason="Blocked with side-effect"),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "block"
+        assert "Blocked with side-effect" in (response.reason or "")
+        # Non-block effect should have fired before the block
+        assert variables.get("was_blocked") is True
+
+    @pytest.mark.asyncio
+    async def test_set_variable_and_inject_context(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Multi-effect rule with set_variable + inject_context: both apply."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "set-and-inject",
+            RuleDefinitionBody(
+                event=RuleEvent.SESSION_START,
+                effects=[
+                    RuleEffect(type="set_variable", variable="initialized", value=True),
+                    RuleEffect(type="inject_context", template="Welcome to the session."),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.SESSION_START)
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        assert variables.get("initialized") is True
+        assert "Welcome" in (response.context or "")
+
+    @pytest.mark.asyncio
+    async def test_per_effect_when_skips_false(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Per-effect when=false should skip that effect but fire others."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "conditional-effects",
+            RuleDefinitionBody(
+                event=RuleEvent.SESSION_START,
+                effects=[
+                    RuleEffect(
+                        type="set_variable",
+                        variable="always_set",
+                        value=True,
+                    ),
+                    RuleEffect(
+                        type="set_variable",
+                        variable="conditionally_set",
+                        value=True,
+                        when="variables.get('should_set')",
+                    ),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"should_set": False}
+        event = _make_event(HookEventType.SESSION_START)
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("always_set") is True
+        assert variables.get("conditionally_set") is None
+
+    @pytest.mark.asyncio
+    async def test_per_effect_when_fires_true(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Per-effect when=true should fire that effect."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "conditional-effects",
+            RuleDefinitionBody(
+                event=RuleEvent.SESSION_START,
+                effects=[
+                    RuleEffect(
+                        type="set_variable",
+                        variable="always_set",
+                        value=True,
+                    ),
+                    RuleEffect(
+                        type="set_variable",
+                        variable="conditionally_set",
+                        value=True,
+                        when="variables.get('should_set')",
+                    ),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"should_set": True}
+        event = _make_event(HookEventType.SESSION_START)
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("always_set") is True
+        assert variables.get("conditionally_set") is True
+
+    def test_validation_both_effect_and_effects_error(self) -> None:
+        """Specifying both effect and effects should raise ValidationError."""
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError, match="not both"):
+            RuleDefinitionBody(
+                event=RuleEvent.STOP,
+                effect=RuleEffect(type="set_variable", variable="x", value=1),
+                effects=[RuleEffect(type="set_variable", variable="y", value=2)],
+            )
+
+    def test_validation_neither_effect_nor_effects_error(self) -> None:
+        """Specifying neither effect nor effects should raise ValidationError."""
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError, match="either"):
+            RuleDefinitionBody(event=RuleEvent.STOP)
+
+    def test_validation_multiple_block_effects_error(self) -> None:
+        """Multiple block effects in effects list should raise ValidationError."""
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError, match="one.*block"):
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effects=[
+                    RuleEffect(type="block", reason="first"),
+                    RuleEffect(type="block", reason="second"),
+                ],
+            )
+
+    @pytest.mark.asyncio
+    async def test_backward_compat_single_effect(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Existing single-effect rules should continue to work unchanged."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "legacy-block",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effect=RuleEffect(type="block", reason="Legacy block"),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        response = await engine.evaluate(event, session_id="sess-1", variables={})
+
+        assert response.decision == "block"
+        assert "Legacy block" in (response.reason or "")
+
+    @pytest.mark.asyncio
+    async def test_multiple_mcp_calls(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Multi-effect rule with multiple mcp_call effects should record all."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "multi-mcp",
+            RuleDefinitionBody(
+                event=RuleEvent.PRE_COMPACT,
+                effects=[
+                    RuleEffect(type="mcp_call", server="gobby-tasks", tool="sync_export"),
+                    RuleEffect(type="mcp_call", server="gobby-memory", tool="sync_export"),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.PRE_COMPACT)
+        response = await engine.evaluate(event, session_id="sess-1", variables={})
+
+        assert response.decision == "allow"
+        calls = response.metadata.get("mcp_calls", [])
+        assert len(calls) == 2
+        assert calls[0]["server"] == "gobby-tasks"
+        assert calls[1]["server"] == "gobby-memory"
+
+
+class TestToolBlockPending:
+    """Tests for automatic tool_block_pending on before_tool blocks."""
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_set_on_before_tool_block(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should be auto-set when a before_tool block fires."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "block-edit",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effect=RuleEffect(type="block", reason="No editing", tools=["Edit"]),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("tool_block_pending") is True
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_not_set_on_stop_block(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should NOT be set on stop event blocks."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "block-stop",
+            RuleDefinitionBody(
+                event=RuleEvent.STOP,
+                effect=RuleEffect(type="block", reason="Cannot stop yet"),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.STOP)
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("tool_block_pending") is None
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_with_multi_effect(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should be set even in multi-effect rules with block."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "multi-with-block",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effects=[
+                    RuleEffect(type="set_variable", variable="x", value=42),
+                    RuleEffect(type="block", reason="Blocked"),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.BEFORE_TOOL)
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("tool_block_pending") is True
+        assert variables.get("x") == 42
+
+
 class TestNoRules:
     @pytest.mark.asyncio
     async def test_no_matching_rules_allows(self, db: LocalDatabase) -> None:

@@ -10,4 +10,5 @@ rules:
     effect:
       type: block
       tools: ["mcp__gobby__list_tools"]
-      reason: "Call list_mcp_servers() first to discover available servers, then retry list_tools."
+      reason: |
+        You did not follow progressive disclosure.

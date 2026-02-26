@@ -192,8 +192,8 @@ class TestSessionPersistence:
         log_file = log_dir / "daemon.log"
         error_log_file = log_dir / "daemon_error.log"
 
-        # Use helper to properly prepare env (sets PYTHONPATH, removes GOBBY_DATABASE_PATH)
-        env = prepare_daemon_env()
+        # Use helper to properly prepare env (PYTHONPATH, API keys, HOME override)
+        env = prepare_daemon_env(home_dir=gobby_home)
         env["GOBBY_CONFIG"] = str(config_path)
         env["GOBBY_HOME"] = str(gobby_home)
 

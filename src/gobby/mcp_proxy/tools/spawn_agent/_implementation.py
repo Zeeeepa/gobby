@@ -26,7 +26,7 @@ from gobby.utils.project_context import get_project_context
 from gobby.workflows.definitions import AgentDefinitionBody
 
 from ._health import TMUX_HEALTH_CHECK_DELAY, _check_tmux_session_alive, _health_check_tasks
-from ._modes import _handle_self_mode
+from ._modes import _handle_self_mode, _handle_self_persona
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -70,7 +70,7 @@ async def spawn_agent_impl(
     # Context
     parent_session_id: str | None = None,
     project_path: str | None = None,
-    step_variables: dict[str, Any] | None = None,
+    initial_variables: dict[str, Any] | None = None,
     # For mode=self (workflow activation on caller session)
     state_manager: Any | None = None,  # WorkflowStateManager
     session_manager: Any | None = None,  # LocalSessionManager
@@ -108,7 +108,7 @@ async def spawn_agent_impl(
         sandbox_extra_paths: Extra paths for sandbox write access
         parent_session_id: Parent session ID
         project_path: Project path override
-        step_variables: Pre-built step variables from factory (merged with impl's own)
+        initial_variables: Pre-built initial variables from factory (merged with impl's own)
         state_manager: WorkflowStateManager for mode=self
         session_manager: LocalSessionManager for mode=self
         db: DatabaseProtocol for mode=self
@@ -120,17 +120,20 @@ async def spawn_agent_impl(
     effective_isolation = isolation
     if effective_isolation is None and agent_body:
         effective_isolation = agent_body.isolation
-    effective_isolation = effective_isolation or "none"
+    if effective_isolation in (None, "inherit"):
+        effective_isolation = "none"
 
     effective_provider = provider
     if effective_provider is None and agent_body:
         effective_provider = agent_body.provider
-    effective_provider = effective_provider or "claude"
+    if effective_provider in (None, "inherit"):
+        effective_provider = "claude"
 
-    effective_mode: Literal["terminal", "embedded", "headless", "self"] | None = mode
+    effective_mode: Literal["terminal", "embedded", "headless", "self", "inherit"] | None = mode
     if effective_mode is None and agent_body:
         effective_mode = agent_body.mode
-    effective_mode = effective_mode or "terminal"
+    if effective_mode in (None, "inherit"):
+        effective_mode = "self"
 
     effective_model = model
     if effective_model is None and agent_body:
@@ -143,18 +146,21 @@ async def spawn_agent_impl(
         if effective_isolation != "none":
             logger.debug(f"mode=self overrides isolation={effective_isolation} to 'none'")
             effective_isolation = "none"
-        if not effective_workflow:
-            return {"success": False, "error": "mode: self requires a workflow to activate"}
+        if not effective_workflow and not agent_body:
+            return {
+                "success": False,
+                "error": "mode: self requires a workflow to activate or an agent persona",
+            }
         if not parent_session_id:
             return {
                 "success": False,
                 "error": "mode: self requires parent_session_id (the session to activate on)",
             }
 
-        # Resolve step_variables for workflow activation
+        # Resolve initial_variables for workflow activation
         self_step_variables: dict[str, Any] = {}
-        if step_variables:
-            self_step_variables.update(step_variables)
+        if initial_variables:
+            self_step_variables.update(initial_variables)
 
         # Pass the agent lookup name so orchestrator workflows can spawn workers
         if agent_lookup_name:
@@ -179,17 +185,27 @@ async def spawn_agent_impl(
 
         workflow_loader = WorkflowLoader()
 
-        return await _handle_self_mode(
-            workflow=effective_workflow,
-            parent_session_id=parent_session_id,
-            step_variables=self_step_variables,
-            initial_step=initial_step,
-            workflow_loader=workflow_loader,
-            state_manager=state_manager,
-            session_manager=session_manager,
-            db=db,
-            project_path=project_path,
-        )
+        if effective_workflow:
+            return await _handle_self_mode(
+                workflow=effective_workflow,
+                parent_session_id=parent_session_id,
+                step_variables=self_step_variables,
+                initial_step=initial_step,
+                workflow_loader=workflow_loader,
+                state_manager=state_manager,
+                session_manager=session_manager,
+                db=db,
+                project_path=project_path,
+            )
+        else:
+            assert agent_body is not None
+            return await _handle_self_persona(
+                agent_body=agent_body,
+                agent_name=agent_lookup_name or agent_body.name,
+                parent_session_id=parent_session_id,
+                session_manager=session_manager,
+                db=db,
+            )
 
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_body:
@@ -362,16 +378,16 @@ async def spawn_agent_impl(
     session_id = str(uuid.uuid4())
     run_id = f"run-{uuid.uuid4().hex[:12]}"
 
-    # 10. Build step_variables (merge factory's with impl's own)
-    effective_step_variables: dict[str, Any] = {}
-    if step_variables:
-        effective_step_variables.update(step_variables)
+    # 10. Build initial_variables (merge factory's with impl's own)
+    effective_initial_variables: dict[str, Any] = {}
+    if initial_variables:
+        effective_initial_variables.update(initial_variables)
     if resolved_task_id:
-        effective_step_variables["assigned_task_id"] = (
+        effective_initial_variables["assigned_task_id"] = (
             f"#{task_seq_num}" if task_seq_num else resolved_task_id
         )
     if enhanced_prompt:
-        effective_step_variables["prompt"] = enhanced_prompt
+        effective_initial_variables["prompt"] = enhanced_prompt
 
     # 11. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
@@ -385,7 +401,7 @@ async def spawn_agent_impl(
         parent_session_id=parent_session_id,
         project_id=project_id,
         workflow=effective_workflow,
-        step_variables=effective_step_variables,
+        initial_variables=effective_initial_variables,
         worktree_id=isolation_ctx.worktree_id,
         clone_id=isolation_ctx.clone_id,
         branch_name=isolation_ctx.branch_name,

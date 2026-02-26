@@ -112,7 +112,6 @@ class TestGetOrCreateSalt:
         assert salt_file.exists()
 
     def test_returns_existing_salt(self, salt_dir: Path) -> None:
-        salt_file = salt_dir / ".secret_salt"
         # Create salt first time
         salt1 = _get_or_create_salt()
         # Read it again
@@ -199,7 +198,7 @@ class TestGetFernet:
 class TestSecretStoreSet:
     def test_set_new_secret(self, store: SecretStore) -> None:
         info = store.set("API_KEY", "sk-12345", category="llm", description="OpenAI")
-        assert info.name == "API_KEY"
+        assert info.name == "api_key"  # normalized to lowercase
         assert info.category == "llm"
         assert info.description == "OpenAI"
         assert info.id  # UUID should be set
@@ -260,7 +259,7 @@ class TestSecretStoreSet:
     def test_set_encrypts_value(self, store: SecretStore, temp_db: LocalDatabase) -> None:
         """The stored value in the DB should NOT be the plaintext."""
         store.set("SENSITIVE", "super-secret-value")
-        row = temp_db.fetchone("SELECT encrypted_value FROM secrets WHERE name = ?", ("SENSITIVE",))
+        row = temp_db.fetchone("SELECT encrypted_value FROM secrets WHERE name = ?", ("sensitive",))
         assert row is not None
         assert row["encrypted_value"] != "super-secret-value"
         assert len(row["encrypted_value"]) > 0
@@ -352,9 +351,9 @@ class TestSecretStoreList:
         store.set("B_KEY", "secret-b", category="general")
         results = store.list()
         assert len(results) == 2
-        # Sorted by name
-        assert results[0].name == "A_KEY"
-        assert results[1].name == "B_KEY"
+        # Sorted by name (lowercase)
+        assert results[0].name == "a_key"
+        assert results[1].name == "b_key"
         # Metadata present
         assert results[0].category == "llm"
         assert results[0].description == "Key A"
@@ -484,3 +483,61 @@ class TestSecretRefPattern:
 class TestValidCategories:
     def test_expected_categories(self) -> None:
         assert VALID_CATEGORIES == {"general", "llm", "mcp_server", "memory", "integration"}
+
+
+# =============================================================================
+# Case-insensitive name normalization
+# =============================================================================
+
+
+class TestNameNormalization:
+    def test_name_stored_lowercase(self, store: SecretStore) -> None:
+        """Setting with uppercase stores as lowercase."""
+        info = store.set("MY_KEY", "value")
+        assert info.name == "my_key"
+
+    def test_upsert_case_insensitive(self, store: SecretStore) -> None:
+        """Setting API_KEY then api_key should upsert, not create two rows."""
+        info1 = store.set("API_KEY", "old-value")
+        info2 = store.set("api_key", "new-value")
+        assert info2.id == info1.id
+        assert store.get("api_key") == "new-value"
+        assert store.get("API_KEY") == "new-value"
+        # Only one row in DB
+        results = store.list()
+        matching = [r for r in results if r.name == "api_key"]
+        assert len(matching) == 1
+
+    def test_get_case_insensitive(self, store: SecretStore) -> None:
+        """Get should find secrets regardless of case."""
+        store.set("My_Secret", "value123")
+        assert store.get("my_secret") == "value123"
+        assert store.get("MY_SECRET") == "value123"
+        assert store.get("My_Secret") == "value123"
+
+    def test_delete_case_insensitive(self, store: SecretStore) -> None:
+        """Delete should work regardless of case."""
+        store.set("API_KEY", "value")
+        assert store.delete("api_key") is True
+        assert store.get("API_KEY") is None
+
+    def test_exists_case_insensitive(self, store: SecretStore) -> None:
+        """Exists should match regardless of case."""
+        store.set("API_KEY", "value")
+        assert store.exists("api_key") is True
+        assert store.exists("API_KEY") is True
+        assert store.exists("Api_Key") is True
+
+    def test_resolve_case_insensitive(self, store: SecretStore) -> None:
+        """Resolve should find secrets stored with different case."""
+        store.set("API_KEY", "sk-12345")
+        result = store.resolve("Bearer $secret:api_key")
+        assert result == "Bearer sk-12345"
+        result2 = store.resolve("Bearer $secret:API_KEY")
+        assert result2 == "Bearer sk-12345"
+
+    def test_whitespace_stripped(self, store: SecretStore) -> None:
+        """Leading/trailing whitespace should be stripped."""
+        store.set("  MY_KEY  ", "value")
+        assert store.get("my_key") == "value"
+        assert store.exists("MY_KEY") is True

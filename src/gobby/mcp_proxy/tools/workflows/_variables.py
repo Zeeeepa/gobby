@@ -3,7 +3,6 @@ Workflow variable tools (set_variable, get_variable).
 """
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from gobby.mcp_proxy.tools.workflows._resolution import (
@@ -12,7 +11,6 @@ from gobby.mcp_proxy.tools.workflows._resolution import (
 )
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
-from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.state_manager import (
     SessionVariableManager,
     WorkflowInstanceManager,
@@ -121,53 +119,19 @@ def set_variable(
         return {"ok": True, "value": value, "scope": "workflow", "workflow": workflow}
 
     # Session-scoped: write to session_variables table
-    if session_var_manager:
-        session_var_manager.set_variable(resolved_session_id, name, value)
-        return {"ok": True, "value": value, "scope": "session"}
+    if not session_var_manager:
+        from gobby.workflows.state_manager import SessionVariableManager
 
-    # Backward compat: write to workflow_states.variables
-    state = state_manager.get_state(resolved_session_id)
-    if not state:
-        state = WorkflowState(
-            session_id=resolved_session_id,
-            workflow_name="__lifecycle__",
-            step="",
-            step_entered_at=datetime.now(UTC),
-            variables={},
-        )
+        session_var_manager = SessionVariableManager(db)
 
-    # Block modification of session_task when a real workflow is active
-    if name == "session_task" and state.workflow_name not in ("__lifecycle__", "__ended__"):
-        current_value = state.variables.get("session_task")
-        if current_value is not None and value != current_value:
-            return {
-                "ok": False,
-                "error": (
-                    f"Cannot modify session_task while workflow '{state.workflow_name}' is active. "
-                    f"Current value: {current_value}. "
-                    f"Use end_workflow() first if you need to change the tracked task."
-                ),
-            }
-
-    state.variables[name] = value
-    state_manager.save_state(state)
-
-    if name == "session_task" and state.workflow_name == "__lifecycle__":
-        return {
-            "ok": True,
-            "value": value,
-            "warning": (
-                "DEPRECATED: Setting session_task via set_variable on __lifecycle__ workflow. "
-                "Prefer using activate_workflow(variables={session_task: ...}) instead."
-            ),
-        }
-
-    return {"ok": True, "value": value}
+    session_var_manager.set_variable(resolved_session_id, name, value)
+    return {"ok": True, "value": value, "scope": "session"}
 
 
 def get_variable(
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
+    db: DatabaseProtocol,
     name: str | None = None,
     session_id: str | None = None,
     workflow: str | None = None,
@@ -184,6 +148,7 @@ def get_variable(
     Args:
         state_manager: WorkflowStateManager instance
         session_manager: LocalSessionManager instance
+        db: LocalDatabase instance
         name: Variable name to get (if None, returns all variables)
         session_id: Session reference (accepts #N, N, UUID, or prefix)
         workflow: Optional workflow name to scope the read to
@@ -236,55 +201,26 @@ def get_variable(
         }
 
     # Session-scoped: read from session_variables table
-    if session_var_manager:
-        variables = session_var_manager.get_variables(resolved_session_id)
-        if name:
-            return {
-                "ok": True,
-                "session_id": resolved_session_id,
-                "variable": name,
-                "value": variables.get(name),
-                "exists": name in variables,
-                "scope": "session",
-            }
-        return {
-            "ok": True,
-            "session_id": resolved_session_id,
-            "variables": variables,
-            "scope": "session",
-        }
+    if not session_var_manager:
+        from gobby.workflows.state_manager import SessionVariableManager
 
-    # Backward compat: read from workflow_states.variables
-    state = state_manager.get_state(resolved_session_id)
-    if not state:
-        if name:
-            return {
-                "ok": True,
-                "session_id": resolved_session_id,
-                "variable": name,
-                "value": None,
-                "exists": False,
-            }
-        return {
-            "ok": True,
-            "session_id": resolved_session_id,
-            "variables": {},
-        }
+        session_var_manager = SessionVariableManager(db)
 
+    variables = session_var_manager.get_variables(resolved_session_id)
     if name:
-        value = state.variables.get(name)
         return {
             "ok": True,
             "session_id": resolved_session_id,
             "variable": name,
-            "value": value,
-            "exists": name in state.variables,
+            "value": variables.get(name),
+            "exists": name in variables,
+            "scope": "session",
         }
-
     return {
         "ok": True,
         "session_id": resolved_session_id,
-        "variables": state.variables,
+        "variables": variables,
+        "scope": "session",
     }
 
 

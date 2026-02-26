@@ -1,1 +1,1 @@
-export { PipelinePanel } from './PipelinePanel'
+export { PipelinePanel } from './workflows/PipelinePanel'

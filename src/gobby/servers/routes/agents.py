@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from gobby.utils.metrics import get_metrics_collector
 
@@ -31,16 +31,15 @@ class CreateAgentDefinitionRequest(BaseModel):
     goal: str | None = None
     personality: str | None = None
     instructions: str | None = None
-    provider: str = "claude"
+    provider: str = "inherit"
     model: str | None = None
-    mode: str = "headless"
-    isolation: str | None = None
-    base_branch: str = "main"
-    timeout: float = 120.0
-    max_turns: int = 10
+    mode: str = "inherit"
+    isolation: str | None = "inherit"
+    base_branch: str = "inherit"
+    timeout: float = 0
+    max_turns: int = 0
     default_workflow: str | None = None
     sandbox_config: dict[str, Any] | None = None
-    skill_profile: dict[str, Any] | None = None
     workflows: dict[str, Any] | None = None
     lifecycle_variables: dict[str, Any] | None = None
     default_variables: dict[str, Any] | None = None
@@ -64,7 +63,6 @@ class UpdateAgentDefinitionRequest(BaseModel):
     max_turns: int | None = None
     default_workflow: str | None = None
     sandbox_config: dict[str, Any] | None = None
-    skill_profile: dict[str, Any] | None = None
     workflows: dict[str, Any] | None = None
     lifecycle_variables: dict[str, Any] | None = None
     default_variables: dict[str, Any] | None = None
@@ -89,11 +87,21 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
 
         return LocalWorkflowDefinitionManager(server.services.database)
 
-    def _row_to_api_dict(row: Any) -> dict[str, Any]:
-        """Convert a workflow_definitions DB row to API response dict."""
+    def _row_to_api_dict(row: Any) -> dict[str, Any] | None:
+        """Convert a workflow_definitions DB row to API response dict.
+
+        Returns None if the row fails Pydantic validation (logged and skipped).
+        """
         from gobby.workflows.definitions import AgentDefinitionBody
 
-        body = AgentDefinitionBody.model_validate_json(row.definition_json)
+        try:
+            body = AgentDefinitionBody.model_validate_json(row.definition_json)
+        except ValidationError as e:
+            logger.warning(
+                f"Skipping agent definition '{getattr(row, 'name', '?')}' "
+                f"(id={getattr(row, 'id', '?')}): {e}"
+            )
+            return None
         return {
             "definition": body.model_dump(exclude_none=True),
             "source": row.source,
@@ -116,7 +124,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 project_id=project_id,
                 include_deleted=include_deleted,
             )
-            items = [_row_to_api_dict(r) for r in rows]
+            items = [d for r in rows if (d := _row_to_api_dict(r)) is not None]
             return {
                 "status": "success",
                 "definitions": items,
@@ -186,6 +194,10 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         try:
             from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
+            workflows = AgentWorkflows()
+            if request.workflows:
+                workflows = AgentWorkflows(**request.workflows)
+
             body = AgentDefinitionBody(
                 name=request.name,
                 description=request.description,
@@ -195,12 +207,12 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 instructions=request.instructions,
                 provider=request.provider,
                 model=request.model,
-                mode=request.mode if request.mode != "self" else "headless",
+                mode=request.mode,
                 isolation=request.isolation,
                 base_branch=request.base_branch,
                 timeout=request.timeout,
                 max_turns=request.max_turns,
-                workflows=AgentWorkflows(),
+                workflows=workflows,
             )
 
             manager = _get_manager()
@@ -315,6 +327,14 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         add: list[str] | None = None
         remove: list[str] | None = None
 
+    class PatchRuleSelectorsRequest(BaseModel):
+        """Request body for patching agent rule selectors."""
+
+        add_include: list[str] | None = None
+        remove_include: list[str] | None = None
+        add_exclude: list[str] | None = None
+        remove_exclude: list[str] | None = None
+
     class PatchVariablesRequest(BaseModel):
         """Request body for patching agent variables."""
 
@@ -351,6 +371,49 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except Exception as e:
             logger.error(f"Error patching rules: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.patch("/definitions/{definition_id}/rule-selectors")
+    async def patch_rule_selectors(
+        definition_id: str, request: PatchRuleSelectorsRequest
+    ) -> dict[str, Any]:
+        """Add or remove rule selectors from an agent definition."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            import json as _json
+
+            manager = _get_manager()
+            row = manager.get(definition_id)
+            body_dict: dict[str, Any] = _json.loads(row.definition_json)
+
+            workflows = body_dict.get("workflows", {})
+            selectors = workflows.get("rule_selectors") or {"include": [], "exclude": []}
+            include: list[str] = list(selectors.get("include", []))
+            exclude: list[str] = list(selectors.get("exclude", []))
+
+            if request.remove_include:
+                include = [s for s in include if s not in request.remove_include]
+            if request.add_include:
+                for s in request.add_include:
+                    if s not in include:
+                        include.append(s)
+            if request.remove_exclude:
+                exclude = [s for s in exclude if s not in request.remove_exclude]
+            if request.add_exclude:
+                for s in request.add_exclude:
+                    if s not in exclude:
+                        exclude.append(s)
+
+            rule_selectors = {"include": include, "exclude": exclude}
+            workflows["rule_selectors"] = rule_selectors
+            body_dict["workflows"] = workflows
+            manager.update(definition_id, definition_json=_json.dumps(body_dict))
+
+            return {"status": "success", "rule_selectors": rule_selectors}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error patching rule selectors: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.patch("/definitions/{definition_id}/variables")

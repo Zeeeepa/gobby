@@ -362,7 +362,7 @@ class HookManagerFactory:
         rule_engine = RuleEngine(db=database)
         state_manager = WorkflowStateManager(database)
         template_engine = TemplateEngine()
-        skill_manager = HookSkillManager()
+        skill_manager = HookSkillManager(db=database)
 
         websocket_server = None
         if broadcaster and hasattr(broadcaster, "websocket_server"):

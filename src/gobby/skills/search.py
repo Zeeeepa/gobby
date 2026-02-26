@@ -39,6 +39,7 @@ class SearchFilters:
     category: str | None = None
     tags_any: list[str] | None = None
     tags_all: list[str] | None = None
+    allowed_names: list[str] | None = None
 
 
 @dataclass

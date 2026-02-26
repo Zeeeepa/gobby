@@ -47,6 +47,7 @@ class ChatSessionPermissionsMixin:
     _plan_file_path: str | None
     _pending_plan_event: asyncio.Event | None
     _pending_plan_decision: str | None
+    _on_mode_persist: Callable[[str], None] | None
     _on_plan_ready: Callable[[str | None, dict[str, Any]], Awaitable[None]] | None
     _pending_approval: PendingApproval | None
     _pending_approval_decision: str | None
@@ -99,7 +100,17 @@ class ChatSessionPermissionsMixin:
                 )
                 logger.warning("ExitPlanMode timed out for session %s", self.conversation_id)
 
-            decision = self._pending_plan_decision or "approve"
+            if self._pending_plan_decision is None:
+                logger.warning(
+                    "ExitPlanMode resolved without explicit decision for session %s — denying",
+                    self.conversation_id,
+                )
+                self._plan_feedback = (
+                    self._plan_feedback
+                    or "No approval decision received. Please review and approve the plan."
+                )
+
+            decision = self._pending_plan_decision or "request_changes"
             self._pending_plan_event = None
             self._pending_plan_decision = None
 
@@ -113,7 +124,7 @@ class ChatSessionPermissionsMixin:
                 # request_changes — deny the tool so agent stays in plan mode
                 feedback = self._plan_feedback or "User requested changes."
                 self._plan_feedback = None
-                if self._on_mode_changed:
+                if self.chat_mode == "plan" and self._on_mode_changed:
                     await self._on_mode_changed("plan", "plan_changes_requested")
                 return PermissionResultDeny(message=feedback)
 
@@ -282,6 +293,12 @@ class ChatSessionPermissionsMixin:
             # Leaving plan mode — clear plan state
             self._plan_approved = False
             self._plan_feedback = None
+        # Persist to DB (best-effort, fire-and-forget)
+        if self._on_mode_persist:
+            try:
+                self._on_mode_persist(mode)
+            except Exception:
+                pass
 
     def approve_plan(self) -> None:
         """Mark the current plan as approved, unlocking write tools."""
@@ -307,17 +324,42 @@ class ChatSessionPermissionsMixin:
         return self._pending_plan_event is not None
 
     def _read_plan_file(self) -> str | None:
-        """Read the plan file written during plan mode, if any."""
-        if not self._plan_file_path:
-            return None
-        try:
-            from pathlib import Path
+        """Read the plan file written during plan mode, if any.
 
-            path = Path(self._plan_file_path)
-            if path.exists():
-                return path.read_text(encoding="utf-8")
+        If _plan_file_path was tracked (from a Write/Edit to a plan path),
+        read that file directly. Otherwise, fall back to finding the most
+        recently modified .md file in .gobby/plans/ or .claude/plans/.
+        """
+        from pathlib import Path
+
+        if self._plan_file_path:
+            try:
+                path = Path(self._plan_file_path)
+                if path.exists():
+                    return path.read_text(encoding="utf-8")
+            except Exception as e:
+                logger.warning("Failed to read plan file %s: %s", self._plan_file_path, e)
+
+        # Fallback: find the most recently modified plan file
+        try:
+            plan_dirs = [Path(".gobby/plans"), Path(".claude/plans")]
+            # Also check home directory
+            home = Path.home()
+            plan_dirs.append(home / ".claude" / "plans")
+
+            candidates: list[Path] = []
+            for d in plan_dirs:
+                if d.is_dir():
+                    candidates.extend(d.glob("*.md"))
+
+            if candidates:
+                newest = max(candidates, key=lambda p: p.stat().st_mtime)
+                logger.info("Plan file path not tracked; using most recent: %s", newest)
+                self._plan_file_path = str(newest)
+                return newest.read_text(encoding="utf-8")
         except Exception as e:
-            logger.warning("Failed to read plan file %s: %s", self._plan_file_path, e)
+            logger.warning("Failed to find fallback plan file: %s", e)
+
         return None
 
     def _consume_plan_mode_context(self) -> str | None:
@@ -351,7 +393,9 @@ class ChatSessionPermissionsMixin:
             "3. Implementation order",
             "4. Verification steps",
             "",
-            "The user will approve or request changes before you proceed.",
+            "When your plan is complete, you MUST call the ExitPlanMode tool to submit it for user approval.",
+            "Write the plan to a .gobby/plans/*.md file first, then call ExitPlanMode.",
+            "The user will see your plan and approve or request changes before you proceed.",
         ]
 
         if self._plan_feedback:

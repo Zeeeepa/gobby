@@ -52,6 +52,12 @@ Documentation guides for using Gobby's features.
 | [webhook-action-schema.md](webhook-action-schema.md) | Webhook action schemas |
 | [sandboxing.md](sandboxing.md) | Code execution sandboxing |
 
+## Frontend
+
+| Guide | Description |
+|-------|-------------|
+| [frontend-style-guide.md](frontend-style-guide.md) | Design tokens, component patterns, and styling rules for the web UI |
+
 ## Writing Specifications
 
 | Guide | Description |

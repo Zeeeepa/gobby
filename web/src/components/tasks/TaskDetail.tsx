@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import './task-detail.css'
+import './task-execution.css'
+import './task-advanced.css'
 import type { GobbyTask, GobbyTaskDetail, DependencyTree } from '../../hooks/useTasks'
 import { StatusBadge, PriorityBadge, TypeBadge, StatusDot } from './TaskBadges'
 import { ReasoningTimeline } from './ReasoningTimeline'
@@ -15,6 +18,7 @@ import { AssigneePicker } from './AssigneePicker'
 import { TaskComments } from './TaskComments'
 import { PermissionOverrides } from './PermissionOverrides'
 import { TaskHandoff } from './TaskHandoff'
+import { LaunchAgentDialog } from './LaunchAgentDialog'
 
 interface TaskActions {
   updateTask: (id: string, params: { status?: string; assignee?: string }) => Promise<GobbyTaskDetail | null>
@@ -54,6 +58,7 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
   const [subtasks, setSubtasks] = useState<GobbyTask[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [showLaunchAgent, setShowLaunchAgent] = useState(false)
 
   const fetchDetail = useCallback(async (id: string) => {
     setIsLoading(true)
@@ -146,6 +151,29 @@ export function TaskDetail({ taskId, getTask, getDependencies, getSubtasks, acti
               loading={actionLoading}
               onAction={handleAction}
             />
+
+            {/* Launch Agent */}
+            {(task.status === 'open' || task.status === 'in_progress') && (
+              <div className="task-detail-section">
+                <button
+                  className="task-detail-action-btn task-detail-action-btn--primary launch-agent-trigger"
+                  onClick={() => setShowLaunchAgent(true)}
+                >
+                  Launch Agent
+                </button>
+                <LaunchAgentDialog
+                  isOpen={showLaunchAgent}
+                  taskId={task.id}
+                  taskTitle={task.title}
+                  taskCategory={task.category}
+                  projectId={task.project_id}
+                  onClose={() => setShowLaunchAgent(false)}
+                  onSpawned={() => {
+                    if (taskId) fetchDetail(taskId)
+                  }}
+                />
+              </div>
+            )}
 
             {/* Secondary actions */}
             {onClone && (

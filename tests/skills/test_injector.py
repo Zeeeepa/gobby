@@ -398,6 +398,26 @@ class TestMatchesAudience:
         ctx = AgentContext(task_category="anything")
         assert self.injector._matches_audience(config, ctx) is True
 
+    def test_sources_none_matches_any(self) -> None:
+        config = SkillAudienceConfig(audience="all", sources=None)
+        ctx = AgentContext(source="anything")
+        assert self.injector._matches_audience(config, ctx) is True
+
+    def test_sources_list_matches(self) -> None:
+        config = SkillAudienceConfig(audience="all", sources=["claude_sdk_web_chat"])
+        ctx = AgentContext(source="claude_sdk_web_chat")
+        assert self.injector._matches_audience(config, ctx) is True
+
+    def test_sources_list_rejects(self) -> None:
+        config = SkillAudienceConfig(audience="all", sources=["claude_sdk_web_chat"])
+        ctx = AgentContext(source="claude")
+        assert self.injector._matches_audience(config, ctx) is False
+
+    def test_sources_none_context_rejects(self) -> None:
+        config = SkillAudienceConfig(audience="all", sources=["claude_sdk_web_chat"])
+        ctx = AgentContext(source=None)
+        assert self.injector._matches_audience(config, ctx) is False
+
     def test_all_filters_must_pass(self) -> None:
         """All conditions must pass -- audience match + depth match + step match."""
         config = SkillAudienceConfig(

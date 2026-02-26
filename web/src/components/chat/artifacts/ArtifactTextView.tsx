@@ -1,5 +1,5 @@
 import { Markdown } from '../Markdown'
-import { CodeMirrorEditor } from '../../CodeMirrorEditor'
+import { CodeMirrorEditor } from '../../shared/CodeMirrorEditor'
 
 interface ArtifactTextViewProps {
   content: string

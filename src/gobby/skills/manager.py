@@ -151,7 +151,11 @@ class SkillManager:
         source_type: SkillSourceType | None = None,
         source_ref: str | None = None,
         enabled: bool = True,
+        always_apply: bool = False,
+        injection_format: str = "summary",
         project_id: str | None = None,
+        source: str = "installed",
+        **kwargs: Any,
     ) -> Skill:
         """Create a new skill.
 
@@ -168,7 +172,11 @@ class SkillManager:
             source_type: Source type
             source_ref: Git ref for updates
             enabled: Whether skill is active
+            always_apply: Whether skill should always be injected
+            injection_format: How to inject skill (summary, full, content)
             project_id: Project scope (uses default if not specified)
+            source: 'template' or 'installed' (default 'installed')
+            **kwargs: Additional fields passed to storage
 
         Returns:
             The created Skill
@@ -186,7 +194,11 @@ class SkillManager:
             source_type=source_type,
             source_ref=source_ref,
             enabled=enabled,
+            always_apply=always_apply,
+            injection_format=injection_format,
             project_id=project_id or self._project_id,
+            source=source,
+            **kwargs,
         )
 
     def get_skill(self, skill_id: str) -> Skill:
@@ -269,6 +281,9 @@ class SkillManager:
         limit: int = 50,
         offset: int = 0,
         include_global: bool = True,
+        include_deleted: bool = False,
+        include_templates: bool = False,
+        source: str | None = None,
     ) -> list[Skill]:
         """List skills with optional filtering.
 
@@ -279,6 +294,9 @@ class SkillManager:
             limit: Maximum results
             offset: Results to skip
             include_global: Include global skills
+            include_deleted: If True, include soft-deleted skills
+            include_templates: If True, include template skills
+            source: If set, filter to this exact source value
 
         Returns:
             List of matching Skills
@@ -290,6 +308,9 @@ class SkillManager:
             limit=limit,
             offset=offset,
             include_global=include_global,
+            include_deleted=include_deleted,
+            include_templates=include_templates,
+            source=source,
         )
 
     # --- Search Operations ---
@@ -368,12 +389,18 @@ class SkillManager:
         self,
         project_id: str | None = None,
         enabled: bool | None = None,
+        include_deleted: bool = False,
+        include_templates: bool = False,
+        source: str | None = None,
     ) -> int:
         """Count skills matching criteria.
 
         Args:
             project_id: Project scope
             enabled: Filter by enabled state
+            include_deleted: If True, include soft-deleted skills
+            include_templates: If True, include template skills
+            source: If set, filter to this exact source value
 
         Returns:
             Number of matching skills
@@ -381,4 +408,77 @@ class SkillManager:
         return self._storage.count_skills(
             project_id=project_id or self._project_id,
             enabled=enabled,
+            include_deleted=include_deleted,
+            include_templates=include_templates,
+            source=source,
         )
+
+    # --- Template/Install Operations ---
+
+    def install_from_template(self, skill_id: str) -> Skill:
+        """Create an installed copy from a template skill.
+
+        Args:
+            skill_id: Template skill ID
+
+        Returns:
+            The newly installed Skill
+
+        Raises:
+            ValueError: If template not found or already installed
+        """
+        return self._storage.install_from_template(skill_id)
+
+    def install_all_templates(self, project_id: str | None = None) -> int:
+        """Install all eligible template skills that don't have installed copies.
+
+        Args:
+            project_id: Project scope (None for global)
+
+        Returns:
+            Number of templates installed
+        """
+        return self._storage.install_all_templates(project_id=project_id or self._project_id)
+
+    def move_to_project(self, skill_id: str, project_id: str) -> Skill:
+        """Move a skill to project scope.
+
+        Args:
+            skill_id: The skill ID
+            project_id: Target project ID
+
+        Returns:
+            The updated Skill
+
+        Raises:
+            ValueError: If skill not found or is a template
+        """
+        return self._storage.move_to_project(skill_id, project_id)
+
+    def move_to_installed(self, skill_id: str) -> Skill:
+        """Move a project-scoped skill back to installed scope.
+
+        Args:
+            skill_id: The skill ID
+
+        Returns:
+            The updated Skill
+
+        Raises:
+            ValueError: If skill not found or is a template
+        """
+        return self._storage.move_to_installed(skill_id)
+
+    def restore_skill(self, skill_id: str) -> Skill:
+        """Restore a soft-deleted skill.
+
+        Args:
+            skill_id: The skill ID to restore
+
+        Returns:
+            The restored Skill
+
+        Raises:
+            ValueError: If skill not found
+        """
+        return self._storage.restore(skill_id)

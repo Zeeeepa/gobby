@@ -245,6 +245,7 @@ def sync_bundled_content_to_db(
         ("agents", "gobby.agents.sync", "sync_bundled_agents"),
         ("workflows", "gobby.workflows.sync", "sync_bundled_workflows"),
         ("rules", "gobby.workflows.sync", "sync_bundled_rules"),
+        ("variables", "gobby.workflows.sync", "sync_bundled_variables"),
     ]
 
     for content_type, module_path, func_name in sync_targets:
@@ -265,6 +266,22 @@ def sync_bundled_content_to_db(
             msg = f"Failed to sync bundled {content_type}: {e}"
             logger.warning(msg)
             result["errors"].append(msg)
+
+    # Auto-install templates so bundled skills are immediately active.
+    # Existing users: skills already source='installed' from migration; skipped.
+    # New users: templates created then immediately installed.
+    try:
+        from gobby.storage.skills import LocalSkillManager
+
+        skill_storage = LocalSkillManager(db)
+        installed_count = skill_storage.install_all_templates()
+        if installed_count > 0:
+            logger.info(f"Auto-installed {installed_count} skill templates")
+            result["details"].setdefault("skills", {})["auto_installed"] = installed_count
+    except Exception as e:
+        msg = f"Failed to auto-install skill templates: {e}"
+        logger.warning(msg)
+        result["errors"].append(msg)
 
     return result
 

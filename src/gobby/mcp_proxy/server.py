@@ -167,10 +167,22 @@ class GobbyDaemonTools:
         """
         # Set session's project context for this call
         token = None
+        call_context = None
         if session_id:
             token = self._resolve_and_set_project_context(session_id)
+            # Build call_context so internal tools (e.g. canvas) can access
+            # conversation_id without the caller having to pass it explicitly.
+            if self._session_manager:
+                session = self._session_manager.get(session_id)
+                if session:
+                    call_context = {
+                        "session_id": session_id,
+                        "conversation_id": session.external_id,
+                    }
         try:
-            result = await self.tool_proxy.call_tool(server_name, tool_name, arguments, session_id)
+            result = await self.tool_proxy.call_tool(
+                server_name, tool_name, arguments, session_id, call_context=call_context
+            )
         finally:
             if token is not None:
                 from gobby.utils.project_context import reset_project_context

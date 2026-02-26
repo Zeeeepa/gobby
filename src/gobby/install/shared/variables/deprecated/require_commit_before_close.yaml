@@ -1,0 +1,3 @@
+variable: require_commit_before_close
+value: true
+description: Default require_commit_before_close to true

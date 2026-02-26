@@ -1,6 +1,6 @@
 ---
 name: bug
-description: "Quickly create a bug task. Usage: /gobby:bug <title> [description]"
+description: "Quickly create a bug task."
 category: core
 triggers: bug, file bug, report bug
 metadata:

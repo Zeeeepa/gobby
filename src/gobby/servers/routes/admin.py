@@ -8,6 +8,8 @@ import asyncio
 import logging
 import os
 import re
+import subprocess  # nosec B404 - subprocess needed for daemon restart
+import sys
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -24,37 +26,102 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Known provider prefixes for grouping LiteLLM models
-_PROVIDER_PREFIXES = ("claude", "gpt", "gemini", "o1", "o3", "o4", "mistral", "command")
+# Map litellm model prefixes to Gobby provider names
+_PROVIDER_PREFIX_MAP: dict[str, str] = {
+    "gemini": "gemini",
+    "gpt": "codex",
+    "o1": "codex",
+    "o3": "codex",
+    "o4": "codex",
+}
+
+# Exclude non-coding model categories
+_EXCLUDED_KEYWORDS = (
+    "audio", "image", "vision", "embedding", "realtime", "tts",
+    "transcribe", "search", "robotics", "live", "nano", "customtools",
+    "computer-use", "deep-research", "thinking", "exp",
+)
+
+# Minimum version filters — skip deprecated/retired generations
+_MIN_VERSION_FILTERS: dict[str, re.Pattern[str]] = {
+    # Gemini: skip 1.x and 2.0 (deprecated)
+    "gemini": re.compile(r"^gemini-(1\.|2\.0)"),
+    # GPT: skip 3.5, 4, 4o (retired for Codex)
+    "codex": re.compile(r"^(gpt-(3\.5|4o|4(?!\.)|4-)|o1)"),
+}
 
 
-def _discover_models() -> dict[str, list[str]]:
+def _model_id_to_label(model_id: str) -> str:
+    """Convert a model ID like 'gpt-5.3-codex' to 'GPT 5.3 Codex'."""
+    # Split on hyphens, title-case each part
+    parts = model_id.split("-")
+    labelled: list[str] = []
+    for part in parts:
+        upper = part.upper()
+        # Keep well-known acronyms uppercase
+        if upper in ("GPT", "O1", "O3", "O4"):
+            labelled.append(upper)
+        else:
+            labelled.append(part.capitalize())
+    return " ".join(labelled)
+
+
+def _discover_models() -> dict[str, list[dict[str, str]]]:
     """Discover models from LiteLLM's model_cost registry.
 
-    Returns models grouped by provider prefix, excluding dated variants
-    and provider-scoped names (containing / or .).
+    Returns models grouped by Gobby provider name, each entry as
+    ``{"value": "<model_id>", "label": "<Human Label>"}``.
+    Excludes provider-scoped duplicates (containing ``/``), dated
+    variants, numeric-suffix duplicates, non-coding categories, and
+    very old model generations.
     """
     import litellm
 
     all_keys = list(litellm.model_cost.keys())
-    # Only bare names (no / or . — those are provider-scoped duplicates)
-    bare = [m for m in all_keys if "/" not in m and "." not in m]
-    # Exclude dated variants (e.g. claude-sonnet-4-5-20250514, ...-20250929-v1:0) and "latest" aliases
-    bare = [m for m in bare if not re.search(r"-\d{8}", m) and "latest" not in m]
 
-    groups: dict[str, list[str]] = {}
+    # Only bare names (no / — those are provider-scoped duplicates like azure/gpt-5)
+    bare = [m for m in all_keys if "/" not in m]
+
+    # Exclude dated variants (-YYYYMMDD) and numeric-suffix duplicates (-NNN)
+    bare = [m for m in bare if not re.search(r"-\d{6,}", m)]
+
+    # Exclude "latest" aliases
+    bare = [m for m in bare if "latest" not in m]
+
+    # Exclude non-coding model categories
+    bare = [m for m in bare if not any(kw in m for kw in _EXCLUDED_KEYWORDS)]
+
+    groups: dict[str, list[dict[str, str]]] = {}
     for m in bare:
-        for prefix in _PROVIDER_PREFIXES:
+        # Determine provider
+        provider: str | None = None
+        for prefix, prov in _PROVIDER_PREFIX_MAP.items():
             if m.startswith(prefix):
-                groups.setdefault(prefix, []).append(m)
+                provider = prov
                 break
+        if provider is None:
+            continue
 
-    return {k: sorted(v) for k, v in groups.items() if v}
+        # Apply minimum-version filter
+        version_filter = _MIN_VERSION_FILTERS.get(provider)
+        if version_filter and version_filter.search(m):
+            continue
+
+        entry = {"value": m, "label": _model_id_to_label(m)}
+        groups.setdefault(provider, []).append(entry)
+
+    # Sort each group by value and prepend (default) entry
+    result: dict[str, list[dict[str, str]]] = {}
+    for provider, entries in sorted(groups.items()):
+        sorted_entries = sorted(entries, key=lambda e: e["value"])
+        result[provider] = [{"value": "", "label": "(default)"}, *sorted_entries]
+
+    return result
 
 
-def _fallback_models_from_config(server: "HTTPServer") -> dict[str, list[str]]:
+def _fallback_models_from_config(server: "HTTPServer") -> dict[str, list[dict[str, str]]]:
     """Fall back to configured model lists when LiteLLM is unavailable."""
-    result: dict[str, list[str]] = {}
+    result: dict[str, list[dict[str, str]]] = {}
     if server.services.config and server.services.config.llm_providers:
         llm_config = server.services.config.llm_providers
         for provider_name in ("claude", "codex", "gemini", "litellm"):
@@ -62,7 +129,11 @@ def _fallback_models_from_config(server: "HTTPServer") -> dict[str, list[str]]:
             if provider_config:
                 models = provider_config.get_models_list()
                 if models:
-                    result[provider_name] = models
+                    entries = [{"value": "", "label": "(default)"}]
+                    entries.extend(
+                        {"value": m, "label": _model_id_to_label(m)} for m in models
+                    )
+                    result[provider_name] = entries
     return result
 
 
@@ -326,8 +397,6 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Dictionary with models grouped by provider, default_model
         """
-        start_time = time.perf_counter()
-
         # Determine default model from config or fallback
         default_model = "opus"
         if (
@@ -350,12 +419,9 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             filtered = {k: v for k, v in models_by_provider.items() if k == provider}
             models_by_provider = filtered
 
-        response_time_ms = (time.perf_counter() - start_time) * 1000
-
         return {
             "models": models_by_provider,
             "default_model": default_model,
-            "response_time_ms": response_time_ms,
         }
 
     @router.get("/config")
@@ -449,6 +515,118 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             logger.error("Error initiating shutdown: %s", e, exc_info=True)
             return {
                 "message": "Shutdown failed to initiate",
+            }
+
+    _restart_in_progress = False
+
+    @router.post("/restart")
+    async def restart() -> dict[str, Any]:
+        """
+        Graceful daemon restart endpoint.
+
+        Spawns a detached restarter subprocess that waits for the current
+        daemon to exit, then starts a new one. Returns immediately.
+        """
+        nonlocal _restart_in_progress
+
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        if _restart_in_progress:
+            return {"status": "already_restarting", "message": "Restart already in progress"}
+
+        try:
+            _restart_in_progress = True
+            logger.info("Restart requested via HTTP endpoint")
+
+            current_pid = os.getpid()
+            port = server.port
+
+            # Inline Python script for the detached restarter process.
+            # It waits for the current daemon PID to exit, then spawns a new one.
+            restarter_script = f"""
+import os, sys, time, signal, subprocess
+pid = {current_pid}
+port = {port}
+python = {sys.executable!r}
+
+# Wait for current daemon to exit (up to 30s)
+for _ in range(300):
+    try:
+        os.kill(pid, 0)
+        time.sleep(0.1)
+    except ProcessLookupError:
+        break
+else:
+    # Force kill if still running
+    try:
+        os.kill(pid, signal.SIGKILL)
+        time.sleep(0.5)
+    except ProcessLookupError:
+        pass
+
+# Wait for port release
+time.sleep(2.0)
+
+# Clean up stale PID file
+gobby_home = os.environ.get("GOBBY_HOME", os.path.expanduser("~/.gobby"))
+pid_file = os.path.join(gobby_home, "gobby.pid")
+try:
+    os.unlink(pid_file)
+except FileNotFoundError:
+    pass
+
+# Start new daemon
+import json
+log_dir = os.path.join(gobby_home, "logs")
+os.makedirs(log_dir, exist_ok=True)
+log_file = open(os.path.join(log_dir, "gobby-client.log"), "a")
+err_file = open(os.path.join(log_dir, "gobby-client-error.log"), "a")
+try:
+    proc = subprocess.Popen(
+        [python, "-m", "gobby.runner"],
+        stdout=log_file, stderr=err_file,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+        env=os.environ.copy(),
+    )
+    with open(pid_file, "w") as f:
+        f.write(str(proc.pid))
+finally:
+    log_file.close()
+    err_file.close()
+"""
+            # Spawn the restarter as a fully detached subprocess
+            subprocess.Popen(  # nosec B603
+                [sys.executable, "-c", restarter_script],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                env=os.environ.copy(),
+            )
+
+            # Schedule shutdown of the current daemon
+            task = asyncio.create_task(server._process_shutdown())
+            server._background_tasks.add(task)
+            task.add_done_callback(server._background_tasks.discard)
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "restarting",
+                "message": "Daemon restart initiated",
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            _restart_in_progress = False
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error("Error initiating restart: %s", e, exc_info=True)
+            return {
+                "status": "error",
+                "message": f"Restart failed to initiate: {e}",
             }
 
     @router.post("/workflows/reload")

@@ -1,0 +1,3 @@
+variable: pre_existing_errors_triaged
+value: false
+description: Default pre_existing_errors_triaged to false

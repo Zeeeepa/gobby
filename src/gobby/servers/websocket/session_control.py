@@ -43,6 +43,7 @@ class SessionControlMixin:
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
+    _pending_agents: dict[str, str]
 
     # Provided by ChatMixin / HandlerMixin – declared for type checking only.
     if TYPE_CHECKING:
@@ -262,6 +263,10 @@ class SessionControlMixin:
         session = self._chat_sessions.get(conversation_id) if conversation_id else None
         if session is not None and conversation_id:
             session.set_chat_mode(mode)
+            # If user toggles away from plan while ExitPlanMode is blocking,
+            # cancel the pending approval to unblock the streaming loop.
+            if mode != "plan" and session.has_pending_plan:
+                session.provide_plan_decision("request_changes")
             # Sync mode_level to workflow state
             workflow_handler = getattr(self, "workflow_handler", None)
             db_sid = getattr(session, "db_session_id", None)
@@ -426,6 +431,61 @@ class SessionControlMixin:
             f"branch={new_branch}, path={worktree_path}"
         )
 
+    async def _handle_set_agent(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle set_agent message to switch the active agent for a conversation.
+
+        Stops the existing CLI subprocess so the next message creates a fresh
+        session with the new agent context. Conversation history is preserved
+        via database-backed history injection.
+
+        Message format:
+        {
+            "type": "set_agent",
+            "conversation_id": "stable-id",
+            "agent_name": "agent-definition-name"
+        }
+        """
+        conversation_id = data.get("conversation_id")
+        agent_name = data.get("agent_name")
+
+        if not conversation_id or not agent_name:
+            await self._send_error(websocket, "set_agent requires conversation_id and agent_name")
+            return
+
+        # Tear down existing session (same pattern as set_worktree)
+        session = self._chat_sessions.get(conversation_id)
+        if session:
+            await self._cancel_active_chat(conversation_id)
+            if session.db_session_id:
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    try:
+                        await asyncio.to_thread(
+                            session_manager.update,
+                            session.db_session_id,
+                            status="paused",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update session on agent switch: {e}")
+            await session.stop()
+            self._chat_sessions.pop(conversation_id, None)
+
+        # Store agent name for next session creation
+        self._pending_agents[conversation_id] = agent_name
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "agent_changed",
+                    "conversation_id": conversation_id,
+                    "agent_name": agent_name,
+                }
+            )
+        )
+        logger.info(
+            f"Agent switched for conversation {conversation_id[:8]}: {agent_name}"
+        )
+
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle clear_chat message: stop session, mark completed, notify frontend.
 
@@ -517,6 +577,243 @@ class SessionControlMixin:
             json.dumps({"type": "chat_deleted", "conversation_id": conversation_id})
         )
         logger.info(f"Chat deleted for conversation {conversation_id[:8]}")
+
+    async def _handle_attach_to_session(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Attach a WebSocket client to observe a CLI session in real-time.
+
+        Loads recent messages from the session, auto-subscribes the client
+        to session-scoped events, and returns the initial message batch.
+
+        Message format:
+        {
+            "type": "attach_to_session",
+            "session_id": "db-uuid-of-session"
+        }
+        """
+        session_id = data.get("session_id")
+        if not session_id:
+            await self._send_error(websocket, "attach_to_session requires session_id")
+            return
+
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            await self._send_error(websocket, "Session manager not available")
+            return
+
+        # Look up session
+        try:
+            session = await asyncio.to_thread(session_manager.get, session_id)
+        except Exception as e:
+            logger.warning(f"Failed to look up session {session_id}: {e}")
+            session = None
+
+        if not session:
+            await self._send_error(websocket, f"Session not found: {session_id}", code="NOT_FOUND")
+            return
+
+        # Load recent messages
+        message_manager = getattr(self, "message_manager", None)
+        messages: list[dict[str, Any]] = []
+        total_count = 0
+        if message_manager:
+            try:
+                raw_messages = await message_manager.get_messages(session_id, limit=100)
+                messages = [
+                    {
+                        "id": m.get("id", ""),
+                        "role": m.get("role", ""),
+                        "content": m.get("content", ""),
+                        "content_type": m.get("content_type"),
+                        "tool_name": m.get("tool_name"),
+                        "tool_input": m.get("tool_input"),
+                        "tool_result": m.get("tool_result"),
+                        "timestamp": m.get("timestamp", ""),
+                        "message_index": m.get("message_index"),
+                    }
+                    for m in raw_messages
+                ]
+                total_count = len(messages)
+            except Exception as e:
+                logger.warning(f"Failed to load messages for session {session_id}: {e}")
+
+        # Auto-subscribe to session-scoped events
+        if not hasattr(websocket, "subscriptions") or websocket.subscriptions is None:
+            websocket.subscriptions = set()
+        websocket.subscriptions.add(f"session_message:session_id={session_id}")
+        websocket.subscriptions.add(f"hook_event:session_id={session.external_id}")
+
+        # Track attached session on websocket metadata
+        metadata = self.clients.get(websocket)
+        if metadata:
+            metadata["attached_session_id"] = session_id
+
+        # Send response with initial messages and session metadata
+        ref = f"#{session.seq_num}" if getattr(session, "seq_num", None) else None
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "attach_to_session_result",
+                    "session_id": session_id,
+                    "external_id": session.external_id,
+                    "source": getattr(session, "source", "unknown"),
+                    "title": getattr(session, "title", None),
+                    "status": getattr(session, "status", "unknown"),
+                    "model": getattr(session, "model", None),
+                    "ref": ref,
+                    "chat_mode": getattr(session, "chat_mode", None),
+                    "git_branch": getattr(session, "git_branch", None),
+                    "context_window": getattr(session, "context_window", None),
+                    "messages": messages,
+                    "total_count": total_count,
+                }
+            )
+        )
+        logger.info(
+            f"Client attached to session {session_id} ({ref}): {total_count} messages loaded"
+        )
+
+    async def _handle_send_to_cli_session(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Send a message from the web UI to a CLI session.
+
+        Uses two delivery paths:
+        - Idle (at prompt): tmux send-keys injects text directly
+        - Mid-execution: message persists in DB; hook piggyback picks it up
+
+        Message format:
+        {
+            "type": "send_to_cli_session",
+            "session_id": "db-uuid-of-target-session",
+            "content": "message text"
+        }
+        """
+        session_id = data.get("session_id")
+        content = data.get("content", "").strip()
+        if not session_id or not content:
+            await self._send_error(websocket, "send_to_cli_session requires session_id and content")
+            return
+
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            await self._send_error(websocket, "Session manager not available")
+            return
+
+        # Look up the target session
+        try:
+            session = await asyncio.to_thread(session_manager.get, session_id)
+        except Exception as e:
+            logger.warning(f"Failed to look up session {session_id}: {e}")
+            session = None
+
+        if not session:
+            await self._send_error(websocket, f"Session not found: {session_id}", code="NOT_FOUND")
+            return
+
+        # Persist the message via InterSessionMessageManager
+        from gobby.storage.inter_session_messages import InterSessionMessageManager
+
+        inter_msg_manager: InterSessionMessageManager | None = None
+        if session_manager and hasattr(session_manager, "db"):
+            try:
+                inter_msg_manager = InterSessionMessageManager(session_manager.db)
+            except Exception as e:
+                logger.warning(f"Failed to create InterSessionMessageManager: {e}")
+
+        web_session_id = (self.clients.get(websocket) or {}).get("attached_session_id", "web-ui")
+
+        msg_id: str | None = None
+        if inter_msg_manager:
+            try:
+                msg = await asyncio.to_thread(
+                    inter_msg_manager.create_message,
+                    from_session=f"web:{web_session_id}",
+                    to_session=session_id,
+                    content=content,
+                    message_type="web_chat",
+                )
+                msg_id = msg.id
+            except Exception as e:
+                logger.warning(f"Failed to persist inter-session message: {e}")
+
+        # Try tmux delivery for idle sessions
+        delivered_via_tmux = False
+        tmux_pane = None
+        if hasattr(session, "terminal_context") and session.terminal_context:
+            ctx = session.terminal_context if isinstance(session.terminal_context, dict) else {}
+            tmux_pane = ctx.get("tmux_pane")
+
+        if not tmux_pane and hasattr(session, "metadata") and session.metadata:
+            meta = session.metadata if isinstance(session.metadata, dict) else {}
+            tmux_pane = meta.get("terminal_tmux_pane")
+
+        if tmux_pane:
+            try:
+                from gobby.agents.tmux import get_tmux_session_manager
+
+                tmux_manager = get_tmux_session_manager()
+                ok = await tmux_manager.send_keys(tmux_pane, content + "\n")
+                if ok:
+                    delivered_via_tmux = True
+                    # Mark as delivered
+                    if inter_msg_manager and msg_id:
+                        try:
+                            await asyncio.to_thread(inter_msg_manager.mark_delivered, msg_id)
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.warning(f"tmux send_keys failed for {tmux_pane}: {e}")
+
+        # Respond to the client
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "send_to_cli_session_result",
+                    "session_id": session_id,
+                    "delivered": delivered_via_tmux,
+                    "delivery_method": "tmux" if delivered_via_tmux else "hook_piggyback",
+                    "message_id": msg_id,
+                }
+            )
+        )
+        logger.info(
+            f"Message sent to CLI session {session_id[:8]}: "
+            f"delivered={'tmux' if delivered_via_tmux else 'queued for hook piggyback'}"
+        )
+
+    async def _handle_detach_from_session(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Detach a WebSocket client from an observed CLI session.
+
+        Removes session-scoped subscriptions and clears attached state.
+
+        Message format:
+        {
+            "type": "detach_from_session",
+            "session_id": "db-uuid-of-session"
+        }
+        """
+        session_id = data.get("session_id")
+        if not session_id:
+            await self._send_error(websocket, "detach_from_session requires session_id")
+            return
+
+        subs: set[str] = getattr(websocket, "subscriptions", set())
+        # Remove all parametric subscriptions for this session
+        to_remove = {s for s in subs if session_id in s}
+        subs -= to_remove
+
+        # Clear attached session metadata
+        metadata = self.clients.get(websocket)
+        if metadata:
+            metadata.pop("attached_session_id", None)
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "detach_from_session_result",
+                    "session_id": session_id,
+                }
+            )
+        )
+        logger.info(f"Client detached from session {session_id}")
 
     async def _cleanup_idle_sessions(self) -> None:
         """Periodically disconnect chat sessions that have been idle too long."""

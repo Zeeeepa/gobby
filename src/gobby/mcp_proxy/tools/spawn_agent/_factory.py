@@ -10,7 +10,6 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.utils.project_context import get_project_context
 from gobby.workflows.definitions import AgentDefinitionBody
 
@@ -27,30 +26,28 @@ logger = logging.getLogger(__name__)
 def _load_agent_body(
     name: str,
     db: DatabaseProtocol | None,
+    project_id: str | None = None,
 ) -> AgentDefinitionBody | None:
-    """Load an agent definition from workflow_definitions.
+    """Load an agent definition from workflow_definitions, applying extends chain.
 
     Args:
         name: Agent name to look up.
         db: Database connection.
+        project_id: Optional project id for scoped agents.
 
     Returns:
-        AgentDefinitionBody if found with workflow_type='agent', None otherwise.
+        AgentDefinitionBody if found and resolved cleanly, None otherwise.
     """
     if db is None:
         return None
 
-    manager = LocalWorkflowDefinitionManager(db)
-    rows = manager.list_all(workflow_type="agent")
-    for row in rows:
-        if row.name == name:
-            try:
-                return AgentDefinitionBody.model_validate_json(row.definition_json)
-            except Exception as e:
-                logger.warning(f"Failed to parse agent definition '{name}': {e}")
-                return None
+    from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
 
-    return None
+    try:
+        return resolve_agent(name, db, project_id=project_id)
+    except AgentResolutionError as e:
+        logger.error(f"Agent resolution failed: {e}")
+        return None
 
 
 def create_spawn_agent_registry(
@@ -172,7 +169,9 @@ def create_spawn_agent_registry(
                 return {"success": False, "error": str(e)}
 
         # Load agent definition body from DB
-        agent_body = _load_agent_body(agent, db)
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+        agent_body = _load_agent_body(agent, db, project_id=project_id)
         if agent_body is None and agent != "default":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
@@ -189,14 +188,14 @@ def create_spawn_agent_registry(
         if effective_workflow is None and agent_body and agent_body.workflows.pipeline:
             effective_workflow = agent_body.workflows.pipeline
 
-        # Build step_variables for rule activation
-        step_variables: dict[str, Any] = {}
+        # Build initial_variables for rule activation
+        initial_variables: dict[str, Any] = {}
         if agent_body:
-            step_variables["_agent_type"] = agent_body.name
+            initial_variables["_agent_type"] = agent_body.name
             if agent_body.workflows.rules:
-                step_variables["_agent_rules"] = agent_body.workflows.rules
+                initial_variables["_agent_rules"] = agent_body.workflows.rules
             if agent_body.workflows.variables:
-                step_variables.update(agent_body.workflows.variables)
+                initial_variables.update(agent_body.workflows.variables)
 
         # Delegate to spawn_agent_impl
         return await spawn_agent_impl(
@@ -228,7 +227,7 @@ def create_spawn_agent_registry(
             sandbox_extra_paths=sandbox_extra_paths,
             parent_session_id=resolved_parent_session_id,
             project_path=project_path,
-            step_variables=step_variables,
+            initial_variables=initial_variables,
             # For mode=self
             state_manager=state_manager,
             session_manager=session_manager,

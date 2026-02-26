@@ -1,0 +1,3 @@
+variable: max_stop_attempts
+value: 8
+description: Default max_stop_attempts to 8

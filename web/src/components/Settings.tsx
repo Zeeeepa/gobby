@@ -1,5 +1,7 @@
 import type { Settings, Theme } from '../hooks/useSettings'
 import { MODEL_OPTIONS } from '../hooks/useSettings'
+import type { ChatMode } from '../types/chat'
+import { CHAT_MODES } from '../types/chat'
 
 interface SettingsProps {
   isOpen: boolean
@@ -8,6 +10,7 @@ interface SettingsProps {
   onFontSizeChange: (size: number) => void
   onModelChange: (model: string) => void
   onThemeChange: (theme: Theme) => void
+  onDefaultChatModeChange: (mode: ChatMode) => void
   onReset: () => void
 }
 
@@ -18,6 +21,7 @@ export function Settings({
   onFontSizeChange,
   onModelChange,
   onThemeChange,
+  onDefaultChatModeChange,
   onReset,
 }: SettingsProps) {
   if (!isOpen) return null
@@ -80,6 +84,22 @@ export function Settings({
                   onClick={() => onThemeChange(t)}
                 >
                   {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="setting-item">
+            <label>Default Mode</label>
+            <div className="theme-selector">
+              {CHAT_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  className={`theme-option${settings.defaultChatMode === m.id ? ' active' : ''}`}
+                  onClick={() => onDefaultChatModeChange(m.id)}
+                  title={m.description}
+                >
+                  {m.label}
                 </button>
               ))}
             </div>

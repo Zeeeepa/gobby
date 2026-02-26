@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useConfiguration } from '../hooks/useConfiguration'
 import type { SecretInfo, PromptInfo, PromptDetail } from '../hooks/useConfiguration'
-import { CodeMirrorEditor } from './CodeMirrorEditor'
+import { CodeMirrorEditor } from './shared/CodeMirrorEditor'
 import './ConfigurationPage.css'
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabId = 'config' | 'secrets' | 'prompts' | 'template'
+type TabId = 'config' | 'secrets' | 'prompts' | 'variables' | 'template'
 
 const BACKEND_SECRET_MASK = '********'
 
@@ -310,7 +310,7 @@ function ConfigFormTab({ schema, values: initialValues, onSave, onReset, secretK
       {showRestart && (
         <div className="config-restart-banner">
           <span>Configuration saved. Restart the daemon to apply changes.</span>
-          <button onClick={() => fetch('/api/admin/restart', { method: 'POST' }).then(() => setShowRestart(false))}>
+          <button onClick={() => fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/admin/restart`, { method: 'POST' }).then(() => setShowRestart(false))}>
             Restart Now
           </button>
         </div>
@@ -687,6 +687,223 @@ function PromptsTab({ prompts, categories, onGetDetail, onSaveOverride, onDelete
 }
 
 // =============================================================================
+// VariablesTab
+// =============================================================================
+
+interface VariableDefinition {
+  id: string
+  name: string
+  definition_json: string
+  workflow_type: string
+  source: string
+  enabled: boolean
+  description: string | null
+}
+
+function VariablesTab() {
+  const [variables, setVariables] = useState<VariableDefinition[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [formName, setFormName] = useState('')
+  const [formValue, setFormValue] = useState('')
+  const [formDescription, setFormDescription] = useState('')
+
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+
+  const fetchVariables = useCallback(async () => {
+    try {
+      const res = await fetch(`${baseUrl}/api/workflows?workflow_type=variable`)
+      if (res.ok) {
+        const data = await res.json()
+        setVariables(data.definitions || [])
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false)
+    }
+  }, [baseUrl])
+
+  useEffect(() => {
+    fetchVariables()
+  }, [fetchVariables])
+
+  const handleCreate = async () => {
+    const trimmedName = formName.trim()
+    if (!trimmedName) return
+
+    // Auto-detect value type
+    let parsedValue: unknown = formValue
+    if (formValue === 'true') parsedValue = true
+    else if (formValue === 'false') parsedValue = false
+    else if (formValue === 'null') parsedValue = null
+    else if (formValue === '[]') parsedValue = []
+    else if (/^-?\d+$/.test(formValue)) parsedValue = parseInt(formValue, 10)
+    else if (/^-?\d+\.\d+$/.test(formValue)) parsedValue = parseFloat(formValue)
+
+    const defJson = JSON.stringify({
+      variable: trimmedName,
+      value: parsedValue,
+      description: formDescription || undefined,
+    })
+
+    try {
+      const res = await fetch(`${baseUrl}/api/workflows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmedName,
+          definition_json: defJson,
+          workflow_type: 'variable',
+          description: formDescription || undefined,
+          enabled: true,
+          source: 'installed',
+        }),
+      })
+      if (res.ok) {
+        setShowForm(false)
+        setFormName('')
+        setFormValue('')
+        setFormDescription('')
+        fetchVariables()
+      }
+    } catch {
+      // silently fail
+    }
+  }
+
+  const handleToggle = async (v: VariableDefinition) => {
+    try {
+      const res = await fetch(`${baseUrl}/api/workflows/${v.id}/toggle`, { method: 'PUT' })
+      if (res.ok) fetchVariables()
+    } catch {
+      // silently fail
+    }
+  }
+
+  const handleDelete = async (v: VariableDefinition) => {
+    if (!confirm(`Delete variable "${v.name}"?`)) return
+    try {
+      const res = await fetch(`${baseUrl}/api/workflows/${v.id}`, { method: 'DELETE' })
+      if (res.ok) fetchVariables()
+    } catch {
+      // silently fail
+    }
+  }
+
+  const getDisplayValue = (defJson: string): string => {
+    try {
+      const parsed = JSON.parse(defJson)
+      const val = parsed.value
+      if (val === null || val === undefined) return 'null'
+      if (Array.isArray(val)) return JSON.stringify(val)
+      return String(val)
+    } catch {
+      return '-'
+    }
+  }
+
+  if (loading) return <div className="config-loading">Loading variables...</div>
+
+  return (
+    <div className="config-secrets">
+      <div className="config-secrets-header">
+        <h3>Variable Defaults</h3>
+        <button
+          className="config-toolbar-btn primary"
+          onClick={() => {
+            setFormName('')
+            setFormValue('')
+            setFormDescription('')
+            setShowForm(true)
+          }}
+        >
+          Add Variable
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="config-secret-form">
+          <div className="config-secret-form-row">
+            <input
+              className="config-input"
+              placeholder="Variable name (e.g. my_custom_var)"
+              value={formName}
+              onChange={e => setFormName(e.target.value)}
+            />
+          </div>
+          <input
+            className="config-input"
+            placeholder="Default value (e.g. true, 42, hello)"
+            value={formValue}
+            onChange={e => setFormValue(e.target.value)}
+          />
+          <input
+            className="config-input"
+            placeholder="Description (optional)"
+            value={formDescription}
+            onChange={e => setFormDescription(e.target.value)}
+          />
+          <div className="config-secret-form-actions">
+            <button className="config-toolbar-btn" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="config-toolbar-btn primary" onClick={handleCreate}>Save</button>
+          </div>
+        </div>
+      )}
+
+      {variables.length === 0 ? (
+        <div className="config-empty" style={{ padding: 40 }}>
+          No variable definitions found. Add session variable defaults here.
+        </div>
+      ) : (
+        <table className="config-secrets-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Default Value</th>
+              <th>Description</th>
+              <th>Source</th>
+              <th style={{ width: 80 }}>Enabled</th>
+              <th style={{ width: 80 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {variables.map(v => (
+              <tr key={v.id}>
+                <td><code>{v.name}</code></td>
+                <td><code>{getDisplayValue(v.definition_json)}</code></td>
+                <td>{v.description || '-'}</td>
+                <td><span className={`config-prompt-badge ${v.source}`}>{v.source}</span></td>
+                <td>
+                  <button
+                    type="button"
+                    className={`config-toggle ${v.enabled ? 'on' : ''}`}
+                    onClick={() => handleToggle(v)}
+                    aria-label={`Toggle ${v.name}`}
+                  />
+                </td>
+                <td>
+                  {v.source !== 'template' && (
+                    <div className="config-secret-actions">
+                      <button className="delete" onClick={() => handleDelete(v)}>Delete</button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div className="config-secret-hint">
+        Variables define default session values. Template variables are bundled with Gobby.
+        Custom variables use <code>source: installed</code> and can be deleted.
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
 // TemplateTab
 // =============================================================================
 
@@ -727,7 +944,7 @@ function TemplateTab({ content, onFetch, onSave }: TemplateTabProps) {
       {showRestart && (
         <div className="config-restart-banner">
           <span>Configuration saved to database. Restart the daemon to apply changes.</span>
-          <button onClick={() => fetch('/api/admin/restart', { method: 'POST' }).then(() => setShowRestart(false))}>
+          <button onClick={() => fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/admin/restart`, { method: 'POST' }).then(() => setShowRestart(false))}>
             Restart Now
           </button>
         </div>
@@ -813,6 +1030,7 @@ export function ConfigurationPage() {
     { id: 'config', label: 'Configuration' },
     { id: 'secrets', label: 'Secrets' },
     { id: 'prompts', label: 'Prompts' },
+    { id: 'variables', label: 'Variables' },
     { id: 'template', label: 'Template' },
   ]
 
@@ -867,6 +1085,9 @@ export function ConfigurationPage() {
             onSaveOverride={config.savePromptOverride}
             onDeleteOverride={config.deletePromptOverride}
           />
+        )}
+        {activeTab === 'variables' && (
+          <VariablesTab />
         )}
         {activeTab === 'template' && (
           <TemplateTab

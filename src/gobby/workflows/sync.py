@@ -19,8 +19,10 @@ from gobby.workflows.definitions import PipelineDefinition, RuleDefinitionBody, 
 __all__ = [
     "get_bundled_rules_path",
     "get_bundled_workflows_path",
+    "get_bundled_variables_path",
     "sync_bundled_rules",
     "sync_bundled_workflows",
+    "sync_bundled_variables",
 ]
 
 logger = logging.getLogger(__name__)
@@ -271,6 +273,20 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
     if rules_path is None:
         rules_path = get_bundled_rules_path()
 
+    # Repair rows where workflow_type was silently changed from 'rule'
+    # (e.g. via PUT /api/workflows/{id} before workflow_type was made immutable).
+    # Identifies rules by their definition structure: having both event and effect.
+    repaired = db.execute(
+        "UPDATE workflow_definitions "
+        "SET workflow_type = 'rule', updated_at = datetime('now') "
+        "WHERE workflow_type != 'rule' "
+        "  AND json_extract(definition_json, '$.event') IS NOT NULL "
+        "  AND (json_extract(definition_json, '$.effect') IS NOT NULL "
+        "       OR json_extract(definition_json, '$.effects') IS NOT NULL)",
+    ).rowcount
+    if repaired:
+        logger.info("Repaired %d rows with incorrect workflow_type (should be 'rule')", repaired)
+
     result: dict[str, Any] = {
         "success": True,
         "synced": 0,
@@ -441,8 +457,12 @@ def _sync_single_rule(
     # Build the RuleDefinitionBody dict
     body_dict: dict[str, Any] = {
         "event": rule_data.get("event"),
-        "effect": rule_data.get("effect"),
     }
+    # Support both singular 'effect' and plural 'effects'
+    if "effects" in rule_data:
+        body_dict["effects"] = rule_data["effects"]
+    else:
+        body_dict["effect"] = rule_data.get("effect")
     if rule_data.get("when"):
         body_dict["when"] = rule_data["when"]
     if rule_data.get("match"):
@@ -599,5 +619,275 @@ def _sync_single_rule(
         sources=file_sources,
         tags=file_tags,
         source="template",
+    )
+    result["synced"] += 1
+
+
+def get_bundled_variables_path() -> Path:
+    """Get the path to bundled variables directory.
+
+    Returns:
+        Path to src/gobby/install/shared/variables/
+    """
+    from gobby.paths import get_install_dir
+
+    return get_install_dir() / "shared" / "variables"
+
+
+def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
+    """Sync bundled variable definitions from install/shared/variables/ to the database.
+
+    Variable YAML files use a ``variables:`` dict where each key is the variable
+    name and the value contains ``value`` and optional ``description``.  File-level
+    ``tags`` are inherited by all variables in the file.
+
+    Args:
+        db: Database connection.
+
+    Returns:
+        Dict with success status and counts.
+    """
+    variables_path = get_bundled_variables_path()
+
+    result: dict[str, Any] = {
+        "success": True,
+        "synced": 0,
+        "updated": 0,
+        "skipped": 0,
+        "errors": [],
+    }
+
+    if not variables_path.exists():
+        logger.debug("Variables path not found", extra={"path": str(variables_path)})
+        return result
+
+    manager = LocalWorkflowDefinitionManager(db)
+
+    for yaml_file in sorted(variables_path.glob("*.yaml")):
+        try:
+            raw_content = yaml_file.read_text(encoding="utf-8")
+            data = yaml.safe_load(raw_content)
+
+            if not isinstance(data, dict):
+                logger.warning("Skipping non-dict YAML", extra={"file": str(yaml_file)})
+                continue
+
+            variables_dict = data.get("variables")
+            if not isinstance(variables_dict, dict):
+                logger.debug(
+                    "No 'variables' key in YAML, skipping", extra={"file": str(yaml_file)}
+                )
+                result["skipped"] += 1
+                continue
+
+            file_tags = data.get("tags") or []
+            if "gobby" not in file_tags:
+                file_tags = [*file_tags, "gobby"]
+
+            for var_name, var_data in variables_dict.items():
+                if not isinstance(var_data, dict):
+                    result["errors"].append(
+                        f"Variable '{var_name}' in {yaml_file.name} is not a dict"
+                    )
+                    continue
+
+                try:
+                    _sync_single_variable(
+                        manager=manager,
+                        var_name=var_name,
+                        var_data=var_data,
+                        file_tags=file_tags,
+                        result=result,
+                    )
+                except Exception as e:
+                    error_msg = (
+                        f"Failed to sync variable '{var_name}' from {yaml_file.name}: {e}"
+                    )
+                    logger.warning(error_msg)
+                    result["errors"].append(error_msg)
+
+        except Exception as e:
+            error_msg = f"Failed to parse variable file '{yaml_file}': {e}"
+            logger.error(error_msg)
+            result["errors"].append(error_msg)
+
+    # Orphan cleanup: collect all variable names from disk, soft-delete DB rows
+    # whose names are no longer present on disk.
+    on_disk: set[str] = set()
+    for yf in sorted(variables_path.glob("*.yaml")):
+        try:
+            d = yaml.safe_load(yf.read_text(encoding="utf-8"))
+            if isinstance(d, dict) and isinstance(d.get("variables"), dict):
+                on_disk.update(d["variables"].keys())
+        except Exception:
+            pass
+
+    orphan_rows = db.fetchall(
+        "SELECT id, name FROM workflow_definitions "
+        "WHERE source = 'template' AND workflow_type = 'variable' AND deleted_at IS NULL",
+    )
+    result["orphaned"] = 0
+    for row in orphan_rows:
+        if row["name"] not in on_disk:
+            manager.delete(row["id"])
+            logger.info("Soft-deleted orphaned bundled variable", extra={"variable": row["name"]})
+            result["orphaned"] += 1
+
+    _ensure_gobby_tag_on_installed(manager, "variable")
+
+    total = result["synced"] + result["updated"] + result["skipped"]
+    logger.info(
+        "Variable definition sync complete",
+        extra={
+            "synced": result["synced"],
+            "updated": result["updated"],
+            "skipped": result["skipped"],
+            "orphaned": result["orphaned"],
+            "total": total,
+        },
+    )
+
+    return result
+
+
+def _sync_single_variable(
+    manager: LocalWorkflowDefinitionManager,
+    var_name: str,
+    var_data: dict[str, Any],
+    file_tags: list[str] | None,
+    result: dict[str, Any],
+) -> None:
+    """Sync a single variable to workflow_definitions.
+
+    Validates against VariableDefinitionBody, then creates or updates the row.
+    """
+    from gobby.workflows.definitions import VariableDefinitionBody
+
+    body_dict: dict[str, Any] = {
+        "variable": var_name,
+        "value": var_data.get("value"),
+    }
+    if var_data.get("description"):
+        body_dict["description"] = var_data["description"]
+
+    try:
+        VariableDefinitionBody(**body_dict)
+    except ValidationError as ve:
+        raise ValueError(f"Invalid variable definition: {ve}") from ve
+
+    definition_json = json.dumps(body_dict)
+    description = var_data.get("description")
+
+    existing = manager.get_by_name(var_name, include_deleted=True, include_templates=True)
+
+    if existing is not None:
+        if existing.deleted_at is not None:
+            if existing.source == "template":
+                manager.restore(existing.id)
+                manager.update(
+                    existing.id,
+                    name=var_name,
+                    definition_json=definition_json,
+                    workflow_type="variable",
+                    project_id=None,
+                    description=description,
+                    enabled=True,
+                    priority=100,
+                    source="template",
+                    tags=file_tags,
+                )
+                logger.info(
+                    "Restored soft-deleted bundled variable", extra={"variable": var_name}
+                )
+                result["updated"] += 1
+            else:
+                result["skipped"] += 1
+            return
+
+        if existing.source == "template":
+            if existing.definition_json == definition_json:
+                result["skipped"] += 1
+            else:
+                manager.update(
+                    existing.id,
+                    name=var_name,
+                    definition_json=definition_json,
+                    workflow_type="variable",
+                    project_id=None,
+                    description=description,
+                    enabled=existing.enabled,
+                    priority=100,
+                    source="template",
+                    tags=file_tags,
+                )
+                _propagate_to_installed(manager, var_name, definition_json)
+                result["updated"] += 1
+        else:
+            template_row = manager.db.fetchone(
+                "SELECT * FROM workflow_definitions WHERE name = ? AND source = 'template'",
+                (var_name,),
+            )
+            if template_row:
+                from gobby.storage.workflow_definitions import WorkflowDefinitionRow
+
+                template = WorkflowDefinitionRow.from_row(template_row)
+                if template.deleted_at:
+                    manager.restore(template.id)
+                    manager.update(
+                        template.id,
+                        name=var_name,
+                        definition_json=definition_json,
+                        workflow_type="variable",
+                        project_id=None,
+                        description=description,
+                        enabled=True,
+                        priority=100,
+                        source="template",
+                        tags=file_tags,
+                    )
+                    result["updated"] += 1
+                elif template.definition_json != definition_json:
+                    manager.update(
+                        template.id,
+                        name=var_name,
+                        definition_json=definition_json,
+                        workflow_type="variable",
+                        project_id=None,
+                        description=description,
+                        enabled=template.enabled,
+                        priority=100,
+                        source="template",
+                        tags=file_tags,
+                    )
+                    if existing.source == "installed":
+                        _propagate_to_installed(manager, var_name, definition_json)
+                    result["updated"] += 1
+                else:
+                    result["skipped"] += 1
+            else:
+                manager.create(
+                    name=var_name,
+                    definition_json=definition_json,
+                    workflow_type="variable",
+                    project_id=None,
+                    description=description,
+                    enabled=True,
+                    priority=100,
+                    source="template",
+                    tags=file_tags,
+                )
+                result["synced"] += 1
+        return
+
+    manager.create(
+        name=var_name,
+        definition_json=definition_json,
+        workflow_type="variable",
+        project_id=None,
+        description=description,
+        enabled=True,
+        priority=100,
+        source="template",
+        tags=file_tags,
     )
     result["synced"] += 1

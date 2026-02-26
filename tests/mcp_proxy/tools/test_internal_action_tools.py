@@ -3,7 +3,7 @@
 Verifies that workflow action functions are exposed as MCP tools:
 - gobby-memory: sync_import, sync_export, extract_from_session
 - gobby-tasks: sync_import, sync_export
-- gobby-sessions: generate_handoff, extract_handoff_context, capture_baseline_dirty_files
+- gobby-sessions: set_handoff_context, get_handoff_context, capture_baseline_dirty_files
 """
 
 from __future__ import annotations
@@ -242,59 +242,24 @@ class TestTaskSyncExport:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# gobby-sessions: generate_handoff
+# gobby-sessions: set_handoff_context (replaced generate_handoff + extract_handoff_context)
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestSessionGenerateHandoff:
-    """Verify generate_handoff is registered on gobby-sessions and callable."""
+class TestSessionSetHandoffContext:
+    """Verify set_handoff_context is registered on gobby-sessions and callable."""
 
     def test_tool_registered(self, session_registry) -> None:
-        assert "generate_handoff" in session_registry._tools
+        assert "set_handoff_context" in session_registry._tools
 
     @pytest.mark.asyncio
-    async def test_calls_handoff_function(self, session_registry) -> None:
-        with patch(
-            "gobby.mcp_proxy.tools.sessions._actions.generate_handoff_action",
-            new_callable=AsyncMock,
-        ) as mock_fn:
-            mock_fn.return_value = {"handoff_created": True, "summary_length": 500}
-            result = await session_registry.call(
-                "generate_handoff",
-                {"session_id": "sess-1", "mode": "clear"},
-            )
-            assert result["success"] is True
-            assert result["handoff_created"] is True
-            mock_fn.assert_awaited_once()
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# gobby-sessions: extract_handoff_context
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestSessionExtractHandoffContext:
-    """Verify extract_handoff_context is registered on gobby-sessions."""
-
-    def test_tool_registered(self, session_registry) -> None:
-        assert "extract_handoff_context" in session_registry._tools
-
-    @pytest.mark.asyncio
-    async def test_calls_extract_function(self, session_registry) -> None:
-        with patch(
-            "gobby.mcp_proxy.tools.sessions._actions.extract_handoff_context_action",
-        ) as mock_fn:
-            mock_fn.return_value = {
-                "handoff_context_extracted": True,
-                "markdown_length": 200,
-            }
-            result = await session_registry.call(
-                "extract_handoff_context",
-                {"session_id": "sess-1"},
-            )
-            assert result["success"] is True
-            assert result["handoff_context_extracted"] is True
-            mock_fn.assert_called_once()
+    async def test_agent_authored_path(self, session_registry) -> None:
+        result = await session_registry.call(
+            "set_handoff_context",
+            {"session_id": "sess-1", "content": "## Test handoff"},
+        )
+        assert result["success"] is True
+        assert result["mode"] == "agent_authored"
 
 
 # ═══════════════════════════════════════════════════════════════════════

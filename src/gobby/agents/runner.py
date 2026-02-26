@@ -270,7 +270,7 @@ class AgentRunner:
             )
             initial_variables["parent_session_id"] = parent_session_id
 
-            # Merge lifecycle_variables (includes _skill_profile for context-aware injection)
+            # Merge lifecycle_variables
             if config.lifecycle_variables:
                 initial_variables.update(config.lifecycle_variables)
 

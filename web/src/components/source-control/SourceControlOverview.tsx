@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { SourceControlStatus, PullRequest, WorktreeInfo, CIWorkflowRun, GitCommit } from '../../hooks/useSourceControl'
-import type { SubTab } from '../GitHubPage'
+import type { SubTab } from './GitHubPage'
 import { StatusBadge } from './StatusBadge'
 
 interface Props {

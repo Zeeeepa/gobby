@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 124
+BASELINE_VERSION = 128
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -221,7 +221,6 @@ CREATE TABLE sessions (
     agent_depth INTEGER DEFAULT 0,
     spawned_by_agent_id TEXT,
     workflow_name TEXT,
-    step_variables TEXT,
     agent_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
     context_injected INTEGER DEFAULT 0,
     original_prompt TEXT,
@@ -236,6 +235,7 @@ CREATE TABLE sessions (
     model TEXT,
     had_edits BOOLEAN DEFAULT 0,
     digest_markdown TEXT,
+    chat_mode TEXT DEFAULT 'plan',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -621,6 +621,8 @@ CREATE TABLE skills (
     always_apply INTEGER DEFAULT 0,
     injection_format TEXT DEFAULT 'summary',
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    source TEXT DEFAULT 'installed',
+    deleted_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -628,8 +630,9 @@ CREATE INDEX idx_skills_name ON skills(name);
 CREATE INDEX idx_skills_project_id ON skills(project_id);
 CREATE INDEX idx_skills_enabled ON skills(enabled);
 CREATE INDEX idx_skills_always_apply ON skills(always_apply);
-CREATE UNIQUE INDEX idx_skills_name_project ON skills(name, project_id);
-CREATE UNIQUE INDEX idx_skills_name_global ON skills(name) WHERE project_id IS NULL;
+CREATE UNIQUE INDEX idx_skills_name_project_source
+    ON skills(name, COALESCE(project_id, '__global__'), source);
+CREATE INDEX idx_skills_deleted_at ON skills(deleted_at);
 
 CREATE TABLE clones (
     id TEXT PRIMARY KEY,
@@ -1034,6 +1037,83 @@ def _migrate_secret_names_to_natural(db: LocalDatabase) -> None:
     logger.info(f"Secret name migration complete: {migrated} renamed, {deleted} duplicates removed")
 
 
+def _normalize_secret_names_lowercase(db: LocalDatabase) -> None:
+    """Normalize all secret names to lowercase, deduplicating as needed.
+
+    When duplicates exist (e.g., ELEVENLABS_API_KEY and elevenlabs_api_key),
+    the most recently updated row is kept and others are deleted.
+    Also updates $secret: references in config_store to lowercase.
+    """
+    rows = db.fetchall("SELECT id, name, updated_at FROM secrets ORDER BY name")
+    if not rows:
+        logger.info("No secrets to normalize")
+        return
+
+    # Group by lowercase name to find duplicates
+    groups: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        lower = row["name"].lower()
+        groups.setdefault(lower, []).append(dict(row))
+
+    migrated = 0
+    deleted = 0
+
+    with db.transaction() as conn:
+        for lower_name, group in groups.items():
+            if len(group) == 1:
+                # No duplicate — just lowercase if needed
+                entry = group[0]
+                if entry["name"] != lower_name:
+                    # Update config_store references first
+                    old_ref = json.dumps(f"$secret:{entry['name']}")
+                    new_ref = json.dumps(f"$secret:{lower_name}")
+                    conn.execute(
+                        "UPDATE config_store SET value = ? WHERE value = ?",
+                        (new_ref, old_ref),
+                    )
+                    conn.execute(
+                        "UPDATE secrets SET name = ? WHERE id = ?",
+                        (lower_name, entry["id"]),
+                    )
+                    migrated += 1
+                    logger.debug(f"Lowercased secret '{entry['name']}' -> '{lower_name}'")
+            else:
+                # Duplicates — keep the most recently updated one
+                group.sort(key=lambda r: r["updated_at"], reverse=True)
+                keeper = group[0]
+                for dup in group[1:]:
+                    # Update any config_store refs pointing to the dup
+                    old_ref = json.dumps(f"$secret:{dup['name']}")
+                    new_ref = json.dumps(f"$secret:{lower_name}")
+                    conn.execute(
+                        "UPDATE config_store SET value = ? WHERE value = ?",
+                        (new_ref, old_ref),
+                    )
+                    conn.execute("DELETE FROM secrets WHERE id = ?", (dup["id"],))
+                    deleted += 1
+                    logger.debug(
+                        f"Deleted duplicate secret '{dup['name']}' "
+                        f"(keeping '{keeper['name']}' as '{lower_name}')"
+                    )
+                # Lowercase the keeper
+                if keeper["name"] != lower_name:
+                    old_ref = json.dumps(f"$secret:{keeper['name']}")
+                    new_ref = json.dumps(f"$secret:{lower_name}")
+                    conn.execute(
+                        "UPDATE config_store SET value = ? WHERE value = ?",
+                        (new_ref, old_ref),
+                    )
+                    conn.execute(
+                        "UPDATE secrets SET name = ? WHERE id = ?",
+                        (lower_name, keeper["id"]),
+                    )
+                    migrated += 1
+
+    logger.info(
+        f"Secret name normalization complete: {migrated} lowercased, {deleted} duplicates removed"
+    )
+
+
 def _migrate_agent_defs_to_workflow_defs(db: LocalDatabase) -> None:
     """Migrate agent_definitions rows to workflow_definitions with workflow_type='agent'.
 
@@ -1347,6 +1427,34 @@ UPDATE workflow_definitions SET source = 'installed' WHERE source = 'custom'""",
         "Consolidate source values: imported→installed, installed+project_id→project",
         """UPDATE workflow_definitions SET source = 'installed' WHERE source = 'imported';
 UPDATE workflow_definitions SET source = 'project' WHERE source = 'installed' AND project_id IS NOT NULL""",
+    ),
+    (
+        125,
+        "Add source and deleted_at columns to skills table for template pattern",
+        """ALTER TABLE skills ADD COLUMN source TEXT DEFAULT 'installed';
+ALTER TABLE skills ADD COLUMN deleted_at TEXT;
+UPDATE skills SET source = 'project' WHERE project_id IS NOT NULL;
+UPDATE skills SET source = 'installed' WHERE source IS NULL;
+DROP INDEX IF EXISTS idx_skills_name_project;
+DROP INDEX IF EXISTS idx_skills_name_global;
+CREATE UNIQUE INDEX idx_skills_name_project_source
+    ON skills(name, COALESCE(project_id, '__global__'), source);
+CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
+    ),
+    (
+        126,
+        "Add chat_mode column to sessions",
+        "ALTER TABLE sessions ADD COLUMN chat_mode TEXT DEFAULT 'plan'",
+    ),
+    (
+        127,
+        "Normalize secret names to lowercase and deduplicate",
+        _normalize_secret_names_lowercase,
+    ),
+    (
+        128,
+        "Drop step_variables column from sessions (consolidated to session_variables table)",
+        "ALTER TABLE sessions DROP COLUMN step_variables",
     ),
 ]
 

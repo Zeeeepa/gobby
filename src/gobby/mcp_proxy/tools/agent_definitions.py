@@ -86,7 +86,7 @@ def get_agent_definition(
     name: str,
 ) -> dict[str, Any]:
     """
-    Get an agent definition by name.
+    Get an agent definition by name, resolving extends chains.
 
     Args:
         def_manager: Definition storage manager
@@ -95,11 +95,26 @@ def get_agent_definition(
     Returns:
         Dict with success and full agent detail, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
-    if row is None or row.workflow_type != "agent":
-        return {"success": False, "error": f"Agent definition '{name}' not found"}
+    from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
 
-    return {"success": True, "agent": _agent_detail(row)}
+    try:
+        agent_body = resolve_agent(name, def_manager.db)
+        if not agent_body:
+            return {"success": False, "error": f"Agent definition '{name}' not found"}
+
+        # Get the row to augment with DB-specific fields
+        row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+        dump = agent_body.model_dump()
+
+        if row:
+            dump["id"] = row.id
+            dump["source"] = row.source
+            dump["project_id"] = row.project_id
+            dump["enabled"] = row.enabled
+
+        return {"success": True, "agent": dump}
+    except AgentResolutionError as e:
+        return {"success": False, "error": str(e)}
 
 
 def create_agent_definition(

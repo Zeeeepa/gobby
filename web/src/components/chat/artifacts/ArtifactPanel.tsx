@@ -11,7 +11,7 @@ import { PlanApprovalBar } from '../PlanApprovalBar'
 
 interface ArtifactPanelProps {
   artifact: Artifact
-  width: number
+  width?: number  // undefined = full width (mobile)
   onClose: () => void
   onUpdateContent?: (id: string, content: string) => void
   onSetVersion: (id: string, index: number) => void
@@ -77,8 +77,8 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
 
   return (
     <div
-      className="flex flex-col h-full border-l border-border bg-background shrink-0"
-      style={{ width }}
+      className="flex flex-col h-full border-l border-border bg-background"
+      style={width ? { width, flexShrink: 0 } : { width: '100%' }}
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
@@ -113,7 +113,7 @@ export function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSet
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {artifact.type === 'code' && (
           <ArtifactCodeView
             content={content}

@@ -6,7 +6,10 @@ rules:
     event: stop
     enabled: false
     priority: 45
-    when: "variables.get('session_task') and not task_tree_complete(variables.get('session_task')) and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+    when: "variables.get('auto_task_ref') and not task_tree_complete(variables.get('auto_task_ref')) and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 8)"
     effect:
       type: block
-      reason: "Task has incomplete subtasks. Use suggest_next_task() and continue working. Do not wait for user confirmation to proceed."
+      reason: |
+        You are in an autonomous task execution mode.
+        Task {{ auto_task_ref or '(unknown)' }} has incomplete subtasks. Use suggest_next_task() and continue working. 
+        **DO NOT ask for user confirmation to proceed.**

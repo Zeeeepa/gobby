@@ -16,7 +16,6 @@ from gobby.workflows.autonomous_actions import (
     stop_progress_tracking,
 )
 from gobby.workflows.context_actions import (
-    handle_extract_handoff_context,
     handle_inject_context,
     handle_inject_message,
 )
@@ -65,7 +64,6 @@ from gobby.workflows.stop_signal_actions import (
     request_stop,
 )
 from gobby.workflows.summary_actions import (
-    handle_generate_handoff,
     handle_generate_summary,
 )
 from gobby.workflows.task_sync_actions import (
@@ -189,7 +187,6 @@ class ActionExecutor:
         # --- Context/injection actions ---
         self.register("inject_context", handle_inject_context)
         self.register("inject_message", handle_inject_message)
-        self.register("extract_handoff_context", handle_extract_handoff_context)
 
         # --- Detection actions ---
         self.register("detect_plan_mode_from_context", handle_detect_plan_mode_from_context)
@@ -224,7 +221,6 @@ class ActionExecutor:
 
         # --- Summary actions ---
         self.register("generate_summary", handle_generate_summary)
-        self.register("generate_handoff", handle_generate_handoff)
 
         # --- Memory actions ---
         self.register("memory_save", handle_memory_save)

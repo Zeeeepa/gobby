@@ -107,11 +107,18 @@ class SecretStore:
     The API is write-only from outside the daemon — values can be set and
     deleted but never read through the HTTP API. Only the daemon resolves
     secrets internally via the `resolve()` method.
+
+    All secret names are normalized to lowercase for case-insensitive matching.
     """
 
     def __init__(self, db: DatabaseProtocol):
         self.db = db
         self._fernet: Fernet | None = None
+
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        """Normalize secret name to lowercase for case-insensitive matching."""
+        return name.strip().lower()
 
     def _get_fernet(self) -> Fernet:
         """Lazy-initialize the Fernet cipher."""
@@ -145,6 +152,7 @@ class SecretStore:
         if category not in VALID_CATEGORIES:
             raise ValueError(f"Invalid category '{category}'. Must be one of: {VALID_CATEGORIES}")
 
+        name = self._normalize_name(name)
         fernet = self._get_fernet()
         encrypted = fernet.encrypt(plaintext_value.encode("utf-8")).decode("utf-8")
         now = datetime.now(UTC).isoformat()
@@ -189,6 +197,7 @@ class SecretStore:
         Returns:
             Decrypted plaintext value, or None if not found
         """
+        name = self._normalize_name(name)
         row = self.db.fetchone("SELECT encrypted_value FROM secrets WHERE name = ?", (name,))
         if not row:
             return None
@@ -210,6 +219,7 @@ class SecretStore:
         Returns:
             True if deleted, False if not found
         """
+        name = self._normalize_name(name)
         row = self.db.fetchone("SELECT id FROM secrets WHERE name = ?", (name,))
         if not row:
             return False
@@ -239,6 +249,7 @@ class SecretStore:
 
     def exists(self, name: str) -> bool:
         """Check if a secret exists."""
+        name = self._normalize_name(name)
         row = self.db.fetchone("SELECT 1 FROM secrets WHERE name = ?", (name,))
         return row is not None
 

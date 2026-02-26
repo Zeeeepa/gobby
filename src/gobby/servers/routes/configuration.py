@@ -74,6 +74,16 @@ class SavePromptOverrideRequest(BaseModel):
     content: str
 
 
+class SaveUISettingsRequest(BaseModel):
+    """Request body for PUT /api/config/ui-settings."""
+
+    fontSize: int | None = None
+    model: str | None = None
+    theme: str | None = None
+    defaultChatMode: str | None = None
+    selectedProjectId: str | None = None
+
+
 class ImportConfigRequest(BaseModel):
     """Request body for POST /api/config/import."""
 
@@ -742,5 +752,46 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         except Exception as e:
             logger.error(f"Config import failed: {e}")
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # =========================================================================
+    # UI Settings (lightweight, no DaemonConfig validation)
+    # =========================================================================
+
+    _UI_SETTINGS_PREFIX = "ui_settings."
+    _UI_SETTINGS_KEYS = ("fontSize", "model", "theme", "defaultChatMode", "selectedProjectId")
+
+    @router.get("/ui-settings")
+    async def get_ui_settings() -> JSONResponse:
+        """Return persisted UI settings (font, model, theme, defaultChatMode)."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            config_store = _get_config_store()
+            result: dict[str, Any] = {}
+            for key in _UI_SETTINGS_KEYS:
+                value = config_store.get(f"{_UI_SETTINGS_PREFIX}{key}")
+                if value is not None:
+                    result[key] = value
+            return JSONResponse(content=result)
+        except Exception as e:
+            logger.error(f"Failed to get UI settings: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.put("/ui-settings")
+    async def save_ui_settings(request: SaveUISettingsRequest) -> JSONResponse:
+        """Persist UI settings to config_store."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            config_store = _get_config_store()
+            entries: dict[str, Any] = {}
+            for key in _UI_SETTINGS_KEYS:
+                value = getattr(request, key, None)
+                if value is not None:
+                    entries[f"{_UI_SETTINGS_PREFIX}{key}"] = value
+            if entries:
+                config_store.set_many(entries, source="ui")
+            return JSONResponse(content={"ok": True})
+        except Exception as e:
+            logger.error(f"Failed to save UI settings: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     return router

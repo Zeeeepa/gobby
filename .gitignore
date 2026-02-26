@@ -229,6 +229,7 @@ bmad-custom-src/
 .gobby/plugins/
 .gobby/prompts/
 .gobby/docs/
+.gobby/plans/
 reports/
 bandit_report.json
 ./*.txt
@@ -246,3 +247,4 @@ playwright-report/
 # Moat task system
 .moat/
 drawbridge/
+node_modules/

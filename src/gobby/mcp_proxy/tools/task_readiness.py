@@ -535,7 +535,7 @@ def create_readiness_registry(
             from gobby.workflows.context_actions import recommend_skills_for_task
 
             task_brief = best_task.to_brief()
-            recommended_skills = recommend_skills_for_task(task_brief)
+            recommended_skills = recommend_skills_for_task(task_brief, db=task_manager.db)
         except Exception as e:
             logger.debug(f"Skill recommendation failed: {e}")
 

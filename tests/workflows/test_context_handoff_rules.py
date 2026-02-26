@@ -1,4 +1,4 @@
-"""Tests for context-handoff.yaml rules.
+"""Tests for context-handoff rules.
 
 Verifies context handoff rules sync correctly and have proper structure:
 - clear-pending-context-reset-on-start: set_variable on session_start
@@ -9,12 +9,8 @@ Verifies context handoff rules sync correctly and have proper structure:
 - inject-skills-on-start: inject_context on session_start
 - inject-task-context-on-start: inject_context on session_start
 - inject-error-triage-policy: inject_context on session_start
-- generate-handoff-on-end: mcp_call on session_end
-- task-sync-export-on-end: mcp_call on session_end
-- set-pending-context-reset-on-compact: set_variable on pre_compact
-- extract-handoff-context-on-compact: mcp_call on pre_compact
-- task-sync-export-on-compact: mcp_call on pre_compact
-- generate-handoff-on-compact: mcp_call on pre_compact
+- preserve-context-on-end: multi-effect mcp_call on session_end
+- preserve-context-on-compact: multi-effect set_variable+mcp_call on pre_compact
 """
 
 from __future__ import annotations
@@ -40,12 +36,8 @@ CONTEXT_HANDOFF_RULES = {
     "inject-skills-on-start",
     "inject-task-context-on-start",
     "inject-error-triage-policy",
-    "generate-handoff-on-end",
-    "task-sync-export-on-end",
-    "set-pending-context-reset-on-compact",
-    "extract-handoff-context-on-compact",
-    "task-sync-export-on-compact",
-    "generate-handoff-on-compact",
+    "preserve-context-on-end",
+    "preserve-context-on-compact",
 }
 
 
@@ -73,10 +65,10 @@ def _sync_bundled(db):
 
 
 class TestContextHandoffSync:
-    """Test that context-handoff.yaml syncs correctly."""
+    """Test that context-handoff rules sync correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
-        """All 14 context-handoff rules should sync to workflow_definitions."""
+        """All context-handoff rules should sync to workflow_definitions."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
@@ -103,11 +95,12 @@ class TestContextHandoffSync:
         for row in rules:
             if row.name in CONTEXT_HANDOFF_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type in {
-                    "set_variable",
-                    "inject_context",
-                    "mcp_call",
-                }
+                for effect in body.resolved_effects:
+                    assert effect.type in {
+                        "set_variable",
+                        "inject_context",
+                        "mcp_call",
+                    }
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -302,155 +295,176 @@ class TestInjectErrorTriagePolicy:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# generate-handoff-on-end
+# preserve-context-on-end (multi-effect)
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestGenerateHandoffOnEnd:
-    """Generate session handoff on session_end."""
+class TestPreserveContextOnEnd:
+    """Generate handoff summary and export data on session_end (merged rule)."""
 
-    def test_event_and_effect(self, db, manager) -> None:
+    def test_event_is_session_end(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("generate-handoff-on-end")
+        row = manager.get_by_name("preserve-context-on-end")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_end"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-sessions"
-        assert body.effect.tool == "generate_handoff"
 
-    def test_has_arguments(self, db, manager) -> None:
+    def test_has_four_effects(self, db, manager) -> None:
+        """Should have 4 mcp_call effects."""
         _sync_bundled(db)
-        row = manager.get_by_name("generate-handoff-on-end")
+        row = manager.get_by_name("preserve-context-on-end")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.effect.arguments is not None
-        assert body.effect.arguments.get("prompt") == "handoff/session_end"
+        effects = body.resolved_effects
+        assert len(effects) == 4
+        for effect in effects:
+            assert effect.type == "mcp_call"
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# task-sync-export-on-end
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestTaskSyncExportOnEnd:
-    """Export tasks to JSONL on session_end."""
-
-    def test_event_and_effect(self, db, manager) -> None:
+    def test_includes_handoff_generation(self, db, manager) -> None:
+        """Should include set_handoff_context with full+write_file."""
         _sync_bundled(db)
-        row = manager.get_by_name("task-sync-export-on-end")
-        assert row is not None
+        row = manager.get_by_name("preserve-context-on-end")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_end"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-tasks"
-        assert body.effect.tool == "sync_export"
+        effects = body.resolved_effects
+        handoff_effects = [
+            e for e in effects
+            if e.server == "gobby-sessions" and e.tool == "set_handoff_context"
+        ]
+        assert len(handoff_effects) == 1
+        assert handoff_effects[0].arguments.get("full") is True
+        assert handoff_effects[0].arguments.get("write_file") is True
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# set-pending-context-reset-on-compact
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestSetPendingContextResetOnCompact:
-    """Set pending_context_reset flag before compaction."""
-
-    def test_event_and_effect(self, db, manager) -> None:
+    def test_includes_task_sync_export(self, db, manager) -> None:
+        """Should include task sync export."""
         _sync_bundled(db)
-        row = manager.get_by_name("set-pending-context-reset-on-compact")
+        row = manager.get_by_name("preserve-context-on-end")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        effects = body.resolved_effects
+        task_exports = [
+            e for e in effects
+            if e.server == "gobby-tasks" and e.tool == "sync_export"
+        ]
+        assert len(task_exports) == 1
+
+    def test_includes_memory_extract_and_export(self, db, manager) -> None:
+        """Should include memory extraction and sync export."""
+        _sync_bundled(db)
+        row = manager.get_by_name("preserve-context-on-end")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        effects = body.resolved_effects
+        memory_effects = [e for e in effects if e.server == "gobby-memory"]
+        assert len(memory_effects) == 2
+        memory_tools = {e.tool for e in memory_effects}
+        assert "extract_from_session" in memory_tools
+        assert "sync_export" in memory_tools
+
+    def test_no_when_condition(self, db, manager) -> None:
+        """Should fire unconditionally on session_end."""
+        _sync_bundled(db)
+        row = manager.get_by_name("preserve-context-on-end")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.when is None
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# preserve-context-on-compact (multi-effect)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestPreserveContextOnCompact:
+    """Reset tracking, extract context, and export data before compaction (merged rule)."""
+
+    def test_event_is_pre_compact(self, db, manager) -> None:
+        _sync_bundled(db)
+        row = manager.get_by_name("preserve-context-on-compact")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "pending_context_reset"
+
+    def test_has_seven_effects(self, db, manager) -> None:
+        """Should have 7 effects (2 set_variable + 5 mcp_call)."""
+        _sync_bundled(db)
+        row = manager.get_by_name("preserve-context-on-compact")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        effects = body.resolved_effects
+        assert len(effects) == 7
+        set_var_effects = [e for e in effects if e.type == "set_variable"]
+        mcp_effects = [e for e in effects if e.type == "mcp_call"]
+        assert len(set_var_effects) == 2
+        assert len(mcp_effects) == 5
 
     def test_has_gemini_filter(self, db, manager) -> None:
+        """Should filter out automatic gemini compactions."""
         _sync_bundled(db)
-        row = manager.get_by_name("set-pending-context-reset-on-compact")
+        row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "gemini" in body.when
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# extract-handoff-context-on-compact
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestExtractHandoffContextOnCompact:
-    """Extract structured context before compaction."""
-
-    def test_event_and_effect(self, db, manager) -> None:
+    def test_resets_injected_memory_ids(self, db, manager) -> None:
+        """Should reset injected_memory_ids to empty list."""
         _sync_bundled(db)
-        row = manager.get_by_name("extract-handoff-context-on-compact")
-        assert row is not None
+        row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "pre_compact"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-sessions"
-        assert body.effect.tool == "extract_handoff_context"
+        effects = body.resolved_effects
+        memory_reset = [
+            e for e in effects
+            if e.type == "set_variable" and e.variable == "injected_memory_ids"
+        ]
+        assert len(memory_reset) == 1
+        assert memory_reset[0].value == []
 
-    def test_has_gemini_filter(self, db, manager) -> None:
+    def test_sets_pending_context_reset(self, db, manager) -> None:
+        """Should set pending_context_reset to true."""
         _sync_bundled(db)
-        row = manager.get_by_name("extract-handoff-context-on-compact")
+        row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.when is not None
-        assert "gemini" in body.when
+        effects = body.resolved_effects
+        reset_flag = [
+            e for e in effects
+            if e.type == "set_variable" and e.variable == "pending_context_reset"
+        ]
+        assert len(reset_flag) == 1
+        assert reset_flag[0].value is True
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# task-sync-export-on-compact
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestTaskSyncExportOnCompact:
-    """Export tasks to JSONL before compaction."""
-
-    def test_event_and_effect(self, db, manager) -> None:
+    def test_includes_handoff_generation(self, db, manager) -> None:
+        """Should include set_handoff_context with full+write_file."""
         _sync_bundled(db)
-        row = manager.get_by_name("task-sync-export-on-compact")
-        assert row is not None
+        row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "pre_compact"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-tasks"
-        assert body.effect.tool == "sync_export"
+        effects = body.resolved_effects
+        handoff_effects = [
+            e for e in effects
+            if e.server == "gobby-sessions" and e.tool == "set_handoff_context"
+        ]
+        # One compact handoff + one full handoff
+        assert len(handoff_effects) == 2
+        full_handoff = [
+            e for e in handoff_effects
+            if e.arguments and e.arguments.get("full") is True
+        ]
+        assert len(full_handoff) == 1
+        assert full_handoff[0].arguments.get("write_file") is True
 
-    def test_has_gemini_filter(self, db, manager) -> None:
+    def test_includes_task_sync_export(self, db, manager) -> None:
+        """Should include task sync export."""
         _sync_bundled(db)
-        row = manager.get_by_name("task-sync-export-on-compact")
+        row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.when is not None
-        assert "gemini" in body.when
+        effects = body.resolved_effects
+        task_exports = [
+            e for e in effects
+            if e.server == "gobby-tasks" and e.tool == "sync_export"
+        ]
+        assert len(task_exports) == 1
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# generate-handoff-on-compact
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestGenerateHandoffOnCompact:
-    """Generate compact handoff summary before compaction."""
-
-    def test_event_and_effect(self, db, manager) -> None:
+    def test_includes_memory_extract_and_export(self, db, manager) -> None:
+        """Should include memory extraction and sync export."""
         _sync_bundled(db)
-        row = manager.get_by_name("generate-handoff-on-compact")
-        assert row is not None
+        row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "pre_compact"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-sessions"
-        assert body.effect.tool == "generate_handoff"
-
-    def test_has_compact_mode_arg(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("generate-handoff-on-compact")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.effect.arguments is not None
-        assert body.effect.arguments.get("mode") == "compact"
-
-    def test_has_gemini_filter(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("generate-handoff-on-compact")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.when is not None
-        assert "gemini" in body.when
+        effects = body.resolved_effects
+        memory_effects = [e for e in effects if e.server == "gobby-memory"]
+        assert len(memory_effects) == 2
+        memory_tools = {e.tool for e in memory_effects}
+        assert "extract_from_session" in memory_tools
+        assert "sync_export" in memory_tools

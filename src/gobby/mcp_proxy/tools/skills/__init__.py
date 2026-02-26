@@ -73,30 +73,52 @@ def create_skills_registry(
     async def list_skills(
         category: str | None = None,
         enabled: bool | None = None,
+        include_templates: bool = False,
         limit: int = 50,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         List skills with lightweight metadata.
 
-        Returns ~100 tokens per skill: name, description, category, tags, enabled.
+        Returns ~100 tokens per skill: name, description, category, tags, enabled, source.
         Does NOT include content, allowed_tools, or compatibility.
 
         Args:
             category: Optional category filter
             enabled: Optional enabled status filter (True/False/None for all)
+            include_templates: If True, also show template skills (default False)
             limit: Maximum skills to return (default 50)
 
         Returns:
             Dict with success status and list of skill metadata
         """
         try:
+            active_names = None
+            if session_id:
+                try:
+                    from gobby.workflows.state_manager import SessionVariableManager
+
+                    resolved_id = session_manager.resolve_session_reference(
+                        session_id, project_id=project_id
+                    )
+                    sv_mgr = SessionVariableManager(db)
+                    sv = sv_mgr.get_variables(resolved_id)
+                    active_names = sv.get("_active_skill_names") if sv else None
+                except Exception:
+                    pass
+
             skills = storage.list_skills(
                 project_id=project_id,
                 category=category,
                 enabled=enabled,
-                limit=limit,
+                limit=limit * 5 if active_names is not None else limit,
                 include_global=True,
+                include_templates=include_templates,
             )
+
+            if active_names is not None:
+                active_set = set(active_names)
+                skills = [s for s in skills if s.name in active_set][:limit]
 
             # Extract lightweight metadata only
             skill_list = []
@@ -118,6 +140,7 @@ def create_skills_registry(
                         "category": category_value,
                         "tags": tags,
                         "enabled": skill.enabled,
+                        "source": skill.source,
                     }
                 )
 
@@ -200,6 +223,7 @@ def create_skills_registry(
                     "allowed_tools": skill.allowed_tools,
                     "metadata": skill.metadata,
                     "enabled": skill.enabled,
+                    "source": skill.source,
                     "source_path": skill.source_path,
                     "source_type": skill.source_type,
                     "source_ref": skill.source_ref,
@@ -244,6 +268,7 @@ def create_skills_registry(
         tags_any: list[str] | None = None,
         tags_all: list[str] | None = None,
         top_k: int = 10,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Search for skills by natural language query.
@@ -265,13 +290,28 @@ def create_skills_registry(
             if not query or not query.strip():
                 return {"success": False, "error": "Query is required and cannot be empty"}
 
+            active_names = None
+            if session_id:
+                try:
+                    from gobby.workflows.state_manager import SessionVariableManager
+
+                    resolved_id = session_manager.resolve_session_reference(
+                        session_id, project_id=project_id
+                    )
+                    sv_mgr = SessionVariableManager(db)
+                    sv = sv_mgr.get_variables(resolved_id)
+                    active_names = sv.get("_active_skill_names") if sv else None
+                except Exception:
+                    pass
+
             # Build filters
             filters = None
-            if category or tags_any or tags_all:
+            if category or tags_any or tags_all or active_names is not None:
                 filters = SearchFilters(
                     category=category,
                     tags_any=tags_any,
                     tags_all=tags_all,
+                    allowed_names=active_names,
                 )
 
             # Perform search
@@ -319,14 +359,14 @@ def create_skills_registry(
 
     @registry.tool(
         name="remove_skill",
-        description="Remove a skill by name or ID. Returns success status and removed skill name.",
+        description="Soft-delete a skill by name or ID. The skill can be restored later with restore_skill.",
     )
     async def remove_skill(
         name: str | None = None,
         skill_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Remove a skill from the database.
+        Soft-delete a skill (sets deleted_at, can be restored).
 
         Args:
             name: Skill name (used if skill_id not provided)
@@ -357,13 +397,183 @@ def create_skills_registry(
             # Store the name before deletion
             skill_name = skill.name
 
-            # Delete the skill (notifier triggers re-indexing automatically)
+            # Soft-delete the skill (notifier triggers re-indexing automatically)
             storage.delete_skill(skill.id)
 
             return {
                 "success": True,
                 "removed": True,
                 "skill_name": skill_name,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- install_from_template tool ---
+
+    @registry.tool(
+        name="install_from_template",
+        description="Create an installed copy from a template skill. Templates are bundled skill definitions; installing creates an active copy.",
+    )
+    async def install_from_template(
+        skill_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Install a skill from a template.
+
+        Args:
+            skill_id: Template skill ID (takes precedence over name)
+            name: Template skill name
+
+        Returns:
+            Dict with success status and installed skill info
+        """
+        try:
+            if not skill_id and not name:
+                return {"success": False, "error": "Either name or skill_id is required"}
+
+            skill = None
+            if skill_id:
+                try:
+                    skill = storage.get_skill(skill_id, include_deleted=True)
+                except ValueError:
+                    pass
+
+            if skill is None and name:
+                skill = storage.get_by_name(
+                    name,
+                    project_id=project_id,
+                    source="template",
+                    include_deleted=True,
+                    include_templates=True,
+                )
+
+            if skill is None:
+                return {"success": False, "error": f"Template not found: {skill_id or name}"}
+
+            installed = storage.install_from_template(skill.id)
+            return {
+                "success": True,
+                "installed": True,
+                "skill_id": installed.id,
+                "skill_name": installed.name,
+                "template_id": skill.id,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- restore_skill tool ---
+
+    @registry.tool(
+        name="restore_skill",
+        description="Restore a soft-deleted skill.",
+    )
+    async def restore_skill(
+        skill_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Restore a soft-deleted skill.
+
+        Args:
+            skill_id: Skill ID (takes precedence over name)
+            name: Skill name
+
+        Returns:
+            Dict with success status and restored skill info
+        """
+        try:
+            if not skill_id and not name:
+                return {"success": False, "error": "Either name or skill_id is required"}
+
+            skill = None
+            if skill_id:
+                try:
+                    skill = storage.get_skill(skill_id, include_deleted=True)
+                except ValueError:
+                    pass
+
+            if skill is None and name:
+                skill = storage.get_by_name(
+                    name,
+                    project_id=project_id,
+                    include_deleted=True,
+                    include_templates=True,
+                )
+
+            if skill is None:
+                return {"success": False, "error": f"Skill not found: {skill_id or name}"}
+
+            if skill.deleted_at is None:
+                return {"success": False, "error": f"Skill '{skill.name}' is not deleted"}
+
+            restored = storage.restore(skill.id)
+            return {
+                "success": True,
+                "restored": True,
+                "skill_id": restored.id,
+                "skill_name": restored.name,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- move_to_project tool ---
+
+    @registry.tool(
+        name="move_skill_to_project",
+        description="Move a skill to project scope.",
+    )
+    async def move_skill_to_project(
+        skill_id: str,
+        target_project_id: str,
+    ) -> dict[str, Any]:
+        """
+        Move a skill to project scope.
+
+        Args:
+            skill_id: Skill ID to move
+            target_project_id: Target project ID
+
+        Returns:
+            Dict with success status and moved skill info
+        """
+        try:
+            skill = storage.move_to_project(skill_id, target_project_id)
+            return {
+                "success": True,
+                "skill_id": skill.id,
+                "skill_name": skill.name,
+                "source": skill.source,
+                "project_id": skill.project_id,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- move_to_installed tool ---
+
+    @registry.tool(
+        name="move_skill_to_installed",
+        description="Move a project-scoped skill back to installed scope.",
+    )
+    async def move_skill_to_installed(
+        skill_id: str,
+    ) -> dict[str, Any]:
+        """
+        Move a project-scoped skill back to installed scope.
+
+        Args:
+            skill_id: Skill ID to move
+
+        Returns:
+            Dict with success status and moved skill info
+        """
+        try:
+            skill = storage.move_to_installed(skill_id)
+            return {
+                "success": True,
+                "skill_id": skill.id,
+                "skill_name": skill.name,
+                "source": skill.source,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

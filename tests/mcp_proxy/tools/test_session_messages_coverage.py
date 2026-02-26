@@ -2,9 +2,9 @@
 Comprehensive unit tests for session_messages.py MCP tools module.
 
 Tests cover:
-- Helper functions (_format_handoff_markdown, _format_turns_for_llm)
+- Helper functions (_format_turns_for_llm)
 - Message tools (get_session_messages, search_messages)
-- Handoff tools (get_handoff_context, create_handoff, pickup)
+- Handoff tools (set_handoff_context, get_handoff_context)
 - Session CRUD tools (get_session, list_sessions, session_stats)
 - Session commits tools (get_session_commits, mark_loop_complete)
 """
@@ -22,10 +22,8 @@ import pytest
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.mcp_proxy.tools.sessions._handoff import (
-    _format_handoff_markdown,
     _format_turns_for_llm,
 )
-from gobby.sessions.analyzer import HandoffContext
 
 pytestmark = pytest.mark.unit
 
@@ -46,12 +44,14 @@ class SessionMessagesTestRegistry(InternalToolRegistry):
 def create_test_registry(
     message_manager: Any = None,
     session_manager: Any = None,
+    inter_session_message_manager: Any = None,
 ) -> SessionMessagesTestRegistry:
     """Create a test-friendly registry by wrapping the real factory."""
     # Create the real registry
     real_registry = create_session_messages_registry(
         message_manager=message_manager,
         session_manager=session_manager,
+        inter_session_message_manager=inter_session_message_manager,
     )
 
     # Create test registry with same tools
@@ -64,138 +64,140 @@ def create_test_registry(
 
 
 # ============================================================================
-# Tests for _format_handoff_markdown helper
+# Tests for set_handoff_context tool
 # ============================================================================
 
 
-class TestFormatHandoffMarkdown:
-    """Tests for _format_handoff_markdown helper function."""
+class TestSetHandoffContext:
+    """Tests for set_handoff_context tool."""
 
-    def test_empty_context(self) -> None:
-        """Test formatting empty HandoffContext."""
-        ctx = HandoffContext()
-        result = _format_handoff_markdown(ctx)
+    @pytest.mark.asyncio
+    async def test_agent_authored_writes_summary(self) -> None:
+        """Test that content param writes to summary_markdown and sets handoff_ready."""
+        session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.id = "sess-123"
+        session_manager.resolve_session_reference.return_value = "sess-123"
+        session_manager.get.return_value = mock_session
 
-        assert "## Continuation Context" in result
-        # Should only have the header, no sections
-        assert "### Active Task" not in result
-        assert "### In-Progress Work" not in result
+        registry = create_test_registry(session_manager=session_manager)
+        set_context = registry.get_tool("set_handoff_context")
 
-    def test_with_active_task(self) -> None:
-        """Test formatting with active gobby task."""
-        ctx = HandoffContext(
-            active_gobby_task={
-                "id": "gt-abc123",
-                "title": "Implement feature",
-                "status": "in_progress",
-            }
+        result = await set_context(session_id="sess-123", content="## My Handoff")
+
+        assert result["success"] is True
+        assert result["mode"] == "agent_authored"
+        assert result["summary_length"] == len("## My Handoff")
+        session_manager.update_summary.assert_called_once_with(
+            "sess-123", summary_markdown="## My Handoff"
         )
-        result = _format_handoff_markdown(ctx)
+        session_manager.update_status.assert_called_once_with("sess-123", "handoff_ready")
 
-        assert "### Active Task" in result
-        assert "**Implement feature**" in result
-        assert "gt-abc123" in result
-        assert "Status: in_progress" in result
+    @pytest.mark.asyncio
+    async def test_agent_authored_no_handoff_ready(self) -> None:
+        """Test set_handoff_ready=False does not change status."""
+        session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.id = "sess-123"
+        session_manager.resolve_session_reference.return_value = "sess-123"
+        session_manager.get.return_value = mock_session
 
-    def test_with_git_status_only(self) -> None:
-        """Test formatting with git status."""
-        ctx = HandoffContext(git_status="M src/app.py")
-        result = _format_handoff_markdown(ctx)
+        registry = create_test_registry(session_manager=session_manager)
+        set_context = registry.get_tool("set_handoff_context")
 
-        assert "### Uncommitted Changes" in result
-        assert "M src/app.py" in result
-
-    def test_with_git_commits(self) -> None:
-        """Test formatting with git commits."""
-        ctx = HandoffContext(
-            git_commits=[
-                {"hash": "abc1234567890", "message": "First commit"},
-                {"hash": "def9876543210", "message": "Second commit"},
-            ]
+        result = await set_context(
+            session_id="sess-123", content="## Handoff", set_handoff_ready=False
         )
-        result = _format_handoff_markdown(ctx)
 
-        assert "### Commits This Session" in result
-        assert "`abc1234`" in result  # Truncated to 7 chars
-        assert "First commit" in result
-        assert "`def9876`" in result
-        assert "Second commit" in result
+        assert result["success"] is True
+        session_manager.update_summary.assert_called_once()
+        session_manager.update_status.assert_not_called()
 
-    def test_with_git_status(self) -> None:
-        """Test formatting with git status."""
-        ctx = HandoffContext(git_status="M src/file.py\n?? new_file.py")
-        result = _format_handoff_markdown(ctx)
+    @pytest.mark.asyncio
+    async def test_agent_authored_with_to_session(self) -> None:
+        """Test that content + to_session writes AND sends P2P message."""
+        session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.id = "sess-123"
+        mock_session.project_id = "proj-1"
+        session_manager.resolve_session_reference.return_value = "sess-123"
+        session_manager.get.return_value = mock_session
 
-        assert "### Uncommitted Changes" in result
-        assert "```" in result
-        assert "M src/file.py" in result
-        assert "?? new_file.py" in result
+        mock_target = MagicMock()
+        mock_target.id = "sess-456"
+        mock_target.project_id = "proj-1"
 
-    def test_with_files_modified(self) -> None:
-        """Test formatting with files modified."""
-        ctx = HandoffContext(files_modified=["src/main.py", "tests/test_main.py"])
-        result = _format_handoff_markdown(ctx)
+        def get_side_effect(sid: str) -> Any:
+            if sid == "sess-123":
+                return mock_session
+            if sid == "sess-456":
+                return mock_target
+            return None
 
-        assert "### Files Being Modified" in result
-        assert "- src/main.py" in result
-        assert "- tests/test_main.py" in result
+        session_manager.get.side_effect = get_side_effect
 
-    def test_with_initial_goal(self) -> None:
-        """Test formatting with initial goal."""
-        ctx = HandoffContext(initial_goal="Implement user authentication")
-        result = _format_handoff_markdown(ctx)
+        # Second resolve call for to_session
+        session_manager.resolve_session_reference.side_effect = [
+            "sess-123",  # for session_id
+            "sess-456",  # for to_session
+        ]
 
-        assert "### Original Goal" in result
-        assert "Implement user authentication" in result
+        ism_manager = MagicMock()
+        mock_msg = MagicMock()
+        mock_msg.id = "msg-1"
+        ism_manager.create_message.return_value = mock_msg
 
-    def test_with_recent_activity(self) -> None:
-        """Test formatting with recent activity."""
-        ctx = HandoffContext(
-            recent_activity=[
-                "Called Edit on src/file.py",
-                "Ran tests",
-                "Called Grep for pattern",
-                "Read config file",
-                "Updated database",
-                "More activity",  # Should be truncated
-                "Even more",
-            ]
+        registry = create_test_registry(
+            session_manager=session_manager,
+            inter_session_message_manager=ism_manager,
         )
-        result = _format_handoff_markdown(ctx)
+        set_context = registry.get_tool("set_handoff_context")
 
-        assert "### Recent Activity" in result
-        # Only last 5 should be shown
-        assert "- Called Edit on src/file.py" not in result  # First one truncated
-        assert "- Even more" in result
-
-    def test_with_notes(self) -> None:
-        """Test formatting with additional notes."""
-        ctx = HandoffContext()
-        result = _format_handoff_markdown(ctx, notes="Remember to run tests")
-
-        assert "### Notes" in result
-        assert "Remember to run tests" in result
-
-    def test_full_context(self) -> None:
-        """Test formatting with all fields populated."""
-        ctx = HandoffContext(
-            active_gobby_task={"id": "gt-123", "title": "Test", "status": "active"},
-            git_commits=[{"hash": "abc1234", "message": "commit"}],
-            git_status="M file.py",
-            files_modified=["file.py"],
-            initial_goal="Build feature",
-            recent_activity=["action1"],
+        result = await set_context(
+            session_id="sess-123", content="## Handoff", to_session="sess-456"
         )
-        result = _format_handoff_markdown(ctx, notes="Test notes")
 
-        assert "## Continuation Context" in result
-        assert "### Active Task" in result
-        assert "### Commits This Session" in result
-        assert "### Uncommitted Changes" in result
-        assert "### Files Being Modified" in result
-        assert "### Original Goal" in result
-        assert "### Recent Activity" in result
-        assert "### Notes" in result
+        assert result["success"] is True
+        assert result["send_result"]["success"] is True
+        assert result["send_result"]["message_id"] == "msg-1"
+        ism_manager.create_message.assert_called_once_with(
+            from_session="sess-123",
+            to_session="sess-456",
+            content="## Handoff",
+            message_type="handoff",
+        )
+
+    @pytest.mark.asyncio
+    async def test_session_not_found(self) -> None:
+        """Test error when session not found."""
+        session_manager = MagicMock()
+        session_manager.resolve_session_reference.side_effect = ValueError("Not found")
+
+        registry = create_test_registry(session_manager=session_manager)
+        set_context = registry.get_tool("set_handoff_context")
+
+        result = await set_context(session_id="nonexistent", content="## Handoff")
+
+        assert result["success"] is False
+        assert "Not found" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_automated_fallback_no_transcript(self) -> None:
+        """Test automated fallback fails gracefully with no transcript."""
+        session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.id = "sess-123"
+        mock_session.jsonl_path = None
+        session_manager.resolve_session_reference.return_value = "sess-123"
+        session_manager.get.return_value = mock_session
+
+        registry = create_test_registry(session_manager=session_manager)
+        set_context = registry.get_tool("set_handoff_context")
+
+        result = await set_context(session_id="sess-123")
+
+        assert result["success"] is False
+        assert "No transcript path" in result["error"]
 
 
 # ============================================================================
@@ -529,13 +531,15 @@ class TestSearchMessages:
 class TestGetHandoffContext:
     """Tests for get_handoff_context tool."""
 
-    def test_get_handoff_context_success(self) -> None:
-        """Test successful handoff context retrieval."""
+    def test_get_by_session_id_returns_summary(self) -> None:
+        """Test retrieval by session_id returns summary_markdown preferentially."""
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        mock_session.seq_num = None
-        mock_session.compact_markdown = "## Context\nSome handoff data"
+        mock_session.summary_markdown = "## Summary"
+        mock_session.compact_markdown = "## Compact"
+        mock_session.title = "Test Session"
+        mock_session.status = "handoff_ready"
         session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
@@ -544,125 +548,79 @@ class TestGetHandoffContext:
 
         result = get_context(session_id="sess-123")
 
+        assert result["success"] is True
+        assert result["found"] is True
         assert result["session_id"] == "sess-123"
         assert result["has_context"] is True
-        assert result["compact_markdown"] == "## Context\nSome handoff data"
+        assert result["context"] == "## Summary"
+        assert result["context_type"] == "summary_markdown"
 
-    def test_get_handoff_context_no_session(self) -> None:
-        """Test when session not found."""
+    def test_get_falls_back_to_compact(self) -> None:
+        """Test that compact_markdown is used when summary_markdown is None."""
+        session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.id = "sess-123"
+        mock_session.summary_markdown = None
+        mock_session.compact_markdown = "## Compact"
+        mock_session.title = "Test"
+        mock_session.status = "handoff_ready"
+        session_manager.resolve_session_reference.return_value = "sess-123"
+        session_manager.get.return_value = mock_session
+
+        registry = create_test_registry(session_manager=session_manager)
+        get_context = registry.get_tool("get_handoff_context")
+
+        result = get_context(session_id="sess-123")
+
+        assert result["context"] == "## Compact"
+        assert result["context_type"] == "compact_markdown"
+
+    def test_get_session_not_found(self) -> None:
+        """Test error when session not found by ID."""
         session_manager = MagicMock()
         session_manager.resolve_session_reference.side_effect = ValueError("Not found")
-        session_manager.get.return_value = None
 
         registry = create_test_registry(session_manager=session_manager)
         get_context = registry.get_tool("get_handoff_context")
 
         result = get_context(session_id="nonexistent")
 
-        assert result["found"] is False
-        assert "not found" in result["error"]
+        assert result["success"] is False
+        assert "Not found" in result["error"]
 
-    def test_get_handoff_context_no_compact_markdown(self) -> None:
-        """Test when session has no compact_markdown."""
+    def test_get_ambiguous_prefix(self) -> None:
+        """Test error on ambiguous session ID prefix."""
         session_manager = MagicMock()
-        mock_session = MagicMock()
-        mock_session.id = "sess-123"
-        mock_session.seq_num = None
-        mock_session.compact_markdown = None
-        session_manager.resolve_session_reference.return_value = "sess-123"
-        session_manager.get.return_value = mock_session
+        session_manager.resolve_session_reference.side_effect = ValueError(
+            "Ambiguous session reference 'sess-123': matches sess-123-a, sess-123-b"
+        )
 
         registry = create_test_registry(session_manager=session_manager)
         get_context = registry.get_tool("get_handoff_context")
 
         result = get_context(session_id="sess-123")
 
-        assert result["has_context"] is False
-
-
-class TestPickup:
-    """Tests for pickup tool."""
-
-    def test_pickup_by_session_id(self) -> None:
-        """Test pickup with specific session ID."""
-        session_manager = MagicMock()
-        mock_session = MagicMock()
-        mock_session.id = "sess-123"
-        mock_session.compact_markdown = "## Context"
-        mock_session.summary_markdown = None
-        mock_session.title = "Test Session"
-        mock_session.status = "handoff_ready"
-        session_manager.get.return_value = mock_session
-
-        registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
-
-        result = pickup(session_id="sess-123")
-
-        assert result["found"] is True
-        assert result["session_id"] == "sess-123"
-        assert result["has_context"] is True
-        assert result["context"] == "## Context"
-        assert result["context_type"] == "compact_markdown"
-
-    def test_pickup_by_prefix(self) -> None:
-        """Test pickup with session ID prefix."""
-        session_manager = MagicMock()
-        session_manager.get.return_value = None
-
-        mock_session = MagicMock()
-        mock_session.id = "sess-123-full-id"
-        mock_session.compact_markdown = "## Context"
-        mock_session.summary_markdown = None
-        mock_session.title = "Test"
-        mock_session.status = "handoff_ready"
-
-        session_manager.list.return_value = [mock_session]
-
-        registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
-
-        result = pickup(session_id="sess-123")
-
-        assert result["found"] is True
-        assert result["session_id"] == "sess-123-full-id"
-
-    def test_pickup_ambiguous_prefix(self) -> None:
-        """Test pickup with ambiguous session ID prefix."""
-        session_manager = MagicMock()
-        # resolve_session_reference raises ValueError for ambiguous prefix
-        session_manager.resolve_session_reference.side_effect = ValueError(
-            "Ambiguous session reference 'sess-123': matches sess-123-a, sess-123-b"
-        )
-
-        registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
-
-        result = pickup(session_id="sess-123")
-
         assert "error" in result
         assert "Ambiguous" in result["error"]
 
     @patch("gobby.utils.machine_id.get_machine_id")
-    def test_pickup_by_project_id(self, mock_get_machine_id) -> None:
-        """Test pickup by project ID."""
+    def test_get_by_project_id(self, mock_get_machine_id) -> None:
+        """Test finding session by project_id."""
         mock_get_machine_id.return_value = "machine-123"
 
         session_manager = MagicMock()
-
         mock_session = MagicMock()
         mock_session.id = "sess-456"
-        mock_session.compact_markdown = "## Context"
-        mock_session.summary_markdown = None
+        mock_session.summary_markdown = "## Context"
+        mock_session.compact_markdown = None
         mock_session.title = "Test"
         mock_session.status = "handoff_ready"
-
         session_manager.find_parent.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
+        get_context = registry.get_tool("get_handoff_context")
 
-        result = pickup(project_id="project-123")
+        result = get_context(project_id="project-123")
 
         assert result["found"] is True
         session_manager.find_parent.assert_called_once_with(
@@ -672,74 +630,72 @@ class TestPickup:
             status="handoff_ready",
         )
 
-    def test_pickup_most_recent_handoff(self) -> None:
-        """Test pickup finding most recent handoff_ready session."""
+    def test_get_most_recent_handoff(self) -> None:
+        """Test finding most recent handoff_ready session when no params given."""
         session_manager = MagicMock()
-
         mock_session = MagicMock()
         mock_session.id = "sess-latest"
-        mock_session.compact_markdown = None
         mock_session.summary_markdown = "## Summary"
+        mock_session.compact_markdown = None
         mock_session.title = "Latest"
         mock_session.status = "handoff_ready"
-
         session_manager.list.return_value = [mock_session]
 
         registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
+        get_context = registry.get_tool("get_handoff_context")
 
-        result = pickup()
+        result = get_context()
 
         assert result["found"] is True
         assert result["context_type"] == "summary_markdown"
 
-    def test_pickup_no_session_found(self) -> None:
-        """Test pickup when no handoff_ready session found."""
+    def test_get_no_session_found(self) -> None:
+        """Test when no handoff_ready session found."""
         session_manager = MagicMock()
         session_manager.list.return_value = []
 
         registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
+        get_context = registry.get_tool("get_handoff_context")
 
-        result = pickup()
+        result = get_context()
 
         assert result["found"] is False
         assert "No handoff-ready session found" in result["message"]
 
-    def test_pickup_no_context(self) -> None:
-        """Test pickup when session has no context."""
+    def test_get_no_context_on_session(self) -> None:
+        """Test when session exists but has no context."""
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        mock_session.compact_markdown = None
         mock_session.summary_markdown = None
+        mock_session.compact_markdown = None
+        session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
+        get_context = registry.get_tool("get_handoff_context")
 
-        result = pickup(session_id="sess-123")
+        result = get_context(session_id="sess-123")
 
         assert result["found"] is True
         assert result["has_context"] is False
 
-    def test_pickup_with_link_child(self) -> None:
-        """Test pickup with child session linking."""
+    def test_get_with_link_child(self) -> None:
+        """Test linking a child session to parent."""
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-parent"
-        mock_session.compact_markdown = "## Context"
-        mock_session.summary_markdown = None
+        mock_session.summary_markdown = "## Context"
+        mock_session.compact_markdown = None
         mock_session.title = "Parent"
         mock_session.status = "handoff_ready"
         session_manager.get.return_value = mock_session
-        # Mock resolve_session_reference to return the input as-is
         session_manager.resolve_session_reference.side_effect = lambda ref, project_id=None: ref
 
         registry = create_test_registry(session_manager=session_manager)
-        pickup = registry.get_tool("pickup")
+        get_context = registry.get_tool("get_handoff_context")
 
-        result = pickup(session_id="sess-parent", link_child_session_id="sess-child")
+        result = get_context(session_id="sess-parent", link_child_session_id="sess-child")
 
         assert result["found"] is True
         assert result["linked_child"] == "sess-child"
@@ -1164,63 +1120,64 @@ class TestMarkLoopComplete:
 # ============================================================================
 
 
-class TestCreateHandoff:
-    """Tests for create_handoff tool."""
+class TestSetHandoffContextAutomated:
+    """Tests for set_handoff_context automated fallback (no content param)."""
 
     @pytest.mark.asyncio
-    async def test_create_handoff_no_session(self):
+    async def test_automated_no_session(self):
         """Test when no session found."""
         session_manager = MagicMock()
         session_manager.get.return_value = None
         session_manager.list.return_value = []
 
         registry = create_test_registry(session_manager=session_manager)
-        create_handoff = registry.get_tool("create_handoff")
+        set_context = registry.get_tool("set_handoff_context")
 
-        result = await create_handoff(session_id="nonexistent")
+        result = await set_context(session_id="nonexistent")
 
         assert "error" in result
         assert "No session found" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_create_handoff_no_transcript_path(self):
+    async def test_automated_no_transcript_path(self):
         """Test when session has no transcript path."""
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
         mock_session.jsonl_path = None
+        session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
-        create_handoff = registry.get_tool("create_handoff")
+        set_context = registry.get_tool("set_handoff_context")
 
-        result = await create_handoff(session_id="sess-123")
+        result = await set_context(session_id="sess-123")
 
         assert "error" in result
         assert "No transcript path" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_create_handoff_transcript_not_found(self):
+    async def test_automated_transcript_not_found(self):
         """Test when transcript file doesn't exist."""
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
         mock_session.jsonl_path = "/nonexistent/path/transcript.jsonl"
+        session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
-        create_handoff = registry.get_tool("create_handoff")
+        set_context = registry.get_tool("set_handoff_context")
 
-        result = await create_handoff(session_id="sess-123")
+        result = await set_context(session_id="sess-123")
 
         assert "error" in result
         assert "Transcript file not found" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_create_handoff_compact_only(self):
+    async def test_automated_compact_only(self):
         """Test creating compact handoff only."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create test transcript
             transcript_path = Path(tmpdir) / "transcript.jsonl"
             with open(transcript_path, "w") as f:
                 f.write(json.dumps({"type": "user", "message": {"content": "Hello"}}) + "\n")
@@ -1229,15 +1186,16 @@ class TestCreateHandoff:
             mock_session = MagicMock()
             mock_session.id = "sess-123"
             mock_session.jsonl_path = str(transcript_path)
+            session_manager.resolve_session_reference.return_value = "sess-123"
             session_manager.get.return_value = mock_session
 
             registry = create_test_registry(session_manager=session_manager)
-            create_handoff = registry.get_tool("create_handoff")
+            set_context = registry.get_tool("set_handoff_context")
 
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0, stdout="")
 
-                result = await create_handoff(
+                result = await set_context(
                     session_id="sess-123",
                     compact=True,
                     write_file=False,
@@ -1248,7 +1206,7 @@ class TestCreateHandoff:
             session_manager.update_compact_markdown.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_handoff_by_prefix(self):
+    async def test_automated_by_prefix(self):
         """Test finding session by prefix."""
         with tempfile.TemporaryDirectory() as tmpdir:
             transcript_path = Path(tmpdir) / "transcript.jsonl"
@@ -1256,22 +1214,19 @@ class TestCreateHandoff:
                 f.write(json.dumps({"type": "user", "message": {"content": "Test"}}) + "\n")
 
             session_manager = MagicMock()
-
             mock_session = MagicMock()
             mock_session.id = "sess-123-full-id"
             mock_session.jsonl_path = str(transcript_path)
-
-            # resolve_session_reference resolves prefix to full ID
             session_manager.resolve_session_reference.return_value = "sess-123-full-id"
             session_manager.get.return_value = mock_session
 
             registry = create_test_registry(session_manager=session_manager)
-            create_handoff = registry.get_tool("create_handoff")
+            set_context = registry.get_tool("set_handoff_context")
 
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0, stdout="")
 
-                result = await create_handoff(
+                result = await set_context(
                     session_id="sess-123",
                     compact=True,
                     write_file=False,
@@ -1281,27 +1236,25 @@ class TestCreateHandoff:
             assert result["session_id"] == "sess-123-full-id"
 
     @pytest.mark.asyncio
-    async def test_create_handoff_ambiguous_prefix(self):
+    async def test_automated_ambiguous_prefix(self):
         """Test ambiguous session ID prefix."""
         session_manager = MagicMock()
-        # resolve_session_reference raises ValueError for ambiguous prefix
         session_manager.resolve_session_reference.side_effect = ValueError(
             "Ambiguous session reference 'sess-abc': matches sess-abc-1, sess-abc-2"
         )
 
         registry = create_test_registry(session_manager=session_manager)
-        create_handoff = registry.get_tool("create_handoff")
+        set_context = registry.get_tool("set_handoff_context")
 
-        result = await create_handoff(session_id="sess-abc")
+        result = await set_context(session_id="sess-abc")
 
         assert "error" in result
         assert "Ambiguous" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_create_handoff_writes_files(self):
+    async def test_automated_writes_files(self):
         """Test that files are written when write_file=True."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create test transcript
             transcript_path = Path(tmpdir) / "transcript.jsonl"
             with open(transcript_path, "w") as f:
                 f.write(json.dumps({"type": "user", "message": {"content": "Hello"}}) + "\n")
@@ -1312,15 +1265,16 @@ class TestCreateHandoff:
             mock_session = MagicMock()
             mock_session.id = "sess-123"
             mock_session.jsonl_path = str(transcript_path)
+            session_manager.resolve_session_reference.return_value = "sess-123"
             session_manager.get.return_value = mock_session
 
             registry = create_test_registry(session_manager=session_manager)
-            create_handoff = registry.get_tool("create_handoff")
+            set_context = registry.get_tool("set_handoff_context")
 
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0, stdout="")
 
-                result = await create_handoff(
+                result = await set_context(
                     session_id="sess-123",
                     compact=True,
                     write_file=True,
@@ -1370,7 +1324,7 @@ class TestRegistryCreation:
         assert "get_session" in tool_names
         assert "list_sessions" in tool_names
         assert "get_handoff_context" in tool_names
-        assert "pickup" in tool_names
+        assert "set_handoff_context" in tool_names
 
     def test_create_registry_with_both_managers(self) -> None:
         """Test creating registry with both managers."""
@@ -1390,8 +1344,7 @@ class TestRegistryCreation:
         assert "get_session" in tool_names
         assert "list_sessions" in tool_names
         assert "get_handoff_context" in tool_names
-        assert "pickup" in tool_names
-        assert "create_handoff" in tool_names
+        assert "set_handoff_context" in tool_names
         assert "mark_loop_complete" in tool_names
 
 
@@ -1446,22 +1399,19 @@ class TestEdgeCases:
 
         assert "[Turn 1 - unknown]:" in result
 
-    def test_handoff_markdown_empty_git_commit_fields(self) -> None:
-        """Test handoff markdown with commits missing fields."""
-        ctx = HandoffContext(
-            git_commits=[
-                {"hash": "", "message": ""},  # Empty fields
-                {},  # Missing fields
-            ]
-        )
-        result = _format_handoff_markdown(ctx)
+    @pytest.mark.asyncio
+    async def test_set_handoff_context_session_manager_none(self) -> None:
+        """Test set_handoff_context returns error when no session_manager."""
+        registry = create_test_registry()
+        set_context = registry.get_tool("set_handoff_context")
 
-        assert "### Commits This Session" in result
+        # Tool won't be registered if session_manager is None
+        assert set_context is None
 
-    def test_handoff_markdown_empty_context(self) -> None:
-        """Test handoff markdown with empty context returns header only."""
-        ctx = HandoffContext()
-        result = _format_handoff_markdown(ctx)
+    def test_get_handoff_context_session_manager_none(self) -> None:
+        """Test get_handoff_context returns error when no session_manager."""
+        registry = create_test_registry()
+        get_context = registry.get_tool("get_handoff_context")
 
-        # Empty context should still have the header
-        assert "## Continuation Context" in result
+        # Tool won't be registered if session_manager is None
+        assert get_context is None

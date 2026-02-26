@@ -7,6 +7,7 @@ Five effect types: block, set_variable, inject_context, mcp_call, observe.
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,9 +18,10 @@ from gobby.storage.workflow_definitions import (
     LocalWorkflowDefinitionManager,
     WorkflowDefinitionRow,
 )
-from gobby.workflows.definitions import RuleDefinitionBody, RuleEvent
+from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect, RuleEvent
 from gobby.workflows.enforcement.blocking import (
     is_discovery_tool,
+    is_message_delivery_tool,
     is_plan_file,
     is_server_listed,
     is_tool_unlocked,
@@ -90,10 +92,13 @@ class RuleEngine:
         agent_type = variables.get("_agent_type")
         rules = self._filter_by_agent_scope(rules, agent_type)
 
+        # 4. Filter by active rules (selector-based)
+        rules = self._filter_by_active_rules(rules, variables)
+
         if not rules:
             return HookResponse(decision="allow")
 
-        # 4. Evaluate rules in priority order
+        # 5. Evaluate rules in priority order
         context_parts: list[str] = []
         mcp_calls: list[dict[str, Any]] = []
         block_reason: str | None = None
@@ -101,72 +106,50 @@ class RuleEngine:
         for _row, body in rules:
             # Build fresh eval context with current variables
             ctx = self._build_eval_context(event, variables, eval_context)
-            effect = body.effect
 
-            # Check `when` condition
+            # Build allowed_funcs once per iteration — shared by condition and templates
+            allowed_funcs = self._build_allowed_funcs(ctx)
+
+            # Check rule-level `when` condition
             if body.when:
-                if not self._evaluate_condition(body.when, ctx, effect.type):
+                # Use first effect type for fail-open/closed heuristic
+                first_type = body.resolved_effects[0].type if body.resolved_effects else "block"
+                if not self._evaluate_condition(body.when, ctx, first_type, allowed_funcs):
                     continue
 
-            # Apply effect
-            if effect.type == "block":
-                if self._should_block(effect, event):
-                    block_reason = effect.reason or "Blocked by rule"
-                    # Render Jinja templates in reason (e.g. {{ tool_input.get('server_name') }})
-                    if block_reason and "{{" in block_reason:
-                        try:
-                            engine = TemplateEngine()
-                            block_reason = engine.render(block_reason, ctx)
-                        except Exception as e:
-                            logger.warning(f"Failed to render block reason template: {e}")
+            # Process effects: non-block effects first, then block (if any)
+            effects = body.resolved_effects
+            deferred_block: RuleEffect | None = None
+
+            for effect in effects:
+                # Check per-effect `when` condition
+                if effect.when:
+                    if not self._evaluate_condition(effect.when, ctx, effect.type, allowed_funcs):
+                        continue
+
+                if effect.type == "block":
+                    # Defer block to after all sibling non-block effects
+                    deferred_block = effect
+                    continue
+
+                # Apply non-block effects immediately
+                self._apply_effect(
+                    effect, _row, variables, ctx, allowed_funcs, context_parts, mcp_calls
+                )
+
+            # Now apply deferred block (if any)
+            if deferred_block is not None:
+                if self._should_block(deferred_block, event):
+                    block_reason = deferred_block.reason or "Blocked by rule"
+                    block_reason = self._render_template(block_reason, ctx, allowed_funcs)
                     block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
+                    # Auto-set tool_block_pending on before_tool blocks
+                    if rule_event == RuleEvent.BEFORE_TOOL:
+                        variables["tool_block_pending"] = True
                     # First block wins — stop evaluating
                     break
 
-            elif effect.type == "set_variable":
-                self._apply_set_variable(effect, variables, ctx)
-
-            elif effect.type == "inject_context":
-                if effect.template:
-                    template_text = effect.template
-                    if "{{" in template_text:
-                        try:
-                            engine = TemplateEngine()
-                            template_text = engine.render(template_text, ctx)
-                        except Exception as e:
-                            logger.warning(f"Failed to render inject_context template: {e}")
-                    context_parts.append(template_text)
-
-            elif effect.type == "observe":
-                obs_list = variables.get("_observations", [])
-                msg = effect.message or ""
-                if msg and "{{" in msg:
-                    try:
-                        engine = TemplateEngine()
-                        msg = engine.render(msg, ctx)
-                    except Exception as e:
-                        logger.warning(f"Failed to render observe message template: {e}")
-                obs_list.append(
-                    {
-                        "category": effect.category or "general",
-                        "message": msg,
-                        "timestamp": datetime.now(UTC).isoformat(),
-                        "rule": _row.name,
-                    }
-                )
-                variables["_observations"] = obs_list
-
-            elif effect.type == "mcp_call":
-                mcp_calls.append(
-                    {
-                        "server": effect.server,
-                        "tool": effect.tool,
-                        "arguments": effect.arguments or {},
-                        "background": effect.background,
-                    }
-                )
-
-        # 5. Build response
+        # 6. Build response
         if block_reason:
             return HookResponse(
                 decision="block",
@@ -235,8 +218,66 @@ class RuleEngine:
             (row, body)
             for row, body in rules
             if body.agent_scope is None
-            or (agent_type is not None and agent_type in body.agent_scope)
+            or (
+                agent_type is not None
+                and ("*" in body.agent_scope or agent_type in body.agent_scope)
+            )
         ]
+
+    def _filter_by_active_rules(
+        self,
+        rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]],
+        variables: dict[str, Any],
+    ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
+        """Filter rules based on resolved selectors (if any) stored in session variables."""
+        active_names = variables.get("_active_rule_names")
+        if active_names is None:
+            return rules  # no filter — current behavior preserved
+        active_set = set(active_names)
+        return [(row, body) for row, body in rules if row.name in active_set]
+
+    def _apply_effect(
+        self,
+        effect: Any,
+        row: WorkflowDefinitionRow,
+        variables: dict[str, Any],
+        ctx: dict[str, Any],
+        allowed_funcs: dict[str, Callable[..., Any]],
+        context_parts: list[str],
+        mcp_calls: list[dict[str, Any]],
+    ) -> None:
+        """Apply a single non-block effect."""
+        if effect.type == "set_variable":
+            self._apply_set_variable(effect, variables, ctx)
+
+        elif effect.type == "inject_context":
+            if effect.template:
+                template_text = self._render_template(effect.template, ctx, allowed_funcs)
+                context_parts.append(template_text)
+
+        elif effect.type == "observe":
+            obs_list = variables.get("_observations", [])
+            msg = effect.message or ""
+            msg = self._render_template(msg, ctx, allowed_funcs)
+            obs_list.append(
+                {
+                    "category": effect.category or "general",
+                    "message": msg,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "rule": row.name,
+                }
+            )
+            variables["_observations"] = obs_list
+
+        elif effect.type == "mcp_call":
+            mcp_calls.append(
+                {
+                    "server": effect.server,
+                    "tool": effect.tool,
+                    "arguments": effect.arguments or {},
+                    "background": effect.background,
+                }
+            )
 
     def _build_eval_context(
         self,
@@ -287,8 +328,62 @@ class RuleEngine:
 
         return ctx
 
+    def _build_allowed_funcs(self, ctx: dict[str, Any]) -> dict[str, Callable[..., Any]]:
+        """Build the shared helper-function dict for condition evaluation and template rendering."""
+        variables = ctx.get("variables", {})
+        funcs = build_condition_helpers(context=ctx)
+        funcs["isinstance"] = isinstance
+        funcs["is_server_listed"] = lambda ti: is_server_listed(ti, variables)
+        funcs["is_tool_unlocked"] = lambda ti: is_tool_unlocked(ti, variables)
+        funcs["is_discovery_tool"] = is_discovery_tool
+        funcs["is_plan_file"] = is_plan_file
+        funcs["is_message_delivery_tool"] = is_message_delivery_tool
+        funcs["has_pending_messages"] = self._has_pending_messages
+        funcs["pending_message_count"] = self._pending_message_count
+        return funcs
+
+    def _render_template(
+        self, template: str, ctx: dict[str, Any], allowed_funcs: dict[str, Callable[..., Any]]
+    ) -> str:
+        """Render a Jinja2 template string with eval context and helper functions."""
+        if "{{" not in template:
+            return template
+        try:
+            render_ctx = {**ctx, **allowed_funcs}
+            engine = TemplateEngine()
+            return engine.render(template, render_ctx)
+        except Exception as e:
+            logger.warning(f"Failed to render template: {e}")
+            return template
+
+    def _has_pending_messages(self, session_id: str) -> bool:
+        """Index probe: are there any undelivered messages for this session?"""
+        if not session_id:
+            return False
+        row = self.db.fetchone(
+            "SELECT 1 FROM inter_session_messages "
+            "WHERE to_session = ? AND delivered_at IS NULL LIMIT 1",
+            (session_id,),
+        )
+        return row is not None
+
+    def _pending_message_count(self, session_id: str) -> int:
+        """O(n) count of undelivered messages — only called when a block fires."""
+        if not session_id:
+            return 0
+        row = self.db.fetchone(
+            "SELECT COUNT(*) FROM inter_session_messages "
+            "WHERE to_session = ? AND delivered_at IS NULL",
+            (session_id,),
+        )
+        return row[0] if row else 0
+
     def _evaluate_condition(
-        self, condition: str, context: dict[str, Any], effect_type: str = "block"
+        self,
+        condition: str,
+        context: dict[str, Any],
+        effect_type: str = "block",
+        allowed_funcs: dict[str, Callable[..., Any]] | None = None,
     ) -> bool:
         """Evaluate a `when` condition string using SafeExpressionEvaluator.
 
@@ -296,15 +391,9 @@ class RuleEngine:
         - block effects fail closed (True) — conservative, prevents action
         - other effects fail open (False) — avoids corrupting state or firing unwanted calls
         """
-        variables = context.get("variables", {})
         try:
-            allowed_funcs = build_condition_helpers(context=context)
-            # Rule-engine-specific: progressive disclosure + isinstance
-            allowed_funcs["isinstance"] = isinstance
-            allowed_funcs["is_server_listed"] = lambda ti: is_server_listed(ti, variables)
-            allowed_funcs["is_tool_unlocked"] = lambda ti: is_tool_unlocked(ti, variables)
-            allowed_funcs["is_discovery_tool"] = is_discovery_tool
-            allowed_funcs["is_plan_file"] = is_plan_file
+            if allowed_funcs is None:
+                allowed_funcs = self._build_allowed_funcs(context)
 
             evaluator = SafeExpressionEvaluator(
                 context=context,

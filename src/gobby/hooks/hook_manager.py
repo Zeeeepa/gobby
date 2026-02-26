@@ -181,12 +181,23 @@ class HookManager:
         self._hook_assembler = components.hook_assembler
         self._event_handlers = components.event_handlers
 
+        # Inter-session message manager (for web chat -> CLI piggyback delivery)
+        from gobby.storage.inter_session_messages import InterSessionMessageManager
+
+        self._inter_session_msg_manager: InterSessionMessageManager | None = None
+        if self._database:
+            try:
+                self._inter_session_msg_manager = InterSessionMessageManager(self._database)
+            except Exception as e:
+                self.logger.warning(f"Failed to create InterSessionMessageManager: {e}")
+
         # Response metadata enrichment service
         from gobby.hooks.event_enrichment import EventEnricher
 
         self._enricher = EventEnricher(
             session_storage=self._session_storage,
             injected_sessions=self._injected_sessions,
+            inter_session_msg_manager=self._inter_session_msg_manager,
         )
 
         # Session lookup service (resolves platform session IDs from CLI external IDs)
@@ -655,7 +666,7 @@ class HookManager:
                     loop = asyncio.get_running_loop()
                     loop.create_task(coro)
                 except RuntimeError:
-                    if self._loop:
+                    if self._loop and self._loop.is_running():
                         try:
                             asyncio.run_coroutine_threadsafe(coro, self._loop)
                         except Exception as e:
@@ -666,14 +677,24 @@ class HookManager:
                                 e,
                             )
                     else:
-                        self.logger.debug("_dispatch_mcp_calls: no event loop for background call")
+                        # No running event loop (e.g. hook manager subprocess) —
+                        # run synchronously via asyncio.run()
+                        try:
+                            asyncio.run(coro)
+                        except Exception as e:
+                            self.logger.warning(
+                                "_dispatch_mcp_calls: background %s/%s failed: %s",
+                                server,
+                                tool,
+                                e,
+                            )
             else:
                 # Blocking dispatch with timeout
                 try:
                     loop = asyncio.get_running_loop()
                     loop.create_task(coro)
                 except RuntimeError:
-                    if self._loop:
+                    if self._loop and self._loop.is_running():
                         try:
                             future = asyncio.run_coroutine_threadsafe(coro, self._loop)
                             future.result(timeout=30)
@@ -685,7 +706,17 @@ class HookManager:
                                 e,
                             )
                     else:
-                        self.logger.debug("_dispatch_mcp_calls: no event loop for blocking call")
+                        # No running event loop (e.g. hook manager subprocess) —
+                        # run synchronously via asyncio.run()
+                        try:
+                            asyncio.run(coro)
+                        except Exception as e:
+                            self.logger.error(
+                                "_dispatch_mcp_calls: blocking %s/%s failed: %s",
+                                server,
+                                tool,
+                                e,
+                            )
 
     def shutdown(self) -> None:
         """

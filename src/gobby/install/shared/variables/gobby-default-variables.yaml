@@ -1,0 +1,45 @@
+tags: [session-defaults, initialization]
+
+variables:
+  require_uv:
+    value: true
+    description: Default require_uv to true
+  chat_mode:
+    value: bypass
+    description: Default chat_mode to bypass
+  mode_level:
+    value: 2
+    description: Default mode_level to 2 (Full Auto)
+  stop_attempts:
+    value: 0
+    description: Default stop_attempts to 0
+  max_stop_attempts:
+    value: 8
+    description: Default max_stop_attempts to 8
+  task_claimed:
+    value: false
+    description: Default task_claimed to false
+  task_ref:
+    value: ''
+    description: Default task_ref to empty string
+  require_task_before_edit:
+    value: true
+    description: Default require_task_before_edit to true
+  require_commit_before_close:
+    value: true
+    description: Default require_commit_before_close to true
+  pre_existing_errors_triaged:
+    value: false
+    description: Default pre_existing_errors_triaged to false
+  enforce_tool_schema_check:
+    value: true
+    description: Default enforce_tool_schema_check to true
+  servers_listed:
+    value: false
+    description: Default servers_listed to false
+  listed_servers:
+    value: []
+    description: Default listed_servers to empty list
+  unlocked_tools:
+    value: []
+    description: Default unlocked_tools to empty list

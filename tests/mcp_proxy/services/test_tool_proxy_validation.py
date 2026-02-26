@@ -421,7 +421,7 @@ class TestCallToolInternalServer:
         )
 
         assert result["id"] == "gt-123"
-        mock_registry.call.assert_called_once_with("get_task", {"task_id": "gt-123"})
+        mock_registry.call.assert_called_once_with("get_task", {"task_id": "gt-123"}, context=None)
 
 
 class TestIsArgumentError:

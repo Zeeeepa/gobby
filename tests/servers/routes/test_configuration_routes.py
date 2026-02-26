@@ -323,7 +323,7 @@ class TestSecretsEndpoints:
         data = response.json()
         assert len(data["secrets"]) >= 1
         names = [s["name"] for s in data["secrets"]]
-        assert "MY_KEY" in names
+        assert "my_key" in names
 
     def test_create_secret(self, client: TestClient, mock_machine_id) -> None:
         response = client.post(
@@ -338,7 +338,7 @@ class TestSecretsEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["ok"] is True
-        assert data["secret"]["name"] == "TEST_SECRET"
+        assert data["secret"]["name"] == "test_secret"
 
     def test_create_secret_default_category(self, client: TestClient, mock_machine_id) -> None:
         response = client.post(
@@ -769,3 +769,58 @@ class TestSecretAwareConfig:
 
         store = ConfigStore(temp_db)
         assert "voice.elevenlabs_api_key" in store.get_secret_keys()
+
+
+# ---------------------------------------------------------------------------
+# UI Settings (GET, PUT /api/config/ui-settings)
+# ---------------------------------------------------------------------------
+
+
+class TestUISettings:
+    def test_get_empty(self, client: TestClient) -> None:
+        """No UI settings stored yet returns empty dict."""
+        response = client.get("/api/config/ui-settings")
+        assert response.status_code == 200
+        assert response.json() == {}
+
+    def test_put_and_get(self, client: TestClient) -> None:
+        """PUT settings then GET them back."""
+        put_resp = client.put(
+            "/api/config/ui-settings",
+            json={"fontSize": 18, "model": "sonnet", "theme": "light", "defaultChatMode": "act"},
+        )
+        assert put_resp.status_code == 200
+        assert put_resp.json()["ok"] is True
+
+        get_resp = client.get("/api/config/ui-settings")
+        assert get_resp.status_code == 200
+        data = get_resp.json()
+        assert data["fontSize"] == 18
+        assert data["model"] == "sonnet"
+        assert data["theme"] == "light"
+        assert data["defaultChatMode"] == "act"
+
+    def test_put_partial_update(self, client: TestClient) -> None:
+        """PUT with only some keys updates only those."""
+        client.put("/api/config/ui-settings", json={"fontSize": 14, "theme": "dark"})
+        client.put("/api/config/ui-settings", json={"fontSize": 20})
+
+        data = client.get("/api/config/ui-settings").json()
+        assert data["fontSize"] == 20
+        assert data["theme"] == "dark"
+
+    def test_put_empty_body(self, client: TestClient) -> None:
+        """PUT with no fields is a no-op."""
+        response = client.put("/api/config/ui-settings", json={})
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+
+    def test_ui_settings_isolated_from_daemon_config(self, client: TestClient, temp_db) -> None:
+        """UI settings use a separate namespace and don't affect DaemonConfig."""
+        client.put("/api/config/ui-settings", json={"fontSize": 22})
+
+        # Verify stored under ui_settings. prefix
+        store = ConfigStore(temp_db)
+        assert store.get("ui_settings.fontSize") == 22
+        # Not in the main config namespace
+        assert store.get("fontSize") is None

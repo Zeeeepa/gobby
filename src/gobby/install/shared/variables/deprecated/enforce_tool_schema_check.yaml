@@ -1,0 +1,3 @@
+variable: enforce_tool_schema_check
+value: true
+description: Default enforce_tool_schema_check to true

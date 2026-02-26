@@ -84,7 +84,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         # Skill interception — runs before lifecycle workflows
         if self._skill_manager and prompt.strip():
             try:
-                skill_context = self._intercept_skill_command(prompt.strip())
+                skill_context = self._intercept_skill_command(prompt.strip(), session_id)
                 if skill_context:
                     context_parts.append(skill_context)
                 else:
@@ -102,7 +102,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         self._apply_debug_echo(response)
         return response
 
-    def _intercept_skill_command(self, prompt: str) -> str | None:
+    def _intercept_skill_command(self, prompt: str, session_id: str | None = None) -> str | None:
         """Intercept /gobby and /gobby:skillname commands.
 
         Returns context string to inject, or None if not a /gobby command.
@@ -128,7 +128,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
 
         # /gobby or /gobby help → generate help
         if not skill_name or skill_name.lower() == "help":
-            return self._generate_help_content()
+            return self._generate_help_content(session_id)
 
         # /gobby:skillname → resolve and inject
         if self._skill_manager is None:
@@ -169,11 +169,25 @@ class AgentEventHandlerMixin(EventHandlersBase):
         fallback = f'Relevant skill available: `get_skill(name="{skill.name}")` on `gobby-skills`'
         return _load_agent_prompt("skill-hint", {"skill_name": skill.name}, fallback)
 
-    def _generate_help_content(self) -> str:
+    def _generate_help_content(self, session_id: str | None = None) -> str:
         """Generate help content listing all available skills."""
         if self._skill_manager is None:
             raise RuntimeError("skill_manager not initialized")
         skills = self._skill_manager.discover_core_skills()
+
+        if session_id and self._session_storage:
+            try:
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv = sv_mgr.get_variables(session_id)
+                if sv:
+                    active_names = sv.get("_active_skill_names")
+                    if active_names is not None:
+                        active_set = set(active_names)
+                        skills = [s for s in skills if s.name in active_set]
+            except Exception:
+                pass
 
         # Sort alphabetically, skip always-apply skills (they're auto-injected)
         user_skills = sorted(

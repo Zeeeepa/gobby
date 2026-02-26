@@ -428,6 +428,17 @@ class HTTPServer:
                 ws_server.workflow_handler = app.state.hook_manager._workflow_handler
                 logger.debug("Workflow handler connected to WebSocket server")
 
+            # Initialize canvas broadcaster
+            from gobby.mcp_proxy.tools.canvas import set_broadcaster
+
+            async def _canvas_broadcaster(**kwargs: Any) -> None:
+                ws = self.services.websocket_server or self.websocket_server
+                if ws and hasattr(ws, "broadcast_canvas_event"):
+                    await ws.broadcast_canvas_event(**kwargs)
+
+            set_broadcaster(_canvas_broadcaster)
+            logger.debug("Canvas broadcaster connected to WebSocket server")
+
             # Store server instance for dependency injection
             app.state.server = self
 
@@ -535,6 +546,18 @@ class HTTPServer:
         if mcp_app is not None:
             app.mount("/mcp", mcp_app)
             logger.debug("MCP server mounted at /mcp")
+
+        # Mount Canvas sandbox
+        from pathlib import Path
+
+        from fastapi.staticfiles import StaticFiles
+
+        canvas_dir = Path.home() / ".gobby" / "canvas"
+        canvas_dir.mkdir(parents=True, exist_ok=True)
+        app.mount(
+            "/__gobby__/canvas", StaticFiles(directory=str(canvas_dir)), name="canvas-sandbox"
+        )
+        logger.debug("Canvas sandbox mounted at /__gobby__/canvas")
 
         # Mount WebSocket proxy (before production UI catch-all)
         self._mount_ws_proxy(app)
@@ -721,6 +744,7 @@ class HTTPServer:
         """
         from gobby.servers.routes import (
             create_admin_router,
+            create_agent_spawn_router,
             create_agents_router,
             create_configuration_router,
             create_cron_router,
@@ -744,6 +768,7 @@ class HTTPServer:
         # Include all routers
         app.include_router(create_auth_router(self))
         app.include_router(create_admin_router(self))
+        app.include_router(create_agent_spawn_router(self))
         app.include_router(create_agents_router(self))
         app.include_router(create_sessions_router(self))
         app.include_router(create_memory_router(self))
