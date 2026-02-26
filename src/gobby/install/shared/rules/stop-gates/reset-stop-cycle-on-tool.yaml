@@ -2,15 +2,12 @@ tags: [stop-gates, enforcement, lifecycle]
 
 rules:
   reset-stop-cycle-on-tool:
-    description: "Reset stop counter and tool block flag on any successful tool use"
+    description: "Reset stop counter on any successful tool use"
     event: after_tool
     enabled: false
     priority: 80
     when: "not (event.metadata.get('is_failure', False) or event.data.get('is_error', False))"
-    effects:
-      - type: set_variable
-        variable: stop_attempts
-        value: 0
-      - type: set_variable
-        variable: tool_block_pending
-        value: false
+    effect:
+      type: set_variable
+      variable: stop_attempts
+      value: 0

@@ -266,7 +266,7 @@ class TestResetStopCycleOnPrompt:
     def test_no_reset_stop_attempts_on_prompt(self, db, manager) -> None:
         """stop_attempts should NOT be reset on before_agent.
 
-        It's only reset by reset-stop-cycle-on-tool (after_tool).
+        It's only reset by reset-stop-cycle-on-tool rule (after_tool).
         """
         _sync_bundled(db)
 
@@ -299,13 +299,14 @@ class TestResetStopCycleOnPrompt:
 
 
 class TestResetStopCycleOnTool:
-    """Verify reset-stop-cycle-on-tool multi-effect rule.
+    """Verify reset-stop-cycle-on-tool rule.
 
-    Merges reset-stop-on-any-tool + clear-tool-block-on-tool.
+    Only resets stop_attempts. tool_block_pending is now auto-cleared
+    by the rule engine on successful after_tool (symmetric with auto-set).
     """
 
-    def test_resets_both_variables(self, db, manager) -> None:
-        """Should reset stop_attempts and tool_block_pending on successful tool use only."""
+    def test_resets_stop_attempts(self, db, manager) -> None:
+        """Should reset stop_attempts on successful tool use only."""
         _sync_bundled(db)
 
         row = _get_rule(manager, "reset-stop-cycle-on-tool")
@@ -319,7 +320,6 @@ class TestResetStopCycleOnTool:
         assert "is_error" in body.when
 
         effects = body.resolved_effects
-        assert len(effects) == 2
-        vars_and_values = {e.variable: e.value for e in effects}
-        assert vars_and_values["stop_attempts"] == 0
-        assert vars_and_values["tool_block_pending"] is False
+        assert len(effects) == 1
+        assert effects[0].variable == "stop_attempts"
+        assert effects[0].value == 0

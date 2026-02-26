@@ -1133,6 +1133,35 @@ class TestToolBlockPending:
         assert variables.get("tool_block_pending") is True
         assert variables.get("x") == 42
 
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_cleared_on_successful_after_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should be auto-cleared by the engine on successful after_tool."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"tool_block_pending": True}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["tool_block_pending"] is False
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_not_cleared_on_failed_after_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should NOT be cleared on failed after_tool."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"tool_block_pending": True}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        event.metadata["is_failure"] = True
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["tool_block_pending"] is True
+
 
 class TestNoRules:
     @pytest.mark.asyncio
