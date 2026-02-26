@@ -43,6 +43,7 @@ from gobby.llm.claude_models import (
     ThinkingEvent,
     ToolCallEvent,
     ToolResultEvent,
+    resolve_context_window,
 )
 from gobby.servers.chat_session_helpers import (
     _ADDITIONAL_CONTEXT_LIMIT,
@@ -111,6 +112,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
     sdk_session_id: str | None = field(default=None, repr=False)
+    _pending_inject_context: str | None = field(default=None, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
@@ -202,7 +204,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
-                data = {"prompt_text": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}
+                data = {"prompt": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}
                 resp = await cb(data)
                 output = _response_to_prompt_output(resp)
 
@@ -214,6 +216,19 @@ class ChatSession(ChatSessionPermissionsMixin):
                     if hook_specific and isinstance(hook_specific, dict):
                         existing = str(hook_specific.get("additionalContext", "") or "")
                     combined = (existing + "\n\n" + plan_ctx).strip() if existing else plan_ctx
+                    output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
+                        hookEventName="UserPromptSubmit",
+                        additionalContext=combined,
+                    )
+
+                # Inject pending context (from tool browser inject_context)
+                inject_ctx = self._consume_pending_context()
+                if inject_ctx:
+                    hook_specific = output.get("hookSpecificOutput")
+                    existing = ""
+                    if hook_specific and isinstance(hook_specific, dict):
+                        existing = str(hook_specific.get("additionalContext", "") or "")
+                    combined = (existing + "\n\n" + inject_ctx).strip() if existing else inject_ctx
                     output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
                         hookEventName="UserPromptSubmit",
                         additionalContext=combined,
@@ -392,6 +407,16 @@ class ChatSession(ChatSessionPermissionsMixin):
             logger.warning(f"Failed to load history context for {self.conversation_id}: {e}")
             return None
 
+    def set_pending_context(self, context: str) -> None:
+        """Store context to inject into the next LLM prompt via additionalContext."""
+        self._pending_inject_context = context
+
+    def _consume_pending_context(self) -> str | None:
+        """Return and clear any pending inject context (single-use)."""
+        ctx = self._pending_inject_context
+        self._pending_inject_context = None
+        return ctx
+
     async def send_message(self, content: str | list[dict[str, Any]]) -> AsyncIterator[ChatEvent]:
         """
         Send a user message and yield streaming events.
@@ -461,33 +486,10 @@ class ChatSession(ChatSessionPermissionsMixin):
                         # The real context consumed = uncached + cache_read + cache_creation.
                         total_input = uncached_input + cache_read + cache_creation
 
-                        # Resolve context_window with three fallbacks:
-                        # 1. litellm lookup (most reliable for known models)
-                        # 2. sdk_compat _model_usage stash (bonus from CLI)
-                        # 3. Static fallback for Claude models (all use 200k)
-                        context_window = None
-                        if self._last_model:
-                            try:
-                                from gobby.conductor.pricing import litellm as _llm
-
-                                if _llm:
-                                    model_info = _llm.get_model_info(model=self._last_model)
-                                    context_window = model_info.get("max_input_tokens")
-                            except (ImportError, KeyError, AttributeError, TypeError) as e:
-                                logger.debug(
-                                    "Could not derive context window for %s: %s",
-                                    self._last_model,
-                                    e,
-                                )
-                        if context_window is None:
-                            _model_usage = getattr(message, "_model_usage", None)
-                            if isinstance(_model_usage, dict):
-                                context_window = _model_usage.get("contextWindow")
-                        if context_window is None:
-                            # All Claude models use 200k context
-                            model_lower = (self._last_model or "").lower()
-                            if any(k in model_lower for k in ("opus", "sonnet", "haiku")):
-                                context_window = 200_000
+                        _model_usage = getattr(message, "_model_usage", None)
+                        context_window = resolve_context_window(
+                            self._last_model, _model_usage
+                        )
 
                         logger.info(
                             "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
@@ -588,21 +590,7 @@ class ChatSession(ChatSessionPermissionsMixin):
 
     def _resolve_context_window_fallback(self) -> int | None:
         """Resolve context_window from _last_model for error paths."""
-        if not self._last_model:
-            return None
-        try:
-            from gobby.conductor.pricing import litellm as _llm
-
-            if _llm:
-                model_info = _llm.get_model_info(model=self._last_model)
-                val = model_info.get("max_input_tokens")
-                return int(val) if val is not None else None
-        except (ImportError, KeyError, AttributeError, TypeError):
-            pass
-        model_lower = self._last_model.lower()
-        if any(k in model_lower for k in ("opus", "sonnet", "haiku")):
-            return 200_000
-        return None
+        return resolve_context_window(self._last_model, None)
 
     async def interrupt(self) -> None:
         """Interrupt the current response stream."""

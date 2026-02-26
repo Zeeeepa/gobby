@@ -30,6 +30,7 @@ from gobby.llm.claude_models import (
     TextChunk,
     ToolCallEvent,
     ToolResultEvent,
+    resolve_context_window,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,21 +120,8 @@ async def stream_with_mcp_tools(
                 # The real context consumed = uncached + cache_read + cache_creation.
                 total_input = uncached_input + cache_read + cache_creation
 
-                # Prefer modelUsage.contextWindow stashed by sdk_compat
-                # (authoritative from the CLI) over litellm lookup.
-                context_window: int | None = None
                 _model_usage = getattr(message, "_model_usage", None)
-                if isinstance(_model_usage, dict):
-                    context_window = _model_usage.get("contextWindow")
-                if context_window is None and last_model:
-                    try:
-                        from gobby.conductor.pricing import litellm as _llm
-
-                        if _llm:
-                            model_info = _llm.get_model_info(model=last_model)
-                            context_window = model_info.get("max_input_tokens")
-                    except (ImportError, KeyError, AttributeError, TypeError) as e:
-                        logger.debug("Could not derive context window for %s: %s", last_model, e)
+                context_window = resolve_context_window(last_model, _model_usage)
 
                 logger.info(
                     "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
