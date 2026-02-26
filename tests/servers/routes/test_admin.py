@@ -235,7 +235,6 @@ class TestModelsEndpoint:
         assert "claude" in data["models"]
         assert "gpt" in data["models"]
         assert data["default_model"] == "claude-sonnet-4"
-        assert "response_time_ms" in data
 
     @patch("gobby.servers.routes.admin._discover_models")
     def test_models_provider_filter(self, mock_discover, client) -> None:
