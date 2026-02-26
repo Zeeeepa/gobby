@@ -268,18 +268,38 @@ export function useChat() {
 
     let cancelled = false;
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-    fetch(`${baseUrl}/sessions/${storedDbSid}/messages?limit=100&offset=0`)
+
+    // Validate session still exists before loading messages
+    fetch(`${baseUrl}/sessions/${storedDbSid}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data?.messages?.length) return;
-        if (conversationIdRef.current !== convId) return;
-        const mapped = mapApiMessages(data.messages);
-        if (mapped.length > 0) {
-          setMessages(mapped);
+      .then((sessionData) => {
+        if (cancelled) return;
+        // Session gone or deleted — clear stale localStorage, start fresh
+        if (!sessionData?.session || sessionData.session.status === "deleted") {
+          saveDbSessionId(null);
+          const newId = uuid();
+          conversationIdRef.current = newId;
+          setConversationId(newId);
+          saveConversationId(newId);
+          setDbSessionId(null);
+          return;
         }
+        // Session is live — fetch its messages
+        return fetch(
+          `${baseUrl}/sessions/${storedDbSid}/messages?limit=100&offset=0`,
+        )
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (cancelled || !data?.messages?.length) return;
+            if (conversationIdRef.current !== convId) return;
+            const mapped = mapApiMessages(data.messages);
+            if (mapped.length > 0) {
+              setMessages(mapped);
+            }
+          });
       })
       .catch((err) =>
-        console.error("Failed to fetch initial messages from DB:", err),
+        console.error("Failed to validate/fetch session from DB:", err),
       );
     return () => {
       cancelled = true;
