@@ -34,6 +34,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
     async def create_task(
         title: str,
         session_id: str,
+        category: str,
         description: str | None = None,
         priority: int = 2,
         task_type: str = "task",
@@ -41,7 +42,6 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         blocks: list[str] | None = None,
         depends_on: list[str] | None = None,
         labels: list[str] | None = None,
-        category: str = "code",
         validation_criteria: str | None = None,
         claim: bool = False,
         project: str | None = None,
