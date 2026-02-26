@@ -927,7 +927,9 @@ export default function App() {
                 onRefresh: sessionsHook.refresh,
                 agents,
                 onNavigateToAgent: handleNavigateToAgent,
-                cliSessions,
+                // cliSessions hidden — agent-spawned terminals bleed into list (#9219).
+                // Backend code intact; re-enable by uncommenting and passing cliSessions.
+                // See commits: 65433c67, 401f2751, 206b27d1, 2769d980, 46ad405b
                 viewingSessionId,
                 attachedSessionId,
                 onViewCliSession: handleViewCliSession,
