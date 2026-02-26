@@ -562,40 +562,39 @@ export function useChat() {
           const msgConvId = (data as Record<string, unknown>)
             .conversation_id as string | undefined;
           // Only apply mode changes for the CURRENT conversation
-          if (msgConvId && msgConvId !== conversationIdRef.current) {
-            break;
-          }
-          const newMode = (data as Record<string, unknown>).mode as
-            | ChatMode
-            | undefined;
-          const reason = (data as Record<string, unknown>).reason as
-            | string
-            | undefined;
-          if (newMode) {
-            currentModeRef.current = newMode;
-            // Clear plan approval UI when plan is approved or changes requested
-            if (
-              reason === "plan_approved" ||
-              reason === "plan_changes_requested"
-            ) {
-              setPlanPendingApproval(false);
-              planContentRef.current = null;
-            }
-            onModeChangedRef.current?.(newMode);
-            // After plan approval, auto-send a message to prompt the agent
-            // to begin execution. The agent's turn has already ended by the
-            // time the user clicks "Approve", so we send immediately here
-            // rather than waiting for a "done" handler that won't fire.
-            if (
-              reason === "plan_approved" &&
-              pendingPlanExecutionRef.current
-            ) {
-              pendingPlanExecutionRef.current = false;
-              setTimeout(() => {
-                sendMessageRef.current?.(
-                  "Plan approved — proceed with implementation.",
-                );
-              }, 200);
+          if (!msgConvId || msgConvId === conversationIdRef.current) {
+            const newMode = (data as Record<string, unknown>).mode as
+              | ChatMode
+              | undefined;
+            const reason = (data as Record<string, unknown>).reason as
+              | string
+              | undefined;
+            if (newMode) {
+              currentModeRef.current = newMode;
+              // Clear plan approval UI when plan is approved or changes requested
+              if (
+                reason === "plan_approved" ||
+                reason === "plan_changes_requested"
+              ) {
+                setPlanPendingApproval(false);
+                planContentRef.current = null;
+              }
+              onModeChangedRef.current?.(newMode);
+              // After plan approval, auto-send a message to prompt the agent
+              // to begin execution. The agent's turn has already ended by the
+              // time the user clicks "Approve", so we send immediately here
+              // rather than waiting for a "done" handler that won't fire.
+              if (
+                reason === "plan_approved" &&
+                pendingPlanExecutionRef.current
+              ) {
+                pendingPlanExecutionRef.current = false;
+                setTimeout(() => {
+                  sendMessageRef.current?.(
+                    "Plan approved — proceed with implementation.",
+                  );
+                }, 200);
+              }
             }
           }
         } else if (data.type === "session_info") {
