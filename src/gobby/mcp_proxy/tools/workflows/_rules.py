@@ -75,6 +75,7 @@ def list_rules(
     enabled: bool | None = None,
     project_id: str | None = None,
     brief: bool = False,
+    include_templates: bool = False,
 ) -> dict[str, Any]:
     """
     List rules with optional filters.
@@ -89,17 +90,23 @@ def list_rules(
         enabled: Filter by enabled status
         project_id: Filter by project ID
         brief: If True, return minimal fields (name, event, group, enabled)
+        include_templates: If True, include source='template' rows in results
 
     Returns:
         Dict with success, rules list, and count
     """
     if event:
-        rows = def_manager.list_rules_by_event(event, project_id=project_id, enabled=enabled)
+        rows = def_manager.list_rules_by_event(
+            event, project_id=project_id, enabled=enabled, include_templates=include_templates
+        )
     elif group:
-        rows = def_manager.list_rules_by_group(group, project_id=project_id, enabled=enabled)
+        rows = def_manager.list_rules_by_group(
+            group, project_id=project_id, enabled=enabled, include_templates=include_templates
+        )
     else:
         rows = def_manager.list_all(workflow_type="rule", enabled=enabled, project_id=project_id)
-        rows = [r for r in rows if r.source != "template"]
+        if not include_templates:
+            rows = [r for r in rows if r.source != "template"]
 
     formatter = _rule_brief if brief else _rule_summary
     rules = [formatter(r) for r in rows]

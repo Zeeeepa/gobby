@@ -111,7 +111,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         try:
             manager = _get_manager()
             rows = manager.list_all(workflow_type="rule")
-            rows = [r for r in rows if r.source != "template"]
             groups: set[str] = set()
             for row in rows:
                 body = json.loads(row.definition_json)
@@ -133,7 +132,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         try:
             manager = _get_manager()
             rows = manager.list_all(workflow_type="rule")
-            rows = [r for r in rows if r.source != "template"]
             tags: set[str] = set()
             for row in rows:
                 for tag in row.tags or []:
@@ -162,7 +160,8 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         try:
             manager = _get_manager()
             result = list_rules(
-                manager, event=event, group=group, enabled=enabled, project_id=project_id
+                manager, event=event, group=group, enabled=enabled, project_id=project_id,
+                include_templates=True,
             )
             config_store = ConfigStore(server.services.database)
             enforcement = config_store.get("rules.enforcement_enabled")
