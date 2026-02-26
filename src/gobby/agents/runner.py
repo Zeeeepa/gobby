@@ -26,6 +26,7 @@ __all__ = ["AgentRunner"]
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.sessions import LocalSessionManager
+    from gobby.workflows.loader import WorkflowLoader
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class AgentRunner:
         session_storage: LocalSessionManager,
         executors: dict[str, AgentExecutor],
         max_agent_depth: int = 1,
-        workflow_loader: Any | None = None,
+        workflow_loader: WorkflowLoader | None = None,
     ):
         """
         Initialize AgentRunner.
@@ -77,7 +78,12 @@ class AgentRunner:
             max_agent_depth=max_agent_depth,
         )
         self._run_storage = LocalAgentRunManager(db)
-        self._workflow_loader = workflow_loader or None
+        if workflow_loader is not None:
+            self._workflow_loader = workflow_loader
+        else:
+            from gobby.workflows.loader import WorkflowLoader as _WL
+
+            self._workflow_loader = _WL()
         # Agent definitions are now loaded by the spawn_agent factory directly
 
         self.logger = logger
@@ -241,10 +247,8 @@ class AgentRunner:
                 turns_used=0,
             )
 
-        # Initialize workflow state if workflow was loaded
+        # Log workflow assignment
         if workflow_definition:
-            from gobby.workflows.definitions import PipelineDefinition
-
             if isinstance(workflow_definition, PipelineDefinition):
                 self.logger.info(
                     f"Pipeline '{effective_workflow}' assigned to agent session {child_session.id}"

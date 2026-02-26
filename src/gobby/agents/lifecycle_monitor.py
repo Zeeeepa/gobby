@@ -51,6 +51,10 @@ class AgentLifecycleMonitor:
         self._running = False
         self._task: asyncio.Task[None] | None = None
 
+    def set_session_coordinator(self, coordinator: SessionCoordinator) -> None:
+        """Inject session coordinator after construction (avoids circular init ordering)."""
+        self._session_coordinator = coordinator
+
     async def start(self) -> None:
         """Start the monitoring loop."""
         if self._running:

@@ -470,6 +470,7 @@ class GobbyRunner:
             pipeline_executor=self.pipeline_executor,
             workflow_loader=self.workflow_loader,
             pipeline_execution_manager=self.pipeline_execution_manager,
+            agent_lifecycle_monitor=self.agent_lifecycle_monitor,
             cron_storage=self.cron_storage,
             cron_scheduler=self.cron_scheduler,
             skill_manager=self.skill_manager,

@@ -437,6 +437,17 @@ class HTTPServer:
                 ws_server.event_handlers = app.state.hook_manager._event_handlers
                 logger.debug("Event handlers connected to WebSocket server")
 
+            # Wire session_coordinator to lifecycle monitor for worktree cleanup
+            if (
+                hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_session_coordinator")
+                and self.services.agent_lifecycle_monitor
+            ):
+                self.services.agent_lifecycle_monitor.set_session_coordinator(
+                    app.state.hook_manager._session_coordinator
+                )
+                logger.debug("Session coordinator connected to agent lifecycle monitor")
+
             # Initialize canvas broadcaster
             from gobby.mcp_proxy.tools.canvas import set_broadcaster
 
