@@ -66,7 +66,7 @@ def resolve_context_window(
         val = model_info.get("max_input_tokens")
         if val is not None:
             return int(val)
-    except (ImportError, KeyError, AttributeError, TypeError) as e:
+    except Exception as e:
         logger.debug("Could not derive context window for %s: %s", model, e)
 
     return None

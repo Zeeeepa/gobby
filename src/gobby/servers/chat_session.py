@@ -64,6 +64,14 @@ from gobby.servers.chat_session_permissions import ChatSessionPermissionsMixin
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_error(e: Exception) -> str:
+    """Return a user-facing error message, hiding internal library details."""
+    msg = str(e)
+    if "litellm" in msg.lower() or "model isn't mapped" in msg or "custom_llm_provider" in msg:
+        return "An internal error occurred. Please try again."
+    return msg
+
+
 @dataclass
 class ChatSession(ChatSessionPermissionsMixin):
     """
@@ -555,14 +563,14 @@ class ChatSession(ChatSessionPermissionsMixin):
                                     needs_spacing_before_text = True
 
             except ExceptionGroup as eg:
-                errors = [f"{type(exc).__name__}: {exc}" for exc in eg.exceptions]
+                errors = [_sanitize_error(exc) for exc in eg.exceptions]
                 yield TextChunk(content=f"Generation failed: {'; '.join(errors)}")
                 if context_window is None:
                     context_window = self._resolve_context_window_fallback()
                 yield DoneEvent(tool_calls_count=tool_calls_count, context_window=context_window)
             except Exception as e:
                 logger.error(f"ChatSession {self.conversation_id} error: {e}", exc_info=True)
-                yield TextChunk(content=f"Generation failed: {e}")
+                yield TextChunk(content=f"Generation failed: {_sanitize_error(e)}")
                 if context_window is None:
                     context_window = self._resolve_context_window_fallback()
                 yield DoneEvent(tool_calls_count=tool_calls_count, context_window=context_window)

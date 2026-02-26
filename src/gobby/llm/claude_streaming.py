@@ -45,6 +45,14 @@ def parse_server_name(full_tool_name: str) -> str:
     return "builtin"
 
 
+def _sanitize_error(e: Exception) -> str:
+    """Return a user-facing error message, hiding internal library details."""
+    msg = str(e)
+    if "litellm" in msg.lower() or "model isn't mapped" in msg or "custom_llm_provider" in msg:
+        return "An internal error occurred. Please try again."
+    return msg
+
+
 async def stream_with_mcp_tools(
     cli_path: str,
     prompt: str,
@@ -191,10 +199,10 @@ async def stream_with_mcp_tools(
                             needs_spacing_before_text = True
 
     except ExceptionGroup as eg:
-        errors = [f"{type(exc).__name__}: {exc}" for exc in eg.exceptions]
+        errors = [_sanitize_error(exc) for exc in eg.exceptions]
         yield TextChunk(content=f"Generation failed: {'; '.join(errors)}")
         yield DoneEvent(tool_calls_count=tool_calls_count)
     except Exception as e:
         logger.error(f"Failed to stream with MCP tools: {e}", exc_info=True)
-        yield TextChunk(content=f"Generation failed: {e}")
+        yield TextChunk(content=f"Generation failed: {_sanitize_error(e)}")
         yield DoneEvent(tool_calls_count=tool_calls_count)
