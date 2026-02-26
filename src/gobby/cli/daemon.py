@@ -178,10 +178,15 @@ def start(
     click.echo("Initializing local storage...")
     init_local_storage()
 
-    # Start Neo4j containers if requested
+    # Start Neo4j containers if requested or if installed
     if neo4j_flag:
         click.echo("Starting Neo4j containers...")
         _neo4j_start(gobby_dir)
+    else:
+        compose_file = gobby_dir / "services" / "neo4j" / "docker-compose.yml"
+        if compose_file.exists():
+            click.echo("Neo4j installed, auto-starting containers...")
+            _neo4j_start(gobby_dir)
 
     # Check if already running
     if pid_file.exists():
