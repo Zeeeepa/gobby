@@ -208,7 +208,7 @@ class TestModelsEndpoint:
         server = MagicMock()
         server.test_mode = False
         # Config with default model
-        server.services.config.llm_providers.default_model = "claude-sonnet-4"
+        server.services.config.llm_providers.default_model = "haiku"
         return server
 
     @pytest.fixture
@@ -223,8 +223,8 @@ class TestModelsEndpoint:
     @patch("gobby.servers.routes.admin._discover_models")
     def test_models_returns_grouped(self, mock_discover, client) -> None:
         mock_discover.return_value = {
-            "claude": ["claude-sonnet-4", "claude-opus-4"],
-            "gpt": ["gpt-4o", "gpt-4o-mini"],
+            "claude": ["haiku"],
+            "gpt": ["gpt-4.5-preview", "o3-mini"],
         }
 
         response = client.get("/api/admin/models")
@@ -234,13 +234,13 @@ class TestModelsEndpoint:
         assert "models" in data
         assert "claude" in data["models"]
         assert "gpt" in data["models"]
-        assert data["default_model"] == "claude-sonnet-4"
+        assert data["default_model"] == "haiku"
 
     @patch("gobby.servers.routes.admin._discover_models")
     def test_models_provider_filter(self, mock_discover, client) -> None:
         mock_discover.return_value = {
-            "claude": ["claude-sonnet-4"],
-            "gpt": ["gpt-4o"],
+            "claude": ["haiku"],
+            "gpt": ["gpt-4.5-preview"],
         }
 
         response = client.get("/api/admin/models?provider=claude")
@@ -253,7 +253,7 @@ class TestModelsEndpoint:
     @patch("gobby.servers.routes.admin._discover_models")
     def test_models_provider_filter_no_match(self, mock_discover, client) -> None:
         mock_discover.return_value = {
-            "claude": ["claude-sonnet-4"],
+            "claude": ["haiku"],
         }
 
         response = client.get("/api/admin/models?provider=nonexistent")
@@ -267,13 +267,13 @@ class TestModelsEndpoint:
         self, mock_discover, mock_fallback, client, mock_server
     ) -> None:
         mock_discover.side_effect = ImportError("No module named 'litellm'")
-        mock_fallback.return_value = {"claude": ["claude-sonnet-4"]}
+        mock_fallback.return_value = {"claude": ["haiku"]}
 
         response = client.get("/api/admin/models")
         assert response.status_code == 200
         data = response.json()
 
-        assert data["models"] == {"claude": ["claude-sonnet-4"]}
+        assert data["models"] == {"claude": ["haiku"]}
         mock_fallback.assert_called_once_with(mock_server)
 
     @patch("gobby.servers.routes.admin._discover_models")
@@ -282,7 +282,7 @@ class TestModelsEndpoint:
 
         response = client.get("/api/admin/models")
         data = response.json()
-        assert data["default_model"] == "claude-sonnet-4"
+        assert data["default_model"] == "haiku"
 
     @patch("gobby.servers.routes.admin._discover_models")
     def test_models_default_model_fallback(self, mock_discover) -> None:
@@ -310,10 +310,9 @@ class TestDiscoverModels:
     @patch(
         "litellm.model_cost",
         {
-            "claude-sonnet-4": {},
-            "claude-opus-4": {},
-            "gpt-4o": {},
-            "gpt-4o-mini": {},
+            "haiku": {},
+            "gpt-4.5-preview": {},
+            "o3-mini": {},
             "gemini-2-flash": {},
         },
     )
@@ -323,18 +322,25 @@ class TestDiscoverModels:
         result = _discover_models()
 
         assert "claude" in result
-        assert "gpt" in result
+        assert "codex" in result
         assert "gemini" in result
-        assert sorted(result["claude"]) == ["claude-opus-4", "claude-sonnet-4"]
-        assert sorted(result["gpt"]) == ["gpt-4o", "gpt-4o-mini"]
+        assert result["claude"] == [
+            {"value": "", "label": "(default)"},
+            {"value": "haiku", "label": "Haiku"}
+        ]
+        assert result["codex"] == [
+            {"value": "", "label": "(default)"},
+            {"value": "gpt-4.5-preview", "label": "GPT 4.5 Preview"},
+            {"value": "o3-mini", "label": "O3 Mini"}
+        ]
 
     @patch(
         "litellm.model_cost",
         {
-            "claude-sonnet-4": {},
-            "claude-sonnet-4-20250514": {},
-            "gpt-4o": {},
-            "gpt-4o-20240513": {},
+            "haiku": {},
+            "haiku-20250514": {},
+            "gpt-4.5-preview": {},
+            "gpt-4.5-preview-20250227": {},
         },
     )
     def test_discover_models_excludes_dated_variants(self) -> None:
@@ -342,17 +348,17 @@ class TestDiscoverModels:
 
         result = _discover_models()
 
-        assert "claude-sonnet-4" in result["claude"]
-        assert "claude-sonnet-4-20250514" not in result["claude"]
-        assert "gpt-4o" in result["gpt"]
-        assert "gpt-4o-20240513" not in result["gpt"]
+        assert any(m["value"] == "haiku" for m in result["claude"])
+        assert not any(m["value"] == "haiku-20250514" for m in result["claude"])
+        assert any(m["value"] == "gpt-4.5-preview" for m in result["codex"])
+        assert not any(m["value"] == "gpt-4.5-preview-20250227" for m in result["codex"])
 
     @patch(
         "litellm.model_cost",
         {
-            "claude-sonnet-4": {},
-            "anthropic/claude-sonnet-4": {},
-            "bedrock.claude-sonnet-4": {},
+            "haiku": {},
+            "anthropic/haiku": {},
+            "bedrock.haiku": {},
         },
     )
     def test_discover_models_excludes_scoped_names(self) -> None:
@@ -360,12 +366,15 @@ class TestDiscoverModels:
 
         result = _discover_models()
 
-        assert result["claude"] == ["claude-sonnet-4"]
+        assert result["claude"] == [
+            {"value": "", "label": "(default)"},
+            {"value": "haiku", "label": "Haiku"}
+        ]
 
     @patch(
         "litellm.model_cost",
         {
-            "claude-sonnet-4": {},
+            "haiku": {},
             "claude-latest": {},
         },
     )
@@ -374,8 +383,8 @@ class TestDiscoverModels:
 
         result = _discover_models()
 
-        assert "claude-sonnet-4" in result["claude"]
-        assert "claude-latest" not in result.get("claude", [])
+        assert any(m["value"] == "haiku" for m in result["claude"])
+        assert not any(m["value"] == "claude-latest" for m in result.get("claude", []))
 
     @patch("litellm.model_cost", {})
     def test_discover_models_empty_registry(self) -> None:
@@ -388,7 +397,7 @@ class TestDiscoverModels:
         "litellm.model_cost",
         {
             "llama-70b": {},
-            "claude-sonnet-4": {},
+            "haiku": {},
         },
     )
     def test_discover_models_unknown_prefix_excluded(self) -> None:
@@ -409,7 +418,7 @@ class TestFallbackModelsFromConfig:
 
         server = MagicMock()
         claude_config = MagicMock()
-        claude_config.get_models_list.return_value = ["claude-sonnet-4", "claude-opus-4"]
+        claude_config.get_models_list.return_value = ["haiku"]
         gemini_config = MagicMock()
         gemini_config.get_models_list.return_value = ["gemini-2.0-flash"]
 
@@ -420,8 +429,14 @@ class TestFallbackModelsFromConfig:
 
         result = _fallback_models_from_config(server)
 
-        assert result["claude"] == ["claude-sonnet-4", "claude-opus-4"]
-        assert result["gemini"] == ["gemini-2.0-flash"]
+        assert result["claude"] == [
+            {"value": "", "label": "(default)"},
+            {"value": "haiku", "label": "Haiku"}
+        ]
+        assert result["gemini"] == [
+            {"value": "", "label": "(default)"},
+            {"value": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"}
+        ]
         assert "codex" not in result
         assert "litellm" not in result
 

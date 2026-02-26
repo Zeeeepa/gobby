@@ -95,9 +95,9 @@ def test_get_schema(cli_runner, mock_daemon_client, mock_config) -> None:
         output_json = json.loads(result.output)
         assert output_json == mock_schema
 
-        # Verify correct endpoint called
+        # Verify the API was called correctly
         mock_daemon_client.call_http_api.assert_called_with(
-            "/mcp/tools/schema",
+            "/api/mcp/tools/schema",
             method="POST",
             json_data={"server_name": "server1", "tool_name": "tool1"},
             timeout=30.0,
@@ -121,9 +121,9 @@ def test_call_tool_success(cli_runner, mock_daemon_client, mock_config) -> None:
 
         assert result.exit_code == 0
         assert json.dumps(expected_result, indent=2) in result.output
-
+        # Verify the API was called correctly
         mock_daemon_client.call_http_api.assert_called_with(
-            "/mcp/tools/call",
+            "/api/mcp/tools/call",
             method="POST",
             json_data={
                 "server_name": "server1",
@@ -166,7 +166,7 @@ def test_add_server_http(cli_runner, mock_daemon_client, mock_config) -> None:
 
         # Verify the API was called with correct data
         mock_daemon_client.call_http_api.assert_called_with(
-            "/mcp/servers",
+            "/api/mcp/servers",
             method="POST",
             json_data={
                 "name": "my-http-server",

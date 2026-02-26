@@ -466,11 +466,11 @@ class TestDaemonProxy:
                 mock_request.return_value = {"success": True}
                 await proxy.call_tool("server", "normal_tool", {})
                 mock_request.assert_called_with(
-                    "POST", "/mcp/server/tools/normal_tool", json={}, timeout=30.0
+                    "POST", "/api/mcp/server/tools/normal_tool", json={}, timeout=30.0
                 )
                 await proxy.call_tool("server", "expand_task", {})
                 mock_request.assert_called_with(
-                    "POST", "/mcp/server/tools/expand_task", json={}, timeout=300.0
+                    "POST", "/api/mcp/server/tools/expand_task", json={}, timeout=300.0
                 )
 
 

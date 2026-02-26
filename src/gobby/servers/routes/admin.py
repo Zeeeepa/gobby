@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 # Map litellm model prefixes to Gobby provider names
 _PROVIDER_PREFIX_MAP: dict[str, str] = {
+    "haiku": "claude",
     "gemini": "gemini",
     "gpt": "codex",
     "o1": "codex",

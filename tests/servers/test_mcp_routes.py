@@ -2151,7 +2151,7 @@ class TestWebhooksEndpoints:
 
     def test_list_webhooks_no_config(self, webhooks_client: TestClient) -> None:
         """Test list webhooks when config is None."""
-        response = webhooks_client.get("/webhooks")
+        response = webhooks_client.get("/api/webhooks")
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True

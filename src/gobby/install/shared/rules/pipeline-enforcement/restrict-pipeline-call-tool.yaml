@@ -13,6 +13,6 @@ rules:
     effect:
       type: block
       tools: ["mcp__gobby__call_tool"]
-      reason: >
-        Pipeline agent: only run_pipeline, kill_agent, and send_message are allowed via call_tool.
-        Discover tools with list_mcp_servers → list_tools → get_tool_schema, then call run_pipeline.
+      reason: |
+        Pipeline agent: Only progressive discovery, run_pipeline, kill_agent, and send_message are available to you.
+        Discover tools with list_mcp_servers → list_tools → get_tool_schema → call_tool(server_name='gobby-workflows', run_pipeline.
