@@ -39,8 +39,8 @@ def test_list_servers_success(cli_runner, mock_daemon_client, mock_config) -> No
                 {"name": "server1", "connected": True, "state": "connected"},
                 {"name": "server2", "connected": False, "state": "disconnected"},
             ],
-            "connected_count": 1,
-            "total_count": 2,
+            "connected": 1,
+            "total": 2,
         }
 
         result = cli_runner.invoke(mcp_proxy, ["list-servers"], obj={"config": mock_config})
@@ -53,7 +53,7 @@ def test_list_servers_success(cli_runner, mock_daemon_client, mock_config) -> No
 
 def test_list_servers_json(cli_runner, mock_daemon_client, mock_config) -> None:
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
-        mock_response = {"servers": [{"name": "server1"}], "connected_count": 1, "total_count": 1}
+        mock_response = {"servers": [{"name": "server1"}], "connected": 1, "total": 1}
         mock_daemon_client.call_http_api.return_value.status_code = 200
         mock_daemon_client.call_http_api.return_value.json.return_value = mock_response
 

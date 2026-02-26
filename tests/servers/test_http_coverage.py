@@ -733,8 +733,8 @@ class TestMCPEndpoints:
         response = mcp_client.get("/api/mcp/servers")
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 0
-        assert data["connected_count"] == 0
+        assert data["total"] == 0
+        assert data["connected"] == 0
 
     def test_get_mcp_status_empty(self, mcp_client: TestClient) -> None:
         """Test MCP status with no servers."""

@@ -496,8 +496,8 @@ class TestListMCPServers:
         response = client.get("/api/mcp/servers")
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 0
-        assert data["connected_count"] == 0
+        assert data["total"] == 0
+        assert data["connected"] == 0
         assert data["servers"] == []
 
     def test_list_servers_with_internal_registries(
@@ -521,8 +521,8 @@ class TestListMCPServers:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 2
-        assert data["connected_count"] == 2
+        assert data["total"] == 2
+        assert data["connected"] == 2
         assert all(s["transport"] == "internal" for s in data["servers"])
 
     def test_list_servers_with_external_servers(self, session_storage: LocalSessionManager) -> None:
@@ -544,8 +544,8 @@ class TestListMCPServers:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 1
-        assert data["connected_count"] == 1
+        assert data["total"] == 1
+        assert data["connected"] == 1
         assert data["servers"][0]["name"] == "external-server"
         assert data["servers"][0]["transport"] == "http"
 
@@ -570,9 +570,9 @@ class TestListMCPServers:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] == 1
-        assert data["connected_count"] == 0
-        assert data["servers"][0]["connected"] is False
+        assert data["total"] == 1
+        assert data["connected"] == 0
+        assert data["servers"][0]["state"] == "disconnected"
 
     def test_list_servers_with_unknown_health(self, session_storage: LocalSessionManager) -> None:
         """Test listing servers handles servers with no health info."""

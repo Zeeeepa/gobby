@@ -92,12 +92,12 @@ def list_servers(ctx: click.Context, json_format: bool) -> None:
         click.echo("No MCP servers configured.")
         return
 
-    connected = result.get("connected_count", 0)
-    total = result.get("total_count", 0)
+    connected = result.get("connected", 0)
+    total = result.get("total", 0)
     click.echo(f"MCP Servers ({connected}/{total} connected):")
     for server in servers:
-        status_icon = "●" if server.get("connected") else "○"
         state = server.get("state", "unknown")
+        status_icon = "●" if state == "connected" else "○"
         click.echo(f"  {status_icon} {server['name']} ({state})")
 
 

@@ -510,11 +510,12 @@ class TestDaemonProxyMethods:
         proxy = DaemonProxy(60887)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             mock_req.return_value = {
-                "total_count": 1,
-                "servers": [{"name": "srv1", "status": "connected"}],
+                "total": 1,
+                "connected": 1,
+                "servers": [{"name": "srv1", "state": "connected", "transport": "http"}],
             }
             result = await proxy.list_mcp_servers()
-            assert result["total_count"] == 1
+            assert result["total"] == 1
             assert result["servers"][0]["name"] == "srv1"
 
     @pytest.mark.asyncio
