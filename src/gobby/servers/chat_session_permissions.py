@@ -84,6 +84,11 @@ class ChatSessionPermissionsMixin:
             # Read plan file content if one was written during plan mode
             plan_content = self._read_plan_file()
 
+            if not plan_content:
+                return PermissionResultDeny(
+                    message="No plan file found. Write your plan to .gobby/plans/*.md before calling ExitPlanMode."
+                )
+
             # Broadcast plan_pending_approval to frontend
             if self._on_plan_ready:
                 await self._on_plan_ready(plan_content, input_data)
