@@ -1,3 +1,11 @@
+/* Agent definitions tab container */
+.agent-defs-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
 /* Shared agent button */
 .agent-defs-btn {
   padding: 5px 12px;
