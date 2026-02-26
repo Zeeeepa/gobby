@@ -437,6 +437,32 @@ class HTTPServer:
                 ws_server.event_handlers = app.state.hook_manager._event_handlers
                 logger.debug("Event handlers connected to WebSocket server")
 
+            # Wire webhook dispatcher for blocking webhook parity with CLI path
+            if (
+                ws_server
+                and hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_webhook_dispatcher")
+            ):
+                ws_server.webhook_dispatcher = app.state.hook_manager._webhook_dispatcher
+                logger.debug("Webhook dispatcher connected to WebSocket server")
+
+            # Wire hook event broadcaster for audit trail parity with CLI path
+            if ws_server and self.broadcaster:
+                ws_server.hook_broadcaster = self.broadcaster
+                logger.debug("Hook event broadcaster connected to WebSocket server")
+
+            # Wire inter-session message manager for message piggyback delivery
+            if (
+                ws_server
+                and hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_inter_session_msg_manager")
+                and app.state.hook_manager._inter_session_msg_manager
+            ):
+                ws_server.inter_session_msg_manager = (
+                    app.state.hook_manager._inter_session_msg_manager
+                )
+                logger.debug("Inter-session message manager connected to WebSocket server")
+
             # Wire workflow handler to AgentRunner for embedded agent hooks
             if (
                 self.services.agent_runner

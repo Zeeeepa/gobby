@@ -359,6 +359,14 @@ class ChatMixin:
     ) -> dict[str, Any] | None:
         """Bridge SDK hook events to workflow engine lifecycle triggers.
 
+        Mirrors HookManager.handle() for CLI parity:
+        1. Rule evaluation via workflow_handler
+        2. Blocking webhook evaluation
+        3. MCP call dispatch for rule effects
+        4. Event handler dispatch (skill interception, etc.)
+        5. Inter-session message piggyback (BEFORE_TOOL/AFTER_TOOL)
+        6. Event broadcasting for audit trail
+
         Returns a dict with HookResponse fields (decision, context, reason, etc.)
         or None if no workflow handler is available.
         """
@@ -404,6 +412,20 @@ class ChatMixin:
                 response.decision,
                 len(response.context) if response.context else 0,
             )
+
+            # If workflow blocks, return immediately (before webhooks/handlers)
+            if response.decision != "allow":
+                return {
+                    "decision": response.decision,
+                    "context": response.context,
+                    "reason": response.reason,
+                    "system_message": response.system_message,
+                }
+
+            # --- Blocking webhook evaluation (parity with CLI path D1) ---
+            webhook_block = await self._evaluate_blocking_webhooks(event)
+            if webhook_block:
+                return webhook_block
 
             # Dispatch mcp_call effects from rule engine (parity with CLI path)
             mcp_calls = (response.metadata or {}).get("mcp_calls", [])
@@ -451,6 +473,14 @@ class ChatMixin:
                 else:
                     merged_context = handler_context
 
+            # --- Inter-session message piggyback (parity with CLI path D6) ---
+            msg_context = self._inject_pending_messages(db_session_id, event_type)
+            if msg_context:
+                if merged_context:
+                    merged_context = merged_context + "\n\n" + msg_context
+                else:
+                    merged_context = msg_context
+
             # Build result dict
             result: dict[str, Any] = {
                 "decision": response.decision,
@@ -469,9 +499,106 @@ class ChatMixin:
                     else f"Gobby Session ID: {session_ref}"
                 )
 
+            # --- Event broadcasting for audit trail (parity with CLI path D2) ---
+            hook_broadcaster = getattr(self, "hook_broadcaster", None)
+            if hook_broadcaster:
+                try:
+                    await hook_broadcaster.broadcast_event(event, response)
+                except Exception as exc:
+                    logger.debug("_fire_lifecycle: broadcast failed: %s", exc)
+
             return result
         except Exception as e:
             logger.error("Lifecycle evaluation failed for %s: %s", event_type, e, exc_info=True)
+            return None
+
+    async def _evaluate_blocking_webhooks(
+        self,
+        event: HookEvent,
+    ) -> dict[str, Any] | None:
+        """Evaluate blocking webhooks before handler execution.
+
+        Async-native version of HookManager._evaluate_blocking_webhooks
+        for the web chat path. Returns a block result dict if a webhook
+        blocked the event, None otherwise.
+        """
+        webhook_dispatcher = getattr(self, "webhook_dispatcher", None)
+        if not webhook_dispatcher:
+            return None
+
+        if not webhook_dispatcher.config.enabled:
+            return None
+
+        try:
+            # Filter to blocking endpoints that match this event
+            matching_endpoints = [
+                ep
+                for ep in webhook_dispatcher.config.endpoints
+                if ep.enabled
+                and webhook_dispatcher._matches_event(ep, event.event_type.value)
+                and ep.can_block
+            ]
+
+            if not matching_endpoints:
+                return None
+
+            # Build payload and dispatch
+            payload = webhook_dispatcher._build_payload(event)
+            results = []
+            for endpoint in matching_endpoints:
+                result = await webhook_dispatcher._dispatch_single(endpoint, payload)
+                results.append(result)
+
+            decision, reason = webhook_dispatcher.get_blocking_decision(results)
+            if decision == "block":
+                logger.info("Webhook blocked web chat event: %s", reason)
+                return {
+                    "decision": "block",
+                    "context": None,
+                    "reason": reason or "Blocked by webhook",
+                    "system_message": None,
+                }
+        except Exception as exc:
+            logger.error("Blocking webhook evaluation failed: %s", exc, exc_info=True)
+            # Fail-open for webhook errors
+
+        return None
+
+    def _inject_pending_messages(
+        self,
+        db_session_id: str,
+        event_type: HookEventType,
+    ) -> str | None:
+        """Check for and inject undelivered inter-session messages.
+
+        Only runs on high-frequency events (BEFORE_TOOL, AFTER_TOOL) to
+        match the CLI path's EventEnricher piggyback behavior.
+        """
+        # Only piggyback on high-frequency tool events
+        _PIGGYBACK_EVENTS = {HookEventType.BEFORE_TOOL, HookEventType.AFTER_TOOL}
+        if event_type not in _PIGGYBACK_EVENTS:
+            return None
+
+        inter_session_msg_manager = getattr(self, "inter_session_msg_manager", None)
+        if not inter_session_msg_manager:
+            return None
+
+        try:
+            undelivered = inter_session_msg_manager.get_undelivered_messages(db_session_id)
+            if not undelivered:
+                return None
+
+            lines = ["[Pending inter-session messages]:"]
+            for msg in undelivered:
+                lines.append(f"- {msg.content}")
+                try:
+                    inter_session_msg_manager.mark_delivered(msg.id)
+                except Exception:
+                    pass
+
+            return "\n".join(lines)
+        except Exception as exc:
+            logger.debug("Inter-session message piggyback failed: %s", exc)
             return None
 
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:

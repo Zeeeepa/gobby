@@ -65,17 +65,6 @@ interface ModelSwitchedMessage {
   new_model: string;
 }
 
-interface ToolResultMessage {
-  type: "tool_result";
-  request_id: string;
-  result: unknown;
-}
-
-interface ErrorMessage {
-  type: "error";
-  request_id?: string;
-  message: string;
-}
 
 interface VoiceTranscriptionMessage {
   type: "voice_transcription";
@@ -417,11 +406,6 @@ export function useChat() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
-  // Track pending command request IDs for tool_result routing
-  const pendingCommandsRef = useRef<
-    Map<string, { server: string; tool: string }>
-  >(new Map());
-
   // Track the active chat request to filter stale stream chunks from cancelled requests
   const activeRequestIdRef = useRef<string | null>(null);
 
@@ -444,10 +428,6 @@ export function useChat() {
   const handleModelSwitchedRef = useRef<(msg: ModelSwitchedMessage) => void>(
     () => {},
   );
-  const handleToolResultRef = useRef<(msg: ToolResultMessage) => void>(
-    () => {},
-  );
-  const handleErrorRef = useRef<(msg: ErrorMessage) => void>(() => {});
   const handleVoiceMessageRef = useRef<(data: Record<string, unknown>) => void>(
     () => {},
   );
@@ -527,13 +507,6 @@ export function useChat() {
           handleModelSwitchedRef.current(
             data as unknown as ModelSwitchedMessage,
           );
-        } else if (data.type === "tool_result") {
-          handleToolResultRef.current(data as unknown as ToolResultMessage);
-        } else if (
-          data.type === "error" &&
-          (data as unknown as ErrorMessage).request_id
-        ) {
-          handleErrorRef.current(data as unknown as ErrorMessage);
         } else if (
           data.type === "voice_transcription" ||
           data.type === "voice_audio_chunk" ||
@@ -1161,46 +1134,6 @@ export function useChat() {
     ]);
   }, []);
 
-  // Handle tool_result for slash commands
-  const handleToolResult = useCallback((msg: ToolResultMessage) => {
-    const pending = pendingCommandsRef.current.get(msg.request_id);
-    if (!pending) return;
-    pendingCommandsRef.current.delete(msg.request_id);
-
-    const resultStr =
-      typeof msg.result === "string"
-        ? msg.result
-        : JSON.stringify(msg.result, null, 2);
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `cmd-result-${msg.request_id}`,
-        role: "system" as const,
-        content: `**/${pending.server}.${pending.tool}**\n\`\`\`json\n${resultStr}\n\`\`\``,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
-
-  // Handle error responses for slash commands
-  const handleError = useCallback((msg: ErrorMessage) => {
-    if (!msg.request_id) return;
-    const pending = pendingCommandsRef.current.get(msg.request_id);
-    if (!pending) return;
-    pendingCommandsRef.current.delete(msg.request_id);
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `cmd-error-${msg.request_id}`,
-        role: "system" as const,
-        content: `Error running /${pending.server}.${pending.tool}: ${msg.message}`,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
-
   // Keep refs updated to avoid stale closures
   useEffect(() => {
     handleChatStreamRef.current = handleChatStream;
@@ -1208,16 +1141,12 @@ export function useChat() {
     handleToolStatusRef.current = handleToolStatus;
     handleChatThinkingRef.current = handleChatThinking;
     handleModelSwitchedRef.current = handleModelSwitched;
-    handleToolResultRef.current = handleToolResult;
-    handleErrorRef.current = handleError;
   }, [
     handleChatStream,
     handleChatError,
     handleToolStatus,
     handleChatThinking,
     handleModelSwitched,
-    handleToolResult,
-    handleError,
   ]);
 
   // Persist dbSessionId to localStorage so next page load can fetch from DB immediately
@@ -1738,45 +1667,6 @@ export function useChat() {
   // Update sendMessageRef with the latest sendMessage callback
   sendMessageRef.current = sendMessage;
 
-  // Execute a slash command directly (no LLM round-trip)
-  const executeCommand = useCallback(
-    (server: string, tool: string, args: Record<string, string> = {}) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-
-      const requestId = uuid();
-
-      pendingCommandsRef.current.set(requestId, { server, tool });
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `cmd-${requestId}`,
-          role: "user" as const,
-          content: `/${server}.${tool}${
-            Object.keys(args).length
-              ? " " +
-                Object.entries(args)
-                  .map(([k, v]) => `${k}=${v}`)
-                  .join(" ")
-              : ""
-          }`,
-          timestamp: new Date(),
-        },
-      ]);
-
-      wsRef.current.send(
-        JSON.stringify({
-          type: "tool_call",
-          request_id: requestId,
-          mcp: server,
-          tool,
-          args,
-        }),
-      );
-    },
-    [],
-  );
-
   // Respond to an AskUserQuestion pending in the backend
   const respondToQuestion = useCallback(
     (toolCallId: string, answers: Record<string, string>) => {
@@ -2101,7 +1991,6 @@ export function useChat() {
     stopStreaming,
     clearHistory,
     deleteConversation,
-    executeCommand,
     respondToQuestion,
     respondToApproval,
     canvasSurfaces,
