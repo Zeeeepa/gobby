@@ -4,6 +4,7 @@ import hashlib
 import logging
 import re
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -15,6 +16,17 @@ if TYPE_CHECKING:
     from gobby.workflows.definitions import WorkflowState
 
 _derive_logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AgentActivationResult:
+    """Result of activating the default agent for a session."""
+
+    context: str | None  # AI-only: preamble + formatted skills
+    agent_name: str
+    rules_count: int
+    skills_count: int
+    variables_count: int
 
 
 class SessionEventHandlerMixin(EventHandlersBase):
@@ -244,10 +256,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
             self._auto_activate_workflow(workflow_name, session_id, cwd)
 
         # Step 2d: Deep load default agent (rules, skills, variables) for new session
+        agent_result: AgentActivationResult | None = None
         if session_id:
             try:
                 agent_override = input_data.get("agent_name_override")
-                self._activate_default_agent(
+                agent_result = self._activate_default_agent(
                     session_id,
                     cli_source,
                     project_id,
@@ -277,10 +290,10 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
-        # Build additional context (task context)
-        # Note: Skill injection is handled by _activate_default_agent() which sets
-        # _active_skill_names as a session variable for the rule engine.
+        # Build additional context (agent AI context + task context)
         additional_context: list[str] = []
+        if agent_result and agent_result.context:
+            additional_context.append(agent_result.context)
         if event.task_id:
             task_title = event.metadata.get("_task_title", "Unknown Task")
             additional_context.append("\n## Active Task Context\n")
@@ -301,6 +314,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             task_id=event.task_id,
             additional_context=additional_context,
             terminal_context=terminal_context,
+            agent_info=agent_result,
         )
 
     def handle_session_end(self, event: HookEvent) -> HookResponse:
@@ -468,8 +482,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
             )
 
         # Deep load default agent (rules, skills, variables) for pre-created session
+        agent_result: AgentActivationResult | None = None
         try:
-            self._activate_default_agent(
+            agent_result = self._activate_default_agent(
                 session_id,
                 cli_source,
                 existing_session.project_id,
@@ -492,6 +507,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to register with message processor: {e}")
 
+        # Build additional context (agent AI context)
+        additional_context: list[str] = []
+        if agent_result and agent_result.context:
+            additional_context.append(agent_result.context)
+
         return self._compose_session_response(
             session=existing_session,
             session_id=session_id,
@@ -500,7 +520,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
             machine_id=machine_id,
             project_id=existing_session.project_id,
             task_id=event.task_id,
+            additional_context=additional_context,
             is_pre_created=True,
+            agent_info=agent_result,
         )
 
     def _activate_default_agent(
@@ -509,7 +531,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         cli_source: str,
         project_id: str | None,
         agent_name_override: str | None = None,
-    ) -> None:
+    ) -> AgentActivationResult | None:
         """Deep load the default agent and merge its properties into the session.
 
         Args:
@@ -604,6 +626,55 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         SessionVariableManager(self._session_storage.db).merge_variables(session_id, changes)
 
+        # --- Build injection context ---
+        context_parts: list[str] = []
+
+        # 1. Agent preamble (role, goal, personality, instructions)
+        preamble = agent_body.build_prompt_preamble()
+        if preamble:
+            context_parts.append(preamble)
+
+        # 2. Resolved skills (agent's skill_selectors + audience filtering)
+        from gobby.hooks.skill_manager import _db_skill_to_parsed
+        from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
+
+        eligible = (
+            all_skills
+            if active_skills is None
+            else [s for s in all_skills if s.name in active_skills]
+        )
+        parsed = [_db_skill_to_parsed(s) for s in eligible if s.enabled]
+        skills_count = 0
+
+        if parsed:
+            agent_ctx = AgentContext(
+                agent_depth=0, has_human=True, agent_type="interactive", source=cli_source
+            )
+            profile = None
+            if agent_body.workflows and agent_body.workflows.skill_format:
+                profile = SkillProfile(default_format=agent_body.workflows.skill_format)
+
+            selected = SkillInjector().select_skills(parsed, agent_ctx, profile=profile)
+            skills_count = len(selected)
+            if selected:
+                from gobby.workflows.context_actions import _format_skills_with_formats
+
+                formatted = _format_skills_with_formats(selected)
+                if formatted:
+                    context_parts.append(formatted)
+
+        # Count variables (exclude internal keys)
+        internal_keys = {"_agent_type", "_active_rule_names", "_active_skill_names", "_skill_format"}
+        variables_count = len([k for k in changes if k not in internal_keys])
+
+        return AgentActivationResult(
+            context="\n\n".join(context_parts) if context_parts else None,
+            agent_name=agent_body.name,
+            rules_count=len(active_rules),
+            skills_count=skills_count,
+            variables_count=variables_count,
+        )
+
     def _get_step_workflow_state(self, session_id: str) -> WorkflowState | None:
         """Get the active step workflow state for a session.
 
@@ -636,6 +707,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         additional_context: list[str] | None = None,
         is_pre_created: bool = False,
         terminal_context: dict[str, Any] | None = None,
+        agent_info: AgentActivationResult | None = None,
     ) -> HookResponse:
         """Build HookResponse for session start.
 
@@ -669,29 +741,50 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if session and session.seq_num:
             session_ref = f"#{session.seq_num}"
 
-        # Build system message (terminal display only)
+        # Build system message (terminal display)
         if session_ref and session_ref != session_id:
-            system_message = f"\nGobby Session ID: {session_ref}"
+            system_message = f"\nGobby Session ID: {session_ref} (or {session_id})"
         else:
             system_message = f"\nGobby Session ID: {session_id}"
         system_message += " <- Use this for MCP tool calls (session_id parameter)"
         system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
-        # Add active step workflows from WorkflowStateManager
-        active_workflow_lines: list[str] = []
+        # Parent Session (only if exists, as #N ref)
+        if parent_session_id and self._session_storage:
+            try:
+                parent = self._session_storage.get(parent_session_id)
+                if parent and parent.seq_num:
+                    system_message += f"\nParent Session: #{parent.seq_num}"
+                else:
+                    system_message += f"\nParent Session: {parent_session_id}"
+            except Exception:
+                system_message += f"\nParent Session: {parent_session_id}"
+
+        # Task (only if exists, as #N ref)
+        if task_id and self._task_manager:
+            try:
+                task = self._task_manager.get_task(task_id, project_id=project_id)
+                if task and task.seq_num:
+                    system_message += f"\nTask: #{task.seq_num}"
+                else:
+                    system_message += f"\nTask: {task_id}"
+            except Exception:
+                system_message += f"\nTask: {task_id}"
+
+        # Agent info (only if agent loaded — absence signals activation failure)
+        if agent_info:
+            system_message += f"\nAgent: {agent_info.agent_name}"
+            system_message += f"\nRules Active: {agent_info.rules_count}"
+            system_message += f"\nSkills Active: {agent_info.skills_count}"
+            system_message += f"\nVariables Active: {agent_info.variables_count}"
+
+        # Workflow (only if active step workflow)
         if session_id:
             state = self._get_step_workflow_state(session_id)
-            if state:
-                is_lifecycle = state.workflow_name in ("__lifecycle__", "__ended__")
-                if not is_lifecycle:
-                    active_workflow_lines.append(
-                        f"  - {state.workflow_name} (step, current_step={state.step})"
-                    )
-
-        if active_workflow_lines:
-            system_message += "\nActive workflows:"
-            for line in active_workflow_lines:
-                system_message += f"\n{line}"
+            if state and state.workflow_name not in ("__lifecycle__", "__ended__"):
+                system_message += (
+                    f"\nWorkflow: {state.workflow_name} (step, current_step={state.step})"
+                )
 
         # Build metadata
         metadata: dict[str, Any] = {
