@@ -239,6 +239,11 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
             )
             server.services.config = DaemonConfig(**resolved)
 
+            # Propagate updated config to WebSocket server (needed for STT)
+            ws_server = getattr(server.services, "websocket_server", None)
+            if ws_server is not None:
+                ws_server.daemon_config = server.services.config
+
             return JSONResponse(
                 content={
                     "ok": True,

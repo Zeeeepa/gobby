@@ -40,7 +40,6 @@ from gobby.config.features import (
 from gobby.config.llm_providers import LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
 from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
-from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ChatHistoryConfig,
@@ -56,6 +55,7 @@ from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowC
 from gobby.config.tmux import TmuxConfig
 from gobby.config.voice import VoiceConfig
 from gobby.config.watchdog import WatchdogConfig
+from gobby.search.models import SearchConfig
 
 
 class ToolApprovalPolicy(BaseModel):

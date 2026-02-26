@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useWebSocketEvent } from './useWebSocketEvent'
 
 export interface McpServer {
   name: string
@@ -51,7 +52,7 @@ export function useMcp() {
   const fetchServers = useCallback(async () => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/servers`)
+      const response = await fetch(`${baseUrl}/api/mcp/servers`)
       if (response.ok) {
         const data = await response.json()
         setServers(data.servers || [])
@@ -64,7 +65,7 @@ export function useMcp() {
   const fetchTools = useCallback(async () => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/tools?include_metrics=true`)
+      const response = await fetch(`${baseUrl}/api/mcp/tools?include_metrics=true`)
       if (response.ok) {
         const data = await response.json()
         setToolsByServer(data.tools || {})
@@ -77,7 +78,7 @@ export function useMcp() {
   const fetchStatus = useCallback(async () => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/status`)
+      const response = await fetch(`${baseUrl}/api/mcp/status`)
       if (response.ok) {
         const data = await response.json()
         setStatus(data)
@@ -103,7 +104,7 @@ export function useMcp() {
   }): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/servers`, {
+      const response = await fetch(`${baseUrl}/api/mcp/servers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -129,7 +130,7 @@ export function useMcp() {
   }): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/servers/import`, {
+      const response = await fetch(`${baseUrl}/api/mcp/servers/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -150,7 +151,7 @@ export function useMcp() {
   const removeServer = useCallback(async (name: string): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/servers/${encodeURIComponent(name)}`, {
+      const response = await fetch(`${baseUrl}/api/mcp/servers/${encodeURIComponent(name)}`, {
         method: 'DELETE',
       })
       if (response.ok) {
@@ -169,7 +170,7 @@ export function useMcp() {
   const refreshToolCache = useCallback(async (): Promise<boolean> => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/refresh`, {
+      const response = await fetch(`${baseUrl}/api/mcp/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -193,7 +194,7 @@ export function useMcp() {
   ): Promise<McpToolSchema | null> => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/tools/schema`, {
+      const response = await fetch(`${baseUrl}/api/mcp/tools/schema`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ server_name: serverName, tool_name: toolName }),
@@ -221,7 +222,7 @@ export function useMcp() {
   ): Promise<{ success: boolean; result?: unknown; error?: string }> => {
     try {
       const baseUrl = getBaseUrl()
-      const response = await fetch(`${baseUrl}/mcp/tools/call`, {
+      const response = await fetch(`${baseUrl}/api/mcp/tools/call`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -249,6 +250,14 @@ export function useMcp() {
   useEffect(() => {
     refreshAll()
   }, [refreshAll])
+
+  // Real-time updates via WebSocket
+  useWebSocketEvent(
+    'mcp_event',
+    useCallback(() => {
+      refreshAll()
+    }, [refreshAll]),
+  )
 
   return {
     servers,

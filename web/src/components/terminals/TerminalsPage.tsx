@@ -11,12 +11,10 @@ interface TerminalsPageProps {
   sessions: TmuxSession[]
   attachedSession: string | null
   streamingId: string | null
-  isLoading: boolean
   sessionEnded: boolean
   attachSession: (sessionName: string, socket: string) => void
   createSession: (name?: string, socket?: string) => void
   killSession: (sessionName: string, socket: string) => void
-  refreshSessions: () => void
   refreshTerminal: (sessionName: string, socket: string) => void
   dismissEndedSession: () => void
   sendInput: (data: string) => void
@@ -44,12 +42,10 @@ export function TerminalsPage({
   sessions,
   attachedSession,
   streamingId,
-  isLoading,
   sessionEnded,
   attachSession,
   createSession,
   killSession,
-  refreshSessions,
   refreshTerminal,
   dismissEndedSession,
   sendInput,
@@ -137,14 +133,6 @@ export function TerminalsPage({
           <div className="terminals-sidebar-actions">
             <button
               className="terminals-action-btn"
-              onClick={refreshSessions}
-              title="Refresh"
-              disabled={isLoading}
-            >
-              <RefreshIcon />
-            </button>
-            <button
-              className="terminals-action-btn"
               onClick={() => createSession()}
               title="New terminal"
             >
@@ -205,7 +193,6 @@ export function TerminalsPage({
           isInteractive={isInteractive && !sessionEnded}
           onAttach={handleAttach}
           onCreate={() => createSession()}
-          onRefresh={refreshSessions}
           onSetInteractive={setIsInteractive}
         />
         {streamingId ? (
@@ -635,15 +622,6 @@ function TerminalIcon({ size = 16 }: { size?: number }) {
     >
       <polyline points="4 17 10 11 4 5" />
       <line x1="12" y1="19" x2="20" y2="19" />
-    </svg>
-  )
-}
-
-function RefreshIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 4 23 10 17 10" />
-      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
   )
 }

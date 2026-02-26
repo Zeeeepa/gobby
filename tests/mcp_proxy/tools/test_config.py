@@ -104,11 +104,11 @@ class TestGetConfigSection:
     def test_get_config_section_returns_subsection(self, config_registry) -> None:
         """Test get_config_section works with deeper prefixes."""
         tool = config_registry.get_tool("get_config_section")
-        result = tool(prefix="conductor")
+        result = tool(prefix="logging")
 
         assert result["success"] is True
         section = result["section"]
-        assert "daily_budget_usd" in section
+        assert "level" in section
 
 
 class TestSetConfig:
@@ -150,11 +150,11 @@ class TestSetConfig:
     ) -> None:
         """Test set_config works with nested dotted keys."""
         tool = config_registry.get_tool("set_config")
-        result = tool(key="conductor.daily_budget_usd", value=100.0)
+        result = tool(key="logging.level", value="debug")
 
         assert result["success"] is True
-        assert config_store.get("conductor.daily_budget_usd") == 100.0
-        assert config_state["config"].conductor.daily_budget_usd == 100.0
+        assert config_store.get("logging.level") == "debug"
+        assert config_state["config"].logging.level == "debug"
 
 
 class TestListConfigKeys:
@@ -204,43 +204,43 @@ class TestEnsureDefaults:
     ) -> None:
         """Test ensure_defaults inserts Pydantic defaults for missing keys."""
         tool = config_registry.get_tool("ensure_defaults")
-        result = tool(section="conductor")
+        result = tool(section="logging")
 
         assert result["success"] is True
         assert result["inserted"] > 0
-        assert "conductor.daily_budget_usd" in result["keys_inserted"]
+        assert "logging.level" in result["keys_inserted"]
 
         # Verify persisted in DB
-        db_value = config_store.get("conductor.daily_budget_usd")
-        assert db_value == 50.0
+        db_value = config_store.get("logging.level")
+        assert db_value == "info"
 
     def test_ensure_defaults_does_not_overwrite_existing(
         self, config_registry, config_store: ConfigStore
     ) -> None:
         """Test ensure_defaults skips keys that already exist in DB."""
         # Pre-set a custom value
-        config_store.set("conductor.daily_budget_usd", 200.0)
+        config_store.set("logging.level", "debug")
 
         tool = config_registry.get_tool("ensure_defaults")
-        result = tool(section="conductor")
+        result = tool(section="logging")
 
         assert result["success"] is True
         # Should not have overwritten the existing key
-        db_value = config_store.get("conductor.daily_budget_usd")
-        assert db_value == 200.0
+        db_value = config_store.get("logging.level")
+        assert db_value == "debug"
 
         # The pre-set key should not be in keys_inserted
         if result["inserted"] > 0:
-            assert "conductor.daily_budget_usd" not in result["keys_inserted"]
+            assert "logging.level" not in result["keys_inserted"]
 
     def test_ensure_defaults_all_present(self, config_registry, config_store: ConfigStore) -> None:
         """Test ensure_defaults reports when all keys are already present."""
         # First call populates
         tool = config_registry.get_tool("ensure_defaults")
-        tool(section="conductor")
+        tool(section="logging")
 
         # Second call should find nothing to insert
-        result = tool(section="conductor")
+        result = tool(section="logging")
         assert result["success"] is True
         assert result["inserted"] == 0
         assert "already present" in result["message"]
@@ -264,8 +264,8 @@ class TestConfigKeyToSecretName:
 
     def test_simple_key(self) -> None:
         assert (
-            config_key_to_secret_name("voice.elevenlabs_api_key")
-            == "elevenlabs_api_key"
+            config_key_to_secret_name("voice.ELEVENLABS_API_KEY")
+            == "ELEVENLABS_API_KEY"
         )
 
     def test_nested_key(self) -> None:
@@ -279,7 +279,7 @@ class TestIsSecretKeyName:
     """Tests for is_secret_key_name helper."""
 
     def test_api_key_suffix(self) -> None:
-        assert is_secret_key_name("voice.elevenlabs_api_key") is True
+        assert is_secret_key_name("voice.ELEVENLABS_API_KEY") is True
 
     def test_password_suffix(self) -> None:
         assert is_secret_key_name("db.db_password") is True
@@ -311,15 +311,15 @@ class TestConfigStoreSecrets:
         self, config_store: ConfigStore, secret_store: SecretStore
     ) -> None:
         """set_secret stores a $secret: reference in config_store."""
-        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
-        raw = config_store.get("voice.elevenlabs_api_key")
-        assert raw == "$secret:elevenlabs_api_key"
+        config_store.set_secret("voice.ELEVENLABS_API_KEY", "sk-test-123", secret_store)
+        raw = config_store.get("voice.ELEVENLABS_API_KEY")
+        assert raw == "$secret:ELEVENLABS_API_KEY"
 
     def test_set_secret_encrypts_value(
         self, config_store: ConfigStore, secret_store: SecretStore
     ) -> None:
         """set_secret encrypts the actual value in the secrets table."""
-        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
+        config_store.set_secret("voice.ELEVENLABS_API_KEY", "sk-test-123", secret_store)
         decrypted = secret_store.get("elevenlabs_api_key")
         assert decrypted == "sk-test-123"
 
@@ -327,9 +327,9 @@ class TestConfigStoreSecrets:
         self, config_store: ConfigStore, secret_store: SecretStore
     ) -> None:
         """set_secret sets is_secret=1 in config_store."""
-        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
+        config_store.set_secret("voice.ELEVENLABS_API_KEY", "sk-test-123", secret_store)
         keys = config_store.get_secret_keys()
-        assert "voice.elevenlabs_api_key" in keys
+        assert "voice.ELEVENLABS_API_KEY" in keys
 
     def test_get_secret_keys_empty(self, config_store: ConfigStore) -> None:
         """get_secret_keys returns empty list when no secrets exist."""
@@ -346,9 +346,9 @@ class TestConfigStoreSecrets:
 
     def test_clear_secret(self, config_store: ConfigStore, secret_store: SecretStore) -> None:
         """clear_secret removes from both config_store and secrets."""
-        config_store.set_secret("voice.elevenlabs_api_key", "sk-test-123", secret_store)
-        config_store.clear_secret("voice.elevenlabs_api_key", secret_store)
-        assert config_store.get("voice.elevenlabs_api_key") is None
+        config_store.set_secret("voice.ELEVENLABS_API_KEY", "sk-test-123", secret_store)
+        config_store.clear_secret("voice.ELEVENLABS_API_KEY", secret_store)
+        assert config_store.get("voice.ELEVENLABS_API_KEY") is None
         assert secret_store.get("elevenlabs_api_key") is None
         assert config_store.get_secret_keys() == []
 
@@ -387,7 +387,7 @@ class TestSetConfigSecret:
         """set_config with is_secret=True encrypts the value."""
         with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine-12345"):
             tool = config_registry_with_db.get_tool("set_config")
-            result = tool(key="voice.elevenlabs_api_key", value="sk-test-456", is_secret=True)
+            result = tool(key="voice.ELEVENLABS_API_KEY", value="sk-test-456", is_secret=True)
 
             assert result["success"] is True
             assert result["stored_as"] == "encrypted_secret"
@@ -399,8 +399,8 @@ class TestSetConfigSecret:
             assert decrypted == "sk-test-456"
 
             # Verify config_store has reference
-            raw = config_store.get("voice.elevenlabs_api_key")
-            assert raw == "$secret:elevenlabs_api_key"
+            raw = config_store.get("voice.ELEVENLABS_API_KEY")
+            assert raw == "$secret:ELEVENLABS_API_KEY"
 
     def test_set_config_normal_unchanged(
         self, config_registry_with_db, config_store: ConfigStore

@@ -137,7 +137,6 @@ export interface ConversationState {
   onSelectSession: (session: GobbySession) => void;
   onDeleteSession?: (session: GobbySession) => void;
   onRenameSession?: (id: string, title: string) => void;
-  onRefresh?: () => void;
   agents: Array<{
     run_id: string;
     provider: string;

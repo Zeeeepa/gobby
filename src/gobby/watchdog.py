@@ -111,7 +111,7 @@ class Watchdog:
         """
         try:
             response = httpx.get(
-                f"http://localhost:{self.daemon_port}/admin/status",
+                f"http://localhost:{self.daemon_port}/api/admin/status",
                 timeout=5.0,
             )
             if response.status_code == 200:

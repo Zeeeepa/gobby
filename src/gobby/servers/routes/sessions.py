@@ -155,8 +155,17 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
     Returns:
         Configured APIRouter with session endpoints
     """
-    router = APIRouter(prefix="/sessions", tags=["sessions"])
+    router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     metrics = get_metrics_collector()
+
+    async def _broadcast_session(event: str, session_id: str, **kwargs: Any) -> None:
+        """Broadcast a session event via WebSocket if available."""
+        ws = server.services.websocket_server
+        if ws:
+            try:
+                await ws.broadcast_session_event(event, session_id, **kwargs)
+            except Exception as e:
+                logger.debug(f"Failed to broadcast session event {event}: {e}")
 
     @router.post("/register")
     async def register_session(request_data: SessionRegisterRequest) -> dict[str, Any]:
@@ -210,6 +219,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 git_branch=git_branch,
                 parent_session_id=request_data.parent_session_id,
             )
+
+            await _broadcast_session("session_created", session.id)
 
             return {
                 "status": "registered",
@@ -525,6 +536,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             if session is None:
                 raise HTTPException(status_code=404, detail="Session not found")
 
+            await _broadcast_session("session_updated", session_id)
+
             return {"session": session.to_dict()}
 
         except HTTPException:
@@ -555,6 +568,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
             if session is None:
                 raise HTTPException(status_code=404, detail="Session not found")
+
+            await _broadcast_session("session_updated", session_id)
 
             return {"session": session.to_dict()}
 
@@ -663,6 +678,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             if result is None:
                 raise HTTPException(status_code=404, detail="Session not found")
 
+            await _broadcast_session("session_updated", session_id)
+
             response_time_ms = (time.perf_counter() - start_time) * 1000
             return {
                 "status": "success",
@@ -710,6 +727,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             result = server.session_manager.update_title(session_id, title)
             if result is None:
                 raise HTTPException(status_code=404, detail="Session not found")
+
+            await _broadcast_session("session_updated", session_id)
 
             return {"status": "success", "title": title}
 
@@ -765,6 +784,9 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
             # Refetch session to get updated summary_markdown
             updated_session = server.session_manager.get(session_id)
+
+            await _broadcast_session("session_updated", session_id)
+
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
             return {
@@ -827,6 +849,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             )
 
             logger.info(f"Stop signal sent to session {session_id}: {reason}")
+
+            await _broadcast_session("session_stop_signaled", session_id)
 
             return {
                 "status": "stop_signaled",
@@ -925,6 +949,9 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             stop_registry = hook_manager._stop_registry
 
             cleared = stop_registry.clear(session_id)
+
+            if cleared:
+                await _broadcast_session("session_stop_cleared", session_id)
 
             return {
                 "status": "cleared" if cleared else "no_signal",

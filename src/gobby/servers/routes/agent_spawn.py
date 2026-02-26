@@ -98,7 +98,9 @@ _BUILT_IN_DEFAULTS: dict[str, Any] = {
 _BATCH_SEMAPHORE = asyncio.Semaphore(5)
 
 
-def _build_task_prompt(task: Any, deps: list[Any] | None = None, comments: list[Any] | None = None) -> str:
+def _build_task_prompt(
+    task: Any, deps: list[Any] | None = None, comments: list[Any] | None = None
+) -> str:
     """Build an auto-generated prompt from task context."""
     parts: list[str] = []
 
@@ -189,11 +191,15 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
                 return s.id
         return session_id
 
-    async def _do_spawn(req: AgentSpawnRequest, project_id: str | None = None) -> AgentSpawnResponse:
+    async def _do_spawn(
+        req: AgentSpawnRequest, project_id: str | None = None
+    ) -> AgentSpawnResponse:
         """Execute a single spawn request."""
         task_manager = server.services.task_manager
         if not task_manager:
-            return AgentSpawnResponse(success=False, mode=req.mode, error="Task manager unavailable")
+            return AgentSpawnResponse(
+                success=False, mode=req.mode, error="Task manager unavailable"
+            )
 
         # Resolve task
         try:
@@ -201,11 +207,15 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         except (ValueError, Exception):
             task = None
         if not task:
-            return AgentSpawnResponse(success=False, mode=req.mode, error=f"Task '{req.task_id}' not found")
+            return AgentSpawnResponse(
+                success=False, mode=req.mode, error=f"Task '{req.task_id}' not found"
+            )
 
         effective_project_id = project_id or getattr(task, "project_id", None)
         if not effective_project_id:
-            return AgentSpawnResponse(success=False, mode=req.mode, error="Could not determine project_id")
+            return AgentSpawnResponse(
+                success=False, mode=req.mode, error="Could not determine project_id"
+            )
 
         # Build prompt
         prompt = req.prompt
@@ -230,7 +240,9 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
 
             # Update task status
             try:
-                task_manager.update_task(req.task_id, status="in_progress", assignee=conversation_id)
+                task_manager.update_task(
+                    req.task_id, status="in_progress", assignee=conversation_id
+                )
             except Exception as e:
                 logger.warning(f"Failed to update task status: {e}")
 
@@ -247,7 +259,9 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         # Terminal / headless mode — use spawn_agent_impl
         runner = server.services.agent_runner
         if not runner:
-            return AgentSpawnResponse(success=False, mode=req.mode, error="Agent runner unavailable")
+            return AgentSpawnResponse(
+                success=False, mode=req.mode, error="Agent runner unavailable"
+            )
 
         # Get parent session for spawning
         parent_session_id = await _get_or_create_launcher_session(effective_project_id)
@@ -257,11 +271,15 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
 
         agent_body = None
         try:
-            agent_body = resolve_agent(req.agent_name, server.services.database, project_id=effective_project_id)
+            agent_body = resolve_agent(
+                req.agent_name, server.services.database, project_id=effective_project_id
+            )
         except AgentResolutionError:
             if req.agent_name != "default":
                 return AgentSpawnResponse(
-                    success=False, mode=req.mode, error=f"Agent definition '{req.agent_name}' not found"
+                    success=False,
+                    mode=req.mode,
+                    error=f"Agent definition '{req.agent_name}' not found",
                 )
 
         # Compose prompt with preamble

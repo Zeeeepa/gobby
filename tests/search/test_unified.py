@@ -28,7 +28,7 @@ class TestSearchConfig:
         assert config.mode == "auto"
         assert config.embedding_model == "text-embedding-3-small"
         assert config.embedding_api_base is None
-        assert config.embedding_api_key is None
+        assert config.EMBEDDING_API_KEY is None
         assert config.tfidf_weight == 0.4
         assert config.embedding_weight == 0.6
         assert config.notify_on_fallback is True
@@ -209,7 +209,7 @@ class TestUnifiedSearcher:
         config = SearchConfig(
             mode="auto",
             embedding_model="text-embedding-3-small",
-            embedding_api_key=None,  # No key
+            EMBEDDING_API_KEY=None,  # No key
         )
 
         # Mock is_embedding_available to return False

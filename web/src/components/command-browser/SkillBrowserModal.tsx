@@ -21,7 +21,7 @@ export function SkillBrowserModal({ onSendMessage, onClose }: SkillBrowserModalP
     let cancelled = false
     const fetchSkills = async () => {
       try {
-        const resp = await fetch('/skills?enabled=true&limit=200')
+        const resp = await fetch('/api/skills?enabled=true&limit=200')
         if (resp.ok) {
           const data = await resp.json()
           if (!cancelled) setSkills(data.skills || [])

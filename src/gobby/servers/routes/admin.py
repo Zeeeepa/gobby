@@ -37,9 +37,22 @@ _PROVIDER_PREFIX_MAP: dict[str, str] = {
 
 # Exclude non-coding model categories
 _EXCLUDED_KEYWORDS = (
-    "audio", "image", "vision", "embedding", "realtime", "tts",
-    "transcribe", "search", "robotics", "live", "nano", "customtools",
-    "computer-use", "deep-research", "thinking", "exp",
+    "audio",
+    "image",
+    "vision",
+    "embedding",
+    "realtime",
+    "tts",
+    "transcribe",
+    "search",
+    "robotics",
+    "live",
+    "nano",
+    "customtools",
+    "computer-use",
+    "deep-research",
+    "thinking",
+    "exp",
 )
 
 # Minimum version filters — skip deprecated/retired generations
@@ -130,9 +143,7 @@ def _fallback_models_from_config(server: "HTTPServer") -> dict[str, list[dict[st
                 models = provider_config.get_models_list()
                 if models:
                     entries = [{"value": "", "label": "(default)"}]
-                    entries.extend(
-                        {"value": m, "label": _model_id_to_label(m)} for m in models
-                    )
+                    entries.extend({"value": m, "label": _model_id_to_label(m)} for m in models)
                     result[provider_name] = entries
     return result
 
@@ -147,7 +158,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
     Returns:
         Configured APIRouter with admin endpoints
     """
-    router = APIRouter(prefix="/admin", tags=["admin"])
+    router = APIRouter(prefix="/api/admin", tags=["admin"])
 
     @router.get("/health")
     async def health_check() -> dict[str, str]:
@@ -450,17 +461,17 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                 },
                 "endpoints": {
                     "mcp": [
-                        "/mcp/{server_name}/tools/{tool_name}",
+                        "/api/mcp/{server_name}/tools/{tool_name}",
                     ],
                     "sessions": [
-                        "/sessions/register",
-                        "/sessions/{id}",
+                        "/api/sessions/register",
+                        "/api/sessions/{id}",
                     ],
                     "admin": [
-                        "/admin/status",
-                        "/admin/metrics",
-                        "/admin/config",
-                        "/admin/shutdown",
+                        "/api/admin/status",
+                        "/api/admin/metrics",
+                        "/api/admin/config",
+                        "/api/admin/shutdown",
                     ],
                 },
             }

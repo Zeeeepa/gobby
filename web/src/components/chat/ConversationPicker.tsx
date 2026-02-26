@@ -21,7 +21,6 @@ interface ConversationPickerProps {
   onSelectSession: (session: GobbySession) => void;
   onDeleteSession?: (session: GobbySession) => void;
   onRenameSession?: (id: string, title: string) => void;
-  onRefresh?: () => void;
   agents?: AgentInfo[];
   onNavigateToAgent?: (agent: AgentInfo) => void;
   cliSessions?: GobbySession[];
@@ -64,7 +63,6 @@ export function ConversationPicker({
   onSelectSession,
   onDeleteSession,
   onRenameSession,
-  onRefresh,
   agents = [],
   onNavigateToAgent,
   cliSessions = [],
@@ -80,7 +78,6 @@ export function ConversationPicker({
 }: ConversationPickerProps) {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(true);
-  const [isSpinning, setIsSpinning] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const saveOnBlurRef = useRef(true);
@@ -100,20 +97,6 @@ export function ConversationPicker({
       <div className="conversation-picker-header">
         {isOpen && <span className="conversation-picker-title">Chats</span>}
         <div className="conversation-picker-actions">
-          {isOpen && onRefresh && (
-            <button
-              type="button"
-              className={`terminals-action-btn${isSpinning ? " terminals-action-btn--spinning" : ""}`}
-              onClick={() => {
-                setIsSpinning(true);
-                onRefresh();
-                setTimeout(() => setIsSpinning(false), 600);
-              }}
-              title="Refresh"
-            >
-              <RefreshIcon />
-            </button>
-          )}
           {isOpen && (
             <>
               <button
@@ -437,24 +420,6 @@ function TrashIcon() {
     >
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </svg>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="23 4 23 10 17 10" />
-      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
   );
 }

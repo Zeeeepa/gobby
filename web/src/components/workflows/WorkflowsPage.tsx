@@ -54,7 +54,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
 
   // Fetch dev_mode from admin status
   useEffect(() => {
-    fetch('/admin/status')
+    fetch('/api/admin/status')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.dev_mode) setDevMode(true)

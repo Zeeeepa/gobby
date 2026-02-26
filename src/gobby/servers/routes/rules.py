@@ -91,6 +91,15 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
 
         return LocalWorkflowDefinitionManager(server.services.database)
 
+    async def _broadcast_rule(event: str, definition_id: str, **kwargs: Any) -> None:
+        """Broadcast a rule event via WebSocket if available."""
+        ws = server.services.websocket_server
+        if ws:
+            try:
+                await ws.broadcast_workflow_event(event, definition_id, **kwargs)
+            except Exception as e:
+                logger.debug(f"Failed to broadcast rule event {event}: {e}")
+
     # -----------------------------------------------------------------
     # GET /api/rules/groups (must be before /{name} to avoid conflict)
     # -----------------------------------------------------------------
@@ -152,7 +161,9 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
-            result = list_rules(manager, event=event, group=group, enabled=enabled, project_id=project_id)
+            result = list_rules(
+                manager, event=event, group=group, enabled=enabled, project_id=project_id
+            )
             config_store = ConfigStore(server.services.database)
             enforcement = config_store.get("rules.enforcement_enabled")
             return {
@@ -181,6 +192,9 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             if "already exists" in error.lower():
                 raise HTTPException(status_code=409, detail=error)
             raise HTTPException(status_code=400, detail=error)
+
+        rule_id = result["rule"].get("id", "")
+        await _broadcast_rule("rule_created", rule_id)
 
         return {"status": "success", "rule": result["rule"]}
 

@@ -307,7 +307,7 @@ export default function App() {
         if (needsTitle || periodicUpdate) {
           titleSynthesisCountRef.current = 0;
           const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-          fetch(`${baseUrl}/sessions/${sessionId}/synthesize-title`, {
+          fetch(`${baseUrl}/api/sessions/${sessionId}/synthesize-title`, {
             method: "POST",
           })
             .then((res) => {
@@ -713,7 +713,7 @@ export default function App() {
       if (cmd.action === "restart_daemon") {
         addSystemMessage("Restarting daemon...");
         const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-        fetch(`${baseUrl}/admin/restart`, { method: "POST" }).catch((err) =>
+        fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch((err) =>
           console.error("Restart request failed:", err),
         );
         return;
@@ -912,7 +912,6 @@ export default function App() {
                 onSelectSession: handleSelectConversation,
                 onDeleteSession: handleDeleteConversation,
                 onRenameSession: sessionsHook.renameSession,
-                onRefresh: sessionsHook.refresh,
                 agents,
                 onNavigateToAgent: handleNavigateToAgent,
                 // cliSessions hidden — agent-spawned terminals bleed into list (#9219).
@@ -947,7 +946,6 @@ export default function App() {
               filters={sessionsHook.filters}
               onFiltersChange={sessionsHook.setFilters}
               isLoading={sessionsHook.isLoading}
-              onRefresh={sessionsHook.refresh}
               onAskGobby={handleAskGobby}
               onContinueInChat={handleContinueInChat}
               onWatchInChat={handleWatchInChat}
@@ -958,12 +956,10 @@ export default function App() {
               sessions={tmux.sessions}
               attachedSession={tmux.attachedSession}
               streamingId={tmux.streamingId}
-              isLoading={tmux.isLoading}
               sessionEnded={tmux.sessionEnded}
               attachSession={tmux.attachSession}
               createSession={tmux.createSession}
               killSession={tmux.killSession}
-              refreshSessions={tmux.refreshSessions}
               refreshTerminal={tmux.refreshTerminal}
               dismissEndedSession={tmux.dismissEndedSession}
               sendInput={tmux.sendInput}

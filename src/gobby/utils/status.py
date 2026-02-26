@@ -26,7 +26,7 @@ def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
     status_kwargs: dict[str, Any] = {}
 
     try:
-        response = httpx.get(f"http://localhost:{http_port}/admin/status", timeout=timeout)
+        response = httpx.get(f"http://localhost:{http_port}/api/admin/status", timeout=timeout)
         if response.status_code != 200:
             return status_kwargs
 

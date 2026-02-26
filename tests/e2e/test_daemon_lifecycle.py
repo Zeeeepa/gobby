@@ -47,7 +47,7 @@ class TestDaemonStart:
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
     ) -> None:
         """Verify health endpoint responds when daemon is ready."""
-        response = daemon_client.get("/admin/status")
+        response = daemon_client.get("/api/admin/status")
         assert response.status_code == 200
 
         data = response.json()

@@ -144,7 +144,6 @@ export function ChatPage({
         onSelectSession={conversations.onSelectSession}
         onDeleteSession={conversations.onDeleteSession}
         onRenameSession={conversations.onRenameSession}
-        onRefresh={conversations.onRefresh}
         agents={conversations.agents}
         onNavigateToAgent={conversations.onNavigateToAgent}
         cliSessions={conversations.cliSessions}

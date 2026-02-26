@@ -270,7 +270,7 @@ export function useChat() {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
 
     // Validate session still exists before loading messages
-    fetch(`${baseUrl}/sessions/${storedDbSid}`)
+    fetch(`${baseUrl}/api/sessions/${storedDbSid}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((sessionData) => {
         if (cancelled) return;
@@ -286,7 +286,7 @@ export function useChat() {
         }
         // Session is live — fetch its messages
         return fetch(
-          `${baseUrl}/sessions/${storedDbSid}/messages?limit=100&offset=0`,
+          `${baseUrl}/api/sessions/${storedDbSid}/messages?limit=100&offset=0`,
         )
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
@@ -1256,7 +1256,7 @@ export function useChat() {
     // Fetch from server when dbSessionId is available
     if (dbSessionId) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-      fetch(`${baseUrl}/sessions/${dbSessionId}/messages?limit=100&offset=0`)
+      fetch(`${baseUrl}/api/sessions/${dbSessionId}/messages?limit=100&offset=0`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (!data?.messages?.length || conversationIdRef.current !== id)
@@ -1271,7 +1271,7 @@ export function useChat() {
         );
 
       // Hydrate context usage and chat mode from persisted session data
-      fetch(`${baseUrl}/sessions/${dbSessionId}`)
+      fetch(`${baseUrl}/api/sessions/${dbSessionId}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           const s = data?.session;
@@ -1381,7 +1381,7 @@ export function useChat() {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
       try {
         const res = await fetch(
-          `${baseUrl}/sessions/${sourceDbSessionId}/messages?limit=100`,
+          `${baseUrl}/api/sessions/${sourceDbSessionId}/messages?limit=100`,
         );
         if (res.ok) {
           const data = await res.json();
@@ -1397,7 +1397,7 @@ export function useChat() {
       // Hydrate context usage and chat mode from source session
       try {
         const sessionRes = await fetch(
-          `${baseUrl}/sessions/${sourceDbSessionId}`,
+          `${baseUrl}/api/sessions/${sourceDbSessionId}`,
         );
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json();
@@ -1869,7 +1869,7 @@ export function useChat() {
 
     // Fetch messages via REST
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-    fetch(`${baseUrl}/sessions/${sessionId}/messages?limit=100&offset=0`)
+    fetch(`${baseUrl}/api/sessions/${sessionId}/messages?limit=100&offset=0`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data?.messages?.length) return;
@@ -1882,7 +1882,7 @@ export function useChat() {
       );
 
     // Fetch session metadata
-    fetch(`${baseUrl}/sessions/${sessionId}`)
+    fetch(`${baseUrl}/api/sessions/${sessionId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const s = data?.session;
@@ -1957,7 +1957,7 @@ export function useChat() {
     const prevDbSid = loadDbSessionId();
     if (prevDbSid) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-      fetch(`${baseUrl}/sessions/${prevDbSid}/messages?limit=100&offset=0`)
+      fetch(`${baseUrl}/api/sessions/${prevDbSid}/messages?limit=100&offset=0`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (!data?.messages?.length) return;
@@ -1969,7 +1969,7 @@ export function useChat() {
         );
 
       // Restore chat mode from DB (prevents stale mode from viewed session)
-      fetch(`${baseUrl}/sessions/${prevDbSid}`)
+      fetch(`${baseUrl}/api/sessions/${prevDbSid}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           const s = data?.session;

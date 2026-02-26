@@ -25,13 +25,13 @@ class TestVectorStoreInitialization:
         config = MagicMock()
         config.memory.qdrant_path = "/tmp/test-qdrant"
         config.memory.qdrant_url = None
-        config.memory.qdrant_api_key = None
+        config.memory.QDRANT_API_KEY = None
         config.memory.embedding_model = "text-embedding-3-small"
 
         vs = VectorStore(
             path=config.memory.qdrant_path,
             url=config.memory.qdrant_url,
-            api_key=config.memory.qdrant_api_key,
+            api_key=config.memory.QDRANT_API_KEY,
         )
         assert vs._path == "/tmp/test-qdrant"
         assert vs._url is None

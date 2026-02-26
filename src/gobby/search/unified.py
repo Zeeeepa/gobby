@@ -24,14 +24,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from gobby.search.backends import EmbeddingBackend, TFIDFBackend
 from gobby.search.embeddings import is_embedding_available
 from gobby.search.models import FallbackEvent, SearchConfig, SearchMode
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +114,7 @@ class UnifiedSearcher:
             self._embedding_backend = EmbeddingBackend(
                 model=self._config.embedding_model,
                 api_base=self._config.embedding_api_base,
-                api_key=self._config.embedding_api_key,
+                api_key=self._config.EMBEDDING_API_KEY,
             )
         return self._embedding_backend
 
@@ -207,7 +204,7 @@ class UnifiedSearcher:
             # Embedding only - fail if unavailable
             if not is_embedding_available(
                 model=self._config.embedding_model,
-                api_key=self._config.embedding_api_key,
+                api_key=self._config.EMBEDDING_API_KEY,
                 api_base=self._config.embedding_api_base,
             ):
                 raise RuntimeError(
@@ -225,7 +222,7 @@ class UnifiedSearcher:
             # Try embedding, fallback to TF-IDF
             if not is_embedding_available(
                 model=self._config.embedding_model,
-                api_key=self._config.embedding_api_key,
+                api_key=self._config.EMBEDDING_API_KEY,
                 api_base=self._config.embedding_api_base,
             ):
                 # No embedding available - use TF-IDF
@@ -255,7 +252,7 @@ class UnifiedSearcher:
 
             if is_embedding_available(
                 model=self._config.embedding_model,
-                api_key=self._config.embedding_api_key,
+                api_key=self._config.EMBEDDING_API_KEY,
                 api_base=self._config.embedding_api_base,
             ):
                 try:

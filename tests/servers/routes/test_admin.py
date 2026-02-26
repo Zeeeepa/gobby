@@ -80,7 +80,7 @@ class TestAdminRoutes:
         mock_server.mcp_manager.server_configs = [mock_config]
         mock_server.mcp_manager.connections = ["test-server"]
 
-        response = client.get("/admin/status")
+        response = client.get("/api/admin/status")
         assert response.status_code == 200
         data = response.json()
 
@@ -103,7 +103,7 @@ class TestAdminRoutes:
         mock_process.cpu_percent.return_value = 0.5
         mock_psutil.Process.return_value = mock_process
 
-        response = client.get("/admin/metrics")
+        response = client.get("/api/admin/metrics")
         assert response.status_code == 200
         assert response.text == "metric_name 1.0\n"
         assert "text/plain" in response.headers["content-type"]
@@ -112,7 +112,7 @@ class TestAdminRoutes:
     def test_config_endpoint(self, mock_get_version, client) -> None:
         mock_get_version.return_value = "1.0.0"
 
-        response = client.get("/admin/config")
+        response = client.get("/api/admin/config")
         assert response.status_code == 200
         data = response.json()
 
@@ -123,7 +123,7 @@ class TestAdminRoutes:
     def test_shutdown_endpoint(self, client, mock_server) -> None:
         # We don't need to patch shutdown_event, admin.py calls server._process_shutdown()
 
-        response = client.post("/admin/shutdown")
+        response = client.post("/api/admin/shutdown")
         assert response.status_code == 200
         assert response.json() == {
             "status": "shutting_down",
@@ -144,7 +144,7 @@ class TestAdminRoutes:
 
     @patch("gobby.servers.routes.admin.subprocess.Popen")
     def test_restart_endpoint(self, mock_popen, client, mock_server) -> None:
-        response = client.post("/admin/restart")
+        response = client.post("/api/admin/restart")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "restarting"
@@ -160,11 +160,11 @@ class TestAdminRoutes:
     @patch("gobby.servers.routes.admin.subprocess.Popen")
     def test_restart_endpoint_double_restart_guard(self, mock_popen, client, mock_server) -> None:
         # First restart should succeed
-        response1 = client.post("/admin/restart")
+        response1 = client.post("/api/admin/restart")
         assert response1.json()["status"] == "restarting"
 
         # Second restart should be rejected
-        response2 = client.post("/admin/restart")
+        response2 = client.post("/api/admin/restart")
         assert response2.json()["status"] == "already_restarting"
 
 
@@ -187,13 +187,13 @@ class TestHealthEndpoint:
         return TestClient(app)
 
     def test_health_returns_ok(self, client) -> None:
-        response = client.get("/admin/health")
+        response = client.get("/api/admin/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
     def test_health_is_lightweight(self, client) -> None:
         """Health check should return quickly with no I/O."""
-        response = client.get("/admin/health")
+        response = client.get("/api/admin/health")
         assert response.status_code == 200
         data = response.json()
         # Should only have a single key
@@ -227,7 +227,7 @@ class TestModelsEndpoint:
             "gpt": ["gpt-4o", "gpt-4o-mini"],
         }
 
-        response = client.get("/admin/models")
+        response = client.get("/api/admin/models")
         assert response.status_code == 200
         data = response.json()
 
@@ -243,7 +243,7 @@ class TestModelsEndpoint:
             "gpt": ["gpt-4o"],
         }
 
-        response = client.get("/admin/models?provider=claude")
+        response = client.get("/api/admin/models?provider=claude")
         assert response.status_code == 200
         data = response.json()
 
@@ -256,7 +256,7 @@ class TestModelsEndpoint:
             "claude": ["claude-sonnet-4"],
         }
 
-        response = client.get("/admin/models?provider=nonexistent")
+        response = client.get("/api/admin/models?provider=nonexistent")
         assert response.status_code == 200
         data = response.json()
         assert data["models"] == {}
@@ -269,7 +269,7 @@ class TestModelsEndpoint:
         mock_discover.side_effect = ImportError("No module named 'litellm'")
         mock_fallback.return_value = {"claude": ["claude-sonnet-4"]}
 
-        response = client.get("/admin/models")
+        response = client.get("/api/admin/models")
         assert response.status_code == 200
         data = response.json()
 
@@ -280,7 +280,7 @@ class TestModelsEndpoint:
     def test_models_default_model_from_config(self, mock_discover, client) -> None:
         mock_discover.return_value = {}
 
-        response = client.get("/admin/models")
+        response = client.get("/api/admin/models")
         data = response.json()
         assert data["default_model"] == "claude-sonnet-4"
 
@@ -299,7 +299,7 @@ class TestModelsEndpoint:
         client = TestClient(app)
 
         mock_discover.return_value = {}
-        response = client.get("/admin/models")
+        response = client.get("/api/admin/models")
         data = response.json()
         assert data["default_model"] == "opus"
 
@@ -488,7 +488,7 @@ class TestWorkflowsReloadEndpoint:
         return TestClient(app)
 
     def test_reload_workflows_success(self, client) -> None:
-        response = client.post("/admin/workflows/reload")
+        response = client.post("/api/admin/workflows/reload")
         assert response.status_code == 200
         data = response.json()
 
@@ -503,7 +503,7 @@ class TestWorkflowsReloadEndpoint:
         other_registry.name = "gobby-tasks"
         mock_server._internal_manager.get_all_registries.return_value = [other_registry]
 
-        response = client.post("/admin/workflows/reload")
+        response = client.post("/api/admin/workflows/reload")
         assert response.status_code == 200
         data = response.json()
 
@@ -513,7 +513,7 @@ class TestWorkflowsReloadEndpoint:
     def test_reload_workflows_no_internal_manager(self, client, mock_server) -> None:
         mock_server._internal_manager = None
 
-        response = client.post("/admin/workflows/reload")
+        response = client.post("/api/admin/workflows/reload")
         assert response.status_code == 200
         data = response.json()
 
@@ -524,7 +524,7 @@ class TestWorkflowsReloadEndpoint:
         registry = mock_server._internal_manager.get_all_registries.return_value[0]
         registry.call = AsyncMock(side_effect=ValueError("Tool not found"))
 
-        response = client.post("/admin/workflows/reload")
+        response = client.post("/api/admin/workflows/reload")
         assert response.status_code == 200
         data = response.json()
 
@@ -535,7 +535,7 @@ class TestWorkflowsReloadEndpoint:
         registry = mock_server._internal_manager.get_all_registries.return_value[0]
         registry.call = AsyncMock(side_effect=RuntimeError("Cache corrupted"))
 
-        response = client.post("/admin/workflows/reload")
+        response = client.post("/api/admin/workflows/reload")
         assert response.status_code == 200
         data = response.json()
 
@@ -577,7 +577,7 @@ class TestTestEndpoints:
         mock_pm_cls.return_value = mock_pm
 
         response = client.post(
-            "/admin/test/register-project",
+            "/api/admin/test/register-project",
             json={"project_id": "proj-1", "name": "Test Project"},
         )
         assert response.status_code == 200
@@ -599,7 +599,7 @@ class TestTestEndpoints:
         mock_pm_cls.return_value = mock_pm
 
         response = client.post(
-            "/admin/test/register-project",
+            "/api/admin/test/register-project",
             json={"project_id": "proj-1", "name": "Test"},
         )
         assert response.status_code == 200
@@ -619,7 +619,7 @@ class TestTestEndpoints:
         client = TestClient(app)
 
         response = client.post(
-            "/admin/test/register-project",
+            "/api/admin/test/register-project",
             json={"project_id": "proj-1", "name": "Test"},
         )
         assert response.status_code == 403
@@ -630,7 +630,7 @@ class TestTestEndpoints:
         mock_server.session_manager = None
 
         response = client.post(
-            "/admin/test/register-project",
+            "/api/admin/test/register-project",
             json={"project_id": "proj-1", "name": "Test"},
         )
         # HTTPException(503) caught by generic except → re-raised as 500
@@ -654,7 +654,7 @@ class TestTestEndpoints:
         mock_agent_cls.return_value = mock_agent
 
         response = client.post(
-            "/admin/test/register-agent",
+            "/api/admin/test/register-agent",
             json={
                 "run_id": "run-1",
                 "session_id": "sess-1",
@@ -680,7 +680,7 @@ class TestTestEndpoints:
         client = TestClient(app)
 
         response = client.post(
-            "/admin/test/register-agent",
+            "/api/admin/test/register-agent",
             json={
                 "run_id": "run-1",
                 "session_id": "sess-1",
@@ -697,7 +697,7 @@ class TestTestEndpoints:
         mock_registry.remove.return_value = MagicMock()  # agent found
         mock_get_registry.return_value = mock_registry
 
-        response = client.delete("/admin/test/unregister-agent/run-1")
+        response = client.delete("/api/admin/test/unregister-agent/run-1")
         assert response.status_code == 200
         data = response.json()
 
@@ -711,7 +711,7 @@ class TestTestEndpoints:
         mock_registry.remove.return_value = None  # agent not found
         mock_get_registry.return_value = mock_registry
 
-        response = client.delete("/admin/test/unregister-agent/run-nonexistent")
+        response = client.delete("/api/admin/test/unregister-agent/run-nonexistent")
         assert response.status_code == 200
         data = response.json()
 
@@ -727,7 +727,7 @@ class TestTestEndpoints:
         app.include_router(router)
         client = TestClient(app)
 
-        response = client.delete("/admin/test/unregister-agent/run-1")
+        response = client.delete("/api/admin/test/unregister-agent/run-1")
         assert response.status_code == 403
 
     # --- set-session-usage ---
@@ -736,7 +736,7 @@ class TestTestEndpoints:
         mock_server.session_manager.update_usage.return_value = True
 
         response = client.post(
-            "/admin/test/set-session-usage",
+            "/api/admin/test/set-session-usage",
             json={
                 "session_id": "sess-1",
                 "input_tokens": 1000,
@@ -768,7 +768,7 @@ class TestTestEndpoints:
         mock_server.session_manager.update_usage.return_value = False
 
         response = client.post(
-            "/admin/test/set-session-usage",
+            "/api/admin/test/set-session-usage",
             json={"session_id": "nonexistent"},
         )
         assert response.status_code == 200
@@ -782,7 +782,7 @@ class TestTestEndpoints:
         mock_server.session_manager.update_usage.return_value = True
 
         response = client.post(
-            "/admin/test/set-session-usage",
+            "/api/admin/test/set-session-usage",
             json={"session_id": "sess-1"},
         )
         assert response.status_code == 200
@@ -804,7 +804,7 @@ class TestTestEndpoints:
         client = TestClient(app)
 
         response = client.post(
-            "/admin/test/set-session-usage",
+            "/api/admin/test/set-session-usage",
             json={"session_id": "sess-1"},
         )
         assert response.status_code == 403
@@ -813,7 +813,7 @@ class TestTestEndpoints:
         mock_server.session_manager = None
 
         response = client.post(
-            "/admin/test/set-session-usage",
+            "/api/admin/test/set-session-usage",
             json={"session_id": "sess-1"},
         )
         # HTTPException(503) caught by generic except → re-raised as 500
@@ -853,7 +853,7 @@ class TestSetupStateEndpoints:
 
         setup_home.write_text(json.dumps({"step": "complete", "provider": "anthropic"}))
 
-        response = client.get("/admin/setup-state")
+        response = client.get("/api/admin/setup-state")
         assert response.status_code == 200
         data = response.json()
 
@@ -863,7 +863,7 @@ class TestSetupStateEndpoints:
 
     def test_get_setup_state_no_file(self, client, setup_home) -> None:
         # Don't create the file
-        response = client.get("/admin/setup-state")
+        response = client.get("/api/admin/setup-state")
         assert response.status_code == 200
         data = response.json()
 
@@ -872,7 +872,7 @@ class TestSetupStateEndpoints:
     def test_get_setup_state_invalid_json(self, client, setup_home) -> None:
         setup_home.write_text("not valid json {")
 
-        response = client.get("/admin/setup-state")
+        response = client.get("/api/admin/setup-state")
         assert response.status_code == 200
         data = response.json()
 
@@ -887,7 +887,7 @@ class TestSetupStateEndpoints:
         setup_home.write_text(json.dumps({"step": "provider"}))
 
         response = client.post(
-            "/admin/setup-state",
+            "/api/admin/setup-state",
             json={"web_onboarding_complete": True},
         )
         assert response.status_code == 200
@@ -900,7 +900,7 @@ class TestSetupStateEndpoints:
 
     def test_update_setup_state_no_file(self, client, setup_home) -> None:
         response = client.post(
-            "/admin/setup-state",
+            "/api/admin/setup-state",
             json={"web_onboarding_complete": True},
         )
         assert response.status_code == 200
@@ -913,7 +913,7 @@ class TestSetupStateEndpoints:
         setup_home.write_text("bad json")
 
         response = client.post(
-            "/admin/setup-state",
+            "/api/admin/setup-state",
             json={"web_onboarding_complete": True},
         )
         assert response.status_code == 200
@@ -929,7 +929,7 @@ class TestSetupStateEndpoints:
         setup_home.write_text(json.dumps({"step": "provider"}))
 
         response = client.post(
-            "/admin/setup-state",
+            "/api/admin/setup-state",
             json={"web_onboarding_complete": False},
         )
         assert response.status_code == 200

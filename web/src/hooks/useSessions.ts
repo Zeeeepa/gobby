@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useWebSocketEvent } from "./useWebSocketEvent";
 
 export interface GobbySession {
   id: string;
@@ -47,7 +48,7 @@ export interface ProjectInfo {
   repo_path: string;
 }
 
-const POLL_INTERVAL = 30000;
+const REFETCH_DEBOUNCE_MS = 500;
 
 function getBaseUrl(): string {
   return "";
@@ -65,7 +66,7 @@ export function useSessions() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const intervalRef = useRef<number | null>(null);
+  const debouncedRefetchRef = useRef<number | null>(null);
 
   const fetchSessions = useCallback(async () => {
     setError(null);
@@ -75,7 +76,7 @@ export function useSessions() {
       if (filters.source) params.set("source", filters.source);
       if (filters.projectId) params.set("project_id", filters.projectId);
 
-      const response = await fetch(`${baseUrl}/sessions?${params}`);
+      const response = await fetch(`${baseUrl}/api/sessions?${params}`);
       if (response.ok) {
         const data = await response.json();
         const fetched: GobbySession[] = Array.isArray(data.sessions)
@@ -117,13 +118,14 @@ export function useSessions() {
     fetchProjects();
   }, [fetchProjects]);
 
-  // Poll for updates
-  useEffect(() => {
-    intervalRef.current = window.setInterval(fetchSessions, POLL_INTERVAL);
-    return () => {
-      if (intervalRef.current) window.clearInterval(intervalRef.current);
-    };
-  }, [fetchSessions]);
+  // Real-time updates via WebSocket
+  useWebSocketEvent(
+    "session_event",
+    useCallback(() => {
+      if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current);
+      debouncedRefetchRef.current = window.setTimeout(() => fetchSessions(), REFETCH_DEBOUNCE_MS);
+    }, [fetchSessions]),
+  );
 
   // Client-side filtering and sorting
   const filteredSessions = useMemo(() => {
@@ -200,7 +202,7 @@ export function useSessions() {
       );
       try {
         const baseUrl = getBaseUrl();
-        const res = await fetch(`${baseUrl}/sessions/${id}/rename`, {
+        const res = await fetch(`${baseUrl}/api/sessions/${id}/rename`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title }),

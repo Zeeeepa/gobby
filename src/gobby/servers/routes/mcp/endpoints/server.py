@@ -161,6 +161,14 @@ async def add_mcp_server(
 
         await server.mcp_manager.add_server(config)
 
+        # Broadcast MCP server added event
+        ws = server.services.websocket_server
+        if ws:
+            try:
+                await ws.broadcast_mcp_event("server_added", name)
+            except Exception as e:
+                logger.debug(f"Failed to broadcast mcp event server_added: {e}")
+
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {
             "success": True,
@@ -263,6 +271,14 @@ async def import_mcp_server(
             # query must be truthy due to earlier validation
             result = await importer.import_from_query(query)
 
+        # Broadcast MCP server imported event
+        ws = server.services.websocket_server
+        if ws:
+            try:
+                await ws.broadcast_mcp_event("server_imported", "bulk")
+            except Exception as e:
+                logger.debug(f"Failed to broadcast mcp event server_imported: {e}")
+
         response_time_ms = (time.perf_counter() - start_time) * 1000
         if isinstance(result, dict):
             result["response_time_ms"] = response_time_ms
@@ -304,6 +320,14 @@ async def remove_mcp_server(
             }
 
         await server.mcp_manager.remove_server(name)
+
+        # Broadcast MCP server removed event
+        ws = server.services.websocket_server
+        if ws:
+            try:
+                await ws.broadcast_mcp_event("server_removed", name)
+            except Exception as e:
+                logger.debug(f"Failed to broadcast mcp event server_removed: {e}")
 
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {
