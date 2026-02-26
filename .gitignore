@@ -248,3 +248,4 @@ playwright-report/
 .moat/
 drawbridge/
 node_modules/
+*.tsbuildinfo

@@ -577,7 +577,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
             changes["_skill_format"] = agent_body.workflows.skill_format
 
         if agent_body.workflows and agent_body.workflows.variables:
-            changes.update(agent_body.workflows.variables)
+            for key, value in agent_body.workflows.variables.items():
+                if key.startswith("_"):
+                    self.logger.warning("Skipping reserved variable %r from agent definition", key)
+                    continue
+                changes[key] = value
 
         import json
 
@@ -592,7 +596,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     if var_row.name not in changes:
                         changes[var_row.name] = var_body.get("value")
                 except json.JSONDecodeError:
-                    pass
+                    self.logger.debug("Failed to parse variable definition for %s", var_row.name)
 
         from gobby.workflows.state_manager import SessionVariableManager
 

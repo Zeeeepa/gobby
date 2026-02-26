@@ -198,7 +198,8 @@ async def spawn_agent_impl(
                 project_path=project_path,
             )
         else:
-            assert agent_body is not None
+            if agent_body is None:
+                return {"success": False, "error": "Agent body is required for self-persona mode"}
             return await _handle_self_persona(
                 agent_body=agent_body,
                 agent_name=agent_lookup_name or agent_body.name,
