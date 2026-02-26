@@ -240,9 +240,7 @@ export function SessionsPage({
             session={detail.session}
             messages={detail.messages}
             totalMessages={detail.totalMessages}
-            hasMore={detail.hasMore}
             isLoading={detail.isLoading}
-            onLoadMore={detail.loadMore}
             onAskGobby={onAskGobby}
             onContinueInChat={onContinueInChat}
             onWatchInChat={onWatchInChat}

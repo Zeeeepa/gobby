@@ -12,9 +12,7 @@ interface SessionDetailProps {
   session: GobbySession
   messages: SessionMessage[]
   totalMessages: number
-  hasMore: boolean
   isLoading: boolean
-  onLoadMore: () => void
   onAskGobby?: (context: string) => void
   onContinueInChat?: (session: GobbySession) => void
   onWatchInChat?: (session: GobbySession) => void
@@ -54,9 +52,7 @@ export function SessionDetail({
   session,
   messages,
   totalMessages,
-  hasMore,
   isLoading,
-  onLoadMore,
   onAskGobby,
   onContinueInChat,
   onWatchInChat,
@@ -202,9 +198,7 @@ export function SessionDetail({
       <SessionTranscript
         messages={messages}
         totalMessages={totalMessages}
-        hasMore={hasMore}
         isLoading={isLoading}
-        onLoadMore={onLoadMore}
       />
     </div>
   )

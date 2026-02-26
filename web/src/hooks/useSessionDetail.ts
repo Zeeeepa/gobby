@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { GobbySession } from './useSessions'
 
 export interface SessionMessage {
@@ -22,19 +22,13 @@ export function useSessionDetail(sessionId: string | null) {
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [totalMessages, setTotalMessages] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  const [offset, setOffset] = useState(0)
-  const offsetRef = useRef(0)
 
-  const LIMIT = 50
-
-  // Fetch session detail
+  // Fetch session detail and all messages
   useEffect(() => {
     if (!sessionId) {
       setSession(null)
       setMessages([])
       setTotalMessages(0)
-      setOffset(0)
-      offsetRef.current = 0
       return
     }
 
@@ -46,7 +40,7 @@ export function useSessionDetail(sessionId: string | null) {
       try {
         const [sessionRes, messagesRes] = await Promise.all([
           fetch(`${baseUrl}/sessions/${sessionId}`),
-          fetch(`${baseUrl}/sessions/${sessionId}/messages?limit=${LIMIT}&offset=0`),
+          fetch(`${baseUrl}/sessions/${sessionId}/messages?limit=10000&offset=0`),
         ])
 
         if (cancelled) return
@@ -62,8 +56,6 @@ export function useSessionDetail(sessionId: string | null) {
           const data = await messagesRes.json()
           setMessages(data.messages || [])
           setTotalMessages(data.total_count || 0)
-          setOffset(LIMIT)
-          offsetRef.current = LIMIT
         } else {
           console.warn(`Messages fetch returned ${messagesRes.status}`)
         }
@@ -78,26 +70,7 @@ export function useSessionDetail(sessionId: string | null) {
     return () => { cancelled = true }
   }, [sessionId])
 
-  const loadMore = useCallback(async () => {
-    if (!sessionId || isLoading) return
-
-    const currentOffset = offsetRef.current
-    const baseUrl = getBaseUrl()
-    try {
-      const res = await fetch(`${baseUrl}/sessions/${sessionId}/messages?limit=${LIMIT}&offset=${currentOffset}`)
-      if (res.ok) {
-        const data = await res.json()
-        setMessages((prev) => [...prev, ...(data.messages || [])])
-        const newOffset = currentOffset + LIMIT
-        setOffset(newOffset)
-        offsetRef.current = newOffset
-      }
-    } catch (e) {
-      console.error('Failed to load more messages:', e)
-    }
-  }, [sessionId, isLoading])
-
-  const hasMore = offset < totalMessages
+  const hasMore = false
 
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
 
@@ -127,6 +100,9 @@ export function useSessionDetail(sessionId: string | null) {
       setIsGeneratingSummary(false)
     }
   }, [sessionId, isGeneratingSummary])
+
+  // loadMore kept as no-op for interface compatibility
+  const loadMore = useCallback(() => {}, [])
 
   return { session, messages, isLoading, totalMessages, hasMore, loadMore, generateSummary, isGeneratingSummary }
 }
