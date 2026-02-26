@@ -494,4 +494,6 @@ class ToolProxyService:
             }
 
         logger.debug(f"Routing tool '{tool_name}' to server '{server_name}'")
-        return await self.call_tool(server_name, tool_name, arguments, session_id, call_context=call_context)
+        return await self.call_tool(
+            server_name, tool_name, arguments, session_id, call_context=call_context
+        )

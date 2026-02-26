@@ -175,7 +175,10 @@ class GobbyDaemonTools:
             if self._session_manager:
                 session = self._session_manager.get(session_id)
                 if session:
-                    call_context = {"session_id": session_id, "conversation_id": session.external_id}
+                    call_context = {
+                        "session_id": session_id,
+                        "conversation_id": session.external_id,
+                    }
         try:
             result = await self.tool_proxy.call_tool(
                 server_name, tool_name, arguments, session_id, call_context=call_context

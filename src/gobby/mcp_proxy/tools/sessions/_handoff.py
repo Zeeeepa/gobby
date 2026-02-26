@@ -64,9 +64,7 @@ def register_handoff_tools(
 
         return session_manager.resolve_session_reference(ref, project_id)
 
-    def _send_to_peer(
-        from_session_id: str, to_session_ref: str, content: str
-    ) -> dict[str, Any]:
+    def _send_to_peer(from_session_id: str, to_session_ref: str, content: str) -> dict[str, Any]:
         """Send handoff content to a peer session via P2P message."""
         if inter_session_message_manager is None:
             return {"success": False, "error": "Inter-session message manager not available"}
@@ -343,9 +341,7 @@ def register_handoff_tools(
                     files_written.append(str(full_file))
 
                 if compact_markdown:
-                    compact_file = (
-                        summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
-                    )
+                    compact_file = summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
                     compact_file.write_text(compact_markdown, encoding="utf-8")
                     files_written.append(str(compact_file))
 
@@ -376,9 +372,7 @@ def register_handoff_tools(
         if to_session:
             send_content = full_markdown or compact_markdown or ""
             if send_content:
-                result_dict["send_result"] = _send_to_peer(
-                    session.id, to_session, send_content
-                )
+                result_dict["send_result"] = _send_to_peer(session.id, to_session, send_content)
 
         return result_dict
 

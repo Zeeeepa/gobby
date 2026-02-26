@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 
 interface AgentVariablesEditorProps {
-  definitionId: string
+  definitionId?: string | null
   variables: Record<string, unknown>
   onVariablesChange: (variables: Record<string, unknown>) => void
 }
@@ -16,6 +16,10 @@ export function AgentVariablesEditor({ definitionId, variables, onVariablesChang
   const handleSet = useCallback(async (key: string, value: string) => {
     let parsed: unknown = value
     try { parsed = JSON.parse(value) } catch { /* keep as string */ }
+    if (!definitionId) {
+      onVariablesChange({ ...variables, [key]: parsed })
+      return
+    }
     try {
       const res = await fetch(`/api/agents/definitions/${definitionId}/variables`, {
         method: 'PATCH',
@@ -32,6 +36,10 @@ export function AgentVariablesEditor({ definitionId, variables, onVariablesChang
   }, [definitionId, variables, onVariablesChange])
 
   const handleRemove = useCallback(async (key: string) => {
+    if (!definitionId) {
+      onVariablesChange(Object.fromEntries(entries.filter(([k]) => k !== key)))
+      return
+    }
     try {
       const res = await fetch(`/api/agents/definitions/${definitionId}/variables`, {
         method: 'PATCH',
