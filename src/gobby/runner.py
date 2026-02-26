@@ -195,7 +195,7 @@ class GobbyRunner:
                 self.vector_store = VectorStore(
                     path=qdrant_path if not self.config.memory.qdrant_url else None,
                     url=self.config.memory.qdrant_url,
-                    api_key=self.config.memory.qdrant_api_key,
+                    api_key=self.config.memory.QDRANT_API_KEY,
                 )
                 embed_fn: Callable[..., Any] | None = None
                 if self.llm_service:

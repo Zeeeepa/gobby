@@ -28,7 +28,7 @@ class VoiceConfig(BaseModel):
         default="int8",
         description="Compute type for Whisper: int8, float16, float32.",
     )
-    elevenlabs_api_key: str = Field(
+    ELEVENLABS_API_KEY: str = Field(
         default="",
         description="ElevenLabs API key. Supports ${ELEVENLABS_API_KEY} env var expansion.",
     )

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { MicVAD, utils } from '@ricky0123/vad-web'
+import { SentenceBuffer } from '../utils/sentenceBuffer'
 
 interface VoiceState {
   voiceMode: boolean
@@ -9,6 +10,17 @@ interface VoiceState {
   isTranscribing: boolean
   isSpeaking: boolean
   voiceError: string | null
+}
+
+interface TTSConfig {
+  api_key: string
+  voice_id: string
+  model_id: string
+  stability: number
+  similarity_boost: number
+  style: number
+  speed: number
+  output_format: string
 }
 
 /** Sequential audio playback queue using HTMLAudioElement (iOS Safari compatible). */
@@ -92,6 +104,8 @@ export interface UseVoiceReturn extends VoiceState {
   toggleVoiceMode: () => void
   stopSpeaking: () => void
   handleVoiceMessage: (data: Record<string, unknown>) => void
+  feedTTSText: (text: string) => void
+  flushTTS: () => void
 }
 
 export function useVoice(
@@ -114,7 +128,14 @@ export function useVoice(
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
 
-  // Check voice availability on mount
+  // TTS WebSocket state
+  const ttsWsRef = useRef<WebSocket | null>(null)
+  const ttsConfigRef = useRef<TTSConfig | null>(null)
+  const sentenceBufferRef = useRef(new SentenceBuffer())
+  const ttsKeepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const voiceModeRef = useRef(false)
+
+  // Check voice availability on mount (STT availability via /api/voice/status)
   useEffect(() => {
     // getUserMedia requires a secure context (HTTPS or localhost).
     // On plain HTTP (e.g. Tailscale IP), navigator.mediaDevices is undefined.
@@ -132,6 +153,97 @@ export function useVoice(
         }
       })
       .catch((err) => { console.error('Voice status check failed:', err); setVoiceAvailable(false) })
+  }, [])
+
+  /** Connect to ElevenLabs WebSocket for TTS streaming. */
+  const connectTTS = useCallback((config: TTSConfig) => {
+    // Close existing connection
+    if (ttsWsRef.current) {
+      ttsWsRef.current.close()
+      ttsWsRef.current = null
+    }
+    if (ttsKeepaliveRef.current) {
+      clearInterval(ttsKeepaliveRef.current)
+      ttsKeepaliveRef.current = null
+    }
+
+    const url = `wss://api.elevenlabs.io/v1/text-to-speech/${config.voice_id}/stream-input?model_id=${config.model_id}`
+    const ws = new WebSocket(url)
+    ttsWsRef.current = ws
+
+    ws.onopen = () => {
+      // Send Beginning-of-Stream (BOS) message
+      ws.send(JSON.stringify({
+        text: ' ',
+        xi_api_key: config.api_key,
+        voice_settings: {
+          stability: config.stability,
+          similarity_boost: config.similarity_boost,
+          style: config.style,
+          speed: config.speed,
+        },
+        output_format: config.output_format,
+        generation_config: { chunk_length_schedule: [50, 120, 160, 250] },
+      }))
+
+      // Keepalive: send a space every 15s to prevent idle disconnect
+      ttsKeepaliveRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ text: ' ' }))
+        }
+      }, 15000)
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.audio) {
+          playbackQueueRef.current.enqueue(data.audio, config.output_format)
+        }
+      } catch {
+        // Ignore unparseable messages
+      }
+    }
+
+    ws.onclose = () => {
+      if (ttsKeepaliveRef.current) {
+        clearInterval(ttsKeepaliveRef.current)
+        ttsKeepaliveRef.current = null
+      }
+      ttsWsRef.current = null
+
+      // Auto-reconnect if voice mode is still on
+      if (voiceModeRef.current && ttsConfigRef.current) {
+        console.log('TTS WebSocket closed unexpectedly, reconnecting...')
+        setTimeout(() => {
+          if (voiceModeRef.current && ttsConfigRef.current) {
+            connectTTS(ttsConfigRef.current)
+          }
+        }, 1000)
+      }
+    }
+
+    ws.onerror = (err) => {
+      console.error('TTS WebSocket error:', err)
+    }
+  }, [])
+
+  /** Disconnect ElevenLabs TTS WebSocket. */
+  const disconnectTTS = useCallback(() => {
+    sentenceBufferRef.current.clear()
+    if (ttsKeepaliveRef.current) {
+      clearInterval(ttsKeepaliveRef.current)
+      ttsKeepaliveRef.current = null
+    }
+    if (ttsWsRef.current) {
+      // Send End-of-Stream (EOS) message
+      if (ttsWsRef.current.readyState === WebSocket.OPEN) {
+        ttsWsRef.current.send(JSON.stringify({ text: '' }))
+      }
+      ttsWsRef.current.close()
+      ttsWsRef.current = null
+    }
+    ttsConfigRef.current = null
   }, [])
 
   // Track speaking state from playback queue and pause/resume VAD to prevent echo.
@@ -191,7 +303,7 @@ export function useVoice(
     }
 
     if (newMode) {
-      // Enable: create VAD and start listening
+      // Enable: create VAD, start listening, and connect TTS
       try {
         const vad = await MicVAD.new({
           baseAssetPath: '/',
@@ -242,19 +354,36 @@ export function useVoice(
 
         vadRef.current = vad
         vad.start()
+        voiceModeRef.current = true
         setVoiceMode(true)
         setIsListening(true)
+
+        // Fetch TTS config and connect ElevenLabs WebSocket
+        try {
+          const res = await fetch('/api/voice/tts-config')
+          if (res.ok) {
+            const config: TTSConfig = await res.json()
+            ttsConfigRef.current = config
+            connectTTS(config)
+          } else {
+            console.warn('TTS not available — voice will work without speech output')
+          }
+        } catch (err) {
+          console.warn('Failed to fetch TTS config:', err)
+        }
       } catch (err) {
         if (vadRef.current) {
           vadRef.current.destroy()
           vadRef.current = null
         }
+        voiceModeRef.current = false
         const msg = err instanceof Error ? err.message : 'Microphone access denied'
         setVoiceError(msg)
         console.error('Failed to start VAD:', err)
       }
     } else {
-      // Disable: destroy VAD and cleanup
+      // Disable: destroy VAD, disconnect TTS, cleanup
+      voiceModeRef.current = false
       if (resumeTimerRef.current) {
         clearTimeout(resumeTimerRef.current)
         resumeTimerRef.current = null
@@ -263,6 +392,7 @@ export function useVoice(
         vadRef.current.destroy()
         vadRef.current = null
       }
+      disconnectTTS()
       playbackQueueRef.current.stop()
       setVoiceMode(false)
       setIsListening(false)
@@ -270,22 +400,54 @@ export function useVoice(
       setIsSpeaking(false)
       setIsTranscribing(false)
     }
-  }, [voiceMode, wsRef, conversationId])
+  }, [voiceMode, wsRef, conversationId, connectTTS, disconnectTTS])
 
-  // Cleanup VAD and playback on unmount
+  // Cleanup VAD, TTS, and playback on unmount
   useEffect(() => {
     return () => {
+      voiceModeRef.current = false
       if (vadRef.current) {
         vadRef.current.destroy()
         vadRef.current = null
       }
+      disconnectTTS()
       playbackQueueRef.current.stop()
     }
-  }, [])
+  }, [disconnectTTS])
 
   const stopSpeaking = useCallback(() => {
     playbackQueueRef.current.stop()
     setIsSpeaking(false)
+  }, [])
+
+  /** Feed streaming text to TTS. Buffers into sentences before sending. */
+  const feedTTSText = useCallback((text: string) => {
+    const ws = ttsWsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    const sentences = sentenceBufferRef.current.add(text)
+    for (const sentence of sentences) {
+      ws.send(JSON.stringify({
+        text: sentence + ' ',
+        try_trigger_generation: true,
+      }))
+    }
+  }, [])
+
+  /** Flush remaining buffered text to TTS and signal generation. */
+  const flushTTS = useCallback(() => {
+    const ws = ttsWsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    const remaining = sentenceBufferRef.current.flush()
+    if (remaining) {
+      ws.send(JSON.stringify({
+        text: remaining + ' ',
+        try_trigger_generation: true,
+      }))
+    }
+    // Signal flush to trigger any pending generation
+    ws.send(JSON.stringify({ text: '', flush: true }))
   }, [])
 
   const handleVoiceMessage = useCallback((data: Record<string, unknown>) => {
@@ -293,19 +455,6 @@ export function useVoice(
 
     if (type === 'voice_transcription') {
       setIsTranscribing(false)
-    } else if (type === 'voice_audio_chunk') {
-      const audioData = data.audio_data as string
-      const isFinal = data.is_final as boolean
-      const format = (data.format as string) || 'mp3_44100_128'
-
-      if (audioData) {
-        playbackQueueRef.current.enqueue(audioData, format)
-        setIsSpeaking(true)
-      }
-
-      if (isFinal) {
-        // Audio stream complete — speaking state will clear when queue drains
-      }
     } else if (type === 'voice_status') {
       const status = data.status as string
       if (status === 'error') {
@@ -330,5 +479,7 @@ export function useVoice(
     toggleVoiceMode,
     stopSpeaking,
     handleVoiceMessage,
+    feedTTSText,
+    flushTTS,
   }
 }

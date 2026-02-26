@@ -10,7 +10,7 @@ class TestVoiceConfig:
         assert config.whisper_model_size == "base"
         assert config.whisper_device == "auto"
         assert config.whisper_compute_type == "int8"
-        assert config.elevenlabs_api_key == ""
+        assert config.ELEVENLABS_API_KEY == ""
         assert config.elevenlabs_voice_id == "21m00Tcm4TlvDq8ikWAM"
         assert config.elevenlabs_model_id == "eleven_flash_v2_5"
         assert config.audio_format == "mp3_44100_128"
@@ -19,11 +19,11 @@ class TestVoiceConfig:
         config = VoiceConfig(
             enabled=True,
             whisper_model_size="small",
-            elevenlabs_api_key="test-key",
+            ELEVENLABS_API_KEY="test-key",
         )
         assert config.enabled is True
         assert config.whisper_model_size == "small"
-        assert config.elevenlabs_api_key == "test-key"
+        assert config.ELEVENLABS_API_KEY == "test-key"
 
     def test_daemon_config_integration(self):
         from gobby.config.app import DaemonConfig

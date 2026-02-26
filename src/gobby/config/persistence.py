@@ -58,7 +58,7 @@ class MemoryConfig(BaseModel):
             "Example: 'http://localhost:6333'"
         ),
     )
-    qdrant_api_key: str | None = Field(
+    QDRANT_API_KEY: str | None = Field(
         default=None,
         description=(
             "API key for remote Qdrant server. "

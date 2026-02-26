@@ -316,7 +316,9 @@ class ChatMixin:
         start_data: dict[str, Any] = {}
         if pending_agent:
             start_data["agent_name_override"] = pending_agent
-        asyncio.create_task(self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, start_data))
+        asyncio.create_task(
+            self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, start_data)
+        )
 
         # Broadcast authoritative mode to frontend so it can override local storage
         mode_msg = json.dumps(
@@ -409,9 +411,7 @@ class ChatMixin:
 
                     internal_mgr = getattr(self, "internal_manager", None)
 
-                    async def _call_tool(
-                        server: str, tool: str, arguments: dict[str, Any]
-                    ) -> Any:
+                    async def _call_tool(server: str, tool: str, arguments: dict[str, Any]) -> Any:
                         """Route to internal registries first, then external."""
                         if internal_mgr and internal_mgr.is_internal(server):
                             registry = internal_mgr.get_registry(server)
@@ -429,9 +429,7 @@ class ChatMixin:
                 handler = event_handlers.get_handler(event_type)
                 if handler:
                     try:
-                        handler_response: HookResponse = await asyncio.to_thread(
-                            handler, event
-                        )
+                        handler_response: HookResponse = await asyncio.to_thread(handler, event)
                         if handler_response and handler_response.context:
                             handler_context = handler_response.context
                     except Exception as exc:
@@ -546,7 +544,12 @@ class ChatMixin:
         # Run streaming as a cancellable task
         task = asyncio.create_task(
             self._stream_chat_response(
-                websocket, conversation_id, content, model, request_id, project_id,
+                websocket,
+                conversation_id,
+                content,
+                model,
+                request_id,
+                project_id,
                 inject_context=inject_context,
             )
         )
@@ -780,13 +783,6 @@ class ChatMixin:
                             )
                         )
                     )
-                    # Feed TTS if voice mode is active
-                    _voice_hook = getattr(self, "_voice_tts_hook", None)
-                    if _voice_hook:
-                        try:
-                            await _voice_hook(websocket, conversation_id, request_id, event.content)
-                        except Exception:
-                            logger.debug("TTS hook error (non-fatal)", exc_info=True)
                 elif isinstance(event, ToolCallEvent):
                     # Flush accumulated text as a separate message before tool calls.
                     # This prevents text segments from merging across tool boundaries
@@ -827,14 +823,6 @@ class ChatMixin:
                     # Persist remaining assistant text (after last tool call, if any)
                     if accumulated_text.strip():
                         await _persist_message(session, "assistant", accumulated_text)
-
-                    # Flush TTS if voice mode is active
-                    _voice_flush = getattr(self, "_voice_tts_flush", None)
-                    if _voice_flush:
-                        try:
-                            await _voice_flush(websocket, conversation_id, request_id)
-                        except Exception:
-                            logger.debug("TTS flush error (non-fatal)", exc_info=True)
 
                     done_msg = _base_msg(
                         type="chat_stream",

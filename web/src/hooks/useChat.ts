@@ -451,6 +451,8 @@ export function useChat() {
   const handleVoiceMessageRef = useRef<(data: Record<string, unknown>) => void>(
     () => {},
   );
+  const feedTTSTextRef = useRef<(text: string) => void>(() => {});
+  const flushTTSRef = useRef<() => void>(() => {});
 
   // Connect to WebSocket
   const connect = useCallback(() => {
@@ -917,6 +919,7 @@ export function useChat() {
 
     if (chunk.content) {
       setIsThinking(false);
+      feedTTSTextRef.current(chunk.content);
     }
 
     setMessages((prev) => {
@@ -945,6 +948,7 @@ export function useChat() {
     if (chunk.done) {
       setIsStreaming(false);
       setIsThinking(false);
+      flushTTSRef.current();
       // Pick up session_ref from done message (fallback if session_info was missed)
       if (chunk.session_ref) {
         setSessionRef(chunk.session_ref);
@@ -2109,6 +2113,8 @@ export function useChat() {
     attachedSessionMeta,
     wsRef,
     handleVoiceMessageRef,
+    feedTTSTextRef,
+    flushTTSRef,
     setOnChatDeleted,
     setOnChatCleared,
   };
