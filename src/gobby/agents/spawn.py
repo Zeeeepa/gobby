@@ -101,7 +101,7 @@ def prepare_terminal_spawn(
     source: str = "claude",
     agent_id: str | None = None,
     workflow_name: str | None = None,
-    step_variables: dict[str, Any] | None = None,
+    initial_variables: dict[str, Any] | None = None,
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
@@ -145,13 +145,20 @@ def prepare_terminal_spawn(
         source=source,
         agent_id=agent_id,
         workflow_name=workflow_name,
-        step_variables=step_variables,
         title=title,
         git_branch=git_branch,
     )
 
     # Create the child session
     child_session = session_manager.create_child_session(config)
+
+    # Write initial variables to session_variables table (canonical store)
+    if initial_variables:
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        SessionVariableManager(session_manager._storage.db).merge_variables(
+            child_session.id, initial_variables
+        )
 
     # Use provided agent_run_id or generate one (backward compat)
     if agent_run_id is None:
@@ -225,7 +232,7 @@ async def prepare_gemini_spawn_with_preflight(
     machine_id: str,
     agent_id: str | None = None,
     workflow_name: str | None = None,
-    step_variables: dict[str, Any] | None = None,
+    initial_variables: dict[str, Any] | None = None,
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
@@ -278,7 +285,6 @@ async def prepare_gemini_spawn_with_preflight(
         source="gemini",
         agent_id=agent_id,
         workflow_name=workflow_name,
-        step_variables=step_variables,
         title=title,
         git_branch=git_branch,
         external_id=gemini_info.session_id,  # Link to Gemini's session
@@ -286,6 +292,14 @@ async def prepare_gemini_spawn_with_preflight(
 
     # Create the child session
     child_session = session_manager.create_child_session(config)
+
+    # Write initial variables to session_variables table (canonical store)
+    if initial_variables:
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        SessionVariableManager(session_manager._storage.db).merge_variables(
+            child_session.id, initial_variables
+        )
 
     # Generate agent run ID
     agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
@@ -343,7 +357,7 @@ async def prepare_codex_spawn_with_preflight(
     machine_id: str,
     agent_id: str | None = None,
     workflow_name: str | None = None,
-    step_variables: dict[str, Any] | None = None,
+    initial_variables: dict[str, Any] | None = None,
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
@@ -396,7 +410,6 @@ async def prepare_codex_spawn_with_preflight(
         source="codex",
         agent_id=agent_id,
         workflow_name=workflow_name,
-        step_variables=step_variables,
         title=title,
         git_branch=git_branch,
         external_id=codex_info.session_id,  # Link to Codex's session
@@ -404,6 +417,14 @@ async def prepare_codex_spawn_with_preflight(
 
     # Create the child session
     child_session = session_manager.create_child_session(config)
+
+    # Write initial variables to session_variables table (canonical store)
+    if initial_variables:
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        SessionVariableManager(session_manager._storage.db).merge_variables(
+            child_session.id, initial_variables
+        )
 
     # Generate agent run ID
     agent_run_id = f"run-{uuid.uuid4().hex[:12]}"

@@ -50,7 +50,7 @@ class SpawnRequest:
 
     # Optional fields
     workflow: str | None = None
-    step_variables: dict[str, Any] | None = None  # Variables for step workflow activation
+    initial_variables: dict[str, Any] | None = None  # Variables to write to session_variables
     worktree_id: str | None = None
     clone_id: str | None = None
     branch_name: str | None = None  # Git branch for worktree/clone isolation
@@ -119,7 +119,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
 
     Uses prepare_terminal_spawn to:
     1. Create child session with parent linkage
-    2. Pass step_variables for workflow activation (e.g., assigned_task_id)
+    2. Pass initial_variables for workflow activation (e.g., assigned_task_id)
     3. Set up environment variables for session matching
     """
     if request.session_manager is None:
@@ -139,7 +139,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         machine_id=request.machine_id or "unknown",
         source="claude",
         workflow_name=request.workflow,
-        step_variables=request.step_variables,
+        initial_variables=request.initial_variables,
         prompt=request.prompt,
         max_agent_depth=request.max_agent_depth,
         git_branch=request.branch_name,
@@ -318,7 +318,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         machine_id=request.machine_id or "unknown",
         source="gemini",
         workflow_name=request.workflow,
-        step_variables=request.step_variables,
+        initial_variables=request.initial_variables,
         prompt=request.prompt,
         max_agent_depth=request.max_agent_depth,
         git_branch=request.branch_name,
@@ -411,7 +411,7 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
             project_id=request.project_id,
             machine_id=request.machine_id or "unknown",
             workflow_name=request.workflow,
-            step_variables=request.step_variables,
+            initial_variables=request.initial_variables,
             git_branch=request.branch_name,
         )
     except FileNotFoundError as e:

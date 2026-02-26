@@ -160,8 +160,10 @@ async def _handle_self_persona(
         if agent_body.workflows and agent_body.workflows.skill_format:
             changes["_skill_format"] = agent_body.workflows.skill_format
 
-    if session_manager and hasattr(session_manager, "update_step_variables"):
-        session_manager.update_step_variables(parent_session_id, changes)
+    if db:
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        SessionVariableManager(db).merge_variables(parent_session_id, changes)
 
     return {
         "success": True,

@@ -77,20 +77,11 @@ class WorkflowHookHandler:
         try:
             session_id = event.metadata.get("_platform_session_id") or event.session_id or ""
 
-            # Load workflow state variables for the session
+            # Load session-scoped variables (canonical store)
             variables: dict[str, Any] = {}
-            try:
-                state = self.engine.state_manager.get_state(session_id)
-                if state:
-                    variables = dict(state.variables)
-            except Exception as e:
-                logger.debug(f"Could not load workflow state for rules: {e}")
-
-            # Merge session-scoped variables (takes precedence over workflow state)
             if self._session_var_manager:
                 try:
-                    session_vars = self._session_var_manager.get_variables(session_id)
-                    variables.update(session_vars)
+                    variables = dict(self._session_var_manager.get_variables(session_id))
                 except Exception as e:
                     logger.debug(f"Could not load session variables for rules: {e}")
 

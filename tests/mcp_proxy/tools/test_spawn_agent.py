@@ -920,12 +920,12 @@ class TestSpawnAgentPromptPreamble:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# spawn_agent step variables
+# spawn_agent initial variables
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestSpawnAgentStepVariables:
-    """Tests for step_variables (_agent_type, _agent_rules) from agent definition."""
+    """Tests for initial_variables (_agent_type, _agent_rules) from agent definition."""
 
     @pytest.fixture
     def mock_runner(self):
@@ -935,7 +935,7 @@ class TestSpawnAgentStepVariables:
         return runner
 
     @pytest.mark.asyncio
-    async def test_agent_type_set_in_step_variables(self, mock_runner) -> None:
+    async def test_agent_type_set_in_initial_variables(self, mock_runner) -> None:
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
         agent_body = AgentDefinitionBody(
@@ -974,5 +974,5 @@ class TestSpawnAgentStepVariables:
             )
 
             spawn_request = mock_execute.call_args[0][0]
-            assert spawn_request.step_variables["_agent_type"] == "qa-agent"
-            assert spawn_request.step_variables["_agent_rules"] == ["no-code-writing"]
+            assert spawn_request.initial_variables["_agent_type"] == "qa-agent"
+            assert spawn_request.initial_variables["_agent_rules"] == ["no-code-writing"]

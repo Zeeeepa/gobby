@@ -16,6 +16,8 @@ def _make_event_handlers() -> EventHandlers:
     """Create an EventHandlers instance with minimal mocked dependencies."""
     session_storage = MagicMock()
     session_storage.db = MagicMock()
+    # Make db.fetchall return empty lists so iteration works
+    session_storage.db.fetchall.return_value = []
 
     session_manager = MagicMock()
 
@@ -32,8 +34,12 @@ def _make_agent_body(name: str = "test-agent") -> MagicMock:
     body.name = name
     body.workflows = MagicMock()
     body.workflows.skill_format = None
-    body.rules = None
-    body.skills = None
+    body.workflows.variables = None
+    body.workflows.rules = []
+    body.workflows.skills = []
+    body.workflows.rule_selectors = None
+    body.rules = []
+    body.skills = []
     body.variables = None
     return body
 
@@ -41,8 +47,11 @@ def _make_agent_body(name: str = "test-agent") -> MagicMock:
 class TestAgentNameOverride:
     """Tests for the agent_name_override parameter."""
 
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
     @patch("gobby.workflows.agent_resolver.resolve_agent")
-    def test_override_skips_config_store(self, mock_resolve: MagicMock) -> None:
+    def test_override_skips_config_store(
+        self, mock_resolve: MagicMock, _mock_svm: MagicMock
+    ) -> None:
         """When agent_name_override is provided, ConfigStore should not be consulted."""
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body("custom-agent")
@@ -61,8 +70,11 @@ class TestAgentNameOverride:
             "custom-agent", handlers._session_storage.db, project_id="proj-1"
         )
 
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
     @patch("gobby.workflows.agent_resolver.resolve_agent")
-    def test_no_override_reads_config_store(self, mock_resolve: MagicMock) -> None:
+    def test_no_override_reads_config_store(
+        self, mock_resolve: MagicMock, _mock_svm: MagicMock
+    ) -> None:
         """When no override is provided, ConfigStore is used to get the default agent."""
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body("default")
@@ -79,8 +91,11 @@ class TestAgentNameOverride:
             mock_cs.assert_called_once_with(handlers._session_storage.db)
             mock_cs.return_value.get.assert_called_once_with("default_agent")
 
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
     @patch("gobby.workflows.agent_resolver.resolve_agent")
-    def test_override_resolves_correct_agent(self, mock_resolve: MagicMock) -> None:
+    def test_override_resolves_correct_agent(
+        self, mock_resolve: MagicMock, _mock_svm: MagicMock
+    ) -> None:
         """The override name is passed directly to resolve_agent."""
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body("my-agent")
@@ -96,12 +111,18 @@ class TestAgentNameOverride:
             "my-agent", handlers._session_storage.db, project_id="proj-2"
         )
 
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
     @patch("gobby.workflows.agent_resolver.resolve_agent")
-    def test_override_sets_agent_type_on_session(self, mock_resolve: MagicMock) -> None:
-        """Session should have _agent_type set to the override agent name."""
+    def test_override_sets_agent_type_on_session(
+        self, mock_resolve: MagicMock, mock_svm_cls: MagicMock
+    ) -> None:
+        """Session should have _agent_type set to the override agent name via SessionVariableManager."""
         handlers = _make_event_handlers()
         agent_body = _make_agent_body("my-agent")
         mock_resolve.return_value = agent_body
+
+        mock_svm = MagicMock()
+        mock_svm_cls.return_value = mock_svm
 
         handlers._activate_default_agent(
             session_id="sess-1",
@@ -110,9 +131,9 @@ class TestAgentNameOverride:
             agent_name_override="my-agent",
         )
 
-        # Verify session_storage.update_step_variables was called with _agent_type
-        handlers._session_storage.update_step_variables.assert_called_once()
-        call_args = handlers._session_storage.update_step_variables.call_args
+        # Verify SessionVariableManager.merge_variables was called with _agent_type
+        mock_svm.merge_variables.assert_called_once()
+        call_args = mock_svm.merge_variables.call_args
         assert call_args[0][0] == "sess-1"
         changes = call_args[0][1]
         assert changes["_agent_type"] == "my-agent"

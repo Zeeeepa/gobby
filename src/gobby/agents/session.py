@@ -54,9 +54,6 @@ class ChildSessionConfig:
     lifecycle_variables: dict[str, Any] | None = None
     """Lifecycle variables for the session."""
 
-    step_variables: dict[str, Any] | None = None
-    """Variables to pass during workflow auto-activation (e.g., assigned_task_id)."""
-
 
 class ChildSessionManager:
     """
@@ -201,7 +198,6 @@ class ChildSessionManager:
             agent_depth=child_depth,
             spawned_by_agent_id=config.agent_id,
             workflow_name=config.workflow_name,
-            step_variables=config.step_variables,
         )
 
         child_id = child.id

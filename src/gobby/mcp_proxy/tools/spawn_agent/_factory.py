@@ -188,14 +188,14 @@ def create_spawn_agent_registry(
         if effective_workflow is None and agent_body and agent_body.workflows.pipeline:
             effective_workflow = agent_body.workflows.pipeline
 
-        # Build step_variables for rule activation
-        step_variables: dict[str, Any] = {}
+        # Build initial_variables for rule activation
+        initial_variables: dict[str, Any] = {}
         if agent_body:
-            step_variables["_agent_type"] = agent_body.name
+            initial_variables["_agent_type"] = agent_body.name
             if agent_body.workflows.rules:
-                step_variables["_agent_rules"] = agent_body.workflows.rules
+                initial_variables["_agent_rules"] = agent_body.workflows.rules
             if agent_body.workflows.variables:
-                step_variables.update(agent_body.workflows.variables)
+                initial_variables.update(agent_body.workflows.variables)
 
         # Delegate to spawn_agent_impl
         return await spawn_agent_impl(
@@ -227,7 +227,7 @@ def create_spawn_agent_registry(
             sandbox_extra_paths=sandbox_extra_paths,
             parent_session_id=resolved_parent_session_id,
             project_path=project_path,
-            step_variables=step_variables,
+            initial_variables=initial_variables,
             # For mode=self
             state_manager=state_manager,
             session_manager=session_manager,

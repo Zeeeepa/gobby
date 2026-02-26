@@ -446,11 +446,23 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Auto-activate workflow if specified for this session
         if existing_session.workflow_name and session_id:
+            # Read initial variables from session_variables table (canonical store)
+            initial_vars: dict[str, Any] | None = None
+            try:
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv = sv_mgr.get_variables(session_id)
+                if sv:
+                    initial_vars = sv
+            except Exception as e:
+                self.logger.debug(f"Could not load session variables for workflow activation: {e}")
+
             self._auto_activate_workflow(
                 existing_session.workflow_name,
                 session_id,
                 cwd,
-                variables=existing_session.step_variables,
+                variables=initial_vars,
             )
 
         # Deep load default agent (rules, skills, variables) for pre-created session
@@ -582,7 +594,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 except json.JSONDecodeError:
                     pass
 
-        self._session_storage.update_step_variables(session_id, changes)
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        SessionVariableManager(self._session_storage.db).merge_variables(session_id, changes)
 
     def _get_step_workflow_state(self, session_id: str) -> WorkflowState | None:
         """Get the active step workflow state for a session.

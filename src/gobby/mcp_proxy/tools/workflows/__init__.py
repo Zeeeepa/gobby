@@ -267,6 +267,7 @@ def create_workflows_registry(
         return get_variable(
             _state_manager,
             _session_manager,
+            _db,
             name,
             session_id,
             workflow=workflow,

@@ -38,7 +38,6 @@ class Session:
     spawned_by_agent_id: str | None = None  # ID of agent that spawned this session
     # Terminal pickup metadata fields
     workflow_name: str | None = None  # Workflow to activate on terminal pickup
-    step_variables: dict[str, Any] | None = None  # Variables for workflow activation
     agent_run_id: str | None = None  # Link back to agent run record
     context_injected: bool = False  # Whether context was injected into prompt
     original_prompt: str | None = None  # Original prompt for terminal mode
@@ -83,7 +82,6 @@ class Session:
             agent_depth=row["agent_depth"] or 0,
             spawned_by_agent_id=row["spawned_by_agent_id"],
             workflow_name=row["workflow_name"],
-            step_variables=cls._parse_json_field(row, "step_variables"),
             agent_run_id=row["agent_run_id"],
             context_injected=bool(row["context_injected"]),
             original_prompt=row["original_prompt"],
@@ -154,7 +152,6 @@ class Session:
             "agent_depth": self.agent_depth,
             "spawned_by_agent_id": self.spawned_by_agent_id,
             "workflow_name": self.workflow_name,
-            "step_variables": self.step_variables,
             "agent_run_id": self.agent_run_id,
             "context_injected": self.context_injected,
             "original_prompt": self.original_prompt,

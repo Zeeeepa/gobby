@@ -175,12 +175,14 @@ class AgentEventHandlerMixin(EventHandlersBase):
             raise RuntimeError("skill_manager not initialized")
         skills = self._skill_manager.discover_core_skills()
 
-        if session_id and self._session_manager:
+        if session_id and self._session_storage:
             try:
-                session = self._session_manager.get_session(session_id)
-                step_vars = (session or {}).get("step_variables")
-                if isinstance(step_vars, dict):
-                    active_names = step_vars.get("_active_skill_names")
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv = sv_mgr.get_variables(session_id)
+                if sv:
+                    active_names = sv.get("_active_skill_names")
                     if active_names is not None:
                         active_set = set(active_names)
                         skills = [s for s in skills if s.name in active_set]

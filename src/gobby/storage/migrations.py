@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 126
+BASELINE_VERSION = 128
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -221,7 +221,6 @@ CREATE TABLE sessions (
     agent_depth INTEGER DEFAULT 0,
     spawned_by_agent_id TEXT,
     workflow_name TEXT,
-    step_variables TEXT,
     agent_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
     context_injected INTEGER DEFAULT 0,
     original_prompt TEXT,
@@ -1451,6 +1450,11 @@ CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
         127,
         "Normalize secret names to lowercase and deduplicate",
         _normalize_secret_names_lowercase,
+    ),
+    (
+        128,
+        "Drop step_variables column from sessions (consolidated to session_variables table)",
+        "ALTER TABLE sessions DROP COLUMN step_variables",
     ),
 ]
 

@@ -96,16 +96,14 @@ def create_skills_registry(
             active_names = None
             if session_id:
                 try:
+                    from gobby.workflows.state_manager import SessionVariableManager
+
                     resolved_id = session_manager.resolve_session_reference(
                         session_id, project_id=project_id
                     )
-                    session = session_manager.get(resolved_id)
-                    if (
-                        session
-                        and session.step_variables
-                        and isinstance(session.step_variables, dict)
-                    ):
-                        active_names = session.step_variables.get("_active_skill_names")
+                    sv_mgr = SessionVariableManager(db)
+                    sv = sv_mgr.get_variables(resolved_id)
+                    active_names = sv.get("_active_skill_names") if sv else None
                 except Exception:
                     pass
 
@@ -295,16 +293,14 @@ def create_skills_registry(
             active_names = None
             if session_id:
                 try:
+                    from gobby.workflows.state_manager import SessionVariableManager
+
                     resolved_id = session_manager.resolve_session_reference(
                         session_id, project_id=project_id
                     )
-                    session = session_manager.get(resolved_id)
-                    if (
-                        session
-                        and session.step_variables
-                        and isinstance(session.step_variables, dict)
-                    ):
-                        active_names = session.step_variables.get("_active_skill_names")
+                    sv_mgr = SessionVariableManager(db)
+                    sv = sv_mgr.get_variables(resolved_id)
+                    active_names = sv.get("_active_skill_names") if sv else None
                 except Exception:
                     pass
 

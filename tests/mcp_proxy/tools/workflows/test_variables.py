@@ -168,6 +168,7 @@ class TestGetVariableScoped:
         result = get_variable(
             mocks["state_manager"],
             mocks["session_manager"],
+            mocks["db"],
             name="my_flag",
             session_id="#1",
             workflow="dev",
@@ -188,6 +189,7 @@ class TestGetVariableScoped:
         result = get_variable(
             mocks["state_manager"],
             mocks["session_manager"],
+            mocks["db"],
             name="counter",
             session_id="#1",
             session_var_manager=mocks["session_var_manager"],
@@ -216,6 +218,7 @@ class TestGetVariableScoped:
         result = get_variable(
             mocks["state_manager"],
             mocks["session_manager"],
+            mocks["db"],
             name=None,
             session_id="#1",
             workflow="dev",

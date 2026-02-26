@@ -271,14 +271,14 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             if preamble:
                 effective_prompt = f"{preamble}\n\n---\n\n{prompt}"
 
-        # Build step_variables
-        step_variables: dict[str, Any] = {}
+        # Build initial_variables
+        initial_variables: dict[str, Any] = {}
         if agent_body:
-            step_variables["_agent_type"] = agent_body.name
+            initial_variables["_agent_type"] = agent_body.name
             if agent_body.workflows.rules:
-                step_variables["_agent_rules"] = agent_body.workflows.rules
+                initial_variables["_agent_rules"] = agent_body.workflows.rules
             if agent_body.workflows.variables:
-                step_variables.update(agent_body.workflows.variables)
+                initial_variables.update(agent_body.workflows.variables)
 
         # Determine effective workflow
         effective_workflow = req.workflow
@@ -313,7 +313,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             timeout=req.timeout,
             max_turns=req.max_turns,
             parent_session_id=parent_session_id,
-            step_variables=step_variables,
+            initial_variables=initial_variables,
             session_manager=server.services.session_manager,
             db=server.services.database,
         )
