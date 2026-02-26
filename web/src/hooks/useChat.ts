@@ -557,9 +557,11 @@ export function useChat() {
           const planContent = (data as Record<string, unknown>).plan_content as
             | string
             | undefined;
-          setPlanPendingApproval(true);
-          planContentRef.current = planContent ?? null;
-          onPlanReadyRef.current?.(planContent ?? null);
+          if (planContent) {
+            setPlanPendingApproval(true);
+            planContentRef.current = planContent;
+            onPlanReadyRef.current?.(planContent);
+          }
         } else if (data.type === "mode_changed") {
           const msgConvId = (data as Record<string, unknown>)
             .conversation_id as string | undefined;
@@ -1819,6 +1821,7 @@ export function useChat() {
   // then sends a follow-up message to prompt the agent to begin execution.
   const approvePlan = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!planContentRef.current) return;
     pendingPlanExecutionRef.current = true;
     wsRef.current.send(
       JSON.stringify({
@@ -1835,6 +1838,7 @@ export function useChat() {
   // Request changes to the plan with feedback
   const requestPlanChanges = useCallback((feedback: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!planContentRef.current) return;
     wsRef.current.send(
       JSON.stringify({
         type: "plan_approval_response",

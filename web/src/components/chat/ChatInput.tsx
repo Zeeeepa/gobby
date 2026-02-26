@@ -211,10 +211,10 @@ export function ChatInput({
 
   return (
     <div className="border-t border-border bg-background px-4 py-3">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto relative">
         {/* Command palette */}
         {showPalette && (
-          <div ref={paletteRef} className="mb-2 rounded-lg border border-border bg-muted overflow-hidden max-h-48 overflow-y-auto">
+          <div ref={paletteRef} className="command-palette font-sans">
             {paletteItems.map((item, i) => (
               <div
                 key={item.kind === 'command' ? item.name : `${item.parentCommand}:${item.name}${item.serverName ? `:${item.serverName}` : ''}`}

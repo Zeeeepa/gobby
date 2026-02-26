@@ -685,7 +685,7 @@ class ChatMixin:
                                 type="chat_error",
                                 message_id=assistant_message_id,
                                 conversation_id=conversation_id,
-                                error=f"Failed to start chat session: {e}",
+                                error="Failed to start chat session. Please try again.",
                             )
                         )
                     )
@@ -714,7 +714,7 @@ class ChatMixin:
                                 type="chat_error",
                                 message_id=assistant_message_id,
                                 conversation_id=conversation_id,
-                                error=f"Failed to switch model: {e}",
+                                error="Failed to switch model. The previous model is still active.",
                             )
                         )
                     )
