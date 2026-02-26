@@ -267,6 +267,7 @@ class LocalSessionManager:
             True if ancestor_id is found in the parent chain
         """
         current_id = descendant_id
+        # Using mutable set for O(1) insertions during cycle detection
         seen: set[str] = set()
         while True:
             row = self.db.fetchone(

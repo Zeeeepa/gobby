@@ -114,7 +114,7 @@ class UnifiedSearcher:
             self._embedding_backend = EmbeddingBackend(
                 model=self._config.embedding_model,
                 api_base=self._config.embedding_api_base,
-                api_key=self._config.EMBEDDING_API_KEY,
+                api_key=self._config.embedding_api_key,
             )
         return self._embedding_backend
 
@@ -204,7 +204,7 @@ class UnifiedSearcher:
             # Embedding only - fail if unavailable
             if not is_embedding_available(
                 model=self._config.embedding_model,
-                api_key=self._config.EMBEDDING_API_KEY,
+                api_key=self._config.embedding_api_key,
                 api_base=self._config.embedding_api_base,
             ):
                 raise RuntimeError(
@@ -222,7 +222,7 @@ class UnifiedSearcher:
             # Try embedding, fallback to TF-IDF
             if not is_embedding_available(
                 model=self._config.embedding_model,
-                api_key=self._config.EMBEDDING_API_KEY,
+                api_key=self._config.embedding_api_key,
                 api_base=self._config.embedding_api_base,
             ):
                 # No embedding available - use TF-IDF
@@ -252,7 +252,7 @@ class UnifiedSearcher:
 
             if is_embedding_available(
                 model=self._config.embedding_model,
-                api_key=self._config.EMBEDDING_API_KEY,
+                api_key=self._config.embedding_api_key,
                 api_base=self._config.embedding_api_base,
             ):
                 try:

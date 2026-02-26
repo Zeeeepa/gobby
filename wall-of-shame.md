@@ -30,7 +30,7 @@ For skills specifically, `SkillBrowserModal.handleRun()` called `onRunSkill(skil
 
 **Actual fix:** `SkillBrowserModal` should use `onSendMessage(content, injectContext)` — the same pattern `ToolBrowserModal` already uses — passing `selectedSkill.content` as `injectContext` so it gets injected via `additionalContext` on the SDK conversation.
 
-### Attempt 2: Commit `9be33b0e` — "Wire EventHandlers from _fire_lifecycle"
+### Attempt 2 (Additional Failure): Commit `9be33b0e` — "Wire EventHandlers from _fire_lifecycle"
 
 **What it tried:** Wired `EventHandlers` to the WebSocket server and dispatched `handle_before_agent()` from `_fire_lifecycle()` after rule evaluation. Assumed `/gobby:canvas` was a skill command.
 

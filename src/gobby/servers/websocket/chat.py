@@ -537,10 +537,6 @@ class ChatMixin:
 
         # Extract inject_context for tool result injection into LLM conversation
         inject_context = data.get("inject_context")
-        if inject_context:
-            logger.info(f"inject_context received: {len(inject_context)} chars for conversation {conversation_id}")
-        else:
-            logger.info(f"No inject_context in payload. Keys: {list(data.keys())}")
 
         # Cancel any active stream for this conversation
         await self._cancel_active_chat(conversation_id)
@@ -726,20 +722,32 @@ class ChatMixin:
             # Wire tool approval callback for this request
             session._tool_approval_callback = _emit_pending_approval
 
-            # Set pending inject_context so the next prompt hook picks it up
-            if inject_context and isinstance(inject_context, str):
-                session.set_pending_context(inject_context)
-
             # Persist user message to database
             user_text = content if isinstance(content, str) else json.dumps(content)
             await _persist_message(session, "user", user_text)
+
+            # Enrich content with inject_context for SDK (invisible to chat UI)
+            sdk_content = content
+            if inject_context and isinstance(inject_context, str):
+                if isinstance(sdk_content, str):
+                    sdk_content = (
+                        f"{sdk_content}\n\n<skill-context>\n{inject_context}\n</skill-context>"
+                    )
+                elif isinstance(sdk_content, list):
+                    # For content blocks, append context as an additional text block
+                    sdk_content = sdk_content + [
+                        {
+                            "type": "text",
+                            "text": f"\n\n<skill-context>\n{inject_context}\n</skill-context>",
+                        }
+                    ]
 
             # Stream events from ChatSession.
             # Hold a reference to the generator so we can explicitly aclose()
             # it in the finally block — this prevents Python's GC from
             # finalizing it in a different asyncio task (which triggers
             # RuntimeError from anyio cancel scope mismatch).
-            gen = session.send_message(content)
+            gen = session.send_message(sdk_content)
             async for event in gen:
                 if isinstance(event, ThinkingEvent):
                     await websocket.send(

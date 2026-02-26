@@ -133,6 +133,7 @@ export function useVoice(
   const ttsConfigRef = useRef<TTSConfig | null>(null)
   const sentenceBufferRef = useRef(new SentenceBuffer())
   const ttsKeepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const ttsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const voiceModeRef = useRef(false)
 
   // Check voice availability on mount (STT availability via /api/voice/status)
@@ -214,8 +215,9 @@ export function useVoice(
 
       // Auto-reconnect if voice mode is still on
       if (voiceModeRef.current && ttsConfigRef.current) {
-        console.log('TTS WebSocket closed unexpectedly, reconnecting...')
-        setTimeout(() => {
+        if (ttsReconnectRef.current) clearTimeout(ttsReconnectRef.current)
+        ttsReconnectRef.current = setTimeout(() => {
+          ttsReconnectRef.current = null
           if (voiceModeRef.current && ttsConfigRef.current) {
             connectTTS(ttsConfigRef.current)
           }
@@ -234,6 +236,10 @@ export function useVoice(
     if (ttsKeepaliveRef.current) {
       clearInterval(ttsKeepaliveRef.current)
       ttsKeepaliveRef.current = null
+    }
+    if (ttsReconnectRef.current) {
+      clearTimeout(ttsReconnectRef.current)
+      ttsReconnectRef.current = null
     }
     if (ttsWsRef.current) {
       // Send End-of-Stream (EOS) message

@@ -112,7 +112,6 @@ class ChatSession(ChatSessionPermissionsMixin):
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
     sdk_session_id: str | None = field(default=None, repr=False)
-    _pending_inject_context: str | None = field(default=None, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
@@ -208,30 +207,22 @@ class ChatSession(ChatSessionPermissionsMixin):
                 resp = await cb(data)
                 output = _response_to_prompt_output(resp)
 
-                # Inject plan mode context into additionalContext
-                plan_ctx = self._consume_plan_mode_context()
-                if plan_ctx:
-                    hook_specific = output.get("hookSpecificOutput")
-                    existing = ""
-                    if hook_specific and isinstance(hook_specific, dict):
-                        existing = str(hook_specific.get("additionalContext", "") or "")
-                    combined = (existing + "\n\n" + plan_ctx).strip() if existing else plan_ctx
-                    output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
-                        hookEventName="UserPromptSubmit",
-                        additionalContext=combined,
-                    )
+                context_parts = []
 
-                # Inject pending context (from tool browser inject_context)
-                inject_ctx = self._consume_pending_context()
-                if inject_ctx:
-                    hook_specific = output.get("hookSpecificOutput")
-                    existing = ""
-                    if hook_specific and isinstance(hook_specific, dict):
-                        existing = str(hook_specific.get("additionalContext", "") or "")
-                    combined = (existing + "\n\n" + inject_ctx).strip() if existing else inject_ctx
+                hook_specific = output.get("hookSpecificOutput")
+                if hook_specific and isinstance(hook_specific, dict):
+                    existing = hook_specific.get("additionalContext")
+                    if existing:
+                        context_parts.append(str(existing))
+
+                plan_ctx = getattr(self, "_consume_plan_mode_context", lambda: None)()
+                if plan_ctx:
+                    context_parts.append(plan_ctx)
+
+                if context_parts:
                     output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
                         hookEventName="UserPromptSubmit",
-                        additionalContext=combined,
+                        additionalContext="\n\n".join(context_parts).strip(),
                     )
 
                 # Inject conversation history on first prompt of a recreated session
@@ -258,6 +249,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                                 additionalContext=combined,
                             )
 
+                import sys; print(f"XXXXXX PROMPT HOOK OUTPUT: {output}", file=sys.stderr)
                 return output
 
             hooks["UserPromptSubmit"] = [HookMatcher(matcher=None, hooks=[_prompt_hook])]
@@ -406,16 +398,6 @@ class ChatSession(ChatSessionPermissionsMixin):
         except Exception as e:
             logger.warning(f"Failed to load history context for {self.conversation_id}: {e}")
             return None
-
-    def set_pending_context(self, context: str) -> None:
-        """Store context to inject into the next LLM prompt via additionalContext."""
-        self._pending_inject_context = context
-
-    def _consume_pending_context(self) -> str | None:
-        """Return and clear any pending inject context (single-use)."""
-        ctx = self._pending_inject_context
-        self._pending_inject_context = None
-        return ctx
 
     async def send_message(self, content: str | list[dict[str, Any]]) -> AsyncIterator[ChatEvent]:
         """
@@ -635,9 +617,11 @@ class ChatSession(ChatSessionPermissionsMixin):
                         f"ChatSession {self.conversation_id} cross-task disconnect (expected): {e}"
                     )
                 else:
-                    logger.warning(f"ChatSession {self.conversation_id} disconnect error: {e}")
+                    logger.debug(
+                        f"ChatSession {self.conversation_id} disconnect error (expected): {e}"
+                    )
             except Exception as e:
-                logger.warning(f"ChatSession {self.conversation_id} disconnect error: {e}")
+                logger.debug(f"ChatSession {self.conversation_id} disconnect error (expected): {e}")
             finally:
                 self._client = None
                 self._connected = False

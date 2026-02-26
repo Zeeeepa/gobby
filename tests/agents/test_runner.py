@@ -21,8 +21,8 @@ class TestAgentRunContext:
 
         assert ctx.session is None
         assert ctx.run is None
-        assert ctx.workflow_state is None
-        assert ctx.workflow_config is None
+        assert ctx.session_id is None
+        assert ctx.run_id is None
 
     def test_session_id_property(self) -> None:
         """session_id property returns session.id."""
@@ -58,20 +58,14 @@ class TestAgentRunContext:
         """All fields can be set."""
         mock_session = MagicMock()
         mock_run = MagicMock()
-        mock_state = MagicMock()
-        mock_workflow = MagicMock()
 
         ctx = AgentRunContext(
             session=mock_session,
             run=mock_run,
-            workflow_state=mock_state,
-            workflow_config=mock_workflow,
         )
 
         assert ctx.session is mock_session
         assert ctx.run is mock_run
-        assert ctx.workflow_state is mock_state
-        assert ctx.workflow_config is mock_workflow
 
 
 class TestAgentConfig:
@@ -416,6 +410,13 @@ class TestAgentRunnerTerminalPickupMetadata:
         # Mock the session storage's update method
         mock_session_storage.update_terminal_pickup_metadata = MagicMock()
 
+        # Mock the workflow loader
+        mock_pipeline = MagicMock()
+        mock_pipeline.type = "pipeline"
+        mock_pipeline.name = "legacy-workflow"
+        runner._workflow_loader = MagicMock()
+        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_pipeline)
+
         config = AgentConfig(
             prompt="Test prompt for agent",
             parent_session_id="sess-parent",
@@ -485,6 +486,13 @@ class TestAgentRunnerTerminalPickupMetadata:
         runner._run_storage.create = MagicMock(return_value=agent_run)
 
         mock_session_storage.update_terminal_pickup_metadata = MagicMock()
+
+        # Mock the workflow loader
+        mock_pipeline = MagicMock()
+        mock_pipeline.type = "pipeline"
+        mock_pipeline.name = "legacy-workflow"
+        runner._workflow_loader = MagicMock()
+        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_pipeline)
 
         config = AgentConfig(
             prompt="Legacy workflow task",
@@ -1035,442 +1043,3 @@ class TestAgentRunnerExecuteRunStatusHandling:
 
         # Verify not in tracking after exception
         assert not runner.is_agent_running("run-exc-track")
-
-
-class TestAgentRunnerPrepareRunWorkflows:
-    """Tests for AgentRunner.prepare_run() workflow handling."""
-
-    def test_prepare_run_rejects_lifecycle_workflow(self, runner, mock_session_storage) -> None:
-        """prepare_run returns error for lifecycle workflows."""
-        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
-
-        # Mock the workflow loader to return a lifecycle workflow
-        mock_workflow = MagicMock()
-        mock_workflow.type = "lifecycle"
-        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_workflow)
-
-        config = AgentConfig(
-            prompt="Test prompt",
-            parent_session_id="sess-parent",
-            project_id="proj-123",
-            machine_id="machine-1",
-            workflow="lifecycle-workflow",
-        )
-
-        result = runner.prepare_run(config)
-
-        assert isinstance(result, AgentResult)
-        assert result.status == "error"
-        assert "lifecycle workflow" in result.error.lower()
-        assert "cannot use" in result.error.lower()
-
-    def test_prepare_run_handles_child_session_creation_failure(
-        self, runner, mock_session_storage
-    ) -> None:
-        """prepare_run handles ValueError from create_child_session."""
-        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
-        runner._child_session_manager.create_child_session = MagicMock(
-            side_effect=ValueError("Session creation failed")
-        )
-
-        config = AgentConfig(
-            prompt="Test prompt",
-            parent_session_id="sess-parent",
-            project_id="proj-123",
-            machine_id="machine-1",
-        )
-
-        result = runner.prepare_run(config)
-
-        assert isinstance(result, AgentResult)
-        assert result.status == "error"
-        assert "Session creation failed" in result.error
-
-    def test_prepare_run_warns_on_workflow_not_found(
-        self, runner, mock_session_storage, caplog
-    ) -> None:
-        """prepare_run logs warning when workflow not found."""
-        import logging
-
-        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
-
-        child_session = MagicMock()
-        child_session.id = "sess-child"
-        child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
-
-        agent_run = MagicMock()
-        agent_run.id = "run-123"
-        runner._run_storage.create = MagicMock(return_value=agent_run)
-
-        # Mock workflow loader to return None (not found)
-        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=None)
-
-        config = AgentConfig(
-            prompt="Test prompt",
-            parent_session_id="sess-parent",
-            project_id="proj-123",
-            machine_id="machine-1",
-            workflow="nonexistent-workflow",
-        )
-
-        with caplog.at_level(logging.WARNING):
-            result = runner.prepare_run(config)
-
-        assert isinstance(result, AgentRunContext)
-        assert "not found" in caplog.text or result.workflow_config is None
-
-    def test_prepare_run_initializes_workflow_state(self, runner, mock_session_storage) -> None:
-        """prepare_run initializes workflow state for step workflows."""
-        from gobby.workflows.definitions import WorkflowDefinition
-
-        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
-
-        child_session = MagicMock()
-        child_session.id = "sess-child"
-        child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
-
-        agent_run = MagicMock()
-        agent_run.id = "run-123"
-        runner._run_storage.create = MagicMock(return_value=agent_run)
-
-        # Mock workflow loader to return a step workflow (must pass isinstance check)
-        mock_step = MagicMock()
-        mock_step.name = "plan"
-        mock_workflow = MagicMock(spec=WorkflowDefinition)
-        mock_workflow.type = "step"
-        mock_workflow.steps = [mock_step]
-        mock_workflow.variables = {"initial_var": "value"}
-        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_workflow)
-
-        # Mock the workflow state manager
-        runner._workflow_state_manager.save_state = MagicMock()
-
-        config = AgentConfig(
-            prompt="Test prompt",
-            parent_session_id="sess-parent",
-            project_id="proj-123",
-            machine_id="machine-1",
-            workflow="plan-execute",
-        )
-
-        result = runner.prepare_run(config)
-
-        assert isinstance(result, AgentRunContext)
-        assert result.workflow_config is mock_workflow
-        runner._workflow_state_manager.save_state.assert_called_once()
-
-    def test_prepare_run_handles_workflow_with_no_steps(self, runner, mock_session_storage) -> None:
-        """prepare_run handles workflow with empty steps list."""
-        from gobby.workflows.definitions import WorkflowDefinition
-
-        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
-
-        child_session = MagicMock()
-        child_session.id = "sess-child"
-        child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
-
-        agent_run = MagicMock()
-        agent_run.id = "run-123"
-        runner._run_storage.create = MagicMock(return_value=agent_run)
-
-        # Mock workflow loader to return a workflow with NO steps (must pass isinstance check)
-        mock_workflow = MagicMock(spec=WorkflowDefinition)
-        mock_workflow.type = "step"
-        mock_workflow.steps = []  # Empty steps list
-        mock_workflow.variables = {}
-        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_workflow)
-
-        runner._workflow_state_manager.save_state = MagicMock()
-
-        config = AgentConfig(
-            prompt="Test prompt",
-            parent_session_id="sess-parent",
-            project_id="proj-123",
-            machine_id="machine-1",
-            workflow="stepless-workflow",
-        )
-
-        result = runner.prepare_run(config)
-
-        assert isinstance(result, AgentRunContext)
-        # Verify workflow state was saved with empty step
-        runner._workflow_state_manager.save_state.assert_called_once()
-        saved_state = runner._workflow_state_manager.save_state.call_args[0][0]
-        assert saved_state.step == ""
-
-
-class TestAgentRunnerWorkflowFiltering:
-    """Tests for workflow-based tool filtering in execute_run."""
-
-    async def test_execute_run_with_workflow_filters_tools(
-        self, runner, mock_executor, mock_session_storage
-    ):
-        """execute_run creates workflow-filtered handler when workflow is active."""
-        mock_session = MagicMock()
-        mock_session.id = "sess-workflow"
-        mock_run = MagicMock()
-        mock_run.id = "run-workflow"
-
-        # Create a mock workflow definition
-        mock_step = MagicMock()
-        mock_step.name = "plan"
-        mock_step.allowed_tools = ["create_task", "list_tasks"]
-        mock_step.blocked_tools = []
-        mock_workflow = MagicMock()
-        mock_workflow.get_step = MagicMock(return_value=mock_step)
-
-        runner._run_storage.start = MagicMock()
-        runner._run_storage.complete = MagicMock()
-
-        context = AgentRunContext(
-            session=mock_session,
-            run=mock_run,
-            workflow_config=mock_workflow,
-        )
-        config = AgentConfig(prompt="Test", provider="claude")
-
-        await runner.execute_run(context, config)
-
-        # Verify executor was called
-        mock_executor.run.assert_called_once()
-
-    async def test_execute_run_default_tool_handler(self, runner, mock_executor):
-        """execute_run uses default handler that returns not implemented."""
-        mock_session = MagicMock()
-        mock_session.id = "sess-default"
-        mock_run = MagicMock()
-        mock_run.id = "run-default"
-
-        runner._run_storage.start = MagicMock()
-        runner._run_storage.complete = MagicMock()
-
-        context = AgentRunContext(session=mock_session, run=mock_run)
-        config = AgentConfig(prompt="Test", provider="claude")
-
-        # Capture the tool handler passed to executor
-        captured_handler = None
-
-        async def capture_handler(**kwargs):
-            nonlocal captured_handler
-            captured_handler = kwargs.get("tool_handler")
-            return AgentResult(output="Done", status="success", turns_used=1, tool_calls=[])
-
-        mock_executor.run = capture_handler
-
-        await runner.execute_run(context, config)
-
-        # Now test the default handler behavior
-        assert captured_handler is not None
-
-        result = await captured_handler("unknown_tool", {"arg": "value"})
-        assert result.success is False
-        assert "not implemented" in result.error.lower()
-
-    async def test_execute_run_tracking_handler_counts_tools(self, runner, mock_executor):
-        """execute_run tracking handler counts tool calls."""
-        mock_session = MagicMock()
-        mock_session.id = "sess-track"
-        mock_run = MagicMock()
-        mock_run.id = "run-track"
-
-        runner._run_storage.start = MagicMock()
-        runner._run_storage.complete = MagicMock()
-
-        context = AgentRunContext(session=mock_session, run=mock_run)
-        config = AgentConfig(prompt="Test", provider="claude")
-
-        # Create a custom tool handler
-        from gobby.llm.executor import ToolCallRecord, ToolResult
-
-        async def custom_handler(tool_name: str, arguments: dict):
-            return ToolResult(tool_name=tool_name, success=True, result="OK")
-
-        # Make executor call the tool handler
-        async def executor_that_calls_tools(**kwargs):
-            handler = kwargs.get("tool_handler")
-            await handler("tool1", {})
-            await handler("tool2", {})
-            return AgentResult(
-                output="Done",
-                status="success",
-                turns_used=1,
-                tool_calls=[
-                    ToolCallRecord(tool_name="tool1", arguments={}),
-                    ToolCallRecord(tool_name="tool2", arguments={}),
-                ],
-            )
-
-        mock_executor.run = executor_that_calls_tools
-
-        await runner.execute_run(context, config, tool_handler=custom_handler)
-
-        # Tool calls should have been counted (via _update_running_agent)
-        runner._run_storage.complete.assert_called_once()
-
-
-class TestWorkflowFilteredHandler:
-    """Tests for _create_workflow_filtered_handler."""
-
-    async def test_filtered_handler_blocks_blocked_tools(self, runner):
-        """Workflow filtered handler blocks tools in blocked_tools list."""
-        from gobby.llm.executor import ToolResult
-        from gobby.workflows.definitions import WorkflowState
-
-        # Create mocks
-        mock_step = MagicMock()
-        mock_step.name = "execute"
-        mock_step.allowed_tools = "all"
-        mock_step.blocked_tools = ["dangerous_tool"]
-
-        mock_workflow = MagicMock()
-        mock_workflow.get_step = MagicMock(return_value=mock_step)
-
-        mock_state = WorkflowState(
-            session_id="sess-test",
-            workflow_name="test-workflow",
-            step="execute",
-        )
-        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
-
-        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
-            return ToolResult(tool_name=tool_name, success=True, result="OK")
-
-        handler = runner._create_workflow_filtered_handler(
-            base_handler=base_handler,
-            session_id="sess-test",
-            workflow_definition=mock_workflow,
-        )
-
-        # Blocked tool should fail
-        result = await handler("dangerous_tool", {})
-        assert result.success is False
-        assert "blocked" in result.error.lower()
-
-    async def test_filtered_handler_allows_only_allowed_tools(self, runner):
-        """Workflow filtered handler only allows tools in allowed_tools list."""
-        from gobby.llm.executor import ToolResult
-        from gobby.workflows.definitions import WorkflowState
-
-        mock_step = MagicMock()
-        mock_step.name = "plan"
-        mock_step.allowed_tools = ["create_task", "list_tasks"]
-        mock_step.blocked_tools = []
-
-        mock_workflow = MagicMock()
-        mock_workflow.get_step = MagicMock(return_value=mock_step)
-
-        mock_state = WorkflowState(
-            session_id="sess-test",
-            workflow_name="test-workflow",
-            step="plan",
-        )
-        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
-
-        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
-            return ToolResult(tool_name=tool_name, success=True, result="OK")
-
-        handler = runner._create_workflow_filtered_handler(
-            base_handler=base_handler,
-            session_id="sess-test",
-            workflow_definition=mock_workflow,
-        )
-
-        # Allowed tool should succeed
-        result = await handler("create_task", {"title": "Test", "session_id": "sess-test"})
-        assert result.success is True
-
-        # Not allowed tool should fail
-        result = await handler("delete_file", {})
-        assert result.success is False
-        assert "not allowed" in result.error.lower()
-
-    async def test_filtered_handler_passes_through_when_no_state(self, runner):
-        """Workflow filtered handler passes through when no workflow state."""
-        from gobby.llm.executor import ToolResult
-
-        mock_workflow = MagicMock()
-        runner._workflow_state_manager.get_state = MagicMock(return_value=None)
-
-        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
-            return ToolResult(tool_name=tool_name, success=True, result="passed through")
-
-        handler = runner._create_workflow_filtered_handler(
-            base_handler=base_handler,
-            session_id="sess-test",
-            workflow_definition=mock_workflow,
-        )
-
-        result = await handler("any_tool", {})
-        assert result.success is True
-        assert result.result == "passed through"
-
-    async def test_filtered_handler_passes_through_when_no_step(self, runner):
-        """Workflow filtered handler passes through when step not found."""
-        from gobby.llm.executor import ToolResult
-        from gobby.workflows.definitions import WorkflowState
-
-        mock_workflow = MagicMock()
-        mock_workflow.get_step = MagicMock(return_value=None)
-
-        mock_state = WorkflowState(
-            session_id="sess-test",
-            workflow_name="test-workflow",
-            step="nonexistent",
-        )
-        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
-
-        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
-            return ToolResult(tool_name=tool_name, success=True, result="passed through")
-
-        handler = runner._create_workflow_filtered_handler(
-            base_handler=base_handler,
-            session_id="sess-test",
-            workflow_definition=mock_workflow,
-        )
-
-        result = await handler("any_tool", {})
-        assert result.success is True
-
-    async def test_filtered_handler_handles_complete_tool(self, runner):
-        """Workflow filtered handler handles 'complete' tool as exit condition."""
-        from gobby.llm.executor import ToolResult
-        from gobby.workflows.definitions import WorkflowState
-
-        mock_step = MagicMock()
-        mock_step.name = "execute"
-        mock_step.allowed_tools = "all"
-        mock_step.blocked_tools = []
-
-        mock_workflow = MagicMock()
-        mock_workflow.get_step = MagicMock(return_value=mock_step)
-
-        mock_state = WorkflowState(
-            session_id="sess-test",
-            workflow_name="test-workflow",
-            step="execute",
-            variables={},
-        )
-        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
-        runner._workflow_state_manager.save_state = MagicMock()
-
-        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
-            return ToolResult(tool_name=tool_name, success=True, result="OK")
-
-        handler = runner._create_workflow_filtered_handler(
-            base_handler=base_handler,
-            session_id="sess-test",
-            workflow_definition=mock_workflow,
-        )
-
-        result = await handler("complete", {"result": "Task finished successfully"})
-
-        assert result.success is True
-        assert result.result["status"] == "completed"
-        assert result.result["message"] == "Task finished successfully"
-        # Verify workflow state was updated
-        runner._workflow_state_manager.save_state.assert_called_once()
-        saved_state = runner._workflow_state_manager.save_state.call_args[0][0]
-        assert saved_state.variables["workflow_completed"] is True

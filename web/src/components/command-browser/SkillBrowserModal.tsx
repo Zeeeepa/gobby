@@ -51,7 +51,6 @@ export function SkillBrowserModal({ onSendMessage, onClose }: SkillBrowserModalP
 
   const handleRun = useCallback(() => {
     if (selectedSkill) {
-      console.log('[SkillBrowser] handleRun:', selectedSkill.name, 'content_len:', selectedSkill.content?.length)
       onSendMessage(`Run skill: ${selectedSkill.name}`, selectedSkill.content || '')
       onClose()
     }

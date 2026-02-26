@@ -36,6 +36,16 @@ steps:
         session_id: "${{ session_id }}"
         timeout: "${{ inputs.wait_timeout }}"
 
+  - id: handle_timeout
+    condition: "${{ steps.wait_command.output.timed_out }}"
+    mcp:
+      server: gobby-agents
+      tool: send_message
+      arguments:
+        from_session: "${{ session_id }}"
+        to_session: "${{ inputs.parent_session_id }}"
+        content: "Wait for command timed out after ${{ inputs.wait_timeout }} seconds."
+
   - id: process_command
     condition: "${{ steps.wait_command.output.command }}"
     prompt: |

@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SearchMode(str, Enum):
@@ -54,6 +54,8 @@ class SearchConfig(BaseModel):
     - Mistral: mistral/mistral-embed (needs MISTRAL_API_KEY)
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     mode: str = Field(
         default="auto",
         description="Search mode: tfidf, embedding, auto, hybrid",
@@ -66,7 +68,7 @@ class SearchConfig(BaseModel):
         default=None,
         description="API base URL for Ollama/custom endpoints (e.g., http://localhost:11434/v1)",
     )
-    EMBEDDING_API_KEY: str | None = Field(
+    embedding_api_key: str | None = Field(
         default=None,
         description="API key for embedding provider (uses env var if not set)",
     )

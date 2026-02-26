@@ -243,7 +243,7 @@ def is_embedding_available_for_config(config: SearchConfig) -> bool:
     """
     return is_embedding_available(
         model=config.embedding_model,
-        api_key=config.EMBEDDING_API_KEY,
+        api_key=config.embedding_api_key,
         api_base=config.embedding_api_base,
     )
 
@@ -267,5 +267,5 @@ async def generate_embeddings_for_config(
         texts=texts,
         model=config.embedding_model,
         api_base=config.embedding_api_base,
-        api_key=config.EMBEDDING_API_KEY,
+        api_key=config.embedding_api_key,
     )

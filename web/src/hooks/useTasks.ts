@@ -341,6 +341,10 @@ export function useTasks() {
   useEffect(() => {
     setIsLoading(true)
     fetchTasks()
+    
+    return () => {
+      if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current)
+    }
   }, [fetchTasks])
 
   // -------------------------------------------------------------------------
@@ -380,7 +384,7 @@ export function useTasks() {
     if (data.event && (data.task || data.task_id)) {
       handleTaskEventRef.current(
         data.event as string,
-        (data.task || { id: data.task_id }) as Partial<GobbyTask>,
+        (data.task || { id: data.task_id }) as Record<string, unknown>,
       )
     }
   }, []))

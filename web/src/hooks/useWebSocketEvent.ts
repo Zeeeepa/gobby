@@ -67,7 +67,6 @@ function connect() {
 
 function ensureConnection() {
   if (!ws && !closed) {
-    closed = false
     connect()
   }
 }

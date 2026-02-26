@@ -122,7 +122,10 @@ class HandlerMixin:
             if internal_mgr and internal_mgr.is_internal(mcp_name):
                 registry = internal_mgr.get_registry(mcp_name)
                 if registry:
-                    result = await registry.call(tool_name, args)
+                    try:
+                        result = await registry.call(tool_name, args)
+                    except ValueError:
+                        result = await self.mcp_manager.call_tool(mcp_name, tool_name, args)
                 else:
                     result = await self.mcp_manager.call_tool(mcp_name, tool_name, args)
             else:

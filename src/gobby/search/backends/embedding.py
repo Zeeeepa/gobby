@@ -95,7 +95,7 @@ class EmbeddingBackend:
         return cls(
             model=config.embedding_model,
             api_base=config.embedding_api_base,
-            api_key=config.EMBEDDING_API_KEY,
+            api_key=config.embedding_api_key,
         )
 
     async def fit_async(self, items: list[tuple[str, str]]) -> None:

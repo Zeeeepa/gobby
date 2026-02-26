@@ -794,6 +794,7 @@ class TestVariablePersistence:
     async def test_session_variables_override_workflow_state(self, db, handler, session_var_manager) -> None:
         """Session variables should take precedence over workflow_states variables."""
         import json
+
         from gobby.workflows.definitions import WorkflowState
 
         # Mock state_manager to return workflow state with a variable

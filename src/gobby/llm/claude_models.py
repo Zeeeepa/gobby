@@ -18,8 +18,11 @@ logger = logging.getLogger(__name__)
 # context-1m-2025-08-07 window), so we never trust litellm for Claude.
 CLAUDE_DEFAULT_CONTEXT_WINDOW = 200_000
 
-# Substrings that identify a model as Claude
-_CLAUDE_IDENTIFIERS = ("opus", "sonnet", "haiku")
+# Substrings that identify a model as Claude.
+# This list is used to identify Claude model variants and should be extended
+# when new naming conventions appear (e.g., "claude" as a fallback).
+# A more robust detection strategy (prefix/suffix check for "claude") could be implemented later.
+_CLAUDE_IDENTIFIERS = ("opus", "sonnet", "haiku", "claude")
 
 
 def resolve_context_window(

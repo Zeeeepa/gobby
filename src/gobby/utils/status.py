@@ -12,9 +12,9 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
+async def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
     """
-    Fetch rich status data from the daemon API.
+    Fetch rich status data from the daemon API asynchronously.
 
     Args:
         http_port: HTTP port of the daemon
@@ -26,7 +26,10 @@ def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
     status_kwargs: dict[str, Any] = {}
 
     try:
-        response = httpx.get(f"http://localhost:{http_port}/api/admin/status", timeout=timeout)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://localhost:{http_port}/api/admin/status", timeout=timeout
+            )
         if response.status_code != 200:
             return status_kwargs
 

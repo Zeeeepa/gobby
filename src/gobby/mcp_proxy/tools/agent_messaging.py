@@ -12,10 +12,12 @@ Provides P2P messaging and command coordination between sessions:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -29,6 +31,16 @@ if TYPE_CHECKING:
 BroadcastFn = Callable[..., Coroutine[Any, Any, None]]
 
 logger = logging.getLogger(__name__)
+
+
+class CommandLike(Protocol):
+    """Protocol for command objects."""
+
+    id: str
+    command_text: str
+    allowed_tools: str | None
+    allowed_mcp_tools: str | None
+    exit_condition: str | None
 
 
 def add_messaging_tools(
@@ -349,7 +361,7 @@ def add_messaging_tools(
 
     # ── shared activation helper ────────────────────────────────
 
-    def _activate_command_impl(cmd: Any, resolved_session_id: str) -> list[str]:
+    def _activate_command_impl(cmd: CommandLike, resolved_session_id: str) -> list[str]:
         """Activate a command: mark running and set session variables.
 
         Returns the list of variable names that were set.
@@ -448,9 +460,6 @@ def add_messaging_tools(
             - timed_out: Whether the wait timed out
             - wait_time: How long we waited in seconds
         """
-        import asyncio
-        import time
-
         if poll_interval <= 0:
             poll_interval = 5
 

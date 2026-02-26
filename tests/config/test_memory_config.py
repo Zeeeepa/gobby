@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import pytest
-
-pytestmark = pytest.mark.unit
 from pydantic import ValidationError
 
 from gobby.config.persistence import MemoryConfig
 
+pytestmark = pytest.mark.unit
+
 
 def test_qdrant_path_defaults_to_none() -> None:
-    """qdrant_path should default to None (runner sets ~/.gobby/qdrant/)."""
+    """qdrant_path should default to None."""
     config = MemoryConfig()
     assert config.qdrant_path is None
 

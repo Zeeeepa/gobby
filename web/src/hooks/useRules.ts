@@ -232,13 +232,18 @@ export function useRules() {
   }, [rules])
 
   // Auto-fetch on mount
+  const debounceRef = useRef<number | null>(null)
+  
   useEffect(() => {
     setIsLoading(true)
     Promise.all([fetchRules(), fetchGroups()]).finally(() => setIsLoading(false))
+    
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    }
   }, [fetchRules, fetchGroups])
 
   // Real-time updates via WebSocket
-  const debounceRef = useRef<number | null>(null)
   useWebSocketEvent(
     'workflow_event',
     useCallback(() => {

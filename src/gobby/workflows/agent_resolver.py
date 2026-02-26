@@ -115,7 +115,7 @@ def resolve_agent(
             if "name" not in data:
                 data["name"] = row.name
             return AgentDefinitionBody(**data)
-        except (json.JSONDecodeError, Exception) as e:
+        except Exception as e:
             logger.debug("Failed to parse agent definition for %s: %s", agent_name, e)
             return None
 

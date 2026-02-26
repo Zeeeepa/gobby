@@ -139,6 +139,12 @@ async def spawn_agent_impl(
     if effective_model is None and agent_body:
         effective_model = agent_body.model
 
+    effective_timeout = timeout
+    if effective_timeout is None and agent_body and agent_body.timeout:
+        effective_timeout = agent_body.timeout
+    if effective_timeout == 0:
+        effective_timeout = None  # 0 means no timeout
+
     effective_workflow = workflow
 
     # Handle mode=self: activate workflow on caller session instead of spawning
@@ -423,6 +429,8 @@ async def spawn_agent_impl(
             provider=effective_provider,
             workflow_name=effective_workflow,
             worktree_id=isolation_ctx.worktree_id,
+            clone_id=isolation_ctx.clone_id,
+            timeout_seconds=effective_timeout,
         )
     )
 
@@ -447,6 +455,8 @@ async def spawn_agent_impl(
                 provider=effective_provider,
                 workflow_name=effective_workflow,
                 worktree_id=isolation_ctx.worktree_id,
+                clone_id=isolation_ctx.clone_id,
+                timeout_seconds=effective_timeout,
             )
         )
         try:

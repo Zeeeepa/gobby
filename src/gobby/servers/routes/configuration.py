@@ -241,7 +241,7 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
             # Propagate updated config to WebSocket server (needed for STT)
             ws_server = getattr(server.services, "websocket_server", None)
-            if ws_server is not None:
+            if ws_server is not None and hasattr(ws_server, "daemon_config"):
                 ws_server.daemon_config = server.services.config
 
             return JSONResponse(

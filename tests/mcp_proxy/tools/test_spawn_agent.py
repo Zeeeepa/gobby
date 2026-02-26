@@ -59,7 +59,7 @@ class TestLoadAgentBody:
             base_branch="main",
             timeout=120.0,
             max_turns=15,
-            workflows=AgentWorkflows(rules=["require-task", "require-commit"]),
+            workflows=AgentWorkflows(rules=["require-task-before-edit", "require-commit"]),
         )
         manager.create(
             name=body.name,
@@ -76,7 +76,7 @@ class TestLoadAgentBody:
         assert result.model == "claude-sonnet-4-6"
         assert result.mode == "terminal"
         assert result.isolation == "worktree"
-        assert result.workflows.rules == ["require-task", "require-commit"]
+        assert result.workflows.rules == ["require-task-before-edit", "require-commit"]
 
     def test_returns_none_for_missing_agent(self, db: LocalDatabase) -> None:
         from gobby.mcp_proxy.tools.spawn_agent._factory import _load_agent_body
@@ -162,8 +162,12 @@ class TestSpawnAgentDefaults:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ) as mock_load,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -213,9 +217,7 @@ class TestSpawnAgentIsolation:
         )
 
     @pytest.mark.asyncio
-    async def test_spawn_agent_current_uses_current_handler(
-        self, mock_runner, agent_body
-    ) -> None:
+    async def test_spawn_agent_current_uses_current_handler(self, mock_runner, agent_body) -> None:
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
@@ -225,9 +227,15 @@ class TestSpawnAgentIsolation:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -277,9 +285,15 @@ class TestSpawnAgentIsolation:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -335,9 +349,15 @@ class TestSpawnAgentIsolation:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -411,9 +431,15 @@ class TestSpawnAgentParamOverrides:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -493,10 +519,18 @@ class TestSpawnAgentTaskResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp") as mock_resolve,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp"
+            ) as mock_resolve,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -565,9 +599,15 @@ class TestSpawnAgentSandbox:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -616,9 +656,15 @@ class TestSpawnAgentSandbox:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -665,9 +711,15 @@ class TestSpawnAgentSandbox:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler") as mock_get_handler,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -753,8 +805,13 @@ class TestSpawnAgentPreRegistration:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn", side_effect=fake_execute),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn",
+                side_effect=fake_execute,
+            ),
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry",
                 return_value=mock_agent_registry,
@@ -793,8 +850,12 @@ class TestSpawnAgentPreRegistration:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry",
                 return_value=mock_agent_registry,
@@ -890,8 +951,12 @@ class TestSpawnAgentPromptPreamble:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",
@@ -951,8 +1016,12 @@ class TestSpawnAgentStepVariables:
                 "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
                 return_value=agent_body,
             ),
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn") as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {
                 "id": "proj-123",

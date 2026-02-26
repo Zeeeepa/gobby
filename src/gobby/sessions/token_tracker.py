@@ -7,7 +7,7 @@ over time and enables budget tracking for agent spawning decisions.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -36,11 +36,6 @@ class SessionTokenTracker:
 
     session_storage: Any  # LocalSessionManager
     daily_budget_usd: float = 50.0  # Default daily budget in USD
-
-    # Cached data
-    _usage_cache: dict[str, Any] = field(default_factory=dict)
-    _cache_time: datetime | None = field(default=None)
-    _cache_ttl_seconds: int = 60  # Cache for 60 seconds
 
     def get_usage_summary(self, days: int = 1) -> dict[str, Any]:
         """Get usage summary for the specified number of days.

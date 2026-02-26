@@ -93,12 +93,12 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
 
     async def _broadcast_rule(event: str, definition_id: str, **kwargs: Any) -> None:
         """Broadcast a rule event via WebSocket if available."""
-        ws = server.services.websocket_server
-        if ws:
-            try:
+        try:
+            ws = getattr(server.services, "websocket_server", None)
+            if ws and hasattr(ws, "broadcast_workflow_event"):
                 await ws.broadcast_workflow_event(event, definition_id, **kwargs)
-            except Exception as e:
-                logger.debug(f"Failed to broadcast rule event {event}: {e}")
+        except Exception as e:
+            logger.debug(f"Failed to broadcast rule event {event}: {e}")
 
     # -----------------------------------------------------------------
     # GET /api/rules/groups (must be before /{name} to avoid conflict)

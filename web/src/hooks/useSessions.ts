@@ -68,6 +68,12 @@ export function useSessions() {
   const [error, setError] = useState<Error | null>(null);
   const debouncedRefetchRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current);
+    };
+  }, []);
+
   const fetchSessions = useCallback(async () => {
     setError(null);
     try {

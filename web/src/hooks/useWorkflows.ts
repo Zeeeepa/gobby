@@ -329,6 +329,11 @@ export function useWorkflows() {
 
   // Real-time updates via WebSocket
   const debounceRef = useRef<number | null>(null)
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    }
+  }, [])
   useWebSocketEvent(
     'workflow_event',
     useCallback(() => {

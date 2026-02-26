@@ -404,6 +404,7 @@ class GobbyRunner:
             self.agent_lifecycle_monitor: AgentLifecycleMonitor | None = AgentLifecycleMonitor(
                 agent_registry=get_running_agent_registry(),
                 agent_run_manager=LocalAgentRunManager(self.database),
+                clone_storage=self.clone_storage,
             )
         except Exception as e:
             logger.warning(f"Failed to initialize AgentLifecycleMonitor: {e}")
