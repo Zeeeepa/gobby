@@ -117,8 +117,16 @@ class HandlerMixin:
             return
 
         try:
-            # Route to MCP via manager
-            result = await self.mcp_manager.call_tool(mcp_name, tool_name, args)
+            # Route to internal registries first, then external MCP
+            internal_mgr = getattr(self, "internal_manager", None)
+            if internal_mgr and internal_mgr.is_internal(mcp_name):
+                registry = internal_mgr.get_registry(mcp_name)
+                if registry:
+                    result = await registry.call(tool_name, args)
+                else:
+                    result = await self.mcp_manager.call_tool(mcp_name, tool_name, args)
+            else:
+                result = await self.mcp_manager.call_tool(mcp_name, tool_name, args)
 
             # Send result back to client
             await websocket.send(

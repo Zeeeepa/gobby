@@ -508,13 +508,17 @@ class ChatMixin:
             logger.warning("Chat message from unregistered client")
             return
 
+        # Extract inject_context for tool result injection into LLM conversation
+        inject_context = data.get("inject_context")
+
         # Cancel any active stream for this conversation
         await self._cancel_active_chat(conversation_id)
 
         # Run streaming as a cancellable task
         task = asyncio.create_task(
             self._stream_chat_response(
-                websocket, conversation_id, content, model, request_id, project_id
+                websocket, conversation_id, content, model, request_id, project_id,
+                inject_context=inject_context,
             )
         )
         task.add_done_callback(self._on_chat_task_done)
@@ -536,6 +540,7 @@ class ChatMixin:
         model: str | None,
         request_id: str = "",
         project_id: str | None = None,
+        inject_context: str | None = None,
     ) -> None:
         """Stream a ChatSession response to the client. Runs as a cancellable task."""
         from gobby.llm.claude_models import (
@@ -684,6 +689,10 @@ class ChatMixin:
 
             # Wire tool approval callback for this request
             session._tool_approval_callback = _emit_pending_approval
+
+            # Set pending inject_context so the next prompt hook picks it up
+            if inject_context and isinstance(inject_context, str):
+                session.set_pending_context(inject_context)
 
             # Persist user message to database
             user_text = content if isinstance(content, str) else json.dumps(content)

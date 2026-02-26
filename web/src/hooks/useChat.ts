@@ -1607,6 +1607,7 @@ export function useChat() {
       model?: string | null,
       files?: QueuedFile[],
       projectId?: string | null,
+      injectContext?: string,
     ): boolean => {
       console.log(
         "sendMessage called:",
@@ -1676,6 +1677,10 @@ export function useChat() {
 
       if (projectId) {
         payload.project_id = projectId;
+      }
+
+      if (injectContext) {
+        payload.inject_context = injectContext;
       }
 
       if (files && files.length > 0) {

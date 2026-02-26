@@ -5,11 +5,11 @@ import { ToolBrowserModal } from './ToolBrowserModal'
 interface SlashCommandModalProps {
   modal: 'skills' | 'gobby' | 'mcp' | null
   onClose: () => void
-  onExecuteTool: (server: string, tool: string, args: Record<string, unknown>) => void
+  onSendMessage: (content: string, injectContext: string) => void
   onRunSkill: (skillName: string) => void
 }
 
-export function SlashCommandModal({ modal, onClose, onExecuteTool, onRunSkill }: SlashCommandModalProps) {
+export function SlashCommandModal({ modal, onClose, onSendMessage, onRunSkill }: SlashCommandModalProps) {
   if (!modal) return null
 
   return (
@@ -19,10 +19,10 @@ export function SlashCommandModal({ modal, onClose, onExecuteTool, onRunSkill }:
           <SkillBrowserModal onRunSkill={onRunSkill} onClose={onClose} />
         )}
         {modal === 'gobby' && (
-          <ToolBrowserModal filter="internal" onExecuteTool={onExecuteTool} onClose={onClose} />
+          <ToolBrowserModal filter="internal" onSendMessage={onSendMessage} onClose={onClose} />
         )}
         {modal === 'mcp' && (
-          <ToolBrowserModal filter="external" onExecuteTool={onExecuteTool} onClose={onClose} />
+          <ToolBrowserModal filter="external" onSendMessage={onSendMessage} onClose={onClose} />
         )}
       </DialogContent>
     </Dialog>

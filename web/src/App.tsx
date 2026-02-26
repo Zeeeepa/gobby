@@ -223,7 +223,6 @@ export default function App() {
     stopStreaming,
     clearHistory,
     deleteConversation,
-    executeCommand,
     respondToQuestion,
     respondToApproval,
     planPendingApproval,
@@ -1020,13 +1019,8 @@ export default function App() {
       <SlashCommandModal
         modal={activeModal}
         onClose={() => setActiveModal(null)}
-        onExecuteTool={(server, tool, args) => {
-          const strArgs: Record<string, string> = {};
-          for (const [k, v] of Object.entries(args)) {
-            if (v !== undefined && v !== null)
-              strArgs[k] = typeof v === "string" ? v : JSON.stringify(v);
-          }
-          executeCommand(server, tool, strArgs);
+        onSendMessage={(content, context) => {
+          sendMessage(content, settings.model, undefined, effectiveProjectId, context);
         }}
         onRunSkill={(skillName) => {
           sendMessage(
