@@ -7,7 +7,7 @@ import type {
   VoiceProps,
 } from "../../types/chat";
 import type { AgentDefInfo } from "../../hooks/useAgentDefinitions";
-import { ConversationPicker } from "../ConversationPicker";
+import { ConversationPicker } from "./ConversationPicker";
 import { useArtifacts } from "../../hooks/useArtifacts";
 import { ArtifactContext } from "./artifacts/ArtifactContext";
 import { ArtifactPanel } from "./artifacts/ArtifactPanel";

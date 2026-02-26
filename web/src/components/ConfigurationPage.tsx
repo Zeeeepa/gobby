@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useConfiguration } from '../hooks/useConfiguration'
 import type { SecretInfo, PromptInfo, PromptDetail } from '../hooks/useConfiguration'
-import { CodeMirrorEditor } from './CodeMirrorEditor'
+import { CodeMirrorEditor } from './shared/CodeMirrorEditor'
 import './ConfigurationPage.css'
 
 // =============================================================================

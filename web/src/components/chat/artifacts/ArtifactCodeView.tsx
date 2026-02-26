@@ -1,4 +1,4 @@
-import { CodeMirrorEditor } from '../../CodeMirrorEditor'
+import { CodeMirrorEditor } from '../../shared/CodeMirrorEditor'
 
 interface ArtifactCodeViewProps {
   content: string

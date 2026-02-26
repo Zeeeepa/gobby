@@ -30,31 +30,31 @@ import type { GobbySession } from "./hooks/useSessions";
 
 // Lazy-load non-default page components for code splitting
 const SessionsPage = lazy(() =>
-  import("./components/SessionsPage").then((m) => ({
+  import("./components/sessions/SessionsPage").then((m) => ({
     default: m.SessionsPage,
   })),
 );
 const TerminalsPage = lazy(() =>
-  import("./components/TerminalsPage").then((m) => ({
+  import("./components/terminals/TerminalsPage").then((m) => ({
     default: m.TerminalsPage,
   })),
 );
 const MemoryPage = lazy(() =>
-  import("./components/MemoryPage").then((m) => ({ default: m.MemoryPage })),
+  import("./components/memory/MemoryPage").then((m) => ({ default: m.MemoryPage })),
 );
 const ProjectsPage = lazy(() =>
-  import("./components/ProjectsPage").then((m) => ({
+  import("./components/projects/ProjectsPage").then((m) => ({
     default: m.ProjectsPage,
   })),
 );
 const TasksPage = lazy(() =>
-  import("./components/TasksPage").then((m) => ({ default: m.TasksPage })),
+  import("./components/tasks/TasksPage").then((m) => ({ default: m.TasksPage })),
 );
 const SkillsPage = lazy(() =>
-  import("./components/SkillsPage").then((m) => ({ default: m.SkillsPage })),
+  import("./components/skills/SkillsPage").then((m) => ({ default: m.SkillsPage })),
 );
 const McpPage = lazy(() =>
-  import("./components/McpPage").then((m) => ({ default: m.McpPage })),
+  import("./components/mcp/McpPage").then((m) => ({ default: m.McpPage })),
 );
 const CronJobsPage = lazy(() =>
   import("./components/CronJobsPage").then((m) => ({
@@ -67,15 +67,15 @@ const ConfigurationPage = lazy(() =>
   })),
 );
 const WorkflowsPage = lazy(() =>
-  import("./components/WorkflowsPage").then((m) => ({
+  import("./components/workflows/WorkflowsPage").then((m) => ({
     default: m.WorkflowsPage,
   })),
 );
 const GitHubPage = lazy(() =>
-  import("./components/GitHubPage").then((m) => ({ default: m.GitHubPage })),
+  import("./components/source-control/GitHubPage").then((m) => ({ default: m.GitHubPage })),
 );
 const DashboardPage = lazy(() =>
-  import("./components/DashboardPage").then((m) => ({
+  import("./components/dashboard/DashboardPage").then((m) => ({
     default: m.DashboardPage,
   })),
 );
@@ -468,17 +468,6 @@ export default function App() {
       ),
     [sessionsHook.filteredSessions],
   );
-
-  // CLI sessions: only show sessions whose terminal process is still alive
-  const cliSessions = useMemo(() => {
-    const liveIds = new Set(tmux.liveCliSessionIds);
-    return sessionsHook.filteredSessions.filter(
-      (s) =>
-        s.source !== "claude_sdk_web_chat" &&
-        (s.status === "active" || s.status === "paused") &&
-        liveIds.has(s.id),
-    );
-  }, [sessionsHook.filteredSessions, tmux.liveCliSessionIds]);
 
   // Auto-select most recent server session on initial load (cross-device sync)
   const initialReconciliationDone = useRef(false);

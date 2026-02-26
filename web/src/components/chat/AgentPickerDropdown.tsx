@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/Dialog'
 import type { AgentDefInfo } from '../../hooks/useAgentDefinitions'
-import '../LaunchAgentModal.css'
+import '../workflows/LaunchAgentModal.css'
 
 interface AgentPickerDropdownProps {
   definitions: AgentDefInfo[]

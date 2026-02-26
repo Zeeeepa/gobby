@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CodeMirrorEditor } from '../CodeMirrorEditor'
+import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 import { AgentRulesEditor } from './AgentRulesEditor'
 import { AgentVariablesEditor } from './AgentVariablesEditor'
 
