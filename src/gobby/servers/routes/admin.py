@@ -307,17 +307,21 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
 
             # Neo4j knowledge graph status
             try:
+                from gobby.cli.services import is_neo4j_installed, is_neo4j_healthy
+
                 neo4j_client = getattr(server.memory_manager, "_neo4j_client", None)
-                if neo4j_client is not None:
-                    memory_stats["neo4j"] = {
-                        "configured": True,
-                        "url": neo4j_client.base_url,
-                    }
-                else:
-                    memory_stats["neo4j"] = {"configured": False}
+                neo4j_url = neo4j_client.base_url if neo4j_client else None
+                installed = is_neo4j_installed()
+                healthy = await is_neo4j_healthy(neo4j_url) if neo4j_url else False
+                memory_stats["neo4j"] = {
+                    "configured": neo4j_client is not None,
+                    "installed": installed,
+                    "healthy": healthy,
+                    "url": neo4j_url,
+                }
             except Exception as e:
                 logger.warning(f"Failed to check Neo4j status: {e}")
-                memory_stats["neo4j"] = {"configured": False, "error": str(e)}
+                memory_stats["neo4j"] = {"configured": False, "installed": False, "healthy": False}
 
         # Get skills statistics
         skills_stats: dict[str, Any] = {"total": 0}

@@ -339,18 +339,6 @@ def start(
             rich_status = asyncio.run(fetch_rich_status(http_port, timeout=2.0))
             status_kwargs.update(rich_status)
 
-            # Check Neo4j status
-            from gobby.cli.services import get_neo4j_status
-
-            neo4j_status = asyncio.run(
-                get_neo4j_status(
-                    neo4j_url=getattr(config.memory, "neo4j_url", None),
-                )
-            )
-            status_kwargs["neo4j_installed"] = neo4j_status["installed"]
-            status_kwargs["neo4j_healthy"] = neo4j_status["healthy"]
-            status_kwargs["neo4j_url"] = neo4j_status["url"]
-
         message = format_status_message(**status_kwargs)
         click.echo("")
         click.echo(message)
@@ -513,15 +501,6 @@ def status(ctx: click.Context) -> None:
         elif ui_mode == "production":
             ui_url = f"http://localhost:{http_port}/"
 
-    # Check Neo4j status
-    from gobby.cli.services import get_neo4j_status
-
-    neo4j_status = asyncio.run(
-        get_neo4j_status(
-            neo4j_url=getattr(config.memory, "neo4j_url", None),
-        )
-    )
-
     # Build status kwargs
     status_kwargs: dict[str, Any] = {
         "running": True,
@@ -536,12 +515,9 @@ def status(ctx: click.Context) -> None:
         "ui_mode": ui_mode,
         "ui_url": ui_url,
         "ui_pid": ui_pid,
-        "neo4j_installed": neo4j_status["installed"],
-        "neo4j_healthy": neo4j_status["healthy"],
-        "neo4j_url": neo4j_status["url"],
     }
 
-    # Fetch rich status from daemon API
+    # Fetch rich status from daemon API (includes Neo4j status)
     rich_status = asyncio.run(fetch_rich_status(http_port, timeout=2.0))
     status_kwargs.update(rich_status)
 
