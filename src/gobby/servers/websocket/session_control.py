@@ -482,9 +482,7 @@ class SessionControlMixin:
                 }
             )
         )
-        logger.info(
-            f"Agent switched for conversation {conversation_id[:8]}: {agent_name}"
-        )
+        logger.info(f"Agent switched for conversation {conversation_id[:8]}: {agent_name}")
 
     async def _handle_clear_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle clear_chat message: stop session, mark completed, notify frontend.

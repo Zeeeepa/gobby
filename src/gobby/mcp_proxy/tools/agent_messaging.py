@@ -460,9 +460,7 @@ def add_messaging_tools(
             resolved_id = _resolve(session_id)
 
             # Check for immediately available command
-            pending = command_manager.list_commands(
-                to_session=resolved_id, status="pending"
-            )
+            pending = command_manager.list_commands(to_session=resolved_id, status="pending")
             if pending:
                 cmd = pending[0]
                 if auto_activate:
@@ -488,9 +486,7 @@ def add_messaging_tools(
 
                 await asyncio.sleep(poll_interval)
 
-                pending = command_manager.list_commands(
-                    to_session=resolved_id, status="pending"
-                )
+                pending = command_manager.list_commands(to_session=resolved_id, status="pending")
                 if pending:
                     cmd = pending[0]
                     if auto_activate:

@@ -487,9 +487,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                         total_input = uncached_input + cache_read + cache_creation
 
                         _model_usage = getattr(message, "_model_usage", None)
-                        context_window = resolve_context_window(
-                            self._last_model, _model_usage
-                        )
+                        context_window = resolve_context_window(self._last_model, _model_usage)
 
                         logger.info(
                             "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "

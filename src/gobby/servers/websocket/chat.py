@@ -537,6 +537,10 @@ class ChatMixin:
 
         # Extract inject_context for tool result injection into LLM conversation
         inject_context = data.get("inject_context")
+        if inject_context:
+            logger.info(f"inject_context received: {len(inject_context)} chars for conversation {conversation_id}")
+        else:
+            logger.info(f"No inject_context in payload. Keys: {list(data.keys())}")
 
         # Cancel any active stream for this conversation
         await self._cancel_active_chat(conversation_id)
