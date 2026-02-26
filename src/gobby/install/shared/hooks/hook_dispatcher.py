@@ -314,7 +314,7 @@ async def check_daemon_running(timeout: float = 0.5) -> bool:
         daemon_url = await get_daemon_url()
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{daemon_url}/api/admin/status",
+                f"{daemon_url}/api/admin/health",
                 timeout=timeout,
                 follow_redirects=False,
             )

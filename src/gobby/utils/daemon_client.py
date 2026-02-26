@@ -92,7 +92,7 @@ class DaemonClient:
         """
         try:
             response = httpx.get(
-                f"{self.url}/api/admin/status",
+                f"{self.url}/api/admin/health",
                 timeout=self.timeout,
             )
             is_healthy = response.status_code == 200
