@@ -559,6 +559,12 @@ export function useChat() {
           planContentRef.current = planContent ?? null;
           onPlanReadyRef.current?.(planContent ?? null);
         } else if (data.type === "mode_changed") {
+          const msgConvId = (data as Record<string, unknown>)
+            .conversation_id as string | undefined;
+          // Only apply mode changes for the CURRENT conversation
+          if (msgConvId && msgConvId !== conversationIdRef.current) {
+            break;
+          }
           const newMode = (data as Record<string, unknown>).mode as
             | ChatMode
             | undefined;
@@ -1943,7 +1949,7 @@ export function useChat() {
       cacheCreationTokens: 0,
     });
 
-    // Restore previous conversation messages from DB
+    // Restore previous conversation messages and chat mode from DB
     const prevDbSid = loadDbSessionId();
     if (prevDbSid) {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
@@ -1957,6 +1963,17 @@ export function useChat() {
         .catch((err) =>
           console.error("Failed to restore messages:", err),
         );
+
+      // Restore chat mode from DB (prevents stale mode from viewed session)
+      fetch(`${baseUrl}/sessions/${prevDbSid}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const s = data?.session;
+          if (s?.chat_mode) {
+            onModeChangedRef.current?.(s.chat_mode as ChatMode);
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 

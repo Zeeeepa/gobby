@@ -258,6 +258,13 @@ class ChatMixin:
 
             session._on_mode_persist = _persist_mode
 
+        # Persist pending_mode to DB now that the callback is wired
+        if pending_mode and session._on_mode_persist:
+            try:
+                session._on_mode_persist(pending_mode)
+            except Exception:
+                logger.debug("Failed to persist pending chat_mode", exc_info=True)
+
         # Look up repo_path from DB so the subprocess CWD matches the selected project
         if session_manager and not session.project_path:
             try:
