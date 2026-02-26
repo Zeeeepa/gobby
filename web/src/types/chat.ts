@@ -1,5 +1,5 @@
-import type { CommandInfo } from "../hooks/useSlashCommands";
 import type { GobbySession } from "../hooks/useSessions";
+import type { PaletteItem } from "../hooks/useColonAutocomplete";
 
 export type ChatMode = "accept_edits" | "bypass" | "plan";
 
@@ -107,8 +107,8 @@ export interface ChatState {
     decision: "approve" | "reject" | "approve_always",
   ) => void;
   onInputChange: (value: string) => void;
-  filteredCommands: CommandInfo[];
-  onCommandSelect: (cmd: CommandInfo) => void;
+  paletteItems: PaletteItem[];
+  onPaletteSelect: (item: PaletteItem) => void;
   canvasSurfaces: Map<string, A2UISurfaceState>;
   canvasPanel: CanvasPanelState | null;
   onCanvasInteraction: (canvasId: string, action: UserAction) => void;

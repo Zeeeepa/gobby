@@ -15,7 +15,10 @@ import { useVoice } from "./hooks/useVoice";
 import { useSettings } from "./hooks/useSettings";
 import { useTerminal } from "./hooks/useTerminal";
 import { useTmuxSessions } from "./hooks/useTmuxSessions";
-import { useSlashCommands } from "./hooks/useSlashCommands";
+import { useMcp } from "./hooks/useMcp";
+import { useSkills } from "./hooks/useSkills";
+import { useColonAutocomplete } from "./hooks/useColonAutocomplete";
+import type { PaletteItem } from "./hooks/useColonAutocomplete";
 import { useSessions } from "./hooks/useSessions";
 import { useAgentDefinitions } from "./hooks/useAgentDefinitions";
 import type { QueuedFile, ChatMode } from "./types/chat";
@@ -265,7 +268,19 @@ export default function App() {
   } = useSettings();
   const { agents, refreshAgents } = useTerminal();
   const tmux = useTmuxSessions();
-  const { filteredCommands, filterCommands } = useSlashCommands();
+  const mcp = useMcp();
+  const skillsHook = useSkills();
+  const {
+    paletteItems,
+    filterInput: filterColonInput,
+    parseColonCommand,
+    resolveInjectContext,
+  } = useColonAutocomplete(
+    skillsHook.skills,
+    mcp.servers,
+    mcp.toolsByServer,
+    mcp.fetchToolSchema,
+  );
   const [activeModal, setActiveModal] = useState<
     "skills" | "gobby" | "mcp" | null
   >(null);
@@ -499,12 +514,19 @@ export default function App() {
     switchConversation,
   ]);
 
-  // Wrap sendMessage to include the selected model
+  // Wrap sendMessage to include the selected model + colon command interception
   const handleSendMessage = useCallback(
-    (content: string, files?: QueuedFile[]) => {
-      sendMessage(content, settings.model, files, effectiveProjectId);
+    async (content: string, files?: QueuedFile[]) => {
+      const parsed = parseColonCommand(content);
+      if (parsed) {
+        const ctx = await resolveInjectContext(parsed);
+        const visibleMessage = parsed.intent.trim() || `Use ${parsed.command}:${parsed.subItem}`;
+        sendMessage(visibleMessage, settings.model, files, effectiveProjectId, ctx ?? undefined);
+      } else {
+        sendMessage(content, settings.model, files, effectiveProjectId);
+      }
     },
-    [sendMessage, settings.model, effectiveProjectId],
+    [sendMessage, settings.model, effectiveProjectId, parseColonCommand, resolveInjectContext],
   );
 
   // View a CLI session from the sidebar (read-only, no WS subscription)
@@ -687,38 +709,41 @@ export default function App() {
 
   const handleInputChange = useCallback(
     (value: string) => {
-      filterCommands(value);
+      filterColonInput(value);
     },
-    [filterCommands],
+    [filterColonInput],
   );
 
-  const handleCommandSelect = useCallback(
-    (cmd: { name: string; action: string }) => {
-      if (cmd.action === "open_skills") {
+  const handlePaletteSelect = useCallback(
+    (item: PaletteItem) => {
+      // Sub-items are handled inline by ChatInput (Tab-complete into input)
+      if (item.kind !== 'command') return;
+
+      if (item.action === "open_skills") {
         setActiveModal("skills");
         return;
       }
-      if (cmd.action === "open_gobby") {
+      if (item.action === "open_gobby") {
         setActiveModal("gobby");
         return;
       }
-      if (cmd.action === "open_mcp") {
+      if (item.action === "open_mcp") {
         setActiveModal("mcp");
         return;
       }
-      if (cmd.action === "open_settings") {
+      if (item.action === "open_settings") {
         setSettingsOpen(true);
         return;
       }
-      if (cmd.action === "clear_history") {
+      if (item.action === "clear_history") {
         clearHistory();
         return;
       }
-      if (cmd.action === "compact_chat") {
+      if (item.action === "compact_chat") {
         sendMessage("/compact", settings.model, undefined, effectiveProjectId);
         return;
       }
-      if (cmd.action === "restart_daemon") {
+      if (item.action === "restart_daemon") {
         addSystemMessage("Restarting daemon...");
         const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
         fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch((err) =>
@@ -726,7 +751,7 @@ export default function App() {
         );
         return;
       }
-      if (cmd.action === "show_plan") {
+      if (item.action === "show_plan") {
         if (settings.chatMode !== "plan") {
           updateChatMode("plan");
           sendMode("plan");
@@ -886,8 +911,8 @@ export default function App() {
                 onRespondToQuestion: respondToQuestion,
                 onRespondToApproval: respondToApproval,
                 onInputChange: handleInputChange,
-                filteredCommands,
-                onCommandSelect: handleCommandSelect,
+                paletteItems,
+                onPaletteSelect: handlePaletteSelect,
                 mode: settings.chatMode,
                 onModeChange: (mode) => {
                   updateChatMode(mode);

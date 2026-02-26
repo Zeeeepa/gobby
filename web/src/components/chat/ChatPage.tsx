@@ -201,8 +201,8 @@ export function ChatPage({
                 disabled={!chat.isConnected || (!!chat.viewingSessionId && !chat.attachedSessionId)}
                 viewingSession={!!chat.viewingSessionId && !chat.attachedSessionId}
                 onInputChange={chat.onInputChange}
-                filteredCommands={chat.filteredCommands}
-                onCommandSelect={chat.onCommandSelect}
+                paletteItems={chat.paletteItems}
+                onPaletteSelect={chat.onPaletteSelect}
                 mode={chat.mode}
                 onModeChange={chat.onModeChange}
                 contextUsage={chat.contextUsage}
