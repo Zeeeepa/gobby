@@ -212,6 +212,7 @@ class ChatMixin:
         # Register in database BEFORE start() so that db_session_id is available
         # for the CLI subprocess env vars (GOBBY_SESSION_ID) during start().
         session_manager = getattr(self, "session_manager", None)
+        _is_new_registration = False
         if session_manager:
             try:
                 db_session = await asyncio.to_thread(
@@ -223,6 +224,7 @@ class ChatMixin:
                 )
                 session.db_session_id = db_session.id
                 session.seq_num = db_session.seq_num
+                _is_new_registration = True
                 logger.info(
                     f"Registered web-chat session {db_session.id} "
                     f"(conv={conversation_id[:8]}, project={project_id or PERSONAL_PROJECT_ID})"
@@ -230,8 +232,9 @@ class ChatMixin:
             except Exception as e:
                 logger.warning(f"Failed to register web-chat session in DB: {e}")
 
-        # Override chat mode with DB-persisted value (for returning sessions)
-        if session_manager and session.db_session_id:
+        # Override chat mode with DB-persisted value (for returning sessions only —
+        # new registrations just have the column default which would clobber daemon config)
+        if session_manager and session.db_session_id and not _is_new_registration:
             try:
                 db_session = await asyncio.to_thread(session_manager.get, session.db_session_id)
                 if db_session and db_session.chat_mode:

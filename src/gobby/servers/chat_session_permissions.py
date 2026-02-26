@@ -302,8 +302,8 @@ class ChatSessionPermissionsMixin:
         if self._on_mode_persist:
             try:
                 self._on_mode_persist(mode)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to persist chat_mode=%s: %s", mode, e)
 
     def approve_plan(self) -> None:
         """Mark the current plan as approved, unlocking write tools."""

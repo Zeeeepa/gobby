@@ -481,6 +481,17 @@ export function useChat() {
           ],
         }),
       );
+
+      // Sync current mode to backend on every connect/reconnect
+      if (conversationIdRef.current) {
+        ws.send(
+          JSON.stringify({
+            type: "set_mode",
+            mode: currentModeRef.current,
+            conversation_id: conversationIdRef.current,
+          }),
+        );
+      }
     };
 
     ws.onclose = () => {
@@ -1550,8 +1561,8 @@ export function useChat() {
 
   // Send mode change to backend
   const sendMode = useCallback((mode: ChatMode) => {
+    currentModeRef.current = mode; // Always track latest intended mode
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    currentModeRef.current = mode;
     setPlanPendingApproval(false);
     wsRef.current.send(
       JSON.stringify({
