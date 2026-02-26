@@ -8,6 +8,166 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.21]
+
+### Major Features
+
+#### Declarative Rules Engine
+
+- Build `RuleEngine` with single-pass evaluation loop (#8806)
+- Add `RuleEvent`, `RuleEffect`, `RuleDefinitionBody` models (#8804)
+- Add `rule_overrides` migration and rule-specific query helpers (#8805)
+- Wire dual evaluation into `WorkflowHookHandler` (#8807)
+- Extend bundled sync to handle rule YAML format (#8808)
+- Create rule YAML files: session-defaults (#8809), worker-safety (#8810), tool-hygiene (#8811), plan-mode (#8812), progressive-disclosure (#8813), task-enforcement (#8814), stop-gates (#8815), memory-lifecycle (#8817), context-handoff (#8818), auto-task (#8819)
+- Create MCP rule tools: list, get, toggle, create, delete (#8820)
+- Create HTTP API routes for rules (#8821)
+- Add Rules tab with tabbed layout to WorkflowsPage (#8822)
+- Create CLI rules commands with TDD tests (#8823)
+- Wire `RuleEngine` into hook evaluation pipeline (#8946)
+- Simplify Workflows tabs: Pipelines | Agents | Rules (#8947)
+- Unify Workflow UI: consistent tabs with flat cards and full CRUD (#8949)
+- Rules enforcement: global toggle, bundled exclusion, backend APIs (#8958)
+- Template/installed/project source taxonomy (#8962, #8963)
+- Use `build_condition_helpers()` in `RuleEngine._evaluate_condition` (#9007)
+- Implement `observe` rule effect and migrate observations to session variables (#9014)
+- Implement `is_plan_file()` for require-task-before-edit rule (#9003)
+- Chat UI rules engine parity with Claude Code CLI (#9076)
+- Add brief mode to `list_rules` MCP tool (#9074)
+
+#### Agent System Overhaul
+
+- Add `AgentDefinitionBody` model and `agent_scope` to `RuleDefinitionBody` (#8833)
+- Create agent-specific rule YAML files with `agent_scope` filtering (#8834)
+- Simplify `spawn_agent` with `workflow_definitions` agent lookup (#8835)
+- Migrate `agent_definitions` table to `workflow_definitions` (#8836)
+- Add P2P message columns and `agent_commands` table migration (#8828)
+- Build `AgentCommandManager` and update `inter_session_messages` (#8829)
+- Rewrite `agent_messaging.py` with P2P messaging and command tools (#8830)
+- Create `messaging.yaml` push delivery rules (#8831)
+- WebSocket broadcast events for agent messaging (#8832)
+- Rename 'generic' agent definition to 'default' (#8974)
+- Evolve `AgentDefinitionBody` schema with `AgentWorkflows` container (#8982)
+- Consolidate `spawn_agent` factory and delete `_v2.py` (#9023)
+- Fresh agent YAMLs, simplify sync, remove old definitions (#9023)
+- Delete `AgentDefinition` model and all conversion code (#9023)
+- Add agent definition CRUD tools to `gobby-agents` MCP server (#9024)
+- Agent registry refactor, voice config, UI improvements, and test fixes
+
+#### Plugin System Removal
+
+- Remove plugin system: `plugins.py`, `PluginsConfig`, plugin routes (#8827)
+- Remove `rules` table, `RuleStore`, `rule_sync.py`, `_resolve_check_rules` (#8826)
+- Remove `lifecycle_evaluator.py` and simplify `WorkflowHookHandler` (#8825)
+- Delete `session-lifecycle.yaml` and `auto-task.yaml` (#8824)
+- Remove plugins CLI command group (#9080)
+- Remove legacy `PluginsCard` from Dashboard UI (#9042)
+
+#### Authentication
+
+- Add basic auth system for web UI
+- Fix auth password storage bug and add login UI (#9055)
+
+### Web UI
+
+- Unify Workflow UI: consistent tabs with flat cards and full CRUD (#8949)
+- Bring Agent & Rule cards to feature parity with Pipeline cards (#8951)
+- Source filter dropdown + bundled-to-template rename in frontend (#8962)
+- Fix web chat showing different conversations on different devices (#8959)
+- Adopt SDK `session_id` as `external_id` for web chat sessions (#8964)
+- Move branch indicator to `ChatInput` toolbar and show branches (#8916)
+- Make branch indicator always visible via eager API fetch (#8915)
+- Match terminal top bar to chat UI top bar size and fonts (#8931)
+- Clean up Memory page: remove overview cards, importance dropdown, add 24H chip (#8930)
+- Code-split web UI: lazy-load pages and vendor chunk splitting (#9033)
+- Fix Memory tab crash: add error boundaries and async WebGL error handling (#9032)
+- Remove WHEN/EFFECT blocks from Rules cards + font consistency (#9035)
+- Fix chat UI: stable buttons, markdown artifact editing, plan approval in panel (#9046)
+- Fix horizontal scrollbar in chat message list (#9047)
+- Fix `ExitPlanMode` timeout to fail-closed and fix `useChat` defaults (#9049)
+- Fix `PlanApprovalBar` never showing due to `isStreaming` guard (#9048)
+- Fix plan approval collision, artifact edit button, memory review gate, `/plan` command (#9050)
+- Fix context pie chart showing 0% for missing SDK usage data (#9045)
+- Add delete confirmation to Skills UI (#9041)
+- Fix Drawbridge UI: agent cards, task totals, chat refresh, sidebar consistency (#9005)
+- Fix redraw button CSS and add redraw functionality (#9012)
+- Unified filter button with popover for Workflows page (#9078)
+- Add "Hide Installed" toggle for Templates source filter (#9081)
+- Fix agent card padding and enable delete for installed agents (#9096)
+- Fix pipeline dropdown rendering in wrong DOM location (#9073)
+- Extract tab components, add devMode Install, restore deleted templates (#8995)
+- Fix rule detail/YAML/toggle for template rules (#8993)
+- Fix Install button UX, watchdog restart loop, remove agent source chips (#9069, #9070)
+- Bundled items as hidden templates with dev mode CRUD (#8955)
+- Fix use-as-template: unique index prevented bundled+custom coexistence (#8956)
+
+### Improvements
+
+- Config-driven LLM provider/model selection for 4 callsites (#9044)
+- Expose memory/task/session internal actions as MCP tools (#8816)
+- Unify tool normalization across all CLI adapters (#9077)
+- Add `skill-scanner` as required dependency and fix scanner wrapper (#9043)
+- Add Whisper custom vocabulary (#9056)
+- Fix session title synthesis: add `digest_and_synthesize` MCP tool + `mcp_call` dispatch (#8976)
+- Fix GitHub tab to use app-level project selection (#8975)
+- Prefer installed over template in rule lookups (#8993)
+- Fix `install_from_template` preserving enabled state + rename from `use_as_template` (#8991)
+- Fix template leaking through `get_by_name` + bare variable false positives (#8987)
+- Prepend rule name to hook error messages (#8984)
+- Fix bare name references in rule conditions (#8953)
+- Fix rule engine variable persistence across evaluations (#8953)
+- Fix stop-gate infinite loop: remove `before_agent` reset of `stop_attempts` (#8952)
+- Reset `stop_attempts` on any tool call, not just native (#9075)
+- Fix `require-uv` rule: extract command from `tool_input` fallback (#9004)
+- Remove `plan_mode` guard from require-task-before-edit rule (#9020)
+- Fix `SESSION_START` rules storing variables under `external_id` (#9001)
+- Fix rule `mcp_call` effects lost in `WorkflowHookHandler.handle()` (#8994)
+- Fix stop hook fails to block when agent has claimed task (#9072)
+- Fix stop hook false positive when no task exists (#8978)
+- Fix `close_task` failing to clear `task_claimed` session variables (#9064)
+- Fix reversed dependencies in `create_task` `blocks`/`depends_on` (#8929)
+- Fix `search_memories` crash on stale index references (#9038)
+- Fix plan mode flow, sentence collision, task-close loop, and title length (#9037)
+- Fix memory-review-gate never clears after `create_memory` (#9082)
+- Fix missing type parameters for generic dict in `chat.py` (#9065)
+- Fix wrong import path for `get_gobby_home` in `cli/auth.py` (#9058)
+- Fix MCP tool discovery + add Whisper custom vocabulary (#9056)
+- Replace bare `except: pass` with `logger.debug` across codebase
+- Fix optional chaining for d3 forces, missing deps in hooks
+- Fix slow daemon startup, broken playwright MCP, and RuntimeWarning spam
+
+### Code Quality
+
+- Decompose `spawn_agent.py` into package: 1016 lines to 5 files, max 540 lines (#8900)
+- Decompose `runner.py`: extract broadcasting and maintenance modules (#8901)
+- Extract `SessionControlMixin` from `chat.py`: 1153 to 774 lines (#8902)
+- Decompose `install.py`: extract setup + deduplicate output: 1114 to 942 lines (#8903)
+- Remove dead code: `block_tools`, `track_schema_lookup`, `track_discovery_step` (#8980)
+- Remove dead code: `check_rules` and `on_error` fields (#8996)
+- Restructure bundled rules/workflows into directories with deprecation support
+- Workflows-V2 code review fixes (#8965)
+- Add tests for MCP `call_tool` argument unwrapping in rule engine (#8985)
+
+### Testing
+
+- Fix 140 test failures in `tests/workflows/` (#9057)
+- Fix pytest failures, errors, and warnings (#9068)
+- Fix E2E tests touching production Qdrant and port mismatch (#9079)
+- Fix stale E2E tests referencing removed servers and tools (#9083, #9084)
+- Fix uninstall tests to use fake home instead of real `Path.home()` (#9101)
+- Fix 8 mypy type errors across 5 files (#9019)
+- Fix E2E test project ID leaking into production daemon (#9021)
+- Triage stale tasks: close 14 already_implemented/duplicate tasks (#9008)
+
+### Documentation
+
+- Add `workflow-rules.md` authoring guide with variable safety section (#8981)
+- Rewrite workflows and workflow-actions guides for rules model (#8838)
+- Update agents, orchestration, and mcp-tools guides (#8839)
+- Update docs, skills, and architecture for rules-first model (#8840)
+- Document templates vs active enforcement (#9052)
+- Add A2UI canvas platform plan (#8892)
+
 ## [0.2.20]
 
 ### Major Features
