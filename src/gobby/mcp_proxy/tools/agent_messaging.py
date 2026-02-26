@@ -66,8 +66,10 @@ def add_messaging_tools(
         name="send_message",
         description=(
             "Send a P2P message between sessions. Validates both sessions "
-            "are in the same project. Auto-writes to agent_runs.result when "
-            "sending to parent."
+            "are in the same project. Messages are automatically injected "
+            "into the recipient's context on their next tool call via hook "
+            "rules — no polling or mailbox fetch needed. Also auto-writes "
+            "to agent_runs.result when sending to parent."
         ),
     )
     async def send_message(
