@@ -243,6 +243,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                             else None
                         ),
                         "response_time_ms": health.response_time_ms if health else None,
+                        "tool_count": len(config.tools) if config.tools else 0,
                     }
             except Exception as e:
                 logger.warning(f"Failed to get MCP health: {e}")
@@ -331,6 +332,13 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 logger.warning(f"Failed to get skills stats: {e}")
 
+        # Compute total cached tools across downstream servers
+        downstream_tools_count = 0
+        if server.mcp_manager:
+            for config in server.mcp_manager.server_configs:
+                if config.tools:
+                    downstream_tools_count += len(config.tools)
+
         # Calculate response time
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -347,8 +355,8 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             "process": process_metrics,
             "background_tasks": background_tasks,
             "mcp_servers": mcp_health,
-            # Count of tools from internal gobby-* registries (tasks, memory)
             "internal_tools_count": internal_tools_count,
+            "mcp_tools_cached": internal_tools_count + downstream_tools_count,
             "sessions": session_stats,
             "tasks": task_stats,
             "memory": memory_stats,
