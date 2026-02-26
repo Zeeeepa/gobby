@@ -249,7 +249,6 @@ class ChatSession(ChatSessionPermissionsMixin):
                                 additionalContext=combined,
                             )
 
-                import sys; print(f"XXXXXX PROMPT HOOK OUTPUT: {output}", file=sys.stderr)
                 return output
 
             hooks["UserPromptSubmit"] = [HookMatcher(matcher=None, hooks=[_prompt_hook])]
