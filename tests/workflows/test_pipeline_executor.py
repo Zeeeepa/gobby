@@ -670,7 +670,7 @@ class TestConditionEvaluation:
             llm_service=mock_llm_service,
         )
 
-        step = PipelineStep(id="step1", exec="echo test", condition="True")
+        step = PipelineStep(id="step1", exec="echo test", condition="${{ True }}")
         context: dict = {"inputs": {}, "steps": {}}
 
         result = executor.renderer.should_run_step(step, context)
@@ -690,7 +690,7 @@ class TestConditionEvaluation:
             llm_service=mock_llm_service,
         )
 
-        step = PipelineStep(id="step1", exec="echo test", condition="False")
+        step = PipelineStep(id="step1", exec="echo test", condition="${{ False }}")
         context: dict = {"inputs": {}, "steps": {}}
 
         result = executor.renderer.should_run_step(step, context)
@@ -711,13 +711,77 @@ class TestConditionEvaluation:
         )
 
         step = PipelineStep(
-            id="step1", exec="echo test", condition="inputs.get('mode') == 'deploy'"
+            id="step1", exec="echo test", condition="${{ inputs.get('mode') == 'deploy' }}"
         )
         context: dict = {"inputs": {"mode": "deploy"}, "steps": {}}
 
         result = executor.renderer.should_run_step(step, context)
 
         assert result is True
+
+    @pytest.mark.asyncio
+    async def test_should_run_step_template_context_false(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that ${{ }} condition with context comparison evaluates to false."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        step = PipelineStep(
+            id="step1", exec="echo deploy", condition="${{ inputs.get('count', 0) >= 5 }}"
+        )
+        context: dict = {"inputs": {"count": 3}, "steps": {}}
+
+        result = executor.renderer.should_run_step(step, context)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_should_run_step_template_step_output_null(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that ${{ }} condition referencing None step output evaluates to false."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        step = PipelineStep(
+            id="step2", exec="echo run", condition="${{ inputs.get('command') }}"
+        )
+        context: dict = {"inputs": {"command": None}, "steps": {}}
+
+        result = executor.renderer.should_run_step(step, context)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_should_run_step_raw_expression_still_works(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that raw expressions without ${{ }} wrapper still work."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        step = PipelineStep(id="step1", exec="echo test", condition="False")
+        context: dict = {"inputs": {}, "steps": {}}
+
+        result = executor.renderer.should_run_step(step, context)
+
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_step_skipped_when_condition_false(
@@ -731,7 +795,7 @@ class TestConditionEvaluation:
             name="conditional-pipeline",
             steps=[
                 PipelineStep(id="always", exec="echo always"),
-                PipelineStep(id="conditional", exec="echo conditional", condition="False"),
+                PipelineStep(id="conditional", exec="echo conditional", condition="${{ False }}"),
             ],
         )
 

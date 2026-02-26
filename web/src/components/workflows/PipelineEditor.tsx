@@ -26,6 +26,15 @@ const STEP_TYPES: { value: StepType; label: string; color: string }[] = [
   { value: 'activate_workflow', label: 'Workflow', color: '#2dd4bf' },
 ]
 
+function stripTemplateWrapper(s: string): string {
+  const m = s.match(/^\$\{\{\s*(.*?)\s*\}\}$/)
+  return m ? m[1].trim() : s
+}
+
+function wrapTemplateExpr(s: string): string {
+  return `\${{ ${s} }}`
+}
+
 function detectStepType(step: PipelineStep): StepType {
   if (step.exec !== undefined) return 'exec'
   if (step.prompt !== undefined) return 'prompt'
@@ -536,9 +545,12 @@ function CommonFields({
         <label>Condition</label>
         <input
           type="text"
-          value={(step.condition as string) ?? ''}
-          onChange={(e) => onChange({ condition: e.target.value || undefined })}
-          placeholder="Optional expression"
+          value={stripTemplateWrapper((step.condition as string) ?? '')}
+          onChange={(e) => {
+            const val = e.target.value.trim()
+            onChange({ condition: val ? wrapTemplateExpr(val) : undefined })
+          }}
+          placeholder="e.g. inputs.mode == 'deploy'"
         />
       </div>
 

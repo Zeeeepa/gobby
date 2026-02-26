@@ -218,6 +218,12 @@ class StepRenderer:
         if not step.condition:
             return True
 
+        # Strip ${{ }} wrapper (pipeline template syntax)
+        condition = step.condition.strip()
+        m = re.match(r"^\$\{\{\s*(.*?)\s*\}\}$", condition, re.DOTALL)
+        if m:
+            condition = m.group(1).strip()
+
         try:
             # Evaluate the condition using safe AST-based evaluator
             eval_context = {
@@ -233,7 +239,7 @@ class StepRenderer:
                 "int": int,
             }
             evaluator = SafeExpressionEvaluator(eval_context, allowed_funcs)
-            return evaluator.evaluate(step.condition)
+            return evaluator.evaluate(condition)
         except ValueError as e:
             if self.strict_conditions:
                 raise ValueError(f"Condition evaluation failed for step {step.id}: {e}") from e
