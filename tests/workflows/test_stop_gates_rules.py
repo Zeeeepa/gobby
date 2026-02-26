@@ -305,7 +305,7 @@ class TestResetStopCycleOnTool:
     """
 
     def test_resets_both_variables(self, db, manager) -> None:
-        """Should reset stop_attempts and tool_block_pending on any tool use."""
+        """Should reset stop_attempts and tool_block_pending on successful tool use only."""
         _sync_bundled(db)
 
         row = _get_rule(manager, "reset-stop-cycle-on-tool")
@@ -313,7 +313,10 @@ class TestResetStopCycleOnTool:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.when is None  # fires on all tools
+        # Only fires on successful tool use — failed tools should NOT reset the stop block
+        assert body.when is not None
+        assert "is_failure" in body.when
+        assert "is_error" in body.when
 
         effects = body.resolved_effects
         assert len(effects) == 2

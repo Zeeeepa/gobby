@@ -6,6 +6,7 @@ rules:
     event: after_tool
     enabled: false
     priority: 80
+    when: "not (event.metadata.get('is_failure', False) or event.data.get('is_error', False))"
     effects:
       - type: set_variable
         variable: stop_attempts
