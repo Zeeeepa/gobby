@@ -7,11 +7,11 @@ import { ScrollArea } from '../chat/ui/ScrollArea'
 import { cn } from '../../lib/utils'
 
 interface SkillBrowserModalProps {
-  onRunSkill: (skillName: string) => void
+  onSendMessage: (content: string, injectContext: string) => void
   onClose: () => void
 }
 
-export function SkillBrowserModal({ onRunSkill, onClose }: SkillBrowserModalProps) {
+export function SkillBrowserModal({ onSendMessage, onClose }: SkillBrowserModalProps) {
   const [skills, setSkills] = useState<GobbySkill[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -51,10 +51,10 @@ export function SkillBrowserModal({ onRunSkill, onClose }: SkillBrowserModalProp
 
   const handleRun = useCallback(() => {
     if (selectedSkill) {
-      onRunSkill(selectedSkill.name)
+      onSendMessage(`Run skill: ${selectedSkill.name}`, selectedSkill.content || '')
       onClose()
     }
-  }, [selectedSkill, onRunSkill, onClose])
+  }, [selectedSkill, onSendMessage, onClose])
 
   const sourceBadge = (skill: GobbySkill) => {
     if (skill.source === 'template') return <Badge variant="default">template</Badge>

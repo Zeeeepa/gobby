@@ -1022,14 +1022,6 @@ export default function App() {
         onSendMessage={(content, context) => {
           sendMessage(content, settings.model, undefined, effectiveProjectId, context);
         }}
-        onRunSkill={(skillName) => {
-          sendMessage(
-            `/gobby:${skillName}`,
-            settings.model,
-            undefined,
-            effectiveProjectId,
-          );
-        }}
       />
 
       {toastMessage && (

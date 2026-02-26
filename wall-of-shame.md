@@ -18,7 +18,17 @@ Failed fix attempts for bugs that should have been caught earlier.
 
 The Web UI path only did step 1. Step 2 was completely missing.
 
-**Actual fix:** Wire `EventHandlers` to the WebSocket server and dispatch to it from `_fire_lifecycle()` after rule evaluation, mirroring the CLI's two-step pattern.
+**Not the actual fix.** Wired `EventHandlers` to the WebSocket server and dispatched from `_fire_lifecycle()`. This helps CLI-style skill interception in the web backend but doesn't fix the real issue.
+
+### Attempt 2: Commit `9be33b0e` — "Wire EventHandlers from _fire_lifecycle"
+
+**What it tried:** Same as above — assumed the problem was missing `EventHandlers` dispatch in `_fire_lifecycle()`.
+
+**Why it failed:** Wrong mental model entirely. Web UI slash commands (`/skills`, `/mcp`, `/gobby`) are **modal-based UI commands**, not text that gets intercepted by hooks. They pop up a modal where the user selects a skill or MCP tool. The modal is responsible for injecting context into the chat stream — hooks are not involved at all.
+
+For skills specifically, `SkillBrowserModal.handleRun()` called `onRunSkill(skillName)` which sent `/gobby:skillName` as a plain chat message hoping hook interception would resolve it. But there is no `/gobby:*` in the Web UI — that's a CLI concept.
+
+**Actual fix:** `SkillBrowserModal` should use `onSendMessage(content, injectContext)` — the same pattern `ToolBrowserModal` already uses — passing `selectedSkill.content` as `injectContext` so it gets injected via `additionalContext` on the SDK conversation.
 
 ### Attempt 2: Commit `9be33b0e` — "Wire EventHandlers from _fire_lifecycle"
 
