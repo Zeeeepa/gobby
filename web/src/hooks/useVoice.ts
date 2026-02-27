@@ -27,6 +27,7 @@ export function useVoice(
   const [voiceError, setVoiceError] = useState<string | null>(null)
 
   const vadRef = useRef<MicVAD | null>(null)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Stable ref for conversationId so long-lived callbacks (e.g. VAD onSpeechEnd)
   // always see the latest value without re-subscribing.
@@ -34,6 +35,13 @@ export function useVoice(
   conversationIdRef.current = conversationId
 
   const voiceModeRef = useRef(false)
+
+  // Set a voice error that auto-clears after a delay
+  const setTransientError = useCallback((msg: string, ms = 3000) => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    setVoiceError(msg)
+    errorTimerRef.current = setTimeout(() => setVoiceError(null), ms)
+  }, [])
 
   // Check voice availability on mount (STT availability via /api/voice/status)
   useEffect(() => {
@@ -73,9 +81,9 @@ export function useVoice(
         const vad = await MicVAD.new({
           baseAssetPath: '/',
           onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/',
-          positiveSpeechThreshold: 0.85,
-          negativeSpeechThreshold: 0.5,
-          minSpeechFrames: 8,
+          positiveSpeechThreshold: 0.6,
+          negativeSpeechThreshold: 0.35,
+          minSpeechFrames: 6,
           redemptionFrames: 12,
           preSpeechPadFrames: 10,
           submitUserSpeechOnPause: false,
@@ -86,14 +94,21 @@ export function useVoice(
 
           onSpeechEnd: (audio: Float32Array) => {
             setIsSpeechDetected(false)
-            setIsTranscribing(true)
 
-            // Encode to WAV (16kHz mono 16-bit) and send
-            const wavBuffer = utils.encodeWAV(audio, 1, 16000, 1, 16)
-            const base64 = utils.arrayBufferToBase64(wavBuffer)
+            try {
+              const ws = wsRef.current
+              if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.warn('Voice: WebSocket not open, discarding audio')
+                setTransientError('Connection lost — try again')
+                return
+              }
 
-            const ws = wsRef.current
-            if (ws?.readyState === WebSocket.OPEN) {
+              setIsTranscribing(true)
+
+              // Encode to WAV (16kHz mono 16-bit) and send
+              const wavBuffer = utils.encodeWAV(audio, 1, 16000, 1, 16)
+              const base64 = utils.arrayBufferToBase64(wavBuffer)
+
               ws.send(JSON.stringify({
                 type: 'voice_audio',
                 conversation_id: conversationIdRef.current,
@@ -101,6 +116,10 @@ export function useVoice(
                 mime_type: 'audio/wav',
                 request_id: crypto.randomUUID?.() || `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`,
               }))
+            } catch (err) {
+              console.error('Voice: Failed to encode/send audio:', err)
+              setIsTranscribing(false)
+              setTransientError('Failed to process audio')
             }
           },
 
@@ -136,7 +155,7 @@ export function useVoice(
       setIsSpeechDetected(false)
       setIsTranscribing(false)
     }
-  }, [voiceMode, wsRef, conversationId])
+  }, [voiceMode, wsRef, conversationId, setTransientError])
 
   // Cleanup VAD on unmount
   useEffect(() => {
@@ -146,6 +165,7 @@ export function useVoice(
         vadRef.current.destroy()
         vadRef.current = null
       }
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     }
   }, [])
 
@@ -154,6 +174,7 @@ export function useVoice(
 
     if (type === 'voice_transcription') {
       setIsTranscribing(false)
+      setVoiceError(null)
     } else if (type === 'voice_status') {
       const status = data.status as string
       if (status === 'error') {
@@ -161,11 +182,13 @@ export function useVoice(
         setIsTranscribing(false)
       } else if (status === 'empty') {
         setIsTranscribing(false)
+        setTransientError('No speech detected — try speaking louder or closer to the mic')
       } else if (status === 'transcribing') {
         setIsTranscribing(true)
+        setVoiceError(null)
       }
     }
-  }, [])
+  }, [setTransientError])
 
   return {
     voiceMode,

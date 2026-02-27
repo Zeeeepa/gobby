@@ -87,6 +87,11 @@ class VoiceMixin:
         mime_type = data.get("mime_type", "audio/webm")
         request_id = data.get("request_id", "")
 
+        logger.info(
+            f"Voice audio received: {len(audio_data_b64)} chars b64, "
+            f"mime={mime_type}, conv={conversation_id[:8]}..."
+        )
+
         if not audio_data_b64:
             await websocket.send(
                 json.dumps(
@@ -143,6 +148,7 @@ class VoiceMixin:
             duration_ms = int((time.monotonic() - start) * 1000)
 
             if not text.strip():
+                logger.info(f"Voice transcription empty for {conversation_id[:8]}... ({duration_ms}ms)")
                 await websocket.send(
                     json.dumps(
                         {
