@@ -712,8 +712,7 @@ export const ToolChainGroup = memo(function ToolChainGroup({ toolCalls, onRespon
   const hasApproval = toolCalls.some(tc => tc.status === 'pending_approval')
   const hasErrors = toolCalls.some(tc => tc.status === 'error')
   const allCompleted = toolCalls.every(tc => tc.status === 'completed')
-  // Auto-expand if something needs attention; collapse when all done
-  const [expanded, setExpanded] = useState(hasInFlight || hasApproval || !allCompleted)
+  const [expanded, setExpanded] = useState(true)
 
   const summary = useMemo(() => buildChainSummary(toolCalls), [toolCalls])
   const count = toolCalls.length
