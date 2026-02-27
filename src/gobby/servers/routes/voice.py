@@ -6,7 +6,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, File, UploadFile
-from fastapi.responses import JSONResponse
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -33,7 +32,6 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
             return {
                 "enabled": False,
                 "stt_available": False,
-                "tts_available": False,
                 "reason": "Voice config not found",
             }
 
@@ -54,29 +52,12 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
             except ImportError:
                 stt_reason = "faster-whisper not installed (pip install faster-whisper)"
 
-        # Check TTS availability
-        tts_available = False
-        tts_reason = ""
-        if not voice_config.enabled:
-            tts_reason = "Voice not enabled in config"
-        elif not voice_config.tts_enabled:
-            tts_reason = "TTS disabled in config"
-        elif not voice_config.elevenlabs_api_key:
-            tts_reason = "No ElevenLabs API key configured"
-        else:
-            tts_available = True
-
         return {
             "enabled": voice_config.enabled,
             "stt_enabled": voice_config.stt_enabled,
-            "tts_enabled": voice_config.tts_enabled,
             "stt_available": stt_available,
             "stt_reason": stt_reason,
-            "tts_available": tts_available,
-            "tts_reason": tts_reason,
             "whisper_model": voice_config.whisper_model_size,
-            "tts_voice_id": voice_config.elevenlabs_voice_id,
-            "audio_format": voice_config.audio_format,
         }
 
     @router.post("/transcribe")
@@ -114,50 +95,5 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
         except Exception as e:
             logger.error(f"Transcription error: {e}", exc_info=True)
             return {"error": str(e), "text": ""}
-
-    @router.get("/tts-config")
-    async def tts_config() -> dict[str, Any]:
-        """Return ElevenLabs TTS connection params for browser-side TTS.
-
-        Served over localhost — same trust boundary as the config file.
-        Returns 404 if voice is disabled or no API key is configured.
-        """
-        config = server.config
-        if not config or not hasattr(config, "voice"):
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Voice config not found"},
-            )
-
-        voice_config = config.voice
-        if not voice_config.enabled:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Voice not enabled in config"},
-            )
-
-        if not voice_config.tts_enabled:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "TTS disabled in config"},
-            )
-
-        api_key = voice_config.elevenlabs_api_key
-        if not api_key:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "No ElevenLabs API key configured"},
-            )
-
-        return {
-            "api_key": api_key,
-            "voice_id": voice_config.elevenlabs_voice_id,
-            "model_id": voice_config.elevenlabs_model_id,
-            "stability": voice_config.elevenlabs_stability,
-            "similarity_boost": voice_config.elevenlabs_similarity_boost,
-            "style": voice_config.elevenlabs_style,
-            "speed": voice_config.elevenlabs_speed,
-            "output_format": voice_config.audio_format,
-        }
 
     return router

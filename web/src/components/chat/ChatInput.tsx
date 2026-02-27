@@ -25,10 +25,8 @@ interface ChatInputProps {
   isListening?: boolean
   isSpeechDetected?: boolean
   isTranscribing?: boolean
-  isSpeaking?: boolean
   voiceError?: string | null
   onToggleVoice?: () => void
-  onStopSpeaking?: () => void
   contextUsage?: ContextUsage
   currentBranch?: string | null
   worktreePath?: string | null
@@ -60,10 +58,8 @@ export function ChatInput({
   isListening = false,
   isSpeechDetected = false,
   isTranscribing = false,
-  isSpeaking = false,
   voiceError,
   onToggleVoice,
-  onStopSpeaking,
   contextUsage,
   currentBranch,
   worktreePath,
@@ -325,7 +321,7 @@ export function ChatInput({
         )}
 
         {/* Listening indicator */}
-        {voiceMode && isListening && !isSpeaking && !isTranscribing && (
+        {voiceMode && isListening && !isTranscribing && (
           <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-accent/10">
             {isSpeechDetected ? (
               <>
@@ -350,21 +346,6 @@ export function ChatInput({
           <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-accent/10">
             <SpinnerIcon />
             <span className="text-sm text-muted-foreground">Transcribing...</span>
-          </div>
-        )}
-
-        {/* Speaking indicator */}
-        {voiceMode && isSpeaking && onStopSpeaking && (
-          <div
-            className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-accent/10 cursor-pointer"
-            onClick={onStopSpeaking}
-          >
-            <div className="flex gap-0.5 items-end h-4">
-              {[12, 8, 14, 10].map((h, i) => (
-                <span key={i} className="w-1 bg-accent rounded-full animate-pulse" style={{ height: `${h}px`, animationDelay: `${i * 0.1}s` }} />
-              ))}
-            </div>
-            <span className="text-sm text-accent">Speaking... (click to stop)</span>
           </div>
         )}
 

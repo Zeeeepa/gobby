@@ -224,10 +224,8 @@ export function ChatPage({
                 isListening={voice.isListening}
                 isSpeechDetected={voice.isSpeechDetected}
                 isTranscribing={voice.isTranscribing}
-                isSpeaking={voice.isSpeaking}
                 voiceError={voice.voiceError}
                 onToggleVoice={voice.onToggleVoice}
-                onStopSpeaking={voice.onStopSpeaking}
               />
             </div>
 

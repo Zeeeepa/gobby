@@ -177,8 +177,6 @@ export interface VoiceProps {
   isListening?: boolean;
   isSpeechDetected?: boolean;
   isTranscribing?: boolean;
-  isSpeaking?: boolean;
   voiceError?: string | null;
   onToggleVoice?: () => void;
-  onStopSpeaking?: () => void;
 }

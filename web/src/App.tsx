@@ -247,8 +247,6 @@ export default function App() {
     attachedSessionMeta,
     wsRef,
     handleVoiceMessageRef,
-    feedTTSTextRef,
-    flushTTSRef,
     canvasSurfaces,
     canvasPanel,
     onCanvasInteraction,
@@ -710,12 +708,6 @@ export default function App() {
     handleVoiceMessageRef.current = voice.handleVoiceMessage;
   }, [voice.handleVoiceMessage, handleVoiceMessageRef]);
 
-  // Wire TTS text feed from chat stream to voice hook
-  useEffect(() => {
-    feedTTSTextRef.current = voice.feedTTSText;
-    flushTTSRef.current = voice.flushTTS;
-  }, [voice.feedTTSText, voice.flushTTS, feedTTSTextRef, flushTTSRef]);
-
   // Wire backend-initiated mode changes (e.g. agent EnterPlanMode/ExitPlanMode)
   // to update the settings slider
   useEffect(() => {
@@ -995,10 +987,8 @@ export default function App() {
                 isListening: voice.isListening,
                 isSpeechDetected: voice.isSpeechDetected,
                 isTranscribing: voice.isTranscribing,
-                isSpeaking: voice.isSpeaking,
                 voiceError: voice.voiceError,
                 onToggleVoice: voice.toggleVoiceMode,
-                onStopSpeaking: voice.stopSpeaking,
               }}
             />
           ) : activeTab === "sessions" ? (

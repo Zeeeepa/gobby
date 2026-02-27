@@ -3,9 +3,6 @@
 VoiceMixin provides STT integration for WebSocketServer.
 Voice layers on top of the existing chat pipeline — transcribed audio
 becomes a normal chat_message.
-
-TTS is handled browser-side via the ElevenLabs WebSocket API directly.
-The frontend fetches config from GET /api/voice/tts-config.
 """
 
 from __future__ import annotations
