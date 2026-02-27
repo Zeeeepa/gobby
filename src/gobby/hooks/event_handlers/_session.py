@@ -205,7 +205,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         workflow_name = input_data.get("workflow_name")
         agent_depth = input_data.get("agent_depth")
 
-        if not parent_session_id and session_source == "clear" and self._session_storage:
+        if not parent_session_id and session_source in ("clear", "compact") and self._session_storage:
             try:
                 parent = self._session_storage.find_parent(
                     machine_id=machine_id,
@@ -295,6 +295,24 @@ class SessionEventHandlerMixin(EventHandlersBase):
         additional_context: list[str] = []
         if agent_result and agent_result.context:
             additional_context.append(agent_result.context)
+
+        # Inject handoff context for clear/compact (backend plumbing, replaces broken rule templates)
+        if parent_session_id and self._session_storage:
+            parent = self._session_storage.get(parent_session_id)
+            if parent:
+                if session_source == "clear" and parent.summary_markdown:
+                    additional_context.append(
+                        "## Previous Session Context\n"
+                        "*Injected by Gobby session handoff*\n\n"
+                        + parent.summary_markdown
+                    )
+                elif session_source == "compact" and parent.compact_markdown:
+                    additional_context.append(
+                        "## Continuation Context\n"
+                        "*Injected by Gobby compact handoff*\n\n"
+                        + parent.compact_markdown
+                    )
+
         if event.task_id:
             task_title = event.metadata.get("_task_title", "Unknown Task")
             additional_context.append("\n## Active Task Context\n")
@@ -396,6 +414,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.debug(f"Failed to notify pane monitor for session {session_id}: {e}")
 
+        # Mark session as handoff_ready so the next session (via /clear or /compact)
+        # can find this session as its parent via find_parent(status="handoff_ready")
+        if session_id and self._session_storage:
+            try:
+                self._session_storage.update_status(session_id, "handoff_ready")
+            except Exception as e:
+                self.logger.warning(f"Failed to mark session as handoff_ready: {e}")
+
         return HookResponse(decision="allow")
 
     def _handle_pre_created_session(
@@ -468,6 +494,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
             try:
                 from gobby.workflows.state_manager import SessionVariableManager
 
+                if self._session_storage is None:
+                    raise RuntimeError("session_storage unavailable")
                 sv_mgr = SessionVariableManager(self._session_storage.db)
                 sv = sv_mgr.get_variables(session_id)
                 if sv:
@@ -543,7 +571,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 the config store default. Used by web chat agent selection.
         """
         if not self._session_manager or not self._session_storage:
-            return
+            return None
 
         if agent_name_override:
             default_agent_name = agent_name_override
@@ -553,7 +581,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             config_store = ConfigStore(self._session_storage.db)
             default_agent_name = config_store.get("default_agent") or "default"
         if default_agent_name == "none":
-            return
+            return None
 
         from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
 
@@ -563,11 +591,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
             )
         except AgentResolutionError as e:
             self.logger.error(f"Failed to resolve default agent '{default_agent_name}': {e}")
-            return
+            return None
 
         if not agent_body:
             self.logger.debug(f"Default agent '{default_agent_name}' not found in DB")
-            return
+            return None
 
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 

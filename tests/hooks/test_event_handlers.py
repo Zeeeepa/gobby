@@ -816,6 +816,152 @@ class TestSessionEndHandling:
         # Should still allow despite error
         assert response.decision == "allow"
 
+    def test_session_end_marks_handoff_ready(self, mock_dependencies: dict) -> None:
+        """Test SESSION_END marks session as handoff_ready for parent lookup."""
+        mock_session = MagicMock()
+        mock_session.created_at = "2024-01-01T00:00:00Z"
+        mock_session.agent_run_id = None
+        mock_dependencies["session_storage"].get.return_value = mock_session
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.SESSION_END,
+            session_id="ext-123",
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        response = handlers.handle_session_end(event)
+
+        assert response.decision == "allow"
+        mock_dependencies["session_storage"].update_status.assert_called_once_with(
+            "sess-123", "handoff_ready"
+        )
+
+    def test_session_end_handoff_ready_error_handled(self, mock_dependencies: dict) -> None:
+        """Test error marking handoff_ready doesn't block response."""
+        mock_session = MagicMock()
+        mock_session.created_at = "2024-01-01T00:00:00Z"
+        mock_session.agent_run_id = None
+        mock_dependencies["session_storage"].get.return_value = mock_session
+        mock_dependencies["session_storage"].update_status.side_effect = Exception(
+            "DB write error"
+        )
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.SESSION_END,
+            session_id="ext-123",
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        response = handlers.handle_session_end(event)
+
+        # Should still allow despite error
+        assert response.decision == "allow"
+
+
+class TestSessionStartHandoff:
+    """Test session handoff context injection on /clear and /compact."""
+
+    def test_session_start_compact_finds_parent(self, mock_dependencies: dict) -> None:
+        """Test parent lookup works for source='compact'."""
+        mock_parent = MagicMock()
+        mock_parent.id = "parent-sess-123"
+
+        mock_dependencies["session_storage"].get.return_value = None
+        mock_dependencies["session_storage"].find_parent.return_value = mock_parent
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.SESSION_START,
+            session_id="ext-123",
+            data={"source": "compact", "cwd": "/some/dir"},
+            metadata={},
+        )
+
+        response = handlers.handle_session_start(event)
+
+        assert response.decision == "allow"
+        assert "Parent session: parent-sess-123" in response.context
+        mock_dependencies["session_storage"].find_parent.assert_called_once()
+
+    def test_session_start_clear_injects_parent_summary(self, mock_dependencies: dict) -> None:
+        """Test summary_markdown injected into additional_context for source='clear'."""
+        mock_parent_for_find = MagicMock()
+        mock_parent_for_find.id = "parent-sess-123"
+
+        mock_parent_obj = MagicMock()
+        mock_parent_obj.id = "parent-sess-123"
+        mock_parent_obj.seq_num = 42
+        mock_parent_obj.summary_markdown = "# Summary\nWorked on feature X"
+        mock_parent_obj.compact_markdown = None
+
+        # get() called multiple times: first for pre-created check (None),
+        # then for handoff injection (parent), then for seq_num fetch (new session)
+        mock_new_session = MagicMock()
+        mock_new_session.seq_num = 43
+
+        mock_dependencies["session_storage"].get.side_effect = [
+            None,  # pre-created session check
+            mock_parent_obj,  # handoff context injection
+            mock_new_session,  # fetch session for seq_num
+        ]
+        mock_dependencies["session_storage"].find_parent.return_value = mock_parent_for_find
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.SESSION_START,
+            session_id="ext-123",
+            data={"source": "clear", "cwd": "/some/dir"},
+            metadata={},
+        )
+
+        response = handlers.handle_session_start(event)
+
+        assert response.decision == "allow"
+        assert "## Previous Session Context" in response.context
+        assert "Worked on feature X" in response.context
+
+    def test_session_start_compact_injects_compact_markdown(
+        self, mock_dependencies: dict
+    ) -> None:
+        """Test compact_markdown injected for source='compact'."""
+        mock_parent_for_find = MagicMock()
+        mock_parent_for_find.id = "parent-sess-123"
+
+        mock_parent_obj = MagicMock()
+        mock_parent_obj.id = "parent-sess-123"
+        mock_parent_obj.seq_num = 42
+        mock_parent_obj.summary_markdown = None
+        mock_parent_obj.compact_markdown = "# Compact\nContinuation of task Y"
+
+        mock_new_session = MagicMock()
+        mock_new_session.seq_num = 43
+
+        mock_dependencies["session_storage"].get.side_effect = [
+            None,  # pre-created session check
+            mock_parent_obj,  # handoff context injection
+            mock_new_session,  # fetch session for seq_num
+        ]
+        mock_dependencies["session_storage"].find_parent.return_value = mock_parent_for_find
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.SESSION_START,
+            session_id="ext-123",
+            data={"source": "compact", "cwd": "/some/dir"},
+            metadata={},
+        )
+
+        response = handlers.handle_session_start(event)
+
+        assert response.decision == "allow"
+        assert "## Continuation Context" in response.context
+        assert "Continuation of task Y" in response.context
+
 
 class TestBeforeAgentHandling:
     """Test BEFORE_AGENT handler edge cases."""
