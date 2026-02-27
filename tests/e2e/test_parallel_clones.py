@@ -168,6 +168,7 @@ class TestEpicWithIndependentSubtasks:
                 "title": "Parallel Processing Epic",
                 "description": "Epic for testing parallel clone orchestration",
                 "task_type": "epic",
+                "category": "code",
                 "session_id": session_id,
             },
         )
@@ -186,6 +187,7 @@ class TestEpicWithIndependentSubtasks:
                     "description": f"Subtask {i} - can be processed in parallel",
                     "task_type": "task",
                     "parent_task_id": epic_id,
+                    "category": "code",
                     "session_id": session_id,
                 },
             )
@@ -319,7 +321,8 @@ class TestSpawnAgentWithCloneIsolation:
         result = unwrap_result(raw_result)
 
         assert result.get("success") is False
-        assert "parent_session_id" in result.get("error", "").lower()
+        # Without workflow or parent_session_id, mode=self validation fails first
+        assert "requires" in result.get("error", "").lower()
 
     def test_spawn_with_invalid_mode_fails(
         self,
@@ -410,6 +413,7 @@ class TestParallelTaskProcessing:
             arguments={
                 "title": "Parallel Completion Epic",
                 "task_type": "epic",
+                "category": "code",
                 "session_id": session_id,
             },
         )
@@ -425,6 +429,7 @@ class TestParallelTaskProcessing:
                     "title": f"Parallel Task {i + 1}",
                     "task_type": "task",
                     "parent_task_id": epic_id,
+                    "category": "code",
                     "session_id": session_id,
                 },
             )

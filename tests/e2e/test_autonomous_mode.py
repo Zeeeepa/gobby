@@ -160,6 +160,7 @@ class TestAutonomousSpawningGate:
                 "title": "Autonomous Mode Test Epic",
                 "description": "Epic for testing autonomous mode gate",
                 "task_type": "epic",
+                "category": "code",
                 "session_id": session_id,
             },
         )
@@ -178,6 +179,7 @@ class TestAutonomousSpawningGate:
                     "description": f"Subtask {i} for autonomous mode testing",
                     "task_type": "task",
                     "parent_task_id": epic_id,
+                    "category": "code",
                     "session_id": session_id,
                 },
             )
@@ -254,6 +256,7 @@ class TestAutonomousSpawningGate:
             arguments={
                 "title": "Task for Suggestion Test",
                 "task_type": "task",
+                "category": "code",
                 "session_id": session_id,
             },
         )

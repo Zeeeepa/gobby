@@ -440,6 +440,7 @@ class TestWorktreeMergeIntegration:
             arguments={
                 "title": "Task for Worktree Merge Test",
                 "task_type": "task",
+                "category": "code",
                 "session_id": session_id,
             },
         )
