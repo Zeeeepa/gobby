@@ -418,7 +418,7 @@ export default function App() {
   const isPersonalProject =
     projectOptions.find((p) => p.id === effectiveProjectId)?.name ===
     "Personal";
-  const agentDefs = useAgentDefinitions(effectiveProjectId);
+  const agentDefs = useAgentDefinitions(effectiveProjectId, "claude_sdk_web_chat");
 
   // On mount: fetch persisted project from API (DB is source of truth)
   useEffect(() => {

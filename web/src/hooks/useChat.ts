@@ -362,7 +362,7 @@ export function useChat() {
   const [worktreePath, setWorktreePath] = useState<string | null>(null);
 
   // Active agent tracking
-  const [activeAgent, setActiveAgent] = useState<string>("default");
+  const [activeAgent, setActiveAgent] = useState<string>("default-web-chat");
 
   // Session viewing tracking (read-only observation of CLI sessions via REST)
   const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
@@ -1376,15 +1376,16 @@ export function useChat() {
     setIsStreaming(false);
     setIsThinking(false);
 
-    // Set active agent and send set_agent if non-default
-    const effectiveAgent = agentName || "default";
+    // Set active agent and always send set_agent so the backend resolves
+    // the agent definition (preamble, rules, skills) for the web chat session.
+    const effectiveAgent = agentName || "default-web-chat";
     setActiveAgent(effectiveAgent);
-    if (agentName && agentName !== "default" && wsRef.current?.readyState === WebSocket.OPEN) {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: "set_agent",
           conversation_id: newId,
-          agent_name: agentName,
+          agent_name: effectiveAgent,
         }),
       );
     }

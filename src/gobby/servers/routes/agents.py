@@ -108,12 +108,14 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             "db_id": row.id,
             "deleted_at": row.deleted_at,
             "tags": row.tags,
+            "sources": body.sources,
         }
 
     @router.get("/definitions")
     async def list_definitions(
         project_id: str | None = Query(None),
         include_deleted: bool = Query(False),
+        source_filter: str | None = Query(None),
     ) -> dict[str, Any]:
         """List all agent definitions from workflow_definitions."""
         metrics.inc_counter("http_requests_total")
@@ -125,6 +127,11 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 include_deleted=include_deleted,
             )
             items = [d for r in rows if (d := _row_to_api_dict(r)) is not None]
+            if source_filter:
+                items = [
+                    d for d in items
+                    if d.get("sources") and source_filter in d["sources"]
+                ]
             return {
                 "status": "success",
                 "definitions": items,

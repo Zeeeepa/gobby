@@ -286,6 +286,32 @@ class ChatMixin:
         if wt_override:
             session.project_path = wt_override
 
+        # Pop pending agent override (from set_agent WS message) BEFORE start()
+        # so we can resolve agent preamble and use it as the system prompt.
+        pending_agents = getattr(self, "_pending_agents", {})
+        pending_agent = pending_agents.pop(conversation_id, None)
+        if pending_agent:
+            session._pending_agent_name = pending_agent
+
+        # Resolve agent preamble as system prompt (agent definition is single source of truth)
+        if pending_agent and session_manager:
+            try:
+                from gobby.workflows.agent_resolver import resolve_agent
+
+                agent_body = await asyncio.to_thread(
+                    resolve_agent,
+                    pending_agent,
+                    session_manager.db,
+                    cli_source="claude_sdk_web_chat",
+                    project_id=project_id or PERSONAL_PROJECT_ID,
+                )
+                if agent_body:
+                    preamble = agent_body.build_prompt_preamble()
+                    if preamble:
+                        session.system_prompt_override = preamble
+            except Exception as e:
+                logger.warning(f"Failed to resolve agent preamble for '{pending_agent}': {e}")
+
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 
@@ -308,12 +334,6 @@ class ChatMixin:
                     extra={"conversation_id": conversation_id[:8]},
                     exc_info=e,
                 )
-
-        # Pop pending agent override (from set_agent WS message)
-        pending_agents = getattr(self, "_pending_agents", {})
-        pending_agent = pending_agents.pop(conversation_id, None)
-        if pending_agent:
-            session._pending_agent_name = pending_agent
 
         # Fire SESSION_START (informational, fire-and-forget)
         start_data: dict[str, Any] = {}

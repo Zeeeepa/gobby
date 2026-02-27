@@ -512,11 +512,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Deep load default agent (rules, skills, variables) for pre-created session
         agent_result: AgentActivationResult | None = None
+        input_data = event.data if event else {}
         try:
+            agent_override = input_data.get("agent_name_override")
             agent_result = self._activate_default_agent(
                 session_id,
                 cli_source,
                 existing_session.project_id,
+                agent_name_override=agent_override,
             )
         except Exception as e:
             self.logger.error(

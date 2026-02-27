@@ -27,11 +27,11 @@ from claude_agent_sdk import (
     ToolUseBlock,
     UserMessage,
 )
-from claude_agent_sdk.types import StreamEvent
 from claude_agent_sdk.types import (
     HookInput as SDKHookInput,
 )
 from claude_agent_sdk.types import (
+    StreamEvent,
     SyncHookJSONOutput,
     UserPromptSubmitHookSpecificOutput,
 )
@@ -122,6 +122,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
     sdk_session_id: str | None = field(default=None, repr=False)
+    system_prompt_override: str | None = field(default=None, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
@@ -159,7 +160,10 @@ class ChatSession(ChatSessionPermissionsMixin):
             project_root = _find_project_root()
             cwd = str(project_root) if project_root else str(Path.cwd())
 
-        system_prompt = _load_chat_system_prompt()
+        if self.system_prompt_override:
+            system_prompt = self.system_prompt_override
+        else:
+            system_prompt = _load_chat_system_prompt()
         # Inject working directory so the agent doesn't hallucinate paths
         system_prompt += f"\n\n## Environment\n- Working directory: {cwd}\n"
         if self.db_session_id:
