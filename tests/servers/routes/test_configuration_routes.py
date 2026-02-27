@@ -824,3 +824,27 @@ class TestUISettings:
         assert store.get("ui_settings.fontSize") == 22
         # Not in the main config namespace
         assert store.get("fontSize") is None
+
+    def test_delete_existing_setting(self, client: TestClient) -> None:
+        """DELETE removes a single UI setting."""
+        client.put("/api/config/ui-settings", json={"fontSize": 16, "theme": "dark"})
+
+        resp = client.delete("/api/config/ui-settings/fontSize")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        # fontSize gone, theme still present
+        data = client.get("/api/config/ui-settings").json()
+        assert "fontSize" not in data
+        assert data["theme"] == "dark"
+
+    def test_delete_not_found(self, client: TestClient) -> None:
+        """DELETE for a valid key that was never set returns 404."""
+        resp = client.delete("/api/config/ui-settings/theme")
+        assert resp.status_code == 404
+
+    def test_delete_invalid_key(self, client: TestClient) -> None:
+        """DELETE with an unknown key returns 400."""
+        resp = client.delete("/api/config/ui-settings/bogusKey")
+        assert resp.status_code == 400
+        assert "Unknown UI setting" in resp.json()["detail"]
