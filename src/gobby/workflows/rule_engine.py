@@ -95,24 +95,36 @@ class RuleEngine:
         # 4. Filter by active rules (selector-based)
         rules = self._filter_by_active_rules(rules, variables)
 
+        # Auto-block stop when a tool just failed (self-clearing)
+        if rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
+            variables["tool_block_pending"] = False
+            return HookResponse(
+                decision="block",
+                reason="A tool just failed. Read the error and recover — do not stop.",
+            )
+
         if not rules:
-            # Auto-clear tool_block_pending on successful after_tool
-            # (Symmetric with auto-set on before_tool block at line ~148)
+            # Auto-manage tool_block_pending on after_tool
+            # (Symmetric with auto-set on before_tool block at line ~164)
             if rule_event == RuleEvent.AFTER_TOOL:
                 is_failure = event.metadata.get("is_failure", False) or event.data.get(
                     "is_error", False
                 )
-                if not is_failure and variables.get("tool_block_pending"):
+                if is_failure:
+                    variables["tool_block_pending"] = True
+                elif variables.get("tool_block_pending"):
                     variables["tool_block_pending"] = False
             return HookResponse(decision="allow")
 
-        # Auto-clear tool_block_pending on successful after_tool before rule eval
-        # (Symmetric with auto-set on before_tool block at line ~148)
+        # Auto-manage tool_block_pending on after_tool before rule eval
+        # (Symmetric with auto-set on before_tool block at line ~164)
         if rule_event == RuleEvent.AFTER_TOOL:
             is_failure = event.metadata.get("is_failure", False) or event.data.get(
                 "is_error", False
             )
-            if not is_failure and variables.get("tool_block_pending"):
+            if is_failure:
+                variables["tool_block_pending"] = True
+            elif variables.get("tool_block_pending"):
                 variables["tool_block_pending"] = False
 
         # 5. Evaluate rules in priority order

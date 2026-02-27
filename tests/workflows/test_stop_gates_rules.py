@@ -1,19 +1,23 @@
 """Tests for stop-gates rules.
 
 Verifies stop attempt counting, stop blocking gates (tool block,
-error triage, task close), and per-turn/per-tool resets via multi-effect rules.
+error triage, task close), per-turn/per-tool resets via multi-effect rules,
+and hardcoded plumbing in the rule engine for tool-error stop blocking.
 """
 
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import RuleDefinitionBody
+from gobby.workflows.rule_engine import RuleEngine
 from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
 from gobby.workflows.sync import sync_bundled_rules
 
@@ -297,3 +301,132 @@ class TestResetStopCycleOnPrompt:
         assert body.when is None
 
 
+def _make_event(
+    event_type: HookEventType,
+    data: dict | None = None,
+    metadata: dict | None = None,
+) -> HookEvent:
+    """Helper to create HookEvent for rule engine tests."""
+    return HookEvent(
+        event_type=event_type,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data=data or {},
+        metadata=metadata or {},
+    )
+
+
+class TestToolBlockPendingPlumbing:
+    """Test hardcoded plumbing in RuleEngine for tool-error stop blocking.
+
+    These behaviors are baked into evaluate() — no installed rules required.
+    """
+
+    @pytest.mark.asyncio
+    async def test_after_tool_failure_sets_tool_block_pending(self, db) -> None:
+        """Failed after_tool should auto-set tool_block_pending=True."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Edit", "is_error": True},
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("tool_block_pending") is True
+
+    @pytest.mark.asyncio
+    async def test_after_tool_failure_via_metadata(self, db) -> None:
+        """Failed after_tool via metadata.is_failure should also set flag."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Edit"},
+            metadata={"is_failure": True},
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("tool_block_pending") is True
+
+    @pytest.mark.asyncio
+    async def test_successful_after_tool_clears_tool_block_pending(self, db) -> None:
+        """Successful after_tool should clear tool_block_pending."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"tool_block_pending": True}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Read"},
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("tool_block_pending") is False
+
+    @pytest.mark.asyncio
+    async def test_stop_blocked_when_tool_block_pending(self, db) -> None:
+        """Stop should be blocked when tool_block_pending is true."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"tool_block_pending": True}
+
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, "sess-1", variables)
+
+        assert response.decision == "block"
+        assert "tool just failed" in response.reason.lower()
+
+    @pytest.mark.asyncio
+    async def test_stop_block_is_self_clearing(self, db) -> None:
+        """After blocking stop, tool_block_pending should be cleared."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"tool_block_pending": True}
+
+        event = _make_event(HookEventType.STOP)
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("tool_block_pending") is False
+
+    @pytest.mark.asyncio
+    async def test_stop_allowed_without_tool_block_pending(self, db) -> None:
+        """Stop should be allowed when tool_block_pending is not set."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, "sess-1", variables)
+
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_full_cycle_failure_then_stop_then_recovery(self, db) -> None:
+        """End-to-end: tool fails → stop blocked → tool succeeds → stop allowed."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        # 1. Tool fails
+        fail_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Edit", "is_error": True},
+        )
+        await engine.evaluate(fail_event, "sess-1", variables)
+        assert variables.get("tool_block_pending") is True
+
+        # 2. Stop is blocked (and self-clears)
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, "sess-1", variables)
+        assert response.decision == "block"
+        assert variables.get("tool_block_pending") is False
+
+        # 3. Tool succeeds
+        ok_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Read"},
+        )
+        await engine.evaluate(ok_event, "sess-1", variables)
+
+        # 4. Stop is allowed
+        response = await engine.evaluate(stop_event, "sess-1", variables)
+        assert response.decision == "allow"
