@@ -117,23 +117,31 @@ async def spawn_agent_impl(
         Dict with success status, run_id, child_session_id, isolation metadata
     """
     # 1. Merge config: agent_body defaults < params
-    effective_isolation = isolation
-    if effective_isolation is None and agent_body:
-        effective_isolation = agent_body.isolation
-    if effective_isolation in (None, "inherit"):
-        effective_isolation = "none"
+    _raw_isolation: str | None = isolation
+    if _raw_isolation is None and agent_body:
+        _raw_isolation = agent_body.isolation
+    if _raw_isolation in (None, "inherit"):
+        _raw_isolation = "none"
+    effective_isolation: Literal["none", "worktree", "clone"] = (
+        _raw_isolation if _raw_isolation in ("none", "worktree", "clone") else "none"  # type: ignore[assignment]
+    )
 
-    effective_provider = provider
+    effective_provider: str = provider or "claude"
+    if effective_provider == "inherit":
+        effective_provider = "claude"
     if effective_provider is None and agent_body:
         effective_provider = agent_body.provider
     if effective_provider in (None, "inherit"):
         effective_provider = "claude"
 
-    effective_mode: Literal["terminal", "embedded", "headless", "self", "inherit"] | None = mode
-    if effective_mode is None and agent_body:
-        effective_mode = agent_body.mode
-    if effective_mode in (None, "inherit"):
-        effective_mode = "self"
+    _raw_mode: str | None = mode
+    if _raw_mode is None and agent_body:
+        _raw_mode = agent_body.mode
+    if _raw_mode in (None, "inherit"):
+        _raw_mode = "self"
+    effective_mode: Literal["terminal", "embedded", "headless", "self"] = (
+        _raw_mode if _raw_mode in ("terminal", "embedded", "headless", "self") else "self"  # type: ignore[assignment]
+    )
 
     effective_model = model
     if effective_model is None and agent_body:

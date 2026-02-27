@@ -3,7 +3,7 @@ import type { ChatMessage } from '../../types/chat'
 import { cn } from '../../lib/utils'
 import { Markdown } from './Markdown'
 import { ThinkingBlock } from './ThinkingBlock'
-import { ToolCallCards } from './ToolCallCard'
+import { ToolCallCards, ToolChainGroup } from './ToolCallCard'
 import type { A2UISurfaceState, UserAction } from '../canvas'
 
 interface MessageItemProps {
@@ -19,6 +19,13 @@ interface MessageItemProps {
 export const MessageItem = memo(function MessageItem({ message, isStreaming = false, isThinking = false, onRespondToQuestion, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: MessageItemProps) {
   const isCommandResult = message.role === 'system' && message.toolCalls?.length && !message.content
   const isModelSwitch = message.role === 'system' && message.id.startsWith('model-switch-')
+
+  // Don't render empty messages (e.g. compact acknowledgements with no body)
+  const hasContent = message.content || message.thinkingContent ||
+    (message.toolCalls && message.toolCalls.length > 0) ||
+    (message.contentBlocks && message.contentBlocks.length > 0) ||
+    isStreaming || isThinking
+  if (!hasContent && !isModelSwitch) return null
 
   if (isModelSwitch) {
     return (
@@ -77,7 +84,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
               }
               if (block.type === 'tool_chain') {
                 return (
-                  <ToolCallCards
+                  <ToolChainGroup
                     key={`${message.id}-b${i}`}
                     toolCalls={block.calls}
                     onRespond={onRespondToQuestion}

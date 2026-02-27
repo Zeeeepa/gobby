@@ -94,6 +94,8 @@ export function TerminalsPage({
 
   // Track attached session's socket for kill
   const attachedSocketRef = useRef<string>('default')
+  // Track terminal instance for mobile toolbar redraw
+  const terminalInstanceRef = useRef<XTerm | null>(null)
 
   // Compute display name for the attached session
   const attachedDisplayName = useMemo(() => {
@@ -216,8 +218,10 @@ export function TerminalsPage({
               sidebarOpen={sidebarOpen}
               onSetInteractive={setIsInteractive}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-              onRedraw={() => {
+              onTerminalReady={(t) => { terminalInstanceRef.current = t }}
+              onRedraw={(terminal) => {
                 if (attachedSession && attachedSocketRef.current) {
+                  terminal?.reset()
                   refreshTerminal(attachedSession, attachedSocketRef.current)
                 }
               }}
@@ -282,6 +286,7 @@ export function TerminalsPage({
               <button onClick={() => sendInput('\x1b[C')}>→</button>
               <button onClick={() => {
                 if (attachedSession && attachedSocketRef.current) {
+                  terminalInstanceRef.current?.reset()
                   refreshTerminal(attachedSession, attachedSocketRef.current)
                 }
               }}>Redraw</button>
@@ -418,7 +423,8 @@ interface TerminalViewProps {
   sidebarOpen: boolean
   onSetInteractive: (interactive: boolean) => void
   onToggleSidebar: () => void
-  onRedraw: () => void
+  onRedraw: (terminal: XTerm | null) => void
+  onTerminalReady: (terminal: XTerm | null) => void
   sendInput: (data: string) => void
   resizeTerminal: (rows: number, cols: number) => void
   onOutput: (callback: (runId: string, data: string) => void) => void
@@ -434,6 +440,7 @@ function TerminalView({
   onSetInteractive,
   onToggleSidebar,
   onRedraw,
+  onTerminalReady,
   sendInput,
   resizeTerminal,
   onOutput,
@@ -488,7 +495,7 @@ function TerminalView({
       cursorStyle: 'bar',
       cursorInactiveStyle: 'none',
       scrollback: 10000,
-      convertEol: true,
+      convertEol: false,
       minimumContrastRatio: 4.5,
     })
 
@@ -512,6 +519,7 @@ function TerminalView({
 
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
+    onTerminalReady(terminal)
 
     // Shift+Enter handler — send newline even when xterm might not
     terminal.attachCustomKeyEventHandler((event) => {
@@ -576,6 +584,7 @@ function TerminalView({
       resizeDisposable.dispose()
       resizeObserver.disconnect()
       window.removeEventListener('resize', handleWindowResize)
+      onTerminalReady(null)
       terminal.dispose()
     }
   }, [streamingId]) // Re-create terminal on new attachment
@@ -618,7 +627,7 @@ function TerminalView({
             <>
               <button
                 className="terminals-redraw-btn"
-                onClick={onRedraw}
+                onClick={() => onRedraw(terminalRef.current)}
                 title="Force tmux redraw (Ctrl+L)"
                 style={{ marginRight: '8px' }}
               >

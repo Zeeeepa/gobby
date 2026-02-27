@@ -772,7 +772,7 @@ export function useChat() {
                 role === "assistant" &&
                 contentType === "tool_use"
               ) {
-                // Tool invocation — append to last assistant message's toolCalls
+                // Tool invocation — append to last assistant message's toolCalls + contentBlocks
                 setMessages((prev) => {
                   if (idx !== undefined && prev.some((m) => m.id === msgId))
                     return prev;
@@ -789,9 +789,17 @@ export function useChat() {
                   };
                   if (last?.role === "assistant") {
                     const updated = [...prev];
+                    const blocks = [...(last.contentBlocks || [])];
+                    const lastBlock = blocks[blocks.length - 1];
+                    if (lastBlock?.type === "tool_chain") {
+                      blocks[blocks.length - 1] = { ...lastBlock, calls: [...lastBlock.calls, toolCall] };
+                    } else {
+                      blocks.push({ type: "tool_chain" as const, calls: [toolCall] });
+                    }
                     updated[lastIdx] = {
                       ...last,
                       toolCalls: [...(last.toolCalls || []), toolCall],
+                      contentBlocks: blocks,
                     };
                     return updated;
                   }
@@ -803,6 +811,7 @@ export function useChat() {
                       content: "",
                       timestamp: new Date(),
                       toolCalls: [toolCall],
+                      contentBlocks: [{ type: "tool_chain" as const, calls: [toolCall] }],
                     },
                   ];
                 });
@@ -810,7 +819,7 @@ export function useChat() {
                 contentType === "tool_result" ||
                 role === "tool"
               ) {
-                // Tool result — update last pending tool call
+                // Tool result — update last pending tool call in both toolCalls and contentBlocks
                 setMessages((prev) => {
                   for (let i = prev.length - 1; i >= 0; i--) {
                     const m = prev[i];
@@ -821,14 +830,29 @@ export function useChat() {
                     if (pendingIdx < 0) continue;
                     const updated = [...prev];
                     const updatedCalls = [...m.toolCalls];
-                    updatedCalls[pendingIdx] = {
+                    const callRef = {
                       ...updatedCalls[pendingIdx],
                       result: tryParseJSON(
                         msg.tool_result ?? msg.content,
                       ),
-                      status: "completed",
+                      status: "completed" as const,
                     };
-                    updated[i] = { ...m, toolCalls: updatedCalls };
+                    updatedCalls[pendingIdx] = callRef;
+                    // Also update the call in contentBlocks
+                    const blocks = [...(m.contentBlocks || [])];
+                    for (let bi = 0; bi < blocks.length; bi++) {
+                      const block = blocks[bi];
+                      if (block.type === "tool_chain") {
+                        const tcIdx = block.calls.findIndex((c) => c.id === callRef.id);
+                        if (tcIdx >= 0) {
+                          const updatedBlockCalls = [...block.calls];
+                          updatedBlockCalls[tcIdx] = callRef;
+                          blocks[bi] = { ...block, calls: updatedBlockCalls };
+                          break;
+                        }
+                      }
+                    }
+                    updated[i] = { ...m, toolCalls: updatedCalls, contentBlocks: blocks };
                     return updated;
                   }
                   return prev;

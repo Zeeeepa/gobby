@@ -623,7 +623,7 @@ function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondTo
         <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
       </div>
       {expanded && (
-        <div className="border-t border-border">
+        <div className="border-t border-border pl-4">
           {group.calls.map(call => (
             <ToolCallItem
               key={call.id}
@@ -640,6 +640,86 @@ function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondTo
     </div>
   )
 }
+
+// --- Tier 1: Tool Chain wrapper (collapsible group of all calls between text blocks) ---
+
+function buildChainSummary(toolCalls: ToolCall[]): string {
+  const counts = new Map<string, number>()
+  for (const tc of toolCalls) {
+    const name = formatToolName(tc.tool_name)
+    counts.set(name, (counts.get(name) || 0) + 1)
+  }
+  const parts = Array.from(counts.entries()).map(([name, count]) =>
+    count > 1 ? `${count} ${name}` : name
+  )
+  return parts.join(', ')
+}
+
+interface ToolChainGroupProps {
+  toolCalls: ToolCall[]
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  canvasSurfaces?: Map<string, A2UISurfaceState>
+  onCanvasInteraction?: (canvasId: string, action: UserAction) => void
+}
+
+export const ToolChainGroup = memo(function ToolChainGroup({ toolCalls, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: ToolChainGroupProps) {
+  const hasInFlight = toolCalls.some(tc => tc.status === 'calling')
+  const hasApproval = toolCalls.some(tc => tc.status === 'pending_approval')
+  const hasErrors = toolCalls.some(tc => tc.status === 'error')
+  const allCompleted = toolCalls.every(tc => tc.status === 'completed')
+  // Auto-expand if something needs attention; collapse when all done
+  const [expanded, setExpanded] = useState(hasInFlight || hasApproval || !allCompleted)
+
+  const summary = useMemo(() => buildChainSummary(toolCalls), [toolCalls])
+  const count = toolCalls.length
+
+  if (!count) return null
+
+  // Single call — no point wrapping in a "1 tool call" group, render directly
+  if (count === 1) {
+    return (
+      <ToolCallCards
+        toolCalls={toolCalls}
+        onRespond={onRespond}
+        onRespondToApproval={onRespondToApproval}
+        canvasSurfaces={canvasSurfaces}
+        onCanvasInteraction={onCanvasInteraction}
+      />
+    )
+  }
+
+  return (
+    <div className={cn(
+      'rounded-lg border overflow-hidden my-1.5',
+      hasErrors ? 'border-destructive-foreground/30' : hasInFlight ? 'border-accent/30' : 'border-border'
+    )}>
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <GroupStatusIcon hasErrors={hasErrors} allCompleted={allCompleted} hasInFlight={hasInFlight} />
+        <span className="text-muted-foreground">
+          {count} tool call{count !== 1 ? 's' : ''}
+        </span>
+        <span className="text-muted-foreground/60 text-xs truncate">{summary}</span>
+        <div className="flex-1" />
+        <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
+      </div>
+      {expanded && (
+        <div className="border-t border-border px-3">
+          <ToolCallCards
+            toolCalls={toolCalls}
+            onRespond={onRespond}
+            onRespondToApproval={onRespondToApproval}
+            canvasSurfaces={canvasSurfaces}
+            onCanvasInteraction={onCanvasInteraction}
+          />
+        </div>
+      )}
+    </div>
+  )
+})
 
 export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: ToolCallCardProps) {
   const segments = useMemo(() => groupToolCalls(toolCalls), [toolCalls])
