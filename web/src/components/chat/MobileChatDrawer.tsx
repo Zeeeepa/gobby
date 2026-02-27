@@ -44,7 +44,7 @@ export function MobileChatDrawer({
   agentHasGlobal = false,
   agentHasProject = false,
 }: MobileChatDrawerProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
   const [showAgentPicker, setShowAgentPicker] = useState(false)
   const { dot, label } = MODE_DOT[mode]
 
