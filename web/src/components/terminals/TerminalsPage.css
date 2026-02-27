@@ -333,11 +333,17 @@
 
   .terminals-mobile-toolbar {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.375rem;
     padding: 0.375rem;
     background: var(--bg-tertiary);
     border-top: 1px solid var(--border);
-    overflow-x: auto;
+  }
+
+  .terminals-mobile-toolbar .toolbar-row {
+    display: flex;
+    gap: 0.375rem;
+    width: 100%;
   }
 
   .terminals-mobile-toolbar button {
@@ -350,8 +356,8 @@
     font-family: var(--font-mono);
     cursor: pointer;
     white-space: nowrap;
-    flex-shrink: 0;
-    min-width: 2.5rem;
+    flex: 1;
+    min-width: 0;
     text-align: center;
   }
 

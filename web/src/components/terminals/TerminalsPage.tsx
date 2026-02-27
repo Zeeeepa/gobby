@@ -267,21 +267,25 @@ export function TerminalsPage({
         {/* Mobile special-key toolbar */}
         {streamingId && isInteractive && (
           <div className="terminals-mobile-toolbar">
-            <button onClick={() => {
-              if (attachedSession && attachedSocketRef.current) {
-                refreshTerminal(attachedSession, attachedSocketRef.current)
-              }
-            }}>Redraw</button>
-            <button onClick={() => sendInput('\x1b')}>Esc</button>
-            <button onClick={() => sendInput('\t')}>Tab</button>
-            <button onClick={() => sendInput('\x1b[Z')}>⇧Tab</button>
-            <button onClick={() => sendInput('\n')}>⇧Enter</button>
-            <button onClick={() => sendInput('\x03')}>^C</button>
-            <button onClick={() => sendInput('\x04')}>^D</button>
-            <button onClick={() => sendInput('\x1b[A')}>&uarr;</button>
-            <button onClick={() => sendInput('\x1b[B')}>&darr;</button>
-            <button onClick={() => sendInput('\x1b[D')}>&larr;</button>
-            <button onClick={() => sendInput('\x1b[C')}>&rarr;</button>
+            <div className="toolbar-row">
+              <button onClick={() => sendInput('\x1b')}>Esc</button>
+              <button onClick={() => sendInput('\t')}>Tab</button>
+              <button onClick={() => sendInput('\x1b[Z')}>⇧Tab</button>
+              <button onClick={() => sendInput('\n')}>⇧Enter</button>
+              <button onClick={() => sendInput('\x03')}>^C</button>
+              <button onClick={() => sendInput('\x04')}>^D</button>
+            </div>
+            <div className="toolbar-row">
+              <button onClick={() => sendInput('\x1b[A')}>↑</button>
+              <button onClick={() => sendInput('\x1b[B')}>↓</button>
+              <button onClick={() => sendInput('\x1b[D')}>←</button>
+              <button onClick={() => sendInput('\x1b[C')}>→</button>
+              <button onClick={() => {
+                if (attachedSession && attachedSocketRef.current) {
+                  refreshTerminal(attachedSession, attachedSocketRef.current)
+                }
+              }}>Redraw</button>
+            </div>
           </div>
         )}
       </div>
