@@ -170,6 +170,12 @@ export function ChatPage({
           onNewChat={conversations.onNewChat}
           onSelectSession={conversations.onSelectSession}
           onDeleteSession={conversations.onDeleteSession}
+          agentDefinitions={agentDefinitions}
+          agentGlobalDefs={agentGlobalDefs}
+          agentProjectDefs={agentProjectDefs}
+          agentShowScopeToggle={agentShowScopeToggle}
+          agentHasGlobal={agentHasGlobal}
+          agentHasProject={agentHasProject}
         />
         <ArtifactContext.Provider value={{ openCodeAsArtifact }}>
           <div className="flex flex-1 min-h-0">

@@ -188,7 +188,7 @@ export function ConversationPicker({
                     }}
                   >
                     <div className="session-item-main">
-                      <span className="session-source-dot web-chat" />
+                      <span className={`session-source-dot ${session.status === "paused" ? "status-paused" : "web-chat"}`} />
                       {editingId === session.id ? (
                         <input
                           className="session-name-input"

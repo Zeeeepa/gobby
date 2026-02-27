@@ -88,7 +88,8 @@ export function useSessions() {
         const fetched: GobbySession[] = Array.isArray(data.sessions)
           ? data.sessions
           : [];
-        setSessions(fetched.filter((s) => s.status !== "deleted"));
+        const HIDDEN_STATUSES = new Set(["deleted", "handoff_ready", "expired"]);
+        setSessions(fetched.filter((s) => !HIDDEN_STATUSES.has(s.status)));
       } else {
         throw new Error(`Failed to fetch sessions: ${response.status}`);
       }

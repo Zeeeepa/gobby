@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { GobbySession } from '../../hooks/useSessions'
+import type { AgentDefInfo } from '../../hooks/useAgentDefinitions'
 import type { ChatMode } from '../../types/chat'
 import { formatRelativeTime } from '../../utils/formatTime'
+import { AgentPickerDropdown } from './AgentPickerDropdown'
 
 const MODE_DOT: Record<ChatMode, { dot: string; label: string }> = {
   plan: { dot: 'bg-blue-400', label: 'Plan' },
@@ -15,9 +17,15 @@ interface MobileChatDrawerProps {
   sessionRef: string | null
   title: string | null
   mode: ChatMode
-  onNewChat: () => void
+  onNewChat: (agentName?: string) => void
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
+  agentDefinitions?: AgentDefInfo[]
+  agentGlobalDefs?: AgentDefInfo[]
+  agentProjectDefs?: AgentDefInfo[]
+  agentShowScopeToggle?: boolean
+  agentHasGlobal?: boolean
+  agentHasProject?: boolean
 }
 
 export function MobileChatDrawer({
@@ -29,9 +37,27 @@ export function MobileChatDrawer({
   onNewChat,
   onSelectSession,
   onDeleteSession,
+  agentDefinitions = [],
+  agentGlobalDefs = [],
+  agentProjectDefs = [],
+  agentShowScopeToggle = false,
+  agentHasGlobal = false,
+  agentHasProject = false,
 }: MobileChatDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
   const { dot, label } = MODE_DOT[mode]
+
+  const activeSession = sessions.find((s) => s.external_id === activeSessionId)
+
+  const handleNewChat = () => {
+    if (agentDefinitions.length <= 1) {
+      onNewChat()
+      setIsOpen(false)
+    } else {
+      setShowAgentPicker(true)
+    }
+  }
 
   return (
     <div className={`mobile-chat-drawer ${isOpen ? '' : 'collapsed'}`}>
@@ -59,10 +85,20 @@ export function MobileChatDrawer({
               <span className="text-muted-foreground text-xs">{label}</span>
             </span>
           )}
+          {!isOpen && onDeleteSession && activeSession && (
+            <button
+              type="button"
+              className="mobile-drawer-action"
+              onClick={(e) => { e.stopPropagation(); onDeleteSession(activeSession) }}
+              title="Delete chat"
+            >
+              <TrashIcon />
+            </button>
+          )}
           <button
             type="button"
             className="mobile-drawer-action"
-            onClick={(e) => { e.stopPropagation(); onNewChat(); setIsOpen(false) }}
+            onClick={(e) => { e.stopPropagation(); handleNewChat() }}
             title="New chat"
           >
             <PlusIcon />
@@ -70,6 +106,23 @@ export function MobileChatDrawer({
           <span>{isOpen ? '\u25B2' : '\u25BC'}</span>
         </div>
       </div>
+
+      {showAgentPicker && (
+        <AgentPickerDropdown
+          definitions={agentDefinitions}
+          globalDefs={agentGlobalDefs}
+          projectDefs={agentProjectDefs}
+          showScopeToggle={agentShowScopeToggle}
+          hasGlobal={agentHasGlobal}
+          hasProject={agentHasProject}
+          onSelect={(agentName) => {
+            onNewChat(agentName)
+            setShowAgentPicker(false)
+            setIsOpen(false)
+          }}
+          onClose={() => setShowAgentPicker(false)}
+        />
+      )}
 
       {isOpen && (
         <div className="mobile-chat-drawer-content">
@@ -92,7 +145,7 @@ export function MobileChatDrawer({
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(session); setIsOpen(false) } }}
                 >
                   <div className="session-item-main">
-                    <span className="session-source-dot web-chat" />
+                    <span className={`session-source-dot ${session.status === 'paused' ? 'status-paused' : 'web-chat'}`} />
                     <span className="session-name" title={title}>
                       {title}
                     </span>

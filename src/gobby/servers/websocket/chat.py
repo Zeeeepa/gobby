@@ -932,6 +932,17 @@ class ChatMixin:
             user_text = content if isinstance(content, str) else json.dumps(content)
             await _persist_message(session, "user", user_text)
 
+            # Mark session as active while streaming
+            db_sid = getattr(session, "db_session_id", None)
+            if db_sid:
+                _sm = getattr(self, "session_manager", None)
+                if _sm:
+                    try:
+                        await asyncio.to_thread(_sm.update, db_sid, status="active")
+                        await self.broadcast_session_event("updated", db_sid)
+                    except Exception:
+                        logger.debug("Failed to set session status to active", exc_info=True)
+
             # Enrich content with inject_context for SDK (invisible to chat UI)
             sdk_content = content
             if inject_context and isinstance(inject_context, str):
@@ -1183,6 +1194,18 @@ class ChatMixin:
                                     db_sid,
                                     exc_info=True,
                                 )
+
+                    # Mark session as paused now that streaming is done
+                    if db_sid:
+                        try:
+                            await asyncio.to_thread(
+                                session_manager.update, db_sid, status="paused"
+                            )
+                            await self.broadcast_session_event("updated", db_sid)
+                        except Exception:
+                            logger.debug(
+                                "Failed to set session status to paused", exc_info=True
+                            )
 
         except asyncio.CancelledError:
             # Stream was interrupted (stop button or new message replacing old)
