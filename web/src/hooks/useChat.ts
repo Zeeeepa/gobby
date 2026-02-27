@@ -225,7 +225,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           id,
           tool_name: m.tool_name || "unknown",
           server_name: "builtin",
-          status: "completed",
+          status: m.tool_result ? "completed" : "calling",
           arguments: tryParseJSON(m.tool_input) as
             | Record<string, unknown>
             | undefined,
