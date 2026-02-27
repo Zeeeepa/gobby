@@ -27,6 +27,8 @@ class CreateAgentDefinitionRequest(BaseModel):
     name: str
     project_id: str | None = None
     description: str | None = None
+    extends: str | None = None
+    sources: list[str] | None = None
     role: str | None = None
     goal: str | None = None
     personality: str | None = None
@@ -50,6 +52,8 @@ class UpdateAgentDefinitionRequest(BaseModel):
 
     name: str | None = None
     description: str | None = None
+    extends: str | None = None
+    sources: list[str] | None = None
     role: str | None = None
     goal: str | None = None
     personality: str | None = None
@@ -208,6 +212,8 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             body = AgentDefinitionBody(
                 name=request.name,
                 description=request.description,
+                extends=request.extends,
+                sources=request.sources,
                 role=request.role,
                 goal=request.goal,
                 personality=request.personality,
@@ -259,6 +265,8 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             for key in (
                 "name",
                 "description",
+                "extends",
+                "sources",
                 "role",
                 "goal",
                 "personality",
@@ -270,9 +278,20 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 "base_branch",
                 "timeout",
                 "max_turns",
+                "default_workflow",
             ):
                 if key in fields:
                     body_dict[key] = fields[key]
+
+            # Nested dict fields that replace wholesale
+            if "workflows" in fields:
+                body_dict["workflows"] = fields["workflows"]
+            if "sandbox_config" in fields:
+                body_dict["sandbox"] = fields["sandbox_config"]
+            if "lifecycle_variables" in fields:
+                body_dict["lifecycle_variables"] = fields["lifecycle_variables"]
+            if "default_variables" in fields:
+                body_dict["default_variables"] = fields["default_variables"]
 
             update_fields: dict[str, Any] = {
                 "definition_json": _json.dumps(body_dict),

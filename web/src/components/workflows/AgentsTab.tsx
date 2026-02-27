@@ -110,6 +110,26 @@ const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
   copilot: [{ value: '', label: '(default)' }],
 }
 
+function agentDefToYaml(d: AgentDefInfo['definition']): string {
+  const obj: Record<string, unknown> = { name: d.name }
+  if (d.extends) obj.extends = d.extends
+  if (d.description) obj.description = d.description
+  if (d.role) obj.role = d.role
+  if (d.goal) obj.goal = d.goal
+  if (d.personality) obj.personality = d.personality
+  if (d.instructions) obj.instructions = d.instructions
+  obj.provider = d.provider
+  if (d.model) obj.model = d.model
+  obj.mode = d.mode
+  if (d.isolation) obj.isolation = d.isolation
+  obj.base_branch = d.base_branch
+  obj.timeout = d.timeout
+  obj.max_turns = d.max_turns
+  if (d.workflows) obj.workflows = d.workflows
+  if (d.sandbox) obj.sandbox = d.sandbox
+  return yaml.dump(obj, { lineWidth: 120, noRefs: true })
+}
+
 function getBaseUrl(): string {
   return ''
 }
@@ -212,6 +232,10 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       setEditSkills([])
       setSelectedAgent(null)
       setSidebarView('form')
+      setSidebarYamlContent(yaml.dump({
+        name: '', provider: 'inherit', mode: 'inherit',
+        base_branch: 'inherit', timeout: 0, max_turns: 0,
+      }, { lineWidth: 120, noRefs: true }))
     }
   }, [showCreateForm, editingId])
 
@@ -333,11 +357,10 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (editRuleSelectors) workflows.rule_selectors = editRuleSelectors
       if (Object.keys(editVariables).length > 0) workflows.variables = editVariables
       if (createForm.pipeline) workflows.pipeline = createForm.pipeline
-      if (Object.keys(workflows).length > 0) body.workflows = workflows
-      // Skill profile
       if (editSkills.length > 0) {
-        body.skill_profile = Object.fromEntries(editSkills.map(s => [s, {}]))
+        workflows.skill_selectors = { include: editSkills }
       }
+      if (Object.keys(workflows).length > 0) body.workflows = workflows
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions`, {
         method: 'POST',
@@ -382,9 +405,18 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     const rs = d.workflows?.rule_selectors as { include: string[]; exclude: string[] } | undefined
     setEditRuleSelectors(rs || null)
     setEditVariables((d.workflows?.variables as Record<string, unknown>) || {})
-    setEditSkills(d.skill_profile ? Object.keys(d.skill_profile) : [])
+    // Load from skill_selectors.include (preferred) or legacy skill_profile
+    const skillSelectors = d.workflows?.skill_selectors as { include?: string[]; exclude?: string[] } | undefined
+    if (skillSelectors?.include && skillSelectors.include.length > 0) {
+      setEditSkills(skillSelectors.include.filter(s => s !== '*'))
+    } else if (d.skill_profile) {
+      setEditSkills(Object.keys(d.skill_profile))
+    } else {
+      setEditSkills([])
+    }
     setSelectedAgent(null)
     setSidebarView('form')
+    setSidebarYamlContent(agentDefToYaml(d))
     onToggleCreateForm(true)
   }
 
@@ -413,11 +445,10 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (editRules.length > 0) workflows.rules = editRules
       if (editRuleSelectors) workflows.rule_selectors = editRuleSelectors
       if (Object.keys(editVariables).length > 0) workflows.variables = editVariables
+      if (editSkills.length > 0) {
+        workflows.skill_selectors = { include: editSkills }
+      }
       if (Object.keys(workflows).length > 0) body.workflows = workflows
-      // Skill profile
-      body.skill_profile = editSkills.length > 0
-        ? Object.fromEntries(editSkills.map(s => [s, {}]))
-        : null
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
         method: 'PUT',
@@ -579,6 +610,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       const body: Record<string, unknown> = {
         name: (parsed.name as string) || yamlAgent.definition.name,
         description: parsed.description ?? null,
+        extends: parsed.extends ?? null,
+        sources: parsed.sources ?? null,
         role: parsed.role ?? null,
         goal: parsed.goal ?? null,
         personality: parsed.personality ?? null,
@@ -591,6 +624,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         timeout: parsed.timeout ?? yamlAgent.definition.timeout,
         max_turns: parsed.max_turns ?? yamlAgent.definition.max_turns,
       }
+      if (parsed.workflows) body.workflows = parsed.workflows
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${yamlAgent.db_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -626,6 +660,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       const body: Record<string, unknown> = {
         name: (parsed.name as string) || createForm.name,
         description: parsed.description ?? null,
+        extends: parsed.extends ?? null,
+        sources: parsed.sources ?? null,
         role: parsed.role ?? null,
         goal: parsed.goal ?? null,
         personality: parsed.personality ?? null,
@@ -639,7 +675,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         max_turns: parsed.max_turns ?? createForm.max_turns,
       }
       if (parsed.workflows) body.workflows = parsed.workflows
-      if (parsed.skill_profile) body.skill_profile = parsed.skill_profile
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -819,6 +854,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                         handleEdit(item)
                       } else {
                         setSelectedAgent(item)
+                        setSidebarYamlContent(agentDefToYaml(item.definition))
                       }
                     }}
                   >
