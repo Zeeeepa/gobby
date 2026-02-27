@@ -86,7 +86,7 @@ The counter and `_last_blocked_tool` are cleared on:
 
 ### Tool Block Stop Gate
 
-When a stop event fires while `tool_block_pending` is true, the engine blocks the stop with "A tool just failed. Read the error and recover — do not stop." This is **self-clearing**: `tool_block_pending` is set to false after the block, so the next stop attempt proceeds to normal rule evaluation.
+When a stop event fires while `tool_block_pending` is true, the engine blocks the stop with "Rule enforced by Gobby: [tool-failure-recovery]\nA tool just failed. Read the error and recover — do not stop." This is **self-clearing**: `tool_block_pending` is set to false after the block, so the next stop attempt proceeds to normal rule evaluation.
 
 ### Force Allow Stop (Catastrophic Failure Bypass)
 

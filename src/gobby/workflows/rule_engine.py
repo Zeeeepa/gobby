@@ -94,6 +94,7 @@ class RuleEngine:
                     return HookResponse(
                         decision="block",
                         reason=(
+                            "Rule enforced by Gobby: [consecutive-tool-block]\n"
                             f"You have attempted {tool_name} {count + 1} times consecutively "
                             "without addressing the error.\n"
                             "STOP retrying the same action. Read the previous error messages "
@@ -138,7 +139,7 @@ class RuleEngine:
             variables["tool_block_pending"] = False
             return HookResponse(
                 decision="block",
-                reason="A tool just failed. Read the error and recover — do not stop.",
+                reason="Rule enforced by Gobby: [tool-failure-recovery]\nA tool just failed. Read the error and recover — do not stop.",
             )
 
         if not rules:
