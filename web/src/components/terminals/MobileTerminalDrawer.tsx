@@ -10,6 +10,7 @@ interface MobileTerminalDrawerProps {
   onAttach: (name: string, socket: string) => void
   onCreate: () => void
   onSetInteractive: (interactive: boolean) => void
+  onKill: (name: string, socket: string) => void
 }
 
 export function MobileTerminalDrawer({
@@ -21,6 +22,7 @@ export function MobileTerminalDrawer({
   onAttach,
   onCreate,
   onSetInteractive,
+  onKill,
 }: MobileTerminalDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -29,7 +31,7 @@ export function MobileTerminalDrawer({
     : null
   const activeTitle = attachedEntry
     ? (terminalNames[`${attachedEntry.socket}:${attachedEntry.name}`]
-      || attachedEntry.session_title || attachedEntry.name)
+      || attachedEntry.session_title || attachedEntry.pane_title || attachedEntry.window_name || attachedEntry.name)
     : 'Terminals'
 
   const defaultSessions = sessions.filter(s => s.socket === 'default')
@@ -57,15 +59,23 @@ export function MobileTerminalDrawer({
               </button>
           ) : streamingId && (
             <>
-              {!isInteractive && (
-                <span className="read-only-badge">read-only</span>
-              )}
+              <span className={`mode-badge ${isInteractive ? 'mode-edit' : 'mode-view'}`}>
+                {isInteractive ? 'EDIT' : 'VIEW'}
+              </span>
               <button
                 type="button"
                 className={isInteractive ? 'mobile-drawer-detach-btn' : 'mobile-drawer-attach-btn'}
                 onClick={(e) => { e.stopPropagation(); onSetInteractive(!isInteractive) }}
               >
                 {isInteractive ? 'Detach' : 'Attach'}
+              </button>
+              <button
+                type="button"
+                className="mobile-drawer-kill-btn"
+                onClick={(e) => { e.stopPropagation(); onKill(attachedEntry!.name, attachedEntry!.socket) }}
+                title="Close terminal"
+              >
+                <TrashIcon />
               </button>
             </>
           )}
@@ -128,7 +138,7 @@ function DrawerGroup({
       {sessions.map((session) => {
         const isAttached = attachedSession === session.name && streamingId !== null
         const nameKey = `${session.socket}:${session.name}`
-        const displayName = terminalNames[nameKey] || session.session_title || session.name
+        const displayName = terminalNames[nameKey] || session.session_title || session.pane_title || session.window_name || session.name
 
         return (
           <div
@@ -167,6 +177,15 @@ function PlusIcon() {
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   )
 }

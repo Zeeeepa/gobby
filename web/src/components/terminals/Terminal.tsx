@@ -206,7 +206,7 @@ export function TerminalPanel({
           Active Agents
           <span className="agent-count">{agents.length}</span>
           {isOpen && isReadOnly && (
-            <span className="read-only-badge">Read-only</span>
+            <span className="mode-badge mode-view">VIEW</span>
           )}
         </span>
         <div className="terminal-actions" onClick={(e) => e.stopPropagation()}>

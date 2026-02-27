@@ -6,6 +6,7 @@ import './TerminalsPage.css'
 import { TmuxSession } from '../../hooks/useTmuxSessions'
 import { MenuIcon } from '../shared/Icons'
 import { MobileTerminalDrawer } from './MobileTerminalDrawer'
+import { ConfirmDialog } from '../chat/ui/ConfirmDialog'
 
 interface TerminalsPageProps {
   sessions: TmuxSession[]
@@ -115,11 +116,19 @@ export function TerminalsPage({
     attachedSocketRef.current = socket
   }, [attachSession])
 
+  const [killTarget, setKillTarget] = useState<{ name: string; socket: string } | null>(null)
+
   const handleKill = useCallback((sessionName: string, socket: string) => {
-    if (!window.confirm(`Kill terminal "${sessionName}"?`)) return
-    killSession(sessionName, socket)
-    setIsInteractive(false)
-  }, [killSession])
+    setKillTarget({ name: sessionName, socket })
+  }, [])
+
+  const handleKillConfirm = useCallback(() => {
+    if (killTarget) {
+      killSession(killTarget.name, killTarget.socket)
+      setIsInteractive(false)
+    }
+    setKillTarget(null)
+  }, [killTarget, killSession])
 
   const defaultSessions = sessions.filter(s => s.socket === 'default')
   const gobbySessions = sessions.filter(s => s.socket === 'gobby')
@@ -194,6 +203,7 @@ export function TerminalsPage({
           onAttach={handleAttach}
           onCreate={() => createSession()}
           onSetInteractive={setIsInteractive}
+          onKill={handleKill}
         />
         {streamingId ? (
           <div className="terminals-terminal-outer">
@@ -273,6 +283,16 @@ export function TerminalsPage({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={killTarget !== null}
+        onConfirm={handleKillConfirm}
+        onCancel={() => setKillTarget(null)}
+        title="Close terminal?"
+        description={killTarget ? `This will kill "${terminalNames[`${killTarget.socket}:${killTarget.name}`] || killTarget.name}" and any processes running in it.` : undefined}
+        confirmLabel="Close"
+        destructive
+      />
     </div>
   )
 }
@@ -573,9 +593,9 @@ function TerminalView({
           {panePid && (
             <span className="session-pid">PID {panePid}</span>
           )}
-          {!isInteractive && (
-            <span className="read-only-badge">read-only</span>
-          )}
+          <span className={`mode-badge ${isInteractive ? 'mode-edit' : 'mode-view'}`}>
+            {isInteractive ? 'EDIT' : 'VIEW'}
+          </span>
         </span>
         <div className="terminals-header-actions">
           {isInteractive ? (
