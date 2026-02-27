@@ -744,8 +744,7 @@ class MCPClientManager:
         try:
             self.mcp_db_manager.cache_tools(server_name, tools, project_id=config.project_id)
             config.tools = [
-                {"name": t["name"], "brief": (t.get("description", "") or "")[:100]}
-                for t in tools
+                {"name": t["name"], "brief": (t.get("description", "") or "")[:100]} for t in tools
             ]
         except Exception as e:
             logger.debug(f"Failed to cache tools for {server_name}: {e}")

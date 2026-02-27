@@ -774,6 +774,62 @@ class ChatMixin:
             except (ConnectionClosed, ConnectionClosedError):
                 pass
 
+        # Track pending tool calls so we can persist tool_name + arguments
+        # when ToolResultEvent arrives (it only has tool_call_id)
+        pending_tool_calls: dict[str, dict[str, Any]] = {}
+
+        async def _persist_tool_call(
+            tool_call_id: str,
+            tool_name: str,
+            tool_input: dict[str, Any] | None,
+            tool_result: Any | None,
+            is_error: bool = False,
+        ) -> None:
+            """Persist a tool_use + tool_result pair as session messages."""
+            if session is None:
+                return
+            message_manager = getattr(self, "message_manager", None)
+            db_sid = getattr(session, "db_session_id", None)
+            if not message_manager or not db_sid:
+                return
+            try:
+                idx = session.message_index
+                session.message_index = idx + 1
+                tool_use_msg = ParsedMessage(
+                    index=idx,
+                    role="assistant",
+                    content=tool_name,
+                    content_type="tool_use",
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    tool_result=None,
+                    timestamp=datetime.now(UTC),
+                    raw_json={},
+                )
+                idx2 = session.message_index
+                session.message_index = idx2 + 1
+                result_content = ""
+                if tool_result is not None:
+                    result_content = (
+                        json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result
+                    )
+                if is_error:
+                    result_content = f"Error: {result_content}"
+                tool_result_msg = ParsedMessage(
+                    index=idx2,
+                    role="tool",
+                    content=result_content,
+                    content_type="tool_result",
+                    tool_name=tool_name,
+                    tool_input=None,
+                    tool_result=tool_result if not is_error else None,
+                    timestamp=datetime.now(UTC),
+                    raw_json={},
+                )
+                await message_manager.store_messages(db_sid, [tool_use_msg, tool_result_msg])
+            except Exception as e:
+                logger.warning(f"Failed to persist tool call for {conversation_id[:8]}: {e}")
+
         gen: AsyncIterator[Any] | None = None
         try:
             # Get or create ChatSession for this conversation
@@ -932,6 +988,11 @@ class ChatMixin:
                     if accumulated_text.strip():
                         await _persist_message(session, "assistant", accumulated_text)
                         accumulated_text = ""
+                    # Track pending tool call for persistence on result
+                    pending_tool_calls[event.tool_call_id] = {
+                        "tool_name": event.tool_name,
+                        "arguments": event.arguments,
+                    }
                     await websocket.send(
                         json.dumps(
                             _base_msg(
@@ -948,6 +1009,15 @@ class ChatMixin:
                     )
                 elif isinstance(event, ToolResultEvent):
                     after_tool_call = True
+                    # Persist tool_use + tool_result pair to DB
+                    pending = pending_tool_calls.pop(event.tool_call_id, {})
+                    await _persist_tool_call(
+                        tool_call_id=event.tool_call_id,
+                        tool_name=pending.get("tool_name", "unknown"),
+                        tool_input=pending.get("arguments"),
+                        tool_result=event.result if event.success else event.error,
+                        is_error=not event.success,
+                    )
                     await websocket.send(
                         json.dumps(
                             _base_msg(

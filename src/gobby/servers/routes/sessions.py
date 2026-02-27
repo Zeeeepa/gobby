@@ -184,7 +184,9 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             try:
                 await ws.broadcast_session_event(event, session_id, **kwargs)
             except Exception as e:
-                logger.warning(f"Failed to broadcast session event '{event}' for session {session_id}: {e}")
+                logger.warning(
+                    f"Failed to broadcast session event '{event}' for session {session_id}: {e}"
+                )
 
     @router.post("/register")
     async def register_session(request_data: SessionRegisterRequest) -> dict[str, Any]:

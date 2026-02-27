@@ -63,15 +63,52 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
           <ThinkingBlock content={message.thinkingContent} messageId={message.id} />
         )}
 
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} onRespondToApproval={onRespondToApproval} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
-        )}
-
-        {message.content && (
-          <div className="message-content text-sm leading-relaxed text-foreground">
-            <Markdown content={message.content} id={message.id} />
-            {isStreaming && <span className="cursor inline-block w-2 h-4 bg-foreground animate-pulse ml-1.5" />}
-          </div>
+        {message.contentBlocks && message.contentBlocks.length > 0 ? (
+          <>
+            {message.contentBlocks.map((block, i) => {
+              if (block.type === 'text') {
+                const isLastText = !message.contentBlocks!.slice(i + 1).some(b => b.type === 'text')
+                return (
+                  <div key={`${message.id}-b${i}`} className="message-content text-sm leading-relaxed text-foreground">
+                    <Markdown content={block.content} id={`${message.id}-${i}`} />
+                    {isStreaming && isLastText && <span className="cursor inline-block w-2 h-4 bg-foreground animate-pulse ml-1.5" />}
+                  </div>
+                )
+              }
+              if (block.type === 'tool_chain') {
+                return (
+                  <ToolCallCards
+                    key={`${message.id}-b${i}`}
+                    toolCalls={block.calls}
+                    onRespond={onRespondToQuestion}
+                    onRespondToApproval={onRespondToApproval}
+                    canvasSurfaces={canvasSurfaces}
+                    onCanvasInteraction={onCanvasInteraction}
+                  />
+                )
+              }
+              if (block.type === 'image') {
+                return (
+                  <div key={`${message.id}-b${i}`} className="my-2">
+                    <img src={block.src} alt={block.alt || 'Image'} className="max-w-full rounded-lg border border-border" />
+                  </div>
+                )
+              }
+              return null
+            })}
+          </>
+        ) : (
+          <>
+            {message.toolCalls && message.toolCalls.length > 0 && (
+              <ToolCallCards toolCalls={message.toolCalls} onRespond={onRespondToQuestion} onRespondToApproval={onRespondToApproval} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
+            )}
+            {message.content && (
+              <div className="message-content text-sm leading-relaxed text-foreground">
+                <Markdown content={message.content} id={message.id} />
+                {isStreaming && <span className="cursor inline-block w-2 h-4 bg-foreground animate-pulse ml-1.5" />}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -459,9 +459,7 @@ class RuleEngine:
         "account suspended",
     ]
 
-    def _check_catastrophic_failure(
-        self, event: HookEvent, variables: dict[str, Any]
-    ) -> None:
+    def _check_catastrophic_failure(self, event: HookEvent, variables: dict[str, Any]) -> None:
         """Check if a tool failure is catastrophic and set force_allow_stop if so."""
         tool_output = str(event.data.get("tool_output", "")).lower()
         if any(p in tool_output for p in self._CATASTROPHIC_PATTERNS):

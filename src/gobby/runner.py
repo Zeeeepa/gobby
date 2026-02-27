@@ -576,14 +576,17 @@ class GobbyRunner:
             await cleanup_stale_tmux_sessions()
 
             # Neo4j health check: disable KG features if unreachable
-            if self.memory_manager and hasattr(self.config, "memory") and self.config.memory.neo4j_url:
+            if (
+                self.memory_manager
+                and hasattr(self.config, "memory")
+                and self.config.memory.neo4j_url
+            ):
                 from gobby.cli.services import is_neo4j_healthy
 
                 neo4j_url = self.config.memory.neo4j_url
                 if not await is_neo4j_healthy(neo4j_url):
                     logger.warning(
-                        f"Neo4j configured but unreachable at {neo4j_url} "
-                        "— graph features disabled"
+                        f"Neo4j configured but unreachable at {neo4j_url} — graph features disabled"
                     )
                     self.memory_manager._neo4j_client = None
                     self.memory_manager._kg_service = None

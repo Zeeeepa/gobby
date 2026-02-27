@@ -82,7 +82,8 @@ export function useColonAutocomplete(
   const filterInput = useCallback(
     (value: string) => {
       if (!value.startsWith('/')) {
-        setPaletteItems([])
+        // Only update if not already empty — avoids re-render on every keystroke
+        setPaletteItems((prev) => prev.length === 0 ? prev : [])
         return
       }
 

@@ -1337,9 +1337,7 @@ def _normalize_config_keys_lowercase(db: LocalDatabase) -> None:
                 continue
 
             # Check if lowercase version already exists
-            existing = db.fetchone(
-                "SELECT key FROM config_store WHERE key = ?", (lower_key,)
-            )
+            existing = db.fetchone("SELECT key FROM config_store WHERE key = ?", (lower_key,))
 
             if existing:
                 # Lowercase already exists — delete the uppercase one
@@ -1350,7 +1348,7 @@ def _normalize_config_keys_lowercase(db: LocalDatabase) -> None:
                 value = row["value"]
                 if isinstance(value, str) and "$secret:" in value:
                     value = _re.sub(
-                        r'\$secret:([A-Z_]+)',
+                        r"\$secret:([A-Z_]+)",
                         lambda m: f"$secret:{m.group(1).lower()}",
                         value,
                     )

@@ -41,6 +41,11 @@ export interface ToolCall {
   error?: string;
 }
 
+export type ContentBlock =
+  | { type: "text"; content: string }
+  | { type: "tool_chain"; calls: ToolCall[] }
+  | { type: "image"; src: string; alt?: string };
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -48,6 +53,7 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   thinkingContent?: string;
+  contentBlocks?: ContentBlock[];
 }
 
 export interface QueuedFile {

@@ -669,7 +669,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     context_parts.append(formatted)
 
         # Count variables (exclude internal keys)
-        internal_keys = {"_agent_type", "_active_rule_names", "_active_skill_names", "_skill_format"}
+        internal_keys = {
+            "_agent_type",
+            "_active_rule_names",
+            "_active_skill_names",
+            "_skill_format",
+        }
         variables_count = len([k for k in changes if k not in internal_keys])
 
         return AgentActivationResult(
@@ -784,9 +789,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             system_message += f"\n├─ Variables: {agent_info.variables_count}"
             if agent_info.injected_skill_names:
                 system_message += f"\n└─ Skills: {agent_info.skills_count}"
-                system_message += (
-                    f"\n   └─ Injected: {', '.join(agent_info.injected_skill_names)}"
-                )
+                system_message += f"\n   └─ Injected: {', '.join(agent_info.injected_skill_names)}"
             else:
                 system_message += f"\n└─ Skills: {agent_info.skills_count}"
 

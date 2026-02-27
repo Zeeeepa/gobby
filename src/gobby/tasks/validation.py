@@ -583,4 +583,3 @@ class TaskValidator:
         except Exception as e:
             logger.error(f"Failed to validate task {task_id}: {e}")
             return ValidationResult(status="pending", feedback=f"Validation failed: {str(e)}")
-

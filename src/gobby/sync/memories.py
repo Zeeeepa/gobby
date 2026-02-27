@@ -321,9 +321,7 @@ class MemoryBackupManager:
         # Verify content exists and is a non-empty string
         content = data.get("content")
         if not isinstance(content, str) or not content.strip():
-            logger.warning(
-                "Skipping memory at line %d: missing or empty content", line_num
-            )
+            logger.warning("Skipping memory at line %d: missing or empty content", line_num)
             return False
 
         # Verify tags is a list; auto-convert comma-delimited strings
@@ -336,9 +334,7 @@ class MemoryBackupManager:
                 )
                 data["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
             else:
-                logger.warning(
-                    "Skipping memory at line %d: tags is not a list", line_num
-                )
+                logger.warning("Skipping memory at line %d: tags is not a list", line_num)
                 return False
 
         return True

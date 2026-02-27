@@ -653,9 +653,7 @@ class HookManager:
                 self.logger.warning("_dispatch_mcp_calls: missing server or tool in %s", call)
                 continue
 
-            self.logger.info(
-                "_dispatch_mcp_calls: %s/%s (background=%s)", server, tool, background
-            )
+            self.logger.info("_dispatch_mcp_calls: %s/%s (background=%s)", server, tool, background)
 
             # Inject event context into arguments
             if "session_id" not in arguments:

@@ -136,6 +136,44 @@ function tryParseJSON(value: unknown): unknown {
   }
 }
 
+/** Helper: append to or create a text content block on the current assistant message. */
+function appendTextBlock(msg: ChatMessage, text: string) {
+  if (!msg.contentBlocks) msg.contentBlocks = [];
+  const last = msg.contentBlocks[msg.contentBlocks.length - 1];
+  if (last?.type === "text") {
+    last.content += (last.content ? "\n" : "") + text;
+  } else {
+    msg.contentBlocks.push({ type: "text", content: text });
+  }
+}
+
+/** Helper: append a tool call to the current tool_chain block, or start a new one. */
+function appendToolBlock(msg: ChatMessage, tc: ToolCall) {
+  if (!msg.contentBlocks) msg.contentBlocks = [];
+  const last = msg.contentBlocks[msg.contentBlocks.length - 1];
+  if (last?.type === "tool_chain") {
+    last.calls.push(tc);
+  } else {
+    msg.contentBlocks.push({ type: "tool_chain", calls: [tc] });
+  }
+}
+
+/** Find the last pending tool call across contentBlocks and flat toolCalls. */
+function findPendingToolCall(msg: ChatMessage): ToolCall | undefined {
+  // Check contentBlocks first (interleaved model)
+  if (msg.contentBlocks) {
+    for (let i = msg.contentBlocks.length - 1; i >= 0; i--) {
+      const block = msg.contentBlocks[i];
+      if (block.type === "tool_chain") {
+        const pending = block.calls.find((tc) => tc.status !== "completed");
+        if (pending) return pending;
+      }
+    }
+  }
+  // Fallback to flat toolCalls
+  return msg.toolCalls?.find((tc) => tc.status !== "completed");
+}
+
 function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
   let currentAssistant: ChatMessage | null = null;
@@ -153,10 +191,8 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
     if (m.role === "user") {
       if (m.content_type === "tool_result") {
         // Tool result in a user message — attach to the last pending tool call
-        if (currentAssistant?.toolCalls) {
-          const pending = currentAssistant.toolCalls.find(
-            (tc) => tc.status !== "completed",
-          );
+        if (currentAssistant) {
+          const pending = findPendingToolCall(currentAssistant);
           if (pending) {
             pending.result = tryParseJSON(m.content);
             pending.status = "completed";
@@ -182,6 +218,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
             content: "",
             timestamp: new Date(m.timestamp),
             toolCalls: [],
+            contentBlocks: [],
           };
         }
         const toolCall: ToolCall = {
@@ -194,10 +231,13 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
             | undefined,
           result: m.tool_result ? tryParseJSON(m.tool_result) : undefined,
         };
+        // Add to flat list (backward compat)
         currentAssistant.toolCalls = [
           ...(currentAssistant.toolCalls || []),
           toolCall,
         ];
+        // Add to interleaved blocks
+        appendToolBlock(currentAssistant, toolCall);
       } else if (m.content_type === "thinking") {
         if (!currentAssistant) {
           currentAssistant = {
@@ -215,6 +255,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           if (m.content) {
             currentAssistant.content +=
               (currentAssistant.content ? "\n" : "") + m.content;
+            appendTextBlock(currentAssistant, m.content);
           }
         } else {
           currentAssistant = {
@@ -222,15 +263,14 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
             role: "assistant",
             content: m.content || "",
             timestamp: new Date(m.timestamp),
+            contentBlocks: m.content ? [{ type: "text", content: m.content }] : [],
           };
         }
       }
     } else if (m.role === "tool") {
       // Tool result message — attach to last pending tool call
-      if (currentAssistant?.toolCalls) {
-        const pending = currentAssistant.toolCalls.find(
-          (tc) => tc.status !== "completed",
-        );
+      if (currentAssistant) {
+        const pending = findPendingToolCall(currentAssistant);
         if (pending) {
           pending.result = tryParseJSON(m.content);
           pending.status = "completed";
@@ -913,9 +953,21 @@ export function useChat() {
 
       if (existingIndex >= 0) {
         const updated = [...prev];
+        const existing = updated[existingIndex];
+        // Build interleaved content blocks
+        const blocks = [...(existing.contentBlocks || [])];
+        if (chunk.content) {
+          const lastBlock = blocks[blocks.length - 1];
+          if (lastBlock?.type === "text") {
+            blocks[blocks.length - 1] = { ...lastBlock, content: lastBlock.content + chunk.content };
+          } else {
+            blocks.push({ type: "text", content: chunk.content });
+          }
+        }
         updated[existingIndex] = {
-          ...updated[existingIndex],
-          content: updated[existingIndex].content + chunk.content,
+          ...existing,
+          content: existing.content + chunk.content,
+          contentBlocks: blocks,
         };
         return updated;
       } else {
@@ -926,6 +978,7 @@ export function useChat() {
             role: "assistant" as const,
             content: chunk.content,
             timestamp: new Date(),
+            contentBlocks: chunk.content ? [{ type: "text" as const, content: chunk.content }] : [],
           },
         ];
       }
@@ -1047,27 +1100,30 @@ export function useChat() {
             content: "",
             timestamp: new Date(),
             toolCalls: [newCall],
+            contentBlocks: [{ type: "tool_chain" as const, calls: [newCall] }],
           },
         ];
       }
 
       const updated = [...prev];
-      const toolCalls = [...(updated[idx].toolCalls || [])];
+      const msg = updated[idx];
+      const toolCalls = [...(msg.toolCalls || [])];
       const existingIdx = toolCalls.findIndex(
         (t) => t.id === status.tool_call_id,
       );
 
+      let callRef: ToolCall;
       if (existingIdx >= 0) {
         const existing = toolCalls[existingIdx];
-        const merged: ToolCall = {
+        callRef = {
           ...existing,
           status: status.status,
           result: status.result,
           error: status.error,
         };
-        toolCalls[existingIdx] = merged;
+        toolCalls[existingIdx] = callRef;
       } else {
-        const newCall: ToolCall = {
+        callRef = {
           id: status.tool_call_id,
           tool_name: status.tool_name || "unknown",
           server_name: status.server_name || "builtin",
@@ -1076,10 +1132,36 @@ export function useChat() {
           result: status.result,
           error: status.error,
         };
-        toolCalls.push(newCall);
+        toolCalls.push(callRef);
       }
 
-      updated[idx] = { ...updated[idx], toolCalls };
+      // Update interleaved content blocks
+      const blocks = [...(msg.contentBlocks || [])];
+      if (existingIdx >= 0) {
+        // Update existing tool call in its block
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const block = blocks[bi];
+          if (block.type === "tool_chain") {
+            const tcIdx = block.calls.findIndex((c) => c.id === status.tool_call_id);
+            if (tcIdx >= 0) {
+              const updatedCalls = [...block.calls];
+              updatedCalls[tcIdx] = callRef;
+              blocks[bi] = { ...block, calls: updatedCalls };
+              break;
+            }
+          }
+        }
+      } else {
+        // New tool call — append to last tool_chain or create new one
+        const lastBlock = blocks[blocks.length - 1];
+        if (lastBlock?.type === "tool_chain") {
+          blocks[blocks.length - 1] = { ...lastBlock, calls: [...lastBlock.calls, callRef] };
+        } else {
+          blocks.push({ type: "tool_chain" as const, calls: [callRef] });
+        }
+      }
+
+      updated[idx] = { ...msg, toolCalls, contentBlocks: blocks };
       return updated;
     });
   }, []);

@@ -307,7 +307,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
 
             # Neo4j knowledge graph status
             try:
-                from gobby.cli.services import is_neo4j_installed, is_neo4j_healthy
+                from gobby.cli.services import is_neo4j_healthy, is_neo4j_installed
 
                 neo4j_client = getattr(server.memory_manager, "_neo4j_client", None)
                 neo4j_url = neo4j_client.base_url if neo4j_client else None

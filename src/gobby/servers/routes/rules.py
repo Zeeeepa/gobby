@@ -160,7 +160,11 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         try:
             manager = _get_manager()
             result = list_rules(
-                manager, event=event, group=group, enabled=enabled, project_id=project_id,
+                manager,
+                event=event,
+                group=group,
+                enabled=enabled,
+                project_id=project_id,
                 include_templates=True,
             )
             config_store = ConfigStore(server.services.database)

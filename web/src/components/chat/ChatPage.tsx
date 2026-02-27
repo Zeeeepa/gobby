@@ -189,7 +189,7 @@ export function ChatPage({
                 isThinking={chat.isThinking}
                 onRespondToQuestion={chat.onRespondToQuestion}
                 onRespondToApproval={chat.onRespondToApproval}
-                planPendingApproval={chat.planPendingApproval}
+                planPendingApproval={!isPanelOpen && chat.planPendingApproval}
                 onApprovePlan={handleApprovePlan}
                 onRequestPlanChanges={handleRequestPlanChanges}
                 canvasSurfaces={chat.canvasSurfaces}

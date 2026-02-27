@@ -125,5 +125,3 @@ async def remove_mcp_server(
             "error": str(e),
             "message": f"Failed to remove server: {e}",
         }
-
-
