@@ -215,7 +215,40 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
   )
 }
 
+const DATA_URI_RE = /^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,/
+
+/** Extract a renderable image src from a tool result, or null. */
+export function extractBase64Image(result: unknown): string | null {
+  // Direct data URI string
+  if (typeof result === 'string' && DATA_URI_RE.test(result)) return result
+
+  if (typeof result !== 'object' || result === null) return null
+
+  const obj = result as Record<string, unknown>
+
+  // MCP / Anthropic content-block format:
+  // { type: "image", source: { type: "base64", media_type: "image/png", data: "..." } }
+  if (obj.type === 'image' && typeof obj.source === 'object' && obj.source !== null) {
+    const src = obj.source as Record<string, unknown>
+    if (src.type === 'base64' && typeof src.data === 'string' && typeof src.media_type === 'string') {
+      return `data:${src.media_type};base64,${src.data}`
+    }
+  }
+
+  // Array of content blocks — find first image block
+  if (Array.isArray(result)) {
+    for (const item of result) {
+      const found = extractBase64Image(item)
+      if (found) return found
+    }
+  }
+
+  return null
+}
+
 function ToolResultContent({ call }: { call: ToolCall }) {
+  const imageSrc = useMemo(() => extractBase64Image(call.result), [call.result])
+
   const resultStr = useMemo(() => {
     try {
       if (typeof call.result === 'string') {
@@ -233,6 +266,17 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     }
   }, [call.result])
   const filePath = call.arguments?.file_path as string | undefined
+
+  // Base64 image — render inline
+  if (imageSrc) {
+    return (
+      <img
+        src={imageSrc}
+        alt="Tool result image"
+        className="max-w-full max-h-96 rounded-lg border border-border"
+      />
+    )
+  }
 
   if (filePath) {
     const parsed = parseReadOutput(resultStr)
