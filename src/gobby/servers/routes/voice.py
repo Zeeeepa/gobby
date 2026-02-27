@@ -42,22 +42,34 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
         # Check STT availability
         stt_available = False
         stt_reason = ""
-        if voice_config.enabled:
+        if not voice_config.enabled:
+            stt_reason = "Voice not enabled in config"
+        elif not voice_config.stt_enabled:
+            stt_reason = "STT disabled in config"
+        else:
             try:
                 import faster_whisper  # noqa: F401
 
                 stt_available = True
             except ImportError:
                 stt_reason = "faster-whisper not installed (pip install faster-whisper)"
-        else:
-            stt_reason = "Voice not enabled in config"
 
         # Check TTS availability
-        tts_available = bool(voice_config.elevenlabs_api_key)
-        tts_reason = "" if tts_available else "No ElevenLabs API key configured"
+        tts_available = False
+        tts_reason = ""
+        if not voice_config.enabled:
+            tts_reason = "Voice not enabled in config"
+        elif not voice_config.tts_enabled:
+            tts_reason = "TTS disabled in config"
+        elif not voice_config.elevenlabs_api_key:
+            tts_reason = "No ElevenLabs API key configured"
+        else:
+            tts_available = True
 
         return {
             "enabled": voice_config.enabled,
+            "stt_enabled": voice_config.stt_enabled,
+            "tts_enabled": voice_config.tts_enabled,
             "stt_available": stt_available,
             "stt_reason": stt_reason,
             "tts_available": tts_available,
@@ -76,6 +88,9 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
         config = server.config
         if not config or not hasattr(config, "voice") or not config.voice.enabled:
             return {"error": "Voice not enabled", "text": ""}
+
+        if not config.voice.stt_enabled:
+            return {"error": "STT disabled in config", "text": ""}
 
         from gobby.voice.stt import WhisperSTT
 
@@ -119,6 +134,12 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
             return JSONResponse(
                 status_code=404,
                 content={"error": "Voice not enabled in config"},
+            )
+
+        if not voice_config.tts_enabled:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "TTS disabled in config"},
             )
 
         api_key = voice_config.elevenlabs_api_key

@@ -16,7 +16,15 @@ class VoiceConfig(BaseModel):
 
     enabled: bool = Field(
         default=False,
-        description="Enable voice chat features (STT + TTS).",
+        description="Enable voice chat features (master switch).",
+    )
+    stt_enabled: bool = Field(
+        default=True,
+        description="Enable speech-to-text (requires enabled=True).",
+    )
+    tts_enabled: bool = Field(
+        default=False,
+        description="Enable text-to-speech (requires enabled=True and ElevenLabs API key). Disabled by default.",
     )
     whisper_model_size: str = Field(
         default="base",

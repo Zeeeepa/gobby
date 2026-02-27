@@ -62,7 +62,7 @@ class VoiceMixin:
             return self._whisper_stt
 
         voice_config = self._get_voice_config()
-        if not voice_config or not voice_config.enabled:
+        if not voice_config or not voice_config.enabled or not voice_config.stt_enabled:
             return None
 
         from gobby.voice.stt import WhisperSTT
@@ -108,6 +108,8 @@ class VoiceMixin:
             voice_config = self._get_voice_config()
             if not voice_config or not voice_config.enabled:
                 error_msg = "Voice is not enabled. Enable it in Settings > Voice."
+            elif not voice_config.stt_enabled:
+                error_msg = "Speech-to-text is disabled in config."
             else:
                 error_msg = (
                     "Speech-to-text requires the faster-whisper package. "
