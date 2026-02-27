@@ -51,7 +51,6 @@ STOP_GATES_RULES = {
     "require-error-triage",
     "require-task-close",
     "reset-stop-cycle-on-prompt",
-    "reset-stop-cycle-on-tool",
 }
 
 
@@ -266,7 +265,7 @@ class TestResetStopCycleOnPrompt:
     def test_no_reset_stop_attempts_on_prompt(self, db, manager) -> None:
         """stop_attempts should NOT be reset on before_agent.
 
-        It's only reset by reset-stop-cycle-on-tool rule (after_tool).
+        It's reset by the rule engine's auto-clear on successful after_tool.
         """
         _sync_bundled(db)
 
@@ -298,28 +297,3 @@ class TestResetStopCycleOnPrompt:
         assert body.when is None
 
 
-class TestResetStopCycleOnTool:
-    """Verify reset-stop-cycle-on-tool rule.
-
-    Only resets stop_attempts. tool_block_pending is now auto-cleared
-    by the rule engine on successful after_tool (symmetric with auto-set).
-    """
-
-    def test_resets_stop_attempts(self, db, manager) -> None:
-        """Should reset stop_attempts on successful tool use only."""
-        _sync_bundled(db)
-
-        row = _get_rule(manager, "reset-stop-cycle-on-tool")
-        assert row is not None
-
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "after_tool"
-        # Only fires on successful tool use — failed tools should NOT reset the stop block
-        assert body.when is not None
-        assert "is_failure" in body.when
-        assert "is_error" in body.when
-
-        effects = body.resolved_effects
-        assert len(effects) == 1
-        assert effects[0].variable == "stop_attempts"
-        assert effects[0].value == 0
