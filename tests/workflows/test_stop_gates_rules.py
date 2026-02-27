@@ -701,3 +701,228 @@ class TestForceAllowStop:
         response = await engine.evaluate(stop_event, "sess-1", variables)
         assert response.decision == "allow"
         assert variables.get("force_allow_stop") is False
+
+
+class TestConsecutiveBlockScoping:
+    """Test that consecutive tool block counter is scoped to the same tool.
+
+    The death spiral fix: when Tool A is blocked, only retries of Tool A
+    escalate the counter. Attempting a different Tool B resets the counter
+    and proceeds to normal rule evaluation, allowing the agent to recover.
+    """
+
+    @pytest.mark.asyncio
+    async def test_same_tool_retried_3x_escalates(self, db) -> None:
+        """Same tool retried 3 times should hit the hardcoded escalation block."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "tool_block_pending": True,
+            "_last_blocked_tool": "TodoWrite",
+        }
+
+        # Attempt 1: counter goes to 1, no escalation yet
+        event1 = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "TodoWrite"},
+        )
+        response1 = await engine.evaluate(event1, "sess-1", variables)
+        assert variables.get("consecutive_tool_blocks") == 1
+        # Not escalated yet — passes through to rule evaluation
+        # (no rules installed, so it allows)
+        assert response1.decision == "allow"
+
+        # Re-set tool_block_pending (simulates the rule blocking it again)
+        variables["tool_block_pending"] = True
+        variables["_last_blocked_tool"] = "TodoWrite"
+
+        # Attempt 2: counter goes to 2 → escalation block
+        event2 = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "TodoWrite"},
+        )
+        response2 = await engine.evaluate(event2, "sess-1", variables)
+        assert variables.get("consecutive_tool_blocks") == 2
+        assert response2.decision == "block"
+        assert "TodoWrite" in response2.reason
+        assert "3 times" in response2.reason
+
+    @pytest.mark.asyncio
+    async def test_different_tool_resets_counter(self, db) -> None:
+        """Different tool after a block should reset counter and proceed."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "tool_block_pending": True,
+            "_last_blocked_tool": "TodoWrite",
+            "consecutive_tool_blocks": 1,
+        }
+
+        # Try a different tool (Read) — counter should reset
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Read"},
+        )
+        response = await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("consecutive_tool_blocks") == 0
+        # No rules installed, so it allows through to normal evaluation
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_different_tool_blocked_starts_own_counter(self, db) -> None:
+        """If a different tool is also rule-blocked, it starts its own counter."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "tool_block_pending": True,
+            "_last_blocked_tool": "TodoWrite",
+            "consecutive_tool_blocks": 1,
+        }
+
+        # Edit is a different tool — counter resets to 0
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Edit"},
+        )
+        await engine.evaluate(event, "sess-1", variables)
+        assert variables.get("consecutive_tool_blocks") == 0
+
+        # Simulate Edit being blocked by a rule (sets pending + last_blocked)
+        variables["tool_block_pending"] = True
+        variables["_last_blocked_tool"] = "Edit"
+
+        # Retry Edit — counter goes to 1
+        event2 = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Edit"},
+        )
+        await engine.evaluate(event2, "sess-1", variables)
+        assert variables.get("consecutive_tool_blocks") == 1
+
+    @pytest.mark.asyncio
+    async def test_before_agent_resets_last_blocked_tool(self, db) -> None:
+        """BEFORE_AGENT should reset _last_blocked_tool alongside the counter."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "_last_blocked_tool": "TodoWrite",
+            "consecutive_tool_blocks": 2,
+        }
+
+        event = _make_event(HookEventType.BEFORE_AGENT)
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("_last_blocked_tool") == ""
+        assert variables.get("consecutive_tool_blocks") == 0
+
+    @pytest.mark.asyncio
+    async def test_successful_after_tool_clears_last_blocked(self, db) -> None:
+        """Successful AFTER_TOOL should clear _last_blocked_tool."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "tool_block_pending": True,
+            "_last_blocked_tool": "Edit",
+            "consecutive_tool_blocks": 1,
+        }
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Read"},
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("_last_blocked_tool") == ""
+        assert variables.get("consecutive_tool_blocks") == 0
+        assert variables.get("tool_block_pending") is False
+
+    @pytest.mark.asyncio
+    async def test_rule_block_records_tool_name(self, db) -> None:
+        """When a rule blocks a BEFORE_TOOL, _last_blocked_tool should be set."""
+        # Install a rule that blocks TodoWrite
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+        mgr = LocalWorkflowDefinitionManager(db)
+        rule_body = {
+            "event": "before_tool",
+            "effect": {
+                "type": "block",
+                "tools": ["TodoWrite"],
+                "reason": "Use gobby-tasks instead",
+            },
+        }
+        mgr.create(
+            name="block-todowrite-test",
+            workflow_type="rule",
+            definition_json=json.dumps(rule_body),
+            source="installed",
+            enabled=True,
+            priority=10,
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "TodoWrite"},
+        )
+        response = await engine.evaluate(event, "sess-1", variables)
+
+        assert response.decision == "block"
+        assert variables.get("tool_block_pending") is True
+        assert variables.get("_last_blocked_tool") == "TodoWrite"
+
+    @pytest.mark.asyncio
+    async def test_death_spiral_scenario_recoverable(self, db) -> None:
+        """End-to-end: the exact death spiral scenario is now recoverable.
+
+        1. TodoWrite blocked by rule → pending
+        2. Edit attempted → counter resets (different tool), proceeds
+        3. Read attempted → still works
+        4. Agent can recover instead of being stuck
+        """
+        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+        mgr = LocalWorkflowDefinitionManager(db)
+        rule_body = {
+            "event": "before_tool",
+            "effect": {
+                "type": "block",
+                "tools": ["TodoWrite"],
+                "reason": "Use gobby-tasks instead",
+            },
+        }
+        mgr.create(
+            name="block-todowrite-test",
+            workflow_type="rule",
+            definition_json=json.dumps(rule_body),
+            source="installed",
+            enabled=True,
+            priority=10,
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        # 1. TodoWrite blocked
+        todo_event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "TodoWrite"},
+        )
+        r1 = await engine.evaluate(todo_event, "sess-1", variables)
+        assert r1.decision == "block"
+        assert variables.get("_last_blocked_tool") == "TodoWrite"
+
+        # 2. Edit attempted — different tool, counter resets, allowed
+        edit_event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Edit"},
+        )
+        r2 = await engine.evaluate(edit_event, "sess-1", variables)
+        assert r2.decision == "allow"
+        assert variables.get("consecutive_tool_blocks") == 0
+
+        # 3. Read attempted — also allowed
+        read_event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Read"},
+        )
+        r3 = await engine.evaluate(read_event, "sess-1", variables)
+        assert r3.decision == "allow"

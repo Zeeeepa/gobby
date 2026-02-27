@@ -82,21 +82,30 @@ class RuleEngine:
             return HookResponse(decision="allow")
 
         # Auto-track consecutive tool blocks (universal safety — not configurable)
+        # Only escalate when the SAME tool is retried — different tools reset the counter
+        # so the agent can recover by using other tools (Read, Bash, etc.).
         if rule_event == RuleEvent.BEFORE_TOOL and variables.get("tool_block_pending"):
-            count = variables.get("consecutive_tool_blocks", 0) + 1
-            variables["consecutive_tool_blocks"] = count
-            if count >= 2:
-                return HookResponse(
-                    decision="block",
-                    reason=(
-                        f"You have attempted a blocked tool {count + 1} times consecutively "
-                        "without addressing the error.\n"
-                        "STOP retrying the same action. Read the previous error messages "
-                        "and take a DIFFERENT action to resolve the underlying issue first."
-                    ),
-                )
+            tool_name = event.data.get("tool_name", "")
+            last_blocked = variables.get("_last_blocked_tool", "")
+            if tool_name == last_blocked:
+                count = variables.get("consecutive_tool_blocks", 0) + 1
+                variables["consecutive_tool_blocks"] = count
+                if count >= 2:
+                    return HookResponse(
+                        decision="block",
+                        reason=(
+                            f"You have attempted {tool_name} {count + 1} times consecutively "
+                            "without addressing the error.\n"
+                            "STOP retrying the same action. Read the previous error messages "
+                            "and take a DIFFERENT action to resolve the underlying issue first."
+                        ),
+                    )
+            else:
+                # Different tool — reset counter, let it through to rule evaluation
+                variables["consecutive_tool_blocks"] = 0
         elif rule_event == RuleEvent.BEFORE_AGENT:
             variables["consecutive_tool_blocks"] = 0
+            variables["_last_blocked_tool"] = ""
             variables["awaiting_tool_use"] = True
 
         # 1. Load enabled rules for this event, sorted by priority
@@ -140,6 +149,7 @@ class RuleEngine:
                     if variables.get("tool_block_pending"):
                         variables["tool_block_pending"] = False
                         variables["consecutive_tool_blocks"] = 0
+                        variables["_last_blocked_tool"] = ""
                     variables["awaiting_tool_use"] = False
             return HookResponse(decision="allow")
 
@@ -156,6 +166,7 @@ class RuleEngine:
                 if variables.get("tool_block_pending"):
                     variables["tool_block_pending"] = False
                     variables["consecutive_tool_blocks"] = 0
+                    variables["_last_blocked_tool"] = ""
                 variables["awaiting_tool_use"] = False
 
         # 5. Evaluate rules in priority order
@@ -206,6 +217,7 @@ class RuleEngine:
                     # Auto-set tool_block_pending on before_tool blocks
                     if rule_event == RuleEvent.BEFORE_TOOL:
                         variables["tool_block_pending"] = True
+                        variables["_last_blocked_tool"] = event.data.get("tool_name", "")
                     # First block wins — stop evaluating
                     break
 

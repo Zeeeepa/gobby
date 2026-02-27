@@ -58,3 +58,40 @@ With an init rule, the variable always exists by the time other rules reference 
 ### Rule of Thumb
 
 **Never use bare variable names in `block` rules without either a default or an init rule.** Other effect types (`set_variable`, `inject_context`, `mcp_call`) are less dangerous since a NameError there doesn't block the agent, but it's still good practice to be defensive.
+
+---
+
+## Hardcoded Engine Behaviors
+
+The rule engine has several behaviors baked into `RuleEngine.evaluate()` that fire **before** any user-defined rules are evaluated. These are universal safety mechanisms — not configurable via YAML.
+
+### Consecutive Tool Block Counter
+
+When a rule blocks a `BEFORE_TOOL` event, the engine sets `tool_block_pending = True` and records which tool was blocked in `_last_blocked_tool`. On the next `BEFORE_TOOL`:
+
+- **Same tool retried**: The `consecutive_tool_blocks` counter increments. At count >= 2 (i.e., 3rd attempt), a hardcoded block fires with an escalating message telling the agent to try a different approach.
+- **Different tool attempted**: The counter resets to 0 and the event proceeds to normal rule evaluation. This allows the agent to recover by using other tools (Read, Bash, etc.) even after a tool is blocked.
+
+The counter and `_last_blocked_tool` are cleared on:
+- `BEFORE_AGENT` (new user turn)
+- Successful `AFTER_TOOL` (tool succeeded, crisis over)
+
+**Session variables involved:**
+
+| Variable | Type | Purpose |
+|----------|------|---------|
+| `tool_block_pending` | bool | Set when any tool is blocked (rule or hardcoded) |
+| `_last_blocked_tool` | str | Name of the most recently blocked tool |
+| `consecutive_tool_blocks` | int | How many times `_last_blocked_tool` was retried |
+
+### Tool Block Stop Gate
+
+When a stop event fires while `tool_block_pending` is true, the engine blocks the stop with "A tool just failed. Read the error and recover — do not stop." This is **self-clearing**: `tool_block_pending` is set to false after the block, so the next stop attempt proceeds to normal rule evaluation.
+
+### Force Allow Stop (Catastrophic Failure Bypass)
+
+When a tool failure contains catastrophic patterns (out of usage, rate limit, quota exceeded, billing, account suspended), the engine sets `force_allow_stop = True`. The next stop event bypasses all stop gates unconditionally. Self-clearing after one use.
+
+### Awaiting Tool Use
+
+Set to `True` on `BEFORE_AGENT`, cleared on successful `AFTER_TOOL`. Used by the `block-stop-awaiting-tool-use` rule to prevent premature stops before the agent has used any tools.
