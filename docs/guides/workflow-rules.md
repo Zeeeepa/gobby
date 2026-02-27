@@ -92,6 +92,25 @@ When a stop event fires while `tool_block_pending` is true, the engine blocks th
 
 When a tool failure contains catastrophic patterns (out of usage, rate limit, quota exceeded, billing, account suspended), the engine sets `force_allow_stop = True`. The next stop event bypasses all stop gates unconditionally. Self-clearing after one use.
 
+### Stop Attempt Counting
+
+On every `STOP` event, `stop_attempts` is auto-incremented **before** any gate checks (including `force_allow_stop` and `tool_block_pending`). This means:
+- The counter always reflects the true number of stop attempts, even when stops are force-allowed or blocked.
+- Configurable rules like `block-stop-awaiting-tool-use` can reference `stop_attempts` without needing the increment rule installed.
+
+### BEFORE_AGENT Full Reset
+
+On `BEFORE_AGENT` (new user turn), all stop-cycle state is cleared:
+
+| Variable | Reset to |
+|----------|----------|
+| `consecutive_tool_blocks` | `0` |
+| `_last_blocked_tool` | `""` |
+| `tool_block_pending` | `False` |
+| `pre_existing_errors_triaged` | `False` |
+| `stop_attempts` | `0` |
+| `awaiting_tool_use` | `True` |
+
 ### Awaiting Tool Use
 
 Set to `True` on `BEFORE_AGENT`, cleared on successful `AFTER_TOOL`. Used by the `block-stop-awaiting-tool-use` rule to prevent premature stops before the agent has used any tools.

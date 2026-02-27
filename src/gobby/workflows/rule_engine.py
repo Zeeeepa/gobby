@@ -106,7 +106,14 @@ class RuleEngine:
         elif rule_event == RuleEvent.BEFORE_AGENT:
             variables["consecutive_tool_blocks"] = 0
             variables["_last_blocked_tool"] = ""
+            variables["tool_block_pending"] = False
+            variables["pre_existing_errors_triaged"] = False
+            variables["stop_attempts"] = 0
             variables["awaiting_tool_use"] = True
+
+        # Auto-increment stop attempts (universal — not configurable)
+        if rule_event == RuleEvent.STOP:
+            variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
 
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
