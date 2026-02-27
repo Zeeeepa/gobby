@@ -146,6 +146,70 @@ const highlighterTheme = {
   },
 }
 
+/** Compute a minimal line-level diff using Myers-style LCS. */
+function computeLineDiff(oldStr: string, newStr: string): { type: 'keep' | 'add' | 'remove'; line: string }[] {
+  const oldLines = oldStr.split('\n')
+  const newLines = newStr.split('\n')
+  const n = oldLines.length
+  const m = newLines.length
+
+  // Build LCS table
+  const dp: number[][] = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0))
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      dp[i][j] = oldLines[i - 1] === newLines[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1])
+    }
+  }
+
+  // Backtrack to produce diff
+  const result: { type: 'keep' | 'add' | 'remove'; line: string }[] = []
+  let i = n, j = m
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      result.push({ type: 'keep', line: oldLines[i - 1] })
+      i--; j--
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.push({ type: 'add', line: newLines[j - 1] })
+      j--
+    } else {
+      result.push({ type: 'remove', line: oldLines[i - 1] })
+      i--
+    }
+  }
+  result.reverse()
+  return result
+}
+
+function InlineDiff({ oldStr, newStr }: { oldStr: string; newStr: string }) {
+  const diff = useMemo(() => computeLineDiff(oldStr, newStr), [oldStr, newStr])
+
+  return (
+    <pre className="bg-[#0d0d0d] rounded text-xs overflow-auto max-h-96 p-3 m-0" style={{ fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace" }}>
+      {diff.map((entry, i) => {
+        const prefix = entry.type === 'add' ? '+' : entry.type === 'remove' ? '-' : ' '
+        const bg = entry.type === 'add' ? 'rgba(63, 185, 80, 0.15)' : entry.type === 'remove' ? 'rgba(248, 81, 73, 0.15)' : 'transparent'
+        const color = entry.type === 'add' ? '#3fb950' : entry.type === 'remove' ? '#f85149' : '#e6edf3'
+        return (
+          <div key={i} style={{ background: bg, color, margin: '0 -0.75rem', padding: '0 0.75rem' }}>
+            <span style={{ color: '#555', userSelect: 'none', display: 'inline-block', width: '1.5em' }}>{prefix}</span>
+            {entry.line}
+          </div>
+        )
+      })}
+    </pre>
+  )
+}
+
+const lineNumberStyle = {
+  minWidth: '2.5em',
+  paddingRight: '1em',
+  textAlign: 'right' as const,
+  userSelect: 'none' as const,
+  color: '#555',
+}
+
 function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
   const filePath = args.file_path as string | undefined
 
@@ -161,6 +225,9 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
           style={highlighterTheme}
           language={language}
           PreTag="div"
+          showLineNumbers
+          startingLineNumber={1}
+          lineNumberStyle={lineNumberStyle}
           customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '24rem', overflow: 'auto' }}
         >
           {args.content as string}
@@ -169,32 +236,14 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
     )
   }
 
-  // Edit pattern: file_path + old_string + new_string
+  // Edit pattern: file_path + old_string + new_string — unified diff
   if (filePath && typeof args.old_string === 'string' && typeof args.new_string === 'string') {
-    const language = getLanguageFromPath(filePath)
     return (
       <div>
         <div className="text-muted-foreground mb-1 font-medium">
           Edit <span className="font-mono text-foreground">{filePath}</span>
         </div>
-        <div className="text-muted-foreground mb-0.5 text-[0.65rem] uppercase tracking-wide">Old</div>
-        <SyntaxHighlighter
-          style={highlighterTheme}
-          language={language}
-          PreTag="div"
-          customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '12rem', overflow: 'auto', marginBottom: '0.5rem' }}
-        >
-          {args.old_string as string}
-        </SyntaxHighlighter>
-        <div className="text-muted-foreground mb-0.5 text-[0.65rem] uppercase tracking-wide">New</div>
-        <SyntaxHighlighter
-          style={highlighterTheme}
-          language={language}
-          PreTag="div"
-          customStyle={{ margin: 0, borderRadius: '0.25rem', maxHeight: '12rem', overflow: 'auto' }}
-        >
-          {args.new_string as string}
-        </SyntaxHighlighter>
+        <InlineDiff oldStr={args.old_string as string} newStr={args.new_string as string} />
       </div>
     )
   }
