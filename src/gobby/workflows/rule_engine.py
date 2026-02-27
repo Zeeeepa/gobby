@@ -81,6 +81,23 @@ class RuleEngine:
         if config_store.get("rules.enforcement_enabled") is False:
             return HookResponse(decision="allow")
 
+        # Auto-track consecutive tool blocks (universal safety — not configurable)
+        if rule_event == RuleEvent.BEFORE_TOOL and variables.get("tool_block_pending"):
+            count = variables.get("consecutive_tool_blocks", 0) + 1
+            variables["consecutive_tool_blocks"] = count
+            if count >= 2:
+                return HookResponse(
+                    decision="block",
+                    reason=(
+                        f"You have attempted a blocked tool {count + 1} times consecutively "
+                        "without addressing the error.\n"
+                        "STOP retrying the same action. Read the previous error messages "
+                        "and take a DIFFERENT action to resolve the underlying issue first."
+                    ),
+                )
+        elif rule_event == RuleEvent.BEFORE_AGENT:
+            variables["consecutive_tool_blocks"] = 0
+
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
 
@@ -114,6 +131,7 @@ class RuleEngine:
                     variables["tool_block_pending"] = True
                 elif variables.get("tool_block_pending"):
                     variables["tool_block_pending"] = False
+                    variables["consecutive_tool_blocks"] = 0
             return HookResponse(decision="allow")
 
         # Auto-manage tool_block_pending on after_tool before rule eval
@@ -126,6 +144,7 @@ class RuleEngine:
                 variables["tool_block_pending"] = True
             elif variables.get("tool_block_pending"):
                 variables["tool_block_pending"] = False
+                variables["consecutive_tool_blocks"] = 0
 
         # 5. Evaluate rules in priority order
         context_parts: list[str] = []
