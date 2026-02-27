@@ -22,6 +22,7 @@ from claude_agent_sdk import (
     UserMessage,
     query,
 )
+from claude_agent_sdk.types import StreamEvent
 
 import gobby.llm.sdk_compat  # noqa: F401 — monkey-patches parse_message to handle unknown event types (e.g. rate_limit_event) that crash the SDK's async generator; see sdk_compat.py for details
 from gobby.llm.claude_models import (
@@ -101,16 +102,35 @@ async def stream_with_mcp_tools(
         permission_mode="bypassPermissions",
         cli_path=cli_path,
         mcp_servers=mcp_servers_config if mcp_servers_config is not None else {},
+        # Enable partial messages to get per-API-call usage from
+        # message_start stream events (ResultMessage.usage accumulates
+        # across all API calls in the agentic loop).
+        include_partial_messages=True,
     )
 
     tool_calls_count = 0
     pending_tool_calls: dict[str, str] = {}  # Map tool_use_id -> tool_name
     needs_spacing_before_text = False  # Track if we need spacing before text
     last_model: str | None = None
+    # Track the LAST API call's input usage from message_start stream events.
+    # ResultMessage.usage accumulates across all API calls in the agentic loop.
+    _last_call_input: dict[str, int] | None = None
 
     try:
         async for message in query(prompt=prompt, options=options):
             if message is None:
+                continue
+            if isinstance(message, StreamEvent):
+                ev = message.event
+                if (
+                    isinstance(ev, dict)
+                    and ev.get("type") == "message_start"
+                ):
+                    msg_body = ev.get("message")
+                    if isinstance(msg_body, dict):
+                        u = msg_body.get("usage")
+                        if isinstance(u, dict):
+                            _last_call_input = u
                 continue
             if isinstance(message, ResultMessage):
                 # Final result - extract metadata
@@ -120,26 +140,35 @@ async def stream_with_mcp_tools(
                 # (AssistantMessage does NOT carry usage in the SDK)
                 _raw_usage = getattr(message, "usage", None)
                 usage: dict[str, Any] = _raw_usage if isinstance(_raw_usage, dict) else {}
-                uncached_input = usage.get("input_tokens", 0) or 0
-                output_tokens = usage.get("output_tokens", 0) or 0
-                cache_read = usage.get("cache_read_input_tokens", 0) or 0
-                cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
-                # With prompt caching, input_tokens is often only 3-23 tokens.
-                # The real context consumed = uncached + cache_read + cache_creation.
+
+                # Prefer per-call values from message_start stream events
+                # (accurate context size). Fall back to ResultMessage.usage
+                # which is accumulated across all API calls in the turn.
+                if _last_call_input:
+                    uncached_input = _last_call_input.get("input_tokens", 0) or 0
+                    cache_read = _last_call_input.get("cache_read_input_tokens", 0) or 0
+                    cache_creation = _last_call_input.get("cache_creation_input_tokens", 0) or 0
+                else:
+                    uncached_input = usage.get("input_tokens", 0) or 0
+                    cache_read = usage.get("cache_read_input_tokens", 0) or 0
+                    cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
                 total_input = uncached_input + cache_read + cache_creation
+
+                output_tokens = usage.get("output_tokens", 0) or 0
 
                 _model_usage = getattr(message, "_model_usage", None)
                 context_window = resolve_context_window(last_model, _model_usage)
 
                 logger.info(
                     "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
-                    "total_input=%d output=%d context_window=%s",
+                    "total_input=%d output=%d context_window=%s per_call=%s",
                     uncached_input,
                     cache_read,
                     cache_creation,
                     total_input,
                     output_tokens,
                     context_window,
+                    _last_call_input is not None,
                 )
                 yield DoneEvent(
                     tool_calls_count=tool_calls_count,

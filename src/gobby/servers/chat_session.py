@@ -27,6 +27,7 @@ from claude_agent_sdk import (
     ToolUseBlock,
     UserMessage,
 )
+from claude_agent_sdk.types import StreamEvent
 from claude_agent_sdk.types import (
     HookInput as SDKHookInput,
 )
@@ -192,6 +193,11 @@ class ChatSession(ChatSessionPermissionsMixin):
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
             env=env or {},
+            # Enable partial messages so we receive StreamEvent objects with
+            # per-API-call usage from message_start events. Without this, the
+            # ResultMessage.usage contains accumulated token counts across ALL
+            # API calls in the agentic loop, making context % wildly wrong.
+            include_partial_messages=True,
         )
 
         self._client = ClaudeSDKClient(options=options)
@@ -442,9 +448,29 @@ class ChatSession(ChatSessionPermissionsMixin):
             needs_spacing_before_text = False
             has_text = False
             context_window: int | None = None
+            # Track the LAST API call's input usage from message_start stream
+            # events. ResultMessage.usage accumulates across ALL API calls in
+            # the agentic loop, making total_input wildly exceed context_window
+            # for tool-heavy turns.  message_start gives per-call values.
+            _last_call_input: dict[str, int] | None = None
             try:
                 async for message in self._client.receive_response():
                     if message is None:
+                        continue
+                    if isinstance(message, StreamEvent):
+                        # Capture per-API-call input usage from message_start.
+                        # Each API call in the agentic loop emits one; the last
+                        # one reflects the actual current context window load.
+                        ev = message.event
+                        if (
+                            isinstance(ev, dict)
+                            and ev.get("type") == "message_start"
+                        ):
+                            msg_body = ev.get("message")
+                            if isinstance(msg_body, dict):
+                                u = msg_body.get("usage")
+                                if isinstance(u, dict):
+                                    _last_call_input = u
                         continue
                     if isinstance(message, ResultMessage):
                         # Capture SDK session_id on first ResultMessage
@@ -468,26 +494,39 @@ class ChatSession(ChatSessionPermissionsMixin):
                         usage: dict[str, Any] = (
                             cast(dict[str, Any], _raw_usage) if has_usage else {}
                         )
-                        uncached_input = usage.get("input_tokens", 0) or 0
-                        output_tokens = usage.get("output_tokens", 0) or 0
-                        cache_read = usage.get("cache_read_input_tokens", 0) or 0
-                        cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
-                        # With prompt caching, input_tokens is often only 3-23 tokens.
-                        # The real context consumed = uncached + cache_read + cache_creation.
+
+                        # --- Context window tracking (per-call) ---
+                        # Prefer per-call values from message_start stream events
+                        # (accurate context size). Fall back to ResultMessage.usage
+                        # which is accumulated across all API calls in the turn.
+                        if _last_call_input:
+                            uncached_input = _last_call_input.get("input_tokens", 0) or 0
+                            cache_read = _last_call_input.get("cache_read_input_tokens", 0) or 0
+                            cache_creation = _last_call_input.get("cache_creation_input_tokens", 0) or 0
+                        else:
+                            uncached_input = usage.get("input_tokens", 0) or 0
+                            cache_read = usage.get("cache_read_input_tokens", 0) or 0
+                            cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
                         total_input = uncached_input + cache_read + cache_creation
+
+                        # Output tokens: use accumulated from ResultMessage
+                        # (correct for cost tracking; not part of context %)
+                        output_tokens = usage.get("output_tokens", 0) or 0
 
                         _model_usage = getattr(message, "_model_usage", None)
                         context_window = resolve_context_window(self._last_model, _model_usage)
 
                         logger.info(
                             "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
-                            "total_input=%d output=%d context_window=%s",
+                            "total_input=%d output=%d context_window=%s "
+                            "per_call=%s",
                             uncached_input,
                             cache_read,
                             cache_creation,
                             total_input,
                             output_tokens,
                             context_window,
+                            _last_call_input is not None,
                         )
                         yield DoneEvent(
                             tool_calls_count=tool_calls_count,
