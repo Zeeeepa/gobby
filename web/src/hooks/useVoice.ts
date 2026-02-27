@@ -373,7 +373,7 @@ export function useVoice(
             connectTTS(config)
             setVoiceError(null)
           } else {
-            setVoiceError('TTS not available — voice will work without speech output')
+            console.warn('TTS not available — voice will work without speech output')
           }
         } catch (err) {
           setVoiceError('Failed to fetch TTS config')
