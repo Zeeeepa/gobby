@@ -1,0 +1,13 @@
+tags: [stop-gates, enforcement, lifecycle]
+
+rules:
+  block-stop-awaiting-tool-use:
+    description: "Block stop if no tool has been used successfully since last user prompt"
+    event: stop
+    enabled: false
+    priority: 12
+    when: "variables.get('awaiting_tool_use') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 8)"
+    effect:
+      type: block
+      reason: |
+        You haven't successfully used any tools yet. Take action on the user's request before stopping.

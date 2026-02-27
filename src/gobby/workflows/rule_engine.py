@@ -97,6 +97,7 @@ class RuleEngine:
                 )
         elif rule_event == RuleEvent.BEFORE_AGENT:
             variables["consecutive_tool_blocks"] = 0
+            variables["awaiting_tool_use"] = True
 
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
@@ -111,6 +112,11 @@ class RuleEngine:
 
         # 4. Filter by active rules (selector-based)
         rules = self._filter_by_active_rules(rules, variables)
+
+        # Force-allow stop (catastrophic failure bypass — self-clearing)
+        if rule_event == RuleEvent.STOP and variables.get("force_allow_stop"):
+            variables["force_allow_stop"] = False
+            return HookResponse(decision="allow")
 
         # Auto-block stop when a tool just failed (self-clearing)
         if rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
@@ -129,9 +135,12 @@ class RuleEngine:
                 )
                 if is_failure:
                     variables["tool_block_pending"] = True
-                elif variables.get("tool_block_pending"):
-                    variables["tool_block_pending"] = False
-                    variables["consecutive_tool_blocks"] = 0
+                    self._check_catastrophic_failure(event, variables)
+                else:
+                    if variables.get("tool_block_pending"):
+                        variables["tool_block_pending"] = False
+                        variables["consecutive_tool_blocks"] = 0
+                    variables["awaiting_tool_use"] = False
             return HookResponse(decision="allow")
 
         # Auto-manage tool_block_pending on after_tool before rule eval
@@ -142,9 +151,12 @@ class RuleEngine:
             )
             if is_failure:
                 variables["tool_block_pending"] = True
-            elif variables.get("tool_block_pending"):
-                variables["tool_block_pending"] = False
-                variables["consecutive_tool_blocks"] = 0
+                self._check_catastrophic_failure(event, variables)
+            else:
+                if variables.get("tool_block_pending"):
+                    variables["tool_block_pending"] = False
+                    variables["consecutive_tool_blocks"] = 0
+                variables["awaiting_tool_use"] = False
 
         # 5. Evaluate rules in priority order
         context_parts: list[str] = []
@@ -425,6 +437,24 @@ class RuleEngine:
             (session_id,),
         )
         return row[0] if row else 0
+
+    # Patterns indicating unrecoverable failures where the agent should stop immediately
+    _CATASTROPHIC_PATTERNS = [
+        "out of usage",
+        "rate limit",
+        "quota exceeded",
+        "billing",
+        "account suspended",
+    ]
+
+    def _check_catastrophic_failure(
+        self, event: HookEvent, variables: dict[str, Any]
+    ) -> None:
+        """Check if a tool failure is catastrophic and set force_allow_stop if so."""
+        tool_output = str(event.data.get("tool_output", "")).lower()
+        if any(p in tool_output for p in self._CATASTROPHIC_PATTERNS):
+            variables["force_allow_stop"] = True
+            variables["awaiting_tool_use"] = False
 
     def _evaluate_condition(
         self,

@@ -52,6 +52,7 @@ def _get_rule(manager, name):
 STOP_GATES_RULES = {
     "increment-stop-attempts",
     "block-stop-after-tool-block",
+    "block-stop-awaiting-tool-use",
     "require-error-triage",
     "require-task-close",
     "reset-stop-cycle-on-prompt",
@@ -430,3 +431,273 @@ class TestToolBlockPendingPlumbing:
         # 4. Stop is allowed
         response = await engine.evaluate(stop_event, "sess-1", variables)
         assert response.decision == "allow"
+
+
+class TestBlockStopAwaitingToolUse:
+    """Verify block-stop-awaiting-tool-use rule (static checks)."""
+
+    def test_syncs_correctly(self, db, manager) -> None:
+        """Rule should sync to workflow_definitions."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "block-stop-awaiting-tool-use")
+        assert row is not None
+
+    def test_is_stop_event_with_correct_priority(self, db, manager) -> None:
+        """Should fire on stop event with priority 12."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "block-stop-awaiting-tool-use")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        assert body.event.value == "stop"
+        assert row.priority == 12
+
+    def test_when_references_awaiting_tool_use_and_stop_attempts(self, db, manager) -> None:
+        """When condition should check awaiting_tool_use and stop_attempts."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "block-stop-awaiting-tool-use")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        assert body.when is not None
+        assert "awaiting_tool_use" in body.when
+        assert "stop_attempts" in body.when
+
+    def test_has_block_effect(self, db, manager) -> None:
+        """Should have a block effect."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "block-stop-awaiting-tool-use")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        effects = body.resolved_effects
+        effect_types = [e.type for e in effects]
+        assert "block" in effect_types
+
+
+class TestAwaitingToolUsePlumbing:
+    """Test hardcoded awaiting_tool_use plumbing in RuleEngine.
+
+    awaiting_tool_use is set on before_agent (new prompt) and cleared
+    on successful after_tool. Failed after_tool does NOT clear it.
+    """
+
+    @pytest.mark.asyncio
+    async def test_before_agent_sets_awaiting_tool_use(self, db) -> None:
+        """before_agent should set awaiting_tool_use=True."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        event = _make_event(HookEventType.BEFORE_AGENT)
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("awaiting_tool_use") is True
+
+    @pytest.mark.asyncio
+    async def test_successful_after_tool_clears_awaiting(self, db) -> None:
+        """Successful after_tool should clear awaiting_tool_use."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"awaiting_tool_use": True}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Read"},
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("awaiting_tool_use") is False
+
+    @pytest.mark.asyncio
+    async def test_failed_after_tool_does_not_clear_awaiting(self, db) -> None:
+        """Failed after_tool should NOT clear awaiting_tool_use."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"awaiting_tool_use": True}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Edit", "is_error": True},
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("awaiting_tool_use") is True
+
+    @pytest.mark.asyncio
+    async def test_full_cycle_prompt_to_tool_success(self, db) -> None:
+        """Full cycle: prompt sets awaiting → tool succeeds → awaiting cleared."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        # 1. New prompt
+        prompt_event = _make_event(HookEventType.BEFORE_AGENT)
+        await engine.evaluate(prompt_event, "sess-1", variables)
+        assert variables.get("awaiting_tool_use") is True
+
+        # 2. Tool succeeds
+        ok_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Read"},
+        )
+        await engine.evaluate(ok_event, "sess-1", variables)
+        assert variables.get("awaiting_tool_use") is False
+
+    @pytest.mark.asyncio
+    async def test_failed_tool_keeps_awaiting_until_success(self, db) -> None:
+        """Failed tools don't clear awaiting — only success does."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        # 1. New prompt
+        prompt_event = _make_event(HookEventType.BEFORE_AGENT)
+        await engine.evaluate(prompt_event, "sess-1", variables)
+        assert variables.get("awaiting_tool_use") is True
+
+        # 2. Tool fails — awaiting stays
+        fail_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Edit", "is_error": True},
+        )
+        await engine.evaluate(fail_event, "sess-1", variables)
+        assert variables.get("awaiting_tool_use") is True
+
+        # 3. Tool succeeds — awaiting clears
+        ok_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Read"},
+        )
+        await engine.evaluate(ok_event, "sess-1", variables)
+        assert variables.get("awaiting_tool_use") is False
+
+
+class TestForceAllowStop:
+    """Test force_allow_stop catastrophic failure bypass.
+
+    force_allow_stop bypasses all stop gates (including tool_block_pending)
+    and is self-clearing after one use.
+    """
+
+    @pytest.mark.asyncio
+    async def test_force_allow_stop_bypasses_stop_gates(self, db) -> None:
+        """force_allow_stop should allow stop even with tool_block_pending."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "force_allow_stop": True,
+            "tool_block_pending": True,
+        }
+
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, "sess-1", variables)
+
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_force_allow_stop_is_self_clearing(self, db) -> None:
+        """force_allow_stop should be cleared after use."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"force_allow_stop": True}
+
+        event = _make_event(HookEventType.STOP)
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("force_allow_stop") is False
+
+    @pytest.mark.asyncio
+    async def test_force_allow_stop_only_works_once(self, db) -> None:
+        """Second stop after force_allow_stop should use normal logic."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "force_allow_stop": True,
+            "tool_block_pending": True,
+        }
+
+        event = _make_event(HookEventType.STOP)
+
+        # First stop — force allowed
+        response = await engine.evaluate(event, "sess-1", variables)
+        assert response.decision == "allow"
+
+        # Re-set tool_block_pending (force_allow_stop is cleared now)
+        variables["tool_block_pending"] = True
+
+        # Second stop — normal blocking applies
+        response = await engine.evaluate(event, "sess-1", variables)
+        assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    async def test_catastrophic_failure_sets_force_allow_stop(self, db) -> None:
+        """Tool failure with catastrophic pattern should set force_allow_stop."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"awaiting_tool_use": True}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "Bash",
+                "is_error": True,
+                "tool_output": "Error: You are out of usage for this billing period.",
+            },
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("force_allow_stop") is True
+        assert variables.get("awaiting_tool_use") is False
+
+    @pytest.mark.asyncio
+    async def test_catastrophic_rate_limit_detected(self, db) -> None:
+        """Rate limit errors should trigger catastrophic bypass."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "Bash",
+                "is_error": True,
+                "tool_output": "429 Too Many Requests: rate limit exceeded",
+            },
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("force_allow_stop") is True
+
+    @pytest.mark.asyncio
+    async def test_normal_failure_does_not_set_force_allow_stop(self, db) -> None:
+        """Normal tool failure should NOT set force_allow_stop."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "Edit",
+                "is_error": True,
+                "tool_output": "Error: old_string not found in file",
+            },
+        )
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("force_allow_stop") is not True
+
+    @pytest.mark.asyncio
+    async def test_catastrophic_then_stop_allowed(self, db) -> None:
+        """End-to-end: catastrophic failure → stop is force-allowed."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {"awaiting_tool_use": True}
+
+        # 1. Catastrophic failure
+        fail_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "Bash",
+                "is_error": True,
+                "tool_output": "quota exceeded — upgrade your plan",
+            },
+        )
+        await engine.evaluate(fail_event, "sess-1", variables)
+        assert variables.get("force_allow_stop") is True
+
+        # 2. Stop is allowed (bypasses tool_block_pending too)
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, "sess-1", variables)
+        assert response.decision == "allow"
+        assert variables.get("force_allow_stop") is False
