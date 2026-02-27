@@ -25,6 +25,48 @@ from gobby.utils.machine_id import get_machine_id
 logger = logging.getLogger(__name__)
 
 
+def _inject_agent_skills(
+    agent_body: Any,
+    db: Any,
+    project_id: str,
+    cli_source: str = "claude_sdk_web_chat",
+) -> str | None:
+    """Run audience-aware skill injection for an agent definition.
+
+    Replicates the skill injection pipeline from _activate_default_agent
+    for use in contexts where the full session activation isn't available.
+    """
+    from gobby.hooks.skill_manager import _db_skill_to_parsed
+    from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
+    from gobby.skills.manager import SkillManager
+    from gobby.workflows.context_actions import _format_skills_with_formats
+    from gobby.workflows.selectors import resolve_skills_for_agent
+
+    skill_mgr = SkillManager(db)
+    all_skills = skill_mgr.list_skills()
+    active_skills = resolve_skills_for_agent(agent_body, all_skills)
+    eligible = (
+        all_skills if active_skills is None
+        else [s for s in all_skills if s.name in active_skills]
+    )
+    parsed = [_db_skill_to_parsed(s) for s in eligible if s.enabled]
+    if not parsed:
+        return None
+
+    agent_ctx = AgentContext(
+        agent_depth=0, has_human=True, agent_type="interactive", source=cli_source,
+    )
+    profile = None
+    if agent_body.workflows and agent_body.workflows.skill_format:
+        profile = SkillProfile(default_format=agent_body.workflows.skill_format)
+
+    selected = SkillInjector().select_skills(parsed, agent_ctx, profile=profile)
+    if not selected:
+        return None
+
+    return _format_skills_with_formats(selected)
+
+
 async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str | None]:
     """Resolve the current git branch for a project directory.
 
@@ -293,24 +335,38 @@ class ChatMixin:
         if pending_agent:
             session._pending_agent_name = pending_agent
 
-        # Resolve agent preamble as system prompt (agent definition is single source of truth)
-        if pending_agent and session_manager:
+        # Resolve agent + skills as system prompt (agent definition is single source of truth)
+        # Always resolve an agent — pending_agent if user selected one, otherwise default-web-chat
+        agent_name = pending_agent or "default-web-chat"
+        if session_manager:
             try:
                 from gobby.workflows.agent_resolver import resolve_agent
 
                 agent_body = await asyncio.to_thread(
                     resolve_agent,
-                    pending_agent,
+                    agent_name,
                     session_manager.db,
                     cli_source="claude_sdk_web_chat",
                     project_id=project_id or PERSONAL_PROJECT_ID,
                 )
                 if agent_body:
+                    context_parts: list[str] = []
                     preamble = agent_body.build_prompt_preamble()
                     if preamble:
-                        session.system_prompt_override = preamble
+                        context_parts.append(preamble)
+                    # Audience-aware skill injection (canvas, etc.)
+                    skills_text = await asyncio.to_thread(
+                        _inject_agent_skills,
+                        agent_body,
+                        session_manager.db,
+                        project_id or PERSONAL_PROJECT_ID,
+                    )
+                    if skills_text:
+                        context_parts.append(skills_text)
+                    if context_parts:
+                        session.system_prompt_override = "\n\n".join(context_parts)
             except Exception as e:
-                logger.warning(f"Failed to resolve agent preamble for '{pending_agent}': {e}")
+                logger.warning(f"Failed to resolve agent '{agent_name}': {e}")
 
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
