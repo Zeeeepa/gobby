@@ -743,7 +743,7 @@ class TestVariablePersistence:
     async def test_variables_accumulate_across_evaluations(self, db, handler, session_var_manager) -> None:
         """Variables should persist and accumulate across multiple evaluations."""
         self._insert_set_variable_rule(
-            db, "test-increment", "stop", "stop_attempts", "variables.get('stop_attempts', 0) + 1"
+            db, "test-increment", "stop", "custom_counter", "variables.get('custom_counter', 0) + 1"
         )
 
         event = self._make_stop_event()
@@ -752,8 +752,8 @@ class TestVariablePersistence:
         for i in range(3):
             await handler._evaluate_rules(event)
             variables = session_var_manager.get_variables("test-session")
-            assert variables.get("stop_attempts") == i + 1, (
-                f"After evaluation {i + 1}, stop_attempts should be {i + 1}"
+            assert variables.get("custom_counter") == i + 1, (
+                f"After evaluation {i + 1}, custom_counter should be {i + 1}"
             )
 
     @pytest.mark.asyncio

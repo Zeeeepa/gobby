@@ -226,18 +226,18 @@ class TestSetVariableEffect:
                 event=RuleEvent.STOP,
                 effect=RuleEffect(
                     type="set_variable",
-                    variable="stop_attempts",
-                    value="variables.get('stop_attempts', 0) + 1",
+                    variable="custom_counter",
+                    value="variables.get('custom_counter', 0) + 1",
                 ),
             ),
         )
 
         engine = RuleEngine(db)
-        variables: dict[str, Any] = {"stop_attempts": 2}
+        variables: dict[str, Any] = {"custom_counter": 2}
         event = _make_event(HookEventType.STOP)
         await engine.evaluate(event, session_id="sess-1", variables=variables)
 
-        assert variables["stop_attempts"] == 3
+        assert variables["custom_counter"] == 3
 
 
 class TestInjectContextEffect:
@@ -1183,7 +1183,7 @@ class TestConsecutiveToolBlocks:
         )
 
         engine = RuleEngine(db)
-        variables: dict[str, Any] = {"tool_block_pending": True}
+        variables: dict[str, Any] = {"tool_block_pending": True, "_last_blocked_tool": "Edit"}
         event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
         await engine.evaluate(event, session_id="sess-1", variables=variables)
 
@@ -1213,6 +1213,7 @@ class TestConsecutiveToolBlocks:
         variables: dict[str, Any] = {
             "tool_block_pending": True,
             "consecutive_tool_blocks": 1,
+            "_last_blocked_tool": "Edit",
         }
         event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)

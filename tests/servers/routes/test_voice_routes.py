@@ -43,19 +43,15 @@ class TestVoiceRoutes:
     # -----------------------------------------------------------------
 
     def test_status_voice_disabled_by_default(self, client: TestClient) -> None:
-        """VoiceConfig defaults: enabled=False, no API key."""
+        """VoiceConfig defaults: enabled=False."""
         response = client.get("/api/voice/status")
         assert response.status_code == 200
         data = response.json()
         assert data["enabled"] is False
         assert data["stt_available"] is False
         assert data["stt_reason"] == "Voice not enabled in config"
-        assert data["tts_available"] is False
-        assert data["tts_reason"] == "Voice not enabled in config"
         assert data["stt_enabled"] is True
-        assert data["tts_enabled"] is False
         assert data["whisper_model"] == "base"
-        assert data["audio_format"] == "mp3_44100_128"
 
     def test_status_no_config(self, client: TestClient, server_with_voice: MagicMock) -> None:
         """When server.config is None."""
@@ -64,7 +60,6 @@ class TestVoiceRoutes:
         data = response.json()
         assert data["enabled"] is False
         assert data["stt_available"] is False
-        assert data["tts_available"] is False
         assert data["reason"] == "Voice config not found"
 
     def test_status_no_voice_attr(self, client: TestClient, server_with_voice: MagicMock) -> None:
@@ -102,42 +97,6 @@ class TestVoiceRoutes:
         assert data["stt_available"] is True
         assert data["stt_reason"] == ""
 
-    def test_status_tts_with_api_key(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
-        """TTS available when enabled and ElevenLabs API key is configured."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=True, tts_enabled=True, elevenlabs_api_key="sk-test-key"
-        )
-        response = client.get("/api/voice/status")
-        data = response.json()
-        assert data["tts_available"] is True
-        assert data["tts_reason"] == ""
-
-    def test_status_tts_without_api_key(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
-        """TTS unavailable when no API key."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=True, tts_enabled=True, elevenlabs_api_key=""
-        )
-        response = client.get("/api/voice/status")
-        data = response.json()
-        assert data["tts_available"] is False
-        assert data["tts_reason"] == "No ElevenLabs API key configured"
-
-    def test_status_tts_disabled(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
-        """TTS unavailable when tts_enabled=False even with API key."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=True, tts_enabled=False, elevenlabs_api_key="sk-test-key"
-        )
-        response = client.get("/api/voice/status")
-        data = response.json()
-        assert data["tts_available"] is False
-        assert data["tts_reason"] == "TTS disabled in config"
-
     def test_status_stt_disabled(
         self, client: TestClient, server_with_voice: MagicMock
     ) -> None:
@@ -156,15 +115,6 @@ class TestVoiceRoutes:
         response = client.get("/api/voice/status")
         data = response.json()
         assert data["whisper_model"] == "small"
-
-    def test_status_custom_voice_id(self, client: TestClient, server_with_voice: MagicMock) -> None:
-        """Custom ElevenLabs voice ID is reflected in status."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=False, elevenlabs_voice_id="custom-voice-42"
-        )
-        response = client.get("/api/voice/status")
-        data = response.json()
-        assert data["tts_voice_id"] == "custom-voice-42"
 
     # -----------------------------------------------------------------
     # POST /api/voice/transcribe
@@ -297,64 +247,3 @@ class TestVoiceRoutes:
         data = response.json()
         assert "Model crashed" in data["error"]
         assert data["text"] == ""
-
-    # -----------------------------------------------------------------
-    # GET /api/voice/tts-config
-    # -----------------------------------------------------------------
-
-    def test_tts_config_voice_disabled(self, client: TestClient) -> None:
-        """Returns 404 when voice is disabled."""
-        response = client.get("/api/voice/tts-config")
-        assert response.status_code == 404
-        assert "not enabled" in response.json()["error"]
-
-    def test_tts_config_tts_disabled(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
-        """Returns 404 when voice enabled but tts_enabled=False."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=True, tts_enabled=False, elevenlabs_api_key="sk-test-key"
-        )
-        response = client.get("/api/voice/tts-config")
-        assert response.status_code == 404
-        assert "TTS disabled" in response.json()["error"]
-
-    def test_tts_config_no_api_key(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
-        """Returns 404 when enabled but no API key."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=True, tts_enabled=True, elevenlabs_api_key=""
-        )
-        response = client.get("/api/voice/tts-config")
-        assert response.status_code == 404
-        assert "No ElevenLabs API key" in response.json()["error"]
-
-    def test_tts_config_success(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
-        """Returns full TTS config when available."""
-        server_with_voice.config.voice = VoiceConfig(
-            enabled=True,
-            tts_enabled=True,
-            elevenlabs_api_key="sk-test-key",
-            elevenlabs_voice_id="voice-42",
-            elevenlabs_model_id="eleven_flash_v2_5",
-        )
-        response = client.get("/api/voice/tts-config")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["api_key"] == "sk-test-key"
-        assert data["voice_id"] == "voice-42"
-        assert data["model_id"] == "eleven_flash_v2_5"
-        assert "stability" in data
-        assert "similarity_boost" in data
-        assert "output_format" in data
-
-    def test_tts_config_no_config(
-        self, client: TestClient, server_with_voice: MagicMock
-    ) -> None:
-        """Returns 404 when server.config is None."""
-        server_with_voice.config = None
-        response = client.get("/api/voice/tts-config")
-        assert response.status_code == 404
