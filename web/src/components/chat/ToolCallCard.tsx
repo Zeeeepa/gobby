@@ -329,7 +329,7 @@ function ToolResultContent({ call }: { call: ToolCall }) {
 }
 
 const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const displayName = formatToolName(call.tool_name)
 
   if (call.tool_name === 'render_surface') {
@@ -709,7 +709,6 @@ interface ToolChainGroupProps {
 
 export const ToolChainGroup = memo(function ToolChainGroup({ toolCalls, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: ToolChainGroupProps) {
   const hasInFlight = toolCalls.some(tc => tc.status === 'calling')
-  const hasApproval = toolCalls.some(tc => tc.status === 'pending_approval')
   const hasErrors = toolCalls.some(tc => tc.status === 'error')
   const allCompleted = toolCalls.every(tc => tc.status === 'completed')
   const [expanded, setExpanded] = useState(true)
@@ -766,10 +765,10 @@ export const ToolChainGroup = memo(function ToolChainGroup({ toolCalls, onRespon
 
 export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction }: ToolCallCardProps) {
   const segments = useMemo(() => groupToolCalls(toolCalls), [toolCalls])
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set())
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
 
   const toggleGroup = useCallback((key: string) => {
-    setExpandedGroups(prev => {
+    setCollapsedGroups(prev => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -799,7 +798,7 @@ export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond,
           <ToolCallGroupHeader
             key={groupKey}
             group={segment}
-            expanded={expandedGroups.has(groupKey)}
+            expanded={!collapsedGroups.has(groupKey)}
             onToggle={() => toggleGroup(groupKey)}
             onRespond={onRespond}
             onRespondToApproval={onRespondToApproval}
