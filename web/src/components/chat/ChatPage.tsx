@@ -164,6 +164,9 @@ export function ChatPage({
         <MobileChatDrawer
           sessions={conversations.sessions}
           activeSessionId={conversations.activeSessionId}
+          sessionRef={effectiveSessionRef}
+          title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
+          mode={chat.mode}
           onNewChat={conversations.onNewChat}
           onSelectSession={conversations.onSelectSession}
           onDeleteSession={conversations.onDeleteSession}
@@ -174,15 +177,17 @@ export function ChatPage({
             <div
               className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}
             >
-              <SessionStatusBar
-                sessionRef={effectiveSessionRef}
-                title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
-                mode={chat.mode}
-                viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
-                isAttached={!!chat.attachedSessionId}
-                onAttach={chat.onAttachToViewed}
-                onDetach={chat.onDetachFromSession}
-              />
+              <div className="hidden md:block">
+                <SessionStatusBar
+                  sessionRef={effectiveSessionRef}
+                  title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
+                  mode={chat.mode}
+                  viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
+                  isAttached={!!chat.attachedSessionId}
+                  onAttach={chat.onAttachToViewed}
+                  onDetach={chat.onDetachFromSession}
+                />
+              </div>
               <MessageList
                 messages={chat.messages}
                 isStreaming={chat.isStreaming}

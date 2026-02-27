@@ -1,10 +1,20 @@
 import { useState } from 'react'
 import type { GobbySession } from '../../hooks/useSessions'
+import type { ChatMode } from '../../types/chat'
 import { formatRelativeTime } from '../../utils/formatTime'
+
+const MODE_DOT: Record<ChatMode, { dot: string; label: string }> = {
+  plan: { dot: 'bg-blue-400', label: 'Plan' },
+  accept_edits: { dot: 'bg-green-400', label: 'Act' },
+  bypass: { dot: 'bg-amber-400', label: 'Auto' },
+}
 
 interface MobileChatDrawerProps {
   sessions: GobbySession[]
   activeSessionId: string | null
+  sessionRef: string | null
+  title: string | null
+  mode: ChatMode
   onNewChat: () => void
   onSelectSession: (session: GobbySession) => void
   onDeleteSession?: (session: GobbySession) => void
@@ -13,11 +23,15 @@ interface MobileChatDrawerProps {
 export function MobileChatDrawer({
   sessions,
   activeSessionId,
+  sessionRef,
+  title,
+  mode,
   onNewChat,
   onSelectSession,
   onDeleteSession,
 }: MobileChatDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const { dot, label } = MODE_DOT[mode]
 
   return (
     <div className={`mobile-chat-drawer ${isOpen ? '' : 'collapsed'}`}>
@@ -30,21 +44,35 @@ export function MobileChatDrawer({
       >
         <span className="mobile-chat-drawer-title">
           <ChatsIcon />
-          Chats
+          {isOpen ? 'Chats' : (
+            <>
+              {sessionRef && <span className="font-mono text-accent">{sessionRef}</span>}
+              {sessionRef && title ? ': ' : ''}
+              <span className="truncate">{!isOpen && !title ? 'New conversation' : title}</span>
+            </>
+          )}
         </span>
-        <span>{isOpen ? '\u25B2' : '\u25BC'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {!isOpen && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} />
+              <span className="text-muted-foreground text-xs">{label}</span>
+            </span>
+          )}
+          <button
+            type="button"
+            className="mobile-drawer-action"
+            onClick={(e) => { e.stopPropagation(); onNewChat(); setIsOpen(false) }}
+            title="New chat"
+          >
+            <PlusIcon />
+          </button>
+          <span>{isOpen ? '\u25B2' : '\u25BC'}</span>
+        </div>
       </div>
 
       {isOpen && (
         <div className="mobile-chat-drawer-content">
-          <button
-            type="button"
-            className="mobile-chat-drawer-new"
-            onClick={() => { onNewChat(); setIsOpen(false) }}
-          >
-            + New Chat
-          </button>
-
           <div className="mobile-chat-drawer-list">
             {sessions.length === 0 && (
               <div className="mobile-chat-drawer-empty">
@@ -98,6 +126,15 @@ function ChatsIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   )
 }
