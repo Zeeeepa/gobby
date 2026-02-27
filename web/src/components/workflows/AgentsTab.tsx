@@ -91,7 +91,7 @@ const ISOLATION_COLORS: Record<string, string> = {
 const DEFAULT_FORM: AgentFormData = {
   name: '', description: '', role: '', goal: '', personality: '', instructions: '',
   provider: 'inherit', model: '', mode: 'inherit', isolation: 'inherit',
-  base_branch: 'inherit', timeout: 0, max_turns: 0,
+  base_branch: 'inherit', timeout: 0, max_turns: 0, pipeline: '',
 }
 
 const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
@@ -145,7 +145,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   // YAML editor state
   const [yamlAgent, setYamlAgent] = useState<AgentDefInfo | null>(null)
   const [yamlContent, setYamlContent] = useState('')
-  const [yamlLoading, setYamlLoading] = useState(false)
+  const [yamlLoading] = useState(false)
 
   const showToast = useCallback((text: string, type: 'success' | 'error') => {
     setToastMessage({ text, type })
@@ -160,6 +160,14 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   const [editRules, setEditRules] = useState<string[]>([])
   const [editRuleSelectors, setEditRuleSelectors] = useState<{ include: string[]; exclude: string[] } | null>(null)
   const [editVariables, setEditVariables] = useState<Record<string, unknown>>({})
+  const [editSkills, setEditSkills] = useState<string[]>([])
+
+  // Sidebar view state (form vs YAML)
+  const [sidebarView, setSidebarView] = useState<'form' | 'yaml'>('form')
+  const [sidebarYamlContent, setSidebarYamlContent] = useState('')
+
+  // Pipeline list for selector
+  const [pipelineList, setPipelineList] = useState<{ id: string; name: string }[]>([])
 
   const fetchDefinitions = useCallback(async (includeDeleted = false) => {
     setLoading(true)
@@ -194,12 +202,15 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     if (!showCreateForm) {
       setEditingId(null)
       setSelectedAgent(null)
+      setSidebarView('form')
     } else if (!editingId) {
       setCreateForm({ ...DEFAULT_FORM })
       setEditRules([])
       setEditRuleSelectors(null)
       setEditVariables({})
+      setEditSkills([])
       setSelectedAgent(null)
+      setSidebarView('form')
     }
   }, [showCreateForm, editingId])
 
@@ -233,6 +244,21 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         if (data?.models) setProviderModels(prev => ({ ...prev, ...data.models }))
       })
       .catch(e => console.error('Failed to fetch model list:', e))
+  }, [])
+
+  // Fetch pipeline list for selector
+  useEffect(() => {
+    fetch(`${getBaseUrl()}/api/workflows?workflow_type=pipeline`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.workflows) {
+          setPipelineList(data.workflows
+            .filter((w: { deleted_at?: string | null }) => !w.deleted_at)
+            .map((w: { id: string; name: string }) => ({ id: w.id, name: w.name }))
+          )
+        }
+      })
+      .catch(() => setPipelineList([]))
   }, [])
 
   const installedNames = useMemo(() => {
@@ -299,12 +325,17 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (createForm.personality) body.personality = createForm.personality
       if (createForm.instructions) body.instructions = createForm.instructions
       if (createForm.model) body.model = createForm.model
-      // Nest rules, rule_selectors, and variables under workflows
+      // Nest rules, rule_selectors, variables, pipeline under workflows
       const workflows: Record<string, unknown> = {}
       if (editRules.length > 0) workflows.rules = editRules
       if (editRuleSelectors) workflows.rule_selectors = editRuleSelectors
       if (Object.keys(editVariables).length > 0) workflows.variables = editVariables
+      if (createForm.pipeline) workflows.pipeline = createForm.pipeline
       if (Object.keys(workflows).length > 0) body.workflows = workflows
+      // Skill profile
+      if (editSkills.length > 0) {
+        body.skill_profile = Object.fromEntries(editSkills.map(s => [s, {}]))
+      }
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions`, {
         method: 'POST',
@@ -341,13 +372,16 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       base_branch: d.base_branch,
       timeout: d.timeout,
       max_turns: d.max_turns,
+      pipeline: (d.workflows?.pipeline as string) || '',
     })
     setEditingId(item.db_id)
     setEditRules((d.workflows?.rules as string[]) || [])
     const rs = d.workflows?.rule_selectors as { include: string[]; exclude: string[] } | undefined
     setEditRuleSelectors(rs || null)
     setEditVariables((d.workflows?.variables as Record<string, unknown>) || {})
+    setEditSkills(d.skill_profile ? Object.keys(d.skill_profile) : [])
     setSelectedAgent(null)
+    setSidebarView('form')
     onToggleCreateForm(true)
   }
 
@@ -369,6 +403,14 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         timeout: createForm.timeout,
         max_turns: createForm.max_turns,
       }
+      // Include pipeline in workflows
+      const workflows: Record<string, unknown> = {}
+      if (createForm.pipeline) workflows.pipeline = createForm.pipeline
+      if (Object.keys(workflows).length > 0) body.workflows = workflows
+      // Skill profile
+      body.skill_profile = editSkills.length > 0
+        ? Object.fromEntries(editSkills.map(s => [s, {}]))
+        : null
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
         method: 'PUT',
@@ -515,26 +557,42 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   }, [])
 
   const handleYamlEdit = useCallback(async (item: AgentDefInfo) => {
-    setYamlLoading(true)
-    setYamlAgent(item)
-    try {
-      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${item.definition.name}/export`)
-      if (res.ok) {
-        const text = await res.text()
-        setYamlContent(text)
-      } else {
-        setYamlContent('')
-        window.alert('Failed to load agent YAML')
-        setYamlAgent(null)
-      }
-    } catch (e) {
-      console.error('Failed to load agent YAML:', e)
-      setYamlContent('')
-      setYamlAgent(null)
-    } finally {
-      setYamlLoading(false)
+    // Open sidebar with YAML tab for DB-backed agents
+    if (item.db_id) {
+      const d = item.definition
+      setCreateForm({
+        name: d.name, description: d.description || '', role: d.role || '',
+        goal: d.goal || '', personality: d.personality || '',
+        instructions: d.instructions || '', provider: d.provider,
+        model: d.model || '', mode: d.mode, isolation: d.isolation || 'inherit',
+        base_branch: d.base_branch, timeout: d.timeout, max_turns: d.max_turns,
+        pipeline: (d.workflows?.pipeline as string) || '',
+      })
+      setEditingId(item.db_id)
+      setEditRules((d.workflows?.rules as string[]) || [])
+      setEditVariables((d.workflows?.variables as Record<string, unknown>) || {})
+      setEditSkills(d.skill_profile ? Object.keys(d.skill_profile) : [])
+      // Fetch YAML content for the YAML tab
+      try {
+        const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${d.name}/export`)
+        if (res.ok) setSidebarYamlContent(await res.text())
+        else setSidebarYamlContent('')
+      } catch { setSidebarYamlContent('') }
+      setSidebarView('yaml')
+      setSelectedAgent(null)
+      onToggleCreateForm(true)
+    } else {
+      // For file-based agents, open read-only sidebar with YAML tab
+      try {
+        const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${item.definition.name}/export`)
+        if (res.ok) setSidebarYamlContent(await res.text())
+        else setSidebarYamlContent('')
+      } catch { setSidebarYamlContent('') }
+      setSelectedAgent(item)
+      setSidebarView('yaml')
+      onToggleCreateForm(false)
     }
-  }, [])
+  }, [onToggleCreateForm])
 
   const handleYamlSave = useCallback(async () => {
     if (!yamlAgent) return
@@ -580,6 +638,57 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     setYamlAgent(null)
     fetchDefinitions(true)
   }, [yamlAgent, yamlContent, fetchDefinitions])
+
+  // YAML save from sidebar
+  const handleSidebarYamlSave = useCallback(async () => {
+    if (!editingId) return
+    let parsed: Record<string, unknown>
+    try {
+      parsed = yaml.load(sidebarYamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
+    } catch (e) {
+      window.alert(`Invalid YAML: ${e instanceof Error ? e.message : String(e)}`)
+      return
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      window.alert('Invalid YAML: expected an object')
+      return
+    }
+    try {
+      const body: Record<string, unknown> = {
+        name: (parsed.name as string) || createForm.name,
+        description: parsed.description ?? null,
+        role: parsed.role ?? null,
+        goal: parsed.goal ?? null,
+        personality: parsed.personality ?? null,
+        instructions: parsed.instructions ?? null,
+        provider: parsed.provider || createForm.provider,
+        model: parsed.model ?? null,
+        mode: parsed.mode || createForm.mode,
+        isolation: parsed.isolation ?? null,
+        base_branch: (parsed.base_branch as string) || createForm.base_branch,
+        timeout: parsed.timeout ?? createForm.timeout,
+        max_turns: parsed.max_turns ?? createForm.max_turns,
+      }
+      if (parsed.workflows) body.workflows = parsed.workflows
+      if (parsed.skill_profile) body.skill_profile = parsed.skill_profile
+      const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        onToggleCreateForm(false)
+        setEditingId(null)
+        setCreateForm({ ...DEFAULT_FORM })
+        fetchDefinitions(true)
+      } else {
+        showToast('Failed to save agent from YAML', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to save agent from YAML:', e)
+      showToast('Failed to save agent from YAML', 'error')
+    }
+  }, [editingId, sidebarYamlContent, createForm, fetchDefinitions, onToggleCreateForm, showToast])
 
   const handleInstallFromTemplate = async (name: string) => {
     try {
@@ -880,7 +989,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         )}
       </div>
 
-      {/* YAML editor modal */}
+      {/* YAML editor modal (kept for non-sidebar YAML edits) */}
       {yamlAgent && (
         <YamlEditorModal
           workflowName={yamlAgent.definition.name}
@@ -914,6 +1023,14 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         onRuleSelectorsChange={handleEditRuleSelectorsChange}
         variables={editVariables}
         onVariablesChange={handleEditVariablesChange}
+        sidebarView={sidebarView}
+        onViewChange={setSidebarView}
+        yamlContent={sidebarYamlContent}
+        onYamlChange={setSidebarYamlContent}
+        onYamlSave={handleSidebarYamlSave}
+        pipelines={pipelineList}
+        editSkills={editSkills}
+        onSkillsChange={setEditSkills}
       />
     </div>
   )

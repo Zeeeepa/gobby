@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react'
 import type { WorkflowDetail } from '../../hooks/useWorkflows'
 import './PipelineEditor.css'
 
@@ -83,6 +83,11 @@ function createDefaultStep(type: StepType, existingIds: string[]): PipelineStep 
 // Props
 // ---------------------------------------------------------------------------
 
+export interface PipelineEditorHandle {
+  save: () => Promise<void>
+  isDirty: boolean
+}
+
 interface PipelineEditorProps {
   pipeline: WorkflowDetail
   updateWorkflow: (
@@ -91,13 +96,14 @@ interface PipelineEditorProps {
   ) => Promise<WorkflowDetail | null>
   onBack: () => void
   onExport: () => void
+  inSidebar?: boolean
 }
 
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
-export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: PipelineEditorProps) {
+export const PipelineEditor = forwardRef<PipelineEditorHandle, PipelineEditorProps>(function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport, inSidebar }, ref) {
   // Parse definition
   const initDef = useMemo(() => {
     try {
@@ -225,39 +231,46 @@ export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: P
     }
   }, [steps, name, description, initDef, pipeline, updateWorkflow])
 
+  useImperativeHandle(ref, () => ({
+    save: handleSave,
+    isDirty,
+  }), [handleSave, isDirty])
+
   // ---- Render ----
 
   return (
-    <div className="pipeline-editor">
-      {/* Header */}
-      <div className="pipeline-editor-toolbar">
-        <div className="pipeline-editor-toolbar-left">
-          <button type="button" className="pipeline-editor-back" onClick={handleBack}>
-            &larr;
-          </button>
-          <input
-            className="pipeline-editor-name"
-            type="text"
-            value={name}
-            onChange={(e) => { setName(e.target.value); markDirty() }}
-            placeholder="Pipeline name"
-          />
-          <span className="pipeline-editor-badge">pipeline</span>
+    <div className={`pipeline-editor${inSidebar ? ' pipeline-editor--sidebar' : ''}`}>
+      {/* Header — hidden when inside sidebar */}
+      {!inSidebar && (
+        <div className="pipeline-editor-toolbar">
+          <div className="pipeline-editor-toolbar-left">
+            <button type="button" className="pipeline-editor-back" onClick={handleBack}>
+              &larr;
+            </button>
+            <input
+              className="pipeline-editor-name"
+              type="text"
+              value={name}
+              onChange={(e) => { setName(e.target.value); markDirty() }}
+              placeholder="Pipeline name"
+            />
+            <span className="pipeline-editor-badge">pipeline</span>
+          </div>
+          <div className="pipeline-editor-toolbar-right">
+            <button type="button" className="pipeline-editor-btn" onClick={onExport}>
+              Export YAML
+            </button>
+            <button
+              type="button"
+              className="pipeline-editor-btn pipeline-editor-btn--primary"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
         </div>
-        <div className="pipeline-editor-toolbar-right">
-          <button type="button" className="pipeline-editor-btn" onClick={onExport}>
-            Export YAML
-          </button>
-          <button
-            type="button"
-            className="pipeline-editor-btn pipeline-editor-btn--primary"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Description */}
       <div className="pipeline-editor-meta">
@@ -390,7 +403,7 @@ export function PipelineEditor({ pipeline, updateWorkflow, onBack, onExport }: P
       </div>
     </div>
   )
-}
+})
 
 // ---------------------------------------------------------------------------
 // Type-specific field components
