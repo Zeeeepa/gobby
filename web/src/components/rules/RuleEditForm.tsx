@@ -19,7 +19,6 @@ export interface RuleFormData {
   group: string
   tags: string[]
   when: string
-  match: { key: string; value: string }[]
   effect: { type: string; [key: string]: unknown }
 }
 
@@ -32,7 +31,6 @@ export const DEFAULT_RULE_FORM: RuleFormData = {
   group: '',
   tags: [],
   when: '',
-  match: [],
   effect: { type: 'block', reason: '' },
 }
 
@@ -97,19 +95,6 @@ export function RuleEditForm({
 
   const headerContent = (
     <>
-      {!readOnly && sidebarView !== 'yaml' && (
-        <div style={{ marginTop: '0.5rem' }}>
-          <label className="rule-edit-field">
-            <span className="rule-edit-label">Name *</span>
-            <input
-              className="rule-edit-input"
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              placeholder="my-rule"
-            />
-          </label>
-        </div>
-      )}
       <div className="sidebar-tab-bar">
         <button
           type="button"
@@ -159,6 +144,19 @@ export function RuleEditForm({
         <ReadOnlyView form={form} />
       ) : (
         <>
+          {/* Name */}
+          <div className="rule-edit-section">
+            <label className="rule-edit-field">
+              <span className="rule-edit-label">Name *</span>
+              <input
+                className="rule-edit-input"
+                value={form.name}
+                onChange={e => set('name', e.target.value)}
+                placeholder="my-rule"
+              />
+            </label>
+          </div>
+
           {/* Meta */}
           <div className="rule-edit-meta">
             <MetaRow label="Event">
@@ -171,14 +169,6 @@ export function RuleEditForm({
             </MetaRow>
             <MetaRow label="Group">
               <input className="rule-edit-input" value={form.group} onChange={e => set('group', e.target.value)} placeholder="(none)" />
-            </MetaRow>
-            <MetaRow label="Enabled">
-              <div className="rule-edit-toggle" onClick={() => set('enabled', !form.enabled)}>
-                <div className={`rule-edit-toggle-track ${form.enabled ? 'rule-edit-toggle-track--on' : ''}`}>
-                  <div className="rule-edit-toggle-knob" />
-                </div>
-                <span>{form.enabled ? 'On' : 'Off'}</span>
-              </div>
             </MetaRow>
           </div>
 
@@ -194,10 +184,6 @@ export function RuleEditForm({
                 placeholder='e.g. tool_name == "Edit"'
               />
             </label>
-            <div className="rule-edit-field">
-              <span className="rule-edit-label">Match (key-value)</span>
-              <MatchEditor pairs={form.match} onChange={pairs => set('match', pairs)} />
-            </div>
           </div>
 
           {/* Effect */}
@@ -270,16 +256,6 @@ function ReadOnlyView({ form }: { form: RuleFormData }) {
         <div className="rule-edit-section">
           <h4 className="rule-edit-section-title">Condition</h4>
           <code className="rule-edit-readonly-value rule-edit-mono">{form.when}</code>
-        </div>
-      )}
-      {form.match.length > 0 && (
-        <div className="rule-edit-section">
-          <h4 className="rule-edit-section-title">Match</h4>
-          {form.match.map((m, i) => (
-            <div key={i} className="rule-edit-kv-row">
-              <code className="rule-edit-readonly-value">{m.key}: {m.value}</code>
-            </div>
-          ))}
         </div>
       )}
       <div className="rule-edit-section">

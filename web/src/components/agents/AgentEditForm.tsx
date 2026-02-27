@@ -7,6 +7,7 @@ import { AgentSkillsEditor } from './AgentSkillsEditor'
 
 export interface AgentFormData {
   name: string
+  extends: string
   description: string
   role: string
   goal: string
@@ -89,6 +90,7 @@ interface AgentEditFormProps {
   pipelines?: { id: string; name: string }[]
   editSkills?: string[]
   onSkillsChange?: (skills: string[]) => void
+  agentNames?: string[]
 }
 
 function FormInput({ label, value, onChange, placeholder, required }: {
@@ -102,6 +104,24 @@ function FormInput({ label, value, onChange, placeholder, required }: {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+      />
+    </label>
+  )
+}
+
+function FormTextarea({ label, value, onChange, placeholder, rows = 3 }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number
+}) {
+  return (
+    <label className="agent-edit-field">
+      <span className="agent-edit-label">{label}</span>
+      <textarea
+        className="agent-edit-input agent-edit-textarea"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        style={{ resize: 'vertical' }}
       />
     </label>
   )
@@ -133,6 +153,7 @@ export function AgentEditForm({
   yamlContent, onYamlChange, onYamlSave,
   pipelines,
   editSkills, onSkillsChange,
+  agentNames,
 }: AgentEditFormProps) {
   const [customModelInput, setCustomModelInput] = useState(false)
   const [customBranchInput, setCustomBranchInput] = useState(false)
@@ -158,13 +179,10 @@ export function AgentEditForm({
 
   const title = readOnly ? (rd?.name || 'Agent') : (isEditing ? 'Edit Agent' : 'Create Agent')
 
+  const availableParents = (agentNames || []).filter(n => n !== form.name)
+
   const headerContent = (
     <>
-      {!readOnly && view !== 'yaml' && (
-        <div style={{ marginTop: '0.5rem' }}>
-          <FormInput label="Name" value={form.name} onChange={v => set('name', v)} placeholder="my-agent" required />
-        </div>
-      )}
       {onViewChange && (
         <div className="sidebar-tab-bar">
           <button
@@ -373,6 +391,17 @@ export function AgentEditForm({
         </>
       ) : (
         <>
+          {/* Name & Extends */}
+          <div className="agent-edit-section">
+            <FormInput label="Name" value={form.name} onChange={v => set('name', v)} placeholder="my-agent" required />
+            <MetaRow label="Extends">
+              <select className="agent-edit-input" value={form.extends} onChange={e => set('extends', e.target.value)}>
+                <option value="">(none)</option>
+                {availableParents.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </MetaRow>
+          </div>
+
           {/* Editable meta */}
           <div className="agent-edit-meta">
             <MetaRow label="Provider">
@@ -506,10 +535,10 @@ export function AgentEditForm({
           {/* Identity */}
           <div className="agent-edit-section">
             <h4 className="agent-edit-section-title">Identity</h4>
-            <FormInput label="Description" value={form.description} onChange={v => set('description', v)} placeholder="What this agent does..." />
-            <FormInput label="Role" value={form.role} onChange={v => set('role', v)} placeholder="e.g. Senior security engineer" />
-            <FormInput label="Goal" value={form.goal} onChange={v => set('goal', v)} placeholder="What success looks like..." />
-            <FormInput label="Personality" value={form.personality} onChange={v => set('personality', v)} placeholder="Communication style, tone..." />
+            <FormTextarea label="Description" value={form.description} onChange={v => set('description', v)} placeholder="What this agent does..." />
+            <FormTextarea label="Role" value={form.role} onChange={v => set('role', v)} placeholder="e.g. Senior security engineer" />
+            <FormTextarea label="Goal" value={form.goal} onChange={v => set('goal', v)} placeholder="What success looks like..." />
+            <FormTextarea label="Personality" value={form.personality} onChange={v => set('personality', v)} placeholder="Communication style, tone..." />
           </div>
 
           {/* Instructions */}

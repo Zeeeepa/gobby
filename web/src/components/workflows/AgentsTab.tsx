@@ -35,6 +35,7 @@ interface AgentDefInfo {
       variables?: Record<string, unknown>
       [key: string]: unknown
     } | null
+    extends: string | null
     lifecycle_variables: Record<string, unknown>
     default_variables: Record<string, unknown>
   }
@@ -89,7 +90,7 @@ const ISOLATION_COLORS: Record<string, string> = {
 }
 
 const DEFAULT_FORM: AgentFormData = {
-  name: '', description: '', role: '', goal: '', personality: '', instructions: '',
+  name: '', extends: '', description: '', role: '', goal: '', personality: '', instructions: '',
   provider: 'inherit', model: '', mode: 'inherit', isolation: 'inherit',
   base_branch: 'inherit', timeout: 0, max_turns: 0, pipeline: '',
 }
@@ -325,6 +326,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (createForm.personality) body.personality = createForm.personality
       if (createForm.instructions) body.instructions = createForm.instructions
       if (createForm.model) body.model = createForm.model
+      if (createForm.extends) body.extends = createForm.extends
       // Nest rules, rule_selectors, variables, pipeline under workflows
       const workflows: Record<string, unknown> = {}
       if (editRules.length > 0) workflows.rules = editRules
@@ -360,6 +362,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     const d = item.definition
     setCreateForm({
       name: d.name,
+      extends: d.extends || '',
       description: d.description || '',
       role: d.role || '',
       goal: d.goal || '',
@@ -390,6 +393,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     try {
       const body: Record<string, unknown> = {
         name: createForm.name,
+        extends: createForm.extends || null,
         description: createForm.description || null,
         role: createForm.role || null,
         goal: createForm.goal || null,
@@ -403,9 +407,12 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         timeout: createForm.timeout,
         max_turns: createForm.max_turns,
       }
-      // Include pipeline in workflows
+      // Include full workflows state
       const workflows: Record<string, unknown> = {}
       if (createForm.pipeline) workflows.pipeline = createForm.pipeline
+      if (editRules.length > 0) workflows.rules = editRules
+      if (editRuleSelectors) workflows.rule_selectors = editRuleSelectors
+      if (Object.keys(editVariables).length > 0) workflows.variables = editVariables
       if (Object.keys(workflows).length > 0) body.workflows = workflows
       // Skill profile
       body.skill_profile = editSkills.length > 0
@@ -555,44 +562,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       console.error('Failed to download agent:', e)
     }
   }, [])
-
-  const handleYamlEdit = useCallback(async (item: AgentDefInfo) => {
-    // Open sidebar with YAML tab for DB-backed agents
-    if (item.db_id) {
-      const d = item.definition
-      setCreateForm({
-        name: d.name, description: d.description || '', role: d.role || '',
-        goal: d.goal || '', personality: d.personality || '',
-        instructions: d.instructions || '', provider: d.provider,
-        model: d.model || '', mode: d.mode, isolation: d.isolation || 'inherit',
-        base_branch: d.base_branch, timeout: d.timeout, max_turns: d.max_turns,
-        pipeline: (d.workflows?.pipeline as string) || '',
-      })
-      setEditingId(item.db_id)
-      setEditRules((d.workflows?.rules as string[]) || [])
-      setEditVariables((d.workflows?.variables as Record<string, unknown>) || {})
-      setEditSkills(d.skill_profile ? Object.keys(d.skill_profile) : [])
-      // Fetch YAML content for the YAML tab
-      try {
-        const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${d.name}/export`)
-        if (res.ok) setSidebarYamlContent(await res.text())
-        else setSidebarYamlContent('')
-      } catch { setSidebarYamlContent('') }
-      setSidebarView('yaml')
-      setSelectedAgent(null)
-      onToggleCreateForm(true)
-    } else {
-      // For file-based agents, open read-only sidebar with YAML tab
-      try {
-        const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${item.definition.name}/export`)
-        if (res.ok) setSidebarYamlContent(await res.text())
-        else setSidebarYamlContent('')
-      } catch { setSidebarYamlContent('') }
-      setSelectedAgent(item)
-      setSidebarView('yaml')
-      onToggleCreateForm(false)
-    }
-  }, [onToggleCreateForm])
 
   const handleYamlSave = useCallback(async () => {
     if (!yamlAgent) return
@@ -921,7 +890,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                               {installedNames.has(d.name)
                                 ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
                                 : <button type="button" className="workflows-action-btn" onClick={() => handleInstallFromTemplate(d.name)} title="Create an installed copy">Install</button>}
-                              <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
                               <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(item)} title="Duplicate" aria-label="Duplicate agent">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
                               </button>
@@ -956,7 +924,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                           {item.source === 'project' && item.db_id && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(item)} title="Move to global scope">To Global</button>
                           )}
-                          <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(item)} title="Edit as YAML">YAML</button>
                           <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(item)} title="Duplicate" aria-label="Duplicate agent">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
                           </button>
@@ -1031,6 +998,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         pipelines={pipelineList}
         editSkills={editSkills}
         onSkillsChange={setEditSkills}
+        agentNames={definitions.filter(d => !d.deleted_at).map(d => d.definition.name)}
       />
     </div>
   )

@@ -22,7 +22,6 @@ function detailToForm(detail: RuleDetail): RuleFormData {
     group: detail.group || '',
     tags: detail.tags || [],
     when: detail.when || '',
-    match: detail.match ? Object.entries(detail.match).map(([key, value]) => ({ key, value: String(value) })) : [],
     effect: (detail.effect as RuleFormData['effect']) || { type: 'block', reason: '' },
   }
 }
@@ -37,11 +36,6 @@ function formToDefinition(form: RuleFormData): Record<string, unknown> {
   if (form.group) def.group = form.group
   if (form.when) def.when = form.when
   if (form.tags.length > 0) def.tags = form.tags
-  if (form.match.length > 0) {
-    const matchObj: Record<string, string> = {}
-    for (const m of form.match) if (m.key.trim()) matchObj[m.key] = m.value
-    def.match = matchObj
-  }
   def.effect = form.effect
   return def
 }
@@ -174,7 +168,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
         const obj: Record<string, unknown> = { name: detail.name, event: detail.event, priority: detail.priority }
         if (detail.description) obj.description = detail.description
         if (detail.when) obj.when = detail.when
-        if (detail.match) obj.match = detail.match
         if (detail.effect) obj.effect = detail.effect
         if (detail.tags && detail.tags.length > 0) obj.tags = detail.tags
         if (detail.group) obj.group = detail.group
@@ -193,7 +186,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
   }, [fetchRuleDetail])
 
   const handleCardClick = useCallback((rule: RuleSummary) => openSidebar(rule, 'form'), [openSidebar])
-  const handleYamlEdit = useCallback((rule: RuleSummary) => openSidebar(rule, 'yaml'), [openSidebar])
 
   const handleFormSave = useCallback(async () => {
     if (!sidebarRule) return
@@ -252,7 +244,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     if (detail.event) definition.event = detail.event
     if (detail.description) definition.description = detail.description
     if (detail.when) definition.when = detail.when
-    if (detail.match) definition.match = detail.match
     if (detail.effect) definition.effect = detail.effect
     if (detail.tags && detail.tags.length > 0) definition.tags = detail.tags
     if (detail.group) definition.group = detail.group
@@ -271,7 +262,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
     if (detail.description) obj.description = detail.description
     if (detail.when) obj.when = detail.when
-    if (detail.match) obj.match = detail.match
     if (detail.effect) obj.effect = detail.effect
     if (detail.tags && detail.tags.length > 0) obj.tags = detail.tags
     if (detail.group) obj.group = detail.group
@@ -341,7 +331,6 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
                 onCardClick={() => handleCardClick(rule)}
                 onToggle={() => handleToggle(rule)}
                 onDelete={() => handleDelete(rule)}
-                onYamlEdit={() => handleYamlEdit(rule)}
                 onDuplicate={() => handleDuplicate(rule)}
                 onDownload={() => handleDownload(rule)}
                 isInstalled={installedNames.has(rule.name)}
@@ -386,7 +375,7 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle, onDelete, onYamlEdit, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
+function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle, onDelete, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
   rule: RuleSummary
   devMode: boolean
   projectId?: string
@@ -394,7 +383,6 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle
   onCardClick: () => void
   onToggle: () => void
   onDelete: () => void
-  onYamlEdit: () => void
   onDuplicate: () => void
   onDownload: () => void
   onInstall: () => void
@@ -443,7 +431,6 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle
                       ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
                       : <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
                   )}
-                  <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
                   <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
                   </button>
@@ -487,7 +474,6 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle
               {rule.source === 'project' && (
                 <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onMoveToGlobal() }} title="Move to global scope">To Global</button>
               )}
-              <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onYamlEdit() }} title="Edit as YAML">YAML</button>
               <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
               </button>

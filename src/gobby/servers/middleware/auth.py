@@ -7,7 +7,7 @@ protects UI routes and their backing API endpoints. It does NOT protect:
 - /api/hooks/* (CLI agent hooks)
 - /api/sessions/* (CLI agent session endpoints)
 - /api/mcp/* (MCP protocol endpoints)
-- /api/admin/* (admin endpoints)
+- /api/admin/health, /api/admin/status, /api/admin/metrics, /api/admin/config (read-only admin)
 - /assets/* (static assets)
 - WebSocket connections (agents need open access)
 
@@ -34,7 +34,10 @@ _PUBLIC_PREFIXES = (
     "/api/sessions/",
     "/api/mcp/",
     "/api/mcp",
-    "/api/admin/",
+    "/api/admin/health",
+    "/api/admin/status",
+    "/api/admin/metrics",
+    "/api/admin/config",
     "/assets/",
     "/ws/",
     "/ws",

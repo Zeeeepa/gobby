@@ -3,6 +3,7 @@ description: Minimal agent restricted to pipeline execution via rule enforcement
 extends: default
 mode: terminal
 provider: inherit
+isolation: none
 timeout: 300
 
 role: >
@@ -22,10 +23,6 @@ instructions: |
   Do not attempt to use any tools besides MCP discovery and call_tool.
 
 workflows:
-  rules:
-    - pipeline-enforce-tools
-    - pipeline-restrict-call-tool
-    - pipeline-inject-instructions
   rule_selectors:
     include:
       - "tag:gobby"

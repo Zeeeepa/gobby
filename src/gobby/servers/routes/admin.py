@@ -583,12 +583,24 @@ for _ in range(300):
     except ProcessLookupError:
         break
 else:
-    # Force kill if still running
+    # Graceful stop: SIGTERM first, then SIGKILL after 5s
     try:
-        os.kill(pid, signal.SIGKILL)
-        time.sleep(0.5)
+        os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
         pass
+    else:
+        for _ in range(50):  # 5s grace
+            try:
+                os.kill(pid, 0)
+                time.sleep(0.1)
+            except ProcessLookupError:
+                break
+        else:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                time.sleep(0.5)
+            except ProcessLookupError:
+                pass
 
 # Wait for port release
 time.sleep(2.0)
@@ -605,9 +617,8 @@ except FileNotFoundError:
 import json
 log_dir = os.path.join(gobby_home, "logs")
 os.makedirs(log_dir, exist_ok=True)
-log_file = open(os.path.join(log_dir, "gobby-client.log"), "a")
-err_file = open(os.path.join(log_dir, "gobby-client-error.log"), "a")
-try:
+with open(os.path.join(log_dir, "gobby-client.log"), "a") as log_file, \
+     open(os.path.join(log_dir, "gobby-client-error.log"), "a") as err_file:
     proc = subprocess.Popen(
         [python, "-m", "gobby.runner"],
         stdout=log_file, stderr=err_file,
@@ -615,11 +626,8 @@ try:
         start_new_session=True,
         env=os.environ.copy(),
     )
-    with open(pid_file, "w") as f:
-        f.write(str(proc.pid))
-finally:
-    log_file.close()
-    err_file.close()
+with open(pid_file, "w") as f:
+    f.write(str(proc.pid))
 """
             # Spawn the restarter as a fully detached subprocess
             subprocess.Popen(  # nosec B603
