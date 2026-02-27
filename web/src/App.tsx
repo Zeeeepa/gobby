@@ -619,22 +619,49 @@ export default function App() {
 
   /* Navigate to Terminals tab and attach agent's tmux session */
   const handleNavigateToAgent = useCallback(
-    (agent: { run_id: string; tmux_session_name?: string }) => {
-      if (!agent.tmux_session_name) return;
-      // Verify the tmux session still exists before navigating
-      const sessionExists = tmux.sessions.some(
-        (s) => s.name === agent.tmux_session_name,
-      );
-      if (!sessionExists) {
-        // Agent's session is gone — refresh agent list to clear stale entries and notify user
-        refreshAgents();
-        showToast("Agent session has ended");
-        return;
+    (agent: { run_id: string; session_id?: string; mode?: string; tmux_session_name?: string }) => {
+      if (agent.tmux_session_name) {
+        // Verify the tmux session still exists before navigating
+        const sessionExists = tmux.sessions.some(
+          (s) => s.name === agent.tmux_session_name,
+        );
+        if (!sessionExists) {
+          // Agent's session is gone — refresh agent list to clear stale entries and notify user
+          refreshAgents();
+          showToast("Agent session has ended");
+          return;
+        }
+        setActiveTab("terminals");
+        tmux.attachSession(agent.tmux_session_name, "gobby");
+      } else if (agent.session_id) {
+        // Non-tmux agent — view its child session read-only in chat
+        setActiveTab("chat");
+        viewSession(agent.session_id);
+      } else {
+        showToast("Agent has no viewable session");
       }
-      setActiveTab("terminals");
-      tmux.attachSession(agent.tmux_session_name, "gobby");
     },
-    [tmux, refreshAgents, showToast],
+    [tmux, refreshAgents, showToast, viewSession],
+  );
+
+  /* Kill a running agent via the cancel endpoint */
+  const handleKillAgent = useCallback(
+    async (runId: string) => {
+      try {
+        const res = await fetch(
+          `/api/agents/runs/${encodeURIComponent(runId)}/cancel`,
+          { method: "POST" },
+        );
+        if (res.ok) {
+          showToast("Agent cancelled");
+        } else {
+          showToast("Failed to cancel agent");
+        }
+      } catch {
+        showToast("Failed to cancel agent");
+      }
+    },
+    [showToast],
   );
 
   /* "Ask Gobby about this session" from Sessions page */
@@ -947,6 +974,7 @@ export default function App() {
                 onRenameSession: sessionsHook.renameSession,
                 agents,
                 onNavigateToAgent: handleNavigateToAgent,
+                onKillAgent: handleKillAgent,
                 // cliSessions hidden — agent-spawned terminals bleed into list (#9219).
                 // Backend code intact; re-enable by uncommenting and passing cliSessions.
                 // See commits: 65433c67, 401f2751, 206b27d1, 2769d980, 46ad405b

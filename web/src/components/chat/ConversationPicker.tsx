@@ -10,6 +10,7 @@ interface AgentInfo {
   pid?: number;
   mode?: string;
   started_at?: string;
+  session_id?: string;
   tmux_session_name?: string;
 }
 
@@ -23,6 +24,7 @@ interface ConversationPickerProps {
   onRenameSession?: (id: string, title: string) => void;
   agents?: AgentInfo[];
   onNavigateToAgent?: (agent: AgentInfo) => void;
+  onKillAgent?: (runId: string) => void;
   cliSessions?: GobbySession[];
   viewingSessionId?: string | null;
   attachedSessionId?: string | null;
@@ -65,6 +67,7 @@ export function ConversationPicker({
   onRenameSession,
   agents = [],
   onNavigateToAgent,
+  onKillAgent,
   cliSessions = [],
   viewingSessionId,
   onViewCliSession,
@@ -295,6 +298,19 @@ export function ConversationPicker({
                     <span className="session-pid">
                       <AgentUptime startedAt={agent.started_at} />
                     </span>
+                    {onKillAgent && (
+                      <button
+                        type="button"
+                        className="session-delete-btn"
+                        title="Kill agent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onKillAgent(agent.run_id);
+                        }}
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

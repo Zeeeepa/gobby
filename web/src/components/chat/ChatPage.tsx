@@ -146,6 +146,7 @@ export function ChatPage({
         onRenameSession={conversations.onRenameSession}
         agents={conversations.agents}
         onNavigateToAgent={conversations.onNavigateToAgent}
+        onKillAgent={conversations.onKillAgent}
         cliSessions={conversations.cliSessions}
         viewingSessionId={conversations.viewingSessionId}
         attachedSessionId={conversations.attachedSessionId}

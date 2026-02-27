@@ -147,8 +147,11 @@ export interface ConversationState {
   }>;
   onNavigateToAgent: (agent: {
     run_id: string;
+    session_id?: string;
+    mode?: string;
     tmux_session_name?: string;
   }) => void;
+  onKillAgent?: (runId: string) => void;
   cliSessions?: GobbySession[];
   viewingSessionId?: string | null;
   attachedSessionId?: string | null;
