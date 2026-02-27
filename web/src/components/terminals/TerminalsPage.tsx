@@ -490,6 +490,16 @@ function TerminalView({
     terminal.loadAddon(fitAddon)
 
     terminal.open(containerRef.current)
+
+    // Suppress iOS QuickType/autofill bar and Android autofill above keyboard
+    if (terminal.textarea) {
+      terminal.textarea.setAttribute('autocomplete', 'off')
+      terminal.textarea.setAttribute('autocorrect', 'off')
+      terminal.textarea.setAttribute('autocapitalize', 'off')
+      terminal.textarea.setAttribute('spellcheck', 'false')
+      terminal.textarea.setAttribute('data-form-type', 'other')
+    }
+
     requestAnimationFrame(() => {
       fitAddon.fit()
     })
