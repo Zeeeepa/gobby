@@ -330,12 +330,12 @@ class RuleEngine:
             self._apply_set_variable(effect, variables, ctx)
 
         elif effect.type == "inject_context":
-            # NOTE: inject_context templates render with rule evaluation context only
-            # (event, variables, helper functions). They do NOT resolve session data
-            # sources like summary_markdown or compact_markdown. For session data
-            # injection, use backend handler code (see _session.py handle_session_start).
-            # Rules with {{ summary }} or {{ handoff }} will render empty without
-            # a source: field, which the rule engine does not currently support.
+            # NOTE: inject_context templates render with rule evaluation context:
+            # event, variables (flattened to top-level), and helper functions.
+            # Session data (summary_markdown, compact_markdown, task_context) is
+            # populated as session variables by the SESSION_START handler before
+            # rules evaluate, making them available as {{ full_session_summary }},
+            # {{ compact_session_summary }}, {{ task_context }} in templates.
             if effect.template:
                 template_text = self._render_template(effect.template, ctx, allowed_funcs)
                 context_parts.append(template_text)

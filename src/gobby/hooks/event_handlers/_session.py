@@ -296,22 +296,32 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if agent_result and agent_result.context:
             additional_context.append(agent_result.context)
 
-        # Inject handoff context for clear/compact (backend plumbing, replaces broken rule templates)
-        if parent_session_id and self._session_storage:
-            parent = self._session_storage.get(parent_session_id)
-            if parent:
-                if session_source == "clear" and parent.summary_markdown:
-                    additional_context.append(
-                        "## Previous Session Context\n"
-                        "*Injected by Gobby session handoff*\n\n"
-                        + parent.summary_markdown
-                    )
-                elif session_source == "compact" and parent.compact_markdown:
-                    additional_context.append(
-                        "## Continuation Context\n"
-                        "*Injected by Gobby compact handoff*\n\n"
-                        + parent.compact_markdown
-                    )
+        # Populate handoff session variables for inject_context rule templates
+        if parent_session_id and session_id and self._session_storage:
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            sv_mgr = SessionVariableManager(self._session_storage.db)
+            current_vars = sv_mgr.get_variables(session_id)
+            if current_vars.get("auto_inject_handoff", True):
+                parent = self._session_storage.get(parent_session_id)
+                if parent:
+                    handoff_vars: dict[str, Any] = {}
+                    if session_source == "clear" and parent.summary_markdown:
+                        handoff_vars["full_session_summary"] = parent.summary_markdown
+                    elif session_source == "compact" and parent.compact_markdown:
+                        handoff_vars["compact_session_summary"] = parent.compact_markdown
+                    if handoff_vars:
+                        sv_mgr.merge_variables(session_id, handoff_vars)
+
+        # Populate task_context session variable for inject_context rule templates
+        if event.task_id and session_id and self._session_storage:
+            task_title = event.metadata.get("_task_title", "Unknown Task")
+            task_context_str = f"You are working on task: {task_title} ({event.task_id})"
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            SessionVariableManager(self._session_storage.db).merge_variables(
+                session_id, {"task_context": task_context_str}
+            )
 
         if event.task_id:
             task_title = event.metadata.get("_task_title", "Unknown Task")
