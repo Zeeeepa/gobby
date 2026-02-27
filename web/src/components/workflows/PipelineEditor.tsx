@@ -36,11 +36,11 @@ function wrapTemplateExpr(s: string): string {
 }
 
 function detectStepType(step: PipelineStep): StepType {
-  if (step.exec !== undefined) return 'exec'
-  if (step.prompt !== undefined) return 'prompt'
-  if (step.mcp !== undefined) return 'mcp'
-  if (step.invoke_pipeline !== undefined) return 'invoke_pipeline'
-  if (step.activate_workflow !== undefined) return 'activate_workflow'
+  if (step.exec != null) return 'exec'
+  if (step.prompt != null) return 'prompt'
+  if (step.mcp != null) return 'mcp'
+  if (step.invoke_pipeline != null) return 'invoke_pipeline'
+  if (step.activate_workflow != null) return 'activate_workflow'
   return 'exec'
 }
 
@@ -56,10 +56,12 @@ function getStepPreview(step: PipelineStep): string {
   else if (type === 'mcp') {
     const mcp = step.mcp as Record<string, unknown> | undefined
     preview = mcp ? `${mcp.server ?? ''}/${mcp.tool ?? ''}` : ''
-  } else if (type === 'invoke_pipeline') preview = (step.invoke_pipeline as string) ?? ''
-  else if (type === 'activate_workflow') {
+  } else if (type === 'invoke_pipeline') {
+    const ip = step.invoke_pipeline
+    preview = typeof ip === 'string' ? ip : (ip as Record<string, unknown>)?.name as string ?? ''
+  } else if (type === 'activate_workflow') {
     const aw = step.activate_workflow as Record<string, unknown> | undefined
-    preview = (aw?.workflow as string) ?? ''
+    preview = (aw?.name as string) ?? ''
   }
   return preview.length > 60 ? preview.slice(0, 57) + '...' : preview
 }
@@ -75,7 +77,7 @@ function createDefaultStep(type: StepType, existingIds: string[]): PipelineStep 
   else if (type === 'prompt') step.prompt = ''
   else if (type === 'mcp') step.mcp = { server: '', tool: '', arguments: {} }
   else if (type === 'invoke_pipeline') step.invoke_pipeline = ''
-  else if (type === 'activate_workflow') step.activate_workflow = { workflow: '' }
+  else if (type === 'activate_workflow') step.activate_workflow = { name: '', session_id: '' }
   return step
 }
 
@@ -191,7 +193,7 @@ export const PipelineEditor = forwardRef<PipelineEditorHandle, PipelineEditorPro
           else if (newType === 'prompt') cleaned.prompt = ''
           else if (newType === 'mcp') cleaned.mcp = { server: '', tool: '', arguments: {} }
           else if (newType === 'invoke_pipeline') cleaned.invoke_pipeline = ''
-          else if (newType === 'activate_workflow') cleaned.activate_workflow = { workflow: '' }
+          else if (newType === 'activate_workflow') cleaned.activate_workflow = { name: '', session_id: '' }
           return cleaned
         }),
       )
@@ -481,16 +483,40 @@ function McpFields({ step, onChange }: { step: PipelineStep; onChange: (u: Parti
 }
 
 function InvokePipelineFields({ step, onChange }: { step: PipelineStep; onChange: (u: Partial<PipelineStep>) => void }) {
+  const raw = step.invoke_pipeline
+  const isObject = typeof raw === 'object' && raw !== null
+  const name = isObject ? ((raw as Record<string, unknown>).name as string) ?? '' : (raw as string) ?? ''
+  const args = isObject ? ((raw as Record<string, unknown>).arguments as Record<string, string>) ?? {} : {}
+  const argPairs: KVPair[] = Object.entries(args).map(([key, value]) => ({ key, value: String(value) }))
+
+  const setName = (n: string) => {
+    if (isObject || argPairs.length > 0) {
+      onChange({ invoke_pipeline: { ...(isObject ? raw : {}), name: n } })
+    } else {
+      onChange({ invoke_pipeline: n })
+    }
+  }
+
+  const setArgs = (pairs: KVPair[]) => {
+    const obj: Record<string, string> = {}
+    for (const p of pairs) if (p.key.trim()) obj[p.key] = p.value
+    if (Object.keys(obj).length === 0 && !isObject) {
+      return
+    }
+    onChange({ invoke_pipeline: { name, arguments: obj } })
+  }
+
   return (
-    <div className="pipeline-editor-field">
-      <label>Pipeline Name</label>
-      <input
-        type="text"
-        value={(step.invoke_pipeline as string) ?? ''}
-        onChange={(e) => onChange({ invoke_pipeline: e.target.value })}
-        placeholder="pipeline-name"
-      />
-    </div>
+    <>
+      <div className="pipeline-editor-field">
+        <label>Pipeline Name</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="pipeline-name" />
+      </div>
+      <div className="pipeline-editor-field">
+        <label>Arguments</label>
+        <KeyValueEditor pairs={argPairs} onChange={setArgs} />
+      </div>
+    </>
   )
 }
 
@@ -516,8 +542,8 @@ function ActivateWorkflowFields({ step, onChange }: { step: PipelineStep; onChan
         <label>Workflow Name</label>
         <input
           type="text"
-          value={(aw.workflow as string) ?? ''}
-          onChange={(e) => setAwField('workflow', e.target.value)}
+          value={(aw.name as string) ?? ''}
+          onChange={(e) => setAwField('name', e.target.value)}
         />
       </div>
       <div className="pipeline-editor-field">
