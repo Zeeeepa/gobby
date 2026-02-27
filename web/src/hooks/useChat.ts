@@ -1827,6 +1827,12 @@ export function useChat() {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     if (!planContentRef.current) return;
     pendingPlanExecutionRef.current = true;
+    // Eagerly clear approval UI to prevent ghost flash when artifact panel closes
+    setPlanPendingApproval(false);
+    planContentRef.current = null;
+    // Optimistically switch mode out of plan (WS mode_changed will confirm/correct)
+    currentModeRef.current = "accept_edits";
+    onModeChangedRef.current?.("accept_edits");
     wsRef.current.send(
       JSON.stringify({
         type: "plan_approval_response",
@@ -1834,15 +1840,15 @@ export function useChat() {
         decision: "approve",
       }),
     );
-    // Don't eagerly clear — let mode_changed be the single source of truth.
-    // The pendingPlanExecutionRef flag is consumed by the mode_changed handler
-    // to auto-send a "proceed" message once the backend confirms the switch.
   }, []);
 
   // Request changes to the plan with feedback
   const requestPlanChanges = useCallback((feedback: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     if (!planContentRef.current) return;
+    // Eagerly clear approval UI to prevent ghost flash when artifact panel closes
+    setPlanPendingApproval(false);
+    planContentRef.current = null;
     wsRef.current.send(
       JSON.stringify({
         type: "plan_approval_response",
@@ -1851,7 +1857,6 @@ export function useChat() {
         feedback,
       }),
     );
-    // Don't eagerly clear — let mode_changed be the single source of truth
   }, []);
 
   // View a CLI session (read-only, no WS subscription — loads via REST)
