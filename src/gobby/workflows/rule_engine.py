@@ -109,7 +109,6 @@ class RuleEngine:
             variables["tool_block_pending"] = False
             variables["pre_existing_errors_triaged"] = False
             variables["stop_attempts"] = 0
-            variables["awaiting_tool_use"] = True
 
         # Auto-increment stop attempts (universal — not configurable)
         if rule_event == RuleEvent.STOP:
@@ -157,7 +156,6 @@ class RuleEngine:
                         variables["tool_block_pending"] = False
                         variables["consecutive_tool_blocks"] = 0
                         variables["_last_blocked_tool"] = ""
-                    variables["awaiting_tool_use"] = False
             return HookResponse(decision="allow")
 
         # Auto-manage tool_block_pending on after_tool before rule eval
@@ -174,7 +172,6 @@ class RuleEngine:
                     variables["tool_block_pending"] = False
                     variables["consecutive_tool_blocks"] = 0
                     variables["_last_blocked_tool"] = ""
-                variables["awaiting_tool_use"] = False
 
         # 5. Evaluate rules in priority order
         context_parts: list[str] = []
@@ -477,7 +474,6 @@ class RuleEngine:
         tool_output = str(event.data.get("tool_output", "")).lower()
         if any(p in tool_output for p in self._CATASTROPHIC_PATTERNS):
             variables["force_allow_stop"] = True
-            variables["awaiting_tool_use"] = False
 
     def _evaluate_condition(
         self,
