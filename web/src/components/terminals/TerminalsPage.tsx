@@ -274,8 +274,10 @@ export function TerminalsPage({
             }}>Redraw</button>
             <button onClick={() => sendInput('\x1b')}>Esc</button>
             <button onClick={() => sendInput('\t')}>Tab</button>
-            <button onClick={() => sendInput('\x03')}>Ctrl+C</button>
-            <button onClick={() => sendInput('\x04')}>Ctrl+D</button>
+            <button onClick={() => sendInput('\x1b[Z')}>⇧Tab</button>
+            <button onClick={() => sendInput('\n')}>⇧Enter</button>
+            <button onClick={() => sendInput('\x03')}>^C</button>
+            <button onClick={() => sendInput('\x04')}>^D</button>
             <button onClick={() => sendInput('\x1b[A')}>&uarr;</button>
             <button onClick={() => sendInput('\x1b[B')}>&darr;</button>
             <button onClick={() => sendInput('\x1b[D')}>&larr;</button>
