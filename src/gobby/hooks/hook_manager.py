@@ -658,8 +658,6 @@ class HookManager:
             # Inject event context into arguments
             if "session_id" not in arguments:
                 arguments["session_id"] = event.metadata.get("_platform_session_id", "")
-            if "prompt_text" not in arguments:
-                arguments["prompt_text"] = event.data.get("prompt") if event.data else None
 
             async def _call(s: str, t: str, args: dict[str, Any]) -> None:
                 try:
@@ -667,7 +665,12 @@ class HookManager:
                     if not proxy:
                         self.logger.warning("_dispatch_mcp_calls: tool_proxy_getter returned None")
                         return
-                    await proxy.call_tool(s, t, args)
+                    result = await proxy.call_tool(s, t, args)
+                    if isinstance(result, dict) and result.get("success") is False:
+                        self.logger.warning(
+                            "_dispatch_mcp_calls: %s/%s returned failure: %s",
+                            s, t, result.get("error", "unknown"),
+                        )
                 except Exception as exc:
                     self.logger.error(
                         "_dispatch_mcp_calls: %s/%s failed: %s", s, t, exc, exc_info=True

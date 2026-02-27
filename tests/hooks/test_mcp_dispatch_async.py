@@ -31,7 +31,7 @@ class TestContextInjection:
     """Tests for event context injection into call arguments."""
 
     @pytest.mark.asyncio
-    async def test_injects_session_id_and_prompt_text(self) -> None:
+    async def test_injects_session_id(self) -> None:
         call_tool = AsyncMock()
         event = _make_event(platform_session_id="plat-123", prompt="Hello")
 
@@ -45,7 +45,7 @@ class TestContextInjection:
         call_tool.assert_called_once()
         args = call_tool.call_args[0][2]
         assert args["session_id"] == "plat-123"
-        assert args["prompt_text"] == "Hello"
+        assert "prompt_text" not in args
         assert args["limit"] == 5
 
     @pytest.mark.asyncio

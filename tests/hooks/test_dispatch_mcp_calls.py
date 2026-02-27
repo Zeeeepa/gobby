@@ -84,8 +84,8 @@ class TestDispatchMcpCallsGuards:
 class TestDispatchMcpCallsContextInjection:
     """Tests for event context injection into call arguments."""
 
-    def test_injects_session_id_and_prompt_text(self) -> None:
-        """session_id and prompt_text are injected from event when not in arguments."""
+    def test_injects_session_id(self) -> None:
+        """session_id is injected from event when not in arguments."""
         proxy = AsyncMock()
         stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy)
         event = _make_event(platform_session_id="plat-123", prompt="Hello world")
@@ -112,7 +112,7 @@ class TestDispatchMcpCallsContextInjection:
                 args = proxy.call_tool.call_args
                 actual_args = args[0][2] if len(args[0]) > 2 else args.kwargs.get("arguments", {})
                 assert actual_args["session_id"] == "plat-123"
-                assert actual_args["prompt_text"] == "Hello world"
+                assert "prompt_text" not in actual_args
                 assert actual_args["limit"] == 20
         finally:
             loop.close()
