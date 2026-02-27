@@ -66,7 +66,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
           </div>
         )}
 
-        {message.thinkingContent && (
+        {message.thinkingContent !== undefined && (
           <ThinkingBlock content={message.thinkingContent} messageId={message.id} />
         )}
 
