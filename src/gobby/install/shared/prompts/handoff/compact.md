@@ -13,7 +13,7 @@ optional_variables:
 You are creating a session continuation summary after a compaction event.
 Compact summaries are for in-session continuity. Be MORE detailed than session-end summaries.
 Preserve exact error messages verbatim, not paraphrases.
-Keep total response under 2000 words.
+Keep total response under 1500 words.
 
 ## Ground Truth: Structured Data
 

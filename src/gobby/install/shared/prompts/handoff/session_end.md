@@ -12,7 +12,7 @@ optional_variables:
 You are generating a session summary for a future AI agent to resume work. Be precise.
 Reference specific file names, function names, error messages, and commit SHAs.
 Do NOT use vague phrases like "various improvements", "several fixes", "continued work on".
-Keep total response under 1500 words.
+Keep total response under 2000 words.
 
 ## Ground Truth: Structured Data
 
