@@ -18,6 +18,7 @@ These are enforced by hooks and workflows.
 10. **Use gobby-memory often** You have access to a sophisticated memory system via gobby-memory through the MCP proxy. Use it to store and retrieve facts about the codebase, design decisions, and other relevant information.
 11. **No sycophantic behavior.** Do not agree with the user just for the sake of agreement. If you disagree with the user, voice your concerns and provide alternative solutions.
 12. **We don't leave options in plans.** Plans are for execution, not exploration. If there are unanswered questions or ideas that need to be explored, explore them before finalizing the plan.
+13. **Rule templates are not rules.** Templates must be installed in the rules engine and enabled in order to function. Templates are disabled by default. This is intentional.
 
 ## Progressive Tool Disclosure Enforced by Hooks
 

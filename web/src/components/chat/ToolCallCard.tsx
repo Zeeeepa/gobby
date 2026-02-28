@@ -33,6 +33,83 @@ function formatToolName(fullName: string): string {
   return parts[parts.length - 1] || fullName
 }
 
+function truncStr(str: string | undefined | null, max: number): string | null {
+  if (!str) return null
+  return str.length > max ? str.slice(0, max - 1) + '\u2026' : str
+}
+
+function pathBasename(path: string): string {
+  const parts = path.split('/')
+  return parts[parts.length - 1] || path
+}
+
+const FILE_TOOLS = new Set(['Read', 'Write', 'Edit'])
+const COMPACT_HEADER_TOOLS = new Set(['Read', 'Bash', 'Grep', 'Glob', 'list_mcp_servers', 'ExitPlanMode'])
+
+function getToolSummary(call: ToolCall): string | null {
+  const args = call.arguments || {}
+  const name = formatToolName(call.tool_name)
+
+  switch (name) {
+    case 'Read':
+    case 'Write':
+    case 'Edit':
+      return (args.file_path as string) || null
+
+    case 'Bash':
+      return truncStr(args.command as string, 80)
+
+    case 'Grep': {
+      const pattern = args.pattern as string
+      const path = args.path as string
+      if (!pattern) return null
+      return path ? `"${pattern}" in ${path}` : `"${pattern}"`
+    }
+
+    case 'Glob':
+      return (args.pattern as string) || null
+
+    case 'Task': {
+      const agentType = args.subagent_type as string
+      const desc = args.description as string
+      if (!agentType) return null
+      return desc ? `${agentType} (${truncStr(desc, 40)})` : agentType
+    }
+
+    case 'WebFetch':
+      return truncStr(args.url as string, 60)
+
+    case 'WebSearch':
+      return args.query ? `"${truncStr(args.query as string, 60)}"` : null
+
+    case 'list_mcp_servers':
+    case 'ExitPlanMode':
+      return null
+
+    case 'list_tools':
+      return (args.server_name as string) || null
+
+    case 'get_tool_schema':
+    case 'call_tool': {
+      const server = args.server_name as string
+      const tool = args.tool_name as string
+      return server && tool ? `${server}.${tool}` : null
+    }
+
+    case 'recommend_tools':
+      return args.task_description ? `"${truncStr(args.task_description as string, 60)}"` : null
+
+    case 'search_tools':
+      return args.query ? `"${truncStr(args.query as string, 60)}"` : null
+
+    default:
+      if (call.server_name && call.server_name !== 'builtin') {
+        return `${call.server_name}.${name}`
+      }
+      return null
+  }
+}
+
 // --- Tool call grouping types and logic ---
 
 export interface ToolCallGroup {
@@ -380,6 +457,9 @@ function ToolResultContent({ call }: { call: ToolCall }) {
 const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
   const [expanded, setExpanded] = useState(true)
   const displayName = formatToolName(call.tool_name)
+  const summary = useMemo(() => getToolSummary(call), [call])
+  const isCompact = summary !== null && COMPACT_HEADER_TOOLS.has(displayName)
+  const isFileHeader = FILE_TOOLS.has(displayName)
 
   if (call.tool_name === 'render_surface') {
     return <CanvasSurfaceCard call={call} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
@@ -408,7 +488,14 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
       >
         <StatusIcon status={call.status} />
         <span className="font-mono text-foreground">{displayName}</span>
-        <span className="text-muted-foreground text-xs">{call.server_name}</span>
+        {summary && isFileHeader ? (
+          <>
+            <span className="text-muted-foreground text-xs truncate hidden sm:inline">{summary}</span>
+            <span className="text-muted-foreground text-xs truncate sm:hidden">{pathBasename(summary)}</span>
+          </>
+        ) : summary ? (
+          <span className="text-muted-foreground text-xs truncate max-w-[12rem] sm:max-w-[24rem]">{summary}</span>
+        ) : null}
         <div className="flex-1" />
         {hasDetails && (
           <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
@@ -416,7 +503,7 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
       </div>
       {expanded && hasDetails && (
         <div className="border-t border-border px-3 py-2 text-xs space-y-2">
-          {call.arguments && Object.keys(call.arguments).length > 0 && (
+          {call.arguments && Object.keys(call.arguments).length > 0 && !isCompact && (
             <ToolArgumentsContent args={call.arguments} />
           )}
           {call.status === 'completed' && call.result !== undefined && (
@@ -711,7 +798,7 @@ function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondTo
         <GroupStatusIcon hasErrors={group.hasErrors} allCompleted={group.allCompleted} hasInFlight={group.hasInFlight} />
         <span className="font-mono text-foreground">{group.displayName}</span>
         <Badge variant="default">×{group.calls.length}</Badge>
-        {serverName && <span className="text-muted-foreground text-xs">{serverName}</span>}
+        {serverName && serverName !== 'builtin' && <span className="text-muted-foreground text-xs">{serverName}</span>}
         <div className="flex-1" />
         <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
       </div>
