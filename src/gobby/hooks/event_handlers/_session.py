@@ -846,11 +846,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
             # Build tree nodes: description, role, goal, task, rules, variables, skills
             tree_nodes: list[str] = []
             if agent_info.description:
-                tree_nodes.append(f"Description: {agent_info.description}")
+                tree_nodes.append(f"Description: {agent_info.description.strip()}")
             if agent_info.role:
-                tree_nodes.append(f"Role: {agent_info.role}")
+                tree_nodes.append(f"Role: {agent_info.role.strip()}")
             if agent_info.goal:
-                tree_nodes.append(f"Goal: {agent_info.goal}")
+                tree_nodes.append(f"Goal: {agent_info.goal.strip()}")
             # Current task (inside agent tree, with claimed/assigned indicator)
             if task_id and self._task_manager:
                 try:
