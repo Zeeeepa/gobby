@@ -112,8 +112,11 @@ class TestDispatchMcpCallsContextInjection:
                 args = proxy.call_tool.call_args
                 actual_args = args[0][2] if len(args[0]) > 2 else args.kwargs.get("arguments", {})
                 assert actual_args["session_id"] == "plat-123"
-                assert "prompt_text" not in actual_args
+                assert actual_args["prompt_text"] == "Hello world"
                 assert actual_args["limit"] == 20
+                # Verify strip_unknown=True is passed to proxy
+                call_kwargs = proxy.call_tool.call_args.kwargs
+                assert call_kwargs.get("strip_unknown") is True
         finally:
             loop.close()
 

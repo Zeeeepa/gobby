@@ -61,6 +61,8 @@ async def dispatch_mcp_calls(
         # Inject event context into arguments
         if "session_id" not in arguments:
             arguments["session_id"] = event.metadata.get("_platform_session_id", "")
+        if "prompt_text" not in arguments:
+            arguments["prompt_text"] = event.data.get("prompt") if event.data else None
 
         if background:
             asyncio.create_task(_safe_call(call_tool_fn, server, tool, arguments, logger))

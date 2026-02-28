@@ -45,7 +45,7 @@ class TestContextInjection:
         call_tool.assert_called_once()
         args = call_tool.call_args[0][2]
         assert args["session_id"] == "plat-123"
-        assert "prompt_text" not in args
+        assert args["prompt_text"] == "Hello"
         assert args["limit"] == 5
 
     @pytest.mark.asyncio
