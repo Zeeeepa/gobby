@@ -143,7 +143,6 @@ def register_handoff_tools(
         # --- Automated fallback ---
         import json
         import subprocess  # nosec B404 - subprocess needed for git commands
-        import time
         from pathlib import Path
 
         from gobby.sessions.analyzer import TranscriptAnalyzer
@@ -318,29 +317,21 @@ def register_handoff_tools(
         # Save to file if requested
         files_written: list[str] = []
         if write_file:
-            try:
-                summary_dir = Path(output_path)
-                if not summary_dir.is_absolute():
-                    summary_dir = Path.cwd() / summary_dir
-                summary_dir.mkdir(parents=True, exist_ok=True)
-                timestamp = int(time.time())
+            from gobby.workflows.summary_actions import _write_summary_file
 
-                if full_markdown:
-                    full_file = summary_dir / f"session_{timestamp}_{session.id[:12]}.md"
-                    full_file.write_text(full_markdown, encoding="utf-8")
-                    files_written.append(str(full_file))
+            if full_markdown:
+                path = await _write_summary_file(
+                    session.id, full_markdown, output_path, session_manager, mode="full"
+                )
+                if path:
+                    files_written.append(path)
 
-                if compact_markdown:
-                    compact_file = summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
-                    compact_file.write_text(compact_markdown, encoding="utf-8")
-                    files_written.append(str(compact_file))
-
-            except Exception as e:
-                return {
-                    "success": False,
-                    "error": f"Failed to write file: {e}",
-                    "session_id": session.id,
-                }
+            if compact_markdown:
+                path = await _write_summary_file(
+                    session.id, compact_markdown, output_path, session_manager, mode="compact"
+                )
+                if path:
+                    files_written.append(path)
 
         result_dict: dict[str, Any] = {
             "success": True,

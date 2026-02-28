@@ -176,18 +176,39 @@ def inject_context(
                 content = parent.summary_markdown
                 # Failback: try reading from file if database summary is empty
                 # This handles cases where daemon was unavailable during /clear
-                if not content and hasattr(parent, "external_id") and parent.external_id:
+                if not content:
                     summary_dir = Path.home() / ".gobby" / "session_summaries"
                     if summary_dir.exists():
-                        for summary_file in summary_dir.glob(f"session_*_{parent.external_id}.md"):
-                            try:
-                                content = summary_file.read_text()
-                                logger.info(
-                                    f"Recovered summary from failback file for {parent.external_id}"
-                                )
-                                break
-                            except Exception as e:
-                                logger.warning(f"Failed to read failback file {summary_file}: {e}")
+                        # Try {seq_num}-full.md first
+                        seq_num = getattr(parent, "seq_num", None)
+                        if seq_num:
+                            candidate = summary_dir / f"{seq_num}-full.md"
+                            if candidate.exists():
+                                try:
+                                    content = candidate.read_text()
+                                    logger.info(
+                                        f"Recovered summary from failback file for #{seq_num}"
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"Failed to read failback file {candidate}: {e}")
+
+                        # Legacy fallback: session_*_{external_id}.md
+                        if not content:
+                            ext_id = getattr(parent, "external_id", None)
+                            if ext_id:
+                                for summary_file in summary_dir.glob(
+                                    f"session_*_{ext_id}.md"
+                                ):
+                                    try:
+                                        content = summary_file.read_text()
+                                        logger.info(
+                                            f"Recovered summary from legacy file for {ext_id}"
+                                        )
+                                        break
+                                    except Exception as e:
+                                        logger.warning(
+                                            f"Failed to read failback file {summary_file}: {e}"
+                                        )
 
     elif source == "observations":
         obs = (
