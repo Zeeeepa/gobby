@@ -831,31 +831,28 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
-        # Task (only if exists, as #N ref)
-        if task_id and self._task_manager:
-            try:
-                task = self._task_manager.get_task(task_id, project_id=project_id)
-                if task and task.seq_num:
-                    system_message += f"\nTask: #{task.seq_num}"
-                else:
-                    system_message += f"\nTask: {task_id}"
-            except Exception:
-                system_message += f"\nTask: {task_id}"
-
         # Agent info (only if agent loaded — absence signals activation failure)
         if agent_info:
-            # Agent name with optional description
-            agent_line = f"\nAgent: {agent_info.agent_name}"
-            if agent_info.description:
-                agent_line += f" — {agent_info.description}"
-            system_message += agent_line
+            # Agent name only — description moves to tree node
+            system_message += f"\nAgent: {agent_info.agent_name}"
 
-            # Build tree nodes: role, goal, rules, variables, skills
+            # Build tree nodes: description, role, goal, task, rules, variables, skills
             tree_nodes: list[str] = []
+            if agent_info.description:
+                tree_nodes.append(f"Description: {agent_info.description}")
             if agent_info.role:
                 tree_nodes.append(f"Role: {agent_info.role}")
             if agent_info.goal:
                 tree_nodes.append(f"Goal: {agent_info.goal}")
+            # Current task (inside agent tree, with claimed/assigned indicator)
+            if task_id and self._task_manager:
+                try:
+                    task = self._task_manager.get_task(task_id, project_id=project_id)
+                    task_ref = f"#{task.seq_num}" if task and task.seq_num else task_id
+                except Exception:
+                    task_ref = task_id
+                claim_status = "assigned" if parent_session_id else "claimed"
+                tree_nodes.append(f"Current Task: {task_ref} ({claim_status})")
             tree_nodes.append(f"Rules: {agent_info.rules_count}")
             tree_nodes.append(f"Variables: {agent_info.variables_count}")
             # Skills is always last (may have sub-node)
