@@ -540,9 +540,7 @@ async def handle_memory_inject_project_context(
     )
 
 
-async def handle_memory_save(
-    context: "ActionContext", **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_memory_save(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """Save a memory directly from workflow context."""
     return await memory_save(
         memory_manager=context.memory_manager,
