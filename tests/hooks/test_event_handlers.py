@@ -836,8 +836,39 @@ class TestSessionEndHandling:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_session_end_marks_handoff_ready(self, mock_dependencies: dict) -> None:
-        """Test SESSION_END marks session as handoff_ready for parent lookup."""
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_session_end_marks_expired_without_handoff(
+        self, mock_sv_mgr_cls: MagicMock, mock_dependencies: dict
+    ) -> None:
+        """Test SESSION_END marks session as expired when no handoff_source."""
+        mock_sv_mgr_cls.return_value.get_variables.return_value = {}
+        mock_session = MagicMock()
+        mock_session.created_at = "2024-01-01T00:00:00Z"
+        mock_session.agent_run_id = None
+        mock_dependencies["session_storage"].get.return_value = mock_session
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.SESSION_END,
+            session_id="ext-123",
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        response = handlers.handle_session_end(event)
+
+        assert response.decision == "allow"
+        mock_dependencies["session_storage"].update_status.assert_called_once_with(
+            "sess-123", "expired"
+        )
+
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_session_end_marks_handoff_ready_with_handoff_source(
+        self, mock_sv_mgr_cls: MagicMock, mock_dependencies: dict
+    ) -> None:
+        """Test SESSION_END marks handoff_ready when handoff_source is set."""
+        mock_sv_mgr_cls.return_value.get_variables.return_value = {
+            "handoff_source": "clear"
+        }
         mock_session = MagicMock()
         mock_session.created_at = "2024-01-01T00:00:00Z"
         mock_session.agent_run_id = None

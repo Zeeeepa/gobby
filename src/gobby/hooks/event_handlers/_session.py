@@ -439,13 +439,22 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.debug(f"Failed to notify pane monitor for session {session_id}: {e}")
 
-        # Mark session as handoff_ready so the next session (via /clear or /compact)
-        # can find this session as its parent via find_parent(status="handoff_ready")
+        # Only mark as handoff_ready if a handoff was explicitly prepared
+        # (by prepare-clear-handoff or preserve-context-on-compact rules).
+        # Otherwise mark as expired — normal session ends don't chain.
         if session_id and self._session_storage:
             try:
-                self._session_storage.update_status(session_id, "handoff_ready")
+                end_status = "expired"
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                variables = SessionVariableManager(
+                    self._session_storage.db
+                ).get_variables(session_id)
+                if variables.get("handoff_source") in ("clear", "compact"):
+                    end_status = "handoff_ready"
+                self._session_storage.update_status(session_id, end_status)
             except Exception as e:
-                self.logger.warning(f"Failed to mark session as handoff_ready: {e}")
+                self.logger.warning(f"Failed to update session status on end: {e}")
 
         return HookResponse(decision="allow")
 
