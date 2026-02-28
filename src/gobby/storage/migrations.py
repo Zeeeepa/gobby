@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 129
+BASELINE_VERSION = 130
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -235,6 +235,7 @@ CREATE TABLE sessions (
     model TEXT,
     had_edits BOOLEAN DEFAULT 0,
     digest_markdown TEXT,
+    last_turn_markdown TEXT,
     chat_mode TEXT DEFAULT 'plan',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1508,6 +1509,11 @@ CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
         129,
         "Normalize config_store keys to lowercase",
         _normalize_config_keys_lowercase,
+    ),
+    (
+        130,
+        "Add last_turn_markdown column to sessions for per-turn digest records",
+        "ALTER TABLE sessions ADD COLUMN last_turn_markdown TEXT",
     ),
 ]
 

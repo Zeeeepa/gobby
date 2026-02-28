@@ -375,6 +375,20 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def update_last_turn_markdown(self, session_id: str, last_turn_markdown: str) -> Session | None:
+        """Update session last turn markdown record."""
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """
+            UPDATE sessions
+            SET last_turn_markdown = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (last_turn_markdown, now, session_id),
+        )
+        return self.get(session_id)
+
     def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Session | None:
         """Update session compact handoff markdown."""
         now = datetime.now(UTC).isoformat()

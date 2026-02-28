@@ -4,6 +4,10 @@ import pytest
 
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.memory_actions import (
+    _get_next_turn_number,
+    _read_last_turn_from_transcript,
+    build_turn_and_digest,
+    generate_session_boundary_summaries,
     memory_extract_from_session,
     memory_inject_project_context,
     memory_recall_relevant,
@@ -1092,3 +1096,486 @@ class TestMemoryRecallWithSynthesis:
 
         call_kwargs = mock_mm.search_memories.call_args[1]
         assert call_kwargs["limit"] == 7
+
+
+# =============================================================================
+# TURN-BY-TURN DIGEST PIPELINE TESTS
+# =============================================================================
+
+
+class TestGetNextTurnNumber:
+    """Tests for _get_next_turn_number helper."""
+
+    def test_empty_digest(self):
+        assert _get_next_turn_number(None) == 1
+        assert _get_next_turn_number("") == 1
+
+    def test_no_turn_headers(self):
+        assert _get_next_turn_number("Some random content\nwithout headers") == 1
+
+    def test_single_turn(self):
+        digest = "### Turn 1\nSome content here"
+        assert _get_next_turn_number(digest) == 2
+
+    def test_multiple_turns(self):
+        digest = "### Turn 1\nFirst turn\n\n### Turn 2\nSecond turn\n\n### Turn 3\nThird"
+        assert _get_next_turn_number(digest) == 4
+
+    def test_non_sequential_turns(self):
+        digest = "### Turn 1\nFirst\n\n### Turn 5\nFifth"
+        assert _get_next_turn_number(digest) == 6
+
+
+class TestReadLastTurnFromTranscript:
+    """Tests for _read_last_turn_from_transcript helper."""
+
+    def test_nonexistent_file(self):
+        prompt, response = _read_last_turn_from_transcript("/nonexistent/path.jsonl", "claude")
+        assert prompt == ""
+        assert response == ""
+
+    def test_empty_file(self, tmp_path):
+        jsonl_file = tmp_path / "transcript.jsonl"
+        jsonl_file.write_text("")
+        prompt, response = _read_last_turn_from_transcript(str(jsonl_file), "claude")
+        assert prompt == ""
+        assert response == ""
+
+    def test_claude_transcript(self, tmp_path):
+        """Test reading from a Claude-format JSONL transcript."""
+        import json
+
+        jsonl_file = tmp_path / "transcript.jsonl"
+        turns = [
+            {"message": {"role": "user", "content": "Hello, what is 2+2?"}},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "2+2 equals 4."}],
+                }
+            },
+        ]
+        jsonl_file.write_text("\n".join(json.dumps(t) for t in turns))
+
+        prompt, response = _read_last_turn_from_transcript(str(jsonl_file), "claude")
+        assert prompt == "Hello, what is 2+2?"
+        assert response == "2+2 equals 4."
+
+    def test_multiple_turns_returns_last(self, tmp_path):
+        """Test that only the last user/assistant pair is returned."""
+        import json
+
+        jsonl_file = tmp_path / "transcript.jsonl"
+        turns = [
+            {"message": {"role": "user", "content": "First question"}},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "First answer"}],
+                }
+            },
+            {"message": {"role": "user", "content": "Second question"}},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Second answer"}],
+                }
+            },
+        ]
+        jsonl_file.write_text("\n".join(json.dumps(t) for t in turns))
+
+        prompt, response = _read_last_turn_from_transcript(str(jsonl_file), "claude")
+        assert prompt == "Second question"
+        assert response == "Second answer"
+
+
+class TestBuildTurnAndDigest:
+    """Tests for build_turn_and_digest pipeline function."""
+
+    @pytest.fixture
+    def mock_memory_manager(self):
+        mm = MagicMock()
+        mm.config.enabled = True
+        mm.content_exists.return_value = False
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mm.create_memory = AsyncMock(return_value=mock_memory)
+        return mm
+
+    @pytest.fixture
+    def mock_session_manager(self):
+        sm = MagicMock()
+        session = MagicMock()
+        session.id = "session-123"
+        session.jsonl_path = None
+        session.source = "claude"
+        session.digest_markdown = None
+        session.seq_num = 42
+        session.terminal_context = None
+        sm.get.return_value = session
+        sm.update_last_turn_markdown.return_value = session
+        sm.update_digest_markdown.return_value = session
+        sm.update_title.return_value = session
+        return sm
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        service = MagicMock()
+        provider = MagicMock()
+        # First call: turn record, second: title synthesis, third: memory extraction
+        provider.generate_text = AsyncMock(
+            side_effect=[
+                "User asked to fix a bug. Agent found the root cause in auth.py line 42.",
+                "Fix Auth Bug",
+                "NONE",
+            ]
+        )
+        service.get_default_provider.return_value = provider
+        return service
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_disabled(self, mock_session_manager, mock_llm_service):
+        mm = MagicMock()
+        mm.config.enabled = False
+        result = await build_turn_and_digest(
+            memory_manager=mm,
+            session_manager=mock_session_manager,
+            session_id="s1",
+            llm_service=mock_llm_service,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_without_llm(self, mock_memory_manager, mock_session_manager):
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="s1",
+            llm_service=None,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_missing_session(self, mock_memory_manager, mock_llm_service):
+        sm = MagicMock()
+        sm.get.return_value = None
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=sm,
+            session_id="nonexistent",
+            llm_service=mock_llm_service,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_no_content(
+        self, mock_memory_manager, mock_session_manager, mock_llm_service
+    ):
+        """No transcript and no prompt_text means no content to process."""
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="s1",
+            prompt_text=None,
+            llm_service=mock_llm_service,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_skips_lifecycle_commands(
+        self, mock_memory_manager, mock_session_manager, mock_llm_service
+    ):
+        for cmd in ["/clear", "/exit", "/compact"]:
+            result = await build_turn_and_digest(
+                memory_manager=mock_memory_manager,
+                session_manager=mock_session_manager,
+                session_id="s1",
+                prompt_text=cmd,
+                llm_service=mock_llm_service,
+            )
+            assert result is None
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.summary_actions._rename_tmux_window", new_callable=AsyncMock)
+    async def test_successful_pipeline(
+        self,
+        mock_rename,
+        mock_memory_manager,
+        mock_session_manager,
+        mock_llm_service,
+    ):
+        """Test the full pipeline with prompt_text provided."""
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="session-123",
+            prompt_text="Fix the authentication bug in auth.py",
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result["turn_num"] == 1
+        assert result["turn_length"] > 0
+        assert result["digest_length"] > 0
+        assert result["title"] == "Fix Auth Bug"
+
+        # Verify last_turn_markdown was persisted
+        mock_session_manager.update_last_turn_markdown.assert_called_once()
+        call_args = mock_session_manager.update_last_turn_markdown.call_args
+        assert call_args[0][0] == "session-123"
+        assert "bug" in call_args[0][1].lower() or "auth" in call_args[0][1].lower()
+
+        # Verify digest was appended with turn header
+        mock_session_manager.update_digest_markdown.assert_called_once()
+        digest_content = mock_session_manager.update_digest_markdown.call_args[0][1]
+        assert "### Turn 1" in digest_content
+
+        # Verify title was updated
+        mock_session_manager.update_title.assert_called_once_with("session-123", "Fix Auth Bug")
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.summary_actions._rename_tmux_window", new_callable=AsyncMock)
+    async def test_appends_to_existing_digest(
+        self,
+        mock_rename,
+        mock_memory_manager,
+        mock_session_manager,
+        mock_llm_service,
+    ):
+        """Test that turns append to existing digest with correct numbering."""
+        session = mock_session_manager.get.return_value
+        session.digest_markdown = "### Turn 1\nPrevious turn content"
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="session-123",
+            prompt_text="Next task please",
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result["turn_num"] == 2
+
+        # Verify digest contains both turns
+        digest_content = mock_session_manager.update_digest_markdown.call_args[0][1]
+        assert "### Turn 1" in digest_content
+        assert "### Turn 2" in digest_content
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.summary_actions._rename_tmux_window", new_callable=AsyncMock)
+    async def test_memory_extraction_from_turn(
+        self,
+        mock_rename,
+        mock_memory_manager,
+        mock_session_manager,
+        mock_llm_service,
+    ):
+        """Test that memories are extracted when LLM returns candidates."""
+        provider = mock_llm_service.get_default_provider.return_value
+        provider.generate_text = AsyncMock(
+            side_effect=[
+                "Agent fixed auth bug in auth.py by adding token validation.",
+                "Fix Auth Bug",
+                '{"content": "auth.py requires token validation on line 42", "memory_type": "fact", "tags": ["auth", "debugging"]}',
+            ]
+        )
+
+        # Mock the storage lookup for project_id
+        mock_memory_manager.storage.db.fetchone.return_value = {"project_id": "proj-1"}
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="session-123",
+            prompt_text="Fix the auth bug",
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result.get("memories_extracted", 0) == 1
+        mock_memory_manager.create_memory.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_digest_config_disabled(
+        self, mock_memory_manager, mock_session_manager, mock_llm_service
+    ):
+        """Test that pipeline respects DigestConfig.enabled = False."""
+        config = MagicMock()
+        config.digest.enabled = False
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="s1",
+            prompt_text="Some prompt",
+            llm_service=mock_llm_service,
+            config=config,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.summary_actions._rename_tmux_window", new_callable=AsyncMock)
+    async def test_reads_from_transcript_when_no_prompt(
+        self,
+        mock_rename,
+        mock_memory_manager,
+        mock_session_manager,
+        mock_llm_service,
+        tmp_path,
+    ):
+        """Test that transcript is read when prompt_text is None (stop event)."""
+        import json
+
+        jsonl_file = tmp_path / "transcript.jsonl"
+        turns = [
+            {"message": {"role": "user", "content": "Implement the feature"}},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Done. I implemented it."}],
+                }
+            },
+        ]
+        jsonl_file.write_text("\n".join(json.dumps(t) for t in turns))
+
+        session = mock_session_manager.get.return_value
+        session.jsonl_path = str(jsonl_file)
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="session-123",
+            prompt_text=None,  # Simulates stop event
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result["turn_num"] == 1
+        # Verify the LLM was called with transcript content
+        provider = mock_llm_service.get_default_provider.return_value
+        call_args = provider.generate_text.call_args_list[0]
+        prompt = call_args[0][0]
+        assert "Implement the feature" in prompt or "feature" in prompt.lower()
+
+
+class TestGenerateSessionBoundarySummaries:
+    """Tests for generate_session_boundary_summaries."""
+
+    @pytest.fixture
+    def mock_session_manager(self):
+        sm = MagicMock()
+        session = MagicMock()
+        session.digest_markdown = (
+            "### Turn 1\nUser asked to fix authentication bug. "
+            "Agent found root cause in auth.py line 42 and applied fix.\n\n"
+            "### Turn 2\nUser asked to add tests. Agent created test_auth.py with 5 test cases."
+        )
+        sm.get.return_value = session
+        sm.update_compact_markdown.return_value = session
+        sm.update_summary.return_value = session
+        return sm
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        service = MagicMock()
+        provider = MagicMock()
+        provider.generate_text = AsyncMock(
+            return_value=(
+                "## Output A: Handoff Context\n"
+                "Working on auth system refactor.\n\n"
+                "===SECTION_BREAK===\n\n"
+                "## Output B: Session Summary\n"
+                "Refactored auth module, added token validation."
+            )
+        )
+        service.get_default_provider.return_value = provider
+        return service
+
+    @pytest.mark.asyncio
+    async def test_returns_none_without_session(self, mock_llm_service):
+        sm = MagicMock()
+        sm.get.return_value = None
+        result = await generate_session_boundary_summaries(
+            session_id="s1", session_manager=sm, llm_service=mock_llm_service
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_without_digest(self, mock_llm_service):
+        sm = MagicMock()
+        session = MagicMock()
+        session.digest_markdown = None
+        sm.get.return_value = session
+        result = await generate_session_boundary_summaries(
+            session_id="s1", session_manager=sm, llm_service=mock_llm_service
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_with_short_digest(self, mock_llm_service):
+        sm = MagicMock()
+        session = MagicMock()
+        session.digest_markdown = "Short"
+        sm.get.return_value = session
+        result = await generate_session_boundary_summaries(
+            session_id="s1", session_manager=sm, llm_service=mock_llm_service
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_successful_boundary_generation(
+        self, mock_session_manager, mock_llm_service
+    ):
+        result = await generate_session_boundary_summaries(
+            session_id="s1",
+            session_manager=mock_session_manager,
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result["compact_length"] > 0
+        assert result["summary_length"] > 0
+
+        # Verify both were persisted
+        mock_session_manager.update_compact_markdown.assert_called_once()
+        mock_session_manager.update_summary.assert_called_once()
+
+        # Verify the section split worked
+        compact = mock_session_manager.update_compact_markdown.call_args[0][1]
+        assert "auth" in compact.lower() or "Handoff" in compact
+
+    @pytest.mark.asyncio
+    async def test_handles_missing_section_break(self, mock_session_manager):
+        """When LLM doesn't include the marker, use full response for both."""
+        service = MagicMock()
+        provider = MagicMock()
+        provider.generate_text = AsyncMock(return_value="Full summary without separator.")
+        service.get_default_provider.return_value = provider
+
+        result = await generate_session_boundary_summaries(
+            session_id="s1",
+            session_manager=mock_session_manager,
+            llm_service=service,
+        )
+
+        assert result is not None
+        # Both should be populated with the full response
+        mock_session_manager.update_compact_markdown.assert_called_once()
+        mock_session_manager.update_summary.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handles_llm_error(self, mock_session_manager):
+        service = MagicMock()
+        provider = MagicMock()
+        provider.generate_text = AsyncMock(side_effect=Exception("LLM unavailable"))
+        service.get_default_provider.return_value = provider
+
+        result = await generate_session_boundary_summaries(
+            session_id="s1",
+            session_manager=mock_session_manager,
+            llm_service=service,
+        )
+
+        assert result is not None
+        assert "error" in result

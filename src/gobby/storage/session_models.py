@@ -57,6 +57,8 @@ class Session:
     had_edits: bool = False
     # Rolling conversation digest
     digest_markdown: str | None = None
+    # Per-turn detailed record (overwritten each turn)
+    last_turn_markdown: str | None = None
     # Persisted chat mode (plan, accept_edits, normal, bypass)
     chat_mode: str = "plan"
 
@@ -96,6 +98,7 @@ class Session:
             seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
             had_edits=bool(row["had_edits"]) if "had_edits" in row.keys() else False,
             digest_markdown=row["digest_markdown"] if "digest_markdown" in row.keys() else None,
+            last_turn_markdown=row["last_turn_markdown"] if "last_turn_markdown" in row.keys() else None,
             chat_mode=row["chat_mode"] if "chat_mode" in row.keys() else "plan",
         )
 
@@ -165,6 +168,7 @@ class Session:
             "terminal_context": self.terminal_context,
             "had_edits": self.had_edits,
             "digest_markdown": self.digest_markdown,
+            "last_turn_markdown": self.last_turn_markdown,
             "chat_mode": self.chat_mode,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
