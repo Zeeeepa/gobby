@@ -122,10 +122,7 @@ async def stream_with_mcp_tools(
                 continue
             if isinstance(message, StreamEvent):
                 ev = message.event
-                if (
-                    isinstance(ev, dict)
-                    and ev.get("type") == "message_start"
-                ):
+                if isinstance(ev, dict) and ev.get("type") == "message_start":
                     msg_body = ev.get("message")
                     if isinstance(msg_body, dict):
                         u = msg_body.get("usage")

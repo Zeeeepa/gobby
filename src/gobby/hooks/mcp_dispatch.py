@@ -89,7 +89,9 @@ async def _safe_call(
         if isinstance(result, dict) and result.get("success") is False:
             logger.warning(
                 "dispatch_mcp_calls: %s/%s returned failure: %s",
-                server, tool, result.get("error", "unknown"),
+                server,
+                tool,
+                result.get("error", "unknown"),
             )
     except Exception as exc:
         logger.error("dispatch_mcp_calls: %s/%s failed: %s", server, tool, exc, exc_info=True)

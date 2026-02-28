@@ -671,7 +671,9 @@ class HookManager:
                     if isinstance(result, dict) and result.get("success") is False:
                         self.logger.warning(
                             "_dispatch_mcp_calls: %s/%s returned failure: %s",
-                            s, t, result.get("error", "unknown"),
+                            s,
+                            t,
+                            result.get("error", "unknown"),
                         )
                 except Exception as exc:
                     self.logger.error(

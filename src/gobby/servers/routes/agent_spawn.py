@@ -370,9 +370,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             try:
                 import asyncio as _asyncio
 
-                _asyncio.ensure_future(
-                    ws.broadcast({"type": "task_updated", "task_id": task_id})
-                )
+                _asyncio.ensure_future(ws.broadcast({"type": "task_updated", "task_id": task_id}))
             except Exception as e:
                 logger.debug(f"Failed to broadcast task update: {e}")
 

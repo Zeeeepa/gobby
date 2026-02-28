@@ -466,10 +466,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                         # Each API call in the agentic loop emits one; the last
                         # one reflects the actual current context window load.
                         ev = message.event
-                        if (
-                            isinstance(ev, dict)
-                            and ev.get("type") == "message_start"
-                        ):
+                        if isinstance(ev, dict) and ev.get("type") == "message_start":
                             msg_body = ev.get("message")
                             if isinstance(msg_body, dict):
                                 u = msg_body.get("usage")
@@ -506,7 +503,9 @@ class ChatSession(ChatSessionPermissionsMixin):
                         if _last_call_input:
                             uncached_input = _last_call_input.get("input_tokens", 0) or 0
                             cache_read = _last_call_input.get("cache_read_input_tokens", 0) or 0
-                            cache_creation = _last_call_input.get("cache_creation_input_tokens", 0) or 0
+                            cache_creation = (
+                                _last_call_input.get("cache_creation_input_tokens", 0) or 0
+                            )
                         else:
                             uncached_input = usage.get("input_tokens", 0) or 0
                             cache_read = usage.get("cache_read_input_tokens", 0) or 0

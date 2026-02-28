@@ -296,8 +296,12 @@ class ToolProxyService:
             resolved = self._resolve_server_for_tool(tool_name)
             if resolved:
                 return await self.call_tool(
-                    resolved, tool_name, arguments, session_id,
-                    call_context=call_context, strip_unknown=strip_unknown,
+                    resolved,
+                    tool_name,
+                    arguments,
+                    session_id,
+                    call_context=call_context,
+                    strip_unknown=strip_unknown,
                 )
             return {
                 "success": False,

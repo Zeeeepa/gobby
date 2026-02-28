@@ -208,7 +208,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
         workflow_name = input_data.get("workflow_name")
         agent_depth = input_data.get("agent_depth")
 
-        if not parent_session_id and session_source in ("clear", "compact") and self._session_storage:
+        if (
+            not parent_session_id
+            and session_source in ("clear", "compact")
+            and self._session_storage
+        ):
             try:
                 parent = self._session_storage.find_parent(
                     machine_id=machine_id,

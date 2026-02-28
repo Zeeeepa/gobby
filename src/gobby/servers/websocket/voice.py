@@ -148,7 +148,9 @@ class VoiceMixin:
             duration_ms = int((time.monotonic() - start) * 1000)
 
             if not text.strip():
-                logger.info(f"Voice transcription empty for {conversation_id[:8]}... ({duration_ms}ms)")
+                logger.info(
+                    f"Voice transcription empty for {conversation_id[:8]}... ({duration_ms}ms)"
+                )
                 await websocket.send(
                     json.dumps(
                         {

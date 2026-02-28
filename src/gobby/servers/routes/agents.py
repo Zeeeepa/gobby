@@ -132,10 +132,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             )
             items = [d for r in rows if (d := _row_to_api_dict(r)) is not None]
             if source_filter:
-                items = [
-                    d for d in items
-                    if d.get("sources") and source_filter in d["sources"]
-                ]
+                items = [d for d in items if d.get("sources") and source_filter in d["sources"]]
             return {
                 "status": "success",
                 "definitions": items,

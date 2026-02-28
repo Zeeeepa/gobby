@@ -46,15 +46,17 @@ def _inject_agent_skills(
     all_skills = skill_mgr.list_skills()
     active_skills = resolve_skills_for_agent(agent_body, all_skills)
     eligible = (
-        all_skills if active_skills is None
-        else [s for s in all_skills if s.name in active_skills]
+        all_skills if active_skills is None else [s for s in all_skills if s.name in active_skills]
     )
     parsed = [_db_skill_to_parsed(s) for s in eligible if s.enabled]
     if not parsed:
         return None
 
     agent_ctx = AgentContext(
-        agent_depth=0, has_human=True, agent_type="interactive", source=cli_source,
+        agent_depth=0,
+        has_human=True,
+        agent_type="interactive",
+        source=cli_source,
     )
     profile = None
     if agent_body.workflows and agent_body.workflows.skill_format:
@@ -1287,14 +1289,10 @@ class ChatMixin:
                     # Mark session as paused now that streaming is done
                     if db_sid:
                         try:
-                            await asyncio.to_thread(
-                                session_manager.update, db_sid, status="paused"
-                            )
+                            await asyncio.to_thread(session_manager.update, db_sid, status="paused")
                             await self.broadcast_session_event("updated", db_sid)
                         except Exception:
-                            logger.debug(
-                                "Failed to set session status to paused", exc_info=True
-                            )
+                            logger.debug("Failed to set session status to paused", exc_info=True)
 
         except asyncio.CancelledError:
             # Stream was interrupted (stop button or new message replacing old)
