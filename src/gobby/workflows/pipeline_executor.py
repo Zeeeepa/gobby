@@ -114,6 +114,8 @@ class PipelineExecutor:
         project_id: str,
         execution_id: str | None = None,
         session_id: str | None = None,
+        _depth: int = 0,
+        _pipeline_stack: frozenset[str] | None = None,
     ) -> PipelineExecution:
         """Execute a pipeline workflow.
 
@@ -126,7 +128,36 @@ class PipelineExecutor:
 
         Returns:
             The completed PipelineExecution record
+
+        Raises:
+            RuntimeError: If nesting depth limit exceeded or cycle detected
         """
+        # 0. Enforce nesting depth limit and cycle detection
+        depth_limit = 10
+        try:
+            from gobby.config.pipelines import PipelineConfig
+
+            depth_limit = PipelineConfig().nesting_depth_limit
+        except Exception:
+            pass
+
+        if _depth > depth_limit:
+            raise RuntimeError(
+                f"Pipeline nesting depth limit exceeded ({_depth} > {depth_limit}). "
+                f"Pipeline '{pipeline.name}' would exceed maximum recursion depth."
+            )
+
+        if _pipeline_stack is None:
+            _pipeline_stack = frozenset()
+
+        if pipeline.name in _pipeline_stack:
+            raise RuntimeError(
+                f"Pipeline cycle detected: '{pipeline.name}' is already in the "
+                f"call stack {sorted(_pipeline_stack)}."
+            )
+
+        _pipeline_stack = _pipeline_stack | {pipeline.name}
+
         # 1. Create or load execution record
         if execution_id:
             execution = self.execution_manager.get_execution(execution_id)
@@ -162,6 +193,8 @@ class PipelineExecutor:
             "inputs": merged_inputs,
             "steps": {},  # Will hold step outputs as they complete
             "session_id": session_id,
+            "_depth": _depth,
+            "_pipeline_stack": _pipeline_stack,
         }
 
         # Fetch existing steps if resuming
@@ -211,7 +244,9 @@ class PipelineExecutor:
                     step_execution = self.execution_manager.create_step_execution(
                         execution_id=execution.id,
                         step_id=step.id,
-                        input_json=json.dumps(context) if context else None,
+                        input_json=json.dumps(
+                            {k: v for k, v in context.items() if not k.startswith("_")}
+                        ) if context else None,
                     )
 
                 # Check if step should run based on condition
@@ -480,12 +515,16 @@ class PipelineExecutor:
             else:
                 nested_inputs = context.get("inputs", {})
 
-            # Propagate session_id to nested execution
+            # Propagate session_id and nesting state to nested execution
+            parent_depth: int = context.get("_depth", 0)
+            parent_stack: frozenset[str] = context.get("_pipeline_stack", frozenset())
             result = await self.execute(
                 pipeline=nested_pipeline,
                 inputs=nested_inputs,
                 project_id=project_id,
                 session_id=context.get("session_id"),
+                _depth=parent_depth + 1,
+                _pipeline_stack=parent_stack,
             )
 
             return {

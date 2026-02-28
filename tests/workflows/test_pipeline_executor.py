@@ -1746,3 +1746,80 @@ class TestDefaultInputMerging:
         context = json.loads(step_input_json)
         assert context["inputs"]["city"] == "Memphis"  # overridden
         assert context["inputs"]["state"] == "AR"  # default preserved
+
+
+class TestNestedPipelineDepthLimit:
+    """Tests for nested pipeline depth limit and cycle detection."""
+
+    @pytest.mark.asyncio
+    async def test_nested_pipeline_depth_limit_exceeded(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Exceeding depth limit raises RuntimeError."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline = PipelineDefinition(
+            name="deep-pipeline",
+            steps=[PipelineStep(id="s1", exec="echo hi")],
+        )
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        with pytest.raises(RuntimeError, match="nesting depth limit exceeded"):
+            await executor.execute(
+                pipeline=pipeline,
+                inputs={},
+                project_id="proj-123",
+                _depth=11,
+            )
+
+    @pytest.mark.asyncio
+    async def test_nested_pipeline_cycle_detection(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """A pipeline already in the call stack raises RuntimeError."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline = PipelineDefinition(
+            name="cycle-pipeline",
+            steps=[PipelineStep(id="s1", exec="echo hi")],
+        )
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        with pytest.raises(RuntimeError, match="Pipeline cycle detected"):
+            await executor.execute(
+                pipeline=pipeline,
+                inputs={},
+                project_id="proj-123",
+                _pipeline_stack=frozenset({"cycle-pipeline"}),
+            )
+
+    @pytest.mark.asyncio
+    async def test_nested_pipeline_within_limit(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Depth within limit executes normally."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline = PipelineDefinition(
+            name="ok-pipeline",
+            steps=[PipelineStep(id="s1", exec="echo hi")],
+        )
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        # depth=5 is well within default limit of 10
+        result = await executor.execute(
+            pipeline=pipeline,
+            inputs={},
+            project_id="proj-123",
+            _depth=5,
+        )
+        assert result is not None

@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
 from gobby.config.cron import CronConfig
+from gobby.config.pipelines import PipelineConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ChatConfig,
@@ -414,6 +415,10 @@ class DaemonConfig(BaseModel):
     cron: CronConfig = Field(
         default_factory=CronConfig,
         description="Cron scheduler configuration",
+    )
+    pipelines: PipelineConfig = Field(
+        default_factory=PipelineConfig,
+        description="Pipeline execution configuration",
     )
     voice: VoiceConfig = Field(
         default_factory=VoiceConfig,

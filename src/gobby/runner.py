@@ -369,6 +369,16 @@ class GobbyRunner:
                     template_engine=TemplateEngine(),
                 )
                 logger.info("Pipeline executor initialized at startup")
+
+                # Recover stale running executions from previous daemon lifecycle
+                try:
+                    stale_count = self.pipeline_execution_manager.fail_stale_running_executions()
+                    if stale_count > 0:
+                        logger.info(
+                            f"Recovered {stale_count} stale pipeline executions from previous run"
+                        )
+                except Exception as e2:
+                    logger.warning(f"Failed to recover stale pipeline executions: {e2}")
             except Exception as e:
                 logger.warning(f"Failed to initialize pipeline executor at startup: {e}")
 
@@ -556,6 +566,7 @@ class GobbyRunner:
             cleanup_pid_file,
             cleanup_stale_tmux_sessions,
             cleanup_zombie_messages_loop,
+            expire_approval_timeouts_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
             setup_signal_handlers,
@@ -654,6 +665,17 @@ class GobbyRunner:
                 cleanup_zombie_messages_loop(self.database, lambda: self._shutdown_requested),
                 name="zombie-message-cleanup",
             )
+
+            # Start periodic approval timeout expiry (every 60s)
+            self._approval_timeout_task: asyncio.Task[None] | None = None
+            if self.pipeline_execution_manager:
+                self._approval_timeout_task = asyncio.create_task(
+                    expire_approval_timeouts_loop(
+                        self.pipeline_execution_manager,
+                        lambda: self._shutdown_requested,
+                    ),
+                    name="approval-timeout-expiry",
+                )
 
             # Start WebSocket server
             websocket_task = None

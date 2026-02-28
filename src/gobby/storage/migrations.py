@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 130
+BASELINE_VERSION = 131
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -729,6 +729,7 @@ CREATE TABLE step_executions (
     approval_token TEXT UNIQUE,
     approved_by TEXT,
     approved_at TEXT,
+    approval_timeout_seconds INTEGER,
     UNIQUE(execution_id, step_id)
 );
 CREATE INDEX idx_step_executions_execution ON step_executions(execution_id);
@@ -1514,6 +1515,11 @@ CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
         130,
         "Add last_turn_markdown column to sessions for per-turn digest records",
         "ALTER TABLE sessions ADD COLUMN last_turn_markdown TEXT",
+    ),
+    (
+        131,
+        "Add approval_timeout_seconds column to step_executions",
+        "ALTER TABLE step_executions ADD COLUMN approval_timeout_seconds INTEGER",
     ),
 ]
 
