@@ -24,6 +24,9 @@ class AgentActivationResult:
 
     context: str | None  # AI-only: preamble + formatted skills
     agent_name: str
+    description: str | None
+    role: str | None
+    goal: str | None
     rules_count: int
     skills_count: int
     variables_count: int
@@ -344,6 +347,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             additional_context=additional_context,
             terminal_context=terminal_context,
             agent_info=agent_result,
+            session_source=session_source,
         )
 
     def handle_session_end(self, event: HookEvent) -> HookResponse:
@@ -721,6 +725,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
         return AgentActivationResult(
             context="\n\n".join(context_parts) if context_parts else None,
             agent_name=agent_body.name,
+            description=agent_body.description,
+            role=agent_body.role,
+            goal=agent_body.goal,
             rules_count=len(active_rules),
             skills_count=skills_count,
             variables_count=variables_count,
@@ -760,6 +767,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         is_pre_created: bool = False,
         terminal_context: dict[str, Any] | None = None,
         agent_info: AgentActivationResult | None = None,
+        session_source: str | None = None,
     ) -> HookResponse:
         """Build HookResponse for session start.
 
@@ -777,6 +785,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             additional_context: Additional context strings to append (e.g., task/skill context)
             is_pre_created: Whether this is a pre-created session
             terminal_context: Terminal context dict to add to metadata
+            session_source: Session source (e.g., "clear", "compact", "startup") for handoff indicator
 
         Returns:
             HookResponse with system_message, context, and metadata
@@ -794,23 +803,29 @@ class SessionEventHandlerMixin(EventHandlersBase):
             session_ref = f"#{session.seq_num}"
 
         # Build system message (terminal display)
-        if session_ref and session_ref != session_id:
-            system_message = f"\nGobby Session ID: {session_ref} (or {session_id})"
-        else:
-            system_message = f"\nGobby Session ID: {session_id}"
+        # Session ID: prefer #N, fallback to UUID only when no seq_num
+        system_message = f"\nGobby Session ID: {session_ref}"
         system_message += " <- Use this for MCP tool calls (session_id parameter)"
-        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
-        # Parent Session (only if exists, as #N ref)
+        # Parent Session ID (before External ID, with handoff indicator)
         if parent_session_id and self._session_storage:
             try:
                 parent = self._session_storage.get(parent_session_id)
-                if parent and parent.seq_num:
-                    system_message += f"\nParent Session: #{parent.seq_num}"
+                if parent:
+                    parent_ref = f"#{parent.seq_num}" if parent.seq_num else parent_session_id
+                    # Handoff indicator based on session_source
+                    indicator = ""
+                    if session_source == "clear":
+                        indicator = " (Handoff)" if parent.summary_markdown else " (No Handoff)"
+                    elif session_source == "compact":
+                        indicator = " (Handoff)" if parent.compact_markdown else " (No Handoff)"
+                    system_message += f"\nParent Session ID: {parent_ref}{indicator}"
                 else:
-                    system_message += f"\nParent Session: {parent_session_id}"
+                    system_message += f"\nParent Session ID: {parent_session_id}"
             except Exception:
-                system_message += f"\nParent Session: {parent_session_id}"
+                system_message += f"\nParent Session ID: {parent_session_id}"
+
+        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
         # Task (only if exists, as #N ref)
         if task_id and self._task_manager:
@@ -825,14 +840,30 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Agent info (only if agent loaded — absence signals activation failure)
         if agent_info:
-            system_message += f"\nAgent: {agent_info.agent_name}"
-            system_message += f"\n├─ Rules: {agent_info.rules_count}"
-            system_message += f"\n├─ Variables: {agent_info.variables_count}"
+            # Agent name with optional description
+            agent_line = f"\nAgent: {agent_info.agent_name}"
+            if agent_info.description:
+                agent_line += f" — {agent_info.description}"
+            system_message += agent_line
+
+            # Build tree nodes: role, goal, rules, variables, skills
+            tree_nodes: list[str] = []
+            if agent_info.role:
+                tree_nodes.append(f"Role: {agent_info.role}")
+            if agent_info.goal:
+                tree_nodes.append(f"Goal: {agent_info.goal}")
+            tree_nodes.append(f"Rules: {agent_info.rules_count}")
+            tree_nodes.append(f"Variables: {agent_info.variables_count}")
+            # Skills is always last (may have sub-node)
+            skills_label = f"Skills: {agent_info.skills_count}"
+
+            for node in tree_nodes:
+                system_message += f"\n├─ {node}"
             if agent_info.injected_skill_names:
-                system_message += f"\n└─ Skills: {agent_info.skills_count}"
+                system_message += f"\n└─ {skills_label}"
                 system_message += f"\n   └─ Injected: {', '.join(agent_info.injected_skill_names)}"
             else:
-                system_message += f"\n└─ Skills: {agent_info.skills_count}"
+                system_message += f"\n└─ {skills_label}"
 
         # Workflow (only if active step workflow)
         if session_id:
