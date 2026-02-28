@@ -163,7 +163,7 @@ async def memory_recall_relevant(
 
     # Skip for very short prompts or commands
     if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
-        logger.debug("memory_recall_relevant: Skipping short/command prompt")
+        logger.debug("memory_recall_relevant: Skipping short/lifecycle prompt")
         return None
 
     # Resolve project_id
@@ -279,8 +279,12 @@ async def memory_recall_with_synthesis(
     if not prompt_text:
         return None
 
-    # Skip for very short prompts or commands
-    if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
+    # Skip very short prompts or lifecycle commands with no conversational content
+    _stripped = prompt_text.strip()
+    if len(_stripped) < 10:
+        return None
+    _SKIP_CMDS = ("/clear", "/exit", "/compact")
+    if any(_stripped.lower() == c or _stripped.lower().startswith(c + " ") for c in _SKIP_CMDS):
         return None
 
     # Enrich query with session digest for better search relevance
@@ -347,8 +351,12 @@ async def memory_background_digest_and_synthesize(
     if digest_config and not digest_config.enabled:
         return None
 
-    # Skip for very short prompts or commands
-    if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
+    # Skip very short prompts or lifecycle commands with no conversational content
+    _stripped = prompt_text.strip()
+    if len(_stripped) < 10:
+        return None
+    _SKIP_CMDS = ("/clear", "/exit", "/compact")
+    if any(_stripped.lower() == c or _stripped.lower().startswith(c + " ") for c in _SKIP_CMDS):
         return None
 
     try:
