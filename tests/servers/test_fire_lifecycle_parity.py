@@ -8,13 +8,12 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.servers.websocket.chat import ChatMixin
 
 pytestmark = pytest.mark.unit
@@ -245,6 +244,9 @@ class TestFireLifecycleMessagePiggyback:
         msg = MagicMock()
         msg.content = "Agent A completed subtask #42"
         msg.id = "msg-1"
+        msg.message_type = "message"
+        msg.from_session = "aaaa1111-0000-0000-0000-000000000000"
+        msg.priority = "normal"
 
         mgr = MagicMock()
         mgr.get_undelivered_messages.return_value = [msg]
@@ -253,7 +255,7 @@ class TestFireLifecycleMessagePiggyback:
         result = await host._fire_lifecycle("conv-1", HookEventType.BEFORE_TOOL, {"tool_name": "bash"})
 
         assert result is not None
-        assert "[Pending inter-session messages]:" in result["context"]
+        assert "[Pending P2P messages from other sessions]:" in result["context"]
         assert "Agent A completed subtask #42" in result["context"]
         mgr.mark_delivered.assert_called_once_with("msg-1")
 
@@ -266,6 +268,9 @@ class TestFireLifecycleMessagePiggyback:
         msg = MagicMock()
         msg.content = "Task completed"
         msg.id = "msg-2"
+        msg.message_type = "message"
+        msg.from_session = "bbbb2222-0000-0000-0000-000000000000"
+        msg.priority = "normal"
 
         mgr = MagicMock()
         mgr.get_undelivered_messages.return_value = [msg]
@@ -291,18 +296,29 @@ class TestFireLifecycleMessagePiggyback:
         mgr.get_undelivered_messages.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_no_piggyback_on_before_agent(self, host: ChatMixinHost) -> None:
-        """Message piggyback should NOT run on BEFORE_AGENT events."""
+    async def test_piggyback_on_before_agent(self, host: ChatMixinHost) -> None:
+        """Message piggyback SHOULD run on BEFORE_AGENT — ensures messages
+        arrive at agent turn start even before any tool calls."""
         host._chat_sessions["conv-1"] = _make_session()
         host.workflow_handler = _make_workflow_handler()
 
+        msg = MagicMock()
+        msg.content = "Urgent update from coordinator"
+        msg.id = "msg-agent-1"
+        msg.message_type = "message"
+        msg.from_session = "cccc3333-0000-0000-0000-000000000000"
+        msg.priority = "normal"
+
         mgr = MagicMock()
+        mgr.get_undelivered_messages.return_value = [msg]
         host.inter_session_msg_manager = mgr
 
         result = await host._fire_lifecycle("conv-1", HookEventType.BEFORE_AGENT, {"prompt": "hi"})
 
         assert result is not None
-        mgr.get_undelivered_messages.assert_not_called()
+        assert "[Pending P2P messages from other sessions]:" in result["context"]
+        assert "Urgent update from coordinator" in result["context"]
+        mgr.mark_delivered.assert_called_once_with("msg-agent-1")
 
     @pytest.mark.asyncio
     async def test_no_pending_messages(self, host: ChatMixinHost) -> None:
@@ -317,7 +333,8 @@ class TestFireLifecycleMessagePiggyback:
         result = await host._fire_lifecycle("conv-1", HookEventType.BEFORE_TOOL, {"tool_name": "bash"})
 
         assert result is not None
-        assert "Pending inter-session messages" not in (result["context"] or "")
+        assert "Pending P2P messages" not in (result["context"] or "")
+        assert "Pending messages from web chat" not in (result["context"] or "")
 
     @pytest.mark.asyncio
     async def test_piggyback_merges_with_existing_context(self, host: ChatMixinHost) -> None:
@@ -328,6 +345,9 @@ class TestFireLifecycleMessagePiggyback:
         msg = MagicMock()
         msg.content = "Agent message"
         msg.id = "msg-3"
+        msg.message_type = "message"
+        msg.from_session = "dddd4444-0000-0000-0000-000000000000"
+        msg.priority = "normal"
 
         mgr = MagicMock()
         mgr.get_undelivered_messages.return_value = [msg]
@@ -396,6 +416,9 @@ class TestFireLifecycleFullParity:
         msg = MagicMock()
         msg.content = "From agent"
         msg.id = "msg-99"
+        msg.message_type = "message"
+        msg.from_session = "eeee5555-0000-0000-0000-000000000000"
+        msg.priority = "normal"
         mgr = MagicMock()
         mgr.get_undelivered_messages.return_value = [msg]
         host.inter_session_msg_manager = mgr

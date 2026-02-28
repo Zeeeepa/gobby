@@ -647,11 +647,15 @@ class ChatMixin:
     ) -> str | None:
         """Check for and inject undelivered inter-session messages.
 
-        Only runs on high-frequency events (BEFORE_TOOL, AFTER_TOOL) to
-        match the CLI path's EventEnricher piggyback behavior.
+        Runs on BEFORE_TOOL, AFTER_TOOL, and BEFORE_AGENT to match the CLI
+        path's EventEnricher piggyback behavior. BEFORE_AGENT ensures messages
+        arrive at agent turn start, even before any tool calls.
         """
-        # Only piggyback on high-frequency tool events
-        _PIGGYBACK_EVENTS = {HookEventType.BEFORE_TOOL, HookEventType.AFTER_TOOL}
+        _PIGGYBACK_EVENTS = {
+            HookEventType.BEFORE_TOOL,
+            HookEventType.AFTER_TOOL,
+            HookEventType.BEFORE_AGENT,
+        }
         if event_type not in _PIGGYBACK_EVENTS:
             return None
 
@@ -664,18 +668,47 @@ class ChatMixin:
             if not undelivered:
                 return None
 
-            lines = ["[Pending inter-session messages]:"]
+            # Group by message_type
+            groups: dict[str, list] = {}
             for msg in undelivered:
-                lines.append(f"- {msg.content}")
+                msg_type = getattr(msg, "message_type", "message") or "message"
+                groups.setdefault(msg_type, []).append(msg)
                 try:
                     inter_session_msg_manager.mark_delivered(msg.id)
                 except Exception:
                     pass
 
-            return "\n".join(lines)
+            # Format each group
+            sections: list[str] = []
+            for msg_type, msgs in groups.items():
+                header = self._message_group_header(msg_type)
+                lines = [header]
+                for msg in msgs:
+                    urgent = "[URGENT] " if getattr(msg, "priority", "normal") == "urgent" else ""
+                    sender = self._resolve_chat_sender(getattr(msg, "from_session", None))
+                    lines.append(f"- {urgent}{sender}{msg.content}")
+                sections.append("\n".join(lines))
+
+            return "\n\n".join(sections)
         except Exception as exc:
             logger.debug("Inter-session message piggyback failed: %s", exc)
             return None
+
+    @staticmethod
+    def _message_group_header(message_type: str) -> str:
+        """Return the context header for a message type group."""
+        if message_type == "web_chat":
+            return "[Pending messages from web chat user]:"
+        if message_type == "command_result":
+            return "[Pending command results]:"
+        return "[Pending P2P messages from other sessions]:"
+
+    @staticmethod
+    def _resolve_chat_sender(from_session: str | None) -> str:
+        """Resolve sender label using truncated UUID (no session storage in chat path)."""
+        if not from_session:
+            return ""
+        return f"Session {from_session[:8]}: "
 
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
         """
