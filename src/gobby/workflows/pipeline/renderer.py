@@ -104,6 +104,20 @@ class StepRenderer:
                     rendered_step.mcp.arguments, render_context
                 )
 
+            if rendered_step.invoke_pipeline and isinstance(rendered_step.invoke_pipeline, dict):
+                if "name" in rendered_step.invoke_pipeline and isinstance(
+                    rendered_step.invoke_pipeline["name"], str
+                ):
+                    rendered_step.invoke_pipeline["name"] = self.render_string(
+                        rendered_step.invoke_pipeline["name"], render_context
+                    )
+                if "arguments" in rendered_step.invoke_pipeline and isinstance(
+                    rendered_step.invoke_pipeline["arguments"], dict
+                ):
+                    rendered_step.invoke_pipeline["arguments"] = self.render_mcp_arguments(
+                        rendered_step.invoke_pipeline["arguments"], render_context
+                    )
+
         except Exception as e:
             raise ValueError(f"Failed to render step {step.id}: {e}") from e
 
