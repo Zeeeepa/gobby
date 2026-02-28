@@ -350,16 +350,16 @@ class TestPreserveContextOnCompact:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
 
-    def test_has_seven_effects(self, db, manager) -> None:
-        """Should have 7 effects (2 set_variable + 5 mcp_call)."""
+    def test_has_eight_effects(self, db, manager) -> None:
+        """Should have 8 effects (3 set_variable + 5 mcp_call)."""
         _sync_bundled(db)
         row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         effects = body.resolved_effects
-        assert len(effects) == 7
+        assert len(effects) == 8
         set_var_effects = [e for e in effects if e.type == "set_variable"]
         mcp_effects = [e for e in effects if e.type == "mcp_call"]
-        assert len(set_var_effects) == 2
+        assert len(set_var_effects) == 3
         assert len(mcp_effects) == 5
 
     def test_has_gemini_filter(self, db, manager) -> None:

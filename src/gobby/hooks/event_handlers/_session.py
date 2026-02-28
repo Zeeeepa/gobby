@@ -208,11 +208,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         workflow_name = input_data.get("workflow_name")
         agent_depth = input_data.get("agent_depth")
 
-        if (
-            not parent_session_id
-            and session_source in ("clear", "compact")
-            and self._session_storage
-        ):
+        if not parent_session_id and self._session_storage:
             try:
                 parent = self._session_storage.find_parent(
                     machine_id=machine_id,
@@ -223,6 +219,17 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 if parent:
                     parent_session_id = parent.id
                     self.logger.debug(f"Found parent session: {parent_session_id}")
+                    # Read handoff_source marker set by prepare-clear-handoff
+                    # or preserve-context-on-compact rules
+                    from gobby.workflows.state_manager import SessionVariableManager
+
+                    parent_vars = SessionVariableManager(
+                        self._session_storage.db
+                    ).get_variables(parent.id)
+                    handoff_source = parent_vars.get("handoff_source")
+                    if handoff_source in ("clear", "compact"):
+                        session_source = handoff_source
+                        input_data["source"] = session_source
             except Exception as e:
                 self.logger.warning(f"Error finding parent session: {e}")
 
