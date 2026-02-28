@@ -6,7 +6,6 @@ import { PipelineEditor } from './PipelineEditor'
 import type { PipelineEditorHandle } from './PipelineEditor'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 import { SidebarPanel } from '../shared/SidebarPanel'
-import { YamlEditorModal } from './WorkflowsPage'
 
 const SCAFFOLD_PIPELINE_YAML = `name: new-pipeline
 type: pipeline
@@ -47,9 +46,8 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
 
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
-  const [yamlEditorWf, setYamlEditorWf] = useState<WorkflowDetail | null>(null)
-  const [yamlContent, setYamlContent] = useState('')
-  const [yamlLoading, setYamlLoading] = useState(false)
+  const [sidebarView, setSidebarView] = useState<'form' | 'yaml'>('form')
+  const [sidebarYaml, setSidebarYaml] = useState('')
   const editorRef = useRef<PipelineEditorHandle>(null)
 
   // Always fetch with include_deleted so the filter can work
@@ -77,13 +75,17 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
         definition_json: JSON.stringify(scaffoldDef),
         workflow_type: 'pipeline',
       }).then(result => {
-        if (result) setEditingWorkflow(result)
+        if (result) {
+          setEditingWorkflow(result)
+          setSidebarView('form')
+          exportYaml(result.id).then(y => setSidebarYaml(y || '')).catch(() => setSidebarYaml(''))
+        }
       })
     } else if (createMode === 'yaml') {
       onCreateModeHandled()
       setShowImportModal(true)
     }
-  }, [createMode, onCreateModeHandled, createWorkflow])
+  }, [createMode, onCreateModeHandled, createWorkflow, exportYaml])
 
   const installedNames = useMemo(() => {
     const names = new Set<string>()
@@ -194,28 +196,23 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     }
   }, [fetchWorkflows])
 
-  const handleYamlEdit = useCallback(async (wf: WorkflowDetail) => {
-    setYamlLoading(true)
-    setYamlEditorWf(wf)
+  const handleCardClick = useCallback(async (wf: WorkflowDetail) => {
+    setEditingWorkflow(wf)
+    setSidebarView('form')
     try {
       const yamlStr = await exportYaml(wf.id)
-      setYamlContent(yamlStr || '')
+      setSidebarYaml(yamlStr || '')
     } catch (e) {
       console.error('Failed to export YAML:', e)
-      setYamlContent('')
-      window.alert(`Failed to export workflow YAML: ${e instanceof Error ? e.message : String(e)}`)
-      setYamlEditorWf(null)
-      return
-    } finally {
-      setYamlLoading(false)
+      setSidebarYaml('')
     }
   }, [exportYaml])
 
   const handleYamlSave = useCallback(async () => {
-    if (!yamlEditorWf) return
+    if (!editingWorkflow) return
     let parsed: Record<string, unknown>
     try {
-      parsed = yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
+      parsed = yaml.load(sidebarYaml, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>
     } catch (e) {
       throw new Error(`Invalid YAML: ${e instanceof Error ? e.message : String(e)}`)
     }
@@ -224,13 +221,14 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     if (typeof parsed.name === 'string' && !parsed.name.trim()) throw new Error('Invalid YAML: "name" must not be empty')
     if (parsed.description !== undefined && typeof parsed.description !== 'string') throw new Error('Invalid YAML: "description" must be a string')
     if (parsed.steps !== undefined && !Array.isArray(parsed.steps)) throw new Error('Invalid YAML: "steps" must be an array')
-    await updateWorkflow(yamlEditorWf.id, {
-      name: (parsed.name as string) || yamlEditorWf.name,
+    await updateWorkflow(editingWorkflow.id, {
+      name: (parsed.name as string) || editingWorkflow.name,
       description: (parsed.description as string) || undefined,
       definition_json: JSON.stringify(parsed),
     })
-    setYamlEditorWf(null)
-  }, [yamlEditorWf, yamlContent, updateWorkflow])
+    setEditingWorkflow(null)
+    fetchWorkflows({ include_deleted: true })
+  }, [editingWorkflow, sidebarYaml, updateWorkflow, fetchWorkflows])
 
   const stepCount = useCallback((wf: WorkflowDetail) => {
     try {
@@ -242,10 +240,11 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
   }, [])
 
   const handleEditorClose = useCallback(() => {
-    if (editorRef.current?.isDirty && !window.confirm('You have unsaved changes. Discard them?')) return
+    if (sidebarView === 'form' && editorRef.current?.isDirty && !window.confirm('You have unsaved changes. Discard them?')) return
     setEditingWorkflow(null)
+    setSidebarView('form')
     fetchWorkflows({ include_deleted: true })
-  }, [fetchWorkflows])
+  }, [fetchWorkflows, sidebarView])
 
   return (
     <>
@@ -267,14 +266,19 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
 
               return (
                 <div className={cardClass} key={wf.id}>
-                  <div className="workflows-card-header">
+                  <button
+                    type="button"
+                    className="workflows-card-header workflows-card-header--clickable"
+                    onClick={() => !wf.deleted_at && handleCardClick(wf)}
+                    disabled={!!wf.deleted_at}
+                  >
                     <span className={`workflows-card-name${wf.deleted_at ? ' workflows-card-name--deleted' : ''}`}>{wf.name}</span>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <span className={`workflows-card-type workflows-card-type--${wf.workflow_type}`}>
                         {wf.workflow_type}
                       </span>
                     </div>
-                  </div>
+                  </button>
 
                   {wf.description && (
                     <div className="workflows-card-desc">{wf.description}</div>
@@ -317,8 +321,6 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
                               {installedNames.has(wf.name)
                                 ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
                                 : <button type="button" className="workflows-action-btn" onClick={() => installFromTemplate(wf.id)} title="Create an installed copy">Install</button>}
-                              <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(wf)} title="Edit as YAML">YAML</button>
-                              <button type="button" className="workflows-action-btn" onClick={() => setEditingWorkflow(wf)} title="Edit pipeline steps">Edit</button>
                               <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(wf)} title="Duplicate" aria-label="Duplicate workflow">
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
                               </button>
@@ -360,10 +362,6 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
                           {wf.source === 'project' && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(wf)} title="Move to global scope">To Global</button>
                           )}
-                          <button type="button" className="workflows-action-btn" onClick={() => handleYamlEdit(wf)} title="Edit as YAML">YAML</button>
-                          {wf.workflow_type === 'pipeline' && (
-                            <button type="button" className="workflows-action-btn" onClick={() => setEditingWorkflow(wf)} title="Edit pipeline steps">Edit</button>
-                          )}
                           <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(wf)} title="Duplicate" aria-label="Duplicate workflow">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>
                           </button>
@@ -392,32 +390,53 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
         />
       )}
 
-      {/* YAML editor modal */}
-      {yamlEditorWf && (
-        <YamlEditorModal
-          workflowName={yamlEditorWf.name}
-          yamlContent={yamlContent}
-          loading={yamlLoading}
-          onChange={setYamlContent}
-          onSave={handleYamlSave}
-          onClose={() => setYamlEditorWf(null)}
-        />
-      )}
-
       {/* Pipeline editor sidebar */}
       <SidebarPanel
         isOpen={!!editingWorkflow}
         onClose={handleEditorClose}
         title={editingWorkflow?.name || 'Pipeline'}
         width={560}
+        headerContent={
+          <div className="sidebar-tab-bar">
+            <button
+              type="button"
+              className={`sidebar-tab ${sidebarView !== 'yaml' ? 'sidebar-tab--active' : ''}`}
+              onClick={() => setSidebarView('form')}
+            >
+              Form
+            </button>
+            <button
+              type="button"
+              className={`sidebar-tab ${sidebarView === 'yaml' ? 'sidebar-tab--active' : ''}`}
+              onClick={() => setSidebarView('yaml')}
+            >
+              YAML
+            </button>
+          </div>
+        }
         footer={
           <>
-            <button className="pipeline-editor-btn" onClick={() => editingWorkflow && handleExport(editingWorkflow)} type="button">Export YAML</button>
-            <button className="pipeline-editor-btn pipeline-editor-btn--primary" onClick={() => editorRef.current?.save()} type="button">Save</button>
+            <button className="pipeline-editor-btn" onClick={handleEditorClose} type="button">Cancel</button>
+            <button
+              className="pipeline-editor-btn pipeline-editor-btn--primary"
+              onClick={sidebarView === 'yaml' ? handleYamlSave : () => editorRef.current?.save()}
+              type="button"
+            >
+              Save
+            </button>
           </>
         }
       >
-        {editingWorkflow && (
+        {editingWorkflow && sidebarView === 'yaml' ? (
+          <div className="pipeline-edit-yaml-view">
+            <CodeMirrorEditor
+              content={sidebarYaml}
+              language="yaml"
+              onChange={setSidebarYaml}
+              onSave={handleYamlSave}
+            />
+          </div>
+        ) : editingWorkflow ? (
           <PipelineEditor
             ref={editorRef}
             pipeline={editingWorkflow}
@@ -426,7 +445,7 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
             onExport={() => handleExport(editingWorkflow)}
             inSidebar
           />
-        )}
+        ) : null}
       </SidebarPanel>
     </>
   )

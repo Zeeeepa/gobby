@@ -30,6 +30,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
   const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
   const [showPipelineCreateDropdown, setShowPipelineCreateDropdown] = useState(false)
+  const pipelineDropdownRef = useRef<HTMLDivElement>(null)
   const [pipelineCreateMode, setPipelineCreateMode] = useState<'builder' | 'yaml' | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -79,6 +80,18 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
     document.addEventListener('mousedown', handleMouseDown)
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [showFilterPopover])
+
+  // Click-outside to close pipeline create dropdown
+  useEffect(() => {
+    if (!showPipelineCreateDropdown) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (pipelineDropdownRef.current && !pipelineDropdownRef.current.contains(e.target as Node)) {
+        setShowPipelineCreateDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [showPipelineCreateDropdown])
 
   // Badge count
   const activeFilterCount = useMemo(() => {
@@ -204,7 +217,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
             </div>
           )}
           {activeTab === 'pipelines' && (
-            <div className="workflows-new-wrapper">
+            <div className="workflows-new-wrapper" ref={pipelineDropdownRef}>
               <button
                 type="button"
                 className="workflows-new-btn"
