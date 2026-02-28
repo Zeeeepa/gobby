@@ -161,6 +161,7 @@ class TestAutonomousSpawningGate:
                 "description": "Epic for testing autonomous mode gate",
                 "task_type": "epic",
                 "category": "code",
+                "validation_criteria": "Tests pass and task is functional",
                 "session_id": session_id,
             },
         )
@@ -180,6 +181,7 @@ class TestAutonomousSpawningGate:
                     "task_type": "task",
                     "parent_task_id": epic_id,
                     "category": "code",
+                    "validation_criteria": "Tests pass and task is functional",
                     "session_id": session_id,
                 },
             )
@@ -257,6 +259,7 @@ class TestAutonomousSpawningGate:
                 "title": "Task for Suggestion Test",
                 "task_type": "task",
                 "category": "code",
+                "validation_criteria": "Tests pass and task is functional",
                 "session_id": session_id,
             },
         )

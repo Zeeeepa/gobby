@@ -540,6 +540,54 @@ async def handle_memory_inject_project_context(
     )
 
 
+async def handle_memory_save(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """Save a memory directly from workflow context."""
+    return await memory_save(
+        memory_manager=context.memory_manager,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        content=kwargs.get("content"),
+        memory_type=kwargs.get("memory_type", "fact"),
+        tags=kwargs.get("tags"),
+        project_id=kwargs.get("project_id"),
+    )
+
+
+async def handle_memory_recall_relevant(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """Recall memories relevant to the current user prompt."""
+    return await memory_recall_relevant(
+        memory_manager=context.memory_manager,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        prompt_text=kwargs.get("prompt_text") or (context.event_data or {}).get("prompt_text"),
+        project_id=kwargs.get("project_id"),
+        limit=kwargs.get("limit", 5),
+        state=context.state,
+    )
+
+
+async def handle_memory_sync_import(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """Import memories from filesystem."""
+    return await memory_sync_import(
+        memory_sync_manager=context.memory_sync_manager,
+    )
+
+
+async def handle_memory_sync_export(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """Export memories to filesystem."""
+    return await memory_sync_export(
+        memory_sync_manager=context.memory_sync_manager,
+    )
+
+
 async def memory_extraction_gate(
     memory_manager: Any,
     session_id: str,

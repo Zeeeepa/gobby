@@ -146,7 +146,7 @@ class EventEnricher:
             return
 
         # Group by message_type
-        groups: dict[str, list] = {}
+        groups: dict[str, list[Any]] = {}
         for msg in undelivered:
             msg_type = getattr(msg, "message_type", "message") or "message"
             groups.setdefault(msg_type, []).append(msg)

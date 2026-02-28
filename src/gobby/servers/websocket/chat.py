@@ -137,6 +137,13 @@ class ChatMixin:
             code: str = "ERROR",
         ) -> None: ...
 
+        async def broadcast_session_event(
+            self,
+            event: str,
+            session_id: str,
+            **kwargs: Any,
+        ) -> None: ...
+
     async def _cancel_active_chat(self, conversation_id: str) -> None:
         """Cancel any active chat streaming task for a conversation.
 
@@ -671,7 +678,7 @@ class ChatMixin:
                 return None
 
             # Group by message_type
-            groups: dict[str, list] = {}
+            groups: dict[str, list[Any]] = {}
             for msg in undelivered:
                 msg_type = getattr(msg, "message_type", "message") or "message"
                 groups.setdefault(msg_type, []).append(msg)
@@ -1287,7 +1294,7 @@ class ChatMixin:
                                 )
 
                     # Mark session as paused now that streaming is done
-                    if db_sid:
+                    if db_sid and session_manager:
                         try:
                             await asyncio.to_thread(session_manager.update, db_sid, status="paused")
                             await self.broadcast_session_event("updated", db_sid)

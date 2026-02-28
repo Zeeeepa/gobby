@@ -34,7 +34,11 @@ from gobby.workflows.memory_actions import (
     handle_memory_extract_from_session,
     handle_memory_extraction_gate,
     handle_memory_inject_project_context,
+    handle_memory_recall_relevant,
     handle_memory_review_gate,
+    handle_memory_save,
+    handle_memory_sync_export,
+    handle_memory_sync_import,
 )
 from gobby.workflows.observers import detect_plan_mode_from_context
 from gobby.workflows.session_actions import (
@@ -220,6 +224,10 @@ class ActionExecutor:
         self.register("memory_review_gate", handle_memory_review_gate)
         self.register("memory_extract_from_session", handle_memory_extract_from_session)
         self.register("memory_inject_project_context", handle_memory_inject_project_context)
+        self.register("memory_save", handle_memory_save)
+        self.register("memory_recall_relevant", handle_memory_recall_relevant)
+        self.register("memory_sync_import", handle_memory_sync_import)
+        self.register("memory_sync_export", handle_memory_sync_export)
 
         # --- Task sync actions ---
         self.register("task_sync_import", handle_task_sync_import)
