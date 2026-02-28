@@ -21,9 +21,7 @@ import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
-from gobby.mcp_proxy.tools.sessions._handoff import (
-    _format_turns_for_llm,
-)
+from gobby.workflows.summary_actions import format_turns_for_llm as _format_turns_for_llm
 
 pytestmark = pytest.mark.unit
 
