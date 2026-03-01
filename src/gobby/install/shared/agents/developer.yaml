@@ -1,6 +1,7 @@
 name: developer
 description: |
-  Developer agent: claim → implement → commit → report → shutdown.
+  Developer agent: claim → implement → report → shutdown.
+  Merged implement+commit into one step — all transitions driven by on_mcp_success.
   Developer marks task needs_review, does NOT close it.
 
 version: "2.0"
@@ -83,21 +84,27 @@ steps:
         when: "task_claimed"
 
   - name: implement
-    description: "Implement the task — write code, tests, iterate until done"
+    description: "Implement, test, commit, and mark for review"
     on_enter:
       - action: inject_message
         content: |
-          DEVELOPER: IMPLEMENT — Write code and tests.
+          DEVELOPER: IMPLEMENT — Write code, tests, commit, and mark for review.
 
-          Implement task {{ variables.assigned_task_id }}. You have full freedom to:
-          - Read the codebase to understand context
-          - Write implementation code
-          - Write tests
-          - Run tests and iterate until they pass
-          - Save debugging insights to gobby-memory
+          Implement task {{ variables.assigned_task_id }}. Follow these steps in order:
 
-          When implementation is complete and tests pass, proceed to commit:
-            set_workflow_variable("implemented", true)
+          1. Read the codebase to understand context
+          2. Write implementation code
+          3. Write tests
+          4. Run tests and iterate until they pass
+          5. Stage and commit:
+             git add <files>
+             git commit -m "[gobby-{{ variables.assigned_task_id }}] Description of changes"
+          6. FINAL STEP — mark for review (NOT close_task):
+             call_tool(server_name="gobby-tasks", tool_name="mark_task_needs_review",
+               arguments={"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"})
+
+          WARNING: Do NOT call close_task — it is BLOCKED. Only mark_task_needs_review works here.
+          After marking for review, you will be automatically guided to shutdown.
 
     allowed_tools: all
 
@@ -107,42 +114,14 @@ steps:
       - gobby-tasks:close_task
       - gobby-tasks:mark_task_review_approved
 
-    transitions:
-      - to: commit
-        when: "variables.get('implemented', False)"
-
-  - name: commit
-    description: "Commit and mark needs_review"
-    on_enter:
-      - action: inject_message
-        content: |
-          DEVELOPER: COMMIT — Stage, commit, and mark for review.
-
-          1. Stage your changes: git add <files>
-          2. Commit with task reference: git commit -m "[{{ project.name }}-{{ variables.assigned_task_id }}] Description"
-          3. Link the commit:
-             call_tool(server_name="gobby-tasks", tool_name="link_commit",
-               arguments={"task_id": "{{ variables.assigned_task_id }}", "commit_sha": "<sha>"})
-          4. Mark the task for review:
-             call_tool(server_name="gobby-tasks", tool_name="mark_task_needs_review",
-               arguments={"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"})
-
-    allowed_tools:
-      - Bash
-      - Read
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    allowed_mcp_tools:
-      - gobby-tasks:mark_task_needs_review
-      - gobby-tasks:link_commit
-
     on_mcp_success:
       - server: gobby-tasks
         tool: mark_task_needs_review
+        action: set_variable
+        variable: committed
+        value: true
+      - server: gobby-tasks
+        tool: link_commit
         action: set_variable
         variable: committed
         value: true

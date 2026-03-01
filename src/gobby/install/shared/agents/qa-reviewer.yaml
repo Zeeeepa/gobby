@@ -1,6 +1,7 @@
 name: qa-reviewer
 description: |
-  QA reviewer workflow: claim → review → fix → verify → approve → report → shutdown.
+  QA reviewer workflow: claim → review → report → shutdown.
+  Merged review/fix/verify/commit/approve into one step — all transitions via on_mcp_success.
   QA marks task approved — the coordinator closes it after merge.
 
 version: "2.0"
@@ -31,10 +32,6 @@ rule_definitions:
 variables:
   assigned_task_id: null
   task_claimed: false
-  review_approved: false
-  issues_found: false
-  verified: false
-  committed: false
   task_approved: false
   parent_notified: false
 
@@ -86,67 +83,25 @@ steps:
         when: "task_claimed"
 
   - name: review
-    description: "Read-only code review"
+    description: "Review, fix if needed, and approve"
     on_enter:
       - action: inject_message
         content: |
-          QA REVIEWER: REVIEW PHASE — Read-only code review.
+          QA REVIEWER: REVIEW — Review code, fix issues if any, then approve.
 
           Review the code changes for task {{ variables.assigned_task_id }}:
 
-          Checklist:
-          1. Check the diff against the target branch (git diff, git log)
+          1. Check the diff: git diff, git log
           2. Verify test coverage — are there tests for the changes?
-          3. Check for security issues (injection, XSS, etc.)
-          4. Check code style and conventions
-          5. Verify commit messages follow project format
+          3. Run tests: uv run pytest <test_file> -v
+          4. Check for security issues, code style, conventions
+          5. If issues found: fix them, run tests again, commit fixes
+          6. FINAL STEP — approve the task (NOT close_task):
+             call_tool(server_name="gobby-tasks", tool_name="mark_task_review_approved",
+               arguments={"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"})
 
-          If no issues found:
-            set_workflow_variable("review_approved", true)
-
-          If issues found:
-            set_workflow_variable("issues_found", true)
-
-    allowed_tools:
-      - Bash
-      - Read
-      - Glob
-      - Grep
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    blocked_tools:
-      - Edit
-      - Write
-      - NotebookEdit
-
-    blocked_mcp_tools:
-      - gobby-agents:spawn_agent
-      - gobby-tasks:create_task
-      - gobby-tasks:close_task
-      - gobby-tasks:mark_task_review_approved
-
-    transitions:
-      - to: approve
-        when: "review_approved"
-      - to: fix
-        when: "issues_found"
-
-  - name: fix
-    description: "Write access to fix issues"
-    on_enter:
-      - action: inject_message
-        content: |
-          QA REVIEWER: FIX PHASE — Fix issues found during review.
-
-          Fix the issues identified during code review.
-          Run tests after each fix to ensure nothing breaks.
-
-          When all fixes are applied, proceed to verify:
-            set_workflow_variable("issues_found", false)
+          WARNING: Do NOT call close_task — it is BLOCKED. Only mark_task_review_approved works here.
+          After approving, you will be automatically guided to shutdown.
 
     allowed_tools: all
 
@@ -154,105 +109,6 @@ steps:
       - gobby-agents:spawn_agent
       - gobby-tasks:create_task
       - gobby-tasks:close_task
-      - gobby-tasks:mark_task_review_approved
-
-    transitions:
-      - to: verify
-        when: "not issues_found"
-
-  - name: verify
-    description: "Run tests to confirm fixes"
-    on_enter:
-      - action: inject_message
-        content: |
-          QA REVIEWER: VERIFY PHASE — Run tests to confirm fixes.
-
-          Run the test suite to verify all fixes work correctly.
-
-          If tests pass:
-            set_workflow_variable("verified", true)
-
-          If tests fail, go back to fix:
-            set_workflow_variable("issues_found", true)
-
-    allowed_tools:
-      - Bash
-      - Read
-      - Glob
-      - Grep
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    blocked_tools:
-      - Edit
-      - Write
-
-    transitions:
-      - to: commit
-        when: "verified"
-      - to: fix
-        when: "issues_found"
-
-  - name: commit
-    description: "Commit QA fixes"
-    on_enter:
-      - action: inject_message
-        content: |
-          QA REVIEWER: COMMIT PHASE — Commit your fixes.
-
-          1. Stage your changes: git add <files>
-          2. Commit with format: git commit -m "[{{ project.name }}-{{ variables.assigned_task_id }}] QA: description"
-          3. Link the commit:
-             call_tool(server_name="gobby-tasks", tool_name="link_commit",
-               arguments={"task_id": "{{ variables.assigned_task_id }}", "commit_sha": "<sha>"})
-          4. Then set: set_workflow_variable("committed", true)
-
-          If you made no changes (review approved without fixes), just set committed to true.
-
-    allowed_tools:
-      - Bash
-      - Read
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    allowed_mcp_tools:
-      - gobby-tasks:link_commit
-
-    blocked_tools:
-      - Edit
-      - Write
-
-    transitions:
-      - to: approve
-        when: "committed"
-
-  - name: approve
-    description: "Mark task approved"
-    on_enter:
-      - action: inject_message
-        content: |
-          QA REVIEWER: APPROVE PHASE — Mark task as approved.
-
-          Call mark_task_review_approved to sign off on this task:
-          - server_name: "gobby-tasks"
-          - tool_name: "mark_task_review_approved"
-          - arguments: {"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"}
-
-    allowed_tools:
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    allowed_mcp_tools:
-      - gobby-tasks:mark_task_review_approved
 
     on_mcp_success:
       - server: gobby-tasks
