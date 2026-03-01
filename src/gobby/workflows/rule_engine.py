@@ -332,12 +332,20 @@ class RuleEngine:
         rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]],
         variables: dict[str, Any],
     ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
-        """Filter rules based on resolved selectors (if any) stored in session variables."""
+        """Filter rules based on resolved selectors (if any) stored in session variables.
+
+        Rules with ``source='agent'`` (injected from agent rule_definitions)
+        always pass — they are not subject to the active-rules selector.
+        """
         active_names = variables.get("_active_rule_names")
         if active_names is None:
             return rules  # no filter — current behavior preserved
         active_set = set(active_names)
-        return [(row, body) for row, body in rules if row.name in active_set]
+        return [
+            (row, body)
+            for row, body in rules
+            if row.name in active_set or row.source == "agent"
+        ]
 
     def _apply_effect(
         self,

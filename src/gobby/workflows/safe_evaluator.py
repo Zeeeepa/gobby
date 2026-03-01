@@ -242,6 +242,13 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         """Handle tuple literals (e.g., ('a', 'b', 'c'))."""
         return tuple(self.visit(elt) for elt in node.elts)
 
+    def visit_IfExp(self, node: ast.IfExp) -> Any:
+        """Handle ternary expressions (e.g., x if condition else y)."""
+        test = self.visit(node.test)
+        if test:
+            return self.visit(node.body)
+        return self.visit(node.orelse)
+
     def generic_visit(self, node: ast.AST) -> Any:
         """Reject any unsupported AST nodes."""
         raise ValueError(f"Unsupported expression type: {type(node).__name__}")
