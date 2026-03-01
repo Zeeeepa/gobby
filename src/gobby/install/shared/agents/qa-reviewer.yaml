@@ -37,9 +37,8 @@ rule_definitions:
     reason: "Spawning agents is not allowed in QA workflow."
     action: block
 
-  no_task_management:
+  no_close:
     mcp_tools:
-      - gobby-tasks:create_task
       - gobby-tasks:close_task
     reason: "close_task is blocked for QA agents. Use mark_task_review_approved to approve the task after review, then call kill_agent to shut down."
     action: block
