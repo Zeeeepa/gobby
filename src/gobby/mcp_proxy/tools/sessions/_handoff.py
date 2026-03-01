@@ -270,9 +270,7 @@ def register_handoff_tools(
                 # Prepare context for LLM
                 last_turns = parser.extract_turns_since_clear(turns, max_turns=50)
                 last_messages = parser.extract_last_messages(turns, num_pairs=2)
-                last_messages_str = (
-                    format_turns_for_llm(last_messages) if last_messages else ""
-                )
+                last_messages_str = format_turns_for_llm(last_messages) if last_messages else ""
 
                 # Gather real git data (matches summary_actions.generate_summary)
                 file_changes = get_file_changes()
@@ -320,18 +318,18 @@ def register_handoff_tools(
             from gobby.workflows.summary_actions import _write_summary_file
 
             if full_markdown:
-                path = await _write_summary_file(
+                summary_path = await _write_summary_file(
                     session.id, full_markdown, output_path, session_manager, mode="full"
                 )
-                if path:
-                    files_written.append(path)
+                if summary_path:
+                    files_written.append(summary_path)
 
             if compact_markdown:
-                path = await _write_summary_file(
+                summary_path = await _write_summary_file(
                     session.id, compact_markdown, output_path, session_manager, mode="compact"
                 )
-                if path:
-                    files_written.append(path)
+                if summary_path:
+                    files_written.append(summary_path)
 
         result_dict: dict[str, Any] = {
             "success": True,
