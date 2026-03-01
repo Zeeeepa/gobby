@@ -118,6 +118,15 @@ class TmuxSpawner(TerminalSpawnerBase):
         # Only pass the *extra* env vars that differ from os.environ
         extra_env = {k: v for k, v in clean_env.items() if k in (env or {})}
 
+        # tmux -e can only SET vars, not unset them.  Override to empty so
+        # the session doesn't inherit the daemon's VIRTUAL_ENV (causes uv
+        # "does not match project environment" errors in worktrees/clones).
+        # The shell-level unset above provides full removal; this prevents
+        # inheritance if the unset doesn't take effect (e.g. login shells
+        # that re-source profiles).
+        extra_env["VIRTUAL_ENV"] = ""
+        extra_env["VIRTUAL_ENV_PROMPT"] = ""
+
         try:
             info = await self._session_manager.create_session(
                 name=session_name,
