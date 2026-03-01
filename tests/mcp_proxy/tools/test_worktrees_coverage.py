@@ -917,7 +917,7 @@ async def test_merge_worktree_default_target_branch(
     calls = mock_git_manager._run_git.call_args_list
     wt_merge = [c for c in calls if c[0][0][:1] == ["merge"] and "--no-edit" in c[0][0]]
     assert len(wt_merge) == 1
-    assert "develop" in wt_merge[0][0][0]
+    assert "origin/develop" in wt_merge[0][0][0]
 
 
 @pytest.mark.asyncio

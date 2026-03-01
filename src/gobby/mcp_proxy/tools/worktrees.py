@@ -956,8 +956,10 @@ def create_worktrees_registry(
             logger.warning(f"Fetch failed in worktree (non-fatal): {fetch_result.stderr.strip()}")
 
         # Step 2: Merge target INTO source branch (in worktree)
+        # Use origin/ prefix to merge the freshly-fetched remote ref, not a stale local branch
+        merge_ref = f"origin/{merge_target}" if not merge_target.startswith("origin/") else merge_target
         merge_result = resolved_git_mgr._run_git(
-            ["merge", merge_target, "--no-edit"],
+            ["merge", merge_ref, "--no-edit"],
             cwd=wt_path,
             timeout=60,
         )
