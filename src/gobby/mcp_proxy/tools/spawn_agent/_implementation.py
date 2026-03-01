@@ -404,6 +404,14 @@ async def spawn_agent_impl(
     if enhanced_prompt:
         effective_initial_variables["prompt"] = enhanced_prompt
 
+    # 10b. Inject isolation context so workflow variables can reference them
+    if isolation_ctx.clone_id:
+        effective_initial_variables["clone_id"] = isolation_ctx.clone_id
+    if isolation_ctx.worktree_id:
+        effective_initial_variables["worktree_id"] = isolation_ctx.worktree_id
+    if isolation_ctx.branch_name:
+        effective_initial_variables["branch_name"] = isolation_ctx.branch_name
+
     # 11. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
         prompt=enhanced_prompt,

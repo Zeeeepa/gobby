@@ -55,7 +55,7 @@ class SpawnRequest:
     clone_id: str | None = None
     branch_name: str | None = None  # Git branch for worktree/clone isolation
     agent_depth: int = 0
-    max_agent_depth: int = 3
+    max_agent_depth: int = 5
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
     machine_id: str | None = None
     model: str | None = None  # Model override (e.g., gemini-3-pro-preview)

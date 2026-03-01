@@ -105,7 +105,7 @@ def prepare_terminal_spawn(
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
-    max_agent_depth: int = 3,
+    max_agent_depth: int = 5,
     agent_run_id: str | None = None,
 ) -> PreparedSpawn:
     """
@@ -236,7 +236,7 @@ async def prepare_gemini_spawn_with_preflight(
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
-    max_agent_depth: int = 3,
+    max_agent_depth: int = 5,
     preflight_timeout: float = 10.0,
 ) -> PreparedSpawn:
     """
@@ -361,7 +361,7 @@ async def prepare_codex_spawn_with_preflight(
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
-    max_agent_depth: int = 3,
+    max_agent_depth: int = 5,
     preflight_timeout: float = 30.0,
 ) -> PreparedSpawn:
     """

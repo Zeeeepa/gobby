@@ -171,7 +171,7 @@ class EmbeddedSpawner:
         project_id: str,
         workflow_name: str | None = None,
         agent_depth: int = 1,
-        max_agent_depth: int = 3,
+        max_agent_depth: int = 5,
         prompt: str | None = None,
         sandbox_config: SandboxConfig | None = None,
     ) -> EmbeddedPTYResult:

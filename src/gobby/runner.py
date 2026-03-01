@@ -401,7 +401,7 @@ class GobbyRunner:
                 db=self.database,
                 session_storage=self.session_manager,
                 executors=executors,
-                max_agent_depth=3,
+                max_agent_depth=5,
             )
             logger.debug(f"AgentRunner initialized with executors: {list(executors.keys())}")
         except Exception as e:

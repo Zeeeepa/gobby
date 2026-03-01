@@ -1,37 +1,60 @@
 name: merge
 description: |
-  Merge approved branch and cleanup isolation environment.
+  Merge agent: merge approved branch into target, then report and shutdown.
+  Worktree-first design — uses gobby-worktrees:merge_worktree when worktree_id is set,
+  falls back to manual git merge otherwise.
+  Does NOT handle cleanup — the coordinator pipeline deletes the worktree after merge.
 
-  Supports both clone and worktree isolation modes:
-  - clone:    Merge via gobby-clones MCP tool, cleanup via delete_clone
-  - worktree: Merge via git merge, cleanup via delete_worktree
-
-  Steps:
-  1. Merge the feature branch into target (usually dev)
-  2. Clean up the isolation environment
-  3. Optionally delete the feature branch (worktree mode)
-
-version: "1.0"
+version: "2.0"
 enabled: false
 
+imports: [worker-safety]
+
+rule_definitions:
+  no_agent_spawn:
+    mcp_tools:
+      - gobby-agents:spawn_agent
+    reason: "Spawning agents is not allowed in merge workflow."
+    action: block
+
+  no_task_management:
+    mcp_tools:
+      - gobby-tasks:create_task
+      - gobby-tasks:close_task
+    reason: "Task management is not allowed. The coordinator handles this."
+    action: block
+
 variables:
-  isolation_mode: "worktree"       # "clone" or "worktree"
-  clone_id: null                   # Clone ID (when isolation_mode=clone)
-  worktree_id: null                # Worktree ID (when isolation_mode=worktree)
+  worktree_id: null
+  clone_id: null
   branch_name: null
-  target_branch: dev
-  merge_strategy: merge            # merge, squash, or rebase
-  delete_branch: true
+  target_branch: "0.2.23"
+  merge_strategy: merge
   merge_complete: false
-  cleanup_complete: false
+  parent_notified: false
 
 steps:
   - name: merge
     description: "Merge branch into target"
     on_enter:
+      # Worktree mode: merge via gobby-worktrees MCP tool
+      - action: call_mcp_tool
+        when: "variables.get('worktree_id')"
+        server_name: gobby-worktrees
+        tool_name: merge_worktree
+        arguments:
+          worktree_id: "{{ variables.worktree_id }}"
+          target_branch: "{{ variables.target_branch }}"
+        output_as: _merge_result
+
+      - action: set_variable
+        when: "variables.get('worktree_id')"
+        name: merge_complete
+        value: true
+
       # Clone mode: merge via gobby-clones MCP tool
       - action: call_mcp_tool
-        when: "variables.get('isolation_mode') == 'clone'"
+        when: "variables.get('clone_id') and not variables.get('worktree_id')"
         server_name: gobby-clones
         tool_name: merge_clone
         arguments:
@@ -40,15 +63,15 @@ steps:
         output_as: _merge_result
 
       - action: set_variable
-        when: "variables.get('isolation_mode') == 'clone'"
+        when: "variables.get('clone_id') and not variables.get('worktree_id')"
         name: merge_complete
         value: true
 
-      # Worktree mode: instruct LLM to do git merge
+      # Fallback: manual merge instructions
       - action: inject_message
-        when: "variables.get('isolation_mode') == 'worktree'"
+        when: "not variables.get('worktree_id') and not variables.get('clone_id')"
         content: |
-          MERGE: Starting merge.
+          MERGE: Starting manual merge.
 
           Branch: {{ variables.branch_name }}
           Target: {{ variables.target_branch }}
@@ -76,76 +99,108 @@ steps:
     allowed_tools:
       - Bash
       - Read
+      - Edit
+      - Glob
+      - Grep
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-worktrees:merge_worktree
+      - gobby-clones:merge_clone
 
     transitions:
-      - to: cleanup
+      - to: report_to_parent
         when: "variables.get('merge_complete', False)"
 
-  - name: cleanup
-    description: "Delete isolation environment and branch"
+  - name: report_to_parent
+    description: "Notify parent of merge completion via send_message"
     on_enter:
-      # Clone mode: delete the clone
-      - action: call_mcp_tool
-        when: "variables.get('isolation_mode') == 'clone'"
-        server_name: gobby-clones
-        tool_name: delete_clone
-        arguments:
-          clone_id: "{{ variables.clone_id }}"
-        output_as: _cleanup_result
-
-      - action: set_variable
-        when: "variables.get('isolation_mode') == 'clone'"
-        name: cleanup_complete
-        value: true
-
-      # Worktree mode: instruct LLM to cleanup
       - action: inject_message
-        when: "variables.get('isolation_mode') == 'worktree'"
         content: |
-          MERGE: Cleaning up.
+          MERGE: Reporting merge completion to parent.
 
-          Worktree: {{ variables.worktree_id }}
-          Delete branch: {{ variables.delete_branch }}
-
-          Remove the worktree:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-worktrees",
-            tool_name="delete_worktree",
-            arguments={"worktree_id": "{{ variables.worktree_id }}"}
-          )
-
-          Or manually:
-          git worktree remove <path>
-          {% if variables.delete_branch %}
-          git branch -D {{ variables.branch_name }}
-          {% endif %}
-
-          After cleanup, set cleanup_complete to true:
-          set_workflow_variable("cleanup_complete", true)
+          Send a completion message to your parent session:
+          - server_name: "gobby-agents"
+          - tool_name: "send_message"
+          - arguments:
+              from_session: "{{ session_id }}"
+              to_session: "{{ session.parent_session_id }}"
+              content: "Merge complete. Branch {{ variables.branch_name }} merged into {{ variables.target_branch }}."
 
     allowed_tools:
-      - Bash
       - mcp__gobby__call_tool
-      - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-agents:send_message
+
+    on_mcp_success:
+      - server: gobby-agents
+        tool: send_message
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    on_mcp_error:
+      - server: gobby-agents
+        tool: send_message
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    transitions:
+      - to: shutdown
+        when: "parent_notified"
+
+  - name: shutdown
+    description: "Clean shutdown - MUST call kill_agent"
+    on_enter:
+      - action: inject_message
+        content: |
+          MERGE: Shutdown sequence - MANDATORY TERMINATION
+
+          Merge is complete. You MUST now terminate by calling kill_agent.
+
+          Step 1: Unlock kill_agent by fetching its schema:
+            mcp__gobby__get_tool_schema(server_name="gobby-agents", tool_name="kill_agent")
+
+          Step 2: Call kill_agent with your Gobby Session ID:
+            mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "{{ session_id }}"})
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+
+    allowed_mcp_tools:
+      - gobby-agents:kill_agent
+
+    on_premature_stop:
+      action: block
+      message: |
+        BLOCKED: You cannot stop without calling kill_agent.
+        Call kill_agent to exit. This is the ONLY way to end this session.
 
     transitions:
       - to: complete
-        when: "variables.get('cleanup_complete', False)"
+        when: "mcp_called('gobby-agents', 'kill_agent')"
 
   - name: complete
-    description: "Merge and cleanup done"
-    on_enter:
-      - action: inject_message
-        content: |
-          MERGE: Complete!
-
-          Branch {{ variables.branch_name }} has been merged into {{ variables.target_branch }}.
-          {% if variables.isolation_mode == 'clone' %}Clone {{ variables.clone_id }} has been removed.{% endif %}
-          {% if variables.isolation_mode == 'worktree' %}Worktree {{ variables.worktree_id }} has been removed.{% endif %}
+    description: "Merge done"
 
 exit_condition: "current_step == 'complete'"
+
+on_premature_stop:
+  action: block
+  message: |
+    Cannot stop - merge not complete.
+    You must complete the merge and shutdown properly.
