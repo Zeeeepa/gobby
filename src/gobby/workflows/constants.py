@@ -1,4 +1,9 @@
-"""Shared constants for the workflow system."""
+"""Shared constants used across the workflow system.
+
+This module centralises constant values (keyword sets, tool exemption lists,
+configuration defaults, etc.) that are referenced by multiple workflow modules
+such as the rule engine, evaluator, pipeline executor, and enforcement layer.
+"""
 
 # Read-only MCP discovery tools that are always allowed regardless of workflow step restrictions.
 # These "meta" tools enable progressive disclosure and are required for agents to discover
