@@ -949,35 +949,100 @@ def create_worktrees_registry(
 
         # Default to worktree's base branch
         merge_target = target_branch or worktree.base_branch
+        wt_path = worktree.worktree_path
 
-        # Perform the merge
-        result = resolved_git_mgr.merge_branch(
-            source_branch=worktree.branch_name,
-            target_branch=merge_target,
-            push=push,
+        # Step 1: In the WORKTREE, merge target branch INTO the source branch.
+        # All conflict resolution happens here — the main repo is never left dirty.
+        fetch_result = resolved_git_mgr._run_git(
+            ["fetch", "origin"], cwd=wt_path, timeout=60
+        )
+        if fetch_result.returncode != 0:
+            logger.warning(f"Fetch failed in worktree (non-fatal): {fetch_result.stderr.strip()}")
+
+        merge_result = resolved_git_mgr._run_git(
+            ["merge", merge_target, "--no-edit"],
+            cwd=wt_path,
+            timeout=60,
         )
 
-        if not result.success:
-            if result.error == "merge_conflict":
-                conflicted_files = result.output.split("\n") if result.output else []
+        if merge_result.returncode != 0:
+            merge_output = merge_result.stdout + merge_result.stderr
+            if "CONFLICT" in merge_output:
+                # Abort the failed merge in the worktree to leave it clean
+                resolved_git_mgr._run_git(["merge", "--abort"], cwd=wt_path, timeout=10)
+                conflict_lines = [
+                    line.strip()
+                    for line in merge_output.split("\n")
+                    if "CONFLICT" in line
+                ]
                 return {
                     "success": False,
                     "has_conflicts": True,
-                    "conflicted_files": conflicted_files,
-                    "error": result.message,
+                    "conflicted_files": conflict_lines,
+                    "error": "merge_conflict",
                     "message": (
-                        f"Merge conflicts detected in {len(conflicted_files)} files. "
+                        f"Merge conflicts detected in {len(conflict_lines)} file(s). "
                         "Use gobby-merge tools to resolve."
                     ),
                 }
             return {
                 "success": False,
                 "has_conflicts": False,
-                "error": result.error or result.message,
+                "error": merge_output.strip(),
+            }
+
+        # Step 2: Fast-forward the target branch in the main repo.
+        # Since target is now an ancestor of source, this is guaranteed safe.
+        original_branch_result = resolved_git_mgr._run_git(
+            ["rev-parse", "--abbrev-ref", "HEAD"], timeout=5
+        )
+        original_branch = (
+            original_branch_result.stdout.strip()
+            if original_branch_result.returncode == 0
+            else None
+        )
+
+        need_checkout = original_branch != merge_target
+        if need_checkout:
+            checkout_result = resolved_git_mgr._run_git(
+                ["checkout", merge_target], timeout=30
+            )
+            if checkout_result.returncode != 0:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Worktree merge succeeded but could not checkout {merge_target} "
+                        f"in main repo: {checkout_result.stderr.strip()}"
+                    ),
+                }
+
+        ff_result = resolved_git_mgr._run_git(
+            ["merge", "--ff-only", worktree.branch_name], timeout=30
+        )
+
+        # Restore original branch if we switched
+        if need_checkout and original_branch:
+            resolved_git_mgr._run_git(["checkout", original_branch], timeout=30)
+
+        if ff_result.returncode != 0:
+            return {
+                "success": False,
+                "error": (
+                    f"Worktree merge succeeded but fast-forward of {merge_target} "
+                    f"failed: {ff_result.stderr.strip()}"
+                ),
             }
 
         # Mark as merged in storage
         worktree_storage.mark_merged(worktree_id)
+
+        # Optionally push
+        if push:
+            push_result = resolved_git_mgr._run_git(
+                ["push", "origin", merge_target], timeout=60
+            )
+            if push_result.returncode != 0:
+                logger.warning(f"Push failed after merge: {push_result.stderr.strip()}")
 
         # Optionally delete the branch
         if delete_branch:
@@ -989,7 +1054,7 @@ def create_worktrees_registry(
         return {
             "success": True,
             "message": f"Successfully merged {worktree.branch_name} into {merge_target}",
-            "output": result.output,
+            "output": ff_result.stdout.strip(),
         }
 
     return registry
