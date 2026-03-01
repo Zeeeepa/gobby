@@ -29,9 +29,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
   const [devMode, setDevMode] = useState(false)
   const [showRuleCreateModal, setShowRuleCreateModal] = useState(false)
   const [showAgentCreateForm, setShowAgentCreateForm] = useState(false)
-  const [showPipelineCreateDropdown, setShowPipelineCreateDropdown] = useState(false)
-  const pipelineDropdownRef = useRef<HTMLDivElement>(null)
-  const [pipelineCreateMode, setPipelineCreateMode] = useState<'builder' | 'yaml' | null>(null)
+  const [showPipelineCreate, setShowPipelineCreate] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [hideGobby, setHideGobby] = useState(false)
@@ -86,17 +84,6 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [showFilterPopover])
 
-  // Click-outside to close pipeline create dropdown
-  useEffect(() => {
-    if (!showPipelineCreateDropdown) return
-    const handleMouseDown = (e: MouseEvent) => {
-      if (pipelineDropdownRef.current && !pipelineDropdownRef.current.contains(e.target as Node)) {
-        setShowPipelineCreateDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [showPipelineCreateDropdown])
 
   // Badge count
   const activeFilterCount = useMemo(() => {
@@ -229,39 +216,13 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
             </div>
           )}
           {activeTab === 'pipelines' && (
-            <div className="workflows-new-wrapper" ref={pipelineDropdownRef}>
-              <button
-                type="button"
-                className="workflows-new-btn"
-                onClick={() => setShowPipelineCreateDropdown(!showPipelineCreateDropdown)}
-              >
-                + Pipeline
-              </button>
-              {showPipelineCreateDropdown && (
-                <div className="workflows-new-dropdown">
-                  <button
-                    type="button"
-                    className="workflows-new-dropdown-item"
-                    onClick={() => {
-                      setShowPipelineCreateDropdown(false)
-                      setPipelineCreateMode('builder')
-                    }}
-                  >
-                    Builder
-                  </button>
-                  <button
-                    type="button"
-                    className="workflows-new-dropdown-item"
-                    onClick={() => {
-                      setShowPipelineCreateDropdown(false)
-                      setPipelineCreateMode('yaml')
-                    }}
-                  >
-                    YAML
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              className="workflows-new-btn"
+              onClick={() => setShowPipelineCreate(true)}
+            >
+              + Pipeline
+            </button>
           )}
           {activeTab === 'agents' && (
             <button
@@ -290,8 +251,8 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           searchText={searchText}
           sourceFilter={sourceFilter}
           devMode={devMode}
-          createMode={pipelineCreateMode}
-          onCreateModeHandled={() => setPipelineCreateMode(null)}
+          showCreate={showPipelineCreate}
+          onCreateHandled={() => setShowPipelineCreate(false)}
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}

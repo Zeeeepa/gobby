@@ -7,20 +7,12 @@ import type { PipelineEditorHandle } from './PipelineEditor'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 import { SidebarPanel } from '../shared/SidebarPanel'
 
-const SCAFFOLD_PIPELINE_YAML = `name: new-pipeline
-type: pipeline
-description: ""
-steps:
-  - id: step-1
-    exec: echo hello
-`
-
 interface PipelinesTabProps {
   searchText: string
   sourceFilter: 'installed' | 'project' | 'templates' | 'deleted'
   devMode: boolean
-  createMode: 'builder' | 'yaml' | null
-  onCreateModeHandled: () => void
+  showCreate: boolean
+  onCreateHandled: () => void
   refreshKey?: number
   projectId?: string
   hideGobby?: boolean
@@ -31,7 +23,7 @@ interface PipelinesTabProps {
   onTagsChange?: (tags: string[]) => void
 }
 
-export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, onCreateModeHandled, refreshKey = 0, projectId, hideGobby, hideInstalled, enabledFilter, tagFilter, priorityFilter, onTagsChange }: PipelinesTabProps) {
+export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, onCreateHandled, refreshKey = 0, projectId, hideGobby, hideInstalled, enabledFilter, tagFilter, priorityFilter, onTagsChange }: PipelinesTabProps) {
   const {
     workflows,
     isLoading,
@@ -41,13 +33,11 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     deleteWorkflow,
     duplicateWorkflow,
     toggleEnabled,
-    importYaml,
     exportYaml,
     restoreWorkflow,
     installFromTemplate,
   } = useWorkflows()
 
-  const [showImportModal, setShowImportModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetail | null>(null)
   const [sidebarView, setSidebarView] = useState<'form' | 'yaml'>('form')
   const [sidebarYaml, setSidebarYaml] = useState('')
@@ -68,27 +58,23 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
     fetchWorkflows({ include_deleted: true })
   }, [refreshKey, fetchWorkflows])
 
-  // Handle create mode from parent dropdown
+  // Handle create from parent button
   useEffect(() => {
-    if (createMode === 'builder') {
-      onCreateModeHandled()
-      const scaffoldDef = { name: 'new-pipeline', type: 'pipeline', description: '', steps: [{ id: 'step-1', exec: 'echo hello' }] }
-      createWorkflow({
-        name: 'new-pipeline',
-        definition_json: JSON.stringify(scaffoldDef),
-        workflow_type: 'pipeline',
-      }).then(result => {
-        if (result) {
-          setEditingWorkflow(result)
-          setSidebarView('form')
-          exportYaml(result.id).then(y => setSidebarYaml(y || '')).catch(() => setSidebarYaml(''))
-        }
-      })
-    } else if (createMode === 'yaml') {
-      onCreateModeHandled()
-      setShowImportModal(true)
-    }
-  }, [createMode, onCreateModeHandled, createWorkflow, exportYaml])
+    if (!showCreate) return
+    onCreateHandled()
+    const scaffoldDef = { name: 'new-pipeline', type: 'pipeline', description: '', steps: [{ id: 'step-1', exec: 'echo hello' }] }
+    createWorkflow({
+      name: 'new-pipeline',
+      definition_json: JSON.stringify(scaffoldDef),
+      workflow_type: 'pipeline',
+    }).then(result => {
+      if (result) {
+        setEditingWorkflow(result)
+        setSidebarView('form')
+        exportYaml(result.id).then(y => setSidebarYaml(y || '')).catch(() => setSidebarYaml(''))
+      }
+    })
+  }, [showCreate, onCreateHandled, createWorkflow, exportYaml])
 
   const installedNames = useMemo(() => {
     const names = new Set<string>()
@@ -405,14 +391,6 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
         )}
       </div>
 
-      {/* New pipeline from YAML modal */}
-      {showImportModal && (
-        <NewPipelineYamlModal
-          onClose={() => setShowImportModal(false)}
-          onImport={importYaml}
-        />
-      )}
-
       {/* Pipeline editor sidebar */}
       <SidebarPanel
         isOpen={!!editingWorkflow}
@@ -471,66 +449,5 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, createMode, on
         ) : null}
       </SidebarPanel>
     </>
-  )
-}
-
-function NewPipelineYamlModal({ onClose, onImport }: {
-  onClose: () => void
-  onImport: (yaml: string) => Promise<WorkflowDetail | null>
-}) {
-  const [content, setContent] = useState(SCAFFOLD_PIPELINE_YAML)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isDirty, setIsDirty] = useState(false)
-
-  const wrappedOnChange = useCallback((c: string) => { setIsDirty(true); setContent(c) }, [])
-
-  const handleSubmit = async () => {
-    if (!content.trim()) return
-    setError(null)
-    setSubmitting(true)
-    try {
-      const result = await onImport(content)
-      if (result) onClose()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create pipeline')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleClose = () => {
-    if (isDirty && !window.confirm('You have unsaved changes. Discard them?')) return
-    onClose()
-  }
-
-  return (
-    <div className="workflows-modal-overlay" onClick={handleClose}>
-      <div className="workflows-yaml-modal" onClick={e => e.stopPropagation()}>
-        <div className="workflows-yaml-header">
-          <h3>New Pipeline — YAML</h3>
-          <div className="workflows-yaml-header-actions">
-            {error && <span className="workflows-yaml-error">{error}</span>}
-            <button type="button" className="workflows-modal-cancel" onClick={handleClose}>Cancel</button>
-            <button
-              type="button"
-              className="workflows-modal-submit"
-              onClick={handleSubmit}
-              disabled={!content.trim() || submitting}
-            >
-              {submitting ? 'Creating...' : 'Create'}
-            </button>
-          </div>
-        </div>
-        <div className="workflows-yaml-editor">
-          <CodeMirrorEditor
-            content={content}
-            language="yaml"
-            onChange={wrappedOnChange}
-            onSave={handleSubmit}
-          />
-        </div>
-      </div>
-    </div>
   )
 }
