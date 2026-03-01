@@ -29,3 +29,4 @@ EXEMPT_TOOLS = frozenset(
 PIPELINE_TEST_1 = "coordinator-run-1"
 PIPELINE_TEST_2 = "coordinator-run-2"
 PIPELINE_TEST_3 = "coordinator-run-3"
+PIPELINE_TEST_4 = "coordinator-run-4"
