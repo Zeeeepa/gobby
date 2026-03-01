@@ -184,9 +184,12 @@ class ChatMixin:
         conversation_id: str,
         model: str | None = None,
         project_id: str | None = None,
+        resume_session_id: str | None = None,
     ) -> ChatSession:
         """Create and bootstrap a new ChatSession with lifecycle hooks wired."""
         session = ChatSession(conversation_id=conversation_id)
+        if resume_session_id:
+            session.resume_session_id = resume_session_id
 
         # Wire lifecycle callbacks before start() so hooks are registered with the SDK
         session._on_before_agent = lambda data: self._fire_lifecycle(

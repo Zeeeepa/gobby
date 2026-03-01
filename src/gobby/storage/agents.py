@@ -286,6 +286,23 @@ class LocalAgentRunManager:
         )
         return self.get(run_id)
 
+    def get_sdk_session_id_for_session(self, session_id: str) -> str | None:
+        """Find SDK session ID for a session that was an agent run.
+
+        Looks up agent_runs where child_session_id matches, returning
+        the most recent sdk_session_id.
+        """
+        row = self.db.fetchone(
+            """
+            SELECT sdk_session_id FROM agent_runs
+            WHERE child_session_id = ? AND sdk_session_id IS NOT NULL
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (session_id,),
+        )
+        return row["sdk_session_id"] if row else None
+
     def update_child_session(self, run_id: str, child_session_id: str) -> AgentRun | None:
         """Update the child session ID for an agent run."""
         now = datetime.now(UTC).isoformat()
