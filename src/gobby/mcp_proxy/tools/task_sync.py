@@ -234,11 +234,11 @@ def create_sync_registry(
         if auto_link_commits_fn is None:
             return {"error": "auto_link_commits_fn not configured"}
 
-        # Resolve task reference if provided
-        resolved_task_id = None
+        # Validate task exists if provided, but keep original #N format
+        # because extract_task_ids_from_message returns #N format from git log
         if task_id:
             try:
-                resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+                resolve_task_id_for_mcp(task_manager, task_id)
             except (TaskNotFoundError, ValueError) as e:
                 return {"error": f"Invalid task_id: {e}"}
 
@@ -252,7 +252,7 @@ def create_sync_registry(
 
         result = auto_link_commits_fn(
             task_manager=task_manager,
-            task_id=resolved_task_id,
+            task_id=task_id,  # Pass original #N format, not UUID
             since=since,
             cwd=repo_path,
         )
