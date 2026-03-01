@@ -28,6 +28,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _fire_synthetic_stop(
+    hook_manager_resolver: Any | None,
+    session_id: str,
+) -> None:
+    """Fire a synthetic STOP event so stop-triggered rules evaluate for killed agents.
+
+    When kill_agent sends SIGTERM, the CLI never fires its stop hook.
+    This ensures rules like digest-on-response still run.
+    """
+    if not hook_manager_resolver:
+        return
+
+    try:
+        hook_mgr = hook_manager_resolver()
+        if hook_mgr is None:
+            return
+
+        from datetime import datetime, timezone
+
+        from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+
+        stop_event = HookEvent(
+            event_type=HookEventType.STOP,
+            session_id=session_id,
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(timezone.utc),
+            data={},
+            metadata={"_platform_session_id": session_id},
+        )
+        # Evaluate workflow rules only (skip full handle() which does
+        # daemon health checks, adapter routing, session resolution, etc.)
+        hook_mgr._evaluate_workflow_rules(stop_event)
+        logger.debug("Fired synthetic stop rules for killed agent session %s", session_id)
+    except Exception as e:
+        logger.warning("Failed to fire synthetic stop rules for session %s: %s", session_id, e)
+
+
 def create_agents_registry(
     runner: AgentRunner,
     running_registry: RunningAgentRegistry | None = None,
@@ -41,6 +78,8 @@ def create_agents_registry(
     clone_manager: Any | None = None,
     # For mode=self (workflow activation on caller session)
     db: Any | None = None,
+    # For firing synthetic stop events on agent kill
+    hook_manager_resolver: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -321,6 +360,11 @@ def create_agents_registry(
                         result["session_expired"] = True
                     except Exception as e:
                         result["session_expire_error"] = str(e)
+
+                # Fire synthetic stop event so stop-triggered rules
+                # (e.g. digest-on-response) evaluate for killed agent sessions.
+                # The CLI never gets to fire its stop hook when SIGTERM'd.
+                _fire_synthetic_stop(hook_manager_resolver, agent_session_id)
 
         return result
 
