@@ -1302,7 +1302,7 @@ class TestAgentRunnerHookIntegration:
         assert len(captured_events) == 1
         event = captured_events[0]
         assert event.event_type == HookEventType.AFTER_TOOL
-        assert event.source == SessionSource.EMBEDDED
+        assert event.source == SessionSource.AUTONOMOUS_SDK
         assert event.session_id == "sess-hook-test"
         assert event.data["tool_name"] == "Bash"
         assert event.data["is_error"] is True

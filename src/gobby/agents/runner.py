@@ -423,7 +423,7 @@ class AgentRunner:
                 event = HookEvent(
                     event_type=HookEventType.AFTER_TOOL,
                     session_id=child_session.id,
-                    source=SessionSource.EMBEDDED,
+                    source=SessionSource.AUTONOMOUS_SDK,
                     timestamp=datetime.now(UTC),
                     data={
                         "tool_name": tool_name,
