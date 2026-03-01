@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import * as yaml from 'js-yaml'
 import { useWorkflows } from '../../hooks/useWorkflows'
 import type { WorkflowDetail } from '../../hooks/useWorkflows'
+import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { PipelineEditor } from './PipelineEditor'
 import type { PipelineEditorHandle } from './PipelineEditor'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
@@ -24,6 +25,7 @@ interface PipelinesTabProps {
 }
 
 export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, onCreateHandled, refreshKey = 0, projectId, hideGobby, hideInstalled, enabledFilter, tagFilter, priorityFilter, onTagsChange }: PipelinesTabProps) {
+  const { confirm, ConfirmDialogElement } = useConfirmDialog()
   const {
     workflows,
     isLoading,
@@ -143,7 +145,7 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, on
   }, [workflows, installedNames, enabledFilter, searchText, sourceFilter, hideGobby, hideInstalled, tagFilter, priorityFilter])
 
   const handleDelete = useCallback(async (wf: WorkflowDetail) => {
-    if (!window.confirm(`Delete "${wf.name}"?`)) return
+    if (!await confirm({ title: `Delete "${wf.name}"?`, confirmLabel: 'Delete', destructive: true })) return
     try {
       await deleteWorkflow(wf.id)
     } finally {
@@ -180,7 +182,7 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, on
 
   const handleMoveToProject = useCallback(async (wf: WorkflowDetail) => {
     if (!projectId) return
-    if (!window.confirm(`Move "${wf.name}" to the current project? It will no longer apply globally.`)) return
+    if (!await confirm({ title: 'Move to project?', description: `Move "${wf.name}" to the current project? It will no longer apply globally.`, confirmLabel: 'Move' })) return
     try {
       const res = await fetch(`/api/workflows/${wf.id}/move-to-project`, {
         method: 'POST',
@@ -194,7 +196,7 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, on
   }, [projectId, fetchWorkflows])
 
   const handleMoveToGlobal = useCallback(async (wf: WorkflowDetail) => {
-    if (!window.confirm(`Move "${wf.name}" to global scope? It will apply to all projects.`)) return
+    if (!await confirm({ title: 'Move to global?', description: `Move "${wf.name}" to global scope? It will apply to all projects.`, confirmLabel: 'Move' })) return
     try {
       const res = await fetch(`/api/workflows/${wf.id}/move-to-global`, {
         method: 'POST',
@@ -248,15 +250,16 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, on
     }
   }, [])
 
-  const handleEditorClose = useCallback(() => {
-    if (sidebarView === 'form' && editorRef.current?.isDirty && !window.confirm('You have unsaved changes. Discard them?')) return
+  const handleEditorClose = useCallback(async () => {
+    if (sidebarView === 'form' && editorRef.current?.isDirty && !await confirm({ title: 'Unsaved changes', description: 'You have unsaved changes. Discard them?', confirmLabel: 'Discard', destructive: true })) return
     setEditingWorkflow(null)
     setSidebarView('form')
     fetchWorkflows({ include_deleted: true })
-  }, [fetchWorkflows, sidebarView])
+  }, [fetchWorkflows, sidebarView, confirm])
 
   return (
     <>
+      {ConfirmDialogElement}
       {/* Card grid */}
       <div className="workflows-content">
         {isLoading ? (

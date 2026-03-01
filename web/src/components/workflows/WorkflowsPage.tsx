@@ -4,6 +4,7 @@ import { RulesTab } from './RulesTab'
 import { AgentsTab } from './AgentsTab'
 import { PipelinesTab } from './PipelinesTab'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
+import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import './WorkflowsPage.css'
 
 type ActiveTab = 'pipelines' | 'agents' | 'rules'
@@ -491,6 +492,7 @@ export function YamlEditorModal({ workflowName, yamlContent, loading, onChange, 
   onSave: () => Promise<void>
   onClose: () => void
 }) {
+  const { confirm, ConfirmDialogElement } = useConfirmDialog()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
@@ -509,13 +511,14 @@ export function YamlEditorModal({ workflowName, yamlContent, loading, onChange, 
     }
   }
 
-  const handleClose = () => {
-    if (isDirty && !window.confirm('You have unsaved changes. Discard them?')) return
+  const handleClose = async () => {
+    if (isDirty && !await confirm({ title: 'Unsaved changes', description: 'You have unsaved changes. Discard them?', confirmLabel: 'Discard', destructive: true })) return
     onClose()
   }
 
   return (
     <div className="workflows-modal-overlay" onClick={handleClose}>
+      {ConfirmDialogElement}
       <div className="workflows-yaml-modal" onClick={e => e.stopPropagation()}>
         <div className="workflows-yaml-header">
           <h3>Edit YAML — {workflowName}</h3>

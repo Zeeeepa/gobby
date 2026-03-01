@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import * as yaml from 'js-yaml'
 import { useRules } from '../../hooks/useRules'
 import type { RuleSummary, RuleDetail } from '../../hooks/useRules'
+import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { RuleEditForm, DEFAULT_RULE_FORM } from '../rules/RuleEditForm'
 import type { RuleFormData } from '../rules/RuleEditForm'
 
@@ -59,6 +60,7 @@ interface RulesTabProps {
 }
 
 export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, onCloseCreateModal, refreshKey = 0, projectId, hideGobby, hideInstalled, eventFilter, onEventTypesChange, onAllEnabledChange, tagFilter, priorityFilter, onTagsChange }: RulesTabProps) {
+  const { confirm, ConfirmDialogElement } = useConfirmDialog()
   const {
     rules,
     isLoading,
@@ -159,12 +161,11 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
 
   const handleDelete = useCallback(async (rule: RuleSummary) => {
     const isTemplate = rule.source === 'template'
-    const msg = isTemplate
-      ? `"${rule.name}" is a template rule. Force-delete it? It will be re-created on next sync.`
-      : `Delete rule "${rule.name}"?`
-    if (!window.confirm(msg)) return
+    const title = isTemplate ? `Force-delete "${rule.name}"?` : `Delete "${rule.name}"?`
+    const description = isTemplate ? 'This is a template rule. It will be re-created on next sync.' : undefined
+    if (!await confirm({ title, description, confirmLabel: 'Delete', destructive: true })) return
     await deleteRule(rule.name, isTemplate)
-  }, [deleteRule])
+  }, [deleteRule, confirm])
 
   const openSidebar = useCallback(async (rule: RuleSummary, view: 'form' | 'yaml') => {
     setSidebarLoading(true)
@@ -287,7 +288,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
 
   const handleMoveToProject = useCallback(async (rule: RuleSummary) => {
     if (!projectId) return
-    if (!window.confirm(`Move "${rule.name}" to the current project? It will no longer apply globally.`)) return
+    if (!await confirm({ title: 'Move to project?', description: `Move "${rule.name}" to the current project? It will no longer apply globally.`, confirmLabel: 'Move' })) return
     try {
       const res = await fetch(`/api/workflows/${rule.id}/move-to-project`, {
         method: 'POST',
@@ -301,7 +302,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
   }, [projectId, fetchRules])
 
   const handleMoveToGlobal = useCallback(async (rule: RuleSummary) => {
-    if (!window.confirm(`Move "${rule.name}" to global scope? It will apply to all projects.`)) return
+    if (!await confirm({ title: 'Move to global?', description: `Move "${rule.name}" to global scope? It will apply to all projects.`, confirmLabel: 'Move' })) return
     try {
       const res = await fetch(`/api/workflows/${rule.id}/move-to-global`, {
         method: 'POST',
@@ -335,6 +336,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
 
   return (
     <div className="rules-tab">
+      {ConfirmDialogElement}
       {/* Card grid */}
       <div className="workflows-content">
         {isLoading ? (
