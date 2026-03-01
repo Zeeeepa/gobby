@@ -419,14 +419,13 @@ class TestSpawnModeEnum:
     def test_spawn_mode_values(self) -> None:
         """Test SpawnMode enum values."""
         assert SpawnMode.TERMINAL.value == "terminal"
-        assert SpawnMode.EMBEDDED.value == "embedded"
-        assert SpawnMode.HEADLESS.value == "headless"
+        assert SpawnMode.AUTONOMOUS.value == "autonomous"
         assert SpawnMode.IN_PROCESS.value == "in_process"
 
     def test_spawn_mode_from_string(self) -> None:
         """Test creating SpawnMode from string."""
         assert SpawnMode("terminal") == SpawnMode.TERMINAL
-        assert SpawnMode("headless") == SpawnMode.HEADLESS
+        assert SpawnMode("autonomous") == SpawnMode.AUTONOMOUS
 
 
 class TestWorktreeIntegration:

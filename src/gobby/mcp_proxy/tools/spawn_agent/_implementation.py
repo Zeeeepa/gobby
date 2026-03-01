@@ -55,7 +55,7 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
-    mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
+    mode: Literal["terminal", "autonomous", "self"] | None = None,
     initial_step: str | None = None,  # For mode=self, start at specific step
     provider: str | None = None,
     model: str | None = None,
@@ -96,7 +96,7 @@ async def spawn_agent_impl(
         clone_storage: Storage for clone records
         clone_manager: Git manager for clone operations
         workflow: Workflow to use
-        mode: Execution mode (terminal/embedded/headless/self)
+        mode: Execution mode (terminal/autonomous/self)
         initial_step: For mode=self, start at specific step
         provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
         model: Model to use
@@ -139,8 +139,8 @@ async def spawn_agent_impl(
         _raw_mode = agent_body.mode
     if _raw_mode in (None, "inherit"):
         _raw_mode = "self"
-    effective_mode: Literal["terminal", "embedded", "headless", "self"] = (
-        _raw_mode if _raw_mode in ("terminal", "embedded", "headless", "self") else "self"  # type: ignore[assignment]
+    effective_mode: Literal["terminal", "autonomous", "self"] = (
+        _raw_mode if _raw_mode in ("terminal", "autonomous", "self") else "self"  # type: ignore[assignment]
     )
 
     effective_model = model

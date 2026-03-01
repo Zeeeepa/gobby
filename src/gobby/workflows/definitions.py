@@ -223,7 +223,7 @@ class AgentDefinitionBody(BaseModel):
     # Execution
     provider: str = "inherit"
     model: str | None = None
-    mode: Literal["terminal", "embedded", "headless", "self", "inherit"] = "inherit"
+    mode: Literal["terminal", "autonomous", "self", "inherit"] = "inherit"
     isolation: Literal["none", "worktree", "clone", "inherit"] | None = "inherit"
     base_branch: str = "inherit"
     timeout: float = 0

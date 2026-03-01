@@ -310,7 +310,7 @@ class TestListRunningAgents:
                 run_id="run-2",
                 session_id="sess-2",
                 parent_session_id="parent-1",
-                mode="embedded",
+                mode="autonomous",
                 pid=1002,
             )
         )
@@ -635,7 +635,7 @@ class TestRunningAgentStats:
                 run_id="run-3",
                 session_id="sess-3",
                 parent_session_id="parent-2",
-                mode="embedded",
+                mode="autonomous",
             )
         )
         running_registry.add(
@@ -643,7 +643,7 @@ class TestRunningAgentStats:
                 run_id="run-4",
                 session_id="sess-4",
                 parent_session_id="parent-3",
-                mode="headless",
+                mode="autonomous",
             )
         )
 
@@ -656,6 +656,5 @@ class TestRunningAgentStats:
         assert result["success"] is True
         assert result["total"] == 4
         assert result["by_mode"]["terminal"] == 2
-        assert result["by_mode"]["embedded"] == 1
-        assert result["by_mode"]["headless"] == 1
+        assert result["by_mode"]["autonomous"] == 2
         assert result["by_parent_count"] == 3  # 3 unique parents

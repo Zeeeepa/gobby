@@ -114,7 +114,7 @@ def create_spawn_agent_registry(
         worktree_id: str | None = None,
         # Execution
         workflow: str | None = None,
-        mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
+        mode: Literal["terminal", "autonomous", "self"] | None = None,
         initial_step: str | None = None,
         provider: str | None = None,
         model: str | None = None,

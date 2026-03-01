@@ -1154,7 +1154,7 @@ def _migrate_agent_defs_to_workflow_defs(db: LocalDatabase) -> None:
         body: dict[str, object] = {
             "name": row["name"],
             "provider": row["provider"] or "claude",
-            "mode": row["mode"] or "headless",
+            "mode": row["mode"] or "terminal",
             "base_branch": row["base_branch"] or "main",
             "timeout": float(row["timeout"]) if row["timeout"] else 120.0,
             "max_turns": int(row["max_turns"]) if row["max_turns"] else 10,

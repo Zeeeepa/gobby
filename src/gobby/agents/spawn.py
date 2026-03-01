@@ -28,9 +28,6 @@ from gobby.agents.spawners import (
     build_gemini_command_with_resume,
     create_prompt_file,
 )
-from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult
-from gobby.agents.spawners.embedded import EmbeddedSpawner
-from gobby.agents.spawners.headless import HeadlessSpawner
 from gobby.agents.tmux.spawner import TmuxSpawner
 
 # Re-export TmuxSpawner under the old name for callers that still
@@ -42,16 +39,11 @@ __all__ = [
     "SpawnMode",
     # Result dataclasses
     "SpawnResult",
-    "EmbeddedPTYResult",
-    "HeadlessResult",
     # Base class
     "TerminalSpawnerBase",
     # Spawner (tmux-only)
     "TmuxSpawner",
     "TerminalSpawner",  # backward compat alias
-    # Embedded/Headless
-    "EmbeddedSpawner",
-    "HeadlessSpawner",
     # Helpers
     "PreparedSpawn",
     "prepare_terminal_spawn",

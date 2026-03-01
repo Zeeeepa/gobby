@@ -124,10 +124,10 @@ class TestAgentDefinitionBodyModel:
         assert isinstance(body.workflows.rules, list)
 
     def test_mode_values(self) -> None:
-        """Mode accepts terminal, embedded, headless."""
+        """Mode accepts terminal, autonomous."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
-        for mode in ("terminal", "embedded", "headless"):
+        for mode in ("terminal", "autonomous"):
             body = AgentDefinitionBody(name="test", mode=mode)
             assert body.mode == mode
 

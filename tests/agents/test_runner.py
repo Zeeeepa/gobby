@@ -568,7 +568,7 @@ class TestRunningAgent:
             run_id="run-abc",
             session_id="sess-c",
             parent_session_id="sess-p",
-            mode="headless",
+            mode="autonomous",
             provider="claude",
         )
 
@@ -578,7 +578,7 @@ class TestRunningAgent:
         assert result["parent_session_id"] == "sess-p"
         assert result["session_id"] == "sess-c"
         assert result["provider"] == "claude"
-        assert result["mode"] == "headless"
+        assert result["mode"] == "autonomous"
         assert "started_at" in result
 
 

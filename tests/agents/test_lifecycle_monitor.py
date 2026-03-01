@@ -151,19 +151,19 @@ class TestCheckDeadAgents:
         monitor: AgentLifecycleMonitor,
         registry: RunningAgentRegistry,
     ) -> None:
-        """Non-terminal agents (headless, in_process) are not checked."""
+        """Non-terminal agents (autonomous, in_process) are not checked."""
         agent = RunningAgent(
-            run_id="run-headless",
+            run_id="run-autonomous",
             session_id="sess-1",
             parent_session_id="sess-parent",
-            mode="headless",
+            mode="autonomous",
             tmux_session_name=None,
         )
         registry.add(agent)
 
         cleaned = await monitor.check_dead_agents()
         assert cleaned == 0
-        assert registry.get("run-headless") is not None
+        assert registry.get("run-autonomous") is not None
 
     @pytest.mark.asyncio
     async def test_skips_already_completed_db_record(
