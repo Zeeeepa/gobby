@@ -116,6 +116,7 @@ class PipelineExecutor:
         session_id: str | None = None,
         _depth: int = 0,
         _pipeline_stack: frozenset[str] | None = None,
+        _parent_session_id: str | None = None,
     ) -> PipelineExecution:
         """Execute a pipeline workflow.
 
@@ -125,6 +126,7 @@ class PipelineExecutor:
             project_id: Project context for the execution
             execution_id: Optional existing execution ID (for resuming)
             session_id: Optional session that triggered the execution
+            _parent_session_id: Original caller's session ID (for nested pipelines)
 
         Returns:
             The completed PipelineExecution record
@@ -187,12 +189,45 @@ class PipelineExecutor:
             step_count=len(pipeline.steps),
         )
 
+        # 2b. Create child session for top-level pipelines
+        caller_session_id = session_id
+        pipeline_session_id = session_id
+        parent_session_id = _parent_session_id
+
+        if _depth == 0 and session_id and self.session_manager:
+            try:
+                child_session = self.session_manager.register(
+                    external_id=f"pipeline-{execution.id}",
+                    machine_id="pipeline",
+                    source="pipeline",
+                    project_id=project_id,
+                    title=f"pipeline:{pipeline.name}",
+                    parent_session_id=caller_session_id,
+                    agent_depth=0,
+                )
+                pipeline_session_id = child_session.id
+                parent_session_id = caller_session_id
+                logger.info(
+                    f"Created child session {child_session.id} for pipeline "
+                    f"{pipeline.name} (parent={caller_session_id})"
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to create child session for pipeline, "
+                    "using caller session_id",
+                    exc_info=True,
+                )
+
         # 3. Build execution context (merge defaults from pipeline definition)
         merged_inputs = {**pipeline.inputs, **inputs}
+        # Inject parent_session_id into inputs so ${{ inputs.parent_session_id }} resolves
+        if parent_session_id and not inputs.get("parent_session_id"):
+            merged_inputs["parent_session_id"] = parent_session_id
         context: dict[str, Any] = {
             "inputs": merged_inputs,
             "steps": {},  # Will hold step outputs as they complete
-            "session_id": session_id,
+            "session_id": pipeline_session_id,
+            "parent_session_id": parent_session_id,
             "_depth": _depth,
             "_pipeline_stack": _pipeline_stack,
         }
@@ -527,6 +562,7 @@ class PipelineExecutor:
                 session_id=context.get("session_id"),
                 _depth=parent_depth + 1,
                 _pipeline_stack=parent_stack,
+                _parent_session_id=context.get("parent_session_id"),
             )
 
             return {

@@ -108,6 +108,11 @@ class TmuxSpawner(TerminalSpawnerBase):
 
         shell_cmd = shlex.join(command) if len(command) > 1 else command[0]
 
+        # Unset VIRTUAL_ENV in the tmux session to avoid uv warnings
+        # when the agent runs in a worktree/clone with a different CWD.
+        # tmux inherits the daemon's env; -e can only SET vars, not unset.
+        shell_cmd = f"unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT; {shell_cmd}"
+
         # Merge env with a clean spawn env
         clean_env = make_spawn_env(env)
         # Only pass the *extra* env vars that differ from os.environ
@@ -154,7 +159,7 @@ class TmuxSpawner(TerminalSpawnerBase):
         project_id: str,
         workflow_name: str | None = None,
         agent_depth: int = 1,
-        max_agent_depth: int = 3,
+        max_agent_depth: int = 5,
         prompt: str | None = None,
         sandbox_config: SandboxConfig | None = None,
         mode: str = "terminal",

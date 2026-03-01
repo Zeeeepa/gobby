@@ -36,6 +36,21 @@ class RuleDefinition(BaseModel):
             rule["command_not_pattern"] = self.command_not_pattern
         return rule
 
+    def to_rule_definition_body(self) -> "RuleDefinitionBody":
+        """Convert inline agent rule_definition to RuleDefinitionBody for rule engine."""
+        effect = RuleEffect(
+            type=self.action,
+            reason=self.reason,
+            tools=self.tools or None,
+            mcp_tools=self.mcp_tools or None,
+            command_pattern=self.command_pattern,
+            command_not_pattern=self.command_not_pattern,
+        )
+        return RuleDefinitionBody(
+            event=RuleEvent.BEFORE_TOOL,
+            effect=effect,
+        )
+
 
 class RuleEvent(str, Enum):
     """Events that rules can respond to."""
@@ -215,6 +230,7 @@ class AgentDefinitionBody(BaseModel):
     max_turns: int = 0
     # Orchestration
     workflows: AgentWorkflows = Field(default_factory=AgentWorkflows)
+    rule_definitions: dict[str, RuleDefinition] = Field(default_factory=dict)
     enabled: bool = True
 
     def build_prompt_preamble(self) -> str | None:

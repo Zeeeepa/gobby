@@ -60,6 +60,7 @@ class RuleEngine:
         session_id: str,
         variables: dict[str, Any],
         eval_context: dict[str, Any] | None = None,
+        extra_rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]] | None = None,
     ) -> HookResponse:
         """Evaluate all matching rules for an event.
 
@@ -118,6 +119,14 @@ class RuleEngine:
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
 
+        # 1b. Append extra rules (e.g. from agent rule_definitions)
+        if extra_rules:
+            rules.extend(
+                (row, body)
+                for row, body in extra_rules
+                if body.event == rule_event
+            )
+
         # 2. Apply session overrides
         overrides = self._load_session_overrides(session_id)
         rules = self._apply_overrides(rules, overrides)
@@ -129,17 +138,24 @@ class RuleEngine:
         # 4. Filter by active rules (selector-based)
         rules = self._filter_by_active_rules(rules, variables)
 
+        # Deferred overrides — these used to early-return, but that skipped rule
+        # evaluation entirely, preventing mcp_call effects (like digest-on-response)
+        # from being collected. Now we record the override and let the loop run.
+        override_decision: str | None = None
+        override_reason: str | None = None
+
         # Force-allow stop (catastrophic failure bypass — self-clearing)
         if rule_event == RuleEvent.STOP and variables.get("force_allow_stop"):
             variables["force_allow_stop"] = False
-            return HookResponse(decision="allow")
+            override_decision = "allow"
 
         # Auto-block stop when a tool just failed (self-clearing)
-        if rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
+        elif rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
             variables["tool_block_pending"] = False
-            return HookResponse(
-                decision="block",
-                reason="Rule enforced by Gobby: [tool-failure-recovery]\nA tool just failed. Read the error and recover — do not stop.",
+            override_decision = "block"
+            override_reason = (
+                "Rule enforced by Gobby: [tool-failure-recovery]\n"
+                "A tool just failed. Read the error and recover — do not stop."
             )
 
         if not rules:
@@ -226,20 +242,30 @@ class RuleEngine:
                     # First block wins — stop evaluating
                     break
 
-        # 6. Build response
+        # 6. Build response — overrides take precedence over rule-evaluated decisions,
+        # but the rule loop always runs so mcp_calls are always collected.
+        ctx_str = "\n\n".join(context_parts) if context_parts else None
+        meta = {"mcp_calls": mcp_calls} if mcp_calls else {}
+
+        if override_decision == "block":
+            return HookResponse(
+                decision="block",
+                reason=override_reason or "",
+                context=ctx_str,
+                metadata=meta,
+            )
+        if override_decision == "allow":
+            return HookResponse(decision="allow", context=ctx_str, metadata=meta)
+
         if block_reason:
             return HookResponse(
                 decision="block",
                 reason=block_reason,
-                context="\n\n".join(context_parts) if context_parts else None,
-                metadata={"mcp_calls": mcp_calls} if mcp_calls else {},
+                context=ctx_str,
+                metadata=meta,
             )
 
-        return HookResponse(
-            decision="allow",
-            context="\n\n".join(context_parts) if context_parts else None,
-            metadata={"mcp_calls": mcp_calls} if mcp_calls else {},
-        )
+        return HookResponse(decision="allow", context=ctx_str, metadata=meta)
 
     def _load_rules(
         self, rule_event: RuleEvent

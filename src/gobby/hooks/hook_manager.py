@@ -732,6 +732,78 @@ class HookManager:
                             e,
                         )
 
+    def _dispatch_boundary_summaries(
+        self, session_id: str, background: bool = False
+    ) -> None:
+        """Generate session boundary summaries from digest.
+
+        Calls generate_session_boundary_summaries which produces compact_markdown
+        and summary_markdown from the accumulated digest. Self-gating: returns None
+        if no digest exists or is < 50 chars.
+
+        Uses same async dispatch pattern as _dispatch_mcp_calls.
+
+        Args:
+            session_id: Platform session ID.
+            background: If True, fire-and-forget. If False, block until complete.
+        """
+        from gobby.workflows.memory_actions import generate_session_boundary_summaries
+
+        async def _run() -> None:
+            try:
+                await generate_session_boundary_summaries(
+                    session_id=session_id,
+                    session_manager=self._session_storage,
+                    llm_service=self._llm_service,
+                    db=self._database,
+                    config=self._config,
+                )
+            except Exception as exc:
+                self.logger.error(
+                    "_dispatch_boundary_summaries: failed for session %s: %s",
+                    session_id,
+                    exc,
+                    exc_info=True,
+                )
+
+        coro = _run()
+
+        if background:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(coro)
+            except RuntimeError:
+                if self._loop and self._loop.is_running():
+                    try:
+                        asyncio.run_coroutine_threadsafe(coro, self._loop)
+                    except Exception as e:
+                        self.logger.warning(
+                            "_dispatch_boundary_summaries: failed to schedule: %s", e
+                        )
+                else:
+                    try:
+                        asyncio.run(coro)
+                    except Exception as e:
+                        self.logger.warning(
+                            "_dispatch_boundary_summaries: background failed: %s", e
+                        )
+        else:
+            if self._loop and self._loop.is_running():
+                try:
+                    future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+                    future.result(timeout=30)
+                except Exception as e:
+                    self.logger.error(
+                        "_dispatch_boundary_summaries: blocking failed: %s", e
+                    )
+            else:
+                try:
+                    asyncio.run(coro)
+                except Exception as e:
+                    self.logger.error(
+                        "_dispatch_boundary_summaries: blocking failed: %s", e
+                    )
+
     def shutdown(self) -> None:
         """
         Clean up HookManager resources on daemon shutdown.

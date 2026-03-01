@@ -150,9 +150,11 @@ interface AgentsTabProps {
   hideInstalled?: boolean
   filterProvider: string
   onProvidersChange: (providers: string[]) => void
+  tagFilter?: string | null
+  onTagsChange?: (tags: string[]) => void
 }
 
-export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, hideInstalled, filterProvider, onProvidersChange }: AgentsTabProps) {
+export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, hideInstalled, filterProvider, onProvidersChange, tagFilter, onTagsChange }: AgentsTabProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -312,6 +314,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
 
     if (hideInstalled && installedNames.has(d.definition.name)) return false
     if (filterProvider !== 'all' && d.definition.provider !== filterProvider) return false
+    if (tagFilter && !(d.tags && d.tags.includes(tagFilter))) return false
     if (searchText.trim()) {
       const q = searchText.toLowerCase()
       if (
@@ -322,7 +325,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       ) return false
     }
     return true
-  }), [definitions, installedNames, sourceFilter, filterProvider, searchText, hideGobby, hideInstalled])
+  }), [definitions, installedNames, sourceFilter, filterProvider, searchText, hideGobby, hideInstalled, tagFilter])
 
   const providers = useMemo(
     () => [...new Set(definitions.map(d => d.definition.provider))].sort(),
@@ -332,6 +335,18 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   useEffect(() => {
     onProvidersChange(providers)
   }, [providers, onProvidersChange])
+
+  const allTags = useMemo(() => {
+    const tags = new Set<string>()
+    for (const d of definitions) {
+      if (d.tags) for (const t of d.tags) tags.add(t)
+    }
+    return [...tags].sort()
+  }, [definitions])
+
+  useEffect(() => {
+    onTagsChange?.(allTags)
+  }, [allTags, onTagsChange])
 
   const handleCreate = async () => {
     try {

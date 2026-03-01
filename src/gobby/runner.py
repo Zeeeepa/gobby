@@ -367,6 +367,7 @@ class GobbyRunner:
                     llm_service=self.llm_service,
                     loader=self.workflow_loader,
                     template_engine=TemplateEngine(),
+                    session_manager=self.session_manager,
                 )
                 logger.info("Pipeline executor initialized at startup")
 
@@ -400,7 +401,7 @@ class GobbyRunner:
                 db=self.database,
                 session_storage=self.session_manager,
                 executors=executors,
-                max_agent_depth=3,
+                max_agent_depth=5,
             )
             logger.debug(f"AgentRunner initialized with executors: {list(executors.keys())}")
         except Exception as e:
