@@ -28,7 +28,7 @@ def is_task_complete(task: Any) -> bool:
     return False
 
 
-def task_needs_user_review(task_manager: Any, task_id: str | None) -> bool:
+def task_needs_user_review(task_manager: Any, task_id: str | int | None) -> bool:
     """Check if a task is awaiting user review (in review + HITL flag).
 
     Used in rule conditions like:
@@ -37,14 +37,24 @@ def task_needs_user_review(task_manager: Any, task_id: str | None) -> bool:
     if not task_id or not task_manager:
         return False
 
-    task = task_manager.get_task(task_id)
+    task = task_manager.get_task(_normalize_task_id(task_id))
     if not task:
         return False
 
     return bool(task.status == "needs_review" and getattr(task, "requires_user_review", False))
 
 
-def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bool:
+def _normalize_task_id(task_id: Any) -> str:
+    """Normalize a task_id to string format.
+
+    Handles int seq_nums (e.g. 9438 from auto_task_ref) by converting to '#9438'.
+    """
+    if isinstance(task_id, int):
+        return f"#{task_id}"
+    return str(task_id)
+
+
+def task_tree_complete(task_manager: Any, task_id: str | int | list[str | int] | None) -> bool:
     """Check if a task tree is complete (all work is done).
 
     A task tree is complete when either:
@@ -53,6 +63,7 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
 
     Used in rule conditions like:
         when: "task_tree_complete(variables.session_task)"
+        when: "task_tree_complete(variables.auto_task_ref)"
     """
     if not task_id:
         return True
@@ -61,7 +72,13 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
         logger.warning("task_tree_complete: No task_manager available")
         return False
 
-    task_ids = [task_id] if isinstance(task_id, str) else task_id
+    if isinstance(task_id, (str, int)):
+        task_ids = [_normalize_task_id(task_id)]
+    elif isinstance(task_id, list):
+        task_ids = [_normalize_task_id(t) for t in task_id]
+    else:
+        logger.warning(f"task_tree_complete: Unexpected task_id type: {type(task_id)}")
+        return False
 
     for tid in task_ids:
         if not _is_tree_complete(task_manager, tid):

@@ -115,6 +115,15 @@ class RuleEngine:
         # Auto-increment stop attempts (universal — not configurable)
         if rule_event == RuleEvent.STOP:
             variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
+            logger.debug(
+                "STOP gate diagnostics: session_id=%s, auto_task_ref=%r, "
+                "stop_attempts=%s, task_claimed=%s, claimed_task_id=%s",
+                session_id,
+                variables.get("auto_task_ref"),
+                variables["stop_attempts"],
+                variables.get("task_claimed"),
+                variables.get("claimed_task_id"),
+            )
 
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
