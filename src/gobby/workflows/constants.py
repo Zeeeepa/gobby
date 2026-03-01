@@ -24,3 +24,6 @@ EXEMPT_TOOLS = frozenset(
         "mcp__gobby__search_tools",
     }
 )
+
+# Pipeline test constant for coordinator pipeline verification
+PIPELINE_TEST_1 = "coordinator-run-1"
