@@ -45,7 +45,7 @@ rule_definitions:
       - gobby-tasks:create_task
       - gobby-tasks:close_task
       - gobby-tasks:mark_task_review_approved
-    reason: "Task creation, closing, and approval are not allowed. Let the parent handle task management."
+    reason: "close_task is blocked for developer agents. Use mark_task_needs_review instead to mark your work for QA review, then call kill_agent to shut down."
     action: block
 
   no_push:

@@ -37,5 +37,5 @@ rule_definitions:
     mcp_tools:
       - gobby-tasks:create_task
       - gobby-tasks:close_task
-    reason: "Task management is not allowed. The coordinator handles this."
+    reason: "close_task is blocked for merge agents. The coordinator handles task closure. Call kill_agent to shut down after merging."
     action: block

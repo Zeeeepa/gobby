@@ -41,7 +41,7 @@ rule_definitions:
     mcp_tools:
       - gobby-tasks:create_task
       - gobby-tasks:close_task
-    reason: "Task creation and closing are not allowed. Let the parent handle task management."
+    reason: "close_task is blocked for QA agents. Use mark_task_review_approved to approve the task after review, then call kill_agent to shut down."
     action: block
 
   no_push:
