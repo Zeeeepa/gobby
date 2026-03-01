@@ -722,7 +722,7 @@ class TestHeadlessSpawnerSpawnAgent:
 
             # Default values
             assert env["GOBBY_AGENT_DEPTH"] == "1"
-            assert env["GOBBY_MAX_AGENT_DEPTH"] == "3"
+            assert env["GOBBY_MAX_AGENT_DEPTH"] == "5"
 
     def test_spawn_agent_no_workflow(self) -> None:
         """spawn_agent() works without workflow name."""
