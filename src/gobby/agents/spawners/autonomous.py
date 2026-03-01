@@ -120,9 +120,7 @@ class AutonomousRunner:
         system_prompt = self.system_prompt or "You are an autonomous coding agent."
         system_prompt += f"\n\n## Environment\n- Working directory: {self.cwd}\n"
         session_ref = f"#{self.seq_num}" if self.seq_num else self.session_id
-        system_prompt += (
-            f"- Session ID: {session_ref} (use for session_id params in MCP tools)\n"
-        )
+        system_prompt += f"- Session ID: {session_ref} (use for session_id params in MCP tools)\n"
         if self.project_id:
             system_prompt += f"- Project ID: {self.project_id}\n"
 
@@ -192,9 +190,7 @@ class AutonomousRunner:
 
             # Store SDK session ID for cross-mode resume
             if self.sdk_session_id and self.agent_run_manager:
-                self.agent_run_manager.update_sdk_session_id(
-                    self.run_id, self.sdk_session_id
-                )
+                self.agent_run_manager.update_sdk_session_id(self.run_id, self.sdk_session_id)
 
             # Mark the agent run as complete
             if self.agent_run_manager:

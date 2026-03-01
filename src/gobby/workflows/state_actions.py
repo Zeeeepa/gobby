@@ -128,18 +128,14 @@ def mark_loop_complete(state: Any) -> dict[str, Any]:
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
 
-async def handle_load_workflow_state(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_load_workflow_state(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for load_workflow_state."""
     return await asyncio.to_thread(
         load_workflow_state, context.db, context.session_id, context.state
     )
 
 
-async def handle_save_workflow_state(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_save_workflow_state(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for save_workflow_state."""
     return await asyncio.to_thread(save_workflow_state, context.db, context.state)
 
@@ -212,17 +208,13 @@ async def handle_set_variable(context: Any, **kwargs: Any) -> dict[str, Any] | N
     return set_variable(context.state, resolved_name, value)
 
 
-async def handle_increment_variable(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_increment_variable(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for increment_variable."""
     resolved_name = _resolve_variable_name(kwargs, "handle_increment_variable")
     return increment_variable(context.state, resolved_name, kwargs.get("amount", 1))
 
 
-async def handle_mark_loop_complete(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_mark_loop_complete(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for mark_loop_complete."""
     return mark_loop_complete(context.state)
 

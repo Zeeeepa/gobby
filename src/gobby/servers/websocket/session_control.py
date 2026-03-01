@@ -186,9 +186,7 @@ class SessionControlMixin:
         source_session = None
         if session_manager:
             try:
-                source_session = await asyncio.to_thread(
-                    session_manager.get, source_session_id
-                )
+                source_session = await asyncio.to_thread(session_manager.get, source_session_id)
                 if source_session and not project_id:
                     project_id = source_session.project_id
             except Exception as e:

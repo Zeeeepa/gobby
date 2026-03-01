@@ -143,10 +143,7 @@ def switch_mode(mode: str | None = None) -> dict[str, Any]:
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
 
-
-async def handle_start_new_session(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_start_new_session(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for start_new_session."""
     import asyncio
 
@@ -161,9 +158,7 @@ async def handle_start_new_session(
     )
 
 
-async def handle_mark_session_status(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_mark_session_status(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for mark_session_status."""
     return mark_session_status(
         session_manager=context.session_manager,

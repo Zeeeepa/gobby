@@ -792,10 +792,7 @@ async def generate_session_boundary_summaries(
 # These match the ActionHandler protocol: (context: Any, **kwargs) -> dict | None
 
 
-
-async def handle_memory_extraction_gate(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_memory_extraction_gate(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """Stop-gate that blocks agent from stopping until memory extraction is done.
 
     The agent has full context of its work — it uses create_memory/update_memory
@@ -836,9 +833,7 @@ async def handle_generate_session_boundary_summaries(
     )
 
 
-async def handle_memory_extract_from_session(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_memory_extract_from_session(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """Daemon-side memory extraction from session transcript.
 
     Safety net for capturing memories when the agent didn't save them.
@@ -888,9 +883,7 @@ async def handle_memory_save(context: Any, **kwargs: Any) -> dict[str, Any] | No
     )
 
 
-async def handle_memory_recall_relevant(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_memory_recall_relevant(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """Recall memories relevant to the current user prompt."""
     return await memory_recall_relevant(
         memory_manager=context.memory_manager,

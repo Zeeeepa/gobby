@@ -949,15 +949,15 @@ def create_worktrees_registry(
         wt_path = worktree.worktree_path
 
         # Step 1: Fetch latest in the worktree
-        fetch_result = resolved_git_mgr._run_git(
-            ["fetch", "origin"], cwd=wt_path, timeout=60
-        )
+        fetch_result = resolved_git_mgr._run_git(["fetch", "origin"], cwd=wt_path, timeout=60)
         if fetch_result.returncode != 0:
             logger.warning(f"Fetch failed in worktree (non-fatal): {fetch_result.stderr.strip()}")
 
         # Step 2: Merge target INTO source branch (in worktree)
         # Use origin/ prefix to merge the freshly-fetched remote ref, not a stale local branch
-        merge_ref = f"origin/{merge_target}" if not merge_target.startswith("origin/") else merge_target
+        merge_ref = (
+            f"origin/{merge_target}" if not merge_target.startswith("origin/") else merge_target
+        )
         merge_result = resolved_git_mgr._run_git(
             ["merge", merge_ref, "--no-edit"],
             cwd=wt_path,
@@ -969,9 +969,7 @@ def create_worktrees_registry(
             if "CONFLICT" in merge_output:
                 resolved_git_mgr._run_git(["merge", "--abort"], cwd=wt_path, timeout=10)
                 conflict_lines = [
-                    line.strip()
-                    for line in merge_output.split("\n")
-                    if "CONFLICT" in line
+                    line.strip() for line in merge_output.split("\n") if "CONFLICT" in line
                 ]
                 return {
                     "success": False,

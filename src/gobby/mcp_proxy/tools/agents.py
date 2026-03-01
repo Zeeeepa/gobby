@@ -14,6 +14,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 from gobby.agents.registry import (
@@ -45,7 +46,7 @@ def _fire_synthetic_stop(
         if hook_mgr is None:
             return
 
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 
@@ -53,7 +54,7 @@ def _fire_synthetic_stop(
             event_type=HookEventType.STOP,
             session_id=session_id,
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             data={},
             metadata={"_platform_session_id": session_id},
         )

@@ -25,5 +25,6 @@ EXEMPT_TOOLS = frozenset(
     }
 )
 
-# Pipeline test constant for coordinator pipeline verification
+# Pipeline test constants for coordinator pipeline verification
 PIPELINE_TEST_1 = "coordinator-run-1"
+PIPELINE_TEST_2 = "coordinator-run-2"

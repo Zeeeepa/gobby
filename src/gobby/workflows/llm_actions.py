@@ -81,6 +81,7 @@ async def call_llm(
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
+
 async def handle_call_llm(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for call_llm."""
     if context.session_manager is None:

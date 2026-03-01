@@ -99,9 +99,7 @@ async def handle_write_todos(context: Any, **kwargs: Any) -> dict[str, Any] | No
     )
 
 
-async def handle_mark_todo_complete(
-    context: Any, **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_mark_todo_complete(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for mark_todo_complete."""
     todo_text = kwargs.get("todo_text")
     if not todo_text:

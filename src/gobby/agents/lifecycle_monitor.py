@@ -157,7 +157,9 @@ class AgentLifecycleMonitor:
             logger.info(f"Cleaned up {cleaned} dead tmux agent(s)")
 
         # Check autonomous/in_process agents with asyncio.Tasks
-        task_agents = [a for a in agents if a.task is not None and a.mode in ("autonomous", "in_process")]
+        task_agents = [
+            a for a in agents if a.task is not None and a.mode in ("autonomous", "in_process")
+        ]
         for agent in task_agents:
             task: asyncio.Task[object] = agent.task
             if not task.done():
