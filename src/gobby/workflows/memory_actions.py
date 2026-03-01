@@ -475,9 +475,7 @@ def _build_digest_update_prompt(previous_digest: str, current_prompt: str) -> st
 # --- Turn-by-turn digest pipeline ---
 
 
-def _read_last_turn_from_transcript(
-    jsonl_path: str, source: str
-) -> tuple[str, str]:
+def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, str]:
     """Read the last user prompt and assistant response from a transcript file.
 
     Args:
@@ -792,9 +790,13 @@ async def _extract_memories_from_turn(
 
     memory_ids: list[str] = []
     # Resolve project_id from session
-    session = memory_manager.storage.db.fetchone(
-        "SELECT project_id FROM sessions WHERE id = ?", (session_id,)
-    ) if hasattr(memory_manager, "storage") else None
+    session = (
+        memory_manager.storage.db.fetchone(
+            "SELECT project_id FROM sessions WHERE id = ?", (session_id,)
+        )
+        if hasattr(memory_manager, "storage")
+        else None
+    )
     project_id = session["project_id"] if session else None
 
     for line in response.splitlines():
@@ -955,7 +957,7 @@ if __name__ != "__main__":
 
 
 async def handle_memory_extraction_gate(
-    context: "ActionContext", **kwargs: Any
+    context: ActionContext, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Stop-gate that blocks agent from stopping until memory extraction is done.
 
@@ -970,9 +972,7 @@ async def handle_memory_extraction_gate(
     )
 
 
-async def handle_memory_review_gate(
-    context: "ActionContext", **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_memory_review_gate(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """Stop-gate that nudges the agent to review work and save memories.
 
     Conditional on pending_memory_review — only fires when significant
@@ -987,7 +987,7 @@ async def handle_memory_review_gate(
 
 
 async def handle_memory_extract_from_session(
-    context: "ActionContext", **kwargs: Any
+    context: ActionContext, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Daemon-side memory extraction from session transcript.
 
@@ -1009,7 +1009,7 @@ async def handle_memory_extract_from_session(
 
 
 async def handle_memory_inject_project_context(
-    context: "ActionContext", **kwargs: Any
+    context: ActionContext, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Inject top project memories at session start.
 
@@ -1025,7 +1025,7 @@ async def handle_memory_inject_project_context(
     )
 
 
-async def handle_memory_save(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+async def handle_memory_save(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """Save a memory directly from workflow context."""
     return await memory_save(
         memory_manager=context.memory_manager,
@@ -1039,7 +1039,7 @@ async def handle_memory_save(context: "ActionContext", **kwargs: Any) -> dict[st
 
 
 async def handle_memory_recall_relevant(
-    context: "ActionContext", **kwargs: Any
+    context: ActionContext, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Recall memories relevant to the current user prompt."""
     return await memory_recall_relevant(
@@ -1053,18 +1053,14 @@ async def handle_memory_recall_relevant(
     )
 
 
-async def handle_memory_sync_import(
-    context: "ActionContext", **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_memory_sync_import(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """Import memories from filesystem."""
     return await memory_sync_import(
         memory_sync_manager=context.memory_sync_manager,
     )
 
 
-async def handle_memory_sync_export(
-    context: "ActionContext", **kwargs: Any
-) -> dict[str, Any] | None:
+async def handle_memory_sync_export(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """Export memories to filesystem."""
     return await memory_sync_export(
         memory_sync_manager=context.memory_sync_manager,

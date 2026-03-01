@@ -57,7 +57,6 @@ def _blank_workflow() -> dict[str, Any]:
     }
 
 
-
 def _tdd_developer() -> dict[str, Any]:
     definition = {
         "name": "",

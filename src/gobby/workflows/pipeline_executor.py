@@ -246,7 +246,9 @@ class PipelineExecutor:
                         step_id=step.id,
                         input_json=json.dumps(
                             {k: v for k, v in context.items() if not k.startswith("_")}
-                        ) if context else None,
+                        )
+                        if context
+                        else None,
                     )
 
                 # Check if step should run based on condition
