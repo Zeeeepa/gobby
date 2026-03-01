@@ -252,7 +252,25 @@ class TestDetectTaskClaimClaimOperations:
         assert variables.get("task_claimed") is True
         assert variables.get("claimed_task_id") == "task-uuid-123"
 
-    def test_sets_task_claimed_on_create_task(
+    def test_sets_task_claimed_on_create_task_with_claim(
+        self, variables, make_after_tool_event, mock_task_manager
+    ) -> None:
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "New task", "claim": True},
+            },
+            tool_output={"success": True, "result": {"id": "new-task-uuid", "status": "open"}},
+        )
+
+        detect_task_claim(event, variables, SESSION_ID, task_manager=mock_task_manager)
+
+        assert variables.get("task_claimed") is True
+        assert variables.get("claimed_task_id") == "new-task-uuid"
+
+    def test_create_task_without_claim_does_not_set_task_claimed(
         self, variables, make_after_tool_event, mock_task_manager
     ) -> None:
         event = make_after_tool_event(
@@ -267,8 +285,24 @@ class TestDetectTaskClaimClaimOperations:
 
         detect_task_claim(event, variables, SESSION_ID, task_manager=mock_task_manager)
 
-        assert variables.get("task_claimed") is True
-        assert variables.get("claimed_task_id") == "new-task-uuid"
+        assert "task_claimed" not in variables
+
+    def test_create_task_with_explicit_claim_false_does_not_set_task_claimed(
+        self, variables, make_after_tool_event, mock_task_manager
+    ) -> None:
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "New task", "claim": False},
+            },
+            tool_output={"success": True, "result": {"id": "new-task-uuid", "status": "open"}},
+        )
+
+        detect_task_claim(event, variables, SESSION_ID, task_manager=mock_task_manager)
+
+        assert "task_claimed" not in variables
 
     def test_create_task_handles_missing_id(
         self, variables, make_after_tool_event, mock_task_manager

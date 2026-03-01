@@ -120,6 +120,9 @@ def detect_task_claim(
         elif raw_task_id and not task_manager:
             logger.warning(f"Cannot resolve task ref '{raw_task_id}' to UUID - no task_manager")
     elif inner_tool_name == "create_task":
+        create_args = tool_input.get("arguments", {}) or {}
+        if not create_args.get("claim"):
+            return
         result = tool_output.get("result", {}) if isinstance(tool_output, dict) else {}
         task_id = result.get("id") if isinstance(result, dict) else None
         if not task_id:

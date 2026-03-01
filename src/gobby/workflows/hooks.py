@@ -112,11 +112,11 @@ class WorkflowHookHandler:
                 except Exception as e:
                     logger.debug(f"Could not load session variables for rules: {e}")
 
+            # Snapshot BEFORE observers to capture both observer and rule changes in the diff
+            pre_eval = deepcopy(variables)
+
             # Run built-in observers BEFORE rule evaluation
             self._run_observers(event, session_id, variables)
-
-            # Snapshot after observers to detect changes from rule set_variable effects
-            pre_eval = deepcopy(variables)
 
             # Load rule_definitions from active agent definition
             extra_rules = self._load_agent_rule_definitions(session_id, variables)

@@ -12,8 +12,8 @@ threading scenarios:
 import asyncio
 import concurrent.futures
 import threading
-from datetime import datetime
-from unittest.mock import patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -743,3 +743,97 @@ class TestVariablePersistence:
         # Now should block
         response = await handler._evaluate_rules(event)
         assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    async def test_observer_changes_persisted_to_session_variables(
+        self, db, session_var_manager
+    ) -> None:
+        """Observer variable changes (e.g. task_claimed) should be persisted to DB."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        mock_task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-observer"
+        mock_task_manager.get_task.return_value = mock_task
+
+        rule_engine = RuleEngine(db=db)
+        handler = WorkflowHookHandler(
+            rule_engine=rule_engine,
+            task_manager=mock_task_manager,
+        )
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id="test-ext",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "claim_task",
+                    "arguments": {"task_id": "#99"},
+                },
+                "tool_output": {"success": True, "result": {"id": "task-uuid-observer", "status": "in_progress"}},
+                "mcp_server": "gobby-tasks",
+                "mcp_tool": "claim_task",
+            },
+            metadata={"_platform_session_id": "test-session"},
+        )
+
+        await handler._evaluate_rules(event)
+
+        variables = session_var_manager.get_variables("test-session")
+        assert variables.get("task_claimed") is True
+        assert variables.get("claimed_task_id") == "task-uuid-observer"
+
+    @pytest.mark.asyncio
+    async def test_observer_and_rule_changes_both_persisted(
+        self, db, session_var_manager
+    ) -> None:
+        """Both observer changes and rule set_variable effects should persist."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        mock_task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-both"
+        mock_task_manager.get_task.return_value = mock_task
+
+        rule_engine = RuleEngine(db=db)
+        handler = WorkflowHookHandler(
+            rule_engine=rule_engine,
+            task_manager=mock_task_manager,
+        )
+
+        # Insert a rule that fires on after_tool and sets a counter
+        self._insert_set_variable_rule(
+            db, "test-tool-counter", "after_tool", "tool_counter",
+            "variables.get('tool_counter', 0) + 1",
+        )
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id="test-ext",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "claim_task",
+                    "arguments": {"task_id": "#99"},
+                },
+                "tool_output": {"success": True, "result": {"id": "task-uuid-both", "status": "in_progress"}},
+                "mcp_server": "gobby-tasks",
+                "mcp_tool": "claim_task",
+            },
+            metadata={"_platform_session_id": "test-session"},
+        )
+
+        await handler._evaluate_rules(event)
+
+        variables = session_var_manager.get_variables("test-session")
+        # Observer change
+        assert variables.get("task_claimed") is True
+        # Rule change
+        assert variables.get("tool_counter") == 1
