@@ -112,7 +112,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_AGENT_RUN_ID] == "run-456"
         assert result[GOBBY_PROJECT_ID] == "proj-789"
         assert result[GOBBY_AGENT_DEPTH] == "1"
-        assert result[GOBBY_MAX_AGENT_DEPTH] == "3"
+        assert result[GOBBY_MAX_AGENT_DEPTH] == "5"
 
     def test_with_workflow_name(self) -> None:
         """Test env vars include workflow name when provided."""
