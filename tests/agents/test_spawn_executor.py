@@ -58,7 +58,7 @@ class TestSpawnRequest:
         assert request.worktree_id is None
         assert request.clone_id is None
         assert request.agent_depth == 0
-        assert request.max_agent_depth == 3
+        assert request.max_agent_depth == 5
 
     def test_spawn_request_sandbox_fields_default_to_none(self) -> None:
         """Test SpawnRequest sandbox fields default to None."""
