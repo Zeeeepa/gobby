@@ -260,9 +260,12 @@ class PipelineExecutor:
                         context["steps"][step.id] = {"output": output}
                         continue
 
-                    # If skipped, just skip
+                    # If skipped, just skip (but register in context so downstream
+                    # conditions like ``steps.X.output`` resolve to None instead
+                    # of raising a KeyError / attribute error).
                     if step_execution.status == StepStatus.SKIPPED:
                         logger.info(f"Skipping previously skipped step {step.id}")
+                        context["steps"][step.id] = {"output": None}
                         continue
 
                     # If waiting approval, check if we should check gate again
@@ -303,6 +306,9 @@ class PipelineExecutor:
                         step_name=getattr(step, "name", step.id),
                         reason="condition not met",
                     )
+                    # Register skipped step in context so downstream conditions
+                    # like ``steps.X.output`` resolve to None instead of erroring.
+                    context["steps"][step.id] = {"output": None}
                     current_step_execution = None
                     continue
 
