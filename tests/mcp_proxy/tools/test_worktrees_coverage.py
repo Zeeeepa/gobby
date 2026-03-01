@@ -859,14 +859,18 @@ async def test_merge_worktree_success(registry, mock_worktree_storage, mock_git_
     )
 
     assert result["success"] is True
-    assert "feature/test" in result["message"]
-    assert "main" in result["message"]
+    assert result["source_branch"] == "feature/test"
+    assert result["target_branch"] == "main"
     mock_worktree_storage.mark_merged.assert_called_once_with("wt-1")
-    # Verify merge happened in the worktree, not the main repo
+    # Verify merge + push happened in the worktree
     calls = mock_git_manager._run_git.call_args_list
     merge_call = [c for c in calls if c[0][0][:1] == ["merge"] and "--no-edit" in c[0][0]]
     assert len(merge_call) == 1
     assert merge_call[0].kwargs.get("cwd") == "/tmp/wt1" or merge_call[0][1].get("cwd") == "/tmp/wt1"
+    # Verify push from worktree: git push origin feature/test:main
+    push_calls = [c for c in calls if c[0][0][:1] == ["push"]]
+    assert len(push_calls) == 1
+    assert push_calls[0][0][0] == ["push", "origin", "feature/test:main"]
 
 
 @pytest.mark.asyncio
@@ -1007,8 +1011,10 @@ async def test_merge_worktree_non_conflict_failure(
 
 
 @pytest.mark.asyncio
-async def test_merge_worktree_returns_branch_info(registry, mock_worktree_storage, mock_git_manager):
-    """Merge returns source_branch and target_branch for downstream fast-forward."""
+async def test_merge_worktree_explicit_source_branch(
+    registry, mock_worktree_storage, mock_git_manager
+):
+    """Agent can specify source_branch explicitly."""
     wt = Worktree(
         id="wt-1",
         project_id="proj-1",
@@ -1029,19 +1035,25 @@ async def test_merge_worktree_returns_branch_info(registry, mock_worktree_storag
     mock_worktree_storage.mark_merged.return_value = True
 
     result = await registry.call(
-        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main"}
+        "merge_worktree",
+        {"worktree_id": "wt-1", "source_branch": "my-branch", "target_branch": "main"},
     )
 
     assert result["success"] is True
-    assert result["source_branch"] == "feature/test"
-    assert result["target_branch"] == "main"
+    assert result["source_branch"] == "my-branch"
+    # Push should use the explicit source branch
+    push_calls = [
+        c for c in mock_git_manager._run_git.call_args_list
+        if c[0][0][:1] == ["push"]
+    ]
+    assert push_calls[0][0][0] == ["push", "origin", "my-branch:main"]
 
 
 @pytest.mark.asyncio
 async def test_merge_worktree_no_main_repo_operations(
     registry, mock_worktree_storage, mock_git_manager
 ):
-    """Merge only runs git commands in the worktree, never the main repo."""
+    """All git commands run in the worktree, never the main repo."""
     wt = Worktree(
         id="wt-1",
         project_id="proj-1",

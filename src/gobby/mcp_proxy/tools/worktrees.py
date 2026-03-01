@@ -911,19 +911,23 @@ def create_worktrees_registry(
     )
     async def merge_worktree(
         worktree_id: str,
+        source_branch: str | None = None,
         target_branch: str | None = None,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Merge target branch into a worktree's source branch (fully isolated).
+        Merge and push from worktree — fully isolated, never touches main repo.
 
-        Performs the merge entirely in the worktree — the main repo is never
-        touched. After success, the source branch contains all changes from
-        both branches and is ready to be fast-forwarded into the target.
+        1. Fetch latest in the worktree
+        2. Merge target INTO source branch (in worktree — conflicts resolved here)
+        3. Push source to origin as target (git push origin source:target)
+
+        The main repo is never touched. All operations use cwd=worktree_path.
 
         Args:
             worktree_id: The worktree ID to merge.
-            target_branch: Branch to merge into source (defaults to worktree's base_branch).
+            source_branch: Agent's working branch (defaults to worktree's branch_name).
+            target_branch: Branch to merge into (defaults to worktree's base_branch).
             project_path: Path to project directory (pass cwd from CLI).
 
         Returns:
@@ -940,18 +944,18 @@ def create_worktrees_registry(
         if not worktree:
             return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
-        # Default to worktree's base branch
+        effective_source = source_branch or worktree.branch_name
         merge_target = target_branch or worktree.base_branch
         wt_path = worktree.worktree_path
 
-        # Step 1: In the WORKTREE, merge target branch INTO the source branch.
-        # All conflict resolution happens here — the main repo is never left dirty.
+        # Step 1: Fetch latest in the worktree
         fetch_result = resolved_git_mgr._run_git(
             ["fetch", "origin"], cwd=wt_path, timeout=60
         )
         if fetch_result.returncode != 0:
             logger.warning(f"Fetch failed in worktree (non-fatal): {fetch_result.stderr.strip()}")
 
+        # Step 2: Merge target INTO source branch (in worktree)
         merge_result = resolved_git_mgr._run_git(
             ["merge", merge_target, "--no-edit"],
             cwd=wt_path,
@@ -961,7 +965,6 @@ def create_worktrees_registry(
         if merge_result.returncode != 0:
             merge_output = merge_result.stdout + merge_result.stderr
             if "CONFLICT" in merge_output:
-                # Abort the failed merge in the worktree to leave it clean
                 resolved_git_mgr._run_git(["merge", "--abort"], cwd=wt_path, timeout=10)
                 conflict_lines = [
                     line.strip()
@@ -984,20 +987,25 @@ def create_worktrees_registry(
                 "error": merge_output.strip(),
             }
 
-        # Mark as merged in storage. The source branch now contains all changes
-        # from both branches. Updating the target branch (fast-forward) is a
-        # separate responsibility handled by the caller (e.g., a pipeline step).
-        # This guarantees merge_worktree never touches the main repo.
+        # Step 3: Push source branch as target to origin (from worktree)
+        push_result = resolved_git_mgr._run_git(
+            ["push", "origin", f"{effective_source}:{merge_target}"],
+            cwd=wt_path,
+            timeout=60,
+        )
+        if push_result.returncode != 0:
+            logger.warning(f"Push to origin failed (non-fatal): {push_result.stderr.strip()}")
+
+        # Mark as merged in storage
         worktree_storage.mark_merged(worktree_id)
 
         return {
             "success": True,
             "message": (
-                f"Successfully merged {merge_target} into {worktree.branch_name} "
-                f"(in worktree). {worktree.branch_name} is ready to fast-forward "
-                f"into {merge_target}."
+                f"Merged {merge_target} into {effective_source} and pushed to origin. "
+                f"No main repo operations performed."
             ),
-            "source_branch": worktree.branch_name,
+            "source_branch": effective_source,
             "target_branch": merge_target,
         }
 
