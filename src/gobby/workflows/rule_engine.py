@@ -60,6 +60,7 @@ class RuleEngine:
         session_id: str,
         variables: dict[str, Any],
         eval_context: dict[str, Any] | None = None,
+        extra_rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]] | None = None,
     ) -> HookResponse:
         """Evaluate all matching rules for an event.
 
@@ -117,6 +118,14 @@ class RuleEngine:
 
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
+
+        # 1b. Append extra rules (e.g. from agent rule_definitions)
+        if extra_rules:
+            rules.extend(
+                (row, body)
+                for row, body in extra_rules
+                if body.event == rule_event
+            )
 
         # 2. Apply session overrides
         overrides = self._load_session_overrides(session_id)

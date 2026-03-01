@@ -23,11 +23,9 @@ rule_definitions:
     action: block
 
   no_push:
-    commands:
-      - pattern: "git push"
-        reason: "Push is blocked. The parent orchestrator handles merging."
-      - pattern: "git push *"
-        reason: "Push is blocked. The parent orchestrator handles merging."
+    tools: [Bash]
+    command_pattern: "git\\s+push"
+    reason: "Push is blocked. The parent orchestrator handles merging."
     action: block
 
 variables:

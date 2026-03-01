@@ -620,10 +620,22 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if agent_name_override:
             default_agent_name = agent_name_override
         else:
-            from gobby.storage.config_store import ConfigStore
+            # Check if the session already has _agent_type set (e.g., from spawn_agent).
+            # If so, use that instead of the global default — spawned agents should
+            # keep the agent type assigned by the parent.
+            from gobby.workflows.state_manager import SessionVariableManager
 
-            config_store = ConfigStore(self._session_storage.db)
-            default_agent_name = config_store.get("default_agent") or "default"
+            sv_mgr = SessionVariableManager(self._session_storage.db)
+            existing_vars = sv_mgr.get_variables(session_id)
+            existing_agent_type = existing_vars.get("_agent_type") if existing_vars else None
+
+            if existing_agent_type and existing_agent_type != "default":
+                default_agent_name = existing_agent_type
+            else:
+                from gobby.storage.config_store import ConfigStore
+
+                config_store = ConfigStore(self._session_storage.db)
+                default_agent_name = config_store.get("default_agent") or "default"
         if default_agent_name == "none":
             return None
 

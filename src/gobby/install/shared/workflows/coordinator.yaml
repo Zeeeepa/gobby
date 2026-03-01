@@ -69,6 +69,7 @@ steps:
       arguments:
         run_id: "${{ steps.spawn_developer.output.run_id }}"
         timeout: "${{ inputs.wait_timeout }}"
+        kill_on_timeout: true
 
   - id: spawn_qa
     condition: "${{ steps.wait_developer.output.completed if steps.wait_developer.output and steps.wait_developer.output.completed else '' }}"
@@ -94,6 +95,7 @@ steps:
       arguments:
         run_id: "${{ steps.spawn_qa.output.run_id }}"
         timeout: "${{ inputs.wait_timeout }}"
+        kill_on_timeout: true
 
   - id: spawn_merge
     condition: "${{ steps.wait_qa.output.completed if steps.wait_qa.output and steps.wait_qa.output.completed else '' }}"
@@ -118,6 +120,7 @@ steps:
       arguments:
         run_id: "${{ steps.spawn_merge.output.run_id }}"
         timeout: 300
+        kill_on_timeout: true
 
   - id: close_task
     condition: "${{ steps.wait_merge.output.completed if steps.wait_merge.output and steps.wait_merge.output.completed else '' }}"
