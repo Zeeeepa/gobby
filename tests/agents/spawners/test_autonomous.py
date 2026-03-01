@@ -214,6 +214,7 @@ class TestAgentRunManager:
         ):
             await runner.run()
 
+        mgr.update_sdk_session_id.assert_called_once_with("test-run-456", "s1")
         mgr.complete.assert_called_once_with("test-run-456", result="all done")
 
     @pytest.mark.asyncio

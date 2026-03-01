@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 131
+BASELINE_VERSION = 132
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -196,7 +196,8 @@ CREATE TABLE agent_runs (
     started_at TEXT,
     completed_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sdk_session_id TEXT
 );
 CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
 CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
@@ -1520,6 +1521,11 @@ CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
         131,
         "Add approval_timeout_seconds column to step_executions",
         "ALTER TABLE step_executions ADD COLUMN approval_timeout_seconds INTEGER",
+    ),
+    (
+        132,
+        "Add sdk_session_id to agent_runs for cross-mode resume",
+        "ALTER TABLE agent_runs ADD COLUMN sdk_session_id TEXT",
     ),
 ]
 

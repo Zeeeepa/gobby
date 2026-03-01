@@ -190,6 +190,12 @@ class AutonomousRunner:
                 len(accumulated_text),
             )
 
+            # Store SDK session ID for cross-mode resume
+            if self.sdk_session_id and self.agent_run_manager:
+                self.agent_run_manager.update_sdk_session_id(
+                    self.run_id, self.sdk_session_id
+                )
+
             # Mark the agent run as complete
             if self.agent_run_manager:
                 self.agent_run_manager.complete(
