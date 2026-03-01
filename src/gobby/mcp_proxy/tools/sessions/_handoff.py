@@ -221,9 +221,16 @@ def register_handoff_tools(
 
             logging.getLogger(__name__).debug("Git log is optional, failed: %s", e)
 
+        # Skip generation if digest-based summaries already exist on the session.
+        # Check for actual non-empty strings to avoid skipping when fields are None.
+        existing_compact = getattr(session, "compact_markdown", None)
+        existing_summary = getattr(session, "summary_markdown", None)
+        has_compact = isinstance(existing_compact, str) and existing_compact.strip()
+        has_summary = isinstance(existing_summary, str) and existing_summary.strip()
+
         # Determine what to generate (neither flag = both)
-        generate_compact = compact or not full
-        generate_full = full or not compact
+        generate_compact = (compact or not full) and not has_compact
+        generate_full = (full or not compact) and not has_summary
 
         # Generate content
         compact_markdown = None

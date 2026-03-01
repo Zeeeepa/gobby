@@ -1,0 +1,11 @@
+tags: [memory-lifecycle, digest, lifecycle, context-handoff]
+
+rules:
+  digest-session-boundary:
+    description: "Generate handoff + archival summaries from digest at session end"
+    event: session_end
+    enabled: false
+    priority: 8
+    effects:
+      - type: action
+        action: generate_session_boundary_summaries

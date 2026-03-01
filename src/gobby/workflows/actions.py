@@ -31,6 +31,7 @@ from gobby.workflows.enforcement import (
 from gobby.workflows.llm_actions import handle_call_llm
 from gobby.workflows.mcp_actions import handle_call_mcp_tool
 from gobby.workflows.memory_actions import (
+    handle_generate_session_boundary_summaries,
     handle_memory_extract_from_session,
     handle_memory_extraction_gate,
     handle_memory_inject_project_context,
@@ -228,6 +229,10 @@ class ActionExecutor:
         self.register("memory_recall_relevant", handle_memory_recall_relevant)
         self.register("memory_sync_import", handle_memory_sync_import)
         self.register("memory_sync_export", handle_memory_sync_export)
+        self.register(
+            "generate_session_boundary_summaries",
+            handle_generate_session_boundary_summaries,
+        )
 
         # --- Task sync actions ---
         self.register("task_sync_import", handle_task_sync_import)
