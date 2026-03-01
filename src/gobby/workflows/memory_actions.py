@@ -6,6 +6,7 @@ These functions handle memory injection, extraction, saving, and recall.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -479,6 +480,16 @@ async def build_turn_and_digest(
         if any(_stripped.lower() == c or _stripped.lower().startswith(c + " ") for c in _SKIP_CMDS):
             return None
 
+        # Idempotency check: skip if we already digested this exact content
+        input_hash = hashlib.sha256(f"{user_prompt}||{response_text}".encode()).hexdigest()[:16]
+        if session.last_digest_input_hash == input_hash:
+            logger.debug(
+                "build_turn_and_digest: Skipping duplicate digest for session %s (hash=%s)",
+                session_id,
+                input_hash,
+            )
+            return None
+
         # 3. Resolve LLM provider/model
         if digest_config:
             try:
@@ -520,6 +531,9 @@ async def build_turn_and_digest(
         entry = f"### Turn {turn_num}\n{last_turn}"
         updated_digest = f"{previous_digest}\n\n{entry}" if previous_digest else entry
         session_manager.update_digest_markdown(session_id, updated_digest)
+
+        # Persist input hash for idempotency (prevents double-digest on plan mode turns)
+        session_manager.update_last_digest_input_hash(session_id, input_hash)
 
         logger.info(
             "build_turn_and_digest: Turn %d recorded (%d chars) for session %s",

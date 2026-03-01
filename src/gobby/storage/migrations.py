@@ -37,7 +37,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 132
+BASELINE_VERSION = 133
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v108) have been removed.
@@ -238,6 +238,7 @@ CREATE TABLE sessions (
     digest_markdown TEXT,
     last_turn_markdown TEXT,
     chat_mode TEXT DEFAULT 'plan',
+    last_digest_input_hash TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1526,6 +1527,11 @@ CREATE INDEX idx_skills_deleted_at ON skills(deleted_at)""",
         132,
         "Add sdk_session_id to agent_runs for cross-mode resume",
         "ALTER TABLE agent_runs ADD COLUMN sdk_session_id TEXT",
+    ),
+    (
+        133,
+        "Add last_digest_input_hash to sessions for digest idempotency",
+        "ALTER TABLE sessions ADD COLUMN last_digest_input_hash TEXT",
     ),
 ]
 

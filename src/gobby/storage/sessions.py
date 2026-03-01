@@ -396,6 +396,19 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def update_last_digest_input_hash(self, session_id: str, hash_value: str) -> None:
+        """Update the last digest input hash for idempotency."""
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """
+            UPDATE sessions
+            SET last_digest_input_hash = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (hash_value, now, session_id),
+        )
+
     def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Session | None:
         """Update session compact handoff markdown."""
         now = datetime.now(UTC).isoformat()

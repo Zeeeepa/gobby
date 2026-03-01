@@ -1577,3 +1577,137 @@ class TestGenerateSessionBoundarySummaries:
 
         assert result is not None
         assert "error" in result
+
+
+class TestBuildTurnAndDigestIdempotency:
+    """Tests for digest idempotency via last_digest_input_hash."""
+
+    @pytest.fixture
+    def mock_memory_manager(self):
+        mm = MagicMock()
+        mm.config.enabled = True
+        mm.content_exists.return_value = False
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mm.create_memory = AsyncMock(return_value=mock_memory)
+        return mm
+
+    @pytest.fixture
+    def mock_session_manager(self):
+        sm = MagicMock()
+        session = MagicMock()
+        session.id = "session-123"
+        session.jsonl_path = None
+        session.source = "claude"
+        session.digest_markdown = None
+        session.seq_num = 42
+        session.terminal_context = None
+        session.last_digest_input_hash = None  # No prior digest
+        sm.get.return_value = session
+        sm.update_last_turn_markdown.return_value = session
+        sm.update_digest_markdown.return_value = session
+        sm.update_title.return_value = session
+        sm.update_last_digest_input_hash.return_value = None
+        return sm
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        service = MagicMock()
+        provider = MagicMock()
+        provider.generate_text = AsyncMock(
+            side_effect=[
+                "User asked to fix a bug. Agent found the root cause.",
+                "Fix Auth Bug",
+                "NONE",
+            ]
+        )
+        service.get_default_provider.return_value = provider
+        return service
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.summary_actions._rename_tmux_window", new_callable=AsyncMock)
+    async def test_first_call_processes_and_stores_hash(
+        self,
+        mock_rename,
+        mock_memory_manager,
+        mock_session_manager,
+        mock_llm_service,
+    ):
+        """First call should process normally and store the input hash."""
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="session-123",
+            prompt_text="Fix the bug",
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result["turn_num"] == 1
+        # Hash should have been persisted
+        mock_session_manager.update_last_digest_input_hash.assert_called_once()
+        stored_hash = mock_session_manager.update_last_digest_input_hash.call_args[0][1]
+        assert len(stored_hash) == 16  # sha256 hex truncated to 16 chars
+
+    @pytest.mark.asyncio
+    async def test_duplicate_content_skips(
+        self,
+        mock_memory_manager,
+        mock_session_manager,
+        mock_llm_service,
+    ):
+        """Second call with same content should skip (return None)."""
+        import hashlib
+
+        prompt = "Fix the bug"
+        response = ""  # No transcript, no response
+        expected_hash = hashlib.sha256(f"{prompt}||{response}".encode()).hexdigest()[:16]
+
+        # Simulate that the hash was already stored from a previous call
+        session = mock_session_manager.get.return_value
+        session.last_digest_input_hash = expected_hash
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="session-123",
+            prompt_text=prompt,
+            llm_service=mock_llm_service,
+        )
+
+        assert result is None
+        # LLM should NOT have been called
+        provider = mock_llm_service.get_default_provider.return_value
+        provider.generate_text.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.summary_actions._rename_tmux_window", new_callable=AsyncMock)
+    async def test_different_content_processes(
+        self,
+        mock_rename,
+        mock_memory_manager,
+        mock_session_manager,
+        mock_llm_service,
+    ):
+        """Third call with different content should process normally."""
+        import hashlib
+
+        # Set hash from a previous different prompt
+        old_hash = hashlib.sha256(b"old prompt||old response").hexdigest()[:16]
+        session = mock_session_manager.get.return_value
+        session.last_digest_input_hash = old_hash
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="session-123",
+            prompt_text="Now add tests for the fix",
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result["turn_num"] == 1
+        # New hash should have been stored
+        mock_session_manager.update_last_digest_input_hash.assert_called_once()
+        new_hash = mock_session_manager.update_last_digest_input_hash.call_args[0][1]
+        assert new_hash != old_hash
