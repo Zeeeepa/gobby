@@ -2,7 +2,11 @@
 
 import importlib
 
-from gobby.workflows.constants import PIPELINE_TEST_1, PIPELINE_TEST_2
+from gobby.workflows.constants import (
+    PIPELINE_TEST_1,
+    PIPELINE_TEST_2,
+    PIPELINE_TEST_3,
+)
 
 
 def test_constants_module_has_docstring() -> None:
@@ -44,3 +48,20 @@ def test_pipeline_test_2_value() -> None:
 def test_pipeline_test_2_is_string() -> None:
     """Verify that PIPELINE_TEST_2 is a string."""
     assert isinstance(PIPELINE_TEST_2, str)
+
+
+def test_pipeline_test_3_exists() -> None:
+    """Verify that PIPELINE_TEST_3 constant exists."""
+    from gobby.workflows import constants
+
+    assert hasattr(constants, "PIPELINE_TEST_3")
+
+
+def test_pipeline_test_3_value() -> None:
+    """Verify that PIPELINE_TEST_3 has the correct value."""
+    assert PIPELINE_TEST_3 == "coordinator-run-3"
+
+
+def test_pipeline_test_3_is_string() -> None:
+    """Verify that PIPELINE_TEST_3 is a string."""
+    assert isinstance(PIPELINE_TEST_3, str)
