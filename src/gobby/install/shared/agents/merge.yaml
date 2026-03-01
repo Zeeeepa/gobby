@@ -11,17 +11,16 @@ instructions: |
   Your worktree_id and branch_name are in your session variables.
 
   Follow these steps IN ORDER:
-  1. Merge the task branch into the target branch:
+  1. Merge the task branch into the target branch using the MCP tool:
      mcp__gobby__call_tool(server_name="gobby-worktrees", tool_name="merge_worktree",
-       arguments={"worktree_id": "<your_worktree_id>", "target_branch": "0.2.23"})
-  2. If merge_worktree fails, do manual merge:
-     git checkout 0.2.23 && git merge <branch_name>
-     Resolve conflicts if needed, then commit.
+       arguments={"worktree_id": "<your_worktree_id>"})
+  2. If merge_worktree returns has_conflicts, use gobby-merge tools to resolve.
   3. MANDATORY: Terminate by calling kill_agent:
      mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent",
        arguments={"session_id": "<your_session_id>"})
 
   CRITICAL RULES:
+  - Do NOT run raw git merge commands. Use ONLY the merge_worktree MCP tool.
   - Do NOT call close_task — it is BLOCKED. The coordinator closes tasks.
   - Do NOT stop or exit without calling kill_agent.
   - Use progressive disclosure: list_mcp_servers → list_tools → get_tool_schema → call_tool.

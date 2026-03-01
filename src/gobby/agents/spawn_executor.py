@@ -6,6 +6,7 @@ and clones.py into a single unified executor that handles terminal and
 autonomous modes.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -63,6 +64,11 @@ class SpawnRequest:
     sandbox_args: list[str] | None = None
     sandbox_env: dict[str, str] | None = field(default=None)
 
+    # Autonomous mode fields
+    system_prompt: str | None = None  # Agent system prompt
+    max_turns: int | None = None  # From agent definition
+    agent_run_manager: Any | None = None  # LocalAgentRunManager for complete/fail
+
 
 @dataclass
 class SpawnResult:
@@ -106,14 +112,7 @@ async def execute_spawn(request: SpawnRequest) -> SpawnResult:
             return await _spawn_codex_terminal(request)
         return await _spawn_claude_terminal(request)
     elif request.mode == "autonomous":
-        # Autonomous mode will be implemented via AutonomousRunner (SDK-based)
-        return SpawnResult(
-            success=False,
-            run_id=request.run_id,
-            child_session_id=request.session_id,
-            status="failed",
-            error="Autonomous mode not yet implemented — use terminal mode",
-        )
+        return await _spawn_autonomous(request)
     else:
         return SpawnResult(
             success=False,
@@ -407,4 +406,68 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
         pid=terminal_result.pid,
         codex_session_id=codex_session_id,
         message=f"Codex agent spawned in terminal with session {gobby_session_id}",
+    )
+
+
+async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
+    """
+    Spawn Claude agent using in-process SDK (AutonomousRunner).
+
+    Creates a child session via prepare_terminal_spawn, then launches
+    an AutonomousRunner as an asyncio.Task. The task reference is
+    returned on SpawnResult.process for lifecycle monitoring.
+    """
+    from gobby.agents.spawners.autonomous import AutonomousRunner
+
+    if request.session_manager is None:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=None,
+            status="failed",
+            error="session_manager is required for autonomous spawn",
+        )
+
+    # Create child session (same as terminal — reuses session/run infrastructure)
+    spawn_context = prepare_terminal_spawn(
+        session_manager=cast("ChildSessionManager", request.session_manager),
+        parent_session_id=request.parent_session_id,
+        project_id=request.project_id,
+        machine_id=request.machine_id or "unknown",
+        source="claude",
+        workflow_name=request.workflow,
+        initial_variables=request.initial_variables,
+        prompt=request.prompt,
+        max_agent_depth=request.max_agent_depth,
+        git_branch=request.branch_name,
+        agent_run_id=request.agent_run_id,
+    )
+
+    gobby_session_id = spawn_context.session_id
+
+    runner = AutonomousRunner(
+        session_id=gobby_session_id,
+        run_id=spawn_context.agent_run_id,
+        project_id=request.project_id,
+        cwd=request.cwd,
+        prompt=request.prompt,
+        model=request.model,
+        system_prompt=request.system_prompt,
+        max_turns=request.max_turns,
+        agent_run_manager=request.agent_run_manager,
+    )
+
+    # Launch as background task for lifecycle monitoring
+    task = asyncio.create_task(
+        runner.run(),
+        name=f"autonomous-{spawn_context.agent_run_id}",
+    )
+
+    return SpawnResult(
+        success=True,
+        run_id=spawn_context.agent_run_id,
+        child_session_id=gobby_session_id,
+        status="running",
+        process=task,
+        message=f"Autonomous agent spawned with session {gobby_session_id}",
     )

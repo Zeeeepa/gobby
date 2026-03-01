@@ -420,6 +420,10 @@ async def spawn_agent_impl(
         machine_id=get_machine_id() or "unknown",
         model=effective_model,
         sandbox_config=effective_sandbox_config,
+        # Autonomous mode fields
+        system_prompt=agent_body.instructions if agent_body else None,
+        max_turns=max_turns or (agent_body.max_turns if agent_body and agent_body.max_turns else None),
+        agent_run_manager=runner.run_storage,
     )
 
     # 11b. Pre-register with RunningAgentRegistry before spawn
@@ -461,6 +465,7 @@ async def spawn_agent_impl(
                 worktree_id=isolation_ctx.worktree_id,
                 clone_id=isolation_ctx.clone_id,
                 timeout_seconds=effective_timeout,
+                task=spawn_result.process,  # asyncio.Task for autonomous mode
             )
         )
         try:

@@ -203,8 +203,8 @@ class TestExecuteSpawn:
             assert result.child_session_id == "child-session-id"
 
     @pytest.mark.asyncio
-    async def test_autonomous_mode_returns_not_yet_implemented(self):
-        """Test that autonomous mode returns not-yet-implemented error."""
+    async def test_autonomous_mode_requires_session_manager(self):
+        """Test that autonomous mode requires session_manager."""
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -219,7 +219,7 @@ class TestExecuteSpawn:
         result = await execute_spawn(request)
 
         assert result.success is False
-        assert "not yet implemented" in result.error.lower()
+        assert "session_manager is required" in result.error
 
     @pytest.mark.asyncio
     async def test_spawn_failure_propagates_error(self):
@@ -629,8 +629,8 @@ class TestExecuteSpawnSandbox:
             assert result.success is True
 
     @pytest.mark.asyncio
-    async def test_autonomous_spawn_with_sandbox_not_yet_implemented(self) -> None:
-        """Test that autonomous mode with sandbox returns not-yet-implemented."""
+    async def test_autonomous_spawn_without_session_manager_and_sandbox(self) -> None:
+        """Test that autonomous mode without session_manager fails even with sandbox."""
         sandbox_config = SandboxConfig(enabled=True, mode="restrictive")
         request = SpawnRequest(
             prompt="Test",
@@ -646,7 +646,7 @@ class TestExecuteSpawnSandbox:
 
         result = await execute_spawn(request)
         assert result.success is False
-        assert "not yet implemented" in result.error.lower()
+        assert "session_manager is required" in result.error
 
     @pytest.mark.asyncio
     async def test_sandbox_disabled_explicitly_passed(self) -> None:
