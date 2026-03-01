@@ -80,7 +80,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
             if prompt_lower in ("/clear", "/exit"):
                 self.logger.debug(f"Detected {prompt_lower} - generating boundary summaries")
                 try:
-                    self._dispatch_boundary_summaries(session_id, background=False)
+                    self._dispatch_boundary_summaries(session_id, background=False)  # type: ignore[attr-defined]
                 except Exception as e:
                     self.logger.warning(
                         f"Failed to generate boundary summaries on {prompt_lower}: {e}"
@@ -316,7 +316,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
                 self._session_manager.update_session_status(session_id, "handoff_ready")
             # Generate boundary summaries from digest before compaction
             try:
-                self._dispatch_boundary_summaries(session_id, background=False)
+                self._dispatch_boundary_summaries(session_id, background=False)  # type: ignore[attr-defined]
             except Exception as e:
                 self.logger.warning(f"Failed to generate boundary summaries on compact: {e}")
         else:

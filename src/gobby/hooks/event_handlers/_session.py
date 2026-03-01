@@ -442,7 +442,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Generate boundary summaries from digest (replaces legacy transcript-based handoff)
         if session_id:
             try:
-                self._dispatch_boundary_summaries(session_id, background=False)
+                self._dispatch_boundary_summaries(session_id, background=False)  # type: ignore[attr-defined]
             except Exception as e:
                 self.logger.warning(f"Failed to generate boundary summaries on end: {e}")
 
