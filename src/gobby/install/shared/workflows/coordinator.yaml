@@ -45,7 +45,7 @@ steps:
       tool: create_worktree
       arguments:
         branch_name: "task-${{ steps.find_work.output.suggestion.seq_num }}"
-        base_branch: "origin/${{ inputs.merge_target }}"
+        base_branch: "${{ inputs.merge_target }}"
         task_id: "${{ steps.find_work.output.suggestion.id }}"
 
   - id: spawn_developer
