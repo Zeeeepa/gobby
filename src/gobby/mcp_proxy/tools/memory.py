@@ -26,7 +26,6 @@ from gobby.workflows.memory_actions import (
     build_turn_and_digest as _build_turn_and_digest,
 )
 from gobby.workflows.memory_actions import (
-    memory_background_digest_and_synthesize,
     memory_extract_from_session,
 )
 
@@ -678,47 +677,6 @@ def create_memory_registry(
             )
             if result is None:
                 return {"success": False, "error": "Memory manager disabled"}
-            if "error" in result:
-                return {"success": False, "error": result["error"]}
-            return {"success": True, **result}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    @registry.tool(
-        name="digest_and_synthesize",
-        description="Update rolling session digest and synthesize a session title. Runs as a background task triggered by rules.",
-    )
-    async def digest_and_synthesize(
-        session_id: str = "",
-        prompt_text: str | None = None,
-        limit: int = 20,
-    ) -> dict[str, Any]:
-        """
-        Update rolling session digest and synthesize a session title.
-
-        Builds a rolling LLM digest of the session, parses a short title
-        from the output, and persists both to the session record.
-        Also renames the tmux window to match the new title.
-
-        Args:
-            session_id: Platform session ID (injected by dispatch layer)
-            prompt_text: The user's prompt text (injected by dispatch layer)
-            limit: Unused (kept for interface compatibility)
-        """
-        if not session_id:
-            return {"success": False, "error": "session_id is required"}
-        try:
-            result = await memory_background_digest_and_synthesize(
-                memory_manager=memory_manager,
-                session_manager=session_manager,
-                session_id=session_id,
-                prompt_text=prompt_text,
-                limit=limit,
-                llm_service=llm_service,
-                config=config,
-            )
-            if result is None:
-                return {"success": True, "skipped": True, "reason": "disabled or no input"}
             if "error" in result:
                 return {"success": False, "error": result["error"]}
             return {"success": True, **result}
