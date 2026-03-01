@@ -912,30 +912,23 @@ def create_worktrees_registry(
     async def merge_worktree(
         worktree_id: str,
         target_branch: str | None = None,
-        push: bool | str = True,
-        delete_branch: bool | str = False,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Merge a worktree's branch into the target branch.
+        Merge target branch into a worktree's source branch (fully isolated).
+
+        Performs the merge entirely in the worktree — the main repo is never
+        touched. After success, the source branch contains all changes from
+        both branches and is ready to be fast-forwarded into the target.
 
         Args:
             worktree_id: The worktree ID to merge.
-            target_branch: Branch to merge into (defaults to worktree's base_branch).
-            push: Whether to push after merge (default: True).
-            delete_branch: Whether to delete the source branch after merge (default: False).
+            target_branch: Branch to merge into source (defaults to worktree's base_branch).
             project_path: Path to project directory (pass cwd from CLI).
 
         Returns:
-            Dict with merge result and commit SHA.
+            Dict with source_branch, target_branch on success.
         """
-        # Handle string inputs from MCP
-        push = push in (True, "true", "True", "1") if isinstance(push, str) else push
-        delete_branch = (
-            delete_branch in (True, "true", "True", "1")
-            if isinstance(delete_branch, str)
-            else delete_branch
-        )
 
         resolved_git_mgr, _, error = _resolve_project_context(project_path, git_manager, project_id)
         if error:
@@ -991,70 +984,21 @@ def create_worktrees_registry(
                 "error": merge_output.strip(),
             }
 
-        # Step 2: Fast-forward the target branch in the main repo.
-        # Since target is now an ancestor of source, this is guaranteed safe.
-        original_branch_result = resolved_git_mgr._run_git(
-            ["rev-parse", "--abbrev-ref", "HEAD"], timeout=5
-        )
-        original_branch = (
-            original_branch_result.stdout.strip()
-            if original_branch_result.returncode == 0
-            else None
-        )
-
-        need_checkout = original_branch != merge_target
-        if need_checkout:
-            checkout_result = resolved_git_mgr._run_git(
-                ["checkout", merge_target], timeout=30
-            )
-            if checkout_result.returncode != 0:
-                return {
-                    "success": False,
-                    "error": (
-                        f"Worktree merge succeeded but could not checkout {merge_target} "
-                        f"in main repo: {checkout_result.stderr.strip()}"
-                    ),
-                }
-
-        ff_result = resolved_git_mgr._run_git(
-            ["merge", "--ff-only", worktree.branch_name], timeout=30
-        )
-
-        # Restore original branch if we switched
-        if need_checkout and original_branch:
-            resolved_git_mgr._run_git(["checkout", original_branch], timeout=30)
-
-        if ff_result.returncode != 0:
-            return {
-                "success": False,
-                "error": (
-                    f"Worktree merge succeeded but fast-forward of {merge_target} "
-                    f"failed: {ff_result.stderr.strip()}"
-                ),
-            }
-
-        # Mark as merged in storage
+        # Mark as merged in storage. The source branch now contains all changes
+        # from both branches. Updating the target branch (fast-forward) is a
+        # separate responsibility handled by the caller (e.g., a pipeline step).
+        # This guarantees merge_worktree never touches the main repo.
         worktree_storage.mark_merged(worktree_id)
-
-        # Optionally push
-        if push:
-            push_result = resolved_git_mgr._run_git(
-                ["push", "origin", merge_target], timeout=60
-            )
-            if push_result.returncode != 0:
-                logger.warning(f"Push failed after merge: {push_result.stderr.strip()}")
-
-        # Optionally delete the branch
-        if delete_branch:
-            resolved_git_mgr._run_git(
-                ["branch", "-d", worktree.branch_name],
-                timeout=10,
-            )
 
         return {
             "success": True,
-            "message": f"Successfully merged {worktree.branch_name} into {merge_target}",
-            "output": ff_result.stdout.strip(),
+            "message": (
+                f"Successfully merged {merge_target} into {worktree.branch_name} "
+                f"(in worktree). {worktree.branch_name} is ready to fast-forward "
+                f"into {merge_target}."
+            ),
+            "source_branch": worktree.branch_name,
+            "target_branch": merge_target,
         }
 
     return registry

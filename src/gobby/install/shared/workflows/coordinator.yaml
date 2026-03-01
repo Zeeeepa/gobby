@@ -122,8 +122,12 @@ steps:
         timeout: 300
         kill_on_timeout: true
 
-  - id: close_task
+  - id: fast_forward
     condition: "${{ steps.wait_merge.output.completed if steps.wait_merge.output and steps.wait_merge.output.completed else '' }}"
+    exec: "sh -c 'git checkout ${{ inputs.merge_target }} && git merge --ff-only task-${{ steps.find_work.output.suggestion.seq_num }}'"
+
+  - id: close_task
+    condition: "${{ steps.fast_forward.output.exit_code == 0 if steps.fast_forward.output else '' }}"
     mcp:
       server: gobby-tasks
       tool: close_task

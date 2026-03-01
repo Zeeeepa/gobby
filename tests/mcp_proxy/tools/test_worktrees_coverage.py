@@ -834,7 +834,7 @@ async def test_sync_worktree_failure(registry, mock_worktree_storage, mock_git_m
 
 @pytest.mark.asyncio
 async def test_merge_worktree_success(registry, mock_worktree_storage, mock_git_manager):
-    """Merge worktree successfully (merge in worktree, ff in main repo)."""
+    """Merge worktree successfully (fully isolated in worktree)."""
     wt = Worktree(
         id="wt-1",
         project_id="proj-1",
@@ -1007,10 +1007,8 @@ async def test_merge_worktree_non_conflict_failure(
 
 
 @pytest.mark.asyncio
-async def test_merge_worktree_with_delete_branch(
-    registry, mock_worktree_storage, mock_git_manager
-):
-    """Merge deletes branch when delete_branch=True."""
+async def test_merge_worktree_returns_branch_info(registry, mock_worktree_storage, mock_git_manager):
+    """Merge returns source_branch and target_branch for downstream fast-forward."""
     wt = Worktree(
         id="wt-1",
         project_id="proj-1",
@@ -1026,27 +1024,24 @@ async def test_merge_worktree_with_delete_branch(
     )
     mock_worktree_storage.get.return_value = wt
     mock_git_manager._run_git.return_value = MagicMock(
-        returncode=0, stdout="main", stderr=""
+        returncode=0, stdout="", stderr=""
     )
     mock_worktree_storage.mark_merged.return_value = True
 
     result = await registry.call(
-        "merge_worktree",
-        {"worktree_id": "wt-1", "target_branch": "main", "delete_branch": True},
+        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main"}
     )
 
     assert result["success"] is True
-    # Verify branch delete was called
-    delete_calls = [
-        c for c in mock_git_manager._run_git.call_args_list
-        if c[0][0] == ["branch", "-d", "feature/test"]
-    ]
-    assert len(delete_calls) == 1
+    assert result["source_branch"] == "feature/test"
+    assert result["target_branch"] == "main"
 
 
 @pytest.mark.asyncio
-async def test_merge_worktree_no_push(registry, mock_worktree_storage, mock_git_manager):
-    """Merge without push skips the push step."""
+async def test_merge_worktree_no_main_repo_operations(
+    registry, mock_worktree_storage, mock_git_manager
+):
+    """Merge only runs git commands in the worktree, never the main repo."""
     wt = Worktree(
         id="wt-1",
         project_id="proj-1",
@@ -1062,19 +1057,16 @@ async def test_merge_worktree_no_push(registry, mock_worktree_storage, mock_git_
     )
     mock_worktree_storage.get.return_value = wt
     mock_git_manager._run_git.return_value = MagicMock(
-        returncode=0, stdout="main", stderr=""
+        returncode=0, stdout="", stderr=""
     )
     mock_worktree_storage.mark_merged.return_value = True
 
     result = await registry.call(
-        "merge_worktree",
-        {"worktree_id": "wt-1", "target_branch": "main", "push": False},
+        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main"}
     )
 
     assert result["success"] is True
-    # Verify no push call was made
-    push_calls = [
-        c for c in mock_git_manager._run_git.call_args_list
-        if c[0][0][:1] == ["push"]
-    ]
-    assert len(push_calls) == 0
+    # Every _run_git call must have cwd set to the worktree path
+    for call in mock_git_manager._run_git.call_args_list:
+        cwd = call.kwargs.get("cwd") or (call[1].get("cwd") if len(call) > 1 else None)
+        assert cwd == "/tmp/wt1", f"Git command ran without worktree cwd: {call}"
