@@ -20,7 +20,6 @@ from pydantic import BaseModel, Field, field_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
 from gobby.config.cron import CronConfig
-from gobby.config.pipelines import PipelineConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ChatConfig,
@@ -41,6 +40,7 @@ from gobby.config.features import (
 from gobby.config.llm_providers import LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
 from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
+from gobby.config.pipelines import PipelineConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ChatHistoryConfig,

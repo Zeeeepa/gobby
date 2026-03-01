@@ -196,9 +196,7 @@ def inject_context(
                         if not content:
                             ext_id = getattr(parent, "external_id", None)
                             if ext_id:
-                                for summary_file in summary_dir.glob(
-                                    f"session_*_{ext_id}.md"
-                                ):
+                                for summary_file in summary_dir.glob(f"session_*_{ext_id}.md"):
                                     try:
                                         content = summary_file.read_text()
                                         logger.info(

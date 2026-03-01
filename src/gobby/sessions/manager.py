@@ -355,9 +355,7 @@ class SessionManager:
             try:
                 return summary_file.read_text()
             except Exception as e:
-                self.logger.error(
-                    f"Failed to read summary file {summary_file}: {e}", exc_info=True
-                )
+                self.logger.error(f"Failed to read summary file {summary_file}: {e}", exc_info=True)
 
         return None
 

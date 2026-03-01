@@ -98,7 +98,9 @@ class Session:
             seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
             had_edits=bool(row["had_edits"]) if "had_edits" in row.keys() else False,
             digest_markdown=row["digest_markdown"] if "digest_markdown" in row.keys() else None,
-            last_turn_markdown=row["last_turn_markdown"] if "last_turn_markdown" in row.keys() else None,
+            last_turn_markdown=row["last_turn_markdown"]
+            if "last_turn_markdown" in row.keys()
+            else None,
             chat_mode=row["chat_mode"] if "chat_mode" in row.keys() else "plan",
         )
 

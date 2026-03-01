@@ -223,9 +223,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     # or preserve-context-on-compact rules
                     from gobby.workflows.state_manager import SessionVariableManager
 
-                    parent_vars = SessionVariableManager(
-                        self._session_storage.db
-                    ).get_variables(parent.id)
+                    parent_vars = SessionVariableManager(self._session_storage.db).get_variables(
+                        parent.id
+                    )
                     handoff_source = parent_vars.get("handoff_source")
                     if handoff_source in ("clear", "compact"):
                         session_source = handoff_source
@@ -447,9 +447,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 end_status = "expired"
                 from gobby.workflows.state_manager import SessionVariableManager
 
-                variables = SessionVariableManager(
-                    self._session_storage.db
-                ).get_variables(session_id)
+                variables = SessionVariableManager(self._session_storage.db).get_variables(
+                    session_id
+                )
                 if variables.get("handoff_source") in ("clear", "compact"):
                     end_status = "handoff_ready"
                 self._session_storage.update_status(session_id, end_status)
