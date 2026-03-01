@@ -151,11 +151,10 @@ interface AgentsTabProps {
   filterProvider: string
   onProvidersChange: (providers: string[]) => void
   tagFilter?: string | null
-  priorityFilter?: number | null
   onTagsChange?: (tags: string[]) => void
 }
 
-export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, hideInstalled, filterProvider, onProvidersChange, tagFilter, priorityFilter, onTagsChange }: AgentsTabProps) {
+export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, onToggleCreateForm, refreshKey = 0, projectId, hideGobby, hideInstalled, filterProvider, onProvidersChange, tagFilter, onTagsChange }: AgentsTabProps) {
   const { running, recentRuns, cancelAgent } = useAgentRuns()
   const [definitions, setDefinitions] = useState<AgentDefInfo[]>([])
   const [loading, setLoading] = useState(true)

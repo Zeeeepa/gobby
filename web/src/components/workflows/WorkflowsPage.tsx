@@ -278,7 +278,6 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           filterProvider={agentProviderFilter}
           onProvidersChange={setAgentProviders}
           tagFilter={tagFilter}
-          priorityFilter={priorityFilter}
           onTagsChange={setAvailableTags}
         />
       )}
