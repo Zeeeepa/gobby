@@ -989,33 +989,18 @@ def create_worktrees_registry(
                 "error": merge_output.strip(),
             }
 
-        # Step 3: Push source branch as target to origin (from worktree)
-        push_result = resolved_git_mgr._run_git(
-            ["push", "origin", f"{effective_source}:{merge_target}"],
-            cwd=wt_path,
-            timeout=120,
-        )
-        if push_result.returncode != 0:
-            push_error = (push_result.stdout + push_result.stderr).strip()
-            logger.error(f"Push to origin failed: {push_error}")
-            return {
-                "success": False,
-                "error": f"Push failed: {push_error}",
-                "source_branch": effective_source,
-                "target_branch": merge_target,
-            }
-
         # Mark as merged in storage
         worktree_storage.mark_merged(worktree_id)
 
         return {
             "success": True,
             "message": (
-                f"Merged {merge_target} into {effective_source} and pushed to origin. "
-                f"No main repo operations performed."
+                f"Merged origin/{merge_target} into {effective_source} in worktree. "
+                f"Run: git push origin {effective_source}:{merge_target}"
             ),
             "source_branch": effective_source,
             "target_branch": merge_target,
+            "push_command": f"git push origin {effective_source}:{merge_target}",
         }
 
     return registry

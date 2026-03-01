@@ -862,15 +862,16 @@ async def test_merge_worktree_success(registry, mock_worktree_storage, mock_git_
     assert result["source_branch"] == "feature/test"
     assert result["target_branch"] == "main"
     mock_worktree_storage.mark_merged.assert_called_once_with("wt-1")
-    # Verify merge + push happened in the worktree
+    # Verify merge happened in the worktree
     calls = mock_git_manager._run_git.call_args_list
     merge_call = [c for c in calls if c[0][0][:1] == ["merge"] and "--no-edit" in c[0][0]]
     assert len(merge_call) == 1
     assert merge_call[0].kwargs.get("cwd") == "/tmp/wt1" or merge_call[0][1].get("cwd") == "/tmp/wt1"
-    # Verify push from worktree: git push origin feature/test:main
+    # Verify push_command is returned for the agent to execute
+    assert result["push_command"] == "git push origin feature/test:main"
+    # Verify NO push was executed by the tool (agent handles push)
     push_calls = [c for c in calls if c[0][0][:1] == ["push"]]
-    assert len(push_calls) == 1
-    assert push_calls[0][0][0] == ["push", "origin", "feature/test:main"]
+    assert len(push_calls) == 0
 
 
 @pytest.mark.asyncio
@@ -1041,12 +1042,14 @@ async def test_merge_worktree_explicit_source_branch(
 
     assert result["success"] is True
     assert result["source_branch"] == "my-branch"
-    # Push should use the explicit source branch
+    # push_command should use the explicit source branch
+    assert result["push_command"] == "git push origin my-branch:main"
+    # No push executed by the tool
     push_calls = [
         c for c in mock_git_manager._run_git.call_args_list
         if c[0][0][:1] == ["push"]
     ]
-    assert push_calls[0][0][0] == ["push", "origin", "my-branch:main"]
+    assert len(push_calls) == 0
 
 
 @pytest.mark.asyncio
