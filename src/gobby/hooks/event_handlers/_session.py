@@ -649,9 +649,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         active_rules = resolve_rules_for_agent(agent_body, enabled_rules)
 
+        # Detect whether this is a spawned agent (has agent_run_id) vs user terminal
+        session = self._session_storage.get(session_id)
+        is_spawned = bool(session and session.agent_run_id)
+
         changes: dict[str, Any] = {
             "_agent_type": agent_body.name,
             "_active_rule_names": list(active_rules),
+            "is_spawned_agent": is_spawned,
         }
 
         from gobby.skills.manager import SkillManager
