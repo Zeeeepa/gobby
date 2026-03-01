@@ -1,13 +1,34 @@
 name: qa-reviewer
 description: |
-  QA reviewer workflow: claim → review → report → shutdown.
-  Merged review/fix/verify/commit/approve into one step — all transitions via on_mcp_success.
-  QA marks task approved — the coordinator closes it after merge.
+  QA reviewer agent: reviews code, fixes issues, approves tasks.
+  Enforcement via rule_definitions. Guidance via instructions.
 
 version: "2.0"
 enabled: false
 
-imports: [worker-safety]
+instructions: |
+  You are a QA reviewer agent spawned by a coordinator pipeline.
+  Your task ID is in your session variables as assigned_task_id.
+
+  Follow these steps IN ORDER:
+  1. Check the diff: git diff, git log
+  2. Verify test coverage — are there tests for the changes?
+  3. Run tests: uv run pytest <test_file> -v
+  4. Check for security issues, code style, conventions
+  5. If issues found: fix them, run tests again, commit fixes
+  6. MANDATORY: Approve the task (NOT close_task):
+     mcp__gobby__call_tool(server_name="gobby-tasks", tool_name="mark_task_review_approved",
+       arguments={"task_id": "<your_task_id>", "session_id": "<your_session_id>"})
+  7. MANDATORY: Terminate by calling kill_agent:
+     mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent",
+       arguments={"session_id": "<your_session_id>"})
+
+  CRITICAL RULES:
+  - Do NOT call close_task — it is BLOCKED. Only mark_task_review_approved works.
+  - Do NOT call git push — the coordinator handles merging.
+  - Do NOT stop or exit without calling kill_agent.
+  - Always use `uv run` for Python commands.
+  - Use progressive disclosure: list_mcp_servers → list_tools → get_tool_schema → call_tool.
 
 rule_definitions:
   no_agent_spawn:
@@ -28,184 +49,3 @@ rule_definitions:
     command_pattern: "git\\s+push"
     reason: "Push is blocked. The parent orchestrator handles merging."
     action: block
-
-variables:
-  assigned_task_id: null
-  task_claimed: false
-  task_approved: false
-  parent_notified: false
-
-steps:
-  - name: claim_task
-    description: "Re-claim task with force (developer had it)"
-    on_enter:
-      - action: call_mcp_tool
-        server_name: gobby-tasks
-        tool_name: claim_task
-        arguments:
-          task_id: "{{ variables.assigned_task_id }}"
-          session_id: "{{ session_id }}"
-          force: true
-        output_as: _claim_result
-      - action: call_mcp_tool
-        server_name: gobby-tasks
-        tool_name: get_task
-        arguments:
-          task_id: "{{ variables.assigned_task_id }}"
-        output_as: _task_details
-      - action: inject_message
-        content: |
-          QA REVIEWER: Task claimed for review.
-
-          Task: {{ variables.assigned_task_id }}
-          Task details have been loaded. Proceeding to code review.
-
-    allowed_tools:
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    allowed_mcp_tools:
-      - gobby-tasks:claim_task
-      - gobby-tasks:get_task
-
-    on_mcp_success:
-      - server: gobby-tasks
-        tool: claim_task
-        action: set_variable
-        variable: task_claimed
-        value: true
-
-    transitions:
-      - to: review
-        when: "task_claimed"
-
-  - name: review
-    description: "Review, fix if needed, and approve"
-    on_enter:
-      - action: inject_message
-        content: |
-          QA REVIEWER: REVIEW — Review code, fix issues if any, then approve.
-
-          Review the code changes for task {{ variables.assigned_task_id }}:
-
-          1. Check the diff: git diff, git log
-          2. Verify test coverage — are there tests for the changes?
-          3. Run tests: uv run pytest <test_file> -v
-          4. Check for security issues, code style, conventions
-          5. If issues found: fix them, run tests again, commit fixes
-          6. FINAL STEP — approve the task (NOT close_task):
-             call_tool(server_name="gobby-tasks", tool_name="mark_task_review_approved",
-               arguments={"task_id": "{{ variables.assigned_task_id }}", "session_id": "{{ session_id }}"})
-
-          WARNING: Do NOT call close_task — it is BLOCKED. Only mark_task_review_approved works here.
-          After approving, you will be automatically guided to shutdown.
-
-    allowed_tools: all
-
-    blocked_mcp_tools:
-      - gobby-agents:spawn_agent
-      - gobby-tasks:create_task
-      - gobby-tasks:close_task
-
-    on_mcp_success:
-      - server: gobby-tasks
-        tool: mark_task_review_approved
-        action: set_variable
-        variable: task_approved
-        value: true
-
-    transitions:
-      - to: report_to_parent
-        when: "task_approved"
-
-  - name: report_to_parent
-    description: "Notify parent of completion via send_message"
-    on_enter:
-      - action: inject_message
-        content: |
-          QA REVIEWER: Reporting completion to parent.
-
-          Send a completion message to your parent session:
-          - server_name: "gobby-agents"
-          - tool_name: "send_message"
-          - arguments:
-              from_session: "{{ session_id }}"
-              to_session: "{{ session.parent_session_id }}"
-              content: "Task {{ variables.assigned_task_id }} QA approved."
-
-    allowed_tools:
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    allowed_mcp_tools:
-      - gobby-agents:send_message
-
-    on_mcp_success:
-      - server: gobby-agents
-        tool: send_message
-        action: set_variable
-        variable: parent_notified
-        value: true
-
-    on_mcp_error:
-      - server: gobby-agents
-        tool: send_message
-        action: set_variable
-        variable: parent_notified
-        value: true
-
-    transitions:
-      - to: shutdown
-        when: "parent_notified"
-
-  - name: shutdown
-    description: "Clean shutdown - MUST call kill_agent"
-    on_enter:
-      - action: inject_message
-        content: |
-          QA REVIEWER: Shutdown sequence - MANDATORY TERMINATION
-
-          Your review is complete. You MUST now terminate by calling kill_agent.
-
-          Step 1: Unlock kill_agent by fetching its schema:
-            mcp__gobby__get_tool_schema(server_name="gobby-agents", tool_name="kill_agent")
-
-          Step 2: Call kill_agent with your Gobby Session ID:
-            mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "{{ session_id }}"})
-
-    allowed_tools:
-      - mcp__gobby__call_tool
-      - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_tools
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
-
-    allowed_mcp_tools:
-      - gobby-agents:kill_agent
-
-    on_premature_stop:
-      action: block
-      message: |
-        BLOCKED: You cannot stop without calling kill_agent.
-        Call kill_agent to exit. This is the ONLY way to end this session.
-
-    transitions:
-      - to: complete
-        when: "mcp_called('gobby-agents', 'kill_agent')"
-
-  - name: complete
-    description: "QA reviewer done"
-
-exit_condition: "current_step == 'complete'"
-
-on_premature_stop:
-  action: block
-  message: |
-    Cannot stop - QA review not complete.
-    You must review, fix issues (if any), and approve the task.

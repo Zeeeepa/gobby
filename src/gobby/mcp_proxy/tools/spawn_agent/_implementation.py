@@ -26,7 +26,7 @@ from gobby.utils.project_context import get_project_context
 from gobby.workflows.definitions import AgentDefinitionBody
 
 from ._health import TMUX_HEALTH_CHECK_DELAY, _check_tmux_session_alive, _health_check_tasks
-from ._modes import _handle_self_mode, _handle_self_persona
+from ._modes import _handle_self_persona
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -194,23 +194,11 @@ async def spawn_agent_impl(
                 except Exception as e:
                     logger.warning(f"Failed to resolve task_id {task_id}: {e}")
 
-        # Create WorkflowLoader on demand for mode=self
-        from gobby.workflows.loader import WorkflowLoader
-
-        workflow_loader = WorkflowLoader()
-
         if effective_workflow:
-            return await _handle_self_mode(
-                workflow=effective_workflow,
-                parent_session_id=parent_session_id,
-                step_variables=self_step_variables,
-                initial_step=initial_step,
-                workflow_loader=workflow_loader,
-                state_manager=state_manager,
-                session_manager=session_manager,
-                db=db,
-                project_path=project_path,
-            )
+            return {
+                "success": False,
+                "error": "Step workflows are removed. Use pipelines instead.",
+            }
         else:
             if agent_body is None:
                 return {"success": False, "error": "Agent body is required for self-persona mode"}

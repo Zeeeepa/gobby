@@ -283,7 +283,7 @@ def build_condition_helpers(
     Returns:
         Dict of function_name -> callable, ready to pass as allowed_funcs.
     """
-    from .evaluator import task_needs_user_review, task_tree_complete
+    from .condition_helpers import task_needs_user_review, task_tree_complete
 
     ctx = context or {}
     funcs: dict[str, Callable[..., Any]] = {

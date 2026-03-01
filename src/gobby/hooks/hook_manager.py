@@ -171,8 +171,6 @@ class HookManager:
         self._workflow_state_manager = components.workflow_state_manager
         self._skill_manager = components.skill_manager
         self._pipeline_executor = components.pipeline_executor
-        self._action_executor = components.action_executor
-        self._workflow_engine = components.workflow_engine
         self._workflow_handler = components.workflow_handler
         self._webhook_dispatcher = components.webhook_dispatcher
         self._session_manager = components.session_manager

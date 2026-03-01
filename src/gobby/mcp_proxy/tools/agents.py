@@ -594,7 +594,7 @@ def create_agents_registry(
         if run.status not in ("pending", "running"):
             return {
                 "success": True,
-                "completed": True,
+                "completed": run.status == "success",
                 "status": run.status,
                 "run_id": run_id,
                 "timed_out": False,
@@ -642,7 +642,7 @@ def create_agents_registry(
             if run.status not in ("pending", "running"):
                 return {
                     "success": True,
-                    "completed": True,
+                    "completed": run.status == "success",
                     "status": run.status,
                     "run_id": run_id,
                     "timed_out": False,

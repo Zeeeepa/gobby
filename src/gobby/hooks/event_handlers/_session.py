@@ -266,9 +266,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to mark parent session as expired: {e}")
 
-        # Step 2c: Auto-activate workflow if specified (for spawned agents)
+        # Step 2c: Pipeline workflows are executed by the agent via run_pipeline MCP tool.
+        # Agent rules enforce pipeline execution by blocking all tools except
+        # progressive disclosure and run_pipeline.
         if workflow_name and session_id:
-            self._auto_activate_workflow(workflow_name, session_id, cwd)
+            self.logger.debug(
+                "Pipeline workflow registered for session — agent will execute via run_pipeline",
+                extra={"workflow_name": workflow_name, "session_id": session_id},
+            )
 
         # Step 2d: Deep load default agent (rules, skills, variables) for new session
         agent_result: AgentActivationResult | None = None
@@ -528,27 +533,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to start agent run: {e}")
 
-        # Auto-activate workflow if specified for this session
+        # Pipeline workflows are executed by the agent via run_pipeline MCP tool
         if existing_session.workflow_name and session_id:
-            # Read initial variables from session_variables table (canonical store)
-            initial_vars: dict[str, Any] | None = None
-            try:
-                from gobby.workflows.state_manager import SessionVariableManager
-
-                if self._session_storage is None:
-                    raise RuntimeError("session_storage unavailable")
-                sv_mgr = SessionVariableManager(self._session_storage.db)
-                sv = sv_mgr.get_variables(session_id)
-                if sv:
-                    initial_vars = sv
-            except Exception as e:
-                self.logger.debug(f"Could not load session variables for workflow activation: {e}")
-
-            self._auto_activate_workflow(
-                existing_session.workflow_name,
-                session_id,
-                cwd,
-                variables=initial_vars,
+            self.logger.debug(
+                "Pipeline workflow registered for session — agent will execute via run_pipeline",
+                extra={"workflow_name": existing_session.workflow_name, "session_id": session_id},
             )
 
         # Deep load default agent (rules, skills, variables) for pre-created session
