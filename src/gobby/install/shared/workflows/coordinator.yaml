@@ -139,6 +139,7 @@ steps:
       tool: delete_worktree
       arguments:
         worktree_id: "${{ steps.create_worktree.output.worktree_id }}"
+        force: true
 
   - id: check_more_work
     mcp:
