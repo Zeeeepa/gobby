@@ -169,6 +169,12 @@ class RuleEngine:
                         variables["tool_block_pending"] = False
                         variables["consecutive_tool_blocks"] = 0
                         variables["_last_blocked_tool"] = ""
+            # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
+            # even when no declarative rules are installed for this event.
+            if override_decision == "block":
+                return HookResponse(decision="block", reason=override_reason or "")
+            if override_decision == "allow":
+                return HookResponse(decision="allow")
             return HookResponse(decision="allow")
 
         # Auto-manage tool_block_pending on after_tool before rule eval

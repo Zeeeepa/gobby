@@ -866,9 +866,7 @@ class TestSessionEndHandling:
         self, mock_sv_mgr_cls: MagicMock, mock_dependencies: dict
     ) -> None:
         """Test SESSION_END marks handoff_ready when handoff_source is set."""
-        mock_sv_mgr_cls.return_value.get_variables.return_value = {
-            "handoff_source": "clear"
-        }
+        mock_sv_mgr_cls.return_value.get_variables.return_value = {"handoff_source": "clear"}
         mock_session = MagicMock()
         mock_session.created_at = "2024-01-01T00:00:00Z"
         mock_session.agent_run_id = None
@@ -894,9 +892,7 @@ class TestSessionEndHandling:
         mock_session.created_at = "2024-01-01T00:00:00Z"
         mock_session.agent_run_id = None
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["session_storage"].update_status.side_effect = Exception(
-            "DB write error"
-        )
+        mock_dependencies["session_storage"].update_status.side_effect = Exception("DB write error")
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1934,4 +1930,3 @@ class TestApplyDebugEcho:
 
         assert hasattr(EventHandlersBase, "_apply_debug_echo")
         assert callable(EventHandlersBase._apply_debug_echo)
-

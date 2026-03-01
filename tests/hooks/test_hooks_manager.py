@@ -107,9 +107,7 @@ class TestHookManagerInit:
         assert manager._session_manager is not None
         assert manager._database is not None
 
-    def test_init_has_skill_manager(
-        self, hook_manager_with_mocks: HookManager
-    ) -> None:
+    def test_init_has_skill_manager(self, hook_manager_with_mocks: HookManager) -> None:
         """Test that HookManager has a skill_manager."""
         manager = hook_manager_with_mocks
 

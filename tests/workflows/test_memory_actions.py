@@ -1524,9 +1524,7 @@ class TestGenerateSessionBoundarySummaries:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_successful_boundary_generation(
-        self, mock_session_manager, mock_llm_service
-    ):
+    async def test_successful_boundary_generation(self, mock_session_manager, mock_llm_service):
         result = await generate_session_boundary_summaries(
             session_id="s1",
             session_manager=mock_session_manager,

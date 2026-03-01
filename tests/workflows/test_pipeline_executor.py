@@ -1013,9 +1013,7 @@ class TestConditionEvaluation:
             llm_service=mock_llm_service,
         )
 
-        step = PipelineStep(
-            id="step2", exec="echo run", condition="${{ inputs.get('command') }}"
-        )
+        step = PipelineStep(id="step2", exec="echo run", condition="${{ inputs.get('command') }}")
         context: dict = {"inputs": {"command": None}, "steps": {}}
 
         result = executor.renderer.should_run_step(step, context)

@@ -639,7 +639,9 @@ class TestVariablePersistence:
         """Create a WorkflowHookHandler with a real rule engine."""
         return WorkflowHookHandler(rule_engine=rule_engine)
 
-    def _insert_set_variable_rule(self, db, name: str, event: str, variable: str, value: str, priority: int = 10):
+    def _insert_set_variable_rule(
+        self, db, name: str, event: str, variable: str, value: str, priority: int = 10
+    ):
         """Insert a test rule that does set_variable."""
         import json
 
@@ -670,7 +672,9 @@ class TestVariablePersistence:
         )
 
     @pytest.mark.asyncio
-    async def test_set_variable_persisted_to_session_variables(self, db, handler, session_var_manager) -> None:
+    async def test_set_variable_persisted_to_session_variables(
+        self, db, handler, session_var_manager
+    ) -> None:
         """set_variable effects should be persisted to session_variables table."""
         self._insert_set_variable_rule(
             db, "test-set-counter", "stop", "my_counter", "variables.get('my_counter', 0) + 1"
@@ -684,7 +688,9 @@ class TestVariablePersistence:
         assert variables.get("my_counter") == 1
 
     @pytest.mark.asyncio
-    async def test_variables_accumulate_across_evaluations(self, db, handler, session_var_manager) -> None:
+    async def test_variables_accumulate_across_evaluations(
+        self, db, handler, session_var_manager
+    ) -> None:
         """Variables should persist and accumulate across multiple evaluations."""
         self._insert_set_variable_rule(
             db, "test-increment", "stop", "custom_counter", "variables.get('custom_counter', 0) + 1"
@@ -701,7 +707,9 @@ class TestVariablePersistence:
             )
 
     @pytest.mark.asyncio
-    async def test_session_variables_visible_to_rule_conditions(self, db, handler, session_var_manager) -> None:
+    async def test_session_variables_visible_to_rule_conditions(
+        self, db, handler, session_var_manager
+    ) -> None:
         """Variables set via SessionVariableManager should be visible to rule when conditions."""
         import json
 

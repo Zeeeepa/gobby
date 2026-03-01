@@ -369,9 +369,7 @@ class TestDetectTaskClaimClaimOperations:
 
         assert "task_claimed" not in variables
 
-    def test_task_resolution_without_manager_warns(
-        self, variables, make_after_tool_event
-    ) -> None:
+    def test_task_resolution_without_manager_warns(self, variables, make_after_tool_event) -> None:
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
             tool_input={

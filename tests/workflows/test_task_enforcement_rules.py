@@ -76,9 +76,7 @@ class TestTaskEnforcementSync:
         for row in rules:
             if row.name in TASK_ENFORCEMENT_RULES:
                 body = json.loads(row.definition_json)
-                assert body.get("group") == "task-enforcement", (
-                    f"{row.name} missing group"
-                )
+                assert body.get("group") == "task-enforcement", f"{row.name} missing group"
 
     def test_all_rules_are_valid_pydantic(self, db, manager) -> None:
         """All synced rules should be valid RuleDefinitionBody instances."""

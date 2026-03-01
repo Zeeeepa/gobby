@@ -274,10 +274,7 @@ class TestCommandExitCondition:
     def _rule_body(self) -> RuleDefinitionBody:
         return RuleDefinitionBody(
             event=RuleEvent.AFTER_TOOL,
-            when=(
-                "variables.get('command_id') "
-                "and variables.get('exit_condition_met')"
-            ),
+            when=("variables.get('command_id') and variables.get('exit_condition_met')"),
             effect=RuleEffect(
                 type="mcp_call",
                 server="gobby-agents",
@@ -436,7 +433,7 @@ def _notify_unread_mail_body() -> RuleDefinitionBody:
             template=(
                 "You have {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}"
                 " undelivered inter-session message(s).\n"
-                'Please read them soon by calling: deliver_pending_messages(session_id="{{ event.metadata.get(\'_platform_session_id\', \'\') }}")'
+                "Please read them soon by calling: deliver_pending_messages(session_id=\"{{ event.metadata.get('_platform_session_id', '') }}\")"
             ),
         ),
     )
