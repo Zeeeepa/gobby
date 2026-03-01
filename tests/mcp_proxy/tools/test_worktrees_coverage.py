@@ -868,7 +868,7 @@ async def test_merge_worktree_success(registry, mock_worktree_storage, mock_git_
     assert len(merge_call) == 1
     assert merge_call[0].kwargs.get("cwd") == "/tmp/wt1" or merge_call[0][1].get("cwd") == "/tmp/wt1"
     # Verify push_command is returned for the agent to execute
-    assert result["push_command"] == "git push origin feature/test:main"
+    assert result["push_command"] == "git push --no-verify origin feature/test:main"
     # Verify NO push was executed by the tool (agent handles push)
     push_calls = [c for c in calls if c[0][0][:1] == ["push"]]
     assert len(push_calls) == 0
@@ -1043,7 +1043,7 @@ async def test_merge_worktree_explicit_source_branch(
     assert result["success"] is True
     assert result["source_branch"] == "my-branch"
     # push_command should use the explicit source branch
-    assert result["push_command"] == "git push origin my-branch:main"
+    assert result["push_command"] == "git push --no-verify origin my-branch:main"
     # No push executed by the tool
     push_calls = [
         c for c in mock_git_manager._run_git.call_args_list
