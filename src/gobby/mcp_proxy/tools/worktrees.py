@@ -993,10 +993,17 @@ def create_worktrees_registry(
         push_result = resolved_git_mgr._run_git(
             ["push", "origin", f"{effective_source}:{merge_target}"],
             cwd=wt_path,
-            timeout=60,
+            timeout=120,
         )
         if push_result.returncode != 0:
-            logger.warning(f"Push to origin failed (non-fatal): {push_result.stderr.strip()}")
+            push_error = (push_result.stdout + push_result.stderr).strip()
+            logger.error(f"Push to origin failed: {push_error}")
+            return {
+                "success": False,
+                "error": f"Push failed: {push_error}",
+                "source_branch": effective_source,
+                "target_branch": merge_target,
+            }
 
         # Mark as merged in storage
         worktree_storage.mark_merged(worktree_id)
