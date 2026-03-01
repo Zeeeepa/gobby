@@ -127,7 +127,7 @@ steps:
 
   - id: fetch_after_merge
     condition: "${{ steps.wait_merge.output.completed if steps.wait_merge.output and steps.wait_merge.output.completed else '' }}"
-    exec: "git pull --rebase origin ${{ inputs.merge_target }}"
+    exec: "bash -c 'git stash -q 2>/dev/null || true; git pull --rebase origin ${{ inputs.merge_target }}; rc=$?; git stash pop -q 2>/dev/null || true; exit $rc'"
 
   - id: link_commits
     condition: "${{ steps.fetch_after_merge.output.exit_code == 0 if steps.fetch_after_merge.output else '' }}"
