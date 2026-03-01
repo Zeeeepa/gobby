@@ -1306,3 +1306,126 @@ class TestNoRules:
         response = await engine.evaluate(event, session_id="sess-1", variables={})
 
         assert response.decision == "allow"
+
+
+class TestOverrideCollectsMcpCalls:
+    """Tests that mcp_call effects fire even when override decisions apply."""
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_still_collects_mcp_calls(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """When tool_block_pending blocks a stop, mcp_call effects should still be collected."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "digest-on-response",
+            RuleDefinitionBody(
+                event=RuleEvent.STOP,
+                effect=RuleEffect(
+                    type="mcp_call",
+                    server="gobby-memory",
+                    tool="build_turn_and_digest",
+                    arguments={"session_id": "test"},
+                    background=True,
+                ),
+            ),
+            priority=11,
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"tool_block_pending": True}
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "block"
+        assert "tool-failure-recovery" in (response.reason or "")
+        # The critical assertion: mcp_calls must be collected despite the override block
+        calls = response.metadata.get("mcp_calls", [])
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "build_turn_and_digest"
+        # tool_block_pending should still be cleared
+        assert variables["tool_block_pending"] is False
+
+    @pytest.mark.asyncio
+    async def test_force_allow_stop_still_collects_mcp_calls(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """When force_allow_stop allows a stop, mcp_call effects should still be collected."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "digest-on-response",
+            RuleDefinitionBody(
+                event=RuleEvent.STOP,
+                effect=RuleEffect(
+                    type="mcp_call",
+                    server="gobby-memory",
+                    tool="build_turn_and_digest",
+                    arguments={"session_id": "test"},
+                    background=True,
+                ),
+            ),
+            priority=11,
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"force_allow_stop": True}
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        calls = response.metadata.get("mcp_calls", [])
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "build_turn_and_digest"
+        assert variables["force_allow_stop"] is False
+
+    @pytest.mark.asyncio
+    async def test_override_block_trumps_rule_evaluated_allow(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending override should block even when no rules produce a block."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        # Only a set_variable rule — no block rules
+        _insert_rule(
+            manager,
+            "harmless-rule",
+            RuleDefinitionBody(
+                event=RuleEvent.STOP,
+                effect=RuleEffect(type="set_variable", variable="ran", value=True),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"tool_block_pending": True}
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "block"
+        assert variables.get("ran") is True  # rule loop still ran
+
+    @pytest.mark.asyncio
+    async def test_force_allow_trumps_rule_evaluated_block(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """force_allow_stop override should allow even when rules produce a block."""
+        from gobby.workflows.rule_engine import RuleEngine
+
+        _insert_rule(
+            manager,
+            "block-stop",
+            RuleDefinitionBody(
+                event=RuleEvent.STOP,
+                effect=RuleEffect(type="block", reason="Cannot stop yet"),
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"force_allow_stop": True}
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"

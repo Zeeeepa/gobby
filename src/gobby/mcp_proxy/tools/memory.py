@@ -683,6 +683,8 @@ def create_memory_registry(
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    # NOTE: This tool is invoked via the `digest-on-response` DB rule (event=stop, mcp_call effect).
+    # It is NOT called directly from Python code. Do not remove without also removing the DB rule.
     @registry.tool(
         name="build_turn_and_digest",
         description="Build a detailed turn record from the last agent response, append to session digest, synthesize title, and extract memories. Fired by digest-on-response rule on stop events.",
