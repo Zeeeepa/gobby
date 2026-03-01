@@ -19,6 +19,7 @@ from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
+    from gobby.storage.tasks._models import Task
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ _BATCH_SEMAPHORE = asyncio.Semaphore(5)
 
 
 def _build_task_prompt(
-    task: Any, deps: list[Any] | None = None, comments: list[Any] | None = None
+    task: Task, deps: list[Task] | None = None, comments: list[Any] | None = None
 ) -> str:
     """Build an auto-generated prompt from task context."""
     parts: list[str] = []

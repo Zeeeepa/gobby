@@ -8,7 +8,7 @@ import logging
 import sqlite3
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.session_models import Session
@@ -316,7 +316,7 @@ class LocalSessionManager:
             (session_id,),
         )
 
-    _VALID_CHAT_MODES = {"plan", "accept_edits", "normal", "bypass"}
+    _VALID_CHAT_MODES: ClassVar[set[str]] = {"plan", "accept_edits", "normal", "bypass"}
 
     def update_chat_mode(self, session_id: str, chat_mode: str) -> None:
         """Persist the chat mode (plan, accept_edits, normal, bypass) for a session."""
