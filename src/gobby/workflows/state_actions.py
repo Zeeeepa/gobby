@@ -6,10 +6,7 @@ These functions handle workflow state persistence and variable management.
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from gobby.workflows.actions import ActionContext
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +129,7 @@ def mark_loop_complete(state: Any) -> dict[str, Any]:
 
 
 async def handle_load_workflow_state(
-    context: "ActionContext", **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for load_workflow_state."""
     return await asyncio.to_thread(
@@ -141,7 +138,7 @@ async def handle_load_workflow_state(
 
 
 async def handle_save_workflow_state(
-    context: "ActionContext", **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for save_workflow_state."""
     return await asyncio.to_thread(save_workflow_state, context.db, context.state)
@@ -184,7 +181,7 @@ def _resolve_variable_name(kwargs: dict[str, Any], caller: str = "unknown") -> s
     return name_val or variable_val
 
 
-async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+async def handle_set_variable(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for set_variable.
 
     Values containing Jinja2 templates ({{ ... }}) are rendered before setting.
@@ -216,7 +213,7 @@ async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[s
 
 
 async def handle_increment_variable(
-    context: "ActionContext", **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for increment_variable."""
     resolved_name = _resolve_variable_name(kwargs, "handle_increment_variable")
@@ -224,13 +221,13 @@ async def handle_increment_variable(
 
 
 async def handle_mark_loop_complete(
-    context: "ActionContext", **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for mark_loop_complete."""
     return mark_loop_complete(context.state)
 
 
-async def handle_end_workflow(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+async def handle_end_workflow(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """End the active workflow by disabling it.
 
     Sets enabled=false on the workflow instance so the engine stops evaluating it.

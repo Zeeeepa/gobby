@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import aiofiles
 
@@ -20,9 +20,6 @@ from gobby.workflows.git_utils import (
     get_git_status,
     get_recent_git_commits,
 )
-
-if TYPE_CHECKING:
-    from gobby.workflows.actions import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -496,10 +493,10 @@ async def generate_summary(
 
 
 # --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+# These match the ActionHandler protocol: (context: Any, **kwargs) -> dict | None
 
 
-async def handle_generate_summary(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+async def handle_generate_summary(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for generate_summary."""
     return await generate_summary(
         session_manager=context.session_manager,

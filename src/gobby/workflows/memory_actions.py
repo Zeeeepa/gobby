@@ -789,17 +789,12 @@ async def generate_session_boundary_summaries(
 
 
 # --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+# These match the ActionHandler protocol: (context: Any, **kwargs) -> dict | None
 
-if __name__ != "__main__":
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from gobby.workflows.actions import ActionContext
 
 
 async def handle_memory_extraction_gate(
-    context: ActionContext, **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Stop-gate that blocks agent from stopping until memory extraction is done.
 
@@ -814,7 +809,7 @@ async def handle_memory_extraction_gate(
     )
 
 
-async def handle_memory_review_gate(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+async def handle_memory_review_gate(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """Stop-gate that nudges the agent to review work and save memories.
 
     Conditional on pending_memory_review — only fires when significant
@@ -829,7 +824,7 @@ async def handle_memory_review_gate(context: ActionContext, **kwargs: Any) -> di
 
 
 async def handle_generate_session_boundary_summaries(
-    context: ActionContext, **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Generate compact + summary markdown from digest at session boundary."""
     return await generate_session_boundary_summaries(
@@ -842,7 +837,7 @@ async def handle_generate_session_boundary_summaries(
 
 
 async def handle_memory_extract_from_session(
-    context: ActionContext, **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Daemon-side memory extraction from session transcript.
 
@@ -864,7 +859,7 @@ async def handle_memory_extract_from_session(
 
 
 async def handle_memory_inject_project_context(
-    context: ActionContext, **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Inject top project memories at session start.
 
@@ -880,7 +875,7 @@ async def handle_memory_inject_project_context(
     )
 
 
-async def handle_memory_save(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+async def handle_memory_save(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """Save a memory directly from workflow context."""
     return await memory_save(
         memory_manager=context.memory_manager,
@@ -894,7 +889,7 @@ async def handle_memory_save(context: ActionContext, **kwargs: Any) -> dict[str,
 
 
 async def handle_memory_recall_relevant(
-    context: ActionContext, **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """Recall memories relevant to the current user prompt."""
     return await memory_recall_relevant(
@@ -908,14 +903,14 @@ async def handle_memory_recall_relevant(
     )
 
 
-async def handle_memory_sync_import(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+async def handle_memory_sync_import(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """Import memories from filesystem."""
     return await memory_sync_import(
         memory_sync_manager=context.memory_sync_manager,
     )
 
 
-async def handle_memory_sync_export(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+async def handle_memory_sync_export(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """Export memories to filesystem."""
     return await memory_sync_export(
         memory_sync_manager=context.memory_sync_manager,

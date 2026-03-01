@@ -142,15 +142,10 @@ def switch_mode(mode: str | None = None) -> dict[str, Any]:
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
-if __name__ != "__main__":
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from gobby.workflows.actions import ActionContext
 
 
 async def handle_start_new_session(
-    context: "ActionContext", **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for start_new_session."""
     import asyncio
@@ -167,7 +162,7 @@ async def handle_start_new_session(
 
 
 async def handle_mark_session_status(
-    context: "ActionContext", **kwargs: Any
+    context: Any, **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for mark_session_status."""
     return mark_session_status(
@@ -178,6 +173,6 @@ async def handle_mark_session_status(
     )
 
 
-async def handle_switch_mode(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+async def handle_switch_mode(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for switch_mode."""
     return switch_mode(kwargs.get("mode"))

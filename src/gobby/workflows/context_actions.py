@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.workflows.actions import ActionContext
     from gobby.workflows.templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
@@ -637,10 +636,10 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
 
 
 # --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+# These match the ActionHandler protocol: (context: Any, **kwargs) -> dict | None
 
 
-async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+async def handle_inject_context(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for inject_context."""
     from gobby.workflows.state_manager import SessionVariableManager
 
@@ -670,7 +669,7 @@ async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[s
     )
 
 
-async def handle_inject_message(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+async def handle_inject_message(context: Any, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for inject_message."""
     return await asyncio.to_thread(
         inject_message,

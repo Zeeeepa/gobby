@@ -9,7 +9,7 @@ Architecture:
     HookManager creates and coordinates subsystems:
     - Session-agnostic: DaemonClient, TranscriptProcessor
     - Session-scoped: SessionManager
-    - Workflow-driven: WorkflowEngine handles session handoff via generate_handoff action
+    - Workflow-driven: RuleEngine + WorkflowHookHandler handle session lifecycle
 
 Example:
     ```python
@@ -49,7 +49,7 @@ class HookManager:
     Delegates all work to subsystems:
     - DaemonClient: HTTP communication with Gobby daemon
     - TranscriptProcessor: JSONL parsing and analysis
-    - WorkflowEngine: Handles session handoff and LLM-powered summaries
+    - RuleEngine + WorkflowHookHandler: Handles session lifecycle and rule enforcement
 
     Session ID Mapping:
         There are two types of session IDs used throughout the system:
