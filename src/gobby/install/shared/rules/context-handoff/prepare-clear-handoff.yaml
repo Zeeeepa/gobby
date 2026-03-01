@@ -2,7 +2,7 @@ tags: [context-handoff, context, handoff, lifecycle]
 
 rules:
   prepare-clear-handoff:
-    description: "Prepare handoff context when /clear or /exit detected"
+    description: "Set handoff source when /clear or /exit detected"
     event: before_agent
     enabled: false
     priority: 5
@@ -11,14 +11,3 @@ rules:
       - type: set_variable
         variable: handoff_source
         value: "clear"
-      - type: mcp_call
-        server: gobby-sessions
-        tool: set_handoff_context
-        arguments:
-          compact: true
-      - type: mcp_call
-        server: gobby-sessions
-        tool: set_handoff_context
-        arguments:
-          full: true
-          write_file: true

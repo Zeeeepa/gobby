@@ -439,6 +439,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.debug(f"Failed to notify pane monitor for session {session_id}: {e}")
 
+        # Generate boundary summaries from digest (replaces legacy transcript-based handoff)
+        if session_id:
+            try:
+                self._dispatch_boundary_summaries(session_id, background=False)
+            except Exception as e:
+                self.logger.warning(f"Failed to generate boundary summaries on end: {e}")
+
         # Only mark as handoff_ready if a handoff was explicitly prepared
         # (by prepare-clear-handoff or preserve-context-on-compact rules).
         # Otherwise mark as expired — normal session ends don't chain.
