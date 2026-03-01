@@ -121,11 +121,7 @@ class RuleEngine:
 
         # 1b. Append extra rules (e.g. from agent rule_definitions)
         if extra_rules:
-            rules.extend(
-                (row, body)
-                for row, body in extra_rules
-                if body.event == rule_event
-            )
+            rules.extend((row, body) for row, body in extra_rules if body.event == rule_event)
 
         # 2. Apply session overrides
         overrides = self._load_session_overrides(session_id)
@@ -342,9 +338,7 @@ class RuleEngine:
             return rules  # no filter — current behavior preserved
         active_set = set(active_names)
         return [
-            (row, body)
-            for row, body in rules
-            if row.name in active_set or row.source == "agent"
+            (row, body) for row, body in rules if row.name in active_set or row.source == "agent"
         ]
 
     def _apply_effect(

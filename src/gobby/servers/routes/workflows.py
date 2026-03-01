@@ -300,8 +300,10 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             if rows:
                 names = [r.name for r in rows]
                 await _broadcast_workflow(
-                    "workflows_bulk_changed", "bulk",
-                    count=len(rows), names=names[:10],
+                    "workflows_bulk_changed",
+                    "bulk",
+                    count=len(rows),
+                    names=names[:10],
                 )
             return {
                 "status": "success",

@@ -213,8 +213,7 @@ class PipelineExecutor:
                 )
             except Exception:
                 logger.warning(
-                    "Failed to create child session for pipeline, "
-                    "using caller session_id",
+                    "Failed to create child session for pipeline, using caller session_id",
                     exc_info=True,
                 )
 

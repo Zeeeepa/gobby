@@ -82,7 +82,9 @@ class AgentEventHandlerMixin(EventHandlersBase):
                 try:
                     self._dispatch_boundary_summaries(session_id, background=False)
                 except Exception as e:
-                    self.logger.warning(f"Failed to generate boundary summaries on {prompt_lower}: {e}")
+                    self.logger.warning(
+                        f"Failed to generate boundary summaries on {prompt_lower}: {e}"
+                    )
 
         # Skill interception — runs before lifecycle workflows
         if self._skill_manager and prompt.strip():

@@ -732,9 +732,7 @@ class HookManager:
                             e,
                         )
 
-    def _dispatch_boundary_summaries(
-        self, session_id: str, background: bool = False
-    ) -> None:
+    def _dispatch_boundary_summaries(self, session_id: str, background: bool = False) -> None:
         """Generate session boundary summaries from digest.
 
         Calls generate_session_boundary_summaries which produces compact_markdown
@@ -793,16 +791,12 @@ class HookManager:
                     future = asyncio.run_coroutine_threadsafe(coro, self._loop)
                     future.result(timeout=30)
                 except Exception as e:
-                    self.logger.error(
-                        "_dispatch_boundary_summaries: blocking failed: %s", e
-                    )
+                    self.logger.error("_dispatch_boundary_summaries: blocking failed: %s", e)
             else:
                 try:
                     asyncio.run(coro)
                 except Exception as e:
-                    self.logger.error(
-                        "_dispatch_boundary_summaries: blocking failed: %s", e
-                    )
+                    self.logger.error("_dispatch_boundary_summaries: blocking failed: %s", e)
 
     def shutdown(self) -> None:
         """

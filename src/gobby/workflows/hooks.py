@@ -174,9 +174,7 @@ class WorkflowHookHandler:
                 )
                 result.append((synthetic_row, body))
             except Exception as e:
-                logger.warning(
-                    f"Failed to parse agent rule {agent_type}:{rule_name}: {e}"
-                )
+                logger.warning(f"Failed to parse agent rule {agent_type}:{rule_name}: {e}")
                 continue
 
         cached = result or None
