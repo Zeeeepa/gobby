@@ -555,7 +555,8 @@ def create_worktrees_registry(
         worktree = worktree_storage.get(worktree_id)
 
         if not worktree:
-            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
+            # Idempotent: already deleted = success
+            return {"success": True, "already_deleted": True}
 
         # Resolve git manager
         resolved_git_mgr = git_manager  # Start with the module-level git_manager

@@ -735,11 +735,11 @@ async def test_release_worktree_not_found(registry, mock_worktree_storage):
 
 @pytest.mark.asyncio
 async def test_delete_worktree_not_found(registry, mock_worktree_storage):
-    """Test delete_worktree when worktree not found."""
+    """Test delete_worktree is idempotent when worktree not found."""
     mock_worktree_storage.get.return_value = None
     result = await registry.call("delete_worktree", {"worktree_id": "nonexistent"})
-    assert result["success"] is False
-    assert "not found" in result["error"]
+    assert result["success"] is True
+    assert result["already_deleted"] is True
 
 
 @pytest.mark.asyncio
