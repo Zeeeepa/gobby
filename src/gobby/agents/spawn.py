@@ -84,6 +84,9 @@ class PreparedSpawn:
     env_vars: dict[str, str]
     """Environment variables to set."""
 
+    seq_num: int | None = None
+    """Session sequence number for human-friendly references."""
+
 
 def prepare_terminal_spawn(
     session_manager: ChildSessionManager,
@@ -214,6 +217,7 @@ def prepare_terminal_spawn(
         workflow_name=workflow_name,
         agent_depth=child_session.agent_depth,
         env_vars=env_vars,
+        seq_num=getattr(child_session, "seq_num", None),
     )
 
 
@@ -339,6 +343,7 @@ async def prepare_gemini_spawn_with_preflight(
         workflow_name=workflow_name,
         agent_depth=child_session.agent_depth,
         env_vars=env_vars,
+        seq_num=getattr(child_session, "seq_num", None),
     )
 
 
@@ -464,4 +469,5 @@ async def prepare_codex_spawn_with_preflight(
         workflow_name=workflow_name,
         agent_depth=child_session.agent_depth,
         env_vars=env_vars,
+        seq_num=getattr(child_session, "seq_num", None),
     )

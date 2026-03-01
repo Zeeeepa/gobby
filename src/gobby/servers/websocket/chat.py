@@ -581,10 +581,20 @@ class ChatMixin:
             if session and getattr(session, "seq_num", None):
                 session_ref = f"#{session.seq_num}"
                 ctx = result.get("context")
+                if event_type == HookEventType.PRE_COMPACT:
+                    # Richer context for compaction survival
+                    from gobby.servers.chat_session_helpers import build_compaction_context
+
+                    enrichment = build_compaction_context(
+                        session_ref=session_ref,
+                        project_id=getattr(session, "project_id", None),
+                        cwd=project_path,
+                        source="claude_sdk_web_chat",
+                    )
+                else:
+                    enrichment = f"Gobby Session ID: {session_ref}"
                 result["context"] = (
-                    f"Gobby Session ID: {session_ref}\n\n{ctx}"
-                    if ctx
-                    else f"Gobby Session ID: {session_ref}"
+                    f"{enrichment}\n\n{ctx}" if ctx else enrichment
                 )
 
             # --- Event broadcasting for audit trail (parity with CLI path D2) ---

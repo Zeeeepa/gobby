@@ -38,6 +38,7 @@ from claude_agent_sdk.types import (
 from gobby.servers.chat_session_helpers import (
     _find_cli_path,
     _find_mcp_config,
+    _response_to_compact_output,
     _response_to_post_tool_output,
     _response_to_pre_tool_output,
     _response_to_prompt_output,
@@ -75,6 +76,7 @@ class AutonomousRunner:
         on_pre_tool: LifecycleCallback | None = None,
         on_post_tool: LifecycleCallback | None = None,
         on_stop: LifecycleCallback | None = None,
+        on_pre_compact: LifecycleCallback | None = None,
         seq_num: int | None = None,
         resume_session_id: str | None = None,
     ) -> None:
@@ -95,6 +97,7 @@ class AutonomousRunner:
         self._on_pre_tool = on_pre_tool
         self._on_post_tool = on_post_tool
         self._on_stop = on_stop
+        self._on_pre_compact = on_pre_compact
 
         # Captured after first ResultMessage
         self.sdk_session_id: str | None = None
@@ -294,5 +297,19 @@ class AutonomousRunner:
                 return _response_to_stop_output(resp)
 
             hooks["Stop"] = [HookMatcher(matcher=None, hooks=[_stop_hook])]
+
+        if self._on_pre_compact:
+            cb_compact = self._on_pre_compact
+
+            async def _compact_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {"trigger": inp.get("trigger", "auto")}
+                resp = await cb_compact(data)
+                return _response_to_compact_output(resp)
+
+            hooks["PreCompact"] = [HookMatcher(matcher=None, hooks=[_compact_hook])]
 
         return hooks if hooks else None

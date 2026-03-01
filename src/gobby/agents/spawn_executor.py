@@ -445,6 +445,22 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
 
     gobby_session_id = spawn_context.session_id
 
+    # Build PreCompact callback so Gobby context survives compaction
+    from gobby.servers.chat_session_helpers import build_compaction_context
+
+    _seq_num = spawn_context.seq_num
+    _session_ref = f"#{_seq_num}" if _seq_num else gobby_session_id
+
+    async def _on_pre_compact(data: dict[str, Any]) -> dict[str, Any] | None:
+        return {
+            "context": build_compaction_context(
+                session_ref=_session_ref,
+                project_id=request.project_id,
+                cwd=request.cwd,
+                source="autonomous_sdk",
+            )
+        }
+
     runner = AutonomousRunner(
         session_id=gobby_session_id,
         run_id=spawn_context.agent_run_id,
@@ -455,6 +471,8 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
         system_prompt=request.system_prompt,
         max_turns=request.max_turns,
         agent_run_manager=request.agent_run_manager,
+        seq_num=_seq_num,
+        on_pre_compact=_on_pre_compact,
     )
 
     # Launch as background task for lifecycle monitoring
