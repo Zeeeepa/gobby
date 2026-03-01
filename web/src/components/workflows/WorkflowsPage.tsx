@@ -45,6 +45,11 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
   // Dynamic options reported by tabs
   const [agentProviders, setAgentProviders] = useState<string[]>([])
   const [ruleEventTypes, setRuleEventTypes] = useState<string[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
+
+  // Cross-tab filters
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [priorityFilter, setPriorityFilter] = useState<number | null>(null)
 
   // Rules bulk toggle state
   const [rulesAllEnabled, setRulesAllEnabled] = useState(false)
@@ -102,8 +107,10 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
     if (activeTab === 'pipelines' && pipelineEnabledFilter !== null) count++
     if (activeTab === 'agents' && agentProviderFilter !== 'all') count++
     if (activeTab === 'rules' && ruleEventFilter !== null) count++
+    if (tagFilter !== null) count++
+    if (priorityFilter !== null) count++
     return count
-  }, [sourceFilter, hideGobby, hideInstalled, activeTab, pipelineEnabledFilter, agentProviderFilter, ruleEventFilter])
+  }, [sourceFilter, hideGobby, hideInstalled, activeTab, pipelineEnabledFilter, agentProviderFilter, ruleEventFilter, tagFilter, priorityFilter])
 
   // Bulk actions
   const handleInstallAll = useCallback(async () => {
@@ -188,6 +195,11 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
                 ruleEventFilter={ruleEventFilter}
                 onRuleEventFilterChange={setRuleEventFilter}
                 ruleEventTypes={ruleEventTypes}
+                tagFilter={tagFilter}
+                onTagFilterChange={setTagFilter}
+                availableTags={availableTags}
+                priorityFilter={priorityFilter}
+                onPriorityFilterChange={setPriorityFilter}
               />
             )}
           </div>
@@ -283,8 +295,11 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
-          hideInstalled={hideInstalled}
+          hideInstalled={sourceFilter === 'templates' && hideInstalled}
           enabledFilter={pipelineEnabledFilter}
+          tagFilter={tagFilter}
+          priorityFilter={priorityFilter}
+          onTagsChange={setAvailableTags}
         />
       )}
 
@@ -298,9 +313,12 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
-          hideInstalled={hideInstalled}
+          hideInstalled={sourceFilter === 'templates' && hideInstalled}
           filterProvider={agentProviderFilter}
           onProvidersChange={setAgentProviders}
+          tagFilter={tagFilter}
+          priorityFilter={priorityFilter}
+          onTagsChange={setAvailableTags}
         />
       )}
 
@@ -314,10 +332,13 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           refreshKey={refreshKey}
           projectId={projectId}
           hideGobby={hideGobby}
-          hideInstalled={hideInstalled}
+          hideInstalled={sourceFilter === 'templates' && hideInstalled}
           eventFilter={ruleEventFilter}
           onEventTypesChange={setRuleEventTypes}
           onAllEnabledChange={setRulesAllEnabled}
+          tagFilter={tagFilter}
+          priorityFilter={priorityFilter}
+          onTagsChange={setAvailableTags}
         />
       )}
     </main>
@@ -340,6 +361,11 @@ function FilterPopover({
   ruleEventFilter,
   onRuleEventFilterChange,
   ruleEventTypes,
+  tagFilter,
+  onTagFilterChange,
+  availableTags,
+  priorityFilter,
+  onPriorityFilterChange,
 }: {
   sourceFilter: SourceFilter
   onSourceFilterChange: (v: SourceFilter) => void
@@ -356,6 +382,11 @@ function FilterPopover({
   ruleEventFilter: string | null
   onRuleEventFilterChange: (v: string | null) => void
   ruleEventTypes: string[]
+  tagFilter: string | null
+  onTagFilterChange: (v: string | null) => void
+  availableTags: string[]
+  priorityFilter: number | null
+  onPriorityFilterChange: (v: number | null) => void
 }) {
   return (
     <div className="workflows-filter-popover">
@@ -429,6 +460,42 @@ function FilterPopover({
                 onClick={() => onRuleEventFilterChange(ruleEventFilter === ev ? null : ev)}
               >
                 {ev}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Priority */}
+      <div className="workflows-filter-popover-section">
+        <div className="workflows-filter-popover-label">Priority</div>
+        <div className="workflows-filter-popover-chips">
+          {[1, 2, 3].map(p => (
+            <button
+              key={p}
+              type="button"
+              className={`workflows-filter-chip ${priorityFilter === p ? 'workflows-filter-chip--active' : ''}`}
+              onClick={() => onPriorityFilterChange(priorityFilter === p ? null : p)}
+            >
+              P{p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tags */}
+      {availableTags.length > 0 && (
+        <div className="workflows-filter-popover-section">
+          <div className="workflows-filter-popover-label">Tag</div>
+          <div className="workflows-filter-popover-chips">
+            {availableTags.map(tag => (
+              <button
+                key={tag}
+                type="button"
+                className={`workflows-filter-chip ${tagFilter === tag ? 'workflows-filter-chip--active' : ''}`}
+                onClick={() => onTagFilterChange(tagFilter === tag ? null : tag)}
+              >
+                {tag}
               </button>
             ))}
           </div>
