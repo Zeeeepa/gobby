@@ -220,6 +220,9 @@ class PipelineExecutor:
 
         # 3. Build execution context (merge defaults from pipeline definition)
         merged_inputs = {**pipeline.inputs, **inputs}
+        # Inject parent_session_id into inputs so ${{ inputs.parent_session_id }} resolves
+        if parent_session_id and not inputs.get("parent_session_id"):
+            merged_inputs["parent_session_id"] = parent_session_id
         context: dict[str, Any] = {
             "inputs": merged_inputs,
             "steps": {},  # Will hold step outputs as they complete
