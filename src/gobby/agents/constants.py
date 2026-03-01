@@ -71,7 +71,7 @@ def get_terminal_env_vars(
         project_id: The project ID.
         workflow_name: Optional workflow to activate.
         agent_depth: Current nesting depth (default: 1).
-        max_agent_depth: Maximum allowed depth (default: 3).
+        max_agent_depth: Maximum allowed depth (default: 5).
         prompt: Optional short prompt (for inline passing).
         prompt_file: Optional path to file containing prompt (for long prompts).
 

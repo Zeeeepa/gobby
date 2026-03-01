@@ -161,7 +161,7 @@ class AgentLifecycleMonitor:
             a for a in agents if a.task is not None and a.mode in ("autonomous", "in_process")
         ]
         for agent in task_agents:
-            task: asyncio.Task[object] = agent.task
+            task: asyncio.Task[object] = agent.task  # type: ignore[assignment]
             if not task.done():
                 continue
 
