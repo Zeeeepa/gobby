@@ -250,11 +250,15 @@ def create_sync_registry(
             if project:
                 repo_path = project.repo_path
 
+        # Get project_id for resolving #N task references
+        project_id = ctx.get("id") if ctx else None
+
         result = auto_link_commits_fn(
             task_manager=task_manager,
             task_id=task_id,  # Pass original #N format, not UUID
             since=since,
             cwd=repo_path,
+            project_id=project_id,
         )
 
         return {
