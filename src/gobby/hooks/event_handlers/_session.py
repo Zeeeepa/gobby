@@ -216,6 +216,33 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     source=cli_source,
                     status="handoff_ready",
                 )
+
+                # Race condition: Claude Code fires session-start before session-end,
+                # so the old session is still active when we look for handoff_ready.
+                # Wait with exponential backoff for the old session to be marked.
+                if not parent and session_source == "clear":
+                    import time
+
+                    delay = 0.1
+                    for _ in range(6):  # 0.1+0.2+0.4+0.8+1.6+3.2 = ~6.3s max
+                        time.sleep(delay)
+                        parent = self._session_storage.find_parent(
+                            machine_id=machine_id,
+                            project_id=project_id,
+                            source=cli_source,
+                            status="handoff_ready",
+                        )
+                        if parent:
+                            self.logger.debug(
+                                f"Found handoff_ready parent after backoff: {parent.id}"
+                            )
+                            break
+                        delay = min(delay * 2, 3.2)
+                    if not parent:
+                        self.logger.warning(
+                            "No handoff_ready parent found after backoff for /clear session"
+                        )
+
                 if parent:
                     parent_session_id = parent.id
                     self.logger.debug(f"Found parent session: {parent_session_id}")
@@ -447,7 +474,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Generate boundary summaries from digest (replaces legacy transcript-based handoff)
         if session_id:
             try:
-                self._dispatch_boundary_summaries(session_id, background=False)  # type: ignore[attr-defined]
+                if self._dispatch_boundary_summaries_fn:
+                    self._dispatch_boundary_summaries_fn(session_id, False)
             except Exception as e:
                 self.logger.warning(f"Failed to generate boundary summaries on end: {e}")
 

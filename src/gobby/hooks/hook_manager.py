@@ -179,6 +179,12 @@ class HookManager:
         self._hook_assembler = components.hook_assembler
         self._event_handlers = components.event_handlers
 
+        # Wire callback for boundary summary generation (method lives on HookManager,
+        # called from EventHandlers mixins during session-end and before-agent).
+        self._event_handlers._dispatch_boundary_summaries_fn = (
+            self._dispatch_boundary_summaries
+        )
+
         # Inter-session message manager (for web chat -> CLI piggyback delivery)
         from gobby.storage.inter_session_messages import InterSessionMessageManager
 

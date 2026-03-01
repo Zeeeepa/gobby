@@ -77,14 +77,29 @@ class AgentEventHandlerMixin(EventHandlersBase):
                     self.logger.warning(f"Failed to update session status: {e}")
 
             # Handle /clear command - generate boundary summaries before clear/exit
+            # and set handoff_source so session-end marks the session handoff_ready.
             if prompt_lower in ("/clear", "/exit"):
                 self.logger.debug(f"Detected {prompt_lower} - generating boundary summaries")
                 try:
-                    self._dispatch_boundary_summaries(session_id, background=False)  # type: ignore[attr-defined]
+                    if self._dispatch_boundary_summaries_fn:
+                        self._dispatch_boundary_summaries_fn(session_id, False)
                 except Exception as e:
                     self.logger.warning(
                         f"Failed to generate boundary summaries on {prompt_lower}: {e}"
                     )
+                # Belt-and-suspenders: set handoff_source directly in addition to
+                # the prepare-clear-handoff rule, so session-end marks handoff_ready
+                # even if the rule engine is slow or disabled.
+                if self._session_storage:
+                    try:
+                        from gobby.workflows.state_manager import SessionVariableManager
+
+                        sv_mgr = SessionVariableManager(self._session_storage.db)
+                        sv_mgr.set_variable(
+                            session_id, "handoff_source", prompt_lower.lstrip("/")
+                        )
+                    except Exception as e:
+                        self.logger.warning(f"Failed to set handoff_source: {e}")
 
         # Skill interception — runs before lifecycle workflows
         if self._skill_manager and prompt.strip():
@@ -316,7 +331,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
                 self._session_manager.update_session_status(session_id, "handoff_ready")
             # Generate boundary summaries from digest before compaction
             try:
-                self._dispatch_boundary_summaries(session_id, background=False)  # type: ignore[attr-defined]
+                if self._dispatch_boundary_summaries_fn:
+                    self._dispatch_boundary_summaries_fn(session_id, False)
             except Exception as e:
                 self.logger.warning(f"Failed to generate boundary summaries on compact: {e}")
         else:
