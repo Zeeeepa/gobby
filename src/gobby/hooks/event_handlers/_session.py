@@ -219,13 +219,15 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
                 # Race condition: Claude Code fires session-start before session-end,
                 # so the old session is still active when we look for handoff_ready.
-                # Wait with exponential backoff for the old session to be marked.
-                if not parent and session_source == "clear":
+                # Poll every 5s for up to 6 minutes while SESSION_END pipeline
+                # completes (LLM calls for extract_from_session + boundary summaries
+                # typically take 20-40+ seconds).
+                if not parent and session_source in ("clear", "compact"):
                     import time
 
-                    delay = 0.1
-                    for _ in range(6):  # 0.1+0.2+0.4+0.8+1.6+3.2 = ~6.3s max
-                        time.sleep(delay)
+                    deadline = time.monotonic() + 360  # 6 minute timeout
+                    while time.monotonic() < deadline:
+                        time.sleep(5)
                         parent = self._session_storage.find_parent(
                             machine_id=machine_id,
                             project_id=project_id,
@@ -237,10 +239,10 @@ class SessionEventHandlerMixin(EventHandlersBase):
                                 f"Found handoff_ready parent after backoff: {parent.id}"
                             )
                             break
-                        delay = min(delay * 2, 3.2)
                     if not parent:
                         self.logger.warning(
-                            "No handoff_ready parent found after backoff for /clear session"
+                            "No handoff_ready parent found after 6m timeout "
+                            f"for /{session_source} session"
                         )
 
                 if parent:
