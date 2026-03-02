@@ -862,20 +862,46 @@ class TestSessionEndHandling:
         )
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
-    def test_session_end_marks_handoff_ready_with_clear_source(
+    def test_session_end_marks_handoff_ready_with_clear_reason(
         self, mock_sv_mgr_cls: MagicMock, mock_dependencies: dict
     ) -> None:
-        """Test SESSION_END marks handoff_ready when event source is 'clear'."""
+        """Test SESSION_END marks handoff_ready when event reason is 'clear'."""
         mock_session = MagicMock()
         mock_session.created_at = "2024-01-01T00:00:00Z"
         mock_session.agent_run_id = None
+        mock_session.status = "active"
         mock_dependencies["session_storage"].get.return_value = mock_session
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
             HookEventType.SESSION_END,
             session_id="ext-123",
-            data={"source": "clear"},
+            data={"reason": "clear"},
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        response = handlers.handle_session_end(event)
+
+        assert response.decision == "allow"
+        mock_dependencies["session_storage"].update_status.assert_called_once_with(
+            "sess-123", "handoff_ready"
+        )
+
+    def test_session_end_preserves_handoff_ready_from_compact(
+        self, mock_dependencies: dict
+    ) -> None:
+        """Test SESSION_END doesn't downgrade handoff_ready set by PRE_COMPACT."""
+        mock_session = MagicMock()
+        mock_session.created_at = "2024-01-01T00:00:00Z"
+        mock_session.agent_run_id = None
+        mock_session.status = "handoff_ready"
+        mock_dependencies["session_storage"].get.return_value = mock_session
+
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.SESSION_END,
+            session_id="ext-123",
+            data={"reason": "other"},
             metadata={"_platform_session_id": "sess-123"},
         )
 

@@ -487,13 +487,19 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Mark as handoff_ready if session is ending due to /clear or /compact,
         # so the new session can find this parent and generate handoff summaries.
-        # The source field is passed by the CLI in the session-end event data.
+        # Claude Code session-end uses 'reason' field (not 'source').
         if session_id and self._session_storage:
             try:
                 end_status = "expired"
-                session_source = event.data.get("source")
-                if session_source in ("clear", "compact"):
+                end_reason = event.data.get("reason")
+                if end_reason in ("clear", "compact"):
                     end_status = "handoff_ready"
+                # Don't downgrade handoff_ready → expired (PRE_COMPACT may have
+                # already set handoff_ready before SESSION_END fires)
+                if end_status == "expired":
+                    current = self._session_storage.get(session_id)
+                    if current and current.status == "handoff_ready":
+                        end_status = "handoff_ready"
                 self._session_storage.update_status(session_id, end_status)
             except Exception as e:
                 self.logger.warning(f"Failed to update session status on end: {e}")
