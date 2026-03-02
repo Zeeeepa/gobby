@@ -39,6 +39,7 @@ def registry(mock_worktree_storage, mock_git_manager):
 
 @pytest.mark.asyncio
 async def test_create_worktree_success(registry, mock_worktree_storage, mock_git_manager):
+    mock_git_manager.has_unpushed_commits.return_value = (False, 0)
     mock_git_manager.create_worktree.return_value.success = True
     mock_worktree_storage.get_by_branch.return_value = None
     mock_worktree_storage.create.return_value = Worktree(
@@ -64,12 +65,14 @@ async def test_create_worktree_success(registry, mock_worktree_storage, mock_git
         branch_name="feature/test",
         base_branch="main",
         create_branch=True,
+        use_local=False,
     )
     mock_worktree_storage.create.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_create_worktree_failure(registry, mock_worktree_storage, mock_git_manager):
+    mock_git_manager.has_unpushed_commits.return_value = (False, 0)
     mock_git_manager.create_worktree.return_value.success = False
     mock_git_manager.create_worktree.return_value.error = "Git error"
     mock_worktree_storage.get_by_branch.return_value = None
@@ -112,6 +115,7 @@ async def test_create_worktree_existing(registry, mock_worktree_storage):
 
 @pytest.mark.asyncio
 async def test_create_worktree_auto_path(registry, mock_git_manager, mock_worktree_storage):
+    mock_git_manager.has_unpushed_commits.return_value = (False, 0)
     mock_git_manager.create_worktree.return_value.success = True
     mock_worktree_storage.get_by_branch.return_value = None
     mock_worktree_storage.create.return_value = Worktree(
@@ -140,6 +144,123 @@ async def test_create_worktree_auto_path(registry, mock_git_manager, mock_worktr
         assert result["success"] is True
         args, kwargs = mock_git_manager.create_worktree.call_args
         assert "feature-auto" in kwargs["worktree_path"]
+
+
+@pytest.mark.asyncio
+async def test_create_worktree_use_local_explicit(registry, mock_worktree_storage, mock_git_manager):
+    """Test create_worktree with explicit use_local=True passes through."""
+    mock_git_manager.create_worktree.return_value.success = True
+    mock_worktree_storage.get_by_branch.return_value = None
+    mock_worktree_storage.create.return_value = Worktree(
+        id="wt-local",
+        project_id="proj-1",
+        task_id=None,
+        branch_name="feature/local",
+        worktree_path="/tmp/wt/feature-local",
+        base_branch="develop",
+        agent_session_id=None,
+        status="active",
+        created_at="now",
+        updated_at="now",
+        merged_at=None,
+    )
+    result = await registry.call(
+        "create_worktree",
+        {
+            "branch_name": "feature/local",
+            "base_branch": "develop",
+            "worktree_path": "/tmp/wt/feature-local",
+            "use_local": True,
+        },
+    )
+    assert result["success"] is True
+    mock_git_manager.create_worktree.assert_called_once_with(
+        worktree_path="/tmp/wt/feature-local",
+        branch_name="feature/local",
+        base_branch="develop",
+        create_branch=True,
+        use_local=True,
+    )
+    # Auto-detection should NOT be called when use_local is explicit
+    mock_git_manager.has_unpushed_commits.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_worktree_auto_detects_unpushed(
+    registry, mock_worktree_storage, mock_git_manager
+):
+    """Test create_worktree auto-sets use_local=True when base_branch has unpushed commits."""
+    mock_git_manager.has_unpushed_commits.return_value = (True, 3)
+    mock_git_manager.create_worktree.return_value.success = True
+    mock_worktree_storage.get_by_branch.return_value = None
+    mock_worktree_storage.create.return_value = Worktree(
+        id="wt-auto-local",
+        project_id="proj-1",
+        task_id=None,
+        branch_name="feature/auto-local",
+        worktree_path="/tmp/wt/feature-auto-local",
+        base_branch="main",
+        agent_session_id=None,
+        status="active",
+        created_at="now",
+        updated_at="now",
+        merged_at=None,
+    )
+    result = await registry.call(
+        "create_worktree",
+        {
+            "branch_name": "feature/auto-local",
+            "worktree_path": "/tmp/wt/feature-auto-local",
+        },
+    )
+    assert result["success"] is True
+    mock_git_manager.has_unpushed_commits.assert_called_once_with("main")
+    mock_git_manager.create_worktree.assert_called_once_with(
+        worktree_path="/tmp/wt/feature-auto-local",
+        branch_name="feature/auto-local",
+        base_branch="main",
+        create_branch=True,
+        use_local=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_worktree_no_unpushed_uses_remote(
+    registry, mock_worktree_storage, mock_git_manager
+):
+    """Test create_worktree defaults to use_local=False when no unpushed commits."""
+    mock_git_manager.has_unpushed_commits.return_value = (False, 0)
+    mock_git_manager.create_worktree.return_value.success = True
+    mock_worktree_storage.get_by_branch.return_value = None
+    mock_worktree_storage.create.return_value = Worktree(
+        id="wt-remote",
+        project_id="proj-1",
+        task_id=None,
+        branch_name="feature/remote",
+        worktree_path="/tmp/wt/feature-remote",
+        base_branch="main",
+        agent_session_id=None,
+        status="active",
+        created_at="now",
+        updated_at="now",
+        merged_at=None,
+    )
+    result = await registry.call(
+        "create_worktree",
+        {
+            "branch_name": "feature/remote",
+            "worktree_path": "/tmp/wt/feature-remote",
+        },
+    )
+    assert result["success"] is True
+    mock_git_manager.has_unpushed_commits.assert_called_once_with("main")
+    mock_git_manager.create_worktree.assert_called_once_with(
+        worktree_path="/tmp/wt/feature-remote",
+        branch_name="feature/remote",
+        base_branch="main",
+        create_branch=True,
+        use_local=False,
+    )
 
 
 @pytest.mark.asyncio
