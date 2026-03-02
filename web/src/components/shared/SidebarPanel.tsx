@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import './SidebarPanel.css'
 
 interface SidebarPanelProps {
@@ -11,6 +12,15 @@ interface SidebarPanelProps {
 }
 
 export function SidebarPanel({ isOpen, onClose, title, width = 480, headerContent, footer, children }: SidebarPanelProps) {
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   return (
     <>
       {isOpen && <div className="sidebar-backdrop" onClick={onClose} />}
