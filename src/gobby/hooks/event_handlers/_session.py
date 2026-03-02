@@ -421,11 +421,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
                     # Preserve task claim state across compaction/clear
                     parent_vars = sv_mgr.get_variables(parent_session_id)
-                    if (
-                        parent_vars.get("session_handoff")
-                        or parent_vars.get("is_handoff")
-                        or parent_vars.get("handoff_source")
-                    ):
+                    if session_source in ("compact", "clear"):
                         _TASK_CLAIM_KEYS = (
                             "task_claimed",
                             "claimed_task_id",

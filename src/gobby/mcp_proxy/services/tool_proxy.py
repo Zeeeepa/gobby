@@ -38,11 +38,13 @@ class ToolProxyService:
         internal_manager: "InternalRegistryManager | None" = None,
         fallback_resolver: "ToolFallbackResolver | None" = None,
         validate_arguments: bool = True,
+        tool_filter: Any = None,
     ):
         self._mcp_manager = mcp_manager
         self._internal_manager = internal_manager
         self._fallback_resolver = fallback_resolver
         self._validate_arguments = validate_arguments
+        self._tool_filter = tool_filter
 
     def _is_proxy_namespace(self, server_name: str) -> bool:
         """Check if the server name is the proxy namespace rather than a real server."""
@@ -205,6 +207,8 @@ class ToolProxyService:
                             else getattr(tool, "description", "")
                         )
                         brief_tools.append({"name": name, "brief": safe_truncate(desc)})
+                if self._tool_filter and session_id:
+                    brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
                 return {"success": True, "tools": brief_tools, "tool_count": len(brief_tools)}
             return {"success": True, "tools": [], "tool_count": 0}
 
@@ -213,6 +217,8 @@ class ToolProxyService:
             registry = self._internal_manager.get_registry(server_name)
             if registry:
                 tools = registry.list_tools()
+                if self._tool_filter and session_id:
+                    tools = self._tool_filter.filter_tools(tools, session_id)
                 return {"success": True, "tools": tools, "tool_count": len(tools)}
             return {
                 "success": False,
@@ -225,7 +231,7 @@ class ToolProxyService:
             tools_map = await self._mcp_manager.list_tools(server_name)
             tools_list = tools_map.get(server_name, [])
             # Convert to lightweight format
-            brief_tools = []
+            brief_tools: list[dict[str, Any]] = []
             for tool in tools_list:
                 if isinstance(tool, dict):
                     brief_tools.append(
@@ -241,6 +247,8 @@ class ToolProxyService:
                             "brief": safe_truncate(tool.description),
                         }
                     )
+            if self._tool_filter and session_id:
+                brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
             return {"success": True, "tools": brief_tools, "tool_count": len(brief_tools)}
 
         return {
@@ -279,6 +287,18 @@ class ToolProxyService:
 
         """
         arguments = arguments or {}
+
+        # Check tool filter before execution
+        if self._tool_filter and session_id:
+            allowed, reason = self._tool_filter.is_tool_allowed(tool_name, session_id)
+            if not allowed:
+                return {
+                    "success": False,
+                    "error": reason,
+                    "error_code": ToolProxyErrorCode.TOOL_BLOCKED.value,
+                    "server_name": server_name,
+                    "tool_name": tool_name,
+                }
 
         # Handle proxy namespace: auto-resolve to the real server
         if self._is_proxy_namespace(server_name):

@@ -442,6 +442,12 @@ class PipelineExecutor:
         elif step.mcp:
             # Execute MCP tool call
             return await execute_mcp_step(rendered_step, context, self.tool_proxy_getter)
+        elif step.activate_workflow:
+            # activate_workflow steps are not supported in pipeline execution
+            return {
+                "error": "activate_workflow pipeline steps are not supported",
+                "step_id": step.id,
+            }
         else:
             logger.warning(f"Step {step.id} has no action defined")
             return None

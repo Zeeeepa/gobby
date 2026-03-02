@@ -318,6 +318,7 @@ class WorkflowStep(BaseModel):
 class WorkflowDefinition(BaseModel):
     name: str
     description: str | None = None
+    type: str = "step"
     version: str = "1.0"
     extends: str | None = None
 
@@ -345,6 +346,9 @@ class WorkflowDefinition(BaseModel):
 
     # Observers: watch events and set variables or invoke registered behaviors
     observers: list[Observer] = Field(default_factory=list)
+
+    # Inline tool blocking rules for lifecycle workflows
+    tool_rules: list[dict[str, Any]] = Field(default_factory=list)
 
     # Step workflow steps (empty for rule-only workflows)
     steps: list[WorkflowStep] = Field(default_factory=list)
@@ -408,6 +412,7 @@ class PipelineStep(BaseModel):
     prompt: str | None = None  # LLM prompt template
     invoke_pipeline: str | dict[str, Any] | None = None  # Name of pipeline to invoke
     mcp: MCPStepConfig | None = None  # Call MCP tool directly
+    activate_workflow: dict[str, Any] | None = None  # Activate workflow on session
 
     # Optional fields
     condition: str | None = None  # Condition for step execution
@@ -422,17 +427,18 @@ class PipelineStep(BaseModel):
             self.prompt,
             self.invoke_pipeline,
             self.mcp,
+            self.activate_workflow,
         ]
         specified = [t for t in exec_types if t is not None]
 
         if len(specified) == 0:
             raise ValueError(
                 "PipelineStep requires at least one execution type: "
-                "exec, prompt, invoke_pipeline, or mcp"
+                "exec, prompt, invoke_pipeline, mcp, or activate_workflow"
             )
         if len(specified) > 1:
             raise ValueError(
-                "PipelineStep exec, prompt, invoke_pipeline, and mcp "
+                "PipelineStep exec, prompt, invoke_pipeline, mcp, and activate_workflow "
                 "are mutually exclusive - only one allowed"
             )
 
@@ -545,5 +551,3 @@ class WorkflowInstance(BaseModel):
             if isinstance(val, str):
                 parsed[field] = datetime.fromisoformat(val)
         return cls(**parsed)
-
-

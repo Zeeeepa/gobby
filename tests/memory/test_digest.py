@@ -206,19 +206,24 @@ class TestGetNextTurnNumber:
 class TestReadLastTurnFromTranscript:
     """Tests for _read_last_turn_from_transcript helper."""
 
-    def test_nonexistent_file(self) -> None:
-        prompt, response = _read_last_turn_from_transcript("/nonexistent/path.jsonl", "claude")
+    @pytest.mark.asyncio
+    async def test_nonexistent_file(self) -> None:
+        prompt, response = await _read_last_turn_from_transcript(
+            "/nonexistent/path.jsonl", "claude"
+        )
         assert prompt == ""
         assert response == ""
 
-    def test_empty_file(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_empty_file(self, tmp_path) -> None:
         jsonl_file = tmp_path / "transcript.jsonl"
         jsonl_file.write_text("")
-        prompt, response = _read_last_turn_from_transcript(str(jsonl_file), "claude")
+        prompt, response = await _read_last_turn_from_transcript(str(jsonl_file), "claude")
         assert prompt == ""
         assert response == ""
 
-    def test_claude_transcript(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_claude_transcript(self, tmp_path) -> None:
         """Test reading from a Claude-format JSONL transcript."""
         import json
 
@@ -234,36 +239,52 @@ class TestReadLastTurnFromTranscript:
         ]
         jsonl_file.write_text("\n".join(json.dumps(t) for t in turns))
 
-        prompt, response = _read_last_turn_from_transcript(str(jsonl_file), "claude")
+        prompt, response = await _read_last_turn_from_transcript(str(jsonl_file), "claude")
         assert prompt == "Hello, what is 2+2?"
         assert response == "2+2 equals 4."
 
-    def test_multiple_turns_returns_last(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_multiple_turns_returns_last(self, tmp_path) -> None:
         """Test that only the last user/assistant pair is returned."""
         import json
 
-        jsonl_file = tmp_path / "transcript.jsonl"
-        turns = [
-            {"message": {"role": "user", "content": "First question"}},
+        transcript = tmp_path / "transcript.jsonl"
+        lines = [
+            {"message": {"role": "user", "content": "Fix the auth bug in login.py"}},
             {
                 "message": {
                     "role": "assistant",
-                    "content": [{"type": "text", "text": "First answer"}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "I found the issue in login.py line 42. The token validation "
+                            "was missing a check for expired tokens. Fixed it.",
+                        }
+                    ],
                 }
             },
-            {"message": {"role": "user", "content": "Second question"}},
+            {"message": {"role": "user", "content": "Add tests for the fix"}},
             {
                 "message": {
                     "role": "assistant",
-                    "content": [{"type": "text", "text": "Second answer"}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Created test_login.py with 3 test cases covering "
+                            "token expiry, invalid tokens, and valid tokens.",
+                        }
+                    ],
                 }
             },
         ]
-        jsonl_file.write_text("\n".join(json.dumps(t) for t in turns))
+        transcript.write_text("\n".join(json.dumps(line) for line in lines))
 
-        prompt, response = _read_last_turn_from_transcript(str(jsonl_file), "claude")
-        assert prompt == "Second question"
-        assert response == "Second answer"
+        prompt, response = await _read_last_turn_from_transcript(str(transcript), "claude")
+        assert prompt == "Add tests for the fix"
+        assert (
+            response
+            == "Created test_login.py with 3 test cases covering token expiry, invalid tokens, and valid tokens."
+        )
 
 
 class TestBuildTurnAndDigest:
@@ -645,9 +666,10 @@ class TestGenerateSessionBoundarySummaries:
 
         assert result is not None
         compact = mock_session_manager.update_compact_markdown.call_args[0][1]
-        summary = mock_session_manager.update_summary.call_args[1].get(
-            "summary_markdown"
-        ) or mock_session_manager.update_summary.call_args[0][1]
+        summary = (
+            mock_session_manager.update_summary.call_args[1].get("summary_markdown")
+            or mock_session_manager.update_summary.call_args[0][1]
+        )
 
         # compact should NOT contain Output B content
         assert "Session Summary" not in compact
@@ -715,9 +737,7 @@ class TestBoundaryFallbackToTranscript:
         return service
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_transcript_when_digest_empty(
-        self, tmp_path, mock_llm_service
-    ):
+    async def test_falls_back_to_transcript_when_digest_empty(self, tmp_path, mock_llm_service):
         """When digest_markdown is empty but transcript exists, read from transcript."""
         # Write a minimal Claude-format transcript
         transcript = tmp_path / "session.jsonl"
@@ -725,11 +745,31 @@ class TestBoundaryFallbackToTranscript:
 
         lines = [
             {"message": {"role": "user", "content": "Fix the auth bug in login.py"}},
-            {"message": {"role": "assistant", "content": [{"type": "text", "text": "I found the issue in login.py line 42. The token validation was missing a check for expired tokens. Fixed it."}]}},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "I found the issue in login.py line 42. The token validation was missing a check for expired tokens. Fixed it.",
+                        }
+                    ],
+                }
+            },
             {"message": {"role": "user", "content": "Add tests for the fix"}},
-            {"message": {"role": "assistant", "content": [{"type": "text", "text": "Created test_login.py with 3 test cases covering token expiry, invalid tokens, and valid tokens."}]}},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Created test_login.py with 3 test cases covering token expiry, invalid tokens, and valid tokens.",
+                        }
+                    ],
+                }
+            },
         ]
-        transcript.write_text("\n".join(json.dumps(l) for l in lines))
+        transcript.write_text("\n".join(json.dumps(line) for l in lines))
 
         sm = MagicMock()
         session = MagicMock()
@@ -782,7 +822,7 @@ class TestBoundaryFallbackToTranscript:
             {"message": {"role": "user", "content": long_text}},
             {"message": {"role": "assistant", "content": [{"type": "text", "text": long_text}]}},
         ]
-        transcript.write_text("\n".join(json.dumps(l) for l in lines))
+        transcript.write_text("\n".join(json.dumps(line) for l in lines))
 
         sm = MagicMock()
         session = MagicMock()
@@ -967,22 +1007,25 @@ class TestReadUndigestedTurns:
                     }
                     f.write(json.dumps(assistant_turn) + "\n")
 
-    def test_nonexistent_file(self) -> None:
+    @pytest.mark.asyncio
+    async def test_nonexistent_file(self) -> None:
         """Returns empty list for missing transcript."""
-        result = _read_undigested_turns("/nonexistent/path.jsonl", "claude", 0)
+        result = await _read_undigested_turns("/nonexistent/path.jsonl", "claude", 0)
         assert result == []
 
-    def test_single_pair_backward_compat(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_single_pair_backward_compat(self, tmp_path) -> None:
         """With 1 pair and 0 digested, returns that single pair."""
         transcript = tmp_path / "transcript.jsonl"
         self._write_claude_transcript(transcript, [("Hello", "Hi there")])
 
-        result = _read_undigested_turns(str(transcript), "claude", 0)
+        result = await _read_undigested_turns(str(transcript), "claude", 0)
         assert len(result) == 1
         assert result[0][0] == "Hello"
         assert result[0][1] == "Hi there"
 
-    def test_catches_missed_turns(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_catches_missed_turns(self, tmp_path) -> None:
         """With 3 pairs and 1 digested, returns 2 undigested."""
         transcript = tmp_path / "transcript.jsonl"
         self._write_claude_transcript(
@@ -994,14 +1037,15 @@ class TestReadUndigestedTurns:
             ],
         )
 
-        result = _read_undigested_turns(str(transcript), "claude", 1)
+        result = await _read_undigested_turns(str(transcript), "claude", 1)
         assert len(result) == 2
         assert result[0][0] == "Second question"
         assert result[0][1] == "Second answer"
         assert result[1][0] == "Third question"
         assert result[1][1] == "Third answer"
 
-    def test_lifecycle_commands_filtered(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_lifecycle_commands_filtered(self, tmp_path) -> None:
         """Lifecycle commands like /clear are excluded from pairs."""
         transcript = tmp_path / "transcript.jsonl"
         self._write_claude_transcript(
@@ -1013,12 +1057,13 @@ class TestReadUndigestedTurns:
             ],
         )
 
-        result = _read_undigested_turns(str(transcript), "claude", 0)
+        result = await _read_undigested_turns(str(transcript), "claude", 0)
         assert len(result) == 2
         assert result[0][0] == "Real question"
         assert result[1][0] == "Another question"
 
-    def test_clear_boundary(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_clear_boundary(self, tmp_path) -> None:
         """Only reads post-/clear content."""
         transcript = tmp_path / "transcript.jsonl"
         import json
@@ -1026,9 +1071,7 @@ class TestReadUndigestedTurns:
         with open(transcript, "w") as f:
             # Pre-clear exchange
             f.write(
-                json.dumps(
-                    {"type": "user", "message": {"role": "user", "content": "Old question"}}
-                )
+                json.dumps({"type": "user", "message": {"role": "user", "content": "Old question"}})
                 + "\n"
             )
             f.write(
@@ -1058,9 +1101,7 @@ class TestReadUndigestedTurns:
             )
             # Post-clear exchange
             f.write(
-                json.dumps(
-                    {"type": "user", "message": {"role": "user", "content": "New question"}}
-                )
+                json.dumps({"type": "user", "message": {"role": "user", "content": "New question"}})
                 + "\n"
             )
             f.write(
@@ -1076,12 +1117,13 @@ class TestReadUndigestedTurns:
                 + "\n"
             )
 
-        result = _read_undigested_turns(str(transcript), "claude", 0)
+        result = await _read_undigested_turns(str(transcript), "claude", 0)
         assert len(result) == 1
         assert result[0][0] == "New question"
         assert result[0][1] == "New answer"
 
-    def test_interrupted_turn_pairs_with_empty_response(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_interrupted_turn_pairs_with_empty_response(self, tmp_path) -> None:
         """An interrupted turn (user without assistant) gets empty response."""
         transcript = tmp_path / "transcript.jsonl"
         import json
@@ -1120,12 +1162,13 @@ class TestReadUndigestedTurns:
                 + "\n"
             )
 
-        result = _read_undigested_turns(str(transcript), "claude", 0)
+        result = await _read_undigested_turns(str(transcript), "claude", 0)
         assert len(result) == 2
         assert result[0] == ("Interrupted question", "")
         assert result[1] == ("Follow-up question", "Final answer")
 
-    def test_all_digested_falls_back_to_last(self, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_all_digested_falls_back_to_last(self, tmp_path) -> None:
         """When digested_count >= len(pairs), returns last pair as fallback."""
         transcript = tmp_path / "transcript.jsonl"
         self._write_claude_transcript(
@@ -1134,7 +1177,7 @@ class TestReadUndigestedTurns:
         )
 
         # Claim 5 are digested but only 2 exist (e.g., /clear reset)
-        result = _read_undigested_turns(str(transcript), "claude", 5)
+        result = await _read_undigested_turns(str(transcript), "claude", 5)
         assert len(result) == 1
         assert result[0] == ("Q2", "A2")
 
@@ -1173,9 +1216,7 @@ class TestBuildTurnAndDigestCatchUp:
         with open(path, "w") as f:
             for user_text, assistant_text in exchanges:
                 f.write(
-                    json.dumps(
-                        {"type": "user", "message": {"role": "user", "content": user_text}}
-                    )
+                    json.dumps({"type": "user", "message": {"role": "user", "content": user_text}})
                     + "\n"
                 )
                 if assistant_text is not None:
