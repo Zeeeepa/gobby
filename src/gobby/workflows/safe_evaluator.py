@@ -74,10 +74,22 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         self.context = context
         self.allowed_funcs = allowed_funcs
 
+    @staticmethod
+    def _normalize_expr(expr: str) -> str:
+        """Collapse whitespace so YAML folding artefacts don't break ast.parse.
+
+        YAML ``>`` folded scalars preserve newlines for lines with extra
+        indentation, producing expressions like ``... )\\n  not in ...``
+        which cause ``SyntaxError: unexpected indent`` in ``ast.parse``.
+        Replacing interior newlines+whitespace with a single space is safe
+        because ``when`` conditions are always single expressions.
+        """
+        return " ".join(expr.split())
+
     def evaluate(self, expr: str) -> bool:
         """Evaluate expression and return boolean result."""
         try:
-            tree = ast.parse(expr, mode="eval")
+            tree = ast.parse(self._normalize_expr(expr), mode="eval")
             return bool(self.visit(tree.body))
         except Exception as e:
             raise ValueError(f"Invalid expression: {e}") from e
@@ -85,7 +97,7 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
     def evaluate_value(self, expr: str) -> Any:
         """Evaluate expression and return the raw value (not coerced to bool)."""
         try:
-            tree = ast.parse(expr, mode="eval")
+            tree = ast.parse(self._normalize_expr(expr), mode="eval")
             return self.visit(tree.body)
         except Exception as e:
             raise ValueError(f"Invalid expression: {e}") from e

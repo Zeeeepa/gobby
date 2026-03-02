@@ -391,6 +391,58 @@ class TestCommandMcpToolRestriction:
 
         assert response.decision == "allow"
 
+    @pytest.mark.asyncio
+    async def test_yaml_loaded_expression_parses_correctly(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Verify the expression from the YAML template parses without SyntaxError.
+
+        Regression test: YAML `>` folded scalar preserved a newline before
+        'not in' due to extra indentation, causing ast.parse to fail with
+        SyntaxError. Block rules fail-closed on errors, so the rule blocked
+        ALL tools unconditionally.
+        """
+        import yaml
+
+        yaml_path = "src/gobby/install/shared/rules/messaging/command-tool-restriction.yaml"
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+
+        when_expr = data["rules"]["command-mcp-tool-restriction"]["when"]
+
+        # The expression must parse as a single eval expression
+        import ast
+
+        tree = ast.parse(when_expr, mode="eval")
+        assert isinstance(tree, ast.Expression)
+
+        # Also verify it evaluates correctly through the rule engine
+        body = RuleDefinitionBody(
+            event=RuleEvent.BEFORE_TOOL,
+            when=when_expr,
+            effect=RuleEffect(type="block", reason="MCP tool not allowed"),
+        )
+        _insert_rule(manager, "yaml-loaded-mcp-restriction", body, priority=5)
+
+        engine = RuleEngine(db)
+
+        # Non-agent session should NOT be blocked
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"mcp_server": "gobby-tasks", "mcp_tool": "delete_task"},
+        )
+        response = await engine.evaluate(event, session_id="sess-1", variables={})
+        assert response.decision == "allow"
+
+        # Agent session with disallowed tool SHOULD be blocked
+        variables: dict[str, Any] = {
+            "is_spawned_agent": True,
+            "command_id": "cmd-1",
+            "allowed_mcp_tools": ["gobby-tasks:get_task"],
+        }
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+        assert response.decision == "block"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # command-exit-condition

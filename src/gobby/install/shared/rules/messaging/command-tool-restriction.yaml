@@ -27,8 +27,7 @@ rules:
       and variables.get('allowed_mcp_tools')
       and event.data.get('mcp_server')
       and event.data.get('mcp_tool')
-      and (event.data.get('mcp_server') + ':' + event.data.get('mcp_tool'))
-        not in variables.get('allowed_mcp_tools', [])
+      and (event.data.get('mcp_server') + ':' + event.data.get('mcp_tool')) not in variables.get('allowed_mcp_tools', [])
     effect:
       type: block
       reason: "MCP tool not allowed by active command"
