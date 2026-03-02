@@ -68,6 +68,8 @@ class PromptLoader:
             self._db = LocalDatabase()
         return self._db
 
+    def _get_manager(self) -> Any:
+        """Get the prompt manager instance."""
         from gobby.storage.prompts import LocalPromptManager
 
         return LocalPromptManager(self._get_db())
