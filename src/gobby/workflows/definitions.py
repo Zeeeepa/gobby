@@ -507,6 +507,9 @@ class PipelineDefinition(BaseModel):
     # Expose as MCP tool
     expose_as_tool: bool = False
 
+    # Resume execution after daemon restart (opt-in, steps must be idempotent)
+    resume_on_restart: bool = False
+
     @field_validator("steps", mode="after")
     @classmethod
     def validate_steps(cls, v: list[PipelineStep]) -> list[PipelineStep]:

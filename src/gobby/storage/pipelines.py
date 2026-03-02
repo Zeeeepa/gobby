@@ -361,44 +361,63 @@ class LocalPipelineExecutionManager:
         )
         return StepExecution.from_row(row) if row else None
 
-    def fail_stale_running_executions(self) -> int:
+    def fail_stale_running_executions(self, exclude_ids: set[str] | None = None) -> int:
         """Mark running executions and their steps as failed.
 
         Called during daemon startup to recover from unclean shutdowns.
         Leaves waiting_approval executions alone (they can still be approved).
+
+        Args:
+            exclude_ids: Execution IDs to skip (e.g. resumable pipelines).
 
         Returns:
             Number of executions marked as failed.
         """
         now = datetime.now(UTC).isoformat()
 
+        # Build exclusion clause for parameter binding
+        exclude_clause = ""
+        exclude_params: tuple[str, ...] = ()
+        if exclude_ids:
+            placeholders = ", ".join("?" for _ in exclude_ids)
+            exclude_clause = f" AND execution_id NOT IN ({placeholders})"
+            exclude_params = tuple(exclude_ids)
+
+        exec_exclude_clause = ""
+        exec_exclude_params: tuple[str, ...] = ()
+        if exclude_ids:
+            placeholders = ", ".join("?" for _ in exclude_ids)
+            exec_exclude_clause = f" AND id NOT IN ({placeholders})"
+            exec_exclude_params = tuple(exclude_ids)
+
         # Fail running step executions that belong to running pipeline executions
         self.db.execute(
-            """
+            f"""
             UPDATE step_executions
             SET status = ?, error = 'Daemon restarted', completed_at = ?
             WHERE status = ?
               AND execution_id IN (
                   SELECT id FROM pipeline_executions
                   WHERE status = ? AND project_id = ?
-              )
-            """,
+              ){exclude_clause}
+            """,  # nosec B608
             (
                 StepStatus.FAILED.value,
                 now,
                 StepStatus.RUNNING.value,
                 ExecutionStatus.RUNNING.value,
                 self.project_id,
+                *exclude_params,
             ),
         )
 
         # Fail running pipeline executions
         cursor = self.db.execute(
-            """
+            f"""
             UPDATE pipeline_executions
             SET status = ?, outputs_json = ?, completed_at = ?, updated_at = ?
-            WHERE status = ? AND project_id = ?
-            """,
+            WHERE status = ? AND project_id = ?{exec_exclude_clause}
+            """,  # nosec B608
             (
                 ExecutionStatus.FAILED.value,
                 '{"error": "Daemon restarted while execution was in progress"}',
@@ -406,6 +425,7 @@ class LocalPipelineExecutionManager:
                 now,
                 ExecutionStatus.RUNNING.value,
                 self.project_id,
+                *exec_exclude_params,
             ),
         )
 

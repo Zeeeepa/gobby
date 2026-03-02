@@ -278,6 +278,87 @@ async def reject_pipeline(
         return {"success": False, "error": f"Rejection failed: {e}"}
 
 
+async def resume_interrupted_pipelines(
+    loader: PipelineLoader,
+    executor: Any,
+    execution_manager: Any,
+    project_id: str,
+) -> list[str]:
+    """Resume pipelines that were running when the daemon last stopped.
+
+    Finds RUNNING executions whose pipeline definition has resume_on_restart=True,
+    re-queues them as background tasks using the existing resume path (execution_id),
+    and returns the list of resumed execution IDs. Non-resumable executions are left
+    RUNNING so the caller can fail them via fail_stale_running_executions(exclude_ids=...).
+
+    Args:
+        loader: WorkflowLoader for loading pipeline definitions.
+        executor: PipelineExecutor instance.
+        execution_manager: LocalPipelineExecutionManager instance.
+        project_id: Current project ID.
+
+    Returns:
+        List of execution IDs that were successfully re-queued.
+    """
+    from gobby.workflows.pipeline_state import ExecutionStatus
+
+    running = execution_manager.list_executions(status=ExecutionStatus.RUNNING)
+    if not running:
+        return []
+
+    resumed: list[str] = []
+    for execution in running:
+        try:
+            pipeline = await loader.load_pipeline(execution.pipeline_name)
+        except Exception:
+            logger.warning(
+                f"Cannot load pipeline '{execution.pipeline_name}' for "
+                f"execution {execution.id} — will be failed"
+            )
+            continue
+
+        if not pipeline:
+            continue
+
+        if not getattr(pipeline, "resume_on_restart", False):
+            continue
+
+        # Parse stored inputs
+        inputs: dict[str, Any] = {}
+        if execution.inputs_json:
+            try:
+                inputs = json.loads(execution.inputs_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Re-queue as background task with existing execution_id (resume path)
+        def _on_done(t: asyncio.Task[None]) -> None:
+            _background_tasks.discard(t)
+            if not t.cancelled() and t.exception():
+                logger.error(f"Resumed pipeline task failed: {t.exception()}")
+
+        task = asyncio.create_task(
+            _execute_pipeline_background(
+                executor,
+                pipeline,
+                inputs,
+                project_id,
+                execution.id,
+                execution.pipeline_name,
+                session_id=execution.session_id,
+            ),
+            name=f"pipeline-resume-{execution.pipeline_name}-{execution.id[:8]}",
+        )
+        _background_tasks.add(task)
+        task.add_done_callback(_on_done)
+        resumed.append(execution.id)
+        logger.info(
+            f"Resumed pipeline '{execution.pipeline_name}' execution {execution.id}"
+        )
+
+    return resumed
+
+
 def get_pipeline_status(
     execution_manager: Any,
     execution_id: str,
