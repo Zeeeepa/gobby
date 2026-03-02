@@ -862,11 +862,10 @@ class TestSessionEndHandling:
         )
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
-    def test_session_end_marks_handoff_ready_with_handoff_source(
+    def test_session_end_marks_handoff_ready_with_clear_source(
         self, mock_sv_mgr_cls: MagicMock, mock_dependencies: dict
     ) -> None:
-        """Test SESSION_END marks handoff_ready when handoff_source is set."""
-        mock_sv_mgr_cls.return_value.get_variables.return_value = {"handoff_source": "clear"}
+        """Test SESSION_END marks handoff_ready when event source is 'clear'."""
         mock_session = MagicMock()
         mock_session.created_at = "2024-01-01T00:00:00Z"
         mock_session.agent_run_id = None
@@ -876,6 +875,7 @@ class TestSessionEndHandling:
         event = make_event(
             HookEventType.SESSION_END,
             session_id="ext-123",
+            data={"source": "clear"},
             metadata={"_platform_session_id": "sess-123"},
         )
 

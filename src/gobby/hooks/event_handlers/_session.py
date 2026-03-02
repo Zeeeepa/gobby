@@ -218,16 +218,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 )
 
                 # Race condition: Claude Code fires session-start before session-end,
-                # so the old session is still active when we look for handoff_ready.
-                # Poll every 5s for up to 6 minutes while SESSION_END pipeline
-                # completes (LLM calls for extract_from_session + boundary summaries
-                # typically take 20-40+ seconds).
+                # so the old session may still be active when we look for handoff_ready.
+                # SESSION_END is fast (just sets status), so a short backoff suffices.
                 if not parent and session_source in ("clear", "compact"):
                     import time
 
-                    deadline = time.monotonic() + 360  # 6 minute timeout
+                    deadline = time.monotonic() + 15  # 15s — session_end is fast now
                     while time.monotonic() < deadline:
-                        time.sleep(5)
+                        time.sleep(2)
                         parent = self._session_storage.find_parent(
                             machine_id=machine_id,
                             project_id=project_id,
@@ -241,8 +239,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                             break
                     if not parent:
                         self.logger.warning(
-                            "No handoff_ready parent found after 6m timeout "
-                            f"for /{session_source} session"
+                            f"No handoff_ready parent found for /{session_source} session"
                         )
 
                 if parent:
@@ -353,10 +350,25 @@ class SessionEventHandlerMixin(EventHandlersBase):
             if current_vars.get("auto_inject_handoff", True):
                 parent = self._session_storage.get(parent_session_id)
                 if parent:
+                    # For /clear: generate boundary summaries now (no pre-clear hook
+                    # fires in Claude Code, so summaries don't exist yet).
+                    # For /compact: PRE_COMPACT already generated compact_markdown.
+                    if session_source == "clear" and not parent.summary_markdown:
+                        if self._dispatch_boundary_summaries_fn:
+                            try:
+                                self._dispatch_boundary_summaries_fn(parent_session_id, False)
+                            except Exception as e:
+                                self.logger.warning(
+                                    f"Failed to generate boundary summaries "
+                                    f"for parent {parent_session_id}: {e}"
+                                )
+                            # Re-read parent after generation
+                            parent = self._session_storage.get(parent_session_id)
+
                     handoff_vars: dict[str, Any] = {}
-                    if session_source == "clear" and parent.summary_markdown:
+                    if parent and session_source == "clear" and parent.summary_markdown:
                         handoff_vars["full_session_summary"] = parent.summary_markdown
-                    elif session_source == "compact" and parent.compact_markdown:
+                    elif parent and session_source == "compact" and parent.compact_markdown:
                         handoff_vars["compact_session_summary"] = parent.compact_markdown
                     if handoff_vars:
                         sv_mgr.merge_variables(session_id, handoff_vars)
@@ -473,26 +485,14 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.debug(f"Failed to notify pane monitor for session {session_id}: {e}")
 
-        # Generate boundary summaries from digest (replaces legacy transcript-based handoff)
-        if session_id:
-            try:
-                if self._dispatch_boundary_summaries_fn:
-                    self._dispatch_boundary_summaries_fn(session_id, False)
-            except Exception as e:
-                self.logger.warning(f"Failed to generate boundary summaries on end: {e}")
-
-        # Only mark as handoff_ready if a handoff was explicitly prepared
-        # (by prepare-clear-handoff or preserve-context-on-compact rules).
-        # Otherwise mark as expired — normal session ends don't chain.
+        # Mark as handoff_ready if session is ending due to /clear or /compact,
+        # so the new session can find this parent and generate handoff summaries.
+        # The source field is passed by the CLI in the session-end event data.
         if session_id and self._session_storage:
             try:
                 end_status = "expired"
-                from gobby.workflows.state_manager import SessionVariableManager
-
-                variables = SessionVariableManager(self._session_storage.db).get_variables(
-                    session_id
-                )
-                if variables.get("handoff_source") in ("clear", "compact"):
+                session_source = event.data.get("source")
+                if session_source in ("clear", "compact"):
                     end_status = "handoff_ready"
                 self._session_storage.update_status(session_id, end_status)
             except Exception as e:
