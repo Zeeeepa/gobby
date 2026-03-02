@@ -30,6 +30,8 @@ def sample_sessions():
             id="sess-1",
             usage_input_tokens=1000,
             usage_output_tokens=500,
+            usage_cache_creation_tokens=None,
+            usage_cache_read_tokens=None,
             usage_total_cost_usd=0.05,
             model="claude-3-5-sonnet-20241022",
             created_at=(now - timedelta(hours=1)).isoformat(),
@@ -38,6 +40,8 @@ def sample_sessions():
             id="sess-2",
             usage_input_tokens=2000,
             usage_output_tokens=1000,
+            usage_cache_creation_tokens=None,
+            usage_cache_read_tokens=None,
             usage_total_cost_usd=0.10,
             model="claude-3-5-sonnet-20241022",
             created_at=(now - timedelta(hours=2)).isoformat(),
@@ -46,6 +50,8 @@ def sample_sessions():
             id="sess-3",
             usage_input_tokens=5000,
             usage_output_tokens=2500,
+            usage_cache_creation_tokens=None,
+            usage_cache_read_tokens=None,
             usage_total_cost_usd=0.25,
             model="gemini/gemini-2.0-flash-exp",
             created_at=(now - timedelta(days=2)).isoformat(),
@@ -179,6 +185,25 @@ class TestGetBudgetStatus:
         assert status["used_today_usd"] == pytest.approx(0.15)
         assert status["remaining_usd"] == pytest.approx(-0.05)
         assert status["over_budget"] is True
+
+
+    def test_get_budget_status_negative_budget_is_unlimited(
+        self, mock_session_storage, sample_sessions
+    ) -> None:
+        """Negative daily_budget_usd is treated as unlimited (same as 0)."""
+        from gobby.sessions.token_tracker import SessionTokenTracker
+
+        mock_session_storage.get_sessions_since.return_value = sample_sessions[:2]
+
+        tracker = SessionTokenTracker(
+            session_storage=mock_session_storage,
+            daily_budget_usd=-10.0,
+        )
+        status = tracker.get_budget_status()
+
+        assert status["daily_budget_usd"] == -10.0
+        assert status["over_budget"] is False
+        assert status["remaining_usd"] == float("inf")
 
 
 class TestCanSpawnAgent:
