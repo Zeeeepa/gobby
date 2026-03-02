@@ -317,6 +317,8 @@ async def memory_recall_with_synthesis(
 
 # --- Turn-by-turn digest pipeline ---
 
+_LIFECYCLE_CMDS = ("/clear", "/exit", "/compact")
+
 
 def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, str]:
     """Read the last user prompt and assistant response from a transcript file.
@@ -360,6 +362,94 @@ def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, 
     except Exception as e:
         logger.warning("Failed to read transcript %s: %s", jsonl_path, e)
         return "", ""
+
+
+def _read_undigested_turns(
+    jsonl_path: str, source: str, digested_count: int
+) -> list[tuple[str, str]]:
+    """Read user/assistant pairs from transcript that haven't been digested yet.
+
+    Uses extract_turns_since_clear() to respect /clear boundaries, then
+    extract_last_messages() to get all pairs from the current segment.
+    Returns only pairs after digested_count.
+
+    Args:
+        jsonl_path: Path to the JSONL transcript file
+        source: CLI source (claude, gemini, codex, etc.)
+        digested_count: Number of pairs already digested
+
+    Returns:
+        List of (prompt, response) tuples for undigested exchanges.
+        Empty list if nothing new to digest.
+    """
+    transcript_file = Path(jsonl_path)
+    if not transcript_file.exists():
+        return []
+
+    try:
+        from gobby.sessions.transcripts import get_parser
+
+        parser = get_parser(source)
+        turns: list[dict[str, Any]] = []
+        with open(transcript_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    turns.append(json.loads(line))
+
+        if not turns:
+            return []
+
+        # Get current conversation segment (respects /clear boundaries)
+        segment = parser.extract_turns_since_clear(turns, max_turns=50)
+        if not segment:
+            return []
+
+        # Extract all user/assistant messages from the segment
+        messages = parser.extract_last_messages(segment, num_pairs=50)
+        if not messages:
+            return []
+
+        # Pair messages into (prompt, response) tuples
+        pairs: list[tuple[str, str]] = []
+        current_prompt = ""
+        for msg in messages:
+            if msg["role"] == "user":
+                # Consecutive user message means previous had no response (interrupted)
+                if current_prompt:
+                    pairs.append((current_prompt, ""))
+                current_prompt = msg["content"]
+            elif msg["role"] == "assistant":
+                pairs.append((current_prompt or "", msg["content"]))
+                current_prompt = ""
+        # Trailing user message without response
+        if current_prompt:
+            pairs.append((current_prompt, ""))
+
+        # Filter out lifecycle commands
+        pairs = [
+            (p, r)
+            for p, r in pairs
+            if not any(
+                p.strip().lower() == c or p.strip().lower().startswith(c + " ")
+                for c in _LIFECYCLE_CMDS
+            )
+        ]
+
+        if not pairs:
+            return []
+
+        # Return undigested pairs
+        if digested_count < len(pairs):
+            return pairs[digested_count:]
+
+        # Transcript has fewer pairs than digested (e.g., /clear reset) —
+        # fall back to the last pair so we don't lose the current exchange
+        return [pairs[-1]]
+
+    except Exception as e:
+        logger.warning("Failed to read undigested turns from %s: %s", jsonl_path, e)
+        return []
 
 
 def _get_next_turn_number(previous_digest: str | None) -> int:
@@ -458,30 +548,36 @@ async def build_turn_and_digest(
             logger.warning("build_turn_and_digest: Session %s not found", session_id)
             return None
 
-        # 2. Read last user prompt + assistant response from transcript
-        user_prompt = prompt_text or ""
-        response_text = ""
+        # 2. Read undigested turns from transcript or fall back to prompt_text
+        undigested_pairs: list[tuple[str, str]] = []
 
         if session.jsonl_path:
-            transcript_prompt, transcript_response = _read_last_turn_from_transcript(
-                session.jsonl_path, session.source
+            previous_digest = getattr(session, "digest_markdown", None) or ""
+            digested_count = _get_next_turn_number(previous_digest) - 1
+            undigested_pairs = _read_undigested_turns(
+                session.jsonl_path, session.source, digested_count
             )
+
+        if not undigested_pairs:
+            # Fallback: use prompt_text argument (non-transcript path)
+            user_prompt = prompt_text or ""
             if not user_prompt:
-                user_prompt = transcript_prompt
-            response_text = transcript_response
+                logger.debug(
+                    "build_turn_and_digest: No turn content for session %s", session_id
+                )
+                return None
+            # Skip lifecycle commands
+            _stripped = user_prompt.strip()
+            if any(
+                _stripped.lower() == c or _stripped.lower().startswith(c + " ")
+                for c in _LIFECYCLE_CMDS
+            ):
+                return None
+            undigested_pairs = [(user_prompt, "")]
 
-        if not user_prompt and not response_text:
-            logger.debug("build_turn_and_digest: No turn content for session %s", session_id)
-            return None
-
-        # Skip lifecycle commands
-        _stripped = user_prompt.strip()
-        _SKIP_CMDS = ("/clear", "/exit", "/compact")
-        if any(_stripped.lower() == c or _stripped.lower().startswith(c + " ") for c in _SKIP_CMDS):
-            return None
-
-        # Idempotency check: skip if we already digested this exact content
-        input_hash = hashlib.sha256(f"{user_prompt}||{response_text}".encode()).hexdigest()[:16]
+        # Idempotency check: hash covers all undigested content
+        combined_content = "||".join(f"{p}||{r}" for p, r in undigested_pairs)
+        input_hash = hashlib.sha256(combined_content.encode()).hexdigest()[:16]
         if session.last_digest_input_hash == input_hash:
             logger.debug(
                 "build_turn_and_digest: Skipping duplicate digest for session %s (hash=%s)",
@@ -505,8 +601,21 @@ async def build_turn_and_digest(
         # Truncate inputs to keep LLM costs reasonable
         max_prompt_chars = 4000
         max_response_chars = 8000
-        truncated_prompt = user_prompt[:max_prompt_chars]
-        truncated_response = response_text[:max_response_chars]
+
+        if len(undigested_pairs) == 1:
+            truncated_prompt = undigested_pairs[0][0][:max_prompt_chars]
+            truncated_response = undigested_pairs[0][1][:max_response_chars]
+        else:
+            # Multiple exchanges (catch-up from interrupted turns)
+            per_prompt = max_prompt_chars // len(undigested_pairs)
+            per_response = max_response_chars // len(undigested_pairs)
+            parts = []
+            for i, (p, r) in enumerate(undigested_pairs, 1):
+                parts.append(
+                    f"## Exchange {i}\nUser: {p[:per_prompt]}\nAgent: {r[:per_response]}"
+                )
+            truncated_prompt = "\n\n".join(parts)
+            truncated_response = ""
 
         try:
             from gobby.prompts.loader import PromptLoader

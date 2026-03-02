@@ -6,6 +6,7 @@ from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.memory_actions import (
     _get_next_turn_number,
     _read_last_turn_from_transcript,
+    _read_undigested_turns,
     build_turn_and_digest,
     generate_session_boundary_summaries,
     memory_extract_from_session,
@@ -1711,3 +1712,362 @@ class TestBuildTurnAndDigestIdempotency:
         mock_session_manager.update_last_digest_input_hash.assert_called_once()
         new_hash = mock_session_manager.update_last_digest_input_hash.call_args[0][1]
         assert new_hash != old_hash
+
+
+class TestReadUndigestedTurns:
+    """Tests for _read_undigested_turns function."""
+
+    def _write_claude_transcript(self, path, exchanges):
+        """Write a Claude-format JSONL transcript with given exchanges.
+
+        Each exchange is a (user_text, assistant_text) tuple.
+        If assistant_text is None, only the user turn is written (interrupted).
+        """
+        import json
+
+        with open(path, "w") as f:
+            for user_text, assistant_text in exchanges:
+                user_turn = {
+                    "type": "user",
+                    "message": {"role": "user", "content": user_text},
+                }
+                f.write(json.dumps(user_turn) + "\n")
+                if assistant_text is not None:
+                    assistant_turn = {
+                        "type": "assistant",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": assistant_text}],
+                        },
+                    }
+                    f.write(json.dumps(assistant_turn) + "\n")
+
+    def test_nonexistent_file(self):
+        """Returns empty list for missing transcript."""
+        result = _read_undigested_turns("/nonexistent/path.jsonl", "claude", 0)
+        assert result == []
+
+    def test_single_pair_backward_compat(self, tmp_path):
+        """With 1 pair and 0 digested, returns that single pair."""
+        transcript = tmp_path / "transcript.jsonl"
+        self._write_claude_transcript(transcript, [("Hello", "Hi there")])
+
+        result = _read_undigested_turns(str(transcript), "claude", 0)
+        assert len(result) == 1
+        assert result[0][0] == "Hello"
+        assert result[0][1] == "Hi there"
+
+    def test_catches_missed_turns(self, tmp_path):
+        """With 3 pairs and 1 digested, returns 2 undigested."""
+        transcript = tmp_path / "transcript.jsonl"
+        self._write_claude_transcript(
+            transcript,
+            [
+                ("First question", "First answer"),
+                ("Second question", "Second answer"),
+                ("Third question", "Third answer"),
+            ],
+        )
+
+        result = _read_undigested_turns(str(transcript), "claude", 1)
+        assert len(result) == 2
+        assert result[0][0] == "Second question"
+        assert result[0][1] == "Second answer"
+        assert result[1][0] == "Third question"
+        assert result[1][1] == "Third answer"
+
+    def test_lifecycle_commands_filtered(self, tmp_path):
+        """Lifecycle commands like /clear are excluded from pairs."""
+        transcript = tmp_path / "transcript.jsonl"
+        self._write_claude_transcript(
+            transcript,
+            [
+                ("Real question", "Real answer"),
+                ("/compact", "Compacted"),
+                ("Another question", "Another answer"),
+            ],
+        )
+
+        result = _read_undigested_turns(str(transcript), "claude", 0)
+        assert len(result) == 2
+        assert result[0][0] == "Real question"
+        assert result[1][0] == "Another question"
+
+    def test_clear_boundary(self, tmp_path):
+        """Only reads post-/clear content."""
+        transcript = tmp_path / "transcript.jsonl"
+        import json
+
+        with open(transcript, "w") as f:
+            # Pre-clear exchange
+            f.write(
+                json.dumps(
+                    {"type": "user", "message": {"role": "user", "content": "Old question"}}
+                )
+                + "\n"
+            )
+            f.write(
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": "Old answer"}],
+                        },
+                    }
+                )
+                + "\n"
+            )
+            # /clear boundary
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {
+                            "role": "user",
+                            "content": "<command-name>/clear</command-name>",
+                        },
+                    }
+                )
+                + "\n"
+            )
+            # Post-clear exchange
+            f.write(
+                json.dumps(
+                    {"type": "user", "message": {"role": "user", "content": "New question"}}
+                )
+                + "\n"
+            )
+            f.write(
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": "New answer"}],
+                        },
+                    }
+                )
+                + "\n"
+            )
+
+        result = _read_undigested_turns(str(transcript), "claude", 0)
+        assert len(result) == 1
+        assert result[0][0] == "New question"
+        assert result[0][1] == "New answer"
+
+    def test_interrupted_turn_pairs_with_empty_response(self, tmp_path):
+        """An interrupted turn (user without assistant) gets empty response."""
+        transcript = tmp_path / "transcript.jsonl"
+        import json
+
+        with open(transcript, "w") as f:
+            # First user message (interrupted - no assistant response)
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {"role": "user", "content": "Interrupted question"},
+                    }
+                )
+                + "\n"
+            )
+            # Second user message (new message after interrupt)
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {"role": "user", "content": "Follow-up question"},
+                    }
+                )
+                + "\n"
+            )
+            f.write(
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": "Final answer"}],
+                        },
+                    }
+                )
+                + "\n"
+            )
+
+        result = _read_undigested_turns(str(transcript), "claude", 0)
+        assert len(result) == 2
+        assert result[0] == ("Interrupted question", "")
+        assert result[1] == ("Follow-up question", "Final answer")
+
+    def test_all_digested_falls_back_to_last(self, tmp_path):
+        """When digested_count >= len(pairs), returns last pair as fallback."""
+        transcript = tmp_path / "transcript.jsonl"
+        self._write_claude_transcript(
+            transcript,
+            [("Q1", "A1"), ("Q2", "A2")],
+        )
+
+        # Claim 5 are digested but only 2 exist (e.g., /clear reset)
+        result = _read_undigested_turns(str(transcript), "claude", 5)
+        assert len(result) == 1
+        assert result[0] == ("Q2", "A2")
+
+
+class TestBuildTurnAndDigestCatchUp:
+    """Tests for build_turn_and_digest catching up on missed turns."""
+
+    @pytest.fixture
+    def mock_memory_manager(self):
+        mm = MagicMock()
+        mm.config.enabled = True
+        mm.content_exists.return_value = False
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-456"
+        mm.create_memory = AsyncMock(return_value=mock_memory)
+        return mm
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        service = MagicMock()
+        provider = MagicMock()
+        provider.generate_text = AsyncMock(
+            side_effect=[
+                "User asked two questions. Agent answered both.",
+                "Multi-Exchange Session",
+                "NONE",
+            ]
+        )
+        service.get_default_provider.return_value = provider
+        return service
+
+    def _write_claude_transcript(self, path, exchanges):
+        """Write a Claude-format JSONL transcript."""
+        import json
+
+        with open(path, "w") as f:
+            for user_text, assistant_text in exchanges:
+                f.write(
+                    json.dumps(
+                        {"type": "user", "message": {"role": "user", "content": user_text}}
+                    )
+                    + "\n"
+                )
+                if assistant_text is not None:
+                    f.write(
+                        json.dumps(
+                            {
+                                "type": "assistant",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": [{"type": "text", "text": assistant_text}],
+                                },
+                            }
+                        )
+                        + "\n"
+                    )
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.summary_actions._rename_tmux_window", new_callable=AsyncMock)
+    async def test_catches_up_missed_turns(
+        self,
+        mock_rename,
+        mock_memory_manager,
+        mock_llm_service,
+        tmp_path,
+    ):
+        """Session with 1 digested turn + 2 undigested: digest has Turn 2 covering both."""
+        transcript = tmp_path / "transcript.jsonl"
+        self._write_claude_transcript(
+            transcript,
+            [
+                ("First question", "First answer"),
+                ("Second question", "Second answer"),
+                ("Third question", "Third answer"),
+            ],
+        )
+
+        sm = MagicMock()
+        session = MagicMock()
+        session.id = "session-456"
+        session.jsonl_path = str(transcript)
+        session.source = "claude"
+        session.digest_markdown = "### Turn 1\nFirst turn already digested"
+        session.seq_num = 99
+        session.terminal_context = None
+        session.last_digest_input_hash = None
+        sm.get.return_value = session
+        sm.update_last_turn_markdown.return_value = session
+        sm.update_digest_markdown.return_value = session
+        sm.update_title.return_value = session
+        sm.update_last_digest_input_hash.return_value = None
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=sm,
+            session_id="session-456",
+            llm_service=mock_llm_service,
+        )
+
+        assert result is not None
+        assert result["turn_num"] == 2
+
+        # Verify the LLM was called with multi-exchange content
+        provider = mock_llm_service.get_default_provider.return_value
+        turn_prompt_call = provider.generate_text.call_args_list[0]
+        prompt_text = turn_prompt_call[0][0]
+        assert "Exchange 1" in prompt_text
+        assert "Exchange 2" in prompt_text
+        assert "Second question" in prompt_text
+        assert "Third question" in prompt_text
+
+        # Verify digest contains both turns
+        digest_content = sm.update_digest_markdown.call_args[0][1]
+        assert "### Turn 1" in digest_content
+        assert "### Turn 2" in digest_content
+
+    @pytest.mark.asyncio
+    async def test_idempotency_combined_hash(
+        self,
+        mock_memory_manager,
+        mock_llm_service,
+        tmp_path,
+    ):
+        """Same batch of undigested pairs doesn't re-process."""
+        import hashlib
+
+        transcript = tmp_path / "transcript.jsonl"
+        self._write_claude_transcript(
+            transcript,
+            [
+                ("First question", "First answer"),
+                ("Second question", "Second answer"),
+            ],
+        )
+
+        # Compute the expected hash for the 2 undigested pairs
+        combined = "First question||First answer||Second question||Second answer"
+        expected_hash = hashlib.sha256(combined.encode()).hexdigest()[:16]
+
+        sm = MagicMock()
+        session = MagicMock()
+        session.id = "session-456"
+        session.jsonl_path = str(transcript)
+        session.source = "claude"
+        session.digest_markdown = None  # 0 digested
+        session.seq_num = 99
+        session.terminal_context = None
+        session.last_digest_input_hash = expected_hash  # Already processed
+        sm.get.return_value = session
+
+        result = await build_turn_and_digest(
+            memory_manager=mock_memory_manager,
+            session_manager=sm,
+            session_id="session-456",
+            llm_service=mock_llm_service,
+        )
+
+        assert result is None
+        # LLM should NOT have been called
+        provider = mock_llm_service.get_default_provider.return_value
+        provider.generate_text.assert_not_called()
