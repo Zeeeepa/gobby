@@ -40,7 +40,24 @@ class PipelineLoader(Protocol):
     async def load_pipeline(self, name: str) -> Any: ...
 
 
+class PipelineExecutionManager(Protocol):
+    def get_execution(self, execution_id: str) -> Any: ...
+    def get_steps_for_execution(self, execution_id: str) -> list[Any]: ...
+    def update_execution_status(
+        self, execution_id: str, status: Any, outputs_json: str | None = None
+    ) -> Any: ...
+    def update_step_execution(
+        self, step_execution_id: str, status: Any, error: str | None = None
+    ) -> Any: ...
+    def create_execution(
+        self, pipeline_name: str, inputs_json: str, session_id: str | None = None
+    ) -> Any: ...
+    def list_executions(self, status: Any) -> list[Any]: ...
+
+
 class PipelineExecutor(Protocol):
+    execution_manager: PipelineExecutionManager
+
     async def execute(
         self,
         *,
@@ -50,6 +67,19 @@ class PipelineExecutor(Protocol):
         execution_id: str | None = None,
         session_id: str | None = None,
     ) -> Any: ...
+    async def approve(self, token: str, approved_by: str | None = None) -> Any: ...
+    async def reject(self, token: str, rejected_by: str | None = None) -> Any: ...
+
+
+def _register_background_task(task: asyncio.Task[None]) -> None:
+    _background_tasks.add(task)
+
+    def _on_done(t: asyncio.Task[None]) -> None:
+        _background_tasks.discard(t)
+        if not t.cancelled() and t.exception():
+            logger.error(f"Pipeline background task failed: {t.exception()}")
+
+    task.add_done_callback(_on_done)
 
 
 async def _execute_pipeline_background(
@@ -158,13 +188,6 @@ async def run_pipeline(
     except Exception as e:
         return {"success": False, "error": f"Failed to create execution record: {e}"}
 
-    # Always create a background task — this ensures the pipeline keeps
-    # running even if wait mode times out
-    def _on_done(t: asyncio.Task[None]) -> None:
-        _background_tasks.discard(t)
-        if not t.cancelled() and t.exception():
-            logger.error(f"Pipeline background task failed: {t.exception()}")
-
     task = asyncio.create_task(
         _execute_pipeline_background(
             executor,
@@ -177,8 +200,7 @@ async def run_pipeline(
         ),
         name=f"pipeline-{name}-{execution_id[:8]}",
     )
-    _background_tasks.add(task)
-    task.add_done_callback(_on_done)
+    _register_background_task(task)
 
     if wait:
         # Block until completion or timeout — asyncio.wait does NOT cancel
@@ -280,8 +302,8 @@ async def reject_pipeline(
 
 async def resume_interrupted_pipelines(
     loader: PipelineLoader,
-    executor: Any,
-    execution_manager: Any,
+    executor: PipelineExecutor,
+    execution_manager: PipelineExecutionManager,
     project_id: str,
 ) -> list[str]:
     """Resume pipelines that were running when the daemon last stopped.
@@ -328,15 +350,10 @@ async def resume_interrupted_pipelines(
         if execution.inputs_json:
             try:
                 inputs = json.loads(execution.inputs_json)
-            except (json.JSONDecodeError, TypeError):
-                pass
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning("Malformed inputs_json for execution %s: %s", execution.id, e)
 
         # Re-queue as background task with existing execution_id (resume path)
-        def _on_done(t: asyncio.Task[None]) -> None:
-            _background_tasks.discard(t)
-            if not t.cancelled() and t.exception():
-                logger.error(f"Resumed pipeline task failed: {t.exception()}")
-
         task = asyncio.create_task(
             _execute_pipeline_background(
                 executor,
@@ -349,12 +366,9 @@ async def resume_interrupted_pipelines(
             ),
             name=f"pipeline-resume-{execution.pipeline_name}-{execution.id[:8]}",
         )
-        _background_tasks.add(task)
-        task.add_done_callback(_on_done)
+        _register_background_task(task)
         resumed.append(execution.id)
-        logger.info(
-            f"Resumed pipeline '{execution.pipeline_name}' execution {execution.id}"
-        )
+        logger.info(f"Resumed pipeline '{execution.pipeline_name}' execution {execution.id}")
 
     return resumed
 

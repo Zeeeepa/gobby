@@ -4,6 +4,15 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from gobby.workflows.selectors import (
+    parse_selector,
+    _match_rule,
+    resolve_rules_for_agent,
+    _match_skill,
+    resolve_skills_for_agent,
+    resolve_variables_for_agent,
+)
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -13,44 +22,30 @@ pytestmark = pytest.mark.unit
 
 
 def test_parse_selector_with_tag_prefix() -> None:
-    from gobby.workflows.selectors import parse_selector
-
     assert parse_selector("tag:infra") == ("tag", "infra")
 
 
 def test_parse_selector_with_name_prefix() -> None:
-    from gobby.workflows.selectors import parse_selector
-
     assert parse_selector("name:my-rule") == ("name", "my-rule")
 
 
 def test_parse_selector_with_source_prefix() -> None:
-    from gobby.workflows.selectors import parse_selector
-
     assert parse_selector("source:installed") == ("source", "installed")
 
 
 def test_parse_selector_with_group_prefix() -> None:
-    from gobby.workflows.selectors import parse_selector
-
     assert parse_selector("group:core") == ("group", "core")
 
 
 def test_parse_selector_with_category_prefix() -> None:
-    from gobby.workflows.selectors import parse_selector
-
     assert parse_selector("category:dev") == ("category", "dev")
 
 
 def test_parse_selector_bare_string() -> None:
-    from gobby.workflows.selectors import parse_selector
-
     assert parse_selector("my-rule") == ("name", "my-rule")
 
 
 def test_parse_selector_unknown_prefix() -> None:
-    from gobby.workflows.selectors import parse_selector
-
     assert parse_selector("unknown:val") == ("name", "unknown:val")
 
 
@@ -58,15 +53,11 @@ def test_parse_selector_unknown_prefix() -> None:
 
 
 def test_match_rule_wildcard() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     assert _match_rule("*", "", rule, {}) is True
 
 
 def test_match_rule_name() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     rule.name = "my-rule"
     assert _match_rule("name", "my-rule", rule, {}) is True
@@ -74,16 +65,12 @@ def test_match_rule_name() -> None:
 
 
 def test_match_rule_name_glob() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     rule.name = "require-task-close"
     assert _match_rule("name", "require-*", rule, {}) is True
 
 
 def test_match_rule_source() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     rule.source = "installed"
     assert _match_rule("source", "installed", rule, {}) is True
@@ -91,8 +78,6 @@ def test_match_rule_source() -> None:
 
 
 def test_match_rule_tag() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     rule.tags = ["infra", "core"]
     assert _match_rule("tag", "infra", rule, {}) is True
@@ -100,16 +85,12 @@ def test_match_rule_tag() -> None:
 
 
 def test_match_rule_tag_none() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     rule.tags = None
     assert _match_rule("tag", "any", rule, {}) is False
 
 
 def test_match_rule_group() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     assert _match_rule("group", "core", rule, {"group": "core"}) is True
     assert _match_rule("group", "core", rule, {"group": "other"}) is False
@@ -117,8 +98,6 @@ def test_match_rule_group() -> None:
 
 
 def test_match_rule_unknown_dim() -> None:
-    from gobby.workflows.selectors import _match_rule
-
     rule = MagicMock()
     assert _match_rule("bogus", "val", rule, {}) is False
 
@@ -127,8 +106,6 @@ def test_match_rule_unknown_dim() -> None:
 
 
 def test_resolve_rules_explicit_only() -> None:
-    from gobby.workflows.selectors import resolve_rules_for_agent
-
     agent = MagicMock()
     agent.workflows.rules = ["rule-a", "rule-b"]
     agent.workflows.rule_selectors = None
@@ -138,8 +115,6 @@ def test_resolve_rules_explicit_only() -> None:
 
 
 def test_resolve_rules_with_include_selectors() -> None:
-    from gobby.workflows.selectors import resolve_rules_for_agent
-
     agent = MagicMock()
     agent.workflows.rules = []
     agent.workflows.rule_selectors = MagicMock()
@@ -156,8 +131,6 @@ def test_resolve_rules_with_include_selectors() -> None:
 
 
 def test_resolve_rules_with_exclude() -> None:
-    from gobby.workflows.selectors import resolve_rules_for_agent
-
     agent = MagicMock()
     agent.workflows.rules = ["rule-a"]
     agent.workflows.rule_selectors = MagicMock()
@@ -177,8 +150,6 @@ def test_resolve_rules_with_exclude() -> None:
 
 
 def test_resolve_rules_json_parse_error() -> None:
-    from gobby.workflows.selectors import resolve_rules_for_agent
-
     agent = MagicMock()
     agent.workflows.rules = []
     agent.workflows.rule_selectors = MagicMock()
@@ -198,14 +169,10 @@ def test_resolve_rules_json_parse_error() -> None:
 
 
 def test_match_skill_wildcard() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     assert _match_skill("*", "", MagicMock()) is True
 
 
 def test_match_skill_name() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.name = "commit"
     assert _match_skill("name", "commit", skill) is True
@@ -213,48 +180,36 @@ def test_match_skill_name() -> None:
 
 
 def test_match_skill_source() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.source_type = "installed"
     assert _match_skill("source", "installed", skill) is True
 
 
 def test_match_skill_source_none() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.source_type = None
     assert _match_skill("source", "installed", skill) is False
 
 
 def test_match_skill_category() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.metadata = {"skillport": {"category": "dev"}}
     assert _match_skill("category", "dev", skill) is True
 
 
 def test_match_skill_category_gobby() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.metadata = {"gobby": {"category": "ops"}}
     assert _match_skill("category", "ops", skill) is True
 
 
 def test_match_skill_category_none() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.metadata = None
     assert _match_skill("category", "any", skill) is False
 
 
 def test_match_skill_tag() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.metadata = {"gobby": {"tags": ["git", "vcs"]}, "skillport": {"tags": ["scm"]}}
     assert _match_skill("tag", "git", skill) is True
@@ -263,16 +218,12 @@ def test_match_skill_tag() -> None:
 
 
 def test_match_skill_tag_no_metadata() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     skill = MagicMock()
     skill.metadata = None
     assert _match_skill("tag", "any", skill) is False
 
 
 def test_match_skill_unknown_dim() -> None:
-    from gobby.workflows.selectors import _match_skill
-
     assert _match_skill("bogus", "val", MagicMock()) is False
 
 
@@ -280,16 +231,12 @@ def test_match_skill_unknown_dim() -> None:
 
 
 def test_resolve_skills_no_selectors() -> None:
-    from gobby.workflows.selectors import resolve_skills_for_agent
-
     agent = MagicMock()
     agent.workflows.skill_selectors = None
     assert resolve_skills_for_agent(agent, []) is None
 
 
 def test_resolve_skills_with_include_exclude() -> None:
-    from gobby.workflows.selectors import resolve_skills_for_agent
-
     agent = MagicMock()
     agent.workflows.skill_selectors = MagicMock()
     agent.workflows.skill_selectors.include = ["name:*"]
@@ -315,16 +262,12 @@ def test_resolve_skills_with_include_exclude() -> None:
 
 
 def test_resolve_variables_no_selectors() -> None:
-    from gobby.workflows.selectors import resolve_variables_for_agent
-
     agent = MagicMock()
     agent.workflows.variable_selectors = None
     assert resolve_variables_for_agent(agent, []) is None
 
 
 def test_resolve_variables_with_include() -> None:
-    from gobby.workflows.selectors import resolve_variables_for_agent
-
     agent = MagicMock()
     agent.workflows.variable_selectors = MagicMock()
     agent.workflows.variable_selectors.include = ["name:session-*"]
@@ -341,8 +284,6 @@ def test_resolve_variables_with_include() -> None:
 
 
 def test_resolve_variables_with_exclude() -> None:
-    from gobby.workflows.selectors import resolve_variables_for_agent
-
     agent = MagicMock()
     agent.workflows.variable_selectors = MagicMock()
     agent.workflows.variable_selectors.include = ["name:*"]

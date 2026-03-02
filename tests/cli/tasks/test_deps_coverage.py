@@ -1,4 +1,5 @@
 """Tests for cli/tasks/deps.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -7,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from gobby.cli.tasks.deps import dep_cmd
+from gobby.storage.tasks import Task
 
 pytestmark = pytest.mark.unit
 
@@ -16,8 +18,10 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
-def _mock_task(task_id: str = "abcd1234-0000-0000-0000-000000000000", title: str = "Test Task") -> MagicMock:
-    task = MagicMock()
+def _mock_task(
+    task_id: str = "abcd1234-0000-0000-0000-000000000000", title: str = "Test Task"
+) -> MagicMock:
+    task = MagicMock(spec=Task)
     task.id = task_id
     task.title = title
     return task
@@ -31,7 +35,11 @@ class TestDepAdd:
     @patch("gobby.cli.tasks.deps.resolve_task_id")
     @patch("gobby.cli.tasks.deps.get_task_manager")
     def test_add_success(
-        self, mock_mgr: MagicMock, mock_resolve: MagicMock, mock_dep_mgr: MagicMock, runner: CliRunner
+        self,
+        mock_mgr: MagicMock,
+        mock_resolve: MagicMock,
+        mock_dep_mgr: MagicMock,
+        runner: CliRunner,
     ) -> None:
         task = _mock_task("aaaa1111-0000-0000-0000-000000000000")
         blocker = _mock_task("bbbb2222-0000-0000-0000-000000000000")
@@ -63,7 +71,11 @@ class TestDepAdd:
     @patch("gobby.cli.tasks.deps.resolve_task_id")
     @patch("gobby.cli.tasks.deps.get_task_manager")
     def test_add_value_error(
-        self, mock_mgr: MagicMock, mock_resolve: MagicMock, mock_dep_mgr: MagicMock, runner: CliRunner
+        self,
+        mock_mgr: MagicMock,
+        mock_resolve: MagicMock,
+        mock_dep_mgr: MagicMock,
+        runner: CliRunner,
     ) -> None:
         task = _mock_task("aaaa1111-0000-0000-0000-000000000000")
         blocker = _mock_task("bbbb2222-0000-0000-0000-000000000000")
@@ -77,7 +89,11 @@ class TestDepAdd:
     @patch("gobby.cli.tasks.deps.resolve_task_id")
     @patch("gobby.cli.tasks.deps.get_task_manager")
     def test_add_with_type(
-        self, mock_mgr: MagicMock, mock_resolve: MagicMock, mock_dep_mgr: MagicMock, runner: CliRunner
+        self,
+        mock_mgr: MagicMock,
+        mock_resolve: MagicMock,
+        mock_dep_mgr: MagicMock,
+        runner: CliRunner,
     ) -> None:
         task = _mock_task("aaaa1111-0000-0000-0000-000000000000")
         blocker = _mock_task("bbbb2222-0000-0000-0000-000000000000")
@@ -99,7 +115,11 @@ class TestDepRemove:
     @patch("gobby.cli.tasks.deps.resolve_task_id")
     @patch("gobby.cli.tasks.deps.get_task_manager")
     def test_remove_success(
-        self, mock_mgr: MagicMock, mock_resolve: MagicMock, mock_dep_mgr: MagicMock, runner: CliRunner
+        self,
+        mock_mgr: MagicMock,
+        mock_resolve: MagicMock,
+        mock_dep_mgr: MagicMock,
+        runner: CliRunner,
     ) -> None:
         task = _mock_task("aaaa1111-0000-0000-0000-000000000000")
         blocker = _mock_task("bbbb2222-0000-0000-0000-000000000000")
@@ -136,17 +156,33 @@ class TestDepTree:
     @patch("gobby.cli.tasks.deps.resolve_task_id")
     @patch("gobby.cli.tasks.deps.get_task_manager")
     def test_tree_with_blockers_and_blocking(
-        self, mock_mgr: MagicMock, mock_resolve: MagicMock, mock_dep_mgr: MagicMock, runner: CliRunner
+        self,
+        mock_mgr: MagicMock,
+        mock_resolve: MagicMock,
+        mock_dep_mgr: MagicMock,
+        runner: CliRunner,
     ) -> None:
         task = _mock_task("aaaa1111-0000-0000-0000-000000000000", "Main Task")
         mock_resolve.return_value = task
         mock_dep_mgr.return_value.get_dependency_tree.return_value = {
             "blockers": [
-                {"id": "bbbb2222-0000-0000-0000-000000000000", "title": "Blocker 1", "status": "closed"},
-                {"id": "cccc3333-0000-0000-0000-000000000000", "title": "Blocker 2", "status": "open"},
+                {
+                    "id": "bbbb2222-0000-0000-0000-000000000000",
+                    "title": "Blocker 1",
+                    "status": "closed",
+                },
+                {
+                    "id": "cccc3333-0000-0000-0000-000000000000",
+                    "title": "Blocker 2",
+                    "status": "open",
+                },
             ],
             "blocking": [
-                {"id": "dddd4444-0000-0000-0000-000000000000", "title": "Dependent 1", "status": "open"},
+                {
+                    "id": "dddd4444-0000-0000-0000-000000000000",
+                    "title": "Dependent 1",
+                    "status": "open",
+                },
             ],
         }
         result = runner.invoke(dep_cmd, ["tree", "#1"], catch_exceptions=False)
@@ -160,7 +196,11 @@ class TestDepTree:
     @patch("gobby.cli.tasks.deps.resolve_task_id")
     @patch("gobby.cli.tasks.deps.get_task_manager")
     def test_tree_empty(
-        self, mock_mgr: MagicMock, mock_resolve: MagicMock, mock_dep_mgr: MagicMock, runner: CliRunner
+        self,
+        mock_mgr: MagicMock,
+        mock_resolve: MagicMock,
+        mock_dep_mgr: MagicMock,
+        runner: CliRunner,
     ) -> None:
         task = _mock_task("aaaa1111-0000-0000-0000-000000000000", "Solo Task")
         mock_resolve.return_value = task

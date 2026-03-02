@@ -109,7 +109,7 @@ steps:
 
   - id: fetch_after_merge
     condition: "${{ wait_merge.output.completed if wait_merge.output else '' }}"
-    exec: "bash -c 'git stash -q 2>/dev/null || true; git pull --rebase origin ${{ inputs.merge_target }}; rc=$?; git stash pop -q 2>/dev/null || true; exit $rc'"
+    exec: 'bash -c ''git stash -q 2>/dev/null || true; git pull --rebase origin ${{ inputs.merge_target }}; rc=$?; if [ $rc -ne 0 ]; then if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then echo "Rebase conflict detected! Resolve conflicts and run `git rebase --continue`, or run `git rebase --abort` to cancel."; fi; exit $rc; fi; git stash pop -q 2>/dev/null || true; exit 0'''
 
   # --- DISPATCH DEVELOPER (fire-and-forget) ---
   - id: create_worktree

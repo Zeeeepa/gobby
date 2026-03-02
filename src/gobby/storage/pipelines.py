@@ -155,8 +155,12 @@ class LocalPipelineExecutionManager:
         Returns:
             List of PipelineExecution instances
         """
-        query = "SELECT * FROM pipeline_executions WHERE project_id = ?"
-        params: list[Any] = [self.project_id]
+        if self.project_id is None:
+            query = "SELECT * FROM pipeline_executions WHERE project_id IS NULL"
+            params: list[Any] = []
+        else:
+            query = "SELECT * FROM pipeline_executions WHERE project_id = ?"
+            params: list[Any] = [self.project_id]
 
         if status is not None:
             query += " AND status = ?"
@@ -375,20 +379,17 @@ class LocalPipelineExecutionManager:
         """
         now = datetime.now(UTC).isoformat()
 
-        # Build exclusion clause for parameter binding
-        exclude_clause = ""
-        exclude_params: tuple[str, ...] = ()
-        if exclude_ids:
-            placeholders = ", ".join("?" for _ in exclude_ids)
-            exclude_clause = f" AND execution_id NOT IN ({placeholders})"
-            exclude_params = tuple(exclude_ids)
+        def build_not_in_clause(
+            ids: set[str] | None, column_name: str
+        ) -> tuple[str, tuple[str, ...]]:
+            if not ids:
+                return "", ()
+            placeholders = ", ".join("?" for _ in ids)
+            return f" AND {column_name} NOT IN ({placeholders})", tuple(ids)
 
-        exec_exclude_clause = ""
-        exec_exclude_params: tuple[str, ...] = ()
-        if exclude_ids:
-            placeholders = ", ".join("?" for _ in exclude_ids)
-            exec_exclude_clause = f" AND id NOT IN ({placeholders})"
-            exec_exclude_params = tuple(exclude_ids)
+        # Build exclusion clause for parameter binding
+        exclude_clause, exclude_params = build_not_in_clause(exclude_ids, "execution_id")
+        exec_exclude_clause, exec_exclude_params = build_not_in_clause(exclude_ids, "id")
 
         # Fail running step executions that belong to running pipeline executions
         self.db.execute(

@@ -1,9 +1,9 @@
 """Tests for cli/daemon.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -260,18 +260,14 @@ class TestStatusCommand:
 class TestGetMergeStatus:
     @patch("gobby.storage.merge_resolutions.MergeResolutionManager")
     @patch("gobby.storage.database.LocalDatabase")
-    def test_no_active_resolution(
-        self, _db: MagicMock, mock_mgr_cls: MagicMock
-    ) -> None:
+    def test_no_active_resolution(self, _db: MagicMock, mock_mgr_cls: MagicMock) -> None:
         mock_mgr_cls.return_value.get_active_resolution.return_value = None
         result = get_merge_status()
         assert result["active"] is False
 
     @patch("gobby.storage.merge_resolutions.MergeResolutionManager")
     @patch("gobby.storage.database.LocalDatabase")
-    def test_active_resolution(
-        self, _db: MagicMock, mock_mgr_cls: MagicMock
-    ) -> None:
+    def test_active_resolution(self, _db: MagicMock, mock_mgr_cls: MagicMock) -> None:
         resolution = MagicMock()
         resolution.id = "res-123"
         resolution.source_branch = "feature"

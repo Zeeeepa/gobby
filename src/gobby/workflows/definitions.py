@@ -547,36 +547,3 @@ class WorkflowInstance(BaseModel):
         return cls(**parsed)
 
 
-class WorkflowState(BaseModel):
-    session_id: str
-    workflow_name: str
-    step: str
-    step_entered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    step_action_count: int = 0
-    total_action_count: int = 0
-
-    context_injected: bool = False
-
-    variables: dict[str, Any] = Field(default_factory=dict)
-
-    # Task decomposition state
-    task_list: list[dict[str, Any]] | None = None
-    current_task_index: int = 0
-    files_modified_this_task: int = 0
-
-    # Approval state for user_approval exit conditions
-    approval_pending: bool = False
-    approval_condition_id: str | None = None  # Which condition is awaiting approval
-    approval_prompt: str | None = None  # The prompt shown to user
-    approval_requested_at: datetime | None = None
-    approval_timeout_seconds: int | None = None  # None = no timeout
-
-    # Escape hatch: temporarily disable enforcement
-    disabled: bool = False
-    disabled_reason: str | None = None
-
-    # Track initial step for reset functionality
-    initial_step: str | None = None
-
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

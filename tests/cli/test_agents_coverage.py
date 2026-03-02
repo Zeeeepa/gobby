@@ -4,6 +4,7 @@ Covers: resolve_agent_run_id, agent_stats (global),
         cleanup_agents (dry-run and execute).
 Lines targeted: 48, 142-143, 230-231, 293-294, 341-342, 375-376, 405-562, 574-575
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -51,6 +52,11 @@ def _mock_run(**overrides: Any) -> MagicMock:
 
 
 # =============================================================================
+# spawn_agent
+# =============================================================================
+# TODO: add tests for spawn_agent_cmd error paths
+
+# =============================================================================
 # resolve_agent_run_id
 # =============================================================================
 
@@ -95,20 +101,9 @@ class TestResolveAgentRunId:
 
 
 # =============================================================================
-# kill_agent
-# =============================================================================
-
-
-# =============================================================================
 # check_agent
 # =============================================================================
-
-
-# =============================================================================
-# spawn_agent_cmd - error paths
-# =============================================================================
-
-
+# TODO: add tests for check_agent
 
 # =============================================================================
 # agent_stats - global
@@ -142,8 +137,13 @@ class TestAgentStatsGlobal:
     @patch("gobby.cli.agents.LocalDatabase")
     def test_global_stats_zero_total(self, mock_db_cls: MagicMock, runner: CliRunner) -> None:
         mock_db_cls.return_value.fetchone.return_value = {
-            "total": 0, "success": 0, "error": 0,
-            "running": 0, "pending": 0, "timeout": 0, "cancelled": 0,
+            "total": 0,
+            "success": 0,
+            "error": 0,
+            "running": 0,
+            "pending": 0,
+            "timeout": 0,
+            "cancelled": 0,
         }
         result = runner.invoke(agents, ["stats"])
         assert result.exit_code == 0
@@ -209,7 +209,9 @@ class TestListAgentsEdgeCases:
 
     @patch("gobby.cli.agents.LocalDatabase")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_list_all_no_filter(self, mock_mgr_fn: MagicMock, mock_db_cls: MagicMock, runner: CliRunner) -> None:
+    def test_list_all_no_filter(
+        self, mock_mgr_fn: MagicMock, mock_db_cls: MagicMock, runner: CliRunner
+    ) -> None:
         mock_db_cls.return_value.fetchall.return_value = []
         result = runner.invoke(agents, ["list"])
         assert result.exit_code == 0
@@ -217,12 +219,13 @@ class TestListAgentsEdgeCases:
 
     @patch("gobby.cli.agents.LocalDatabase")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_list_with_status_filter(self, mock_mgr_fn: MagicMock, mock_db_cls: MagicMock, runner: CliRunner) -> None:
+    def test_list_with_status_filter(
+        self, mock_mgr_fn: MagicMock, mock_db_cls: MagicMock, runner: CliRunner
+    ) -> None:
         mock_db_cls.return_value.fetchall.return_value = []
         result = runner.invoke(agents, ["list", "--status", "error"])
         assert result.exit_code == 0
         mock_db_cls.return_value.fetchall.assert_called_once()
-
 
 
 # =============================================================================
@@ -233,7 +236,9 @@ class TestListAgentsEdgeCases:
 class TestShowStatusEdgeCases:
     @patch("gobby.cli.agents.resolve_agent_run_id", return_value="run-1")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_show_not_found(self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner) -> None:
+    def test_show_not_found(
+        self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner
+    ) -> None:
         mock_mgr_fn.return_value.get.return_value = None
         result = runner.invoke(agents, ["show", "run-1"])
         assert result.exit_code == 0
@@ -241,7 +246,9 @@ class TestShowStatusEdgeCases:
 
     @patch("gobby.cli.agents.resolve_agent_run_id", return_value="run-1")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_status_not_found(self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner) -> None:
+    def test_status_not_found(
+        self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner
+    ) -> None:
         mock_mgr_fn.return_value.get.return_value = None
         result = runner.invoke(agents, ["status", "run-1"])
         assert result.exit_code == 0
@@ -249,7 +256,9 @@ class TestShowStatusEdgeCases:
 
     @patch("gobby.cli.agents.resolve_agent_run_id", return_value="run-1")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_status_completed(self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner) -> None:
+    def test_status_completed(
+        self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner
+    ) -> None:
         run = _mock_run(status="error", error="segfault", completed_at="2024-01-01T11:00:00Z")
         mock_mgr_fn.return_value.get.return_value = run
         result = runner.invoke(agents, ["status", "run-1"])
@@ -259,7 +268,9 @@ class TestShowStatusEdgeCases:
 
     @patch("gobby.cli.agents.resolve_agent_run_id", return_value="run-1")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_stop_not_stoppable(self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner) -> None:
+    def test_stop_not_stoppable(
+        self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner
+    ) -> None:
         run = _mock_run(status="success")
         mock_mgr_fn.return_value.get.return_value = run
         result = runner.invoke(agents, ["stop", "run-1", "--yes"])
@@ -268,7 +279,9 @@ class TestShowStatusEdgeCases:
 
     @patch("gobby.cli.agents.resolve_agent_run_id", return_value="run-1")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_stop_not_found(self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner) -> None:
+    def test_stop_not_found(
+        self, mock_mgr_fn: MagicMock, mock_resolve: MagicMock, runner: CliRunner
+    ) -> None:
         mock_mgr_fn.return_value.get.return_value = None
         result = runner.invoke(agents, ["stop", "run-1", "--yes"])
         assert result.exit_code == 0

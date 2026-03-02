@@ -29,15 +29,13 @@ _EMOJI_PATTERN = re.compile(
 )
 
 
-def _resolve_provider(
-    llm_service: Any, config: Any
-) -> tuple[Any, str]:
+def _resolve_provider(llm_service: Any, config: Any) -> tuple[Any, str | None]:
     """Resolve LLM provider and model from config, falling back to defaults."""
     try:
         provider, model, _ = llm_service.get_provider_for_feature(config)
     except Exception:
         provider = llm_service.get_default_provider()
-        model = "haiku"
+        model = None
     return provider, model
 
 
@@ -195,15 +193,15 @@ def register_action_tools(
             session_manager.update_title(session_id, title)
 
             # --- Rename tmux window ---
-            from gobby.workflows.summary_actions import _rename_tmux_window
-
             try:
+                from gobby.workflows.summary_actions import _rename_tmux_window
+
                 # Refresh session to get terminal_context
                 updated_session = session_manager.get(session_id)
                 if updated_session and len(title) < 80:
                     await _rename_tmux_window(updated_session, title)
             except Exception as e:
-                logger.debug(f"tmux rename skipped: {e}")
+                logger.debug("tmux rename skipped: %s", e)
 
             return {"success": True, "title": title}
 

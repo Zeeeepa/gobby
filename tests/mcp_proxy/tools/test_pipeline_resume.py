@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture(autouse=True)
-def _clear_background_tasks():
+def _clear_background_tasks() -> Generator[None, None, None]:
     """Ensure _background_tasks is empty before and after each test."""
     _background_tasks.clear()
     yield

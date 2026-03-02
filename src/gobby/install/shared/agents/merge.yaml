@@ -18,7 +18,7 @@ instructions: |
   3. merge_worktree(worktree_id=...) to merge into target
   4. If conflicts: use gobby-merge tools to resolve. If unresolvable, escalate_task.
   5. Run the push_command from merge_worktree result
-  6. auto_link_commits(task_id=..., since="1 hour ago")
+  6. auto_link_commits(task_id=..., since=task.created_at)
   7. close_task(task_id=..., changes_summary="Merged to {target}")
   8. delete_worktree(worktree_id=..., force=true)
   9. git fetch origin (before next merge)
@@ -26,7 +26,7 @@ instructions: |
   When all approved tasks are merged, call kill_agent to terminate.
 
   CRITICAL RULES:
-  - Do NOT use raw git merge commands. Use ONLY merge_worktree MCP tool.
+  - Do NOT use raw git merge commands. Use ONLY merge_worktree MCP tool. Exception: you are allowed to run 'git fetch origin'.
   - Do NOT edit or write files — you only merge.
   - Do NOT stop or exit without calling kill_agent.
   - Use progressive disclosure: list_mcp_servers → list_tools → get_tool_schema → call_tool.

@@ -1,4 +1,5 @@
 """Tests for cli/install.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -100,6 +101,10 @@ class TestDetectionHelpers:
         assert _is_codex_cli_installed() is True
 
     @patch("gobby.cli.install.shutil.which", return_value=None)
+    def test_codex_not_installed(self, _: MagicMock) -> None:
+        assert _is_codex_cli_installed() is False
+
+    @patch("gobby.cli.install.shutil.which", return_value=None)
     def test_copilot_no_gh(self, _: MagicMock) -> None:
         assert _is_copilot_cli_installed() is False
 
@@ -133,7 +138,9 @@ class TestDetectionHelpers:
 # ---------------------------------------------------------------------------
 class TestInstallCommand:
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_claude")
     def test_install_claude_only(
@@ -155,7 +162,9 @@ class TestInstallCommand:
         assert "successfully" in result.output.lower()
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": True, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": True, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_claude")
     def test_install_claude_failure(
@@ -175,7 +184,9 @@ class TestInstallCommand:
         assert result.exit_code == 1
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_gemini")
     def test_install_gemini_only(
@@ -196,7 +207,9 @@ class TestInstallCommand:
         assert "Gemini CLI" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_cursor")
     def test_install_cursor(
@@ -216,7 +229,9 @@ class TestInstallCommand:
         assert "Cursor" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_windsurf")
     def test_install_windsurf(
@@ -236,7 +251,9 @@ class TestInstallCommand:
         assert "Windsurf" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_copilot")
     def test_install_copilot(
@@ -256,7 +273,9 @@ class TestInstallCommand:
         assert "Copilot" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_copilot")
     def test_install_copilot_skipped(
@@ -278,7 +297,9 @@ class TestInstallCommand:
         assert "Skipped" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_git_hooks")
     def test_install_git_hooks(
@@ -299,7 +320,9 @@ class TestInstallCommand:
         assert "pre-commit" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_neo4j")
     def test_install_neo4j(
@@ -321,7 +344,9 @@ class TestInstallCommand:
         assert "Neo4j" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_antigravity")
     def test_install_antigravity(
@@ -341,7 +366,9 @@ class TestInstallCommand:
         assert "Antigravity" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/src/install"))
     @patch("gobby.cli.install._is_claude_code_installed", return_value=False)
     @patch("gobby.cli.install._is_gemini_cli_installed", return_value=False)
@@ -368,7 +395,9 @@ class TestInstallCommand:
         assert "No supported" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install._is_codex_cli_installed", return_value=True)
     @patch("gobby.cli.install.install_codex_notify")
@@ -395,7 +424,9 @@ class TestInstallCommand:
         assert "Codex" in result.output
 
     @patch("gobby.cli.install.run_daemon_setup")
-    @patch("gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"})
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install._is_codex_cli_installed", return_value=False)
     def test_install_codex_not_detected(
@@ -416,104 +447,86 @@ class TestInstallCommand:
 # ---------------------------------------------------------------------------
 class TestUninstallCommand:
     @patch("gobby.cli.install.uninstall_claude")
-    def test_uninstall_claude(
-        self, mock_uninstall: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_uninstall_claude(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
             "hooks_removed": ["hook1"],
             "files_removed": ["file1"],
         }
-        result = runner.invoke(
-            uninstall, ["--claude", "--yes"], catch_exceptions=False
-        )
+        result = runner.invoke(uninstall, ["--claude", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "Claude Code" in result.output
 
+    @patch("gobby.cli.install.uninstall_claude")
+    def test_uninstall_claude_failure(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
+        mock_uninstall.return_value = {
+            "success": False,
+            "error": "Permission denied",
+        }
+        result = runner.invoke(uninstall, ["--claude", "--yes"], catch_exceptions=False)
+        assert result.exit_code == 1
+        assert "Permission denied" in result.output
+
     @patch("gobby.cli.install.uninstall_gemini")
-    def test_uninstall_gemini(
-        self, mock_uninstall: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_uninstall_gemini(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
             "hooks_removed": ["hook1"],
             "files_removed": [],
         }
-        result = runner.invoke(
-            uninstall, ["--gemini", "--yes"], catch_exceptions=False
-        )
+        result = runner.invoke(uninstall, ["--gemini", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "Gemini" in result.output
 
     @patch("gobby.cli.install.uninstall_codex_notify")
-    def test_uninstall_codex(
-        self, mock_uninstall: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_uninstall_codex(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
             "files_removed": ["codex_file"],
             "config_updated": True,
         }
-        result = runner.invoke(
-            uninstall, ["--codex", "--yes"], catch_exceptions=False
-        )
+        result = runner.invoke(uninstall, ["--codex", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "Codex" in result.output
 
     @patch("gobby.cli.install.uninstall_cursor")
-    def test_uninstall_cursor(
-        self, mock_uninstall: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_uninstall_cursor(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
             "hooks_removed": [],
             "files_removed": [],
         }
-        result = runner.invoke(
-            uninstall, ["--cursor", "--yes"], catch_exceptions=False
-        )
+        result = runner.invoke(uninstall, ["--cursor", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
 
     @patch("gobby.cli.install.uninstall_windsurf")
-    def test_uninstall_windsurf(
-        self, mock_uninstall: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_uninstall_windsurf(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
             "hooks_removed": ["hook1"],
             "files_removed": [],
         }
-        result = runner.invoke(
-            uninstall, ["--windsurf", "--yes"], catch_exceptions=False
-        )
+        result = runner.invoke(uninstall, ["--windsurf", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
 
     @patch("gobby.cli.install.uninstall_copilot")
-    def test_uninstall_copilot(
-        self, mock_uninstall: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_uninstall_copilot(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
             "hooks_removed": [],
             "files_removed": [],
         }
-        result = runner.invoke(
-            uninstall, ["--copilot", "--yes"], catch_exceptions=False
-        )
+        result = runner.invoke(uninstall, ["--copilot", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
 
     @patch("gobby.cli.install.uninstall_neo4j")
-    def test_uninstall_neo4j(
-        self, mock_uninstall: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_uninstall_neo4j(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
             "already_uninstalled": False,
             "volumes_removed": True,
         }
-        result = runner.invoke(
-            uninstall, ["--neo4j", "--volumes", "--yes"], catch_exceptions=False
-        )
+        result = runner.invoke(uninstall, ["--neo4j", "--volumes", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "Neo4j" in result.output
 
@@ -521,8 +534,6 @@ class TestUninstallCommand:
         """When --all is used but no CLI hooks are detected."""
         # Use a clean tmp_path as home so no settings.json files are found
         with patch("gobby.cli.install.Path.home", return_value=tmp_path):
-            result = runner.invoke(
-                uninstall, ["--all", "--yes"], catch_exceptions=False
-            )
+            result = runner.invoke(uninstall, ["--all", "--yes"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "No Gobby hooks found" in result.output

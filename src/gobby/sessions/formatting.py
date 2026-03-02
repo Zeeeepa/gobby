@@ -8,12 +8,24 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
 
-def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None, cwd: Path | None = None) -> str:
+class HandoffContext(Protocol):
+    active_gobby_task: dict[str, Any] | None
+    active_worktree: dict[str, Any] | None
+    git_commits: list[dict[str, Any]]
+    git_status: str
+    files_modified: list[str]
+    initial_goal: str | None
+    recent_activity: list[str]
+
+
+def format_handoff_as_markdown(
+    ctx: HandoffContext, prompt_template: str | None = None, cwd: Path | None = None
+) -> str:
     """Format HandoffContext as markdown for storage.
 
     Args:
@@ -71,8 +83,9 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None, cwd
             except ValueError:
                 # Path not relative to cwd, use as-is
                 rel_str = f
-            # Check if relative path appears in git status
-            if rel_str in ctx.git_status:
+            import re
+
+            if re.search(rf"\b{re.escape(rel_str)}$", ctx.git_status, re.MULTILINE):
                 dirty_files.append(rel_str)
         if dirty_files:
             lines = ["### Files Being Modified"]
@@ -85,7 +98,8 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None, cwd
         task_status = None
         if ctx.active_gobby_task:
             task_status = ctx.active_gobby_task.get("status")
-        # Only include if no task or task is still open/in_progress
+        # Only include if no task or task is still open/in_progress.
+        # Note: None, "open", and "in_progress" are considered active states.
         if task_status in (None, "open", "in_progress"):
             sections.append(f"### Original Goal\n{ctx.initial_goal}")
 

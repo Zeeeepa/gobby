@@ -1,4 +1,5 @@
 """Tests for workflows/sync.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 import json
@@ -30,7 +31,7 @@ pytestmark = pytest.mark.unit
 
 
 class TestEnsureGobbyTag:
-    def test_adds_gobby_tag(self):
+    def test_adds_gobby_tag(self) -> None:
         mgr = MagicMock()
         row = MagicMock()
         row.id = "r1"
@@ -41,7 +42,7 @@ class TestEnsureGobbyTag:
         _ensure_gobby_tag_on_installed(mgr, "rule")
         mgr.update.assert_called_once_with("r1", tags=["other", "gobby"])
 
-    def test_skips_when_tag_present(self):
+    def test_skips_when_tag_present(self) -> None:
         mgr = MagicMock()
         row = MagicMock()
         row.id = "r1"
@@ -52,7 +53,7 @@ class TestEnsureGobbyTag:
         _ensure_gobby_tag_on_installed(mgr, "rule")
         mgr.update.assert_not_called()
 
-    def test_skips_non_template_sources(self):
+    def test_skips_non_template_sources(self) -> None:
         mgr = MagicMock()
         row = MagicMock()
         row.id = "r1"
@@ -63,7 +64,7 @@ class TestEnsureGobbyTag:
         _ensure_gobby_tag_on_installed(mgr, "rule")
         mgr.update.assert_not_called()
 
-    def test_handles_none_tags(self):
+    def test_handles_none_tags(self) -> None:
         mgr = MagicMock()
         row = MagicMock()
         row.id = "r1"
@@ -81,7 +82,7 @@ class TestEnsureGobbyTag:
 
 
 class TestSyncBundledVariables:
-    def test_path_not_exists(self):
+    def test_path_not_exists(self) -> None:
         db = MagicMock()
 
         with patch(
@@ -93,7 +94,7 @@ class TestSyncBundledVariables:
         assert result["success"] is True
         assert result["synced"] == 0
 
-    def test_create_new_variable(self, tmp_path):
+    def test_create_new_variable(self, tmp_path: Path) -> None:
         yaml_content = textwrap.dedent("""\
             tags: [config]
             variables:
@@ -118,7 +119,7 @@ class TestSyncBundledVariables:
 
         assert result["synced"] == 1
 
-    def test_skip_non_dict_variable(self, tmp_path):
+    def test_skip_non_dict_variable(self, tmp_path: Path) -> None:
         yaml_content = textwrap.dedent("""\
             variables:
               bad_var: "just a string"
@@ -139,7 +140,7 @@ class TestSyncBundledVariables:
 
         assert "not a dict" in result["errors"][0]
 
-    def test_orphan_cleanup_variables(self, tmp_path):
+    def test_orphan_cleanup_variables(self, tmp_path: Path) -> None:
         db = MagicMock()
         mgr = MagicMock()
         mgr.list_all.return_value = []

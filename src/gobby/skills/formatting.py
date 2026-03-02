@@ -8,9 +8,12 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Sequence
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from gobby.skills.metadata import get_skill_category, get_skill_tags
+
+if TYPE_CHECKING:
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +119,7 @@ _format_skills_with_formats = format_skills_with_formats
 
 def recommend_skills_for_task(
     task: dict[str, Any] | None,
-    db: Any | None = None,
+    db: DatabaseProtocol | None = None,
 ) -> list[str]:
     """Recommend relevant skills based on task category.
 
@@ -141,6 +144,9 @@ def recommend_skills_for_task(
         manager = HookSkillManager(db=db)
         category = task.get("category")
         return manager.recommend_skills(category=category)
-    except Exception as e:
-        logger.debug(f"Failed to recommend skills: {e}")
+    except (ImportError, ValueError, KeyError, RuntimeError) as e:
+        logger.debug(f"Failed to recommend skills (expected): {e}")
         return []
+    except Exception as e:
+        logger.warning(f"Unexpected error recommending skills: {e}")
+        raise

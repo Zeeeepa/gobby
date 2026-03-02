@@ -5,6 +5,7 @@ Covers: get_session_manager, get_message_manager, show_session (json/details),
         search (json/empty), delete failure, stats with project.
 Lines targeted: 19-26, 102-158, 177-295, 309-310
 """
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,6 @@ from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import click
 import pytest
 from click.testing import CliRunner
 
@@ -28,29 +28,29 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def mock_session_manager() -> Generator[Any, None, None]:
+def mock_session_manager() -> Generator[MagicMock, None, None]:
     with patch("gobby.cli.sessions.get_session_manager") as mock:
         yield mock.return_value
 
 
 @pytest.fixture
-def mock_message_manager() -> Generator[Any, None, None]:
+def mock_message_manager() -> Generator[MagicMock, None, None]:
     with patch("gobby.cli.sessions.get_message_manager") as mock:
         yield mock.return_value
 
 
 @pytest.fixture
-def mock_resolve_session() -> Generator[Any, None, None]:
+def mock_resolve_session() -> Generator[MagicMock, None, None]:
     with patch("gobby.cli.sessions.resolve_session_id") as mock:
         mock.side_effect = lambda x, **kw: x if x else "current-session"
         yield mock
 
 
-async def _async_return(val: Any) -> Any:
+async def _async_return[T](val: T) -> T:
     return val
 
 
-def _make_session(**overrides) -> Session:
+def _make_session(**overrides: Any) -> Session:
     defaults = {
         "id": "sess-abc123",
         "project_id": "proj-1",
@@ -83,6 +83,7 @@ class TestManagerCreation:
     @patch("gobby.cli.sessions.LocalSessionManager")
     def test_get_session_manager(self, mock_mgr_cls: MagicMock, mock_db: MagicMock) -> None:
         from gobby.cli.sessions import get_session_manager
+
         result = get_session_manager()
         mock_mgr_cls.assert_called_once()
         assert result == mock_mgr_cls.return_value
@@ -91,6 +92,7 @@ class TestManagerCreation:
     @patch("gobby.cli.sessions.LocalSessionMessageManager")
     def test_get_message_manager(self, mock_mgr_cls: MagicMock, mock_db: MagicMock) -> None:
         from gobby.cli.sessions import get_message_manager
+
         result = get_message_manager()
         mock_mgr_cls.assert_called_once()
         assert result == mock_mgr_cls.return_value
@@ -115,7 +117,9 @@ class TestListSessionsEdgeCases:
         assert result.exit_code == 0
         assert "$1.23" in result.output
 
-    def test_list_long_title_truncated(self, runner: CliRunner, mock_session_manager: MagicMock) -> None:
+    def test_list_long_title_truncated(
+        self, runner: CliRunner, mock_session_manager: MagicMock
+    ) -> None:
         long_title = "A" * 60
         session = _make_session(title=long_title)
         mock_session_manager.list.return_value = [session]
@@ -130,7 +134,9 @@ class TestListSessionsEdgeCases:
         assert result.exit_code == 0
         assert "(no title)" in result.output
 
-    def test_list_handoff_ready_icon(self, runner: CliRunner, mock_session_manager: MagicMock) -> None:
+    def test_list_handoff_ready_icon(
+        self, runner: CliRunner, mock_session_manager: MagicMock
+    ) -> None:
         session = _make_session(status="handoff_ready")
         mock_session_manager.list.return_value = [session]
         result = runner.invoke(sessions, ["list"])
@@ -144,7 +150,9 @@ class TestListSessionsEdgeCases:
 
 
 class TestShowSessionDetails:
-    def test_show_json(self, runner: CliRunner, mock_session_manager: MagicMock, mock_resolve_session: MagicMock) -> None:
+    def test_show_json(
+        self, runner: CliRunner, mock_session_manager: MagicMock, mock_resolve_session: MagicMock
+    ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
         result = runner.invoke(sessions, ["show", "sess-abc123", "--json"])
@@ -201,8 +209,11 @@ class TestShowSessionDetails:
 
 class TestMessagesEdgeCases:
     def test_messages_json(
-        self, runner: CliRunner, mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock, mock_resolve_session: MagicMock
+        self,
+        runner: CliRunner,
+        mock_session_manager: MagicMock,
+        mock_message_manager: MagicMock,
+        mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
@@ -214,8 +225,11 @@ class TestMessagesEdgeCases:
         assert len(data) == 1
 
     def test_messages_empty(
-        self, runner: CliRunner, mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock, mock_resolve_session: MagicMock
+        self,
+        runner: CliRunner,
+        mock_session_manager: MagicMock,
+        mock_message_manager: MagicMock,
+        mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
@@ -225,8 +239,11 @@ class TestMessagesEdgeCases:
         assert "No messages found" in result.output
 
     def test_messages_with_tool(
-        self, runner: CliRunner, mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock, mock_resolve_session: MagicMock
+        self,
+        runner: CliRunner,
+        mock_session_manager: MagicMock,
+        mock_message_manager: MagicMock,
+        mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
@@ -238,8 +255,11 @@ class TestMessagesEdgeCases:
         assert "read_file" in result.output
 
     def test_messages_long_content_truncated(
-        self, runner: CliRunner, mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock, mock_resolve_session: MagicMock
+        self,
+        runner: CliRunner,
+        mock_session_manager: MagicMock,
+        mock_message_manager: MagicMock,
+        mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
@@ -251,8 +271,11 @@ class TestMessagesEdgeCases:
         assert "..." in result.output
 
     def test_messages_session_not_found(
-        self, runner: CliRunner, mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock, mock_resolve_session: MagicMock
+        self,
+        runner: CliRunner,
+        mock_session_manager: MagicMock,
+        mock_message_manager: MagicMock,
+        mock_resolve_session: MagicMock,
     ) -> None:
         mock_session_manager.get.return_value = None
         result = runner.invoke(sessions, ["messages", "sess-bad"])
@@ -265,9 +288,7 @@ class TestMessagesEdgeCases:
 
 
 class TestSearchEdgeCases:
-    def test_search_json(
-        self, runner: CliRunner, mock_message_manager: MagicMock
-    ) -> None:
+    def test_search_json(self, runner: CliRunner, mock_message_manager: MagicMock) -> None:
         msgs = [{"role": "user", "content": "found", "session_id": "s1"}]
         mock_message_manager.search_messages.side_effect = lambda **kw: _async_return(msgs)
         result = runner.invoke(sessions, ["search", "query", "--json"])
@@ -329,8 +350,11 @@ class TestDeleteFailure:
 class TestStatsWithProject:
     @patch("gobby.cli.sessions.resolve_project_ref", return_value="proj-1")
     def test_stats_with_project(
-        self, mock_resolve: MagicMock, runner: CliRunner,
-        mock_session_manager: MagicMock, mock_message_manager: MagicMock
+        self,
+        mock_resolve: MagicMock,
+        runner: CliRunner,
+        mock_session_manager: MagicMock,
+        mock_message_manager: MagicMock,
     ) -> None:
         s1 = _make_session(status="active", source="claude")
         mock_session_manager.list.return_value = [s1]

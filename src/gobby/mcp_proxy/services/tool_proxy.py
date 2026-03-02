@@ -8,7 +8,6 @@ from gobby.mcp_proxy.models import MCPError, ToolProxyErrorCode
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.services.fallback import ToolFallbackResolver
-    from gobby.mcp_proxy.services.tool_filter import ToolFilterService
     from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 logger = logging.getLogger("gobby.mcp.server")
@@ -37,13 +36,11 @@ class ToolProxyService:
         self,
         mcp_manager: MCPClientManager,
         internal_manager: "InternalRegistryManager | None" = None,
-        tool_filter: "ToolFilterService | None" = None,
         fallback_resolver: "ToolFallbackResolver | None" = None,
         validate_arguments: bool = True,
     ):
         self._mcp_manager = mcp_manager
         self._internal_manager = internal_manager
-        self._tool_filter = tool_filter
         self._fallback_resolver = fallback_resolver
         self._validate_arguments = validate_arguments
 
@@ -208,8 +205,6 @@ class ToolProxyService:
                             else getattr(tool, "description", "")
                         )
                         brief_tools.append({"name": name, "brief": safe_truncate(desc)})
-                if session_id and self._tool_filter:
-                    brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
                 return {"success": True, "tools": brief_tools, "tool_count": len(brief_tools)}
             return {"success": True, "tools": [], "tool_count": 0}
 
@@ -218,9 +213,6 @@ class ToolProxyService:
             registry = self._internal_manager.get_registry(server_name)
             if registry:
                 tools = registry.list_tools()
-                # Apply phase filtering if session_id provided
-                if session_id and self._tool_filter:
-                    tools = self._tool_filter.filter_tools(tools, session_id)
                 return {"success": True, "tools": tools, "tool_count": len(tools)}
             return {
                 "success": False,
@@ -249,9 +241,6 @@ class ToolProxyService:
                             "brief": safe_truncate(tool.description),
                         }
                     )
-            # Apply phase filtering if session_id provided
-            if session_id and self._tool_filter:
-                brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
             return {"success": True, "tools": brief_tools, "tool_count": len(brief_tools)}
 
         return {
@@ -310,18 +299,6 @@ class ToolProxyService:
                 "server_name": server_name,
                 "tool_name": tool_name,
             }
-
-        # Check workflow tool restrictions if session_id provided
-        if session_id and self._tool_filter:
-            is_allowed, reason = self._tool_filter.is_tool_allowed(tool_name, session_id)
-            if not is_allowed:
-                return {
-                    "success": False,
-                    "error": reason,
-                    "error_code": ToolProxyErrorCode.TOOL_BLOCKED.value,
-                    "server_name": server_name,
-                    "tool_name": tool_name,
-                }
 
         # Pre-validate arguments if enabled
         if self._validate_arguments and arguments:

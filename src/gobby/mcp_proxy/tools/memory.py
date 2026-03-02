@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING, Any
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.digest import (
     build_turn_and_digest as _build_turn_and_digest,
-)
-from gobby.memory.digest import (
     memory_extract_from_session,
+    memory_sync_import,
+    memory_sync_export,
 )
 from gobby.memory.manager import MemoryManager
 
@@ -622,8 +622,6 @@ def create_memory_registry(
         if not memory_sync_manager:
             return {"success": False, "error": "Memory sync manager not available"}
         try:
-            from gobby.memory.digest import memory_sync_import
-
             result = await memory_sync_import(memory_sync_manager)
             if "error" in result:
                 return {"success": False, "error": result["error"]}
@@ -640,8 +638,6 @@ def create_memory_registry(
         if not memory_sync_manager:
             return {"success": False, "error": "Memory sync manager not available"}
         try:
-            from gobby.memory.digest import memory_sync_export
-
             result = await memory_sync_export(memory_sync_manager)
             if "error" in result:
                 return {"success": False, "error": result["error"]}

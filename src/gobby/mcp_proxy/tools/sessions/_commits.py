@@ -96,8 +96,8 @@ def register_commits_tools(
             until_time = datetime.now(UTC)
 
         # Format as ISO 8601 for git
-        since_str = since_time.strftime("%Y-%m-%dT%H:%M:%S")
-        until_str = until_time.strftime("%Y-%m-%dT%H:%M:%S")
+        since_str = since_time.isoformat()
+        until_str = until_time.isoformat()
 
         try:
             # Get commits within timeframe
@@ -214,31 +214,13 @@ Args:
                 "session_id": session_id,
             }
 
-        # Load and update workflow state
+        # Set stop_reason via session variables
         from gobby.storage.database import LocalDatabase
-        from gobby.workflows.definitions import WorkflowState
-        from gobby.workflows.state_manager import WorkflowStateManager
+        from gobby.workflows.state_manager import SessionVariableManager
 
         db = LocalDatabase()
-        state_manager = WorkflowStateManager(db)
-
-        # Get or create state for session
-        state = state_manager.get_state(session.id)
-        if not state:
-            # Create minimal state just to hold the variable
-            state = WorkflowState(
-                session_id=session.id,
-                workflow_name="auto-loop",
-                step="active",
-            )
-
-        # Inline mark_loop_complete (was a 4-liner in state_actions.py)
-        if not state.variables:
-            state.variables = {}
-        state.variables["stop_reason"] = "completed"
-
-        # Save updated state
-        state_manager.save_state(state)
+        session_var_manager = SessionVariableManager(db)
+        session_var_manager.set_variable(session.id, "stop_reason", "completed")
 
         return {
             "success": True,

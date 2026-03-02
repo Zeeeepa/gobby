@@ -53,7 +53,7 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
     return {"exported": {"memories": count}}
 
 
-def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, str]:
+async def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, str]:
     """Read the last user prompt and assistant response from a transcript file.
 
     Args:
@@ -71,12 +71,18 @@ def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, 
         from gobby.sessions.transcripts import get_parser
 
         parser = get_parser(source)
+        import asyncio
+
+        def _read_lines() -> list[str]:
+            with open(transcript_file, encoding="utf-8") as f:
+                return f.readlines()
+
+        lines = await asyncio.to_thread(_read_lines)
         turns: list[dict[str, Any]] = []
-        with open(transcript_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    turns.append(json.loads(line))
+        for line in lines:
+            line = line.strip()
+            if line:
+                turns.append(json.loads(line))
 
         if not turns:
             return "", ""
@@ -97,7 +103,7 @@ def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, 
         return "", ""
 
 
-def _read_undigested_turns(
+async def _read_undigested_turns(
     jsonl_path: str, source: str, digested_count: int
 ) -> list[tuple[str, str]]:
     """Read user/assistant pairs from transcript that haven't been digested yet.
@@ -123,12 +129,18 @@ def _read_undigested_turns(
         from gobby.sessions.transcripts import get_parser
 
         parser = get_parser(source)
+        import asyncio
+
+        def _read_lines() -> list[str]:
+            with open(transcript_file, encoding="utf-8") as f:
+                return f.readlines()
+
+        lines = await asyncio.to_thread(_read_lines)
         turns: list[dict[str, Any]] = []
-        with open(transcript_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    turns.append(json.loads(line))
+        for line in lines:
+            line = line.strip()
+            if line:
+                turns.append(json.loads(line))
 
         if not turns:
             return []
@@ -178,6 +190,11 @@ def _read_undigested_turns(
 
         # Transcript has fewer pairs than digested (e.g., /clear reset) —
         # fall back to the last pair so we don't lose the current exchange
+        logger.debug(
+            "Undigested turns fallback: digested_count=%d >= len(pairs)=%d. Returning last pair.",
+            digested_count,
+            len(pairs),
+        )
         return [pairs[-1]]
 
     except Exception as e:
@@ -285,13 +302,13 @@ async def _extract_memories_from_turn(
 
     memory_ids: list[str] = []
     # Resolve project_id from session
-    session = (
-        memory_manager.storage.db.fetchone(
+    session = None
+    try:
+        session = memory_manager.storage.db.fetchone(
             "SELECT project_id FROM sessions WHERE id = ?", (session_id,)
         )
-        if hasattr(memory_manager, "storage")
-        else None
-    )
+    except AttributeError:
+        pass
     project_id = session["project_id"] if session else None
 
     for line in response.splitlines():
@@ -329,7 +346,7 @@ async def _extract_memories_from_turn(
     return memory_ids
 
 
-def _resolve_undigested_pairs(
+async def _resolve_undigested_pairs(
     session: Any,
     prompt_text: str | None,
     session_id: str,
@@ -344,7 +361,7 @@ def _resolve_undigested_pairs(
     if session.jsonl_path:
         previous_digest = getattr(session, "digest_markdown", None) or ""
         digested_count = _get_next_turn_number(previous_digest) - 1
-        undigested_pairs = _read_undigested_turns(
+        undigested_pairs = await _read_undigested_turns(
             session.jsonl_path, session.source, digested_count
         )
 
@@ -355,8 +372,7 @@ def _resolve_undigested_pairs(
             return None
         _stripped = user_prompt.strip()
         if any(
-            _stripped.lower() == c or _stripped.lower().startswith(c + " ")
-            for c in _LIFECYCLE_CMDS
+            _stripped.lower() == c or _stripped.lower().startswith(c + " ") for c in _LIFECYCLE_CMDS
         ):
             return None
         undigested_pairs = [(user_prompt, "")]
@@ -491,7 +507,7 @@ async def build_turn_and_digest(
             return None
 
         # 2. Resolve undigested pairs
-        resolved = _resolve_undigested_pairs(session, prompt_text, session_id)
+        resolved = await _resolve_undigested_pairs(session, prompt_text, session_id)
         if resolved is None:
             return None
         undigested_pairs, input_hash = resolved
@@ -603,7 +619,7 @@ async def generate_session_boundary_summaries(
         jsonl_path = getattr(session, "jsonl_path", None)
         source = getattr(session, "source", "claude")
         if jsonl_path:
-            pairs = _read_undigested_turns(jsonl_path, source, 0)
+            pairs = await _read_undigested_turns(jsonl_path, source, 0)
             if pairs:
                 max_pairs = 15
                 max_chars = 2000
@@ -622,7 +638,8 @@ async def generate_session_boundary_summaries(
     if digest_config:
         try:
             provider, model, _ = llm_service.get_provider_for_feature(digest_config)
-        except (ValueError, Exception):
+        except Exception as e:
+            logger.debug("Failed to resolve provider for digest: %s", e)
             provider = llm_service.get_default_provider()
             model = None
     else:

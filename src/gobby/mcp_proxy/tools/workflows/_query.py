@@ -16,7 +16,6 @@ from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import (
     SessionVariableManager,
     WorkflowInstanceManager,
-    WorkflowStateManager,
 )
 
 logger = logging.getLogger(__name__)
@@ -208,7 +207,6 @@ def list_workflows(
 
 
 def get_workflow_status(
-    state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
     session_id: str | None = None,
     instance_manager: WorkflowInstanceManager | None = None,
@@ -217,12 +215,10 @@ def get_workflow_status(
     """
     Get current workflow status for a session.
 
-    When instance_manager is provided, returns all active workflow instances
-    with per-workflow variables and session variables separately.
-    Falls back to legacy single-workflow response otherwise.
+    Returns all active workflow instances with per-workflow variables
+    and session variables separately.
 
     Args:
-        state_manager: WorkflowStateManager instance
         session_manager: LocalSessionManager instance
         session_id: Session reference (accepts #N, N, UUID, or prefix)
         instance_manager: Optional WorkflowInstanceManager for multi-workflow status
@@ -245,7 +241,6 @@ def get_workflow_status(
     except ValueError as e:
         return {"success": False, "has_workflow": False, "error": str(e)}
 
-    # Multi-workflow path: return all active instances
     if instance_manager:
         instances = instance_manager.get_active_instances(resolved_session_id)
         session_vars = (
@@ -263,27 +258,6 @@ def get_workflow_status(
             for inst in instances
         ]
 
-        # Also check workflow_states for lifecycle workflows.
-        # Lifecycle workflows (always-on, enabled: true) persist state in
-        # workflow_states but NOT in workflow_instances. Without this check,
-        # get_workflow_status would report has_workflow=false even when a
-        # lifecycle workflow is actively enforcing rules via hooks.
-        lifecycle_state = state_manager.get_state(resolved_session_id)
-        if lifecycle_state:
-            # Only add if not already represented in workflow_instances
-            instance_names = {w["workflow_name"] for w in workflows}
-            if lifecycle_state.workflow_name not in instance_names:
-                workflows.append(
-                    {
-                        "workflow_name": lifecycle_state.workflow_name,
-                        "enabled": True,
-                        "priority": 0,  # lifecycle workflows run first
-                        "current_step": lifecycle_state.step,
-                        "variables": lifecycle_state.variables,
-                        "source": "lifecycle",
-                    }
-                )
-
         return {
             "success": True,
             "has_workflow": len(workflows) > 0,
@@ -292,22 +266,4 @@ def get_workflow_status(
             "session_variables": session_vars,
         }
 
-    # Legacy single-workflow fallback
-    state = state_manager.get_state(resolved_session_id)
-    if not state:
-        return {"success": True, "has_workflow": False, "session_id": resolved_session_id}
-
-    return {
-        "success": True,
-        "has_workflow": True,
-        "session_id": resolved_session_id,
-        "workflow_name": state.workflow_name,
-        "step": state.step,
-        "step_action_count": state.step_action_count,
-        "total_action_count": state.total_action_count,
-        "variables": state.variables,
-        "task_progress": (
-            f"{state.current_task_index + 1}/{len(state.task_list)}" if state.task_list else None
-        ),
-        "updated_at": state.updated_at.isoformat() if state.updated_at else None,
-    }
+    return {"success": True, "has_workflow": False, "session_id": resolved_session_id}

@@ -1,4 +1,5 @@
 """Tests for cli/linear.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -19,8 +20,8 @@ def runner() -> CliRunner:
 def _mock_linear_deps(
     project_id: str = "proj-123",
     linear_team_id: str | None = None,
-    github_repo: str | None = None,
-) -> MagicMock:
+    _github_repo: str | None = None,
+) -> tuple[MagicMock, MagicMock, MagicMock, str]:
     """Build a mock tuple for get_linear_deps."""
     db = MagicMock()
     task_manager = MagicMock()
@@ -139,9 +140,7 @@ class TestLinearImport:
         tm, mcp, pm, pid = _mock_linear_deps()
         mock_deps.return_value = (tm, mcp, pm, pid)
         mock_async.return_value = [{"id": "t1", "title": "Issue 1"}]
-        result = runner.invoke(
-            linear, ["import", "TEAM-1", "--json"], catch_exceptions=False
-        )
+        result = runner.invoke(linear, ["import", "TEAM-1", "--json"], catch_exceptions=False)
         assert result.exit_code == 0
         assert '"count": 1' in result.output
 
@@ -162,7 +161,8 @@ class TestLinearImport:
         mock_deps.return_value = (tm, mcp, pm, pid)
         mock_async.return_value = []
         result = runner.invoke(
-            linear, ["import", "--state", "Todo", "--labels", "bug,urgent"],
+            linear,
+            ["import", "--state", "Todo", "--labels", "bug,urgent"],
             catch_exceptions=False,
         )
         assert result.exit_code == 0
@@ -265,9 +265,7 @@ class TestLinearCreate:
         task = MagicMock()
         task.id = "task-uuid"
         mock_resolve.return_value = task
-        result = runner.invoke(
-            linear, ["create", "#1", "--json"], catch_exceptions=False
-        )
+        result = runner.invoke(linear, ["create", "#1", "--json"], catch_exceptions=False)
         assert result.exit_code == 0
 
     @patch("gobby.cli.linear.resolve_task_id", return_value=None)

@@ -6,7 +6,7 @@ import hashlib
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -605,43 +605,6 @@ class TestSessionMoreCoverage:
         ):
             handler.handle_session_start(event)
             mock_sleep.assert_called()
-
-
-# ---------------------------------------------------------------------------
-
-
-# _get_step_workflow_state tests
-
-
-class TestGetStepWorkflowState:
-    """Tests for _get_step_workflow_state."""
-
-    def test_no_workflow_handler(self) -> None:
-        handler = _TestHandler()
-        handler._workflow_handler = None
-        result = handler._get_step_workflow_state("sess-1")
-        assert result is None
-
-    def test_no_engine(self) -> None:
-        handler = _TestHandler()
-        handler._workflow_handler.engine = None
-        result = handler._get_step_workflow_state("sess-1")
-        assert result is None
-
-    def test_returns_state(self) -> None:
-        handler = _TestHandler()
-        mock_state = MagicMock()
-        handler._workflow_handler.engine.state_manager.get_state.return_value = mock_state
-
-        result = handler._get_step_workflow_state("sess-1")
-        assert result is mock_state
-
-    def test_exception_returns_none(self) -> None:
-        handler = _TestHandler()
-        handler._workflow_handler.engine.state_manager.get_state.side_effect = RuntimeError("fail")
-
-        result = handler._get_step_workflow_state("sess-1")
-        assert result is None
 
 
 # ---------------------------------------------------------------------------

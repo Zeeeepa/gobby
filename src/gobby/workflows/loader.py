@@ -106,11 +106,9 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
                     logger.warning(f"Parent workflow '{parent_name}' not found in DB for '{name}'")
 
             if row.workflow_type == "pipeline" or data.get("type") == "pipeline":
-                self._validate_pipeline_references(data)
+                _validate_pipeline_references(data)
                 return PipelineDefinition(**data)
             else:
-                if "type" in data and "enabled" not in data:
-                    data["enabled"] = data["type"] == "lifecycle"
                 return WorkflowDefinition(**data)
         except Exception as e:
             logger.error(f"Failed to parse DB workflow '{name}': {e}", exc_info=True)
@@ -333,13 +331,11 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
                 self._validate_pipeline_references(data)
                 definition: WorkflowDefinition | PipelineDefinition = PipelineDefinition(**data)
             else:
-                if "type" in data and "enabled" not in data:
-                    data["enabled"] = data["type"] == "lifecycle"
                 definition = WorkflowDefinition(**data)
 
             self._cache[cache_key] = _CachedEntry(definition=definition, path=None, mtime=0.0)
 
-            logger.debug(f"Registered inline workflow '{name}' (type={definition.type})")
+            logger.debug(f"Registered inline workflow '{name}'")
             return definition
 
         except Exception as e:

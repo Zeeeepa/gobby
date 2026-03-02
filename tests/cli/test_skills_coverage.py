@@ -1,8 +1,8 @@
 """Tests for cli/skills.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -107,7 +107,10 @@ class TestSkillsList:
     ) -> None:
         mock_storage_fn.return_value.list_skills.return_value = [_mock_skill()]
         result = runner.invoke(
-            skills, ["list", "--tags", "nonexistent"], obj=_make_config_obj(), catch_exceptions=False
+            skills,
+            ["list", "--tags", "nonexistent"],
+            obj=_make_config_obj(),
+            catch_exceptions=False,
         )
         assert result.exit_code == 0
         assert "No skills found" in result.output
@@ -165,7 +168,11 @@ class TestSkillsInstall:
     def test_install_success(
         self, _client: MagicMock, _check: MagicMock, mock_call: MagicMock, runner: CliRunner
     ) -> None:
-        mock_call.return_value = {"success": True, "skill_name": "my-skill", "source_type": "github"}
+        mock_call.return_value = {
+            "success": True,
+            "skill_name": "my-skill",
+            "source_type": "github",
+        }
         result = runner.invoke(
             skills, ["install", "github:owner/repo"], obj=_make_config_obj(), catch_exceptions=False
         )
@@ -251,9 +258,7 @@ class TestSkillsUpdate:
     def test_update_no_name_no_all(
         self, _client: MagicMock, _check: MagicMock, _call: MagicMock, runner: CliRunner
     ) -> None:
-        result = runner.invoke(
-            skills, ["update"], obj=_make_config_obj(), catch_exceptions=False
-        )
+        result = runner.invoke(skills, ["update"], obj=_make_config_obj(), catch_exceptions=False)
         assert result.exit_code == 1
 
     @patch("gobby.cli.skills.call_skills_tool")
@@ -387,13 +392,17 @@ class TestSkillsEnableDisable:
 class TestSkillsValidate:
     def test_validate_path_not_found(self, runner: CliRunner) -> None:
         result = runner.invoke(
-            skills, ["validate", "/nonexistent/path"], obj=_make_config_obj(), catch_exceptions=False
+            skills,
+            ["validate", "/nonexistent/path"],
+            obj=_make_config_obj(),
+            catch_exceptions=False,
         )
         assert result.exit_code == 1
 
     def test_validate_path_not_found_json(self, runner: CliRunner) -> None:
         result = runner.invoke(
-            skills, ["validate", "/nonexistent/path", "--json"],
+            skills,
+            ["validate", "/nonexistent/path", "--json"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -403,7 +412,11 @@ class TestSkillsValidate:
     @patch("gobby.skills.validator.SkillValidator")
     @patch("gobby.skills.loader.SkillLoader")
     def test_validate_valid(
-        self, mock_loader_cls: MagicMock, mock_validator_cls: MagicMock, runner: CliRunner, tmp_path: Path
+        self,
+        mock_loader_cls: MagicMock,
+        mock_validator_cls: MagicMock,
+        runner: CliRunner,
+        tmp_path: Path,
     ) -> None:
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text("# Test")
@@ -419,13 +432,19 @@ class TestSkillsValidate:
     @patch("gobby.skills.validator.SkillValidator")
     @patch("gobby.skills.loader.SkillLoader")
     def test_validate_invalid(
-        self, mock_loader_cls: MagicMock, mock_validator_cls: MagicMock, runner: CliRunner, tmp_path: Path
+        self,
+        mock_loader_cls: MagicMock,
+        mock_validator_cls: MagicMock,
+        runner: CliRunner,
+        tmp_path: Path,
     ) -> None:
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text("# Test")
         parsed = MagicMock(name="bad-skill")
         mock_loader_cls.return_value.load_skill.return_value = parsed
-        validation_result = MagicMock(valid=False, errors=["Name too long"], warnings=["No version"])
+        validation_result = MagicMock(
+            valid=False, errors=["Name too long"], warnings=["No version"]
+        )
         mock_validator_cls.return_value.validate.return_value = validation_result
         result = runner.invoke(
             skills, ["validate", str(skill_file)], obj=_make_config_obj(), catch_exceptions=False
@@ -436,7 +455,11 @@ class TestSkillsValidate:
     @patch("gobby.skills.validator.SkillValidator")
     @patch("gobby.skills.loader.SkillLoader")
     def test_validate_valid_json(
-        self, mock_loader_cls: MagicMock, mock_validator_cls: MagicMock, runner: CliRunner, tmp_path: Path
+        self,
+        mock_loader_cls: MagicMock,
+        mock_validator_cls: MagicMock,
+        runner: CliRunner,
+        tmp_path: Path,
     ) -> None:
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text("# Test")
@@ -447,7 +470,8 @@ class TestSkillsValidate:
         validation_result.to_dict.return_value = {"valid": True, "errors": [], "warnings": []}
         mock_validator_cls.return_value.validate.return_value = validation_result
         result = runner.invoke(
-            skills, ["validate", str(skill_file), "--json"],
+            skills,
+            ["validate", str(skill_file), "--json"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -476,7 +500,10 @@ class TestSkillsMeta:
     def test_meta_get_not_found(self, mock_storage_fn: MagicMock, runner: CliRunner) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = None
         result = runner.invoke(
-            skills, ["meta", "get", "missing", "key"], obj=_make_config_obj(), catch_exceptions=False
+            skills,
+            ["meta", "get", "missing", "key"],
+            obj=_make_config_obj(),
+            catch_exceptions=False,
         )
         assert result.exit_code == 1
 
@@ -487,7 +514,8 @@ class TestSkillsMeta:
     ) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = _mock_skill()
         result = runner.invoke(
-            skills, ["meta", "get", "test-skill", "author"],
+            skills,
+            ["meta", "get", "test-skill", "author"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -501,7 +529,8 @@ class TestSkillsMeta:
     ) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = _mock_skill()
         result = runner.invoke(
-            skills, ["meta", "get", "test-skill", "complex"],
+            skills,
+            ["meta", "get", "test-skill", "complex"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -514,7 +543,8 @@ class TestSkillsMeta:
     ) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = _mock_skill()
         result = runner.invoke(
-            skills, ["meta", "get", "test-skill", "missing"],
+            skills,
+            ["meta", "get", "test-skill", "missing"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -525,7 +555,8 @@ class TestSkillsMeta:
         skill = _mock_skill(metadata=None)
         mock_storage_fn.return_value.get_by_name.return_value = skill
         result = runner.invoke(
-            skills, ["meta", "get", "test-skill", "author"],
+            skills,
+            ["meta", "get", "test-skill", "author"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -534,12 +565,11 @@ class TestSkillsMeta:
 
     @patch("gobby.cli.skills.set_nested_value", return_value={"author": "new"})
     @patch("gobby.cli.skills.get_skill_storage")
-    def test_meta_set(
-        self, mock_storage_fn: MagicMock, _set: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_meta_set(self, mock_storage_fn: MagicMock, _set: MagicMock, runner: CliRunner) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = _mock_skill()
         result = runner.invoke(
-            skills, ["meta", "set", "test-skill", "author", "new"],
+            skills,
+            ["meta", "set", "test-skill", "author", "new"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -550,7 +580,8 @@ class TestSkillsMeta:
     def test_meta_set_not_found(self, mock_storage_fn: MagicMock, runner: CliRunner) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = None
         result = runner.invoke(
-            skills, ["meta", "set", "missing", "key", "val"],
+            skills,
+            ["meta", "set", "missing", "key", "val"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -564,7 +595,8 @@ class TestSkillsMeta:
         mock_storage_fn.return_value.get_by_name.return_value = _mock_skill()
         mock_storage_fn.return_value.update_skill.side_effect = RuntimeError("db err")
         result = runner.invoke(
-            skills, ["meta", "set", "test-skill", "k", "v"],
+            skills,
+            ["meta", "set", "test-skill", "k", "v"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -577,7 +609,8 @@ class TestSkillsMeta:
     ) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = _mock_skill()
         result = runner.invoke(
-            skills, ["meta", "unset", "test-skill", "author"],
+            skills,
+            ["meta", "unset", "test-skill", "author"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -588,7 +621,8 @@ class TestSkillsMeta:
     def test_meta_unset_not_found(self, mock_storage_fn: MagicMock, runner: CliRunner) -> None:
         mock_storage_fn.return_value.get_by_name.return_value = None
         result = runner.invoke(
-            skills, ["meta", "unset", "missing", "key"],
+            skills,
+            ["meta", "unset", "missing", "key"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -599,7 +633,8 @@ class TestSkillsMeta:
         skill = _mock_skill(metadata=None)
         mock_storage_fn.return_value.get_by_name.return_value = skill
         result = runner.invoke(
-            skills, ["meta", "unset", "test-skill", "key"],
+            skills,
+            ["meta", "unset", "test-skill", "key"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -614,7 +649,8 @@ class TestSkillsMeta:
         mock_storage_fn.return_value.get_by_name.return_value = _mock_skill()
         mock_storage_fn.return_value.update_skill.side_effect = RuntimeError("db err")
         result = runner.invoke(
-            skills, ["meta", "unset", "test-skill", "key"],
+            skills,
+            ["meta", "unset", "test-skill", "key"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -628,18 +664,14 @@ class TestSkillsInit:
     @patch("gobby.skills.scaffold.init_skills_directory")
     def test_init_created(self, mock_init: MagicMock, runner: CliRunner) -> None:
         mock_init.return_value = {"dir_created": True, "config_created": True}
-        result = runner.invoke(
-            skills, ["init"], obj=_make_config_obj(), catch_exceptions=False
-        )
+        result = runner.invoke(skills, ["init"], obj=_make_config_obj(), catch_exceptions=False)
         assert result.exit_code == 0
         assert "initialized" in result.output.lower()
 
     @patch("gobby.skills.scaffold.init_skills_directory")
     def test_init_already_exists(self, mock_init: MagicMock, runner: CliRunner) -> None:
         mock_init.return_value = {"dir_created": False, "config_created": False}
-        result = runner.invoke(
-            skills, ["init"], obj=_make_config_obj(), catch_exceptions=False
-        )
+        result = runner.invoke(skills, ["init"], obj=_make_config_obj(), catch_exceptions=False)
         assert result.exit_code == 0
         assert "already exists" in result.output
 
@@ -675,9 +707,7 @@ class TestSkillsDoc:
     @patch("gobby.cli.skills.get_skill_storage")
     def test_doc_no_skills(self, mock_storage_fn: MagicMock, runner: CliRunner) -> None:
         mock_storage_fn.return_value.list_skills.return_value = []
-        result = runner.invoke(
-            skills, ["doc"], obj=_make_config_obj(), catch_exceptions=False
-        )
+        result = runner.invoke(skills, ["doc"], obj=_make_config_obj(), catch_exceptions=False)
         assert result.exit_code == 0
         assert "No skills" in result.output
 
@@ -687,16 +717,12 @@ class TestSkillsDoc:
         self, mock_storage_fn: MagicMock, _fmt: MagicMock, runner: CliRunner
     ) -> None:
         mock_storage_fn.return_value.list_skills.return_value = [_mock_skill()]
-        result = runner.invoke(
-            skills, ["doc"], obj=_make_config_obj(), catch_exceptions=False
-        )
+        result = runner.invoke(skills, ["doc"], obj=_make_config_obj(), catch_exceptions=False)
         assert result.exit_code == 0
 
     @patch("gobby.skills.formatting.format_skills_json", return_value='[{"name": "s"}]')
     @patch("gobby.cli.skills.get_skill_storage")
-    def test_doc_json(
-        self, mock_storage_fn: MagicMock, _fmt: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_doc_json(self, mock_storage_fn: MagicMock, _fmt: MagicMock, runner: CliRunner) -> None:
         mock_storage_fn.return_value.list_skills.return_value = [_mock_skill()]
         result = runner.invoke(
             skills, ["doc", "--format", "json"], obj=_make_config_obj(), catch_exceptions=False
@@ -730,7 +756,12 @@ class TestSkillsSearch:
         mock_call.return_value = {
             "success": True,
             "results": [
-                {"hub_name": "clawdhub", "slug": "commit-message", "display_name": "Commit Message", "description": "Generate commit messages"},
+                {
+                    "hub_name": "clawdhub",
+                    "slug": "commit-message",
+                    "display_name": "Commit Message",
+                    "description": "Generate commit messages",
+                },
             ],
         }
         result = runner.invoke(
@@ -823,7 +854,8 @@ class TestSkillsHub:
 
     def test_hub_add_invalid_type(self, runner: CliRunner) -> None:
         result = runner.invoke(
-            skills, ["hub", "add", "test-hub", "--type", "invalid"],
+            skills,
+            ["hub", "add", "test-hub", "--type", "invalid"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -831,7 +863,8 @@ class TestSkillsHub:
 
     def test_hub_add_skillhub_no_url(self, runner: CliRunner) -> None:
         result = runner.invoke(
-            skills, ["hub", "add", "test-hub", "--type", "skillhub"],
+            skills,
+            ["hub", "add", "test-hub", "--type", "skillhub"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )
@@ -839,7 +872,8 @@ class TestSkillsHub:
 
     def test_hub_add_github_no_repo(self, runner: CliRunner) -> None:
         result = runner.invoke(
-            skills, ["hub", "add", "test-hub", "--type", "github"],
+            skills,
+            ["hub", "add", "test-hub", "--type", "github"],
             obj=_make_config_obj(),
             catch_exceptions=False,
         )

@@ -168,7 +168,6 @@ class HookManager:
         self._stuck_detector = components.stuck_detector
         self._memory_manager = components.memory_manager
         self._workflow_loader = components.workflow_loader
-        self._workflow_state_manager = components.workflow_state_manager
         self._skill_manager = components.skill_manager
         self._pipeline_executor = components.pipeline_executor
         self._workflow_handler = components.workflow_handler

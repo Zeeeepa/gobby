@@ -13,7 +13,7 @@ from gobby.hooks.events import HookEvent, HookResponse
 
 if TYPE_CHECKING:
     from gobby.storage.session_models import Session
-    from gobby.workflows.definitions import WorkflowState
+    from gobby.workflows.definitions import AgentDefinitionBody
 
 _derive_logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class AgentActivationResult:
 
 
 def select_and_format_agent_skills(
-    agent_body: Any,
+    agent_body: AgentDefinitionBody,
     all_skills: list[Any],
     active_skills: set[str] | None,
     cli_source: str,
@@ -421,43 +421,45 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
                     # Preserve task claim state across compaction/clear
                     parent_vars = sv_mgr.get_variables(parent_session_id)
-                    _TASK_CLAIM_KEYS = (
-                        "task_claimed",
-                        "claimed_task_id",
-                        "task_ref",
-                        "session_had_task",
-                    )
-                    task_handoff = {
-                        k: parent_vars[k]
-                        for k in _TASK_CLAIM_KEYS
-                        if parent_vars.get(k)
-                    }
-                    if task_handoff:
-                        sv_mgr.merge_variables(session_id, task_handoff)
-                        # Re-assign task and re-link to new session
-                        if (
-                            task_handoff.get("task_claimed")
-                            and task_handoff.get("claimed_task_id")
-                        ):
-                            claimed_id = task_handoff["claimed_task_id"]
-                            if self._task_manager:
-                                try:
-                                    self._task_manager.update_task(
-                                        claimed_id, assignee=session_id
-                                    )
-                                except Exception as e:
-                                    self.logger.debug(
-                                        f"Best-effort task re-assignment failed for session={session_id} task={claimed_id}: {e}"
-                                    )
-                            if self._session_task_manager:
-                                try:
-                                    self._session_task_manager.link_task(
-                                        session_id, claimed_id, "claimed"
-                                    )
-                                except Exception as e:
-                                    self.logger.debug(
-                                        f"Best-effort session-task link failed for session={session_id} task={claimed_id}: {e}"
-                                    )
+                    if (
+                        parent_vars.get("session_handoff")
+                        or parent_vars.get("is_handoff")
+                        or parent_vars.get("handoff_source")
+                    ):
+                        _TASK_CLAIM_KEYS = (
+                            "task_claimed",
+                            "claimed_task_id",
+                            "task_ref",
+                            "session_had_task",
+                        )
+                        task_handoff = {
+                            k: parent_vars[k] for k in _TASK_CLAIM_KEYS if parent_vars.get(k)
+                        }
+                        if task_handoff:
+                            sv_mgr.merge_variables(session_id, task_handoff)
+                            # Re-assign task and re-link to new session
+                            if task_handoff.get("task_claimed") and task_handoff.get(
+                                "claimed_task_id"
+                            ):
+                                claimed_id = task_handoff["claimed_task_id"]
+                                if self._task_manager:
+                                    try:
+                                        self._task_manager.update_task(
+                                            claimed_id, assignee=session_id
+                                        )
+                                    except Exception as e:
+                                        self.logger.debug(
+                                            f"Best-effort task re-assignment failed for session={session_id} task={claimed_id}: {e}"
+                                        )
+                                if self._session_task_manager:
+                                    try:
+                                        self._session_task_manager.link_task(
+                                            session_id, claimed_id, "claimed"
+                                        )
+                                    except Exception as e:
+                                        self.logger.debug(
+                                            f"Best-effort session-task link failed for session={session_id} task={claimed_id}: {e}"
+                                        )
 
         # Populate task_context session variable for inject_context rule templates
         if event.task_id and session_id and self._session_storage:
@@ -885,29 +887,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
             injected_skill_names=injected_names,
         )
 
-    def _get_step_workflow_state(self, session_id: str) -> WorkflowState | None:
-        """Get the active step workflow state for a session.
-
-        Safely navigates the workflow_handler -> engine -> state_manager chain,
-        returning None if any component is missing or an error occurs.
-        """
-        if (
-            not self._workflow_handler
-            or not hasattr(self._workflow_handler, "engine")
-            or self._workflow_handler.engine is None
-            or not hasattr(self._workflow_handler.engine, "state_manager")
-            or self._workflow_handler.engine.state_manager is None
-        ):
-            return None
-        try:
-            state: WorkflowState | None = self._workflow_handler.engine.state_manager.get_state(
-                session_id
-            )
-            return state
-        except Exception as e:
-            self.logger.debug(f"Failed to get step workflow state: {e}")
-            return None
-
     def _compose_session_response(
         self,
         session: Session | None,
@@ -1015,14 +994,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 system_message += f"\n   └─ Injected: {', '.join(agent_info.injected_skill_names)}"
             else:
                 system_message += f"\n└─ {skills_label}"
-
-        # Workflow (only if active step workflow)
-        if session_id:
-            state = self._get_step_workflow_state(session_id)
-            if state and state.workflow_name not in ("__lifecycle__", "__ended__"):
-                system_message += (
-                    f"\nWorkflow: {state.workflow_name} (step, current_step={state.step})"
-                )
 
         # Build metadata
         metadata: dict[str, Any] = {

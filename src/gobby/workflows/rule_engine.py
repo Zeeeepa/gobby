@@ -676,6 +676,8 @@ class RuleEngine:
         Returns (step, instance, definition) or (None, None, None) if no active step workflow.
         """
         instance_mgr = WorkflowInstanceManager(self.db)
+        if not session_id:
+            return None, None, None
         instances = instance_mgr.get_active_instances(session_id)
 
         for instance in instances:
@@ -707,7 +709,7 @@ class RuleEngine:
 
         # Discovery tools always pass — agents need progressive disclosure in every step
         if tool_name.startswith("mcp__gobby__"):
-            mcp_suffix = tool_name[len("mcp__gobby__"):]
+            mcp_suffix = tool_name[len("mcp__gobby__") :]
             if is_discovery_tool(mcp_suffix):
                 return None
 
@@ -823,9 +825,19 @@ class RuleEngine:
         # Evaluate transitions
         for transition in step.transitions:
             ctx = {"vars": instance.variables, "variables": variables}
-            if self._evaluate_condition(transition.when, ctx, "set_variable"):
+            if not transition.when or self._evaluate_condition(
+                transition.when, ctx, "set_variable"
+            ):
                 old_step = instance.current_step
                 new_step = transition.to
+
+                if not definition.get_step(new_step):
+                    logger.warning(
+                        "Transition to unknown step '%s' in workflow '%s'",
+                        new_step,
+                        instance.workflow_name,
+                    )
+                    return
 
                 instance.current_step = new_step
                 instance.step_action_count = 0
