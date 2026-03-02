@@ -9,6 +9,10 @@ optional_variables:
   - previous_summary
   - structured_context
   - git_diff_summary
+  - claimed_tasks
+  - session_memories
+  - first_digest_turn
+  - recent_digest_turns
 ---
 You are creating a session continuation summary after a compaction event.
 Compact summaries are for in-session continuity. Be MORE detailed than session-end summaries.
@@ -30,6 +34,18 @@ These are extracted from tool calls and git -- trust these over the transcript.
 
 ### Actual Code Changes:
 {{ git_diff_summary }}
+
+### Active Tasks (from DB):
+{{ claimed_tasks }}
+
+### Memories Stored This Session:
+{{ session_memories }}
+
+### Initial Context (from Digest):
+{{ first_digest_turn }}
+
+### Most Recent Activity (from Digest):
+{{ recent_digest_turns }}
 
 ## Context from Earlier in This Session:
 {{ previous_summary }}

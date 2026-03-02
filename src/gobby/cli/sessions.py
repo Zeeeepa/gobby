@@ -507,7 +507,32 @@ def create_handoff(
     full_markdown = None
 
     if generate_compact:
-        compact_markdown = format_handoff_as_markdown(handoff_ctx)
+        # Try LLM-powered compact summary first, fall back to code-only
+        try:
+            import anyio
+
+            from gobby.sessions.summarize import _generate_compact_summary
+
+            async def _gen_compact() -> tuple[str | None, str | None]:
+                return await _generate_compact_summary(
+                    session=session,
+                    turns=turns,
+                    handoff_ctx=handoff_ctx,
+                    llm_service=None,
+                    db=LocalDatabase(),
+                    session_manager=manager,
+                )
+
+            compact_markdown, compact_err = anyio.run(_gen_compact)
+            if not compact_markdown:
+                click.echo(
+                    f"Warning: LLM compact summary failed ({compact_err}), using code-only fallback",
+                    err=True,
+                )
+                compact_markdown = format_handoff_as_markdown(handoff_ctx)
+        except Exception as e:
+            click.echo(f"Warning: LLM compact failed ({e}), using code-only fallback", err=True)
+            compact_markdown = format_handoff_as_markdown(handoff_ctx)
 
     if generate_full:
         # Generate LLM-powered full summary
