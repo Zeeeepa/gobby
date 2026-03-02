@@ -6,7 +6,6 @@ These functions handle context injection, message injection, and handoff formatt
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from pathlib import Path
@@ -633,50 +632,3 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
     # which already handles skill restoration on session start
 
     return "\n\n".join(sections)
-
-
-# --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: Any, **kwargs) -> dict | None
-
-
-async def handle_inject_context(context: Any, **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for inject_context."""
-    from gobby.workflows.state_manager import SessionVariableManager
-
-    # Get prompt_text from event_data if not explicitly passed
-    prompt_text = kwargs.get("prompt_text")
-    if prompt_text is None and context.event_data:
-        prompt_text = context.event_data.get("prompt_text")
-
-    session_variable_manager = SessionVariableManager(context.db) if context.db else None
-
-    return await asyncio.to_thread(
-        inject_context,
-        session_manager=context.session_manager,
-        session_id=context.session_id,
-        state=context.state,
-        template_engine=context.template_engine,
-        source=kwargs.get("source"),
-        template=kwargs.get("template"),
-        require=kwargs.get("require", False),
-        skill_manager=context.skill_manager,
-        filter=kwargs.get("filter"),
-        session_task_manager=context.session_task_manager,
-        memory_manager=context.memory_manager,
-        prompt_text=prompt_text,
-        limit=kwargs.get("limit", 5),
-        session_variable_manager=session_variable_manager,
-    )
-
-
-async def handle_inject_message(context: Any, **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for inject_message."""
-    return await asyncio.to_thread(
-        inject_message,
-        session_manager=context.session_manager,
-        session_id=context.session_id,
-        state=context.state,
-        template_engine=context.template_engine,
-        content=kwargs.get("content"),
-        **{k: v for k, v in kwargs.items() if k != "content"},
-    )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -39,17 +39,6 @@ def mock_state() -> MagicMock:
     state.task_list = []
     state.current_task_index = None
     return state
-
-
-@pytest.fixture
-def mock_context(mock_session_manager: MagicMock, mock_state: MagicMock) -> MagicMock:
-    ctx = MagicMock()
-    ctx.session_manager = mock_session_manager
-    ctx.session_id = "sess-1"
-    ctx.db = MagicMock()
-    ctx.state = mock_state
-    ctx.task_sync_manager = MagicMock()
-    return ctx
 
 
 # --- task_sync_import ---
@@ -318,61 +307,3 @@ async def test_update_workflow_task_error(mock_state: MagicMock) -> None:
     assert result["updated"] is False
     assert "error" in result
     assert "db fail" in result["error"]
-
-
-# --- ActionHandler wrappers ---
-
-
-@pytest.mark.asyncio
-async def test_handle_task_sync_import(mock_context: MagicMock) -> None:
-    from gobby.workflows.task_sync_actions import handle_task_sync_import
-
-    with patch("gobby.workflows.task_sync_actions.task_sync_import", new_callable=AsyncMock) as m:
-        m.return_value = {"imported": True}
-        result = await handle_task_sync_import(mock_context)
-    assert result == {"imported": True}
-
-
-@pytest.mark.asyncio
-async def test_handle_task_sync_export(mock_context: MagicMock) -> None:
-    from gobby.workflows.task_sync_actions import handle_task_sync_export
-
-    with patch("gobby.workflows.task_sync_actions.task_sync_export", new_callable=AsyncMock) as m:
-        m.return_value = {"exported": True}
-        result = await handle_task_sync_export(mock_context)
-    assert result == {"exported": True}
-
-
-@pytest.mark.asyncio
-async def test_handle_persist_tasks(mock_context: MagicMock) -> None:
-    from gobby.workflows.task_sync_actions import handle_persist_tasks
-
-    with patch("gobby.workflows.task_sync_actions.persist_tasks", new_callable=AsyncMock) as m:
-        m.return_value = {"tasks_persisted": 0, "ids": [], "id_mapping": {}}
-        result = await handle_persist_tasks(mock_context, tasks=[])
-    assert result == {"tasks_persisted": 0, "ids": [], "id_mapping": {}}
-    m.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_handle_get_workflow_tasks(mock_context: MagicMock) -> None:
-    from gobby.workflows.task_sync_actions import handle_get_workflow_tasks
-
-    with patch("gobby.workflows.task_sync_actions.get_workflow_tasks", new_callable=AsyncMock) as m:
-        m.return_value = {"tasks": [], "count": 0}
-        result = await handle_get_workflow_tasks(mock_context, workflow_name="wf")
-    assert result == {"tasks": [], "count": 0}
-    m.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_handle_update_workflow_task(mock_context: MagicMock) -> None:
-    from gobby.workflows.task_sync_actions import handle_update_workflow_task
-
-    with patch(
-        "gobby.workflows.task_sync_actions.update_workflow_task", new_callable=AsyncMock
-    ) as m:
-        m.return_value = {"updated": True, "task": {}}
-        result = await handle_update_workflow_task(mock_context, task_id="t1", status="closed")
-    assert result == {"updated": True, "task": {}}
-    m.assert_awaited_once()

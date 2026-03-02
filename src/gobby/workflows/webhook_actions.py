@@ -155,29 +155,3 @@ async def execute_webhook(
         "error": result.error,
         "body": result.body if result.success else None,
     }
-
-
-# --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
-
-
-async def handle_webhook(
-    context: Any, config: Any | None = None, **kwargs: Any
-) -> dict[str, Any] | None:
-    """ActionHandler wrapper for execute_webhook.
-
-    Note: config is passed via closure from register_defaults.
-    """
-    return await execute_webhook(
-        template_engine=context.template_engine,
-        state=context.state,
-        config=config,
-        url=kwargs.get("url"),
-        webhook_id=kwargs.get("webhook_id"),
-        method=kwargs.get("method", "POST"),
-        headers=kwargs.get("headers"),
-        payload=kwargs.get("payload"),
-        timeout=kwargs.get("timeout", 30),
-        retry=kwargs.get("retry"),
-        capture_response=kwargs.get("capture_response"),
-    )

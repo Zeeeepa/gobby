@@ -245,23 +245,3 @@ async def test_execute_webhook_with_config_secrets(
         )
 
     assert result["success"] is True
-
-
-# --- handle_webhook ---
-
-
-@pytest.mark.asyncio
-async def test_handle_webhook() -> None:
-    from gobby.workflows.webhook_actions import handle_webhook
-
-    ctx = MagicMock()
-    ctx.template_engine = MagicMock()
-    ctx.state = MagicMock()
-    ctx.state.variables = {}
-
-    with patch("gobby.workflows.webhook_actions.execute_webhook", new_callable=AsyncMock) as mock_exec:
-        mock_exec.return_value = {"success": True, "status_code": 200}
-        result = await handle_webhook(ctx, url="https://example.com", method="POST")
-
-    assert result is not None
-    assert result["success"] is True

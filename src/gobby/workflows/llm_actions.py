@@ -76,28 +76,3 @@ async def call_llm(
     except Exception as e:
         logger.error(f"call_llm: Failed: {e}")
         return {"error": str(e)}
-
-
-# --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
-
-
-async def handle_call_llm(context: Any, **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for call_llm."""
-    if context.session_manager is None:
-        return {"error": "Session manager not available"}
-
-    session = context.session_manager.get(context.session_id)
-    if session is None:
-        return {"error": f"Session not found: {context.session_id}"}
-
-    return await call_llm(
-        llm_service=context.llm_service,
-        template_engine=context.template_engine,
-        state=context.state,
-        session=session,
-        prompt=kwargs.get("prompt"),
-        output_as=kwargs.get("output_as"),
-        model=kwargs.get("model"),
-        **{k: v for k, v in kwargs.items() if k not in ("prompt", "output_as", "model")},
-    )
