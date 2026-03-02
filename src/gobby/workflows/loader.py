@@ -335,7 +335,8 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
 
             self._cache[cache_key] = _CachedEntry(definition=definition, path=None, mtime=0.0)
 
-            logger.debug(f"Registered inline workflow '{name}'")
+            wf_type = data.get("type", "step")
+            logger.debug(f"Registered inline {wf_type} workflow '{name}'")
             return definition
 
         except Exception as e:

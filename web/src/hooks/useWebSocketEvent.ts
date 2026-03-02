@@ -139,6 +139,7 @@ export function useWebSocketEvent(eventType: string, handler: Handler): void {
         }
         // Reset so next mount can reconnect
         closed = false
+        reconnectAttempts = 0
       }
     }
   }, [eventType])
