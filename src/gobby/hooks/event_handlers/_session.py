@@ -419,6 +419,46 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     if handoff_vars:
                         sv_mgr.merge_variables(session_id, handoff_vars)
 
+                    # Preserve task claim state across compaction/clear
+                    parent_vars = sv_mgr.get_variables(parent_session_id)
+                    _TASK_CLAIM_KEYS = (
+                        "task_claimed",
+                        "claimed_task_id",
+                        "task_ref",
+                        "session_had_task",
+                    )
+                    task_handoff = {
+                        k: parent_vars[k]
+                        for k in _TASK_CLAIM_KEYS
+                        if parent_vars.get(k)
+                    }
+                    if task_handoff:
+                        sv_mgr.merge_variables(session_id, task_handoff)
+                        # Re-assign task and re-link to new session
+                        if (
+                            task_handoff.get("task_claimed")
+                            and task_handoff.get("claimed_task_id")
+                        ):
+                            claimed_id = task_handoff["claimed_task_id"]
+                            if self._task_manager:
+                                try:
+                                    self._task_manager.update_task(
+                                        claimed_id, assignee=session_id
+                                    )
+                                except Exception as e:
+                                    self.logger.debug(
+                                        f"Best-effort task re-assignment failed: {e}"
+                                    )
+                            if self._session_task_manager:
+                                try:
+                                    self._session_task_manager.link_task(
+                                        session_id, claimed_id, "claimed"
+                                    )
+                                except Exception as e:
+                                    self.logger.debug(
+                                        f"Best-effort session-task link failed: {e}"
+                                    )
+
         # Populate task_context session variable for inject_context rule templates
         if event.task_id and session_id and self._session_storage:
             task_title = event.metadata.get("_task_title", "Unknown Task")
