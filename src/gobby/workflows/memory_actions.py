@@ -562,9 +562,7 @@ async def build_turn_and_digest(
             # Fallback: use prompt_text argument (non-transcript path)
             user_prompt = prompt_text or ""
             if not user_prompt:
-                logger.debug(
-                    "build_turn_and_digest: No turn content for session %s", session_id
-                )
+                logger.debug("build_turn_and_digest: No turn content for session %s", session_id)
                 return None
             # Skip lifecycle commands
             _stripped = user_prompt.strip()
@@ -611,9 +609,7 @@ async def build_turn_and_digest(
             per_response = max_response_chars // len(undigested_pairs)
             parts = []
             for i, (p, r) in enumerate(undigested_pairs, 1):
-                parts.append(
-                    f"## Exchange {i}\nUser: {p[:per_prompt]}\nAgent: {r[:per_response]}"
-                )
+                parts.append(f"## Exchange {i}\nUser: {p[:per_prompt]}\nAgent: {r[:per_response]}")
             truncated_prompt = "\n\n".join(parts)
             truncated_response = ""
 
@@ -885,9 +881,7 @@ async def generate_session_boundary_summaries(
             # Fallback: try splitting on Output B header variants
             compact = ""
             summary = ""
-            header_match = re.search(
-                r"\n(?=#{1,3}\s*Output\s*B\b)", response, re.IGNORECASE
-            )
+            header_match = re.search(r"\n(?=#{1,3}\s*Output\s*B\b)", response, re.IGNORECASE)
             if header_match:
                 compact = response[: header_match.start()].strip()
                 summary = response[header_match.start() :].strip()

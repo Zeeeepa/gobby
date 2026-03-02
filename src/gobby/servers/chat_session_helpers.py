@@ -216,9 +216,7 @@ def build_compaction_context(
         parts.append(f"Working directory: {cwd}")
     if source:
         parts.append(f"Source: {source}")
-    parts.append(
-        "Use session_id in MCP tool calls (gobby-tasks, gobby-memory, etc.)"
-    )
+    parts.append("Use session_id in MCP tool calls (gobby-tasks, gobby-memory, etc.)")
     return "\n".join(parts)
 
 

@@ -593,9 +593,7 @@ class ChatMixin:
                     )
                 else:
                     enrichment = f"Gobby Session ID: {session_ref}"
-                result["context"] = (
-                    f"{enrichment}\n\n{ctx}" if ctx else enrichment
-                )
+                result["context"] = f"{enrichment}\n\n{ctx}" if ctx else enrichment
 
             # --- Event broadcasting for audit trail (parity with CLI path D2) ---
             hook_broadcaster = getattr(self, "hook_broadcaster", None)

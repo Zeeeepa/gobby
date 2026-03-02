@@ -95,9 +95,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
                         from gobby.workflows.state_manager import SessionVariableManager
 
                         sv_mgr = SessionVariableManager(self._session_storage.db)
-                        sv_mgr.set_variable(
-                            session_id, "handoff_source", prompt_lower.lstrip("/")
-                        )
+                        sv_mgr.set_variable(session_id, "handoff_source", prompt_lower.lstrip("/"))
                     except Exception as e:
                         self.logger.warning(f"Failed to set handoff_source: {e}")
 
