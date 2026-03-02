@@ -1030,6 +1030,7 @@ class TestMarkLoopComplete:
         session_manager.get.return_value = mock_session
 
         mock_state = MagicMock()
+        mock_state.variables = {}
         mock_state_manager = MagicMock()
         mock_state_manager.get_state.return_value = mock_state
 
@@ -1039,7 +1040,6 @@ class TestMarkLoopComplete:
         with (
             patch("gobby.storage.database.LocalDatabase"),
             patch("gobby.workflows.state_manager.WorkflowStateManager") as mock_wsm_class,
-            patch("gobby.workflows.state_actions.mark_loop_complete") as mock_action,
         ):
             mock_wsm_class.return_value = mock_state_manager
 
@@ -1048,7 +1048,7 @@ class TestMarkLoopComplete:
         assert result["success"] is True
         assert result["session_id"] == "sess-123"
         assert result["stop_reason"] == "completed"
-        mock_action.assert_called_once_with(mock_state)
+        assert mock_state.variables["stop_reason"] == "completed"
 
     def test_mark_loop_complete_no_session(self) -> None:
         """Test when session not found."""
@@ -1080,10 +1080,9 @@ class TestMarkLoopComplete:
             patch("gobby.storage.database.LocalDatabase"),
             patch("gobby.workflows.state_manager.WorkflowStateManager") as mock_wsm_class,
             patch("gobby.workflows.definitions.WorkflowState") as mock_ws_class,
-            patch("gobby.workflows.state_actions.mark_loop_complete"),
         ):
             mock_wsm_class.return_value = mock_state_manager
-            mock_ws_class.return_value = MagicMock()
+            mock_ws_class.return_value = MagicMock(variables={})
 
             # session_id is now required
             result = mark_complete(session_id="sess-123")

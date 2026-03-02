@@ -53,8 +53,8 @@ def select_and_format_agent_skills(
         (formatted_text, skills_count, injected_skill_names)
     """
     from gobby.hooks.skill_manager import _db_skill_to_parsed
+    from gobby.skills.formatting import _format_skills_with_formats
     from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
-    from gobby.workflows.context_actions import _format_skills_with_formats
 
     eligible = (
         all_skills if active_skills is None else [s for s in all_skills if s.name in active_skills]

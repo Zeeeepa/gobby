@@ -1,7 +1,8 @@
-"""Memory-related workflow actions.
+"""Session digest pipeline — turn recording, boundary summaries, and memory extraction.
 
-Extracted from actions.py as part of strangler fig decomposition.
-These functions handle memory injection, extraction, saving, and recall.
+Relocated from workflows/memory_actions.py as part of dead-code cleanup.
+These functions handle the per-turn digest pipeline (build_turn_and_digest),
+session boundary summaries, memory extraction from sessions, and sync operations.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_LIFECYCLE_CMDS = ("/clear", "/exit", "/compact")
 
 
 async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
@@ -48,276 +51,6 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
     count = await memory_sync_manager.export_to_files()
     logger.info("Memory sync export: %s memories exported", count)
     return {"exported": {"memories": count}}
-
-
-async def memory_save(
-    memory_manager: Any,
-    session_manager: Any,
-    session_id: str,
-    content: str | None = None,
-    memory_type: str = "fact",
-    tags: list[str] | None = None,
-    project_id: str | None = None,
-) -> dict[str, Any] | None:
-    """Save a memory directly from workflow context.
-
-    Args:
-        memory_manager: The memory manager instance
-        session_manager: The session manager instance
-        session_id: Current session ID (used for project resolution and logging)
-        content: The memory content to save (required)
-        memory_type: One of 'fact', 'preference', 'pattern', 'context'
-        tags: List of string tags
-        project_id: Override project ID
-
-    Returns:
-        Dict with saved status and memory_id, or error
-    """
-    if not memory_manager:
-        return {"error": "Memory Manager not available"}
-
-    if not memory_manager.config.enabled:
-        return None
-
-    if not content:
-        return {"error": "Missing required 'content' parameter"}
-
-    # Resolve project_id
-    if not project_id:
-        session = session_manager.get(session_id)
-        if session:
-            project_id = session.project_id
-
-    if not project_id:
-        return {"error": "No project_id found"}
-
-    logger.debug(
-        "Saving memory type=%s session=%s project=%s",
-        memory_type,
-        session_id,
-        project_id,
-    )
-
-    # Validate memory_type
-    if memory_type not in ("fact", "preference", "pattern", "context"):
-        memory_type = "fact"
-
-    # Validate tags
-    if tags is None:
-        tags = []
-    if not isinstance(tags, list):
-        tags = []
-
-    try:
-        if memory_manager.content_exists(content, project_id):
-            logger.debug("save_memory: Skipping duplicate: %s...", content[:50])
-            return {"saved": False, "reason": "duplicate"}
-
-        memory = await memory_manager.create_memory(
-            content=content,
-            memory_type=memory_type,
-            project_id=project_id,
-            source_type="workflow",
-            source_session_id=session_id,
-            tags=tags,
-        )
-
-        logger.info("save_memory: Created %s memory: %s...", memory_type, content[:50])
-        return {
-            "saved": True,
-            "memory_id": memory.id,
-            "memory_type": memory_type,
-        }
-
-    except Exception as e:
-        logger.error("save_memory: Failed for session %s: %s", session_id, e, exc_info=True)
-        return {"error": str(e)}
-
-
-async def memory_recall_relevant(
-    memory_manager: Any,
-    session_manager: Any,
-    session_id: str,
-    prompt_text: str | None = None,
-    project_id: str | None = None,
-    limit: int = 5,
-    state: Any | None = None,
-) -> dict[str, Any] | None:
-    """Recall memories relevant to the current user prompt.
-
-    Args:
-        memory_manager: The memory manager instance
-        session_manager: The session manager instance
-        session_id: Current session ID
-        prompt_text: The user's prompt text
-        project_id: Override project ID
-        limit: Max memories to retrieve
-        state: WorkflowState for tracking injected memory IDs (for deduplication)
-
-    Returns:
-        Dict with inject_context and count, or None if disabled
-    """
-    if not memory_manager:
-        return None
-
-    if not memory_manager.config.enabled:
-        return None
-
-    if not prompt_text:
-        logger.debug("memory_recall_relevant: No prompt_text provided")
-        return None
-
-    # Skip for very short prompts or commands
-    if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
-        logger.debug("memory_recall_relevant: Skipping short/lifecycle prompt")
-        return None
-
-    # Resolve project_id
-    if not project_id:
-        session = session_manager.get(session_id)
-        if session:
-            project_id = session.project_id
-
-    # Get already-injected memory IDs from state for deduplication
-    injected_ids: set[str] = set()
-    if state is not None:
-        # Access variables dict, defaulting to empty if not set
-        variables = getattr(state, "variables", None) or {}
-        injected_ids = set(variables.get("_injected_memory_ids", []))
-
-    try:
-        memories = await memory_manager.search_memories(
-            query=prompt_text,
-            project_id=project_id,
-            limit=limit,
-            search_mode="auto",
-        )
-
-        if not memories:
-            logger.debug("memory_recall_relevant: No relevant memories found")
-            return {"injected": False, "count": 0}
-
-        # Filter out memories that have already been injected in this session
-        new_memories = [m for m in memories if m.id not in injected_ids]
-
-        # Deduplicate by content to avoid showing same content with different IDs
-        # (can happen when same content was stored with different project_ids)
-        seen_content: set[str] = set()
-        unique_memories = []
-        for m in new_memories:
-            normalized = m.content.strip()
-            if normalized not in seen_content:
-                seen_content.add(normalized)
-                unique_memories.append(m)
-        new_memories = unique_memories
-
-        if not new_memories:
-            logger.debug(
-                "memory_recall_relevant: All %s memories already injected, skipping", len(memories)
-            )
-            return {"injected": False, "count": 0, "skipped": len(memories)}
-
-        from gobby.memory.context import build_memory_context
-
-        memory_context = build_memory_context(new_memories)
-
-        # Track newly injected memory IDs in state
-        if state is not None:
-            new_ids = {m.id for m in new_memories}
-            all_injected = injected_ids | new_ids
-            # Ensure variables dict exists
-            if not hasattr(state, "variables") or state.variables is None:
-                state.variables = {}
-            state.variables["_injected_memory_ids"] = list(all_injected)
-            logger.debug(
-                "memory_recall_relevant: Tracking %s new IDs, %s total injected",
-                len(new_ids),
-                len(all_injected),
-            )
-
-        logger.info("memory_recall_relevant: Injecting %s relevant memories", len(new_memories))
-
-        return {
-            "inject_context": memory_context,
-            "injected": True,
-            "count": len(new_memories),
-        }
-
-    except Exception as e:
-        logger.error(
-            "memory_recall_relevant: Failed for session %s: %s", session_id, e, exc_info=True
-        )
-        return {"error": str(e)}
-
-
-async def memory_recall_with_synthesis(
-    memory_manager: Any,
-    session_manager: Any,
-    session_id: str,
-    prompt_text: str | None = None,
-    project_id: str | None = None,
-    limit: int = 5,
-    state: Any | None = None,
-    db: Any | None = None,
-) -> dict[str, Any] | None:
-    """Phase 1 (blocking): Search memories using current prompt + digest enrichment.
-
-    Performs a blocking vector search using the current prompt text, enriched
-    with the session digest when available. Uses existing memory_recall_relevant
-    for search, dedup, and formatting via build_memory_context.
-
-    Args:
-        memory_manager: The memory manager instance
-        session_manager: The session manager instance
-        session_id: Current session ID
-        prompt_text: The user's prompt text
-        project_id: Override project ID
-        limit: Max memories to retrieve
-        state: WorkflowState for deduplication tracking
-        db: Database (unused, kept for interface compatibility)
-
-    Returns:
-        Dict with inject_context and count, or None if disabled
-    """
-    if not memory_manager or not memory_manager.config.enabled:
-        return None
-
-    if not prompt_text:
-        return None
-
-    # Skip very short prompts or lifecycle commands with no conversational content
-    _stripped = prompt_text.strip()
-    if len(_stripped) < 10:
-        return None
-    _SKIP_CMDS = ("/clear", "/exit", "/compact")
-    if any(_stripped.lower() == c or _stripped.lower().startswith(c + " ") for c in _SKIP_CMDS):
-        return None
-
-    # Enrich query with session digest for better search relevance
-    search_query = prompt_text
-    session = session_manager.get(session_id) if session_manager else None
-    digest = getattr(session, "digest_markdown", None) if session else None
-    if digest:
-        search_query = f"{prompt_text}\n\n{digest}"
-        logger.debug(
-            "memory_recall_with_synthesis: Enriched query with digest (%d chars)",
-            len(digest),
-        )
-
-    return await memory_recall_relevant(
-        memory_manager=memory_manager,
-        session_manager=session_manager,
-        session_id=session_id,
-        prompt_text=search_query,
-        project_id=project_id,
-        limit=limit,
-        state=state,
-    )
-
-
-# --- Turn-by-turn digest pipeline ---
-
-_LIFECYCLE_CMDS = ("/clear", "/exit", "/compact")
 
 
 def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, str]:
@@ -500,6 +233,100 @@ def _build_title_synthesis_prompt(digest_markdown: str) -> str:
         f"## Session Digest\n{digest_markdown}\n\n"
         "Output only the title, nothing else."
     )
+
+
+async def _extract_memories_from_turn(
+    turn_text: str,
+    session_id: str,
+    memory_manager: Any,
+    provider: Any,
+    model: str | None = None,
+) -> list[str]:
+    """Extract reusable facts/patterns from a turn record.
+
+    Uses LLM to identify high-value memories from a single turn's record,
+    then stores them via memory_manager.
+
+    Args:
+        turn_text: The last_turn_markdown content
+        session_id: Session ID for memory attribution
+        memory_manager: Memory manager for storage
+        provider: LLM provider for extraction
+        model: Model override (e.g., "haiku")
+
+    Returns:
+        List of memory IDs created
+    """
+    if not turn_text or len(turn_text) < 50:
+        return []
+
+    extraction_prompt = (
+        "Analyze this turn record from a coding session. Extract ONLY memories that would\n"
+        "save a future session more than 5 minutes of investigation.\n\n"
+        "## Turn Record\n"
+        f"{turn_text}\n\n"
+        "## Rules\n"
+        "- Extract 0-3 memories (0 is fine if nothing is worth saving)\n"
+        "- Each memory must be a specific, verifiable fact or recurring pattern\n"
+        "- NO generic programming knowledge\n"
+        "- NO information already in project docs or README\n"
+        "- Include file paths, function names, and specifics\n\n"
+        "## Output Format\n"
+        "Output each memory as a JSON object on its own line, no other text:\n"
+        '{"content": "...", "memory_type": "fact|pattern", "tags": ["tag1", "tag2"]}\n\n'
+        "If nothing is worth saving, output exactly: NONE"
+    )
+
+    response = await provider.generate_text(extraction_prompt, model=model)
+    response = response.strip()
+
+    if response.upper() == "NONE" or not response:
+        return []
+
+    memory_ids: list[str] = []
+    # Resolve project_id from session
+    session = (
+        memory_manager.storage.db.fetchone(
+            "SELECT project_id FROM sessions WHERE id = ?", (session_id,)
+        )
+        if hasattr(memory_manager, "storage")
+        else None
+    )
+    project_id = session["project_id"] if session else None
+
+    for line in response.splitlines():
+        line = line.strip()
+        if not line or line.upper() == "NONE":
+            continue
+        try:
+            candidate = json.loads(line)
+            if not isinstance(candidate, dict) or "content" not in candidate:
+                continue
+
+            content = candidate["content"]
+            if not content or len(content) < 10:
+                continue
+
+            # Deduplicate against existing memories
+            if memory_manager.content_exists(content, project_id=project_id):
+                logger.debug("Skipping duplicate memory: %s...", content[:50])
+                continue
+
+            memory = await memory_manager.create_memory(
+                content=content,
+                memory_type=candidate.get("memory_type", "fact"),
+                project_id=project_id,
+                source_type="auto_extract",
+                source_session_id=session_id,
+                tags=candidate.get("tags"),
+            )
+            memory_ids.append(memory.id)
+            logger.info("Extracted memory from turn: %s", content[:80])
+        except (json.JSONDecodeError, Exception) as e:
+            logger.debug("Failed to parse memory candidate: %s", e)
+            continue
+
+    return memory_ids
 
 
 async def build_turn_and_digest(
@@ -701,100 +528,6 @@ async def build_turn_and_digest(
         return {"error": str(e)}
 
 
-async def _extract_memories_from_turn(
-    turn_text: str,
-    session_id: str,
-    memory_manager: Any,
-    provider: Any,
-    model: str | None = None,
-) -> list[str]:
-    """Extract reusable facts/patterns from a turn record.
-
-    Uses LLM to identify high-value memories from a single turn's record,
-    then stores them via memory_manager.
-
-    Args:
-        turn_text: The last_turn_markdown content
-        session_id: Session ID for memory attribution
-        memory_manager: Memory manager for storage
-        provider: LLM provider for extraction
-        model: Model override (e.g., "haiku")
-
-    Returns:
-        List of memory IDs created
-    """
-    if not turn_text or len(turn_text) < 50:
-        return []
-
-    extraction_prompt = (
-        "Analyze this turn record from a coding session. Extract ONLY memories that would\n"
-        "save a future session more than 5 minutes of investigation.\n\n"
-        "## Turn Record\n"
-        f"{turn_text}\n\n"
-        "## Rules\n"
-        "- Extract 0-3 memories (0 is fine if nothing is worth saving)\n"
-        "- Each memory must be a specific, verifiable fact or recurring pattern\n"
-        "- NO generic programming knowledge\n"
-        "- NO information already in project docs or README\n"
-        "- Include file paths, function names, and specifics\n\n"
-        "## Output Format\n"
-        "Output each memory as a JSON object on its own line, no other text:\n"
-        '{"content": "...", "memory_type": "fact|pattern", "tags": ["tag1", "tag2"]}\n\n'
-        "If nothing is worth saving, output exactly: NONE"
-    )
-
-    response = await provider.generate_text(extraction_prompt, model=model)
-    response = response.strip()
-
-    if response.upper() == "NONE" or not response:
-        return []
-
-    memory_ids: list[str] = []
-    # Resolve project_id from session
-    session = (
-        memory_manager.storage.db.fetchone(
-            "SELECT project_id FROM sessions WHERE id = ?", (session_id,)
-        )
-        if hasattr(memory_manager, "storage")
-        else None
-    )
-    project_id = session["project_id"] if session else None
-
-    for line in response.splitlines():
-        line = line.strip()
-        if not line or line.upper() == "NONE":
-            continue
-        try:
-            candidate = json.loads(line)
-            if not isinstance(candidate, dict) or "content" not in candidate:
-                continue
-
-            content = candidate["content"]
-            if not content or len(content) < 10:
-                continue
-
-            # Deduplicate against existing memories
-            if memory_manager.content_exists(content, project_id=project_id):
-                logger.debug("Skipping duplicate memory: %s...", content[:50])
-                continue
-
-            memory = await memory_manager.create_memory(
-                content=content,
-                memory_type=candidate.get("memory_type", "fact"),
-                project_id=project_id,
-                source_type="auto_extract",
-                source_session_id=session_id,
-                tags=candidate.get("tags"),
-            )
-            memory_ids.append(memory.id)
-            logger.info("Extracted memory from turn: %s", content[:80])
-        except (json.JSONDecodeError, Exception) as e:
-            logger.debug("Failed to parse memory candidate: %s", e)
-            continue
-
-    return memory_ids
-
-
 async def generate_session_boundary_summaries(
     session_id: str,
     session_manager: Any,
@@ -925,122 +658,6 @@ async def generate_session_boundary_summaries(
         return {"error": str(e)}
 
 
-async def memory_extraction_gate(
-    memory_manager: Any,
-    session_id: str,
-    session_manager: Any | None = None,
-    state: Any | None = None,
-) -> dict[str, Any] | None:
-    """Memory extraction stop-gate logic.
-
-    Blocks the agent from stopping until it has reviewed its work and either
-    created new memories or confirmed there's nothing to save.
-
-    Args:
-        memory_manager: The memory manager instance
-        session_id: Current session ID
-        session_manager: Session manager for resolving #N refs
-        state: WorkflowState for tracking extraction status
-
-    Returns:
-        Dict with block decision and reason, or None to allow stop
-    """
-    if not memory_manager:
-        return None
-
-    if not memory_manager.config.enabled:
-        return None
-
-    # Check if already extracted this turn
-    variables = getattr(state, "variables", None) or {}
-    if variables.get("memories_extracted"):
-        return None
-
-    # Resolve session ref: prefer #N format, fall back to UUID
-    session_ref = session_id
-    if session_manager:
-        try:
-            session = session_manager.get(session_id)
-            if session and session.seq_num:
-                session_ref = f"#{session.seq_num}"
-        except Exception:
-            logger.debug("Failed to resolve session ref", exc_info=True)
-
-    reason = (
-        "Before stopping, review your work this session and save any valuable memories.\n"
-        "\n"
-        "Use `create_memory` (via gobby-memory MCP) for NEW insights you discovered.\n"
-        "Duplicates are handled automatically — just create freely.\n"
-        "\n"
-        "**What to save** (5-minute rule: would this save a future session >5 min?):\n"
-        "- Debugging insights, root causes, misleading errors\n"
-        "- Architecture decisions and trade-offs\n"
-        "- API/library gotchas, undocumented quirks\n"
-        "- Project conventions, environment quirks\n"
-        "\n"
-        "If you learned nothing new this session, that's fine.\n"
-        "**When done**, call:\n"
-        f'`set_variable(name="memories_extracted", value=true, session_id="{session_ref}")` on gobby-workflows'
-    )
-
-    logger.info("memory_extraction_gate: Blocking stop for session %s", session_id)
-
-    return {"decision": "block", "reason": reason}
-
-
-async def memory_review_gate(
-    memory_manager: Any,
-    session_id: str,
-    session_manager: Any | None = None,
-    state: Any | None = None,
-) -> dict[str, Any] | None:
-    """Memory review stop-gate logic.
-
-    Blocks the agent from stopping when significant work has been done
-    (pending_memory_review is true) and nudges it to save learnings.
-
-    Args:
-        memory_manager: The memory manager instance
-        session_id: Current session ID
-        session_manager: Session manager for resolving #N refs
-        state: WorkflowState for checking pending_memory_review
-
-    Returns:
-        Dict with block decision and reason, or None to allow stop
-    """
-    if not memory_manager:
-        return None
-
-    if not memory_manager.config.enabled:
-        return None
-
-    # Check if there's pending work to review
-    variables = getattr(state, "variables", None) or {}
-    if not variables.get("pending_memory_review"):
-        return None
-
-    # Clear the flag so the gate only fires once per cycle (soft nudge).
-    # The agent's MCP set_variable writes to session scope, but this flag
-    # lives in workflow scope — so we clear it here to prevent infinite loops.
-    variables["pending_memory_review"] = False
-
-    reason = (
-        "Before stopping, briefly review what you learned this session.\n"
-        "\n"
-        "Use `create_memory` (via gobby-memory MCP) for NEW insights:\n"
-        "- Debugging insights, root causes, misleading errors\n"
-        "- Architecture decisions and trade-offs\n"
-        "- API/library gotchas, undocumented quirks\n"
-        "- Project conventions, environment quirks\n"
-        "\n"
-        "If nothing new was learned, that's fine — just proceed to stop."
-    )
-
-    logger.info("memory_review_gate: Blocking stop for session %s", session_id)
-
-    return {"decision": "block", "reason": reason}
-
-
 async def memory_extract_from_session(
     memory_manager: Any,
     session_manager: Any,
@@ -1106,103 +723,6 @@ async def memory_extract_from_session(
     except Exception as e:
         logger.error(
             "memory_extract_from_session: Failed for session %s: %s",
-            session_id,
-            e,
-            exc_info=True,
-        )
-        return {"error": str(e)}
-
-
-async def memory_inject_project_context(
-    memory_manager: Any,
-    session_manager: Any,
-    session_id: str,
-    limit: int = 10,
-    state: Any | None = None,
-) -> dict[str, Any] | None:
-    """Inject top project memories at session start.
-
-    Lists the most recent memories for the current project and injects
-    them as context.
-
-    Args:
-        memory_manager: The memory manager instance
-        session_manager: Session manager for project resolution
-        session_id: Current session ID
-        limit: Max memories to inject
-        state: WorkflowState for tracking injected IDs
-
-    Returns:
-        Dict with inject_context and count, or None if disabled
-    """
-    if not memory_manager:
-        return None
-
-    if not memory_manager.config.enabled:
-        return None
-
-    # Resolve project_id from session
-    project_id = None
-    session = session_manager.get(session_id)
-    if session:
-        project_id = session.project_id
-
-    if not project_id:
-        logger.debug("memory_inject_project_context: No project_id for session %s", session_id)
-        return None
-
-    # Get already-injected memory IDs from state for deduplication
-    injected_ids: set[str] = set()
-    if state is not None:
-        variables = getattr(state, "variables", None) or {}
-        injected_ids = set(variables.get("_injected_memory_ids", []))
-
-    try:
-        memories = memory_manager.list_memories(
-            project_id=project_id,
-            limit=limit,
-        )
-
-        if not memories:
-            logger.debug("memory_inject_project_context: No project memories found")
-            return {"injected": False, "count": 0}
-
-        # Filter out already-injected memories
-        new_memories = [m for m in memories if m.id not in injected_ids]
-
-        if not new_memories:
-            logger.debug(
-                "memory_inject_project_context: All %s memories already injected",
-                len(memories),
-            )
-            return {"injected": False, "count": 0, "skipped": len(memories)}
-
-        from gobby.memory.context import build_memory_context
-
-        memory_context = build_memory_context(new_memories)
-
-        # Track newly injected memory IDs in state
-        if state is not None:
-            new_ids = {m.id for m in new_memories}
-            all_injected = injected_ids | new_ids
-            if not hasattr(state, "variables") or state.variables is None:
-                state.variables = {}
-            state.variables["_injected_memory_ids"] = list(all_injected)
-
-        logger.info(
-            "memory_inject_project_context: Injecting %s project memories",
-            len(new_memories),
-        )
-
-        return {
-            "inject_context": memory_context,
-            "injected": True,
-            "count": len(new_memories),
-        }
-
-    except Exception as e:
-        logger.error(
-            "memory_inject_project_context: Failed for session %s: %s",
             session_id,
             e,
             exc_info=True,

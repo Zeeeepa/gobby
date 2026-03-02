@@ -747,7 +747,7 @@ class HookManager:
             session_id: Platform session ID.
             background: If True, fire-and-forget. If False, block until complete.
         """
-        from gobby.workflows.memory_actions import generate_session_boundary_summaries
+        from gobby.memory.digest import generate_session_boundary_summaries
 
         async def _run() -> None:
             try:

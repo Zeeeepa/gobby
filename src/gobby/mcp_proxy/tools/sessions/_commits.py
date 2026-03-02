@@ -232,10 +232,10 @@ Args:
                 step="active",
             )
 
-        # Mark loop complete using the action function
-        from gobby.workflows.state_actions import mark_loop_complete as action_mark_complete
-
-        action_mark_complete(state)
+        # Inline mark_loop_complete (was a 4-liner in state_actions.py)
+        if not state.variables:
+            state.variables = {}
+        state.variables["stop_reason"] = "completed"
 
         # Save updated state
         state_manager.save_state(state)

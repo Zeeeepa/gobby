@@ -532,7 +532,7 @@ def create_readiness_registry(
         # Get recommended skills based on task category
         recommended_skills: list[str] = []
         try:
-            from gobby.workflows.context_actions import recommend_skills_for_task
+            from gobby.skills.formatting import recommend_skills_for_task
 
             task_brief = best_task.to_brief()
             recommended_skills = recommend_skills_for_task(task_brief, db=task_manager.db)
