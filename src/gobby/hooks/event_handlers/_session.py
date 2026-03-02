@@ -818,7 +818,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
         ):
             return None
         try:
-            return self._workflow_handler.engine.state_manager.get_state(session_id)
+            state: WorkflowState | None = self._workflow_handler.engine.state_manager.get_state(session_id)
+            return state
         except Exception as e:
             self.logger.debug(f"Failed to get step workflow state: {e}")
             return None

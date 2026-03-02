@@ -27,9 +27,7 @@ from gobby.servers.websocket.models import (
 logger = logging.getLogger(__name__)
 
 
-async def _kill_terminal_session(
-    terminal_ctx: dict[str, Any], session_id: str
-) -> bool:
+async def _kill_terminal_session(terminal_ctx: dict[str, Any], session_id: str) -> bool:
     """Kill a plain terminal CLI session using its terminal context.
 
     Tries tmux pane kill first (cleanest — kills just that pane), then
@@ -47,7 +45,10 @@ async def _kill_terminal_session(
     if tmux_pane:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "tmux", "kill-pane", "-t", str(tmux_pane),
+                "tmux",
+                "kill-pane",
+                "-t",
+                str(tmux_pane),
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -136,6 +137,7 @@ class SessionControlMixin:
             conversation_id: str,
             model: str | None = None,
             project_id: str | None = None,
+            resume_session_id: str | None = None,
         ) -> ChatSession: ...
 
     async def _handle_stop_chat(self, websocket: Any, data: dict[str, Any] | None = None) -> None:
@@ -307,9 +309,7 @@ class SessionControlMixin:
             if not killed and source_session:
                 terminal_ctx = source_session.terminal_context
                 if terminal_ctx:
-                    term_killed = await _kill_terminal_session(
-                        terminal_ctx, source_session_id
-                    )
+                    term_killed = await _kill_terminal_session(terminal_ctx, source_session_id)
                     if term_killed:
                         await asyncio.sleep(0.5)
                         # Mark source session as expired
@@ -321,9 +321,7 @@ class SessionControlMixin:
                                     "expired",
                                 )
                             except Exception as e:
-                                logger.warning(
-                                    f"Failed to expire source session: {e}"
-                                )
+                                logger.warning(f"Failed to expire source session: {e}")
 
         # Create chat session with optional SDK resume
         try:

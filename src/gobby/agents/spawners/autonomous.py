@@ -31,8 +31,10 @@ from claude_agent_sdk.types import (
     HookInput as SDKHookInput,
 )
 from claude_agent_sdk.types import (
+    PermissionResultAllow,
     StreamEvent,
     SyncHookJSONOutput,
+    ToolPermissionContext,
 )
 
 from gobby.servers.chat_session_helpers import (
@@ -50,6 +52,15 @@ logger = logging.getLogger(__name__)
 # Type alias for the lifecycle callback provided by the caller.
 # Receives event data dict, returns workflow response dict or None.
 LifecycleCallback = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
+
+
+async def _approve_all_tools(
+    _tool: str,
+    _input: dict[str, Any],
+    _ctx: ToolPermissionContext,
+) -> PermissionResultAllow:
+    """Autonomous agents approve all tool calls unconditionally."""
+    return PermissionResultAllow()
 
 
 class AutonomousRunner:
@@ -143,7 +154,7 @@ class AutonomousRunner:
             max_turns=self.max_turns,
             model=self.model or "sonnet",
             allowed_tools=["mcp__gobby__*"],
-            can_use_tool=lambda _tool, _input: True,  # Autonomous: approve all
+            can_use_tool=_approve_all_tools,  # Autonomous: approve all
             cli_path=cli_path,
             mcp_servers=mcp_config if mcp_config is not None else {},
             cwd=self.cwd,
