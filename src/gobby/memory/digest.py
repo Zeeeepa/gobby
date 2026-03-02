@@ -599,7 +599,23 @@ async def generate_session_boundary_summaries(
 
     digest = getattr(session, "digest_markdown", None)
     if not digest or len(digest.strip()) < 50:
-        return None
+        # Fallback: build digest from transcript when digest_markdown is empty
+        jsonl_path = getattr(session, "jsonl_path", None)
+        source = getattr(session, "source", "claude")
+        if jsonl_path:
+            pairs = _read_undigested_turns(jsonl_path, source, 0)
+            if pairs:
+                max_pairs = 15
+                max_chars = 2000
+                recent = pairs[-max_pairs:]
+                parts = []
+                for i, (prompt, response) in enumerate(recent, 1):
+                    p = (prompt[:max_chars] if prompt else "") or ""
+                    r = (response[:max_chars] if response else "") or ""
+                    parts.append(f"### Turn {i}\n**User:** {p}\n**Assistant:** {r}")
+                digest = "\n\n".join(parts)
+        if not digest or len(digest.strip()) < 50:
+            return None
 
     # Resolve provider/model
     digest_config = getattr(config, "digest", None) if config else None

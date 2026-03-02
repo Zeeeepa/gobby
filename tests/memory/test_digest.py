@@ -583,6 +583,7 @@ class TestGenerateSessionBoundarySummaries:
         sm = MagicMock()
         session = MagicMock()
         session.digest_markdown = None
+        session.jsonl_path = None
         sm.get.return_value = session
         result = await generate_session_boundary_summaries(
             session_id="s1", session_manager=sm, llm_service=mock_llm_service
@@ -594,6 +595,7 @@ class TestGenerateSessionBoundarySummaries:
         sm = MagicMock()
         session = MagicMock()
         session.digest_markdown = "Short"
+        session.jsonl_path = None
         sm.get.return_value = session
         result = await generate_session_boundary_summaries(
             session_id="s1", session_manager=sm, llm_service=mock_llm_service
@@ -691,6 +693,116 @@ class TestGenerateSessionBoundarySummaries:
 
         assert result is not None
         assert "error" in result
+
+
+class TestBoundaryFallbackToTranscript:
+    """Tests for fallback to transcript when digest_markdown is empty."""
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        service = MagicMock()
+        provider = MagicMock()
+        provider.generate_text = AsyncMock(
+            return_value=(
+                "## Output A: Handoff Context\n"
+                "Continued auth work from transcript.\n\n"
+                "===SECTION_BREAK===\n\n"
+                "## Output B: Session Summary\n"
+                "Built auth from transcript content."
+            )
+        )
+        service.get_default_provider.return_value = provider
+        return service
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_transcript_when_digest_empty(
+        self, tmp_path, mock_llm_service
+    ):
+        """When digest_markdown is empty but transcript exists, read from transcript."""
+        # Write a minimal Claude-format transcript
+        transcript = tmp_path / "session.jsonl"
+        import json
+
+        lines = [
+            {"message": {"role": "user", "content": "Fix the auth bug in login.py"}},
+            {"message": {"role": "assistant", "content": [{"type": "text", "text": "I found the issue in login.py line 42. The token validation was missing a check for expired tokens. Fixed it."}]}},
+            {"message": {"role": "user", "content": "Add tests for the fix"}},
+            {"message": {"role": "assistant", "content": [{"type": "text", "text": "Created test_login.py with 3 test cases covering token expiry, invalid tokens, and valid tokens."}]}},
+        ]
+        transcript.write_text("\n".join(json.dumps(l) for l in lines))
+
+        sm = MagicMock()
+        session = MagicMock()
+        session.digest_markdown = None
+        session.jsonl_path = str(transcript)
+        session.source = "claude"
+        sm.get.return_value = session
+        sm.update_compact_markdown.return_value = session
+        sm.update_summary.return_value = session
+
+        result = await generate_session_boundary_summaries(
+            session_id="s1", session_manager=sm, llm_service=mock_llm_service
+        )
+
+        assert result is not None
+        assert result["compact_length"] > 0
+        assert result["summary_length"] > 0
+        sm.update_compact_markdown.assert_called_once()
+        sm.update_summary.assert_called_once()
+
+        # Verify the LLM was called with transcript-derived content
+        provider = mock_llm_service.get_default_provider()
+        prompt_arg = provider.generate_text.call_args[0][0]
+        assert "Turn" in prompt_arg or "auth" in prompt_arg.lower()
+
+    @pytest.mark.asyncio
+    async def test_fallback_skipped_when_transcript_empty(self, mock_llm_service):
+        """When digest is empty and transcript is also empty, return None."""
+        sm = MagicMock()
+        session = MagicMock()
+        session.digest_markdown = ""
+        session.jsonl_path = "/nonexistent/path.jsonl"
+        session.source = "claude"
+        sm.get.return_value = session
+
+        result = await generate_session_boundary_summaries(
+            session_id="s1", session_manager=sm, llm_service=mock_llm_service
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fallback_truncates_long_turns(self, tmp_path, mock_llm_service):
+        """Transcript fallback truncates individual turns to max_chars."""
+        import json
+
+        transcript = tmp_path / "session.jsonl"
+        long_text = "x" * 5000
+        lines = [
+            {"message": {"role": "user", "content": long_text}},
+            {"message": {"role": "assistant", "content": [{"type": "text", "text": long_text}]}},
+        ]
+        transcript.write_text("\n".join(json.dumps(l) for l in lines))
+
+        sm = MagicMock()
+        session = MagicMock()
+        session.digest_markdown = None
+        session.jsonl_path = str(transcript)
+        session.source = "claude"
+        sm.get.return_value = session
+        sm.update_compact_markdown.return_value = session
+        sm.update_summary.return_value = session
+
+        result = await generate_session_boundary_summaries(
+            session_id="s1", session_manager=sm, llm_service=mock_llm_service
+        )
+
+        assert result is not None
+        # The LLM prompt should contain truncated content, not the full 5000 chars
+        provider = mock_llm_service.get_default_provider()
+        prompt_arg = provider.generate_text.call_args[0][0]
+        # Each turn is capped at 2000 chars, so total should be well under 10000
+        assert len(prompt_arg) < 10000
 
 
 class TestBuildTurnAndDigestIdempotency:
