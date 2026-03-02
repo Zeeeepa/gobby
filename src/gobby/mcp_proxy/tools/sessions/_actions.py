@@ -29,6 +29,18 @@ _EMOJI_PATTERN = re.compile(
 )
 
 
+def _resolve_provider(
+    llm_service: Any, config: Any
+) -> tuple[Any, str]:
+    """Resolve LLM provider and model from config, falling back to defaults."""
+    try:
+        provider, model, _ = llm_service.get_provider_for_feature(config)
+    except Exception:
+        provider = llm_service.get_default_provider()
+        model = "haiku"
+    return provider, model
+
+
 def _sanitize_title(raw: str) -> str:
     """Strip markdown, emoji, normalize whitespace from LLM title."""
     title = raw.strip().strip('"').strip("'").split("\n")[0]
@@ -138,20 +150,8 @@ def register_action_tools(
             from gobby.config.sessions import SessionTitleConfig
 
             title_config = getattr(config, "session_title", None) if config else None
-            if title_config:
-                try:
-                    provider, model, _ = llm_service.get_provider_for_feature(title_config)
-                except Exception:
-                    provider = llm_service.get_default_provider()
-                    model = "haiku"
-            else:
-                # Use defaults from SessionTitleConfig
-                defaults = SessionTitleConfig()
-                try:
-                    provider, model, _ = llm_service.get_provider_for_feature(defaults)
-                except Exception:
-                    provider = llm_service.get_default_provider()
-                    model = "haiku"
+            config_obj = title_config or SessionTitleConfig()
+            provider, model = _resolve_provider(llm_service, config_obj)
 
             # --- Load prompt template ---
             system_prompt: str | None = None
@@ -195,9 +195,9 @@ def register_action_tools(
             session_manager.update_title(session_id, title)
 
             # --- Rename tmux window ---
-            try:
-                from gobby.workflows.summary_actions import _rename_tmux_window
+            from gobby.workflows.summary_actions import _rename_tmux_window
 
+            try:
                 # Refresh session to get terminal_context
                 updated_session = session_manager.get(session_id)
                 if updated_session and len(title) < 80:

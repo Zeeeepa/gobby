@@ -322,11 +322,126 @@ async def _extract_memories_from_turn(
             )
             memory_ids.append(memory.id)
             logger.info("Extracted memory from turn: %s", content[:80])
-        except (json.JSONDecodeError, Exception) as e:
+        except Exception as e:
             logger.debug("Failed to parse memory candidate: %s", e)
             continue
 
     return memory_ids
+
+
+def _resolve_undigested_pairs(
+    session: Any,
+    prompt_text: str | None,
+    session_id: str,
+) -> tuple[list[tuple[str, str]], str] | None:
+    """Resolve undigested turn pairs from transcript or prompt_text.
+
+    Returns:
+        Tuple of (pairs, input_hash) or None if no content to digest.
+    """
+    undigested_pairs: list[tuple[str, str]] = []
+
+    if session.jsonl_path:
+        previous_digest = getattr(session, "digest_markdown", None) or ""
+        digested_count = _get_next_turn_number(previous_digest) - 1
+        undigested_pairs = _read_undigested_turns(
+            session.jsonl_path, session.source, digested_count
+        )
+
+    if not undigested_pairs:
+        user_prompt = prompt_text or ""
+        if not user_prompt:
+            logger.debug("build_turn_and_digest: No turn content for session %s", session_id)
+            return None
+        _stripped = user_prompt.strip()
+        if any(
+            _stripped.lower() == c or _stripped.lower().startswith(c + " ")
+            for c in _LIFECYCLE_CMDS
+        ):
+            return None
+        undigested_pairs = [(user_prompt, "")]
+
+    combined_content = "||".join(f"{p}||{r}" for p, r in undigested_pairs)
+    input_hash = hashlib.sha256(combined_content.encode()).hexdigest()[:16]
+    if session.last_digest_input_hash == input_hash:
+        logger.debug(
+            "build_turn_and_digest: Skipping duplicate digest for session %s (hash=%s)",
+            session_id,
+            input_hash,
+        )
+        return None
+
+    return undigested_pairs, input_hash
+
+
+async def _build_turn_record(
+    provider: Any,
+    model: str | None,
+    undigested_pairs: list[tuple[str, str]],
+    db: Any | None = None,
+) -> str:
+    """Build turn record markdown via LLM from undigested pairs."""
+    max_prompt_chars = 4000
+    max_response_chars = 8000
+
+    if len(undigested_pairs) == 1:
+        truncated_prompt = undigested_pairs[0][0][:max_prompt_chars]
+        truncated_response = undigested_pairs[0][1][:max_response_chars]
+    else:
+        per_prompt = max_prompt_chars // len(undigested_pairs)
+        per_response = max_response_chars // len(undigested_pairs)
+        parts = []
+        for i, (p, r) in enumerate(undigested_pairs, 1):
+            parts.append(f"## Exchange {i}\nUser: {p[:per_prompt]}\nAgent: {r[:per_response]}")
+        truncated_prompt = "\n\n".join(parts)
+        truncated_response = ""
+
+    try:
+        from gobby.prompts.loader import PromptLoader
+
+        loader = PromptLoader(db=db)
+        turn_prompt = loader.render(
+            "memory/turn_record",
+            {"prompt_text": truncated_prompt, "response_text": truncated_response},
+        )
+    except Exception:
+        turn_prompt = _build_turn_record_prompt(truncated_prompt, truncated_response)
+
+    last_turn = await provider.generate_text(turn_prompt, model=model)
+    return last_turn.strip()
+
+
+async def _synthesize_title(
+    provider: Any,
+    model: str | None,
+    updated_digest: str,
+    session_id: str,
+    session_manager: Any,
+    session: Any,
+    db: Any | None = None,
+) -> str | None:
+    """Synthesize session title from digest via LLM and update tmux window."""
+    try:
+        from gobby.prompts.loader import PromptLoader
+
+        loader = PromptLoader(db=db)
+        title_prompt = loader.render(
+            "memory/title_synthesis",
+            {"digest_markdown": updated_digest},
+        )
+    except Exception:
+        title_prompt = _build_title_synthesis_prompt(updated_digest)
+
+    title = await provider.generate_text(title_prompt, model=model)
+    title = title.strip().strip('"').strip("'")
+    if title and len(title) < 80:
+        session_manager.update_title(session_id, title)
+
+        from gobby.workflows.summary_actions import _rename_tmux_window
+
+        await _rename_tmux_window(session, title)
+        return title
+    return None
 
 
 async def build_turn_and_digest(
@@ -369,92 +484,33 @@ async def build_turn_and_digest(
         return None
 
     try:
-        # 1. Get session and resolve transcript path
+        # 1. Get session
         session = session_manager.get(session_id) if session_manager else None
         if not session:
             logger.warning("build_turn_and_digest: Session %s not found", session_id)
             return None
 
-        # 2. Read undigested turns from transcript or fall back to prompt_text
-        undigested_pairs: list[tuple[str, str]] = []
-
-        if session.jsonl_path:
-            previous_digest = getattr(session, "digest_markdown", None) or ""
-            digested_count = _get_next_turn_number(previous_digest) - 1
-            undigested_pairs = _read_undigested_turns(
-                session.jsonl_path, session.source, digested_count
-            )
-
-        if not undigested_pairs:
-            # Fallback: use prompt_text argument (non-transcript path)
-            user_prompt = prompt_text or ""
-            if not user_prompt:
-                logger.debug("build_turn_and_digest: No turn content for session %s", session_id)
-                return None
-            # Skip lifecycle commands
-            _stripped = user_prompt.strip()
-            if any(
-                _stripped.lower() == c or _stripped.lower().startswith(c + " ")
-                for c in _LIFECYCLE_CMDS
-            ):
-                return None
-            undigested_pairs = [(user_prompt, "")]
-
-        # Idempotency check: hash covers all undigested content
-        combined_content = "||".join(f"{p}||{r}" for p, r in undigested_pairs)
-        input_hash = hashlib.sha256(combined_content.encode()).hexdigest()[:16]
-        if session.last_digest_input_hash == input_hash:
-            logger.debug(
-                "build_turn_and_digest: Skipping duplicate digest for session %s (hash=%s)",
-                session_id,
-                input_hash,
-            )
+        # 2. Resolve undigested pairs
+        resolved = _resolve_undigested_pairs(session, prompt_text, session_id)
+        if resolved is None:
             return None
+        undigested_pairs, input_hash = resolved
 
         # 3. Resolve LLM provider/model
         if digest_config:
             try:
                 provider, model, _ = llm_service.get_provider_for_feature(digest_config)
-            except (ValueError, Exception):
+            except Exception:
                 provider = llm_service.get_default_provider()
                 model = None
         else:
             provider = llm_service.get_default_provider()
             model = None
 
-        # 4. Build last_turn_markdown via LLM
-        # Truncate inputs to keep LLM costs reasonable
-        max_prompt_chars = 4000
-        max_response_chars = 8000
+        # 4. Build turn record via LLM
+        last_turn = await _build_turn_record(provider, model, undigested_pairs, db)
 
-        if len(undigested_pairs) == 1:
-            truncated_prompt = undigested_pairs[0][0][:max_prompt_chars]
-            truncated_response = undigested_pairs[0][1][:max_response_chars]
-        else:
-            # Multiple exchanges (catch-up from interrupted turns)
-            per_prompt = max_prompt_chars // len(undigested_pairs)
-            per_response = max_response_chars // len(undigested_pairs)
-            parts = []
-            for i, (p, r) in enumerate(undigested_pairs, 1):
-                parts.append(f"## Exchange {i}\nUser: {p[:per_prompt]}\nAgent: {r[:per_response]}")
-            truncated_prompt = "\n\n".join(parts)
-            truncated_response = ""
-
-        try:
-            from gobby.prompts.loader import PromptLoader
-
-            loader = PromptLoader(db=db)
-            turn_prompt = loader.render(
-                "memory/turn_record",
-                {"prompt_text": truncated_prompt, "response_text": truncated_response},
-            )
-        except Exception:
-            turn_prompt = _build_turn_record_prompt(truncated_prompt, truncated_response)
-
-        last_turn = await provider.generate_text(turn_prompt, model=model)
-        last_turn = last_turn.strip()
-
-        # 5. Persist last_turn_markdown (overwrites previous)
+        # 5. Persist last_turn_markdown
         session_manager.update_last_turn_markdown(session_id, last_turn)
 
         # 6. Append to digest_markdown with turn number
@@ -464,7 +520,7 @@ async def build_turn_and_digest(
         updated_digest = f"{previous_digest}\n\n{entry}" if previous_digest else entry
         session_manager.update_digest_markdown(session_id, updated_digest)
 
-        # Persist input hash for idempotency (prevents double-digest on plan mode turns)
+        # Persist input hash for idempotency
         session_manager.update_last_digest_input_hash(session_id, input_hash)
 
         logger.info(
@@ -482,27 +538,11 @@ async def build_turn_and_digest(
 
         # 7. Synthesize title from updated digest
         try:
-            try:
-                from gobby.prompts.loader import PromptLoader
-
-                loader = PromptLoader(db=db)
-                title_prompt = loader.render(
-                    "memory/title_synthesis",
-                    {"digest_markdown": updated_digest},
-                )
-            except Exception:
-                title_prompt = _build_title_synthesis_prompt(updated_digest)
-
-            title = await provider.generate_text(title_prompt, model=model)
-            title = title.strip().strip('"').strip("'")
-            if title and len(title) < 80:
-                session_manager.update_title(session_id, title)
+            title = await _synthesize_title(
+                provider, model, updated_digest, session_id, session_manager, session, db
+            )
+            if title:
                 result["title"] = title
-
-                # Rename tmux window
-                from gobby.workflows.summary_actions import _rename_tmux_window
-
-                await _rename_tmux_window(session, title)
         except Exception as e:
             logger.warning("build_turn_and_digest: Title synthesis failed: %s", e)
 

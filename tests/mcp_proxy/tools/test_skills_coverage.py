@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -138,6 +138,9 @@ class TestListSkills:
             "list_skills", {"category": "dev"}
         )
         assert result["success"] is True
+        # list_skills is called during registry creation + during the tool call
+        last_call_kwargs = registry._mock_storage.list_skills.call_args.kwargs
+        assert last_call_kwargs.get("category") == "dev"
 
     @pytest.mark.asyncio
     async def test_list_skills_exception(self, mock_db):
@@ -183,6 +186,7 @@ class TestGetSkill:
 
         result = await registry.call("get_skill", {"skill_id": "skill-1"})
         assert result["success"] is True
+        assert result["skill"]["name"] == "test-skill"
 
     @pytest.mark.asyncio
     async def test_get_skill_not_found(self, mock_db):
@@ -258,6 +262,7 @@ class TestSearchSkills:
             {"query": "test", "category": "dev", "tags_any": ["t1"]},
         )
         assert result["success"] is True
+        registry._mock_search.search_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_search_exception(self, mock_db):

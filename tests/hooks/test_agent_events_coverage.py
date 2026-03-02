@@ -7,11 +7,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.hooks.event_handlers._agent import (
-    AgentEventHandlerMixin,
     _GOBBY_CMD_PATTERN,
-    _load_agent_prompt,
+    AgentEventHandlerMixin,
 )
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 
 pytestmark = pytest.mark.unit
 
@@ -65,10 +64,6 @@ class _TestHandler(AgentEventHandlerMixin):
 # ---------------------------------------------------------------------------
 
 
-class TestLoadAgentPrompt:
-    """Tests for _load_agent_prompt."""
-
-
 # ---------------------------------------------------------------------------
 # handle_before_agent tests
 # ---------------------------------------------------------------------------
@@ -77,7 +72,7 @@ class TestLoadAgentPrompt:
 class TestHandleBeforeAgent:
     """Tests for handle_before_agent."""
 
-    def test_no_session_id(self):
+    def test_no_session_id(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
         event = _make_event(data={"prompt": "hello"}, metadata={})
@@ -85,7 +80,7 @@ class TestHandleBeforeAgent:
         result = handler.handle_before_agent(event)
         assert result.decision == "allow"
 
-    def test_updates_status_to_active(self):
+    def test_updates_status_to_active(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
         event = _make_event(
@@ -96,7 +91,7 @@ class TestHandleBeforeAgent:
         result = handler.handle_before_agent(event)
         handler._session_manager.update_session_status.assert_called_with("sess-1", "active")
 
-    def test_clear_command_generates_summaries(self):
+    def test_clear_command_generates_summaries(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
         event = _make_event(
@@ -107,7 +102,7 @@ class TestHandleBeforeAgent:
         result = handler.handle_before_agent(event)
         handler._dispatch_boundary_summaries_fn.assert_called_once_with("sess-1", False)
 
-    def test_exit_command_generates_summaries(self):
+    def test_exit_command_generates_summaries(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
         event = _make_event(
@@ -118,7 +113,7 @@ class TestHandleBeforeAgent:
         result = handler.handle_before_agent(event)
         handler._dispatch_boundary_summaries_fn.assert_called_once()
 
-    def test_skill_interception(self):
+    def test_skill_interception(self) -> None:
         handler = _TestHandler()
         handler._skill_manager.resolve_skill_name.return_value = None
         handler._skill_manager.match_triggers.return_value = []
@@ -140,24 +135,24 @@ class TestHandleBeforeAgent:
 class TestInterceptSkillCommand:
     """Tests for _intercept_skill_command."""
 
-    def test_not_gobby_command(self):
+    def test_not_gobby_command(self) -> None:
         handler = _TestHandler()
         result = handler._intercept_skill_command("hello world")
         assert result is None
 
-    def test_bare_gobby_returns_help(self):
+    def test_bare_gobby_returns_help(self) -> None:
         handler = _TestHandler()
         with patch.object(handler, "_generate_help_content", return_value="help text"):
             result = handler._intercept_skill_command("/gobby")
         assert result == "help text"
 
-    def test_gobby_help(self):
+    def test_gobby_help(self) -> None:
         handler = _TestHandler()
         with patch.object(handler, "_generate_help_content", return_value="help text"):
             result = handler._intercept_skill_command("/gobby help")
         assert result == "help text"
 
-    def test_gobby_colon_skill(self):
+    def test_gobby_colon_skill(self) -> None:
         handler = _TestHandler()
         mock_skill = MagicMock()
         mock_skill.name = "expand"
@@ -169,7 +164,7 @@ class TestInterceptSkillCommand:
         assert "expand" in result
         assert "# Expand skill" in result
 
-    def test_gobby_space_skill(self):
+    def test_gobby_space_skill(self) -> None:
         handler = _TestHandler()
         mock_skill = MagicMock()
         mock_skill.name = "expand"
@@ -180,7 +175,7 @@ class TestInterceptSkillCommand:
         assert result is not None
         assert "some args" in result
 
-    def test_gobby_skill_not_found(self):
+    def test_gobby_skill_not_found(self) -> None:
         handler = _TestHandler()
         handler._skill_manager.resolve_skill_name.return_value = None
 
@@ -190,14 +185,14 @@ class TestInterceptSkillCommand:
             result = handler._intercept_skill_command("/gobby:nonexistent")
         assert result == "not found text"
 
-    def test_gobby_no_skill_manager(self):
+    def test_gobby_no_skill_manager(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
 
         with pytest.raises(RuntimeError, match="skill_manager not initialized"):
             handler._intercept_skill_command("/gobby:expand")
 
-    def test_gobby_colon_skill_with_args(self):
+    def test_gobby_colon_skill_with_args(self) -> None:
         handler = _TestHandler()
         mock_skill = MagicMock()
         mock_skill.name = "expand"
@@ -216,18 +211,18 @@ class TestInterceptSkillCommand:
 class TestSuggestSkills:
     """Tests for _suggest_skills."""
 
-    def test_slash_command_skipped(self):
+    def test_slash_command_skipped(self) -> None:
         handler = _TestHandler()
         result = handler._suggest_skills("/gobby:expand")
         assert result is None
 
-    def test_no_matches(self):
+    def test_no_matches(self) -> None:
         handler = _TestHandler()
         handler._skill_manager.match_triggers.return_value = []
         result = handler._suggest_skills("write some code")
         assert result is None
 
-    def test_strong_match(self):
+    def test_strong_match(self) -> None:
         handler = _TestHandler()
         mock_skill = MagicMock()
         mock_skill.name = "commit"
@@ -240,7 +235,7 @@ class TestSuggestSkills:
             result = handler._suggest_skills("commit my changes")
         assert result == "hint text"
 
-    def test_no_skill_manager(self):
+    def test_no_skill_manager(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
 
@@ -256,7 +251,7 @@ class TestSuggestSkills:
 class TestGenerateHelpContent:
     """Tests for _generate_help_content."""
 
-    def test_generate_help(self):
+    def test_generate_help(self) -> None:
         handler = _TestHandler()
         mock_skill = MagicMock()
         mock_skill.name = "expand"
@@ -271,7 +266,7 @@ class TestGenerateHelpContent:
             result = handler._generate_help_content()
         assert result == "help content"
 
-    def test_generate_help_filters_always_apply(self):
+    def test_generate_help_filters_always_apply(self) -> None:
         handler = _TestHandler()
         regular_skill = MagicMock()
         regular_skill.name = "expand"
@@ -293,12 +288,12 @@ class TestGenerateHelpContent:
         ) as mock_load:
             handler._generate_help_content()
             # skills_list should only contain the regular skill
-            call_args = mock_load.call_args
-            skills_list = call_args[1].get("skills_list") if call_args[1] else call_args[0][1].get("skills_list", "")
+            # skills_list is passed in the context dict (second positional arg)
+            skills_list = mock_load.call_args.args[1]["skills_list"]
             assert "expand" in skills_list
             assert "auto-inject" not in skills_list
 
-    def test_no_skill_manager(self):
+    def test_no_skill_manager(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
 
@@ -314,7 +309,7 @@ class TestGenerateHelpContent:
 class TestSkillNotFoundContext:
     """Tests for _skill_not_found_context."""
 
-    def test_returns_not_found_message(self):
+    def test_returns_not_found_message(self) -> None:
         handler = _TestHandler()
         mock_skill = MagicMock()
         mock_skill.name = "expand"
@@ -328,7 +323,7 @@ class TestSkillNotFoundContext:
             result = handler._skill_not_found_context("expa")
         assert result == "not found msg"
 
-    def test_no_skill_manager(self):
+    def test_no_skill_manager(self) -> None:
         handler = _TestHandler()
         handler._skill_manager = None
 
@@ -344,7 +339,7 @@ class TestSkillNotFoundContext:
 class TestHandleAfterAgent:
     """Tests for handle_after_agent."""
 
-    def test_with_session(self):
+    def test_with_session(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.AFTER_AGENT,
@@ -355,7 +350,7 @@ class TestHandleAfterAgent:
         assert result.decision == "allow"
         handler._session_manager.update_session_status.assert_called_with("sess-1", "paused")
 
-    def test_without_session(self):
+    def test_without_session(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.AFTER_AGENT,
@@ -374,7 +369,7 @@ class TestHandleAfterAgent:
 class TestHandleStop:
     """Tests for handle_stop."""
 
-    def test_with_session(self):
+    def test_with_session(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.STOP,
@@ -385,7 +380,7 @@ class TestHandleStop:
         assert result.decision == "allow"
         handler._session_manager.update_session_status.assert_called_with("sess-1", "paused")
 
-    def test_without_session(self):
+    def test_without_session(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.STOP,
@@ -404,7 +399,7 @@ class TestHandleStop:
 class TestHandlePreCompact:
     """Tests for handle_pre_compact."""
 
-    def test_gemini_skipped(self):
+    def test_gemini_skipped(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.PRE_COMPACT,
@@ -416,7 +411,7 @@ class TestHandlePreCompact:
         assert result.decision == "allow"
         handler._session_manager.update_session_status.assert_not_called()
 
-    def test_claude_updates_status(self):
+    def test_claude_updates_status(self) -> None:
         handler = _TestHandler()
         handler._dispatch_boundary_summaries_fn = MagicMock()
         event = _make_event(
@@ -431,7 +426,7 @@ class TestHandlePreCompact:
         handler._session_manager.update_session_status.assert_called_with("sess-1", "handoff_ready")
         handler._dispatch_boundary_summaries_fn.assert_called_once()
 
-    def test_no_session_id(self):
+    def test_no_session_id(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.PRE_COMPACT,
@@ -451,7 +446,7 @@ class TestHandlePreCompact:
 class TestSubagentEvents:
     """Tests for subagent event handlers."""
 
-    def test_subagent_start(self):
+    def test_subagent_start(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.SUBAGENT_START,
@@ -462,7 +457,7 @@ class TestSubagentEvents:
         result = handler.handle_subagent_start(event)
         assert result.decision == "allow"
 
-    def test_subagent_start_no_ids(self):
+    def test_subagent_start_no_ids(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.SUBAGENT_START,
@@ -473,7 +468,7 @@ class TestSubagentEvents:
         result = handler.handle_subagent_start(event)
         assert result.decision == "allow"
 
-    def test_subagent_stop(self):
+    def test_subagent_stop(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.SUBAGENT_STOP,
@@ -483,7 +478,7 @@ class TestSubagentEvents:
         result = handler.handle_subagent_stop(event)
         assert result.decision == "allow"
 
-    def test_subagent_stop_no_session(self):
+    def test_subagent_stop_no_session(self) -> None:
         handler = _TestHandler()
         event = _make_event(
             event_type=HookEventType.SUBAGENT_STOP,
@@ -502,22 +497,22 @@ class TestSubagentEvents:
 class TestGobbyCommandPattern:
     """Tests for the command regex pattern."""
 
-    def test_bare_gobby(self):
+    def test_bare_gobby(self) -> None:
         m = _GOBBY_CMD_PATTERN.match("/gobby")
         assert m is not None
         assert m.group(1) is None
 
-    def test_gobby_colon_skill(self):
+    def test_gobby_colon_skill(self) -> None:
         m = _GOBBY_CMD_PATTERN.match("/gobby:expand")
         assert m is not None
         assert m.group(1) == "expand"
 
-    def test_gobby_space_skill(self):
+    def test_gobby_space_skill(self) -> None:
         m = _GOBBY_CMD_PATTERN.match("/gobby expand --tdd")
         assert m is not None
         assert m.group(1) is None
         assert "expand --tdd" in m.group(2)
 
-    def test_not_gobby(self):
+    def test_not_gobby(self) -> None:
         m = _GOBBY_CMD_PATTERN.match("/other command")
         assert m is None

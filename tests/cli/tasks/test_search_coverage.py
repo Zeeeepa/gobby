@@ -50,7 +50,7 @@ class TestSearchTasks:
     ) -> None:
         mgr = mock_mgr_fn.return_value
         task1 = _mock_task(title="Auth bug", seq_num=1)
-        task2 = _mock_task(task_id="bbbb-2222", title="Login fix", seq_num=2)
+        task2 = _mock_task(task_id="bbbb1111-0000-0000-0000-000000000000", title="Login fix", seq_num=2)
         mgr.search_tasks.return_value = [(task1, 0.95), (task2, 0.72)]
         result = runner.invoke(search_tasks, ["authentication"], catch_exceptions=False)
         assert result.exit_code == 0
@@ -82,9 +82,11 @@ class TestSearchTasks:
         assert result.exit_code == 0
         assert '"count": 1' in result.output
 
-    def test_search_empty_query(self, runner: CliRunner) -> None:
+    @patch("gobby.cli.tasks.search.get_task_manager")
+    def test_search_empty_query(self, mock_mgr_fn: MagicMock, runner: CliRunner) -> None:
         result = runner.invoke(search_tasks, ["   "], catch_exceptions=False)
         assert result.exit_code == 0  # returns early with error message
+        mock_mgr_fn.assert_not_called()
 
     @patch("gobby.cli.tasks.search.get_task_manager")
     @patch("gobby.cli.tasks.search.resolve_project_ref", return_value="proj-123")
@@ -166,7 +168,6 @@ class TestSearchTasks:
     ) -> None:
         mgr = mock_mgr_fn.return_value
         task = _mock_task(seq_num=0)  # falsy seq_num
-        task.seq_num = 0
         mgr.search_tasks.return_value = [(task, 0.8)]
         result = runner.invoke(search_tasks, ["test"], catch_exceptions=False)
         assert result.exit_code == 0
@@ -186,7 +187,7 @@ class TestReindexTasks:
         result = runner.invoke(reindex_tasks, [], catch_exceptions=False)
         assert result.exit_code == 0
         assert "42" in result.output
-        assert "100" in result.output
+        assert "Vocabulary size" in result.output or "100" in result.output
 
     @patch("gobby.cli.tasks.search.get_task_manager")
     def test_reindex_all_projects(

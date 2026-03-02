@@ -7,6 +7,7 @@ Lines targeted: 82-112, 131-166, 188-264, 278-481
 from __future__ import annotations
 
 import json
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import click
@@ -25,7 +26,7 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
-def _make_worktree(**overrides) -> Worktree:
+def _make_worktree(**overrides: Any) -> Worktree:
     defaults = {
         "id": "wt-aaa-bbb-ccc-ddd",
         "branch_name": "feat/x",

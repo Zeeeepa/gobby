@@ -135,6 +135,7 @@ class TestListSessionsEdgeCases:
         mock_session_manager.list.return_value = [session]
         result = runner.invoke(sessions, ["list"])
         assert result.exit_code == 0
+        assert "→" in result.output
 
 
 # =============================================================================

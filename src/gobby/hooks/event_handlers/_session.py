@@ -447,7 +447,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                                     )
                                 except Exception as e:
                                     self.logger.debug(
-                                        f"Best-effort task re-assignment failed: {e}"
+                                        f"Best-effort task re-assignment failed for session={session_id} task={claimed_id}: {e}"
                                     )
                             if self._session_task_manager:
                                 try:
@@ -456,7 +456,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                                     )
                                 except Exception as e:
                                     self.logger.debug(
-                                        f"Best-effort session-task link failed: {e}"
+                                        f"Best-effort session-task link failed for session={session_id} task={claimed_id}: {e}"
                                     )
 
         # Populate task_context session variable for inject_context rule templates

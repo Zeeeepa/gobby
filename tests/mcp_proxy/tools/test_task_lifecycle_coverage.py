@@ -1,13 +1,14 @@
 """Tests for tasks/_lifecycle.py — targeting uncovered lines."""
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.mcp_proxy.tools.tasks._lifecycle import _is_uuid
-from gobby.storage.tasks import LocalTaskManager, Task, TaskNotFoundError
+from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 
 pytestmark = pytest.mark.unit
@@ -53,18 +54,18 @@ def _make_task(
 
 
 @pytest.fixture
-def mock_task_manager():
+def mock_task_manager() -> MagicMock:
     mgr = MagicMock(spec=LocalTaskManager)
     mgr.db = MagicMock()
     return mgr
 
 
 @pytest.fixture
-def mock_sync_manager():
+def mock_sync_manager() -> MagicMock:
     return MagicMock(spec=TaskSyncManager)
 
 
-def _create_registry(task_manager, sync_manager):
+def _create_registry(task_manager: MagicMock, sync_manager: MagicMock) -> Any:
     """Create registry with patches for context managers."""
     with (
         patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),

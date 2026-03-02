@@ -441,7 +441,6 @@ class TestSkillsValidate:
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text("# Test")
         parsed = MagicMock()
-        parsed.name = "test-skill"
         parsed.configure_mock(name="test-skill")
         mock_loader_cls.return_value.load_skill.return_value = parsed
         validation_result = MagicMock(valid=True, warnings=[], errors=[])

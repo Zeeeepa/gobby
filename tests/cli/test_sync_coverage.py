@@ -157,11 +157,12 @@ class TestSyncVerifyOnly:
 
     @patch("gobby.cli.sync.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.utils.dev.is_dev_mode", return_value=True)
-    def test_force_verbose(
+    def test_verify_only_verbose(
         self, _dev: MagicMock, _install: MagicMock, runner: CliRunner
     ) -> None:
         result = runner.invoke(sync, ["--verify-only", "--verbose"], catch_exceptions=False)
         assert result.exit_code == 0
+        assert "No integrity check" in result.output
 
 
 # ---------------------------------------------------------------------------

@@ -135,9 +135,9 @@ def recommend_skills_for_task(
     if task is None:
         return []
 
-    try:
-        from gobby.hooks.skill_manager import HookSkillManager
+    from gobby.hooks.skill_manager import HookSkillManager
 
+    try:
         manager = HookSkillManager(db=db)
         category = task.get("category")
         return manager.recommend_skills(category=category)

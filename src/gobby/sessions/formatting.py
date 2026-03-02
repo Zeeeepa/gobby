@@ -13,7 +13,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> str:
+def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None, cwd: Path | None = None) -> str:
     """Format HandoffContext as markdown for storage.
 
     Args:
@@ -61,7 +61,7 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
     if ctx.files_modified and ctx.git_status:
         # Filter to files that appear in git status (still uncommitted)
         # Normalize paths: files_modified may have absolute paths, git_status has relative
-        cwd = Path.cwd()
+        cwd = cwd or Path.cwd()
         dirty_files = []
         for f in ctx.files_modified:
             # Try to make path relative to cwd for comparison

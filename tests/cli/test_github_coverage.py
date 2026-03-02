@@ -171,6 +171,8 @@ class TestGithubImport:
             catch_exceptions=False,
         )
         assert result.exit_code == 0
+        mock_async.assert_called_once()
+        mock_svc.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

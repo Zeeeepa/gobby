@@ -45,7 +45,7 @@ class TestEnsureGobbyTag:
         mgr = MagicMock()
         row = MagicMock()
         row.id = "r1"
-        row.source = "installed"
+        row.source = "template"
         row.tags = ["gobby", "other"]
         mgr.list_all.return_value = [row]
 
@@ -76,7 +76,7 @@ class TestEnsureGobbyTag:
 
 
 # ---------------------------------------------------------------------------
-# _propagate_to_installed
+# sync_bundled_variables
 # ---------------------------------------------------------------------------
 
 
