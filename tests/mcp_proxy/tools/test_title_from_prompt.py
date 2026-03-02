@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.mcp_proxy.tools.sessions._actions import _sanitize_title
 
@@ -24,7 +25,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def mock_session():
+def mock_session() -> MagicMock:
     """A session with no title (needs synthesis)."""
     session = MagicMock()
     session.id = "sess-123"
@@ -35,7 +36,7 @@ def mock_session():
 
 
 @pytest.fixture
-def mock_session_manager(mock_session):
+def mock_session_manager(mock_session) -> MagicMock:
     manager = MagicMock()
     manager.get = MagicMock(return_value=mock_session)
     manager.update_title = MagicMock(return_value=mock_session)
@@ -43,14 +44,14 @@ def mock_session_manager(mock_session):
 
 
 @pytest.fixture
-def mock_llm_provider():
+def mock_llm_provider() -> MagicMock:
     provider = MagicMock()
     provider.generate_text = AsyncMock(return_value="Implement Auth System")
     return provider
 
 
 @pytest.fixture
-def mock_llm_service(mock_llm_provider):
+def mock_llm_service(mock_llm_provider) -> MagicMock:
     service = MagicMock()
     service.get_provider_for_feature = MagicMock(return_value=(mock_llm_provider, "haiku", None))
     service.get_default_provider = MagicMock(return_value=mock_llm_provider)
@@ -58,14 +59,14 @@ def mock_llm_service(mock_llm_provider):
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> MagicMock:
     config = MagicMock()
     config.session_title = MagicMock()
     return config
 
 
 @pytest.fixture
-def registry(mock_session_manager, mock_llm_service, mock_config):
+def registry(mock_session_manager, mock_llm_service, mock_config) -> InternalToolRegistry:
     return create_session_messages_registry(
         session_manager=mock_session_manager,
         llm_service=mock_llm_service,

@@ -127,7 +127,7 @@ def register_action_tools(
                     "title": existing_title,
                 }
         except Exception as e:
-            logger.warning(f"Failed to check session title: {e}")
+            logger.warning("Failed to check session title", exc_info=True)
             return {"success": False, "error": str(e)}
 
         # --- Resolve LLM provider ---
@@ -141,7 +141,7 @@ def register_action_tools(
             if title_config:
                 try:
                     provider, model, _ = llm_service.get_provider_for_feature(title_config)
-                except (ValueError, Exception):
+                except Exception:
                     provider = llm_service.get_default_provider()
                     model = "haiku"
             else:
@@ -149,7 +149,7 @@ def register_action_tools(
                 defaults = SessionTitleConfig()
                 try:
                     provider, model, _ = llm_service.get_provider_for_feature(defaults)
-                except (ValueError, Exception):
+                except Exception:
                     provider = llm_service.get_default_provider()
                     model = "haiku"
 
