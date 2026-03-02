@@ -33,7 +33,7 @@ def _resolve_provider(llm_service: Any, config: Any) -> tuple[Any, str | None]:
     """Resolve LLM provider and model from config, falling back to defaults."""
     try:
         provider, model, _ = llm_service.get_provider_for_feature(config)
-    except Exception:
+    except (ValueError, KeyError, AttributeError):
         provider = llm_service.get_default_provider()
         model = None
     return provider, model
@@ -178,6 +178,7 @@ def register_action_tools(
                 )
 
             # --- Call LLM ---
+            llm_timeout = getattr(config_obj, "timeout", 30)
             raw_title = await asyncio.wait_for(
                 provider.generate_text(
                     llm_prompt,
@@ -185,7 +186,7 @@ def register_action_tools(
                     model=model,
                     max_tokens=30,
                 ),
-                timeout=10,
+                timeout=llm_timeout,
             )
             title = _sanitize_title(raw_title)
 
@@ -206,11 +207,13 @@ def register_action_tools(
             return {"success": True, "title": title}
 
         except TimeoutError:
-            logger.warning(f"Title synthesis timed out for session {session_id}")
+            logger.warning("Title synthesis timed out for session %s", session_id)
             return {"success": False, "error": "LLM call timed out"}
         except Exception as e:
             logger.error(
-                f"Title synthesis failed for session {session_id}: {e}",
+                "Title synthesis failed for session %s: %s",
+                session_id,
+                e,
                 exc_info=True,
             )
             return {"success": False, "error": str(e)}
