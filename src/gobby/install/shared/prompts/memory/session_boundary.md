@@ -3,7 +3,9 @@ description: Generate compact handoff context and archival summary from session 
 required_variables:
   - digest_markdown
 ---
-Given a session's complete turn-by-turn digest, produce two outputs separated by the exact markers shown below.
+Given a session's complete turn-by-turn digest, produce two outputs.
+
+You MUST separate the two outputs with the exact line `===SECTION_BREAK===` on its own line (no extra whitespace). This marker is required for machine parsing — do not omit it, rename it, or wrap it in markdown formatting.
 
 ## Session Digest
 {{ digest_markdown }}

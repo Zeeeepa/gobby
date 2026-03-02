@@ -855,8 +855,11 @@ async def generate_session_boundary_summaries(
             )
         except Exception:
             boundary_prompt = (
-                "Given a session's complete turn-by-turn digest, produce two outputs "
-                "separated by the exact marker ===SECTION_BREAK===.\n\n"
+                "Given a session's complete turn-by-turn digest, produce two outputs.\n\n"
+                "You MUST separate the two outputs with the exact line "
+                "===SECTION_BREAK=== on its own line (no extra whitespace). "
+                "This marker is required for machine parsing — do not omit it, "
+                "rename it, or wrap it in markdown formatting.\n\n"
                 f"## Session Digest\n{digest}\n\n"
                 "---\n\n"
                 "## Output A: Handoff Context\n"
@@ -879,9 +882,26 @@ async def generate_session_boundary_summaries(
             compact = parts[0].strip()
             summary = parts[1].strip() if len(parts) > 1 else ""
         else:
-            # Fallback: use full response as summary, first half as compact
-            compact = response
-            summary = response
+            # Fallback: try splitting on Output B header variants
+            compact = ""
+            summary = ""
+            header_match = re.search(
+                r"\n(?=#{1,3}\s*Output\s*B\b)", response, re.IGNORECASE
+            )
+            if header_match:
+                compact = response[: header_match.start()].strip()
+                summary = response[header_match.start() :].strip()
+            else:
+                # Last resort: full response is summary, compact gets
+                # only the first 500 words to avoid bloating context
+                summary = response
+                words = response.split()
+                compact = " ".join(words[:500]) if len(words) > 500 else response
+            logger.warning(
+                "Session boundary response missing ===SECTION_BREAK=== marker "
+                "for session %s, used fallback parsing",
+                session_id,
+            )
 
         # Persist
         if compact:

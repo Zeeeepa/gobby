@@ -1545,11 +1545,18 @@ class TestGenerateSessionBoundarySummaries:
         assert "auth" in compact.lower() or "Handoff" in compact
 
     @pytest.mark.asyncio
-    async def test_handles_missing_section_break(self, mock_session_manager):
-        """When LLM doesn't include the marker, use full response for both."""
+    async def test_fallback_splits_on_output_b_header(self, mock_session_manager):
+        """When LLM omits ===SECTION_BREAK=== but includes Output B header, split there."""
         service = MagicMock()
         provider = MagicMock()
-        provider.generate_text = AsyncMock(return_value="Full summary without separator.")
+        provider.generate_text = AsyncMock(
+            return_value=(
+                "## Output A: Handoff Context\n"
+                "Working on auth refactor.\n\n"
+                "## Output B: Session Summary\n"
+                "Completed auth module refactor."
+            )
+        )
         service.get_default_provider.return_value = provider
 
         result = await generate_session_boundary_summaries(
@@ -1559,9 +1566,39 @@ class TestGenerateSessionBoundarySummaries:
         )
 
         assert result is not None
-        # Both should be populated with the full response
+        compact = mock_session_manager.update_compact_markdown.call_args[0][1]
+        summary = mock_session_manager.update_summary.call_args[1].get(
+            "summary_markdown"
+        ) or mock_session_manager.update_summary.call_args[0][1]
+
+        # compact should NOT contain Output B content
+        assert "Session Summary" not in compact
+        assert "Completed auth" not in compact
+        # summary should contain Output B content
+        assert "Completed auth" in summary
+
+    @pytest.mark.asyncio
+    async def test_fallback_no_header_truncates_compact(self, mock_session_manager):
+        """When no marker and no Output B header, summary gets full response."""
+        service = MagicMock()
+        provider = MagicMock()
+        provider.generate_text = AsyncMock(
+            return_value="Full summary without any separator or headers."
+        )
+        service.get_default_provider.return_value = provider
+
+        result = await generate_session_boundary_summaries(
+            session_id="s1",
+            session_manager=mock_session_manager,
+            llm_service=service,
+        )
+
+        assert result is not None
         mock_session_manager.update_compact_markdown.assert_called_once()
         mock_session_manager.update_summary.assert_called_once()
+        summary_arg = mock_session_manager.update_summary.call_args
+        summary_text = summary_arg[1].get("summary_markdown") or summary_arg[0][1]
+        assert "Full summary" in summary_text
 
     @pytest.mark.asyncio
     async def test_handles_llm_error(self, mock_session_manager):
