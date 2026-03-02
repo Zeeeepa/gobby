@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import textwrap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,15 +10,7 @@ import pytest
 
 from gobby.workflows.sync import (
     _ensure_gobby_tag_on_installed,
-    _propagate_to_installed,
-    _sync_single_rule,
-    _sync_single_variable,
-    get_bundled_rules_path,
-    get_bundled_variables_path,
-    get_bundled_workflows_path,
-    sync_bundled_rules,
     sync_bundled_variables,
-    sync_bundled_workflows,
 )
 
 pytestmark = pytest.mark.unit

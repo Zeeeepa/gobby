@@ -73,7 +73,7 @@ def _make_session(
 class _TestHandler(SessionEventHandlerMixin):
     """Concrete implementation with required attributes for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = MagicMock()
         self._session_manager = MagicMock()
         self._session_storage = MagicMock()
@@ -166,10 +166,7 @@ class TestFindGeminiTranscript:
             chain.glob.return_value = [mock_file]
 
             result = handler._find_gemini_transcript({"cwd": cwd}, "abcdefgh-1234")
-            # The function calls Path.home() / ".gemini" / ...
-            # Our mock chain should return the file
-            # Due to complex Path mocking, just verify no crash
-            # Complex Path mocking — reaching this line without exception is the test
+            assert result == "/fake/session-20240101-abcdefgh.json"
 
     def test_fallback_most_recent(self, tmp_path) -> None:
         """When prefix doesn't match, falls back to most recent."""
@@ -602,7 +599,11 @@ class TestSessionMoreCoverage:
             patch.object(handler, "_activate_default_agent", return_value=None),
             patch("time.sleep") as mock_sleep,
             patch("time.monotonic", side_effect=[0, 1, 2, 3, 4]),
+            patch(
+                "gobby.workflows.state_manager.SessionVariableManager"
+            ) as mock_svm_cls,
         ):
+            mock_svm_cls.return_value.get_variables.return_value = {}
             handler.handle_session_start(event)
             mock_sleep.assert_called()
 

@@ -396,7 +396,7 @@ class TestClaimTaskSessionVariables:
     @pytest.mark.asyncio
     async def test_claim_task_sets_task_claimed_via_session_variables(
         self, mock_task_manager, mock_sync_manager, sample_task
-    ):
+    ) -> None:
         """claim_task must set task_claimed via session_var_manager.merge_variables.
 
         Regression test for #8642: PreToolUse hook blocked edits despite claimed task
@@ -407,9 +407,7 @@ class TestClaimTaskSessionVariables:
                 "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
             ) as MockSessionTaskManager,
             patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
-            ) as MockSVManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.SessionVariableManager") as MockSVManager,
         ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance

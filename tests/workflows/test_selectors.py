@@ -258,6 +258,15 @@ def test_resolve_skills_with_include_exclude() -> None:
     assert "dangerous" not in result
 
 
+def test_resolve_skills_explicit_only() -> None:
+    """When skill_selectors is None, resolve returns None (permissive by default)."""
+    agent = MagicMock()
+    agent.workflows.skills = ["skill-a", "skill-b"]
+    agent.workflows.skill_selectors = None
+    result = resolve_skills_for_agent(agent, [])
+    assert result is None
+
+
 # --- resolve_variables_for_agent ---
 
 

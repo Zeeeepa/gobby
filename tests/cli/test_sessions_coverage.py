@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Generator
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -28,26 +28,22 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def mock_session_manager() -> Generator[MagicMock, None, None]:
+def mock_session_manager() -> Generator[MagicMock]:
     with patch("gobby.cli.sessions.get_session_manager") as mock:
         yield mock.return_value
 
 
 @pytest.fixture
-def mock_message_manager() -> Generator[MagicMock, None, None]:
+def mock_message_manager() -> Generator[MagicMock]:
     with patch("gobby.cli.sessions.get_message_manager") as mock:
         yield mock.return_value
 
 
 @pytest.fixture
-def mock_resolve_session() -> Generator[MagicMock, None, None]:
+def mock_resolve_session() -> Generator[MagicMock]:
     with patch("gobby.cli.sessions.resolve_session_id") as mock:
         mock.side_effect = lambda x, **kw: x if x else "current-session"
         yield mock
-
-
-async def _async_return[T](val: T) -> T:
-    return val
 
 
 def _make_session(**overrides: Any) -> Session:
@@ -218,7 +214,7 @@ class TestMessagesEdgeCases:
         session = _make_session()
         mock_session_manager.get.return_value = session
         msgs = [{"role": "user", "content": "hi", "message_index": 1}]
-        mock_message_manager.get_messages.side_effect = lambda **kw: _async_return(msgs)
+        mock_message_manager.get_messages = AsyncMock(return_value=msgs)
         result = runner.invoke(sessions, ["messages", "sess-abc123", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -233,7 +229,7 @@ class TestMessagesEdgeCases:
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
-        mock_message_manager.get_messages.side_effect = lambda **kw: _async_return([])
+        mock_message_manager.get_messages = AsyncMock(return_value=[])
         result = runner.invoke(sessions, ["messages", "sess-abc123"])
         assert result.exit_code == 0
         assert "No messages found" in result.output
@@ -248,8 +244,8 @@ class TestMessagesEdgeCases:
         session = _make_session()
         mock_session_manager.get.return_value = session
         msgs = [{"role": "tool", "content": "result", "message_index": 1, "tool_name": "read_file"}]
-        mock_message_manager.get_messages.side_effect = lambda **kw: _async_return(msgs)
-        mock_message_manager.count_messages.side_effect = lambda sid: _async_return(1)
+        mock_message_manager.get_messages = AsyncMock(return_value=msgs)
+        mock_message_manager.count_messages = AsyncMock(return_value=1)
         result = runner.invoke(sessions, ["messages", "sess-abc123"])
         assert result.exit_code == 0
         assert "read_file" in result.output
@@ -264,8 +260,8 @@ class TestMessagesEdgeCases:
         session = _make_session()
         mock_session_manager.get.return_value = session
         msgs = [{"role": "user", "content": "x" * 300, "message_index": 1}]
-        mock_message_manager.get_messages.side_effect = lambda **kw: _async_return(msgs)
-        mock_message_manager.count_messages.side_effect = lambda sid: _async_return(1)
+        mock_message_manager.get_messages = AsyncMock(return_value=msgs)
+        mock_message_manager.count_messages = AsyncMock(return_value=1)
         result = runner.invoke(sessions, ["messages", "sess-abc123"])
         assert result.exit_code == 0
         assert "..." in result.output
@@ -290,21 +286,21 @@ class TestMessagesEdgeCases:
 class TestSearchEdgeCases:
     def test_search_json(self, runner: CliRunner, mock_message_manager: MagicMock) -> None:
         msgs = [{"role": "user", "content": "found", "session_id": "s1"}]
-        mock_message_manager.search_messages.side_effect = lambda **kw: _async_return(msgs)
+        mock_message_manager.search_messages = AsyncMock(return_value=msgs)
         result = runner.invoke(sessions, ["search", "query", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data) == 1
 
     def test_search_empty(self, runner: CliRunner, mock_message_manager: MagicMock) -> None:
-        mock_message_manager.search_messages.side_effect = lambda **kw: _async_return([])
+        mock_message_manager.search_messages = AsyncMock(return_value=[])
         result = runner.invoke(sessions, ["search", "nothing"])
         assert result.exit_code == 0
         assert "No messages found" in result.output
 
     def test_search_long_content(self, runner: CliRunner, mock_message_manager: MagicMock) -> None:
         msgs = [{"role": "user", "content": "x" * 200, "session_id": "s1"}]
-        mock_message_manager.search_messages.side_effect = lambda **kw: _async_return(msgs)
+        mock_message_manager.search_messages = AsyncMock(return_value=msgs)
         result = runner.invoke(sessions, ["search", "query"])
         assert result.exit_code == 0
         assert "..." in result.output
@@ -313,7 +309,7 @@ class TestSearchEdgeCases:
     def test_search_with_session_filter(
         self, mock_resolve: MagicMock, runner: CliRunner, mock_message_manager: MagicMock
     ) -> None:
-        mock_message_manager.search_messages.side_effect = lambda **kw: _async_return([])
+        mock_message_manager.search_messages = AsyncMock(return_value=[])
         result = runner.invoke(sessions, ["search", "query", "--session", "sess-1"])
         assert result.exit_code == 0
 
@@ -321,7 +317,7 @@ class TestSearchEdgeCases:
     def test_search_with_project_filter(
         self, mock_resolve: MagicMock, runner: CliRunner, mock_message_manager: MagicMock
     ) -> None:
-        mock_message_manager.search_messages.side_effect = lambda **kw: _async_return([])
+        mock_message_manager.search_messages = AsyncMock(return_value=[])
         result = runner.invoke(sessions, ["search", "query", "--project", "myproj"])
         assert result.exit_code == 0
 
@@ -358,7 +354,7 @@ class TestStatsWithProject:
     ) -> None:
         s1 = _make_session(status="active", source="claude")
         mock_session_manager.list.return_value = [s1]
-        mock_message_manager.get_all_counts.side_effect = lambda: _async_return({"sess-abc123": 5})
+        mock_message_manager.get_all_counts = AsyncMock(return_value={"sess-abc123": 5})
         result = runner.invoke(sessions, ["stats", "--project", "myproj"])
         assert result.exit_code == 0
         assert "Total Sessions: 1" in result.output

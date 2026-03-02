@@ -95,8 +95,6 @@ def sample_task():
 # =============================================================================
 
 
-
-
 class TestSkipReasons:
     """Tests for SKIP_REASONS constant."""
 
@@ -656,7 +654,12 @@ class TestCreateTaskTool:
 
                 result = await registry.call(
                     "create_task",
-                    {"title": "New Task", "session_id": "test-session", "category": "research", "claim": True},
+                    {
+                        "title": "New Task",
+                        "session_id": "test-session",
+                        "category": "research",
+                        "claim": True,
+                    },
                 )
 
                 # Task should be created
@@ -681,7 +684,7 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_with_claim_sets_task_claimed_via_session_variables(
         self, mock_task_manager, mock_sync_manager
-    ):
+    ) -> None:
         """create_task(claim=True) must set task_claimed via session_var_manager.
 
         Regression test for #8642.
@@ -691,9 +694,7 @@ class TestCreateTaskTool:
                 "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
             ) as MockSessionTaskManager,
             patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
-            ) as MockSVManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.SessionVariableManager") as MockSVManager,
         ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
@@ -724,7 +725,12 @@ class TestCreateTaskTool:
 
                 result = await registry.call(
                     "create_task",
-                    {"title": "New Task", "session_id": "test-session", "category": "research", "claim": True},
+                    {
+                        "title": "New Task",
+                        "session_id": "test-session",
+                        "category": "research",
+                        "claim": True,
+                    },
                 )
 
                 assert result["id"] == "550e8400-e29b-41d4-a716-446655440021"
@@ -1337,15 +1343,9 @@ class TestCloseTaskTool:
             patch(
                 "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
             ) as MockSessionTaskManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
-            ) as MockSessionManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
-            ) as MockSVManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
-            ) as MockProjManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.SessionVariableManager") as MockSVManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
             patch("gobby.utils.git.run_git_command") as mock_git,
         ):
             mock_st_instance = MagicMock()
@@ -2003,12 +2003,8 @@ class TestSessionVariableMirroring:
             patch(
                 "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
             ) as MockSessionTaskManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
-            ) as MockSessionManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
-            ) as MockSVManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.SessionVariableManager") as MockSVManager,
         ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
@@ -2057,15 +2053,9 @@ class TestSessionVariableMirroring:
             patch(
                 "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
             ) as MockSessionTaskManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
-            ) as MockSessionManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
-            ) as MockSVManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
-            ) as MockProjManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.SessionVariableManager") as MockSVManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
             patch("gobby.utils.git.run_git_command") as mock_git,
         ):
             mock_st_instance = MagicMock()
@@ -2128,12 +2118,8 @@ class TestSessionVariableMirroring:
             patch(
                 "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
             ) as MockSessionTaskManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
-            ) as MockSessionManager,
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.SessionVariableManager"
-            ) as MockSVManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.SessionVariableManager") as MockSVManager,
         ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
@@ -2163,7 +2149,12 @@ class TestSessionVariableMirroring:
 
                 result = await registry.call(
                     "create_task",
-                    {"title": "New Task", "session_id": "test-session", "category": "research", "claim": True},
+                    {
+                        "title": "New Task",
+                        "session_id": "test-session",
+                        "category": "research",
+                        "claim": True,
+                    },
                 )
 
                 assert result["id"] == task_uuid

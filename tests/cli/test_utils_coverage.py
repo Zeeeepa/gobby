@@ -130,8 +130,7 @@ def test_find_web_dir_none(tmp_path: Path) -> None:
 def test_is_port_available() -> None:
     from gobby.cli.utils import is_port_available
 
-    # Port 0 always available (OS assigns random)
-    # Test with a very high port that's likely available
+    # Port 0 is a special case that always returns True
     result = is_port_available(0, "127.0.0.1")
     assert result is True
 
@@ -206,11 +205,13 @@ def test_stop_daemon_no_pid_file(tmp_path: Path) -> None:
 
     with (
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
-        patch("gobby.cli.utils.stop_ui_server"),
-        patch("gobby.cli.utils.stop_watchdog"),
+        patch("gobby.cli.utils.stop_ui_server") as mock_ui,
+        patch("gobby.cli.utils.stop_watchdog") as mock_wd,
     ):
         result = stop_daemon(quiet=True)
     assert result is True
+    mock_ui.assert_called_once_with(quiet=True)
+    mock_wd.assert_called_once_with(quiet=True)
 
 
 def test_stop_daemon_stale_pid(tmp_path: Path) -> None:
@@ -317,9 +318,10 @@ def test_load_full_config_from_db_no_db(tmp_path: Path) -> None:
     mock_config = MagicMock()
     mock_config.database_path = str(tmp_path / "nonexistent.db")
 
-    with patch("gobby.cli.utils.load_config", return_value=mock_config):
+    with patch("gobby.cli.utils.load_config", return_value=mock_config) as mock_load:
         result = load_full_config_from_db()
     assert result is mock_config
+    mock_load.assert_called_once()
 
 
 def test_load_full_config_from_db_with_db(tmp_path: Path) -> None:
@@ -342,3 +344,4 @@ def test_load_full_config_from_db_with_db(tmp_path: Path) -> None:
         mock_load.side_effect = [mock_config, final_config]
         result = load_full_config_from_db()
     assert result is final_config
+    assert mock_load.call_count == 2

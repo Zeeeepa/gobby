@@ -230,6 +230,12 @@ async def test_resume_parses_inputs_from_execution() -> None:
     assert result == [execution.id]
     assert len(_background_tasks) == 1
 
+    # Give the background task a chance to start
+    await asyncio.sleep(0)
+
+    executor.execute.assert_called_once()
+    assert executor.execute.call_args.kwargs["inputs"] == {"repo": "gobby", "ref": "main"}
+
 
 @pytest.mark.asyncio
 async def test_resume_handles_malformed_inputs_json() -> None:

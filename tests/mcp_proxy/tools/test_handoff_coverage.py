@@ -1,4 +1,5 @@
 """Tests for sessions/_handoff.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -14,6 +15,7 @@ pytestmark = pytest.mark.unit
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_session(
     *,
@@ -41,23 +43,23 @@ def _make_session(
 
 
 @pytest.fixture
-def mock_session_manager():
+def mock_session_manager() -> MagicMock:
     mgr = MagicMock()
     mgr.db = MagicMock()
     return mgr
 
 
 @pytest.fixture
-def mock_inter_session_msg_manager():
+def mock_inter_session_msg_manager() -> MagicMock:
     return MagicMock()
 
 
 def _register_tools(
-    session_manager,
-    llm_service=None,
-    transcript_processor=None,
-    inter_session_message_manager=None,
-):
+    session_manager: MagicMock | None,
+    llm_service: MagicMock | None = None,
+    transcript_processor: MagicMock | None = None,
+    inter_session_message_manager: MagicMock | None = None,
+) -> InternalToolRegistry:
     """Register handoff tools and return the registry."""
     from gobby.mcp_proxy.tools.sessions._handoff import register_handoff_tools
 
@@ -94,15 +96,6 @@ class TestSetHandoffContext:
         result = await registry.call("set_handoff_context", {"session_id": "s1"})
         assert result["success"] is False
         assert "not available" in result["error"]
-
-
-
-
-
-
-
-
-
 
 
 # ---------------------------------------------------------------------------

@@ -113,7 +113,7 @@ async def test_recommend_llm_bad_json(service: RecommendationService) -> None:
 @pytest.mark.asyncio
 async def test_recommend_llm_json_no_backticks(service: RecommendationService) -> None:
     provider = MagicMock()
-    provider.generate_text = AsyncMock(return_value='```\n{"recommendations": [{"t": 1}]}\n```')
+    provider.generate_text = AsyncMock(return_value='{"recommendations": [{"t": 1}]}')
     service._llm_service.get_default_provider.return_value = provider
 
     result = await service.recommend_tools("test")
@@ -200,9 +200,7 @@ async def test_recommend_hybrid_llm_rerank_fails(
 def test_get_config_default() -> None:
     from gobby.mcp_proxy.services.recommendation import RecommendationService
 
-    svc = RecommendationService(
-        llm_service=MagicMock(), mcp_manager=MagicMock(), db=MagicMock()
-    )
+    svc = RecommendationService(llm_service=MagicMock(), mcp_manager=MagicMock(), db=MagicMock())
     config = svc._get_config()
     assert config is not None
 

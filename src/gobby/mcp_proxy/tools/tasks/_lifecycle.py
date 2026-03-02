@@ -258,9 +258,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 claimed_task_id = session_vars.get("claimed_task_id")
                 if claimed_task_id:
                     try:
-                        claimed_task = ctx.task_manager.get_task(claimed_task_id)
-                        if claimed_task:
-                            claimed_task_id = claimed_task.id
+                        claimed_task_id = resolve_task_id_for_mcp(ctx.task_manager, claimed_task_id)
                     except Exception as e:
                         logger.debug("Resolution of claimed_task_id failed: %s", e)
 

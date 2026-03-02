@@ -1,4 +1,5 @@
 """Tests for skills/__init__.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -134,9 +135,7 @@ class TestListSkills:
     @pytest.mark.asyncio
     async def test_list_skills_with_category_filter(self, mock_db):
         registry = _create_registry(mock_db)
-        result = await registry.call(
-            "list_skills", {"category": "dev"}
-        )
+        result = await registry.call("list_skills", {"category": "dev"})
         assert result["success"] is True
         # list_skills is called during registry creation + during the tool call
         last_call_kwargs = registry._mock_storage.list_skills.call_args.kwargs
@@ -150,7 +149,6 @@ class TestListSkills:
         result = await registry.call("list_skills", {})
         assert result["success"] is False
         assert "db error" in result["error"]
-
 
 
 # ---------------------------------------------------------------------------
@@ -205,9 +203,7 @@ class TestGetSkill:
         registry._mock_storage.get_by_name.return_value = skill
         registry._mock_sm.resolve_session_reference.return_value = "sess-uuid"
 
-        result = await registry.call(
-            "get_skill", {"name": "test-skill", "session_id": "#1"}
-        )
+        result = await registry.call("get_skill", {"name": "test-skill", "session_id": "#1"})
         assert result["success"] is True
         registry._mock_sm.record_skills_used.assert_called_once()
 
@@ -337,9 +333,7 @@ class TestInstallFromTemplate:
         registry._mock_storage.get_by_name.return_value = template
         registry._mock_storage.install_from_template.return_value = installed
 
-        result = await registry.call(
-            "install_from_template", {"name": "test-skill"}
-        )
+        result = await registry.call("install_from_template", {"name": "test-skill"})
         assert result["success"] is True
         assert result["installed"] is True
 
@@ -349,9 +343,25 @@ class TestInstallFromTemplate:
         registry._mock_storage.get_skill.side_effect = ValueError("x")
         registry._mock_storage.get_by_name.return_value = None
 
-        result = await registry.call(
-            "install_from_template", {"name": "nope"}
-        )
+        result = await registry.call("install_from_template", {"name": "nope"})
+        assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_install_exception(self, mock_db):
+        registry = _create_registry(mock_db)
+        registry._mock_storage.get_by_name.side_effect = RuntimeError("db crash")
+
+        result = await registry.call("install_from_template", {"name": "test-skill"})
+        assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_install_template_exception(self, mock_db):
+        template = _make_skill(source="template")
+        registry = _create_registry(mock_db)
+        registry._mock_storage.get_by_name.return_value = template
+        registry._mock_storage.install_from_template.side_effect = Exception("failed payload")
+
+        result = await registry.call("install_from_template", {"name": "test-skill"})
         assert result["success"] is False
 
 
@@ -429,9 +439,7 @@ class TestMoveSkill:
         registry = _create_registry(mock_db)
         registry._mock_storage.move_to_installed.return_value = skill
 
-        result = await registry.call(
-            "move_skill_to_installed", {"skill_id": "skill-1"}
-        )
+        result = await registry.call("move_skill_to_installed", {"skill_id": "skill-1"})
         assert result["success"] is True
 
     @pytest.mark.asyncio
@@ -439,9 +447,7 @@ class TestMoveSkill:
         registry = _create_registry(mock_db)
         registry._mock_storage.move_to_installed.side_effect = ValueError("nope")
 
-        result = await registry.call(
-            "move_skill_to_installed", {"skill_id": "x"}
-        )
+        result = await registry.call("move_skill_to_installed", {"skill_id": "x"})
         assert result["success"] is False
 
 

@@ -4,6 +4,7 @@ Relocated from tests/workflows/test_context_actions.py as part of dead-code clea
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
@@ -19,13 +20,13 @@ class TestFormatHandoffAsMarkdown:
     class MockHandoffContext:
         """Mock HandoffContext for testing."""
 
-        active_gobby_task: dict | None = None
-        active_worktree: dict | None = None
-        git_commits: list = field(default_factory=list)
+        active_gobby_task: dict[str, Any] | None = None
+        active_worktree: dict[str, Any] | None = None
+        git_commits: list[dict[str, str]] = field(default_factory=list)
         git_status: str = ""
-        files_modified: list = field(default_factory=list)
+        files_modified: list[str] = field(default_factory=list)
         initial_goal: str = ""
-        recent_activity: list = field(default_factory=list)
+        recent_activity: list[str] = field(default_factory=list)
 
     def test_empty_context_returns_empty_string(self) -> None:
         """Should return empty string when all context fields are empty."""
@@ -46,9 +47,7 @@ class TestFormatHandoffAsMarkdown:
 
     def test_formats_active_task_with_missing_fields(self) -> None:
         """Should handle missing fields in active task with defaults."""
-        ctx = self.MockHandoffContext(
-            active_gobby_task={"some_field": "value"}
-        )
+        ctx = self.MockHandoffContext(active_gobby_task={"some_field": "value"})
         result = format_handoff_as_markdown(ctx)
 
         assert "### Active Task" in result

@@ -241,12 +241,13 @@ def get_workflow_status(
     except ValueError as e:
         return {"success": False, "has_workflow": False, "error": str(e)}
 
+    session_vars = (
+        session_var_manager.get_variables(resolved_session_id) if session_var_manager else {}
+    )
+
+    workflows = []
     if instance_manager:
         instances = instance_manager.get_active_instances(resolved_session_id)
-        session_vars = (
-            session_var_manager.get_variables(resolved_session_id) if session_var_manager else {}
-        )
-
         workflows = [
             {
                 "workflow_name": inst.workflow_name,
@@ -258,12 +259,10 @@ def get_workflow_status(
             for inst in instances
         ]
 
-        return {
-            "success": True,
-            "has_workflow": len(workflows) > 0,
-            "session_id": resolved_session_id,
-            "workflows": workflows,
-            "session_variables": session_vars,
-        }
-
-    return {"success": True, "has_workflow": False, "session_id": resolved_session_id}
+    return {
+        "success": True,
+        "has_workflow": len(workflows) > 0,
+        "session_id": resolved_session_id,
+        "workflows": workflows,
+        "session_variables": session_vars,
+    }

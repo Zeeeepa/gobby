@@ -1,4 +1,5 @@
 """Tests for hooks/event_handlers/_agent.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -40,7 +41,7 @@ def _make_event(
 class _TestHandler(AgentEventHandlerMixin):
     """Concrete implementation with required attributes for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = MagicMock()
         self._session_manager = MagicMock()
         self._session_storage = MagicMock()
@@ -179,9 +180,7 @@ class TestInterceptSkillCommand:
         handler = _TestHandler()
         handler._skill_manager.resolve_skill_name.return_value = None
 
-        with patch.object(
-            handler, "_skill_not_found_context", return_value="not found text"
-        ):
+        with patch.object(handler, "_skill_not_found_context", return_value="not found text"):
             result = handler._intercept_skill_command("/gobby:nonexistent")
         assert result == "not found text"
 
