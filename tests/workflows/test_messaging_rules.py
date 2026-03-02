@@ -75,29 +75,29 @@ def _insert_rule(
 
 
 class TestDeliverPendingMessages:
-    """deliver-pending-messages calls MCP on before_agent."""
+    """deliver-pending-messages calls MCP on before_agent for spawned agents only."""
+
+    def _rule_body(self) -> RuleDefinitionBody:
+        return RuleDefinitionBody(
+            event=RuleEvent.BEFORE_AGENT,
+            when="variables.get('is_spawned_agent')",
+            effect=RuleEffect(
+                type="mcp_call",
+                server="gobby-agents",
+                tool="deliver_pending_messages",
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_fires_on_before_agent(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        _insert_rule(
-            manager,
-            "deliver-pending-messages",
-            RuleDefinitionBody(
-                event=RuleEvent.BEFORE_AGENT,
-                effect=RuleEffect(
-                    type="mcp_call",
-                    server="gobby-agents",
-                    tool="deliver_pending_messages",
-                ),
-            ),
-            priority=10,
-        )
+        _insert_rule(manager, "deliver-pending-messages", self._rule_body(), priority=10)
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        response = await engine.evaluate(event, session_id="sess-1", variables={})
+        variables: dict[str, Any] = {"is_spawned_agent": True}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
         mcp_calls = response.metadata.get("mcp_calls", [])
@@ -107,27 +107,30 @@ class TestDeliverPendingMessages:
     async def test_records_correct_mcp_call(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        _insert_rule(
-            manager,
-            "deliver-pending-messages",
-            RuleDefinitionBody(
-                event=RuleEvent.BEFORE_AGENT,
-                effect=RuleEffect(
-                    type="mcp_call",
-                    server="gobby-agents",
-                    tool="deliver_pending_messages",
-                ),
-            ),
-            priority=10,
-        )
+        _insert_rule(manager, "deliver-pending-messages", self._rule_body(), priority=10)
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.BEFORE_AGENT)
+        variables: dict[str, Any] = {"is_spawned_agent": True}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        call = response.metadata["mcp_calls"][0]
+        assert call["server"] == "gobby-agents"
+        assert call["tool"] == "deliver_pending_messages"
+
+    @pytest.mark.asyncio
+    async def test_skips_for_non_agent_session(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        _insert_rule(manager, "deliver-pending-messages", self._rule_body(), priority=10)
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
         response = await engine.evaluate(event, session_id="sess-1", variables={})
 
-        call = response.metadata["mcp_calls"][0]
-        assert call["server"] == "gobby-agents"
-        assert call["tool"] == "deliver_pending_messages"
+        assert response.decision == "allow"
+        mcp_calls = response.metadata.get("mcp_calls", [])
+        assert len(mcp_calls) == 0
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -136,30 +139,28 @@ class TestDeliverPendingMessages:
 
 
 class TestActivatePendingCommand:
-    """activate-pending-command fires when has_pending_command is set."""
+    """activate-pending-command fires when has_pending_command is set on spawned agents."""
+
+    def _rule_body(self) -> RuleDefinitionBody:
+        return RuleDefinitionBody(
+            event=RuleEvent.BEFORE_AGENT,
+            when="variables.get('is_spawned_agent') and variables.get('has_pending_command')",
+            effect=RuleEffect(
+                type="mcp_call",
+                server="gobby-agents",
+                tool="activate_command",
+            ),
+        )
 
     @pytest.mark.asyncio
     async def test_fires_when_has_pending_command(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        _insert_rule(
-            manager,
-            "activate-pending-command",
-            RuleDefinitionBody(
-                event=RuleEvent.BEFORE_AGENT,
-                when="variables.get('has_pending_command')",
-                effect=RuleEffect(
-                    type="mcp_call",
-                    server="gobby-agents",
-                    tool="activate_command",
-                ),
-            ),
-            priority=15,
-        )
+        _insert_rule(manager, "activate-pending-command", self._rule_body(), priority=15)
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        variables: dict[str, Any] = {"has_pending_command": True}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "has_pending_command": True}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -171,24 +172,27 @@ class TestActivatePendingCommand:
     async def test_skips_when_no_pending_command(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        _insert_rule(
-            manager,
-            "activate-pending-command",
-            RuleDefinitionBody(
-                event=RuleEvent.BEFORE_AGENT,
-                when="variables.get('has_pending_command')",
-                effect=RuleEffect(
-                    type="mcp_call",
-                    server="gobby-agents",
-                    tool="activate_command",
-                ),
-            ),
-            priority=15,
-        )
+        _insert_rule(manager, "activate-pending-command", self._rule_body(), priority=15)
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        response = await engine.evaluate(event, session_id="sess-1", variables={})
+        variables: dict[str, Any] = {"is_spawned_agent": True}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        mcp_calls = response.metadata.get("mcp_calls", [])
+        assert len(mcp_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_skips_for_non_agent_session(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        _insert_rule(manager, "activate-pending-command", self._rule_body(), priority=15)
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.BEFORE_AGENT)
+        variables: dict[str, Any] = {"has_pending_command": True}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
         mcp_calls = response.metadata.get("mcp_calls", [])
@@ -201,13 +205,14 @@ class TestActivatePendingCommand:
 
 
 class TestCommandToolRestriction:
-    """command-tool-restriction blocks disallowed tools when command active."""
+    """command-tool-restriction blocks disallowed tools when command active on spawned agents."""
 
     def _rule_body(self) -> RuleDefinitionBody:
         return RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
             when=(
-                "variables.get('command_id') "
+                "variables.get('is_spawned_agent') "
+                "and variables.get('command_id') "
                 "and variables.get('allowed_tools') "
                 "and event.data.get('tool_name') not in variables.get('allowed_tools', [])"
             ),
@@ -226,6 +231,7 @@ class TestCommandToolRestriction:
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Write"})
         variables: dict[str, Any] = {
+            "is_spawned_agent": True,
             "command_id": "cmd-1",
             "allowed_tools": ["Read", "Grep"],
         }
@@ -243,6 +249,7 @@ class TestCommandToolRestriction:
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
         variables: dict[str, Any] = {
+            "is_spawned_agent": True,
             "command_id": "cmd-1",
             "allowed_tools": ["Read", "Grep"],
         }
@@ -258,7 +265,129 @@ class TestCommandToolRestriction:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Write"})
-        response = await engine.evaluate(event, session_id="sess-1", variables={})
+        variables: dict[str, Any] = {"is_spawned_agent": True}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_no_restriction_for_non_agent_session(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Non-agent sessions should never be blocked, even with command_id and allowed_tools."""
+        _insert_rule(manager, "command-tool-restriction", self._rule_body(), priority=5)
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Write"})
+        variables: dict[str, Any] = {
+            "command_id": "cmd-1",
+            "allowed_tools": ["Read", "Grep"],
+        }
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# command-mcp-tool-restriction
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestCommandMcpToolRestriction:
+    """command-mcp-tool-restriction blocks disallowed MCP tools on spawned agents."""
+
+    def _rule_body(self) -> RuleDefinitionBody:
+        return RuleDefinitionBody(
+            event=RuleEvent.BEFORE_TOOL,
+            when=(
+                "variables.get('is_spawned_agent') "
+                "and variables.get('command_id') "
+                "and variables.get('allowed_mcp_tools') "
+                "and event.data.get('mcp_server') "
+                "and event.data.get('mcp_tool') "
+                "and (event.data.get('mcp_server') + ':' + event.data.get('mcp_tool')) "
+                "not in variables.get('allowed_mcp_tools', [])"
+            ),
+            effect=RuleEffect(
+                type="block",
+                reason="MCP tool not allowed by active command",
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_blocks_disallowed_mcp_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        _insert_rule(manager, "command-mcp-tool-restriction", self._rule_body(), priority=5)
+
+        engine = RuleEngine(db)
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"mcp_server": "gobby-tasks", "mcp_tool": "delete_task"},
+        )
+        variables: dict[str, Any] = {
+            "is_spawned_agent": True,
+            "command_id": "cmd-1",
+            "allowed_mcp_tools": ["gobby-tasks:get_task", "gobby-tasks:list_tasks"],
+        }
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "block"
+        assert "not allowed" in (response.reason or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_allows_permitted_mcp_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        _insert_rule(manager, "command-mcp-tool-restriction", self._rule_body(), priority=5)
+
+        engine = RuleEngine(db)
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"mcp_server": "gobby-tasks", "mcp_tool": "get_task"},
+        )
+        variables: dict[str, Any] = {
+            "is_spawned_agent": True,
+            "command_id": "cmd-1",
+            "allowed_mcp_tools": ["gobby-tasks:get_task", "gobby-tasks:list_tasks"],
+        }
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_no_restriction_for_non_agent_session(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Non-agent sessions should never be blocked by MCP tool restrictions."""
+        _insert_rule(manager, "command-mcp-tool-restriction", self._rule_body(), priority=5)
+
+        engine = RuleEngine(db)
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"mcp_server": "gobby-tasks", "mcp_tool": "delete_task"},
+        )
+        variables: dict[str, Any] = {
+            "command_id": "cmd-1",
+            "allowed_mcp_tools": ["gobby-tasks:get_task"],
+        }
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_no_restriction_without_command(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        _insert_rule(manager, "command-mcp-tool-restriction", self._rule_body(), priority=5)
+
+        engine = RuleEngine(db)
+        event = _make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"mcp_server": "gobby-tasks", "mcp_tool": "delete_task"},
+        )
+        variables: dict[str, Any] = {"is_spawned_agent": True}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
 
@@ -269,12 +398,16 @@ class TestCommandToolRestriction:
 
 
 class TestCommandExitCondition:
-    """command-exit-condition auto-completes when exit condition met."""
+    """command-exit-condition auto-completes when exit condition met on spawned agents."""
 
     def _rule_body(self) -> RuleDefinitionBody:
         return RuleDefinitionBody(
             event=RuleEvent.AFTER_TOOL,
-            when=("variables.get('command_id') and variables.get('exit_condition_met')"),
+            when=(
+                "variables.get('is_spawned_agent') "
+                "and variables.get('command_id') "
+                "and variables.get('exit_condition_met')"
+            ),
             effect=RuleEffect(
                 type="mcp_call",
                 server="gobby-agents",
@@ -291,6 +424,7 @@ class TestCommandExitCondition:
         engine = RuleEngine(db)
         event = _make_event(HookEventType.AFTER_TOOL)
         variables: dict[str, Any] = {
+            "is_spawned_agent": True,
             "command_id": "cmd-1",
             "exit_condition_met": True,
         }
@@ -309,7 +443,7 @@ class TestCommandExitCondition:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.AFTER_TOOL)
-        variables: dict[str, Any] = {"command_id": "cmd-1"}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "command_id": "cmd-1"}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -324,7 +458,25 @@ class TestCommandExitCondition:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.AFTER_TOOL)
-        variables: dict[str, Any] = {"exit_condition_met": True}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "exit_condition_met": True}
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        mcp_calls = response.metadata.get("mcp_calls", [])
+        assert len(mcp_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_skips_for_non_agent_session(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Non-agent sessions should not trigger command exit, even with all other vars set."""
+        _insert_rule(manager, "command-exit-condition", self._rule_body(), priority=90)
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.AFTER_TOOL)
+        variables: dict[str, Any] = {
+            "command_id": "cmd-1",
+            "exit_condition_met": True,
+        }
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         mcp_calls = response.metadata.get("mcp_calls", [])
