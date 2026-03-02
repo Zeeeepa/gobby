@@ -86,7 +86,7 @@ class _TestHandler(SessionEventHandlerMixin):
         self._skill_manager = None
         self._skills_config = None
         self._session_task_manager = None
-        self._dispatch_boundary_summaries_fn = None
+        self._dispatch_session_summaries_fn = None
         self._get_machine_id = MagicMock(return_value="machine-1")
         self._resolve_project_id = MagicMock(return_value="proj-1")
         self._handler_map = {}

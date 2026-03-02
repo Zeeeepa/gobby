@@ -396,19 +396,45 @@ class SessionEventHandlerMixin(EventHandlersBase):
             if current_vars.get("auto_inject_handoff", True):
                 parent = self._session_storage.get(parent_session_id)
                 if parent:
-                    # For /clear: generate boundary summaries now (no pre-clear hook
-                    # fires in Claude Code, so summaries don't exist yet).
-                    # For /compact: PRE_COMPACT already generated compact_markdown.
+                    # For /clear: summary generation was kicked off by
+                    # BEFORE_AGENT (fire-and-forget). Poll until it arrives.
+                    # For /compact: PRE_COMPACT already kicked it off.
                     if session_source == "clear" and not parent.summary_markdown:
-                        if self._dispatch_boundary_summaries_fn:
+                        # Ensure generation is started (idempotent if already running)
+                        if self._dispatch_session_summaries_fn:
                             try:
-                                self._dispatch_boundary_summaries_fn(parent_session_id, False)
+                                self._dispatch_session_summaries_fn(parent_session_id, True)
                             except Exception as e:
                                 self.logger.warning(
-                                    f"Failed to generate boundary summaries "
+                                    f"Failed to dispatch session summaries "
                                     f"for parent {parent_session_id}: {e}"
                                 )
-                            # Re-read parent after generation
+
+                        # Poll for summary with backoff (LLM calls take 20-30s)
+                        import time
+
+                        max_wait_s = 90
+                        poll_interval_s = 2
+                        waited = 0.0
+                        while waited < max_wait_s:
+                            time.sleep(poll_interval_s)
+                            waited += poll_interval_s
+                            parent = self._session_storage.get(parent_session_id)
+                            if parent and parent.summary_markdown:
+                                self.logger.debug(
+                                    "Session summary ready for parent %s after %.0fs",
+                                    parent_session_id,
+                                    waited,
+                                )
+                                break
+                        else:
+                            self.logger.warning(
+                                "Timed out waiting for session summary for parent %s "
+                                "after %.0fs",
+                                parent_session_id,
+                                max_wait_s,
+                            )
+                            # Re-read parent one last time
                             parent = self._session_storage.get(parent_session_id)
 
                     handoff_vars: dict[str, Any] = {}

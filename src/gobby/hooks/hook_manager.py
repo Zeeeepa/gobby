@@ -180,9 +180,9 @@ class HookManager:
         self._hook_assembler = components.hook_assembler
         self._event_handlers = components.event_handlers
 
-        # Wire callback for boundary summary generation (method lives on HookManager,
+        # Wire callback for session summary generation (method lives on HookManager,
         # called from EventHandlers mixins during session-end and before-agent).
-        self._event_handlers._dispatch_boundary_summaries_fn = self._dispatch_boundary_summaries
+        self._event_handlers._dispatch_session_summaries_fn = self._dispatch_session_summaries
 
         # Inter-session message manager (for web chat -> CLI piggyback delivery)
         from gobby.storage.inter_session_messages import InterSessionMessageManager
@@ -735,71 +735,71 @@ class HookManager:
                             e,
                         )
 
-    def _dispatch_boundary_summaries(self, session_id: str, background: bool = False) -> None:
-        """Generate session boundary summaries from digest.
+    def _dispatch_session_summaries(self, session_id: str, background: bool = False) -> None:
+        """Fire session summary generation.
 
-        Calls generate_session_boundary_summaries which produces compact_markdown
-        and summary_markdown from the accumulated digest. Self-gating: returns None
-        if no digest exists or is < 50 chars.
+        Uses the shared generate_session_summaries() which reads the full
+        transcript, runs TranscriptAnalyzer + LLM, and persists results.
 
-        Uses same async dispatch pattern as _dispatch_mcp_calls.
+        Always dispatched as background (fire-and-forget) — the background
+        param is kept for interface compat but is now ignored. SESSION_START
+        polls for the result instead of blocking here, which avoids the
+        previous 30s timeout bug when LLM calls took longer.
 
         Args:
             session_id: Platform session ID.
-            background: If True, fire-and-forget. If False, block until complete.
+            background: Ignored — always runs in background.
         """
-        from gobby.memory.digest import generate_session_boundary_summaries
+        from gobby.sessions.summarize import generate_session_summaries
+
+        write_file = False
+        file_output_path = "~/.gobby/session_summaries"
+        if self._config:
+            summary_cfg = getattr(self._config, "session_summary", None)
+            if summary_cfg and getattr(summary_cfg, "summary_file_path", None):
+                write_file = True
+                file_output_path = summary_cfg.summary_file_path
 
         async def _run() -> None:
             try:
-                await generate_session_boundary_summaries(
+                await generate_session_summaries(
                     session_id=session_id,
                     session_manager=self._session_storage,
                     llm_service=self._llm_service,
                     db=self._database,
-                    config=self._config,
+                    write_file=write_file,
+                    output_path=file_output_path,
                 )
             except Exception as exc:
                 self.logger.error(
-                    "_dispatch_boundary_summaries: failed for session %s: %s",
+                    "_dispatch_session_summaries: failed for session %s: %s: %s",
                     session_id,
+                    type(exc).__name__,
                     exc,
                     exc_info=True,
                 )
 
         coro = _run()
 
-        if background:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(coro)
-            except RuntimeError:
-                if self._loop and self._loop.is_running():
-                    try:
-                        asyncio.run_coroutine_threadsafe(coro, self._loop)
-                    except Exception as e:
-                        self.logger.warning(
-                            "_dispatch_boundary_summaries: failed to schedule: %s", e
-                        )
-                else:
-                    try:
-                        asyncio.run(coro)
-                    except Exception as e:
-                        self.logger.warning(
-                            "_dispatch_boundary_summaries: background failed: %s", e
-                        )
-        else:
+        # Always fire-and-forget onto event loop
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
             if self._loop and self._loop.is_running():
                 try:
-                    future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-                    future.result(timeout=30)
+                    asyncio.run_coroutine_threadsafe(coro, self._loop)
                 except Exception as e:
-                    self.logger.error("_dispatch_boundary_summaries: blocking failed: %s", e)
+                    self.logger.warning(
+                        "_dispatch_session_summaries: failed to schedule: %s", e
+                    )
             else:
                 try:
                     asyncio.run(coro)
                 except Exception as e:
-                    self.logger.error("_dispatch_boundary_summaries: blocking failed: %s", e)
+                    self.logger.warning(
+                        "_dispatch_session_summaries: background failed: %s", e
+                    )
 
     def shutdown(self) -> None:
         """
