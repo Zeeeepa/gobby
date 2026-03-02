@@ -31,42 +31,17 @@ def _inject_agent_skills(
     project_id: str,
     cli_source: str = "claude_sdk_web_chat",
 ) -> str | None:
-    """Run audience-aware skill injection for an agent definition.
-
-    Replicates the skill injection pipeline from _activate_default_agent
-    for use in contexts where the full session activation isn't available.
-    """
-    from gobby.hooks.skill_manager import _db_skill_to_parsed
-    from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
+    """Run audience-aware skill injection for an agent definition."""
+    from gobby.hooks.event_handlers._session import select_and_format_agent_skills
     from gobby.skills.manager import SkillManager
-    from gobby.workflows.context_actions import _format_skills_with_formats
     from gobby.workflows.selectors import resolve_skills_for_agent
 
-    skill_mgr = SkillManager(db)
-    all_skills = skill_mgr.list_skills()
+    all_skills = SkillManager(db).list_skills()
     active_skills = resolve_skills_for_agent(agent_body, all_skills)
-    eligible = (
-        all_skills if active_skills is None else [s for s in all_skills if s.name in active_skills]
+    formatted, _, _ = select_and_format_agent_skills(
+        agent_body, all_skills, active_skills, cli_source
     )
-    parsed = [_db_skill_to_parsed(s) for s in eligible if s.enabled]
-    if not parsed:
-        return None
-
-    agent_ctx = AgentContext(
-        agent_depth=0,
-        has_human=True,
-        agent_type="interactive",
-        source=cli_source,
-    )
-    profile = None
-    if agent_body.workflows and agent_body.workflows.skill_format:
-        profile = SkillProfile(default_format=agent_body.workflows.skill_format)
-
-    selected = SkillInjector().select_skills(parsed, agent_ctx, profile=profile)
-    if not selected:
-        return None
-
-    return _format_skills_with_formats(selected)
+    return formatted
 
 
 async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str | None]:
