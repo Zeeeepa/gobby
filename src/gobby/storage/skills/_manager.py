@@ -6,10 +6,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from gobby.storage.database import DatabaseProtocol
-from gobby.storage.skills._models import _UNSET, Skill, SkillSourceType
+from gobby.storage.skills._models import Skill, SkillSourceType
 from gobby.utils.id import generate_prefixed_id
 
 logger = logging.getLogger(__name__)
+
+_UNSET: Any = object()
 
 
 class LocalSkillManager:
@@ -758,6 +760,7 @@ class LocalSkillManager:
         include_deleted: bool = False,
         include_templates: bool = False,
         source: str | None = None,
+        include_global: bool = True,
     ) -> int:
         """Count skills matching criteria.
 
@@ -784,8 +787,14 @@ class LocalSkillManager:
             query += " AND source != 'template'"
 
         if project_id:
-            query += " AND (project_id = ? OR project_id IS NULL)"
-            params.append(project_id)
+            if include_global:
+                query += " AND (project_id = ? OR project_id IS NULL)"
+                params.append(project_id)
+            else:
+                query += " AND project_id = ?"
+                params.append(project_id)
+        else:
+            query += " AND project_id IS NULL"
 
         if enabled is not None:
             query += " AND enabled = ?"

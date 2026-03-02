@@ -17,6 +17,8 @@ from gobby.utils.machine_id import get_machine_id
 
 logger = logging.getLogger(__name__)
 
+_CANCEL_YIELD_DELAY = 0.1
+
 
 async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str | None]:
     """Resolve the current git branch for a project directory.
@@ -53,7 +55,8 @@ async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str
             if short_sha:
                 branch = f"detached:{short_sha}"
         return branch, project_path
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to resolve git branch: %s", e)
         return None, None
 
 
@@ -116,8 +119,8 @@ class ChatSessionMixin:
         if session:
             try:
                 await asyncio.wait_for(session.interrupt(), timeout=0.5)
-            except (TimeoutError, Exception):
-                pass
+            except Exception as e:
+                logger.debug("Interrupt failed: %s", e)
 
         active_task = self._active_chat_tasks.pop(conversation_id, None)
         if active_task and not active_task.done():
@@ -129,7 +132,7 @@ class ChatSessionMixin:
             # Let the SDK settle after interrupt+cancellation.
             # Without this pause, an immediate query() can get an empty
             # response because the SDK hasn't finished its internal cleanup.
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(_CANCEL_YIELD_DELAY)
 
         # Drain any stale response events buffered in the SDK.
         # Without this, receive_response() on the *next* query returns
@@ -251,8 +254,8 @@ class ChatSessionMixin:
                 db_session = await asyncio.to_thread(session_manager.get, session.db_session_id)
                 if db_session and db_session.chat_mode:
                     session.chat_mode = db_session.chat_mode
-            except Exception:
-                pass  # Best-effort — fall back to daemon default
+            except Exception as e:
+                logger.debug("Failed to get DB session: %s", e)
 
         # Override with pending mode (highest priority — user toggled before session existed)
         pending_modes = getattr(self, "_pending_modes", {})

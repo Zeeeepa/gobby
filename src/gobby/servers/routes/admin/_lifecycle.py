@@ -8,7 +8,7 @@ import sys
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from gobby.utils.metrics import get_metrics_collector
 
@@ -17,7 +17,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_restart_in_progress = False
+_restart_lock: asyncio.Lock | None = None
+
+
+def _get_restart_lock() -> asyncio.Lock:
+    global _restart_lock
+    if _restart_lock is None:
+        _restart_lock = asyncio.Lock()
+    return _restart_lock
 
 
 def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
@@ -56,6 +63,7 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
             metrics.inc_counter("http_requests_errors_total")
             logger.error("Error initiating shutdown: %s", e, exc_info=True)
             return {
+                "status": "error",
                 "message": "Shutdown failed to initiate",
             }
 
@@ -67,19 +75,16 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
         Spawns a detached restarter subprocess that waits for the current
         daemon to exit, then starts a new one. Returns immediately.
         """
-        global _restart_in_progress
-        # Use python global mechanism or manage state better if needed.
-        # But for this simple implementation, module-level global handles it.
-
         start_time = time.perf_counter()
         metrics = get_metrics_collector()
         metrics.inc_counter("http_requests_total")
 
-        if _restart_in_progress:
+        restart_lock = _get_restart_lock()
+        if restart_lock.locked():
             return {"status": "already_restarting", "message": "Restart already in progress"}
 
         try:
-            _restart_in_progress = True
+            await restart_lock.acquire()
             logger.info("Restart requested via HTTP endpoint")
 
             current_pid = os.getpid()
@@ -171,7 +176,7 @@ with open(pid_file, "w") as f:
             }
 
         except Exception as e:
-            _restart_in_progress = False
+            restart_lock.release()
             metrics.inc_counter("http_requests_errors_total")
             logger.error("Error initiating restart: %s", e, exc_info=True)
             return {
@@ -214,7 +219,7 @@ with open(pid_file, "w") as f:
                     "message": "reload_cache tool not found",
                 }
             except Exception as e:
-                logger.error(f"Failed to execute reload_cache: {e}")
+                logger.error("Failed to execute reload_cache: %s", e)
                 return {
                     "status": "error",
                     "message": f"Failed to reload cache: {e}",
@@ -231,7 +236,5 @@ with open(pid_file, "w") as f:
 
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
-            logger.error(f"Error reloading workflows: {e}", exc_info=True)
-            from fastapi import HTTPException
-
+            logger.error("Error reloading workflows: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

@@ -9,11 +9,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 
-from gobby.servers.routes.admin._config import (
-    _discover_models,
-    _fallback_models_from_config,
-    register_config_routes,
-)
+from gobby.servers.routes.admin._config import register_config_routes
 from gobby.servers.routes.admin._health import register_health_routes
 from gobby.servers.routes.admin._lifecycle import register_lifecycle_routes
 from gobby.servers.routes.admin._setup import register_setup_routes
@@ -21,8 +17,6 @@ from gobby.servers.routes.admin._testing import register_testing_routes
 
 __all__ = [
     "create_admin_router",
-    "_discover_models",
-    "_fallback_models_from_config",
 ]
 
 if TYPE_CHECKING:

@@ -60,7 +60,9 @@ function connect() {
   ws.onclose = () => {
     ws = null
     if (!closed) {
-      const delay = Math.min(BASE_DELAY * 2 ** reconnectAttempts, MAX_DELAY)
+      const baseDelay = Math.min(BASE_DELAY * 2 ** reconnectAttempts, MAX_DELAY)
+      const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1)
+      const delay = Math.max(0, baseDelay + jitter)
       reconnectAttempts++
       reconnectTimer = window.setTimeout(connect, delay)
     }

@@ -179,5 +179,3 @@ class SessionVariableManager:
             "DELETE FROM session_variables WHERE session_id = ?",
             (session_id,),
         )
-
-

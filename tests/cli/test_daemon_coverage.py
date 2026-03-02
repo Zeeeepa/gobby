@@ -14,7 +14,6 @@ from gobby.cli.daemon import (
     _neo4j_stop,
     get_merge_status,
     spawn_watchdog,
-    start,
     status,
     stop,
 )

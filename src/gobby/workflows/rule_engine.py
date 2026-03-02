@@ -11,6 +11,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+import pydantic
+
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.storage.config_store import ConfigStore
 from gobby.storage.database import DatabaseProtocol
@@ -25,7 +27,6 @@ from gobby.workflows.definitions import (
     WorkflowDefinition,
     WorkflowStep,
 )
-from gobby.workflows.state_manager import WorkflowInstanceManager
 from gobby.workflows.enforcement.blocking import (
     is_discovery_tool,
     is_message_delivery_tool,
@@ -34,6 +35,7 @@ from gobby.workflows.enforcement.blocking import (
     is_tool_unlocked,
 )
 from gobby.workflows.safe_evaluator import SafeExpressionEvaluator, build_condition_helpers
+from gobby.workflows.state_manager import WorkflowInstanceManager
 from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,7 @@ class RuleEngine:
     def __init__(self, db: DatabaseProtocol):
         self.db = db
         self.definition_manager = LocalWorkflowDefinitionManager(db)
+        self.instance_manager = WorkflowInstanceManager(db)
 
     async def evaluate(
         self,
@@ -675,10 +678,9 @@ class RuleEngine:
 
         Returns (step, instance, definition) or (None, None, None) if no active step workflow.
         """
-        instance_mgr = WorkflowInstanceManager(self.db)
         if not session_id:
             return None, None, None
-        instances = instance_mgr.get_active_instances(session_id)
+        instances = self.instance_manager.get_active_instances(session_id)
 
         for instance in instances:
             if not instance.current_step:
@@ -689,7 +691,7 @@ class RuleEngine:
             try:
                 data = json.loads(row.definition_json)
                 definition = WorkflowDefinition(**data)
-            except Exception:
+            except (json.JSONDecodeError, pydantic.ValidationError):
                 continue
             step = definition.get_step(instance.current_step)
             if step is not None:

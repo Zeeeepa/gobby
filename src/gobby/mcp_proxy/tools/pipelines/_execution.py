@@ -5,7 +5,14 @@ import json
 import logging
 from typing import Any, Protocol
 
-from gobby.workflows.pipeline_state import ApprovalRequired
+from gobby.workflows.definitions import PipelineDefinition
+from gobby.workflows.pipeline_state import (
+    ApprovalRequired,
+    ExecutionStatus,
+    PipelineExecution,
+    StepExecution,
+    StepStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,38 +44,49 @@ async def cleanup_background_tasks() -> None:
 
 
 class PipelineLoader(Protocol):
-    async def load_pipeline(self, name: str) -> Any: ...
+    async def load_pipeline(self, name: str) -> PipelineDefinition | None: ...
 
 
 class PipelineExecutionManager(Protocol):
-    def get_execution(self, execution_id: str) -> Any: ...
-    def get_steps_for_execution(self, execution_id: str) -> list[Any]: ...
+    def get_execution(self, execution_id: str) -> PipelineExecution | None: ...
+    def get_steps_for_execution(self, execution_id: str) -> list[StepExecution]: ...
     def update_execution_status(
-        self, execution_id: str, status: Any, outputs_json: str | None = None
-    ) -> Any: ...
+        self,
+        execution_id: str,
+        status: ExecutionStatus,
+        resume_token: str | None = None,
+        outputs_json: str | None = None,
+    ) -> PipelineExecution | None: ...
     def update_step_execution(
-        self, step_execution_id: str, status: Any, error: str | None = None
-    ) -> Any: ...
+        self,
+        step_execution_id: int,
+        status: StepStatus | None = None,
+        output_json: str | None = None,
+        error: str | None = None,
+        approval_token: str | None = None,
+        approved_by: str | None = None,
+        approval_timeout_seconds: int | None = None,
+    ) -> StepExecution | None: ...
     def create_execution(
         self, pipeline_name: str, inputs_json: str, session_id: str | None = None
-    ) -> Any: ...
-    def list_executions(self, status: Any) -> list[Any]: ...
+    ) -> PipelineExecution: ...
+    def list_executions(self, status: ExecutionStatus) -> list[PipelineExecution]: ...
 
 
 class PipelineExecutor(Protocol):
-    execution_manager: PipelineExecutionManager
+    @property
+    def execution_manager(self) -> PipelineExecutionManager: ...
 
     async def execute(
         self,
-        *,
-        pipeline: Any,
+        pipeline: PipelineDefinition,
         inputs: dict[str, Any],
         project_id: str,
         execution_id: str | None = None,
         session_id: str | None = None,
-    ) -> Any: ...
-    async def approve(self, token: str, approved_by: str | None = None) -> Any: ...
-    async def reject(self, token: str, rejected_by: str | None = None) -> Any: ...
+    ) -> PipelineExecution: ...
+    async def approve(self, token: str, approved_by: str | None = None) -> PipelineExecution: ...
+    async def reject(self, token: str, rejected_by: str | None = None) -> PipelineExecution: ...
 
 
 def _register_background_task(task: asyncio.Task[None]) -> None:
@@ -83,8 +101,8 @@ def _register_background_task(task: asyncio.Task[None]) -> None:
 
 
 async def _execute_pipeline_background(
-    executor: Any,
-    pipeline: Any,
+    executor: PipelineExecutor,
+    pipeline: PipelineDefinition,
     inputs: dict[str, Any],
     project_id: str,
     execution_id: str,
@@ -173,7 +191,11 @@ async def run_pipeline(
         return {"success": False, "error": "No loader configured"}
 
     # Load the pipeline definition
-    pipeline = await loader.load_pipeline(name)
+    try:
+        pipeline = await loader.load_pipeline(name)
+    except ValueError as e:
+        return {"success": False, "error": f"Invalid pipeline '{name}': {e}"}
+
     if not pipeline:
         return {"success": False, "error": f"Pipeline '{name}' not found"}
 
@@ -225,7 +247,7 @@ async def run_pipeline(
 
 
 async def approve_pipeline(
-    executor: Any,
+    executor: PipelineExecutor,
     token: str,
     approved_by: str | None = None,
 ) -> dict[str, Any]:
@@ -263,7 +285,7 @@ async def approve_pipeline(
 
 
 async def reject_pipeline(
-    executor: Any,
+    executor: PipelineExecutor,
     token: str,
     rejected_by: str | None = None,
 ) -> dict[str, Any]:
@@ -304,7 +326,7 @@ async def resume_interrupted_pipelines(
     loader: PipelineLoader,
     executor: PipelineExecutor,
     execution_manager: PipelineExecutionManager,
-    project_id: str,
+    project_id: str | None = None,
 ) -> list[str]:
     """Resume pipelines that were running when the daemon last stopped.
 
@@ -332,10 +354,10 @@ async def resume_interrupted_pipelines(
     for execution in running:
         try:
             pipeline = await loader.load_pipeline(execution.pipeline_name)
-        except Exception:
+        except ValueError as e:
             logger.warning(
                 f"Cannot load pipeline '{execution.pipeline_name}' for "
-                f"execution {execution.id} — will be failed"
+                f"execution {execution.id} — will be failed: {e}"
             )
             continue
 
@@ -374,7 +396,7 @@ async def resume_interrupted_pipelines(
 
 
 def get_pipeline_status(
-    execution_manager: Any,
+    execution_manager: PipelineExecutionManager,
     execution_id: str,
 ) -> dict[str, Any]:
     """

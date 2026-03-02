@@ -10,12 +10,16 @@ from typing import TYPE_CHECKING, Any
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.servers.chat_session import ChatSession
 
+if TYPE_CHECKING:
+    from gobby.storage.database import DatabaseProtocol
+    from gobby.workflows.definitions import WorkflowDefinition
+
 logger = logging.getLogger(__name__)
 
 
 def _inject_agent_skills(
-    agent_body: Any,
-    db: Any,
+    agent_body: WorkflowDefinition,
+    db: DatabaseProtocol,
     project_id: str,
     cli_source: str = "claude_sdk_web_chat",
 ) -> str | None:
@@ -146,40 +150,11 @@ class ChatLifecycleMixin:
             # Dispatch mcp_call effects from rule engine (parity with CLI path)
             mcp_calls = (response.metadata or {}).get("mcp_calls", [])
             if mcp_calls:
-                mcp_manager = getattr(self, "mcp_manager", None)
-                if mcp_manager:
-                    from gobby.hooks.mcp_dispatch import dispatch_mcp_calls
-
-                    internal_mgr = getattr(self, "internal_manager", None)
-
-                    async def _call_tool(server: str, tool: str, arguments: dict[str, Any]) -> Any:
-                        """Route to internal registries first, then external."""
-                        if internal_mgr and internal_mgr.is_internal(server):
-                            registry = internal_mgr.get_registry(server)
-                            if registry:
-                                return await registry.call(tool, arguments)
-                        return await mcp_manager.call_tool(server, tool, arguments)
-
-                    await dispatch_mcp_calls(mcp_calls, event, _call_tool, logger)
+                await self._dispatch_mcp_calls(mcp_calls, event)
 
             # Dispatch to event handler (parity with CLI HookManager.handle)
             # This is where skill interception lives (handle_before_agent)
-            event_handlers = getattr(self, "event_handlers", None)
-            handler_context: str | None = None
-            if event_handlers:
-                handler = event_handlers.get_handler(event_type)
-                if handler:
-                    try:
-                        handler_response: HookResponse = await asyncio.to_thread(handler, event)
-                        if handler_response and handler_response.context:
-                            handler_context = handler_response.context
-                    except Exception as exc:
-                        logger.error(
-                            "_fire_lifecycle: event handler %s failed: %s",
-                            event_type.name,
-                            exc,
-                            exc_info=True,
-                        )
+            handler_context = await self._dispatch_event_handlers(event_type, event)
 
             # Merge handler context with rule engine context
             merged_context = response.context
@@ -286,4 +261,55 @@ class ChatLifecycleMixin:
             logger.error("Blocking webhook evaluation failed: %s", exc, exc_info=True)
             # Fail-open for webhook errors
 
+        return None
+
+    async def _dispatch_mcp_calls(
+        self,
+        mcp_calls: list[dict[str, Any]],
+        event: HookEvent,
+    ) -> None:
+        """Dispatch MCP calls defined in rule effects."""
+        mcp_manager = getattr(self, "mcp_manager", None)
+        if not mcp_manager:
+            return
+
+        from gobby.hooks.mcp_dispatch import dispatch_mcp_calls
+
+        internal_mgr = getattr(self, "internal_manager", None)
+
+        async def _call_tool(server: str, tool: str, arguments: dict[str, Any]) -> Any:
+            """Route to internal registries first, then external."""
+            if internal_mgr and internal_mgr.is_internal(server):
+                registry = internal_mgr.get_registry(server)
+                if registry:
+                    return await registry.call(tool, arguments)
+            return await mcp_manager.call_tool(server, tool, arguments)
+
+        await dispatch_mcp_calls(mcp_calls, event, _call_tool, logger)
+
+    async def _dispatch_event_handlers(
+        self,
+        event_type: HookEventType,
+        event: HookEvent,
+    ) -> str | None:
+        """Dispatch to CLI event handlers and return their context."""
+        event_handlers = getattr(self, "event_handlers", None)
+        if not event_handlers:
+            return None
+
+        handler = event_handlers.get_handler(event_type)
+        if not handler:
+            return None
+
+        try:
+            handler_response: HookResponse = await asyncio.to_thread(handler, event)
+            if handler_response and handler_response.context:
+                return handler_response.context
+        except Exception as exc:
+            logger.error(
+                "_fire_lifecycle: event handler %s failed: %s",
+                event_type.name,
+                exc,
+                exc_info=True,
+            )
         return None

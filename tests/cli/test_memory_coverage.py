@@ -4,11 +4,11 @@ Covers: get_memory_manager, create, recall tag parsing, list tag parsing,
         export, dedupe, fix-null-project, backup, rebuild-crossrefs, rebuild-graph.
 Lines targeted: 20-51, 198, 210-211, 261-347, 365-465, 494-570
 """
+
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from collections.abc import Generator
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,7 +25,7 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def mock_manager() -> Generator[MagicMock, None, None]:
+def mock_manager() -> Generator[MagicMock]:
     with patch("gobby.cli.memory.get_memory_manager") as mock_get:
         mgr = MagicMock()
         mock_get.return_value = mgr
@@ -82,7 +82,9 @@ class TestCreateMemory:
         assert call_kwargs["memory_type"] == "preference"
 
     @patch("gobby.cli.memory.resolve_project_ref", return_value="proj-1")
-    def test_create_with_project(self, mock_proj: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_create_with_project(
+        self, mock_proj: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         mock_mem = MagicMock()
         mock_mem.id = "mem-1"
         mock_mem.content = "c"
@@ -101,7 +103,9 @@ class TestCreateMemory:
 
 class TestUpdateMemoryError:
     @patch("gobby.cli.memory.resolve_memory_id", return_value="mem-1")
-    def test_update_value_error(self, mock_resolve: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_update_value_error(
+        self, mock_resolve: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         mock_manager.update_memory = AsyncMock(side_effect=ValueError("not found"))
         result = runner.invoke(memory, ["update", "mem-1", "--content", "new"])
         assert result.exit_code == 0
@@ -120,7 +124,9 @@ class TestExportMemories:
         assert result.exit_code == 0
         assert "# Memories" in result.output
 
-    def test_export_to_file(self, runner: CliRunner, mock_manager: MagicMock, tmp_path: Path) -> None:
+    def test_export_to_file(
+        self, runner: CliRunner, mock_manager: MagicMock, tmp_path: Path
+    ) -> None:
         mock_manager.export_markdown.return_value = "# Exported"
         outfile = str(tmp_path / "out.md")
         result = runner.invoke(memory, ["export", "--output", outfile])
@@ -199,23 +205,15 @@ class TestDedupeMemories:
 
 
 # =============================================================================
-# fix-null-project
-# =============================================================================
-
-
-# =============================================================================
-# backup
-# =============================================================================
-
-
-# =============================================================================
 # rebuild-crossrefs
 # =============================================================================
 
 
 class TestRebuildCrossrefs:
     @patch("gobby.cli.memory._get_daemon_client")
-    def test_rebuild_crossrefs_success(self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_rebuild_crossrefs_success(
+        self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         client = MagicMock()
         client.check_health.return_value = (True, None)
         resp = MagicMock()
@@ -230,7 +228,9 @@ class TestRebuildCrossrefs:
         assert "5 crossrefs created" in result.output
 
     @patch("gobby.cli.memory._get_daemon_client")
-    def test_rebuild_crossrefs_daemon_not_running(self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_rebuild_crossrefs_daemon_not_running(
+        self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         client = MagicMock()
         client.check_health.return_value = (False, "Connection refused")
         mock_client_fn.return_value = client
@@ -240,7 +240,9 @@ class TestRebuildCrossrefs:
         assert "Daemon not running" in result.output
 
     @patch("gobby.cli.memory._get_daemon_client")
-    def test_rebuild_crossrefs_api_error(self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_rebuild_crossrefs_api_error(
+        self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         client = MagicMock()
         client.check_health.return_value = (True, None)
         resp = MagicMock()
@@ -255,7 +257,9 @@ class TestRebuildCrossrefs:
         assert "Rebuild failed" in result.output
 
     @patch("gobby.cli.memory._get_daemon_client")
-    def test_rebuild_crossrefs_bad_json(self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_rebuild_crossrefs_bad_json(
+        self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         client = MagicMock()
         client.check_health.return_value = (True, None)
         resp = MagicMock()
@@ -276,7 +280,9 @@ class TestRebuildCrossrefs:
 
 class TestRebuildGraph:
     @patch("gobby.cli.memory._get_daemon_client")
-    def test_rebuild_graph_success(self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_rebuild_graph_success(
+        self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         client = MagicMock()
         client.check_health.return_value = (True, None)
         resp = MagicMock()
@@ -290,7 +296,9 @@ class TestRebuildGraph:
         assert "8/10" in result.output
 
     @patch("gobby.cli.memory._get_daemon_client")
-    def test_rebuild_graph_daemon_not_running(self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_rebuild_graph_daemon_not_running(
+        self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         client = MagicMock()
         client.check_health.return_value = (False, "down")
         mock_client_fn.return_value = client
@@ -299,7 +307,9 @@ class TestRebuildGraph:
         assert result.exit_code != 0
 
     @patch("gobby.cli.memory._get_daemon_client")
-    def test_rebuild_graph_api_failure(self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock) -> None:
+    def test_rebuild_graph_api_failure(
+        self, mock_client_fn: MagicMock, runner: CliRunner, mock_manager: MagicMock
+    ) -> None:
         client = MagicMock()
         client.check_health.return_value = (True, None)
         resp = MagicMock()
@@ -315,8 +325,11 @@ class TestRebuildGraph:
     @patch("gobby.cli.memory.resolve_project_ref", return_value="proj-1")
     @patch("gobby.cli.memory._get_daemon_client")
     def test_rebuild_graph_with_project(
-        self, mock_client_fn: MagicMock, mock_proj: MagicMock,
-        runner: CliRunner, mock_manager: MagicMock
+        self,
+        mock_client_fn: MagicMock,
+        mock_proj: MagicMock,
+        runner: CliRunner,
+        mock_manager: MagicMock,
     ) -> None:
         client = MagicMock()
         client.check_health.return_value = (True, None)

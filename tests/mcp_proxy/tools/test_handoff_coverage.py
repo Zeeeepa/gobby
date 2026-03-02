@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -69,7 +68,7 @@ def _register_tools(
     )
     register_handoff_tools(
         registry,
-        session_manager,
+        session_manager,  # type: ignore[arg-type]
         llm_service=llm_service,
         transcript_processor=transcript_processor,
         inter_session_message_manager=inter_session_message_manager,
@@ -86,12 +85,12 @@ class TestSetHandoffContext:
     """Tests for set_handoff_context tool."""
 
     @pytest.mark.asyncio
-    async def test_session_manager_none(self, mock_session_manager):
+    async def test_session_manager_none(self) -> None:
         """When session_manager is None, returns error."""
         from gobby.mcp_proxy.tools.sessions._handoff import register_handoff_tools
 
         registry = InternalToolRegistry(name="test", description="test")
-        register_handoff_tools(registry, session_manager=None)
+        register_handoff_tools(registry, session_manager=None)  # type: ignore[arg-type]
 
         result = await registry.call("set_handoff_context", {"session_id": "s1"})
         assert result["success"] is False

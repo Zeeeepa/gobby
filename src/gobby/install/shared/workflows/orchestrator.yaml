@@ -69,12 +69,14 @@ steps:
 
   # --- Check completion ---
   - id: all_closed
-    condition: "${{ (scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0) }}"
-    exec: "echo 'Orchestration complete. All tasks closed.'"
+    exec: >
+      DONE=${{ ((scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0)) | lower }};
+      if [ "$DONE" = "true" ]; then echo "Orchestration complete. All tasks closed." >&2; fi;
+      echo "{\"done\": $DONE}"
 
   # --- Find next dispatchable task ---
   - id: find_next
-    condition: "${{ not ((scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0)) }}"
+    condition: "${{ not all_closed.output.done }}"
     mcp:
       server: gobby-tasks
       tool: suggest_next_task
@@ -85,7 +87,7 @@ steps:
   # --- MERGE PHASE (blocking — wait for merge agent) ---
   # Merge when: approved tasks exist AND (no next task available OR final merge)
   - id: spawn_merge
-    condition: "${{ (scan_approved.output.tasks | length > 0) and ((not find_next.output.suggestion) or ((scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0))) }}"
+    condition: "${{ (scan_approved.output.tasks | length > 0) and ((not find_next.output.suggestion) or all_closed.output.done) }}"
     mcp:
       server: gobby-agents
       tool: spawn_agent
@@ -154,11 +156,11 @@ steps:
 
   # --- LOOP ---
   - id: poll_wait
-    condition: "${{ not ((scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0)) }}"
+    condition: "${{ not all_closed.output.done }}"
     exec: "sleep ${{ inputs.poll_interval }}"
 
   - id: next_iteration
-    condition: "${{ not ((scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0)) }}"
+    condition: "${{ not all_closed.output.done }}"
     invoke_pipeline:
       name: orchestrator
       arguments:
@@ -175,6 +177,5 @@ steps:
         qa_model: "${{ inputs.qa_model }}"
         merge_model: "${{ inputs.merge_model }}"
         wait_timeout: "${{ inputs.wait_timeout }}"
-        max_concurrent: "${{ inputs.max_concurrent }}"
         poll_interval: "${{ inputs.poll_interval }}"
         max_iterations: "${{ inputs.max_iterations }}"

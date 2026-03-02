@@ -70,11 +70,7 @@ async def get_workflow(
                 if definition.steps
                 else []
             ),
-            "triggers": (
-                {name: len(actions) for name, actions in definition.triggers.items()}
-                if definition.triggers
-                else {}
-            ),
+            "triggers": {},
             "settings": definition.settings,
         }
     else:

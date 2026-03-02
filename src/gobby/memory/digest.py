@@ -18,6 +18,25 @@ logger = logging.getLogger(__name__)
 
 _LIFECYCLE_CMDS = ("/clear", "/exit", "/compact")
 
+BOUNDARY_PROMPT_FALLBACK = (
+    "Given a session's complete turn-by-turn digest, produce two outputs.\n\n"
+    "You MUST separate the two outputs with the exact line "
+    "===SECTION_BREAK=== on its own line (no extra whitespace). "
+    "This marker is required for machine parsing — do not omit it, "
+    "rename it, or wrap it in markdown formatting.\n\n"
+    "## Session Digest\n{digest}\n\n"
+    "---\n\n"
+    "## Output A: Handoff Context\n"
+    "What the next session needs to know to continue this work.\n"
+    "Include: current state, open problems, key decisions, relevant file paths.\n"
+    "Keep under 500 words.\n\n"
+    "===SECTION_BREAK===\n\n"
+    "## Output B: Session Summary\n"
+    "Archival summary of what was accomplished.\n"
+    "Include: goals, outcomes, commits, tasks closed, key findings.\n"
+    "Keep under 800 words."
+)
+
 
 async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
     """Import memories from filesystem.
@@ -104,7 +123,7 @@ async def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple
 
 
 async def _read_undigested_turns(
-    jsonl_path: str, source: str, digested_count: int
+    jsonl_path: str, source: str, digested_count: int, max_turns: int = 50, num_pairs: int = 50
 ) -> list[tuple[str, str]]:
     """Read user/assistant pairs from transcript that haven't been digested yet.
 
@@ -146,12 +165,12 @@ async def _read_undigested_turns(
             return []
 
         # Get current conversation segment (respects /clear boundaries)
-        segment = parser.extract_turns_since_clear(turns, max_turns=50)
+        segment = parser.extract_turns_since_clear(turns, max_turns=max_turns)
         if not segment:
             return []
 
         # Extract all user/assistant messages from the segment
-        messages = parser.extract_last_messages(segment, num_pairs=50)
+        messages = parser.extract_last_messages(segment, num_pairs=num_pairs)
         if not messages:
             return []
 
@@ -258,6 +277,7 @@ async def _extract_memories_from_turn(
     memory_manager: Any,
     provider: Any,
     model: str | None = None,
+    session_manager: Any | None = None,
 ) -> list[str]:
     """Extract reusable facts/patterns from a turn record.
 
@@ -302,14 +322,8 @@ async def _extract_memories_from_turn(
 
     memory_ids: list[str] = []
     # Resolve project_id from session
-    session = None
-    try:
-        session = memory_manager.storage.db.fetchone(
-            "SELECT project_id FROM sessions WHERE id = ?", (session_id,)
-        )
-    except AttributeError:
-        pass
-    project_id = session["project_id"] if session else None
+    session = session_manager.get(session_id) if session_manager else None
+    project_id = getattr(session, "project_id", None) if session else None
 
     for line in response.splitlines():
         line = line.strip()
@@ -350,6 +364,8 @@ async def _resolve_undigested_pairs(
     session: Any,
     prompt_text: str | None,
     session_id: str,
+    max_turns: int = 50,
+    num_pairs: int = 50,
 ) -> tuple[list[tuple[str, str]], str] | None:
     """Resolve undigested turn pairs from transcript or prompt_text.
 
@@ -362,7 +378,11 @@ async def _resolve_undigested_pairs(
         previous_digest = getattr(session, "digest_markdown", None) or ""
         digested_count = _get_next_turn_number(previous_digest) - 1
         undigested_pairs = await _read_undigested_turns(
-            session.jsonl_path, session.source, digested_count
+            session.jsonl_path,
+            session.source,
+            digested_count,
+            max_turns=max_turns,
+            num_pairs=num_pairs,
         )
 
     if not undigested_pairs:
@@ -424,7 +444,7 @@ async def _build_turn_record(
         turn_prompt = _build_turn_record_prompt(truncated_prompt, truncated_response)
 
     last_turn = await provider.generate_text(turn_prompt, model=model)
-    return last_turn.strip()
+    return str(last_turn).strip()
 
 
 async def _synthesize_title(
@@ -449,14 +469,14 @@ async def _synthesize_title(
         title_prompt = _build_title_synthesis_prompt(updated_digest)
 
     title = await provider.generate_text(title_prompt, model=model)
-    title = title.strip().strip('"').strip("'")
-    if title and len(title) < 80:
-        session_manager.update_title(session_id, title)
+    title_str = str(title).strip().strip('"').strip("'")
+    if title_str and len(title_str) < 80:
+        session_manager.update_title(session_id, title_str)
 
         from gobby.workflows.summary_actions import _rename_tmux_window
 
-        await _rename_tmux_window(session, title)
-        return title
+        await _rename_tmux_window(session, title_str)
+        return title_str
     return None
 
 
@@ -507,7 +527,11 @@ async def build_turn_and_digest(
             return None
 
         # 2. Resolve undigested pairs
-        resolved = await _resolve_undigested_pairs(session, prompt_text, session_id)
+        max_turns = getattr(digest_config, "max_turns", 50) if digest_config else 50
+        num_pairs = getattr(digest_config, "num_pairs", 50) if digest_config else 50
+        resolved = await _resolve_undigested_pairs(
+            session, prompt_text, session_id, max_turns, num_pairs
+        )
         if resolved is None:
             return None
         undigested_pairs, input_hash = resolved
@@ -565,7 +589,12 @@ async def build_turn_and_digest(
         # 8. Extract memories from turn record
         try:
             extracted = await _extract_memories_from_turn(
-                last_turn, session_id, memory_manager, provider, model=model
+                last_turn,
+                session_id,
+                memory_manager,
+                provider,
+                model=model,
+                session_manager=session_manager,
             )
             if extracted:
                 result["memories_extracted"] = len(extracted)
@@ -656,24 +685,7 @@ async def generate_session_boundary_summaries(
                 {"digest_markdown": digest},
             )
         except Exception:
-            boundary_prompt = (
-                "Given a session's complete turn-by-turn digest, produce two outputs.\n\n"
-                "You MUST separate the two outputs with the exact line "
-                "===SECTION_BREAK=== on its own line (no extra whitespace). "
-                "This marker is required for machine parsing — do not omit it, "
-                "rename it, or wrap it in markdown formatting.\n\n"
-                f"## Session Digest\n{digest}\n\n"
-                "---\n\n"
-                "## Output A: Handoff Context\n"
-                "What the next session needs to know to continue this work.\n"
-                "Include: current state, open problems, key decisions, relevant file paths.\n"
-                "Keep under 500 words.\n\n"
-                "===SECTION_BREAK===\n\n"
-                "## Output B: Session Summary\n"
-                "Archival summary of what was accomplished.\n"
-                "Include: goals, outcomes, commits, tasks closed, key findings.\n"
-                "Keep under 800 words."
-            )
+            boundary_prompt = BOUNDARY_PROMPT_FALLBACK.format(digest=digest)
 
         response = await provider.generate_text(boundary_prompt, model=model)
         response = response.strip()

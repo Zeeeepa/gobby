@@ -5,22 +5,24 @@ Covers: get_workflow_loader, get_project_path, _get_project_id, get_pipeline_exe
         status_pipeline, approve/reject, history, import_pipeline.
 Lines targeted: 23-99, 105, 195-221, 264-384, 422-498, 534-536, 628-691
 """
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
 from gobby.cli.pipelines import (
     _get_project_id,
-    _try_daemon_run,
     get_project_path,
     parse_input,
     pipelines,
 )
+from gobby.workflows.pipeline_state import ApprovalRequired
 
 pytestmark = pytest.mark.unit
 
@@ -43,7 +45,6 @@ class TestHelpers:
         assert parse_input("key=a=b") == ("key", "a=b")
 
     def test_parse_input_invalid(self) -> None:
-        import click
         with pytest.raises(click.BadParameter, match="key=value"):
             parse_input("noequals")
 
@@ -98,14 +99,18 @@ class TestHelpers:
 class TestShowPipeline:
     @patch("gobby.cli.pipelines.get_project_path", return_value=None)
     @patch("gobby.cli.pipelines.get_workflow_loader")
-    def test_show_not_found(self, mock_loader: MagicMock, mock_pp: MagicMock, runner: CliRunner) -> None:
+    def test_show_not_found(
+        self, mock_loader: MagicMock, mock_pp: MagicMock, runner: CliRunner
+    ) -> None:
         mock_loader.return_value.load_pipeline_sync.return_value = None
         result = runner.invoke(pipelines, ["show", "missing"])
         assert result.exit_code == 1
 
     @patch("gobby.cli.pipelines.get_project_path", return_value=None)
     @patch("gobby.cli.pipelines.get_workflow_loader")
-    def test_show_with_inputs_outputs(self, mock_loader: MagicMock, mock_pp: MagicMock, runner: CliRunner) -> None:
+    def test_show_with_inputs_outputs(
+        self, mock_loader: MagicMock, mock_pp: MagicMock, runner: CliRunner
+    ) -> None:
         pipeline = MagicMock()
         pipeline.name = "deploy"
         pipeline.description = "Deploy app"
@@ -181,8 +186,12 @@ class TestRunPipeline:
     @patch("gobby.cli.pipelines.get_project_path", return_value=Path("/proj"))
     @patch("gobby.cli.pipelines.get_workflow_loader")
     def test_run_daemon_waiting_approval(
-        self, mock_loader: MagicMock, mock_pp: MagicMock,
-        mock_daemon: MagicMock, mock_proj_id: MagicMock, runner: CliRunner
+        self,
+        mock_loader: MagicMock,
+        mock_pp: MagicMock,
+        mock_daemon: MagicMock,
+        mock_proj_id: MagicMock,
+        runner: CliRunner,
     ) -> None:
         mock_loader.return_value.load_pipeline_sync.return_value = MagicMock()
         mock_daemon.return_value = {
@@ -202,8 +211,12 @@ class TestRunPipeline:
     @patch("gobby.cli.pipelines.get_project_path", return_value=Path("/proj"))
     @patch("gobby.cli.pipelines.get_workflow_loader")
     def test_run_daemon_waiting_approval_json(
-        self, mock_loader: MagicMock, mock_pp: MagicMock,
-        mock_daemon: MagicMock, mock_proj_id: MagicMock, runner: CliRunner
+        self,
+        mock_loader: MagicMock,
+        mock_pp: MagicMock,
+        mock_daemon: MagicMock,
+        mock_proj_id: MagicMock,
+        runner: CliRunner,
     ) -> None:
         mock_loader.return_value.load_pipeline_sync.return_value = MagicMock()
         mock_daemon.return_value = {"status": "waiting_approval", "token": "tok"}
@@ -220,8 +233,12 @@ class TestRunPipeline:
     @patch("gobby.cli.pipelines.get_pipeline_executor")
     @patch("gobby.cli.pipelines.LobsterImporter")
     def test_run_lobster_file(
-        self, mock_importer_cls: MagicMock, mock_executor_fn: MagicMock,
-        mock_proj_id: MagicMock, runner: CliRunner, tmp_path: Path
+        self,
+        mock_importer_cls: MagicMock,
+        mock_executor_fn: MagicMock,
+        mock_proj_id: MagicMock,
+        runner: CliRunner,
+        tmp_path: Path,
     ) -> None:
         lobster_file = tmp_path / "test.lobster"
         lobster_file.write_text("pipeline test")
@@ -246,7 +263,9 @@ class TestRunPipeline:
         assert "completed" in result.output
 
     @patch("gobby.cli.pipelines.LobsterImporter")
-    def test_run_lobster_not_found(self, mock_importer_cls: MagicMock, runner: CliRunner, tmp_path: Path) -> None:
+    def test_run_lobster_not_found(
+        self, mock_importer_cls: MagicMock, runner: CliRunner, tmp_path: Path
+    ) -> None:
         lobster_file = tmp_path / "missing.lobster"
         lobster_file.write_text("")  # must exist for click.Path(exists=True)
         mock_importer_cls.return_value.import_file.side_effect = FileNotFoundError("not found")
@@ -254,16 +273,17 @@ class TestRunPipeline:
         assert result.exit_code == 1
 
     @patch("gobby.cli.pipelines._get_project_id", return_value="")
-    @patch("gobby.cli.pipelines.get_pipeline_executor")
     @patch("gobby.cli.pipelines._try_daemon_run", return_value=None)
     @patch("gobby.cli.pipelines.get_project_path", return_value=Path("/proj"))
     @patch("gobby.cli.pipelines.get_workflow_loader")
     def test_run_local_approval_required(
-        self, mock_loader: MagicMock, mock_pp: MagicMock,
-        mock_daemon: MagicMock, mock_executor_fn: MagicMock,
-        mock_proj_id: MagicMock, runner: CliRunner
+        self,
+        mock_loader: MagicMock,
+        mock_pp: MagicMock,
+        mock_daemon: MagicMock,
+        mock_proj_id: MagicMock,
+        runner: CliRunner,
     ) -> None:
-        from gobby.workflows.pipeline_state import ApprovalRequired
         mock_loader.return_value.load_pipeline_sync.return_value = MagicMock()
         exc = ApprovalRequired(
             execution_id="ex-1",
@@ -278,14 +298,16 @@ class TestRunPipeline:
         assert "tok-123" in result.output
 
     @patch("gobby.cli.pipelines._get_project_id", return_value="")
-    @patch("gobby.cli.pipelines.get_pipeline_executor")
     @patch("gobby.cli.pipelines._try_daemon_run", return_value=None)
     @patch("gobby.cli.pipelines.get_project_path", return_value=Path("/proj"))
     @patch("gobby.cli.pipelines.get_workflow_loader")
     def test_run_local_generic_error(
-        self, mock_loader: MagicMock, mock_pp: MagicMock,
-        mock_daemon: MagicMock, mock_executor_fn: MagicMock,
-        mock_proj_id: MagicMock, runner: CliRunner
+        self,
+        mock_loader: MagicMock,
+        mock_pp: MagicMock,
+        mock_daemon: MagicMock,
+        mock_proj_id: MagicMock,
+        runner: CliRunner,
     ) -> None:
         mock_loader.return_value.load_pipeline_sync.return_value = MagicMock()
         with patch("gobby.cli.pipelines.asyncio.run", side_effect=RuntimeError("boom")):
@@ -294,14 +316,16 @@ class TestRunPipeline:
         assert "Pipeline execution failed" in result.output
 
     @patch("gobby.cli.pipelines._get_project_id", return_value="")
-    @patch("gobby.cli.pipelines.get_pipeline_executor")
     @patch("gobby.cli.pipelines._try_daemon_run", return_value=None)
     @patch("gobby.cli.pipelines.get_project_path", return_value=Path("/proj"))
     @patch("gobby.cli.pipelines.get_workflow_loader")
     def test_run_local_json_output(
-        self, mock_loader: MagicMock, mock_pp: MagicMock,
-        mock_daemon: MagicMock, mock_executor_fn: MagicMock,
-        mock_proj_id: MagicMock, runner: CliRunner
+        self,
+        mock_loader: MagicMock,
+        mock_pp: MagicMock,
+        mock_daemon: MagicMock,
+        mock_proj_id: MagicMock,
+        runner: CliRunner,
     ) -> None:
         mock_loader.return_value.load_pipeline_sync.return_value = MagicMock()
         execution = MagicMock()
@@ -318,14 +342,16 @@ class TestRunPipeline:
         assert data["outputs"]["url"] == "https://example.com"
 
     @patch("gobby.cli.pipelines._get_project_id", return_value="")
-    @patch("gobby.cli.pipelines.get_pipeline_executor")
     @patch("gobby.cli.pipelines._try_daemon_run", return_value=None)
     @patch("gobby.cli.pipelines.get_project_path", return_value=Path("/proj"))
     @patch("gobby.cli.pipelines.get_workflow_loader")
     def test_run_local_json_bad_outputs(
-        self, mock_loader: MagicMock, mock_pp: MagicMock,
-        mock_daemon: MagicMock, mock_executor_fn: MagicMock,
-        mock_proj_id: MagicMock, runner: CliRunner
+        self,
+        mock_loader: MagicMock,
+        mock_pp: MagicMock,
+        mock_daemon: MagicMock,
+        mock_proj_id: MagicMock,
+        runner: CliRunner,
     ) -> None:
         mock_loader.return_value.load_pipeline_sync.return_value = MagicMock()
         execution = MagicMock()
@@ -544,7 +570,9 @@ class TestHistoryPipeline:
 class TestImportPipeline:
     @patch("gobby.cli.pipelines.LobsterImporter")
     @patch("gobby.cli.pipelines.get_project_path", return_value=None)
-    def test_import_no_project_no_output(self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path) -> None:
+    def test_import_no_project_no_output(
+        self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path
+    ) -> None:
         f = tmp_path / "test.lobster"
         f.write_text("pipeline test")
         result = runner.invoke(pipelines, ["import", str(f)])
@@ -552,26 +580,36 @@ class TestImportPipeline:
 
     @patch("gobby.cli.pipelines.LobsterImporter")
     @patch("gobby.cli.pipelines.get_project_path", return_value=None)
-    def test_import_file_not_found(self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path) -> None:
+    def test_import_file_not_found(
+        self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path
+    ) -> None:
         f = tmp_path / "test.lobster"
         f.write_text("x")
         mock_imp.return_value.import_file.side_effect = FileNotFoundError("no")
-        result = runner.invoke(pipelines, ["import", str(f), "--output", str(tmp_path / "out.yaml")])
+        result = runner.invoke(
+            pipelines, ["import", str(f), "--output", str(tmp_path / "out.yaml")]
+        )
         assert result.exit_code == 1
 
     @patch("gobby.cli.pipelines.LobsterImporter")
     @patch("gobby.cli.pipelines.get_project_path", return_value=None)
-    def test_import_parse_error(self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path) -> None:
+    def test_import_parse_error(
+        self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path
+    ) -> None:
         f = tmp_path / "test.lobster"
         f.write_text("x")
         mock_imp.return_value.import_file.side_effect = RuntimeError("parse fail")
-        result = runner.invoke(pipelines, ["import", str(f), "--output", str(tmp_path / "out.yaml")])
+        result = runner.invoke(
+            pipelines, ["import", str(f), "--output", str(tmp_path / "out.yaml")]
+        )
         assert result.exit_code == 1
         assert "Failed to import" in result.output
 
     @patch("gobby.cli.pipelines.LobsterImporter")
     @patch("gobby.cli.pipelines.get_project_path", return_value=None)
-    def test_import_to_custom_output(self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path) -> None:
+    def test_import_to_custom_output(
+        self, mock_pp: MagicMock, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path
+    ) -> None:
         f = tmp_path / "test.lobster"
         f.write_text("x")
 
@@ -600,7 +638,9 @@ class TestImportPipeline:
         assert out.exists()
 
     @patch("gobby.cli.pipelines.LobsterImporter")
-    def test_import_to_project_dir(self, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path) -> None:
+    def test_import_to_project_dir(
+        self, mock_imp: MagicMock, runner: CliRunner, tmp_path: Path
+    ) -> None:
         f = tmp_path / "test.lobster"
         f.write_text("x")
 

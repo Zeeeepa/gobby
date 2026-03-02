@@ -155,12 +155,12 @@ class LocalPipelineExecutionManager:
         Returns:
             List of PipelineExecution instances
         """
+        params: list[Any] = []
         if self.project_id is None:
             query = "SELECT * FROM pipeline_executions WHERE project_id IS NULL"
-            params: list[Any] = []
         else:
             query = "SELECT * FROM pipeline_executions WHERE project_id = ?"
-            params: list[Any] = [self.project_id]
+            params.append(self.project_id)
 
         if status is not None:
             query += " AND status = ?"

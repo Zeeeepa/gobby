@@ -106,7 +106,7 @@ class WorkflowLoader(WorkflowLoaderSyncMixin):
                     logger.warning(f"Parent workflow '{parent_name}' not found in DB for '{name}'")
 
             if row.workflow_type == "pipeline" or data.get("type") == "pipeline":
-                _validate_pipeline_references(data)
+                self._validate_pipeline_references(data)
                 return PipelineDefinition(**data)
             else:
                 return WorkflowDefinition(**data)

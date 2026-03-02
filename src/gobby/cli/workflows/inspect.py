@@ -153,7 +153,6 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
                     click.echo(f"      prompt: {pstep.prompt[:60]}...")
 
 
-
 @click.command("status")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")

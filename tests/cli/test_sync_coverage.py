@@ -1,4 +1,5 @@
 """Tests for cli/sync.py — targeting uncovered lines."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -202,7 +203,7 @@ class TestSyncProductionMode:
         mock_load.return_value = mock_config
         (tmp_path / "test.db").write_text("")
 
-        mock_sync.return_value = {"total_synced": 0, "errors": []}
+        mock_sync.return_value = {"total_synced": 0, "errors": [], "details": {}}
         result = runner.invoke(sync, [], catch_exceptions=False)
         assert result.exit_code == 0
         assert "clean" in result.output.lower()
@@ -294,9 +295,10 @@ class TestSyncTypeFilter:
         mock_load.return_value = mock_config
         (tmp_path / "test.db").write_text("")
 
-        mock_sync.return_value = {"total_synced": 1, "errors": []}
+        mock_sync.return_value = {"total_synced": 1, "errors": [], "details": {}}
         result = runner.invoke(sync, ["--type", "skills"], catch_exceptions=False)
         assert result.exit_code == 0
+        mock_sync.assert_called_once()
         # Verify sync was called with skip_types excluding 'skills'
         call_kwargs = mock_sync.call_args[1]
         assert "skills" not in (call_kwargs.get("skip_types") or set())
@@ -351,7 +353,7 @@ class TestSyncForce:
         mock_load.return_value = mock_config
         (tmp_path / "test.db").write_text("")
 
-        mock_sync.return_value = {"total_synced": 0, "errors": []}
+        mock_sync.return_value = {"total_synced": 0, "errors": [], "details": {}}
         result = runner.invoke(sync, ["--force", "--verbose"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "Force mode" in result.output

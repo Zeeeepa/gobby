@@ -1,13 +1,14 @@
 """Skill change notification system."""
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from gobby.storage.skills._models import ChangeEvent, ChangeEventType
 
 logger = logging.getLogger(__name__)
 
-ChangeListener = Any
+ChangeListener = Callable[[ChangeEvent], None]
 
 
 class SkillChangeNotifier:
@@ -86,12 +87,14 @@ class SkillChangeNotifier:
             metadata=metadata,
         )
 
-        for listener in self._listeners:
+        for listener in list(self._listeners):
             try:
                 listener(event)
             except Exception as e:
                 logger.error(
-                    f"Error in skill change listener {listener}: {e}",
+                    "Error in skill change listener %s: %s",
+                    listener,
+                    e,
                     exc_info=True,
                 )
 

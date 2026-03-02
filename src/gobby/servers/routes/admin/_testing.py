@@ -4,7 +4,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from gobby.utils.metrics import get_metrics_collector
@@ -37,8 +37,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         Returns:
             Registration confirmation
         """
-        from fastapi import HTTPException
-
         from gobby.storage.projects import LocalProjectManager
 
         # Guard: Only available in test mode
@@ -93,9 +91,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
-            logger.error(f"Error registering test project: {e}", exc_info=True)
-            from fastapi import HTTPException
-
+            logger.error("Error registering test project: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     class TestAgentRegisterRequest(BaseModel):
@@ -121,8 +117,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         Returns:
             Registration confirmation
         """
-        from fastapi import HTTPException
-
         from gobby.agents.registry import RunningAgent, get_running_agent_registry
 
         # Guard: Only available in test mode
@@ -158,9 +152,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
-            logger.error(f"Error registering test agent: {e}", exc_info=True)
-            from fastapi import HTTPException
-
+            logger.error("Error registering test agent: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.delete("/test/unregister-agent/{run_id}")
@@ -174,8 +166,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         Returns:
             Unregistration confirmation
         """
-        from fastapi import HTTPException
-
         from gobby.agents.registry import get_running_agent_registry
 
         # Guard: Only available in test mode
@@ -209,9 +199,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
-            logger.error(f"Error unregistering test agent: {e}", exc_info=True)
-            from fastapi import HTTPException
-
+            logger.error("Error unregistering test agent: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     class TestSessionUsageRequest(BaseModel):
@@ -239,8 +227,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         Returns:
             Update confirmation
         """
-        from fastapi import HTTPException
-
         # Guard: Only available in test mode
         if not server.test_mode:
             raise HTTPException(
@@ -288,7 +274,5 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
-            logger.error(f"Error setting test session usage: {e}", exc_info=True)
-            from fastapi import HTTPException
-
+            logger.error("Error setting test session usage: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

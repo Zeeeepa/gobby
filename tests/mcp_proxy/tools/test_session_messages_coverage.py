@@ -552,7 +552,7 @@ class TestGetHandoffContext:
         assert result["context"] == "## Compact"
         assert result["context_type"] == "compact_markdown"
 
-    def test_get_session_not_found(self) -> None:
+    def test_get_handoff_context_session_not_found(self) -> None:
         """Test error when session not found by ID."""
         session_manager = MagicMock()
         session_manager.resolve_session_reference.side_effect = ValueError("Not found")
@@ -971,7 +971,7 @@ class TestGetSessionCommits:
             result = get_commits(session_id="sess-123")
 
         assert "error" in result
-        assert "Git not found" in result["error"]
+        assert "Git executable not found" in result["error"]
 
     def test_get_session_commits_by_prefix(self) -> None:
         """Test commit retrieval by session ID prefix."""

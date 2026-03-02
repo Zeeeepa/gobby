@@ -1,4 +1,4 @@
-"""Task enforcement actions for workflow engine.
+"""Enforcement actions for workflow engine.
 
 This package provides blocking helpers used by the rule engine.
 """

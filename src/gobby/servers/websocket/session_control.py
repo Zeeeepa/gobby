@@ -503,7 +503,7 @@ class SessionControlMixin:
         """
         import os
 
-        from gobby.servers.websocket.chat import _resolve_git_branch
+        from gobby.servers.websocket.chat._session import _resolve_git_branch
 
         conversation_id = data.get("conversation_id")
         worktree_path = data.get("worktree_path")

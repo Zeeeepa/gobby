@@ -7,6 +7,7 @@ Relocated from workflows/context_actions.py as part of dead-code cleanup.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -19,7 +20,7 @@ class HandoffContext(Protocol):
     git_commits: list[dict[str, Any]]
     git_status: str
     files_modified: list[str]
-    initial_goal: str | None
+    initial_goal: str
     recent_activity: list[str]
 
 
@@ -83,8 +84,6 @@ def format_handoff_as_markdown(
             except ValueError:
                 # Path not relative to cwd, use as-is
                 rel_str = f
-            import re
-
             if re.search(rf"\b{re.escape(rel_str)}$", ctx.git_status, re.MULTILINE):
                 dirty_files.append(rel_str)
         if dirty_files:

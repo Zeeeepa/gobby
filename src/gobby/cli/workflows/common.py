@@ -33,7 +33,7 @@ def get_session_var_manager(db: LocalDatabase | None = None) -> SessionVariableM
     return _session_var_manager_instance
 
 
-def _reset_state_manager_for_tests() -> None:
+def _reset_session_var_manager_for_tests() -> None:
     """Reset cached session variable manager instances (for test isolation)."""
     global _db_instance, _session_var_manager_instance
     if _db_instance is not None:

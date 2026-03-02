@@ -296,13 +296,16 @@ function computeLineDiff(oldStr: string, newStr: string): { type: 'keep' | 'add'
 
 function InlineDiff({ oldStr, newStr, language }: { oldStr: string; newStr: string; language: string }) {
   const diff = useMemo(() => computeLineDiff(oldStr, newStr), [oldStr, newStr])
-  const content = useMemo(() => diff.map(e => e.line).join('\n'), [diff])
+  const content = useMemo(() => diff.map(e => {
+    const prefix = e.type === 'add' ? '+' : e.type === 'remove' ? '-' : ' '
+    return `${prefix} ${e.line}`
+  }).join('\n'), [diff])
 
   const lineProps = useCallback((lineNumber: number): React.HTMLProps<HTMLElement> => {
     const entry = diff[lineNumber - 1]
     if (!entry) return { style: { display: 'block' } }
     const bg = entry.type === 'add' ? 'rgba(63, 185, 80, 0.15)'
-             : entry.type === 'remove' ? 'rgba(248, 81, 73, 0.15)'
+             : entry.type === 'remove' ? 'rgba(248, 81, 73, 0.3)'
              : 'transparent'
     return { style: { background: bg, display: 'block' } }
   }, [diff])
@@ -523,12 +526,12 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     }
   }
 
-  // Agent/Task results: render as markdown
+  // Agent/Task results: plaintext
   if (toolName === 'Agent' || toolName === 'Task') {
     return (
-      <div className="text-sm prose-sm text-foreground max-h-96 overflow-y-auto">
-        <Markdown content={resultStr} id={`tool-${call.id}`} />
-      </div>
+      <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground max-h-96 overflow-y-auto font-mono text-xs whitespace-pre-wrap">
+        {resultStr}
+      </pre>
     )
   }
 

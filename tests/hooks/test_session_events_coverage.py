@@ -45,7 +45,7 @@ def _make_event(
 
 def _make_session(
     *,
-    id: str = "sess-uuid-1",
+    session_id: str = "sess-uuid-1",
     status: str = "active",
     summary_markdown: str | None = None,
     compact_markdown: str | None = None,
@@ -57,7 +57,7 @@ def _make_session(
     created_at: str = "2024-01-01T00:00:00Z",
 ) -> MagicMock:
     session = MagicMock()
-    session.id = id
+    session.id = session_id
     session.status = status
     session.summary_markdown = summary_markdown
     session.compact_markdown = compact_markdown
@@ -599,9 +599,7 @@ class TestSessionMoreCoverage:
             patch.object(handler, "_activate_default_agent", return_value=None),
             patch("time.sleep") as mock_sleep,
             patch("time.monotonic", side_effect=[0, 1, 2, 3, 4]),
-            patch(
-                "gobby.workflows.state_manager.SessionVariableManager"
-            ) as mock_svm_cls,
+            patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls,
         ):
             mock_svm_cls.return_value.get_variables.return_value = {}
             handler.handle_session_start(event)
@@ -634,7 +632,7 @@ class TestComposeSessionResponse:
     def test_with_parent_session(self) -> None:
         handler = _TestHandler()
         session = _make_session(seq_num=42)
-        parent = _make_session(id="parent-1", seq_num=10, summary_markdown="# S")
+        parent = _make_session(session_id="parent-1", seq_num=10, summary_markdown="# S")
         handler._session_storage.get.return_value = parent
 
         result = handler._compose_session_response(

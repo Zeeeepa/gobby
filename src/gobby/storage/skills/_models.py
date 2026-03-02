@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-_UNSET: Any = object()
 SkillSourceType = Literal["local", "github", "url", "zip", "filesystem", "hub"]
 
 
@@ -101,10 +100,18 @@ class Skill:
         """
         # Parse JSON fields
         allowed_tools_json = row["allowed_tools"]
-        allowed_tools = json.loads(allowed_tools_json) if allowed_tools_json else None
+        try:
+            allowed_tools = json.loads(allowed_tools_json) if allowed_tools_json else None
+        except json.JSONDecodeError:
+            allowed_tools = None
 
         metadata_json = row["metadata"]
-        metadata = json.loads(metadata_json) if metadata_json else None
+        try:
+            metadata = json.loads(metadata_json) if metadata_json else None
+        except json.JSONDecodeError:
+            metadata = None
+
+        row_keys = set(row.keys())
 
         return cls(
             id=row["id"],
@@ -119,17 +126,17 @@ class Skill:
             source_path=row["source_path"],
             source_type=row["source_type"],
             source_ref=row["source_ref"],
-            hub_name=row["hub_name"] if "hub_name" in row.keys() else None,
-            hub_slug=row["hub_slug"] if "hub_slug" in row.keys() else None,
-            hub_version=row["hub_version"] if "hub_version" in row.keys() else None,
+            hub_name=row["hub_name"] if "hub_name" in row_keys else None,
+            hub_slug=row["hub_slug"] if "hub_slug" in row_keys else None,
+            hub_version=row["hub_version"] if "hub_version" in row_keys else None,
             enabled=bool(row["enabled"]),
-            always_apply=bool(row["always_apply"]) if "always_apply" in row.keys() else False,
+            always_apply=bool(row["always_apply"]) if "always_apply" in row_keys else False,
             injection_format=row["injection_format"]
-            if "injection_format" in row.keys()
+            if "injection_format" in row_keys
             else "summary",
             project_id=row["project_id"],
-            source=row["source"] if "source" in row.keys() else "installed",
-            deleted_at=row["deleted_at"] if "deleted_at" in row.keys() else None,
+            source=row["source"] if "source" in row_keys else "installed",
+            deleted_at=row["deleted_at"] if "deleted_at" in row_keys else None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

@@ -10,7 +10,7 @@ import psutil
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
-from gobby.utils.metrics import Counter, get_metrics_collector
+from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -67,13 +67,13 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         # Get background task status
         metrics = get_metrics_collector()
+        all_metrics = metrics.get_all_metrics()
+        counters = all_metrics.get("counters", {})
         background_tasks = {
             "active": len(server._background_tasks),
-            "total": metrics._counters.get("background_tasks_total", Counter("", "")).value,
-            "completed": metrics._counters.get(
-                "background_tasks_completed_total", Counter("", "")
-            ).value,
-            "failed": metrics._counters.get("background_tasks_failed_total", Counter("", "")).value,
+            "total": counters.get("background_tasks_total", {}).get("value", 0),
+            "completed": counters.get("background_tasks_completed_total", {}).get("value", 0),
+            "failed": counters.get("background_tasks_failed_total", {}).get("value", 0),
         }
 
         # Get MCP server status - include ALL configured servers
@@ -187,7 +187,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             try:
                 for registry in server._internal_manager.get_all_registries():
                     if registry.name == "gobby-skills":
-                        result = await registry.call("list_skills", {"limit": 10000})
+                        result = await registry.call("count_skills", {})
                         if result.get("success"):
                             skills_stats["total"] = result.get("count", 0)
                         break

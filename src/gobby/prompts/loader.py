@@ -11,13 +11,10 @@ read by sync_bundled_prompts() on daemon startup.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
 from gobby.prompts.models import PromptTemplate
 from gobby.storage.database import DatabaseProtocol
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +94,7 @@ class PromptLoader:
         record = self._get_record(path)
 
         if record is not None:
-            template = record.to_prompt_template()
+            template = cast(PromptTemplate, record.to_prompt_template())
             self._cache[path] = template
             logger.debug(f"Loaded prompt template '{path}' from database (scope={record.scope})")
             return template

@@ -23,9 +23,11 @@ from typing import TYPE_CHECKING, Any
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.digest import (
     build_turn_and_digest as _build_turn_and_digest,
+)
+from gobby.memory.digest import (
     memory_extract_from_session,
-    memory_sync_import,
     memory_sync_export,
+    memory_sync_import,
 )
 from gobby.memory.manager import MemoryManager
 

@@ -5,7 +5,7 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from gobby.utils.metrics import get_metrics_collector
 from gobby.utils.version import get_version
@@ -163,7 +163,7 @@ def register_config_routes(router: APIRouter, server: "HTTPServer") -> None:
         try:
             models_by_provider = _discover_models()
         except Exception as e:
-            logger.warning(f"LiteLLM discovery failed, falling back to config: {e}")
+            logger.warning("LiteLLM discovery failed, falling back to config: %s", e)
             # Fallback to config-based models
             models_by_provider = _fallback_models_from_config(server)
 
@@ -227,7 +227,5 @@ def register_config_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         except Exception as e:
-            logger.error(f"Config retrieval error: {e}", exc_info=True)
-            from fastapi import HTTPException
-
+            logger.error("Config retrieval error: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

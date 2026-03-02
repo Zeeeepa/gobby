@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -133,10 +134,12 @@ def test_install_copilot_template_read_errors(tmp_path: Path) -> None:
     ):
         # Test OSError
         # We only throw OSError for the template file read
-        def mock_open(*args, **kwargs):
+        original_open = open
+
+        def mock_open(*args: Any, **kwargs: Any) -> Any:
             if str(args[0]) == str(template_file):
                 raise OSError("open error")
-            return open(*args, **kwargs)
+            return original_open(*args, **kwargs)
 
         with patch("builtins.open", side_effect=mock_open):
             result = install_copilot(tmp_path, mode="project")

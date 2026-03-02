@@ -769,7 +769,7 @@ class TestBoundaryFallbackToTranscript:
                 }
             },
         ]
-        transcript.write_text("\n".join(json.dumps(line) for l in lines))
+        transcript.write_text("\n".join(json.dumps(line) for line in lines))
 
         sm = MagicMock()
         session = MagicMock()
@@ -822,7 +822,7 @@ class TestBoundaryFallbackToTranscript:
             {"message": {"role": "user", "content": long_text}},
             {"message": {"role": "assistant", "content": [{"type": "text", "text": long_text}]}},
         ]
-        transcript.write_text("\n".join(json.dumps(line) for l in lines))
+        transcript.write_text("\n".join(json.dumps(line) for line in lines))
 
         sm = MagicMock()
         session = MagicMock()

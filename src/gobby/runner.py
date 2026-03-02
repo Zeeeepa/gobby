@@ -669,7 +669,7 @@ class GobbyRunner:
                 )
 
             # Resume interrupted pipelines and fail non-resumable stale executions
-            if self.pipeline_executor and self.pipeline_execution_manager:
+            if self.pipeline_executor and self.pipeline_execution_manager and self.workflow_loader:
                 try:
                     from gobby.mcp_proxy.tools.pipelines._execution import (
                         resume_interrupted_pipelines,
@@ -690,9 +690,7 @@ class GobbyRunner:
                         exclude_ids=set(resumed_ids),
                     )
                     if stale_count > 0:
-                        logger.info(
-                            f"Failed {stale_count} non-resumable stale pipeline executions"
-                        )
+                        logger.info(f"Failed {stale_count} non-resumable stale pipeline executions")
                 except Exception as e:
                     logger.warning(f"Pipeline recovery after restart failed: {e}")
 

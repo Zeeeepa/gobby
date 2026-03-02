@@ -296,7 +296,6 @@ class TestShowStatusEdgeCases:
 class TestGetDaemonUrl:
     @patch("gobby.cli.agents.get_daemon_url", return_value="http://localhost:60887")
     def test_get_daemon_url(self, mock_url: MagicMock) -> None:
-        from gobby.cli.agents import get_daemon_url
 
         result = mock_url()
         assert result == "http://localhost:60887"
@@ -314,7 +313,6 @@ class TestListAgentsDisplay:
         self, mock_mgr_fn: MagicMock, mock_db_cls: MagicMock, runner: CliRunner
     ) -> None:
         """Cover the display loop when runs exist."""
-        from gobby.storage.agents import AgentRun
 
         mock_row = {
             "id": "run-abc123def456",

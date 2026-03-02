@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 def register_commits_tools(
     registry: InternalToolRegistry,
     session_manager: LocalSessionManager,
+    db: Any | None = None,
 ) -> None:
     """
     Register commits and workflow tools with a registry.
@@ -25,6 +26,7 @@ def register_commits_tools(
     Args:
         registry: The InternalToolRegistry to register tools with
         session_manager: LocalSessionManager instance for session operations
+        db: Database for dependency injection (optional)
     """
 
     def _resolve_session_id(ref: str) -> str:
@@ -160,14 +162,10 @@ def register_commits_tools(
             return {
                 "success": False,
                 "session_id": session.id,
-                "error": "Git not found or not a git repository",
+                "error": "Git executable not found in PATH",
             }
         except Exception as e:
-            return {
-                "success": False,
-                "session_id": session.id,
-                "error": f"Failed to get commits: {e!s}",
-            }
+            return {"success": False, "session_id": session.id, "error": str(e)}
 
     @registry.tool(
         name="mark_loop_complete",
@@ -215,11 +213,16 @@ Args:
             }
 
         # Set stop_reason via session variables
-        from gobby.storage.database import LocalDatabase
         from gobby.workflows.state_manager import SessionVariableManager
 
-        db = LocalDatabase()
-        session_var_manager = SessionVariableManager(db)
+        if db is None:
+            from gobby.storage.database import LocalDatabase
+
+            local_db = LocalDatabase()
+            session_var_manager = SessionVariableManager(local_db)
+        else:
+            session_var_manager = SessionVariableManager(db)
+
         session_var_manager.set_variable(session.id, "stop_reason", "completed")
 
         return {
