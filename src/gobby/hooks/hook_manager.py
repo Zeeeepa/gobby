@@ -735,6 +735,31 @@ class HookManager:
                             e,
                         )
 
+    def _resolve_summary_output_path(self, session_id: str) -> str:
+        """Resolve session summary output directory from the session's project.
+
+        Priority: project repo_path/.gobby/session_summaries > ~/.gobby/session_summaries
+
+        Args:
+            session_id: Platform session ID.
+
+        Returns:
+            Absolute path to the session_summaries directory.
+        """
+        fallback = "~/.gobby/session_summaries"
+        try:
+            session = self._session_storage.get(session_id)
+            if session and session.project_id:
+                from gobby.storage.projects import LocalProjectManager
+
+                project_mgr = LocalProjectManager(self._database)
+                project = project_mgr.get(session.project_id)
+                if project and project.repo_path:
+                    return str(Path(project.repo_path) / ".gobby" / "session_summaries")
+        except Exception as e:
+            self.logger.debug("_resolve_summary_output_path: fallback to global: %s", e)
+        return fallback
+
     def _dispatch_session_summaries(self, session_id: str, background: bool = False) -> None:
         """Fire session summary generation.
 
@@ -752,13 +777,7 @@ class HookManager:
         """
         from gobby.sessions.summarize import generate_session_summaries
 
-        write_file = False
-        file_output_path = "~/.gobby/session_summaries"
-        if self._config:
-            summary_cfg = getattr(self._config, "session_summary", None)
-            if summary_cfg and getattr(summary_cfg, "summary_file_path", None):
-                write_file = True
-                file_output_path = summary_cfg.summary_file_path
+        file_output_path = self._resolve_summary_output_path(session_id)
 
         async def _run() -> None:
             try:
@@ -767,7 +786,7 @@ class HookManager:
                     session_manager=self._session_storage,
                     llm_service=self._llm_service,
                     db=self._database,
-                    write_file=write_file,
+                    write_file=True,
                     output_path=file_output_path,
                 )
             except Exception as exc:
