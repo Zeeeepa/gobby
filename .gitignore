@@ -230,6 +230,7 @@ bmad-custom-src/
 .gobby/docs/
 .gobby/screenshots/
 .gobby/plans/
+.gobby/session_summaries/
 reports/
 bandit_report.json
 ./*.txt
