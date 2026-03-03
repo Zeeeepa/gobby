@@ -780,6 +780,13 @@ export default function App() {
         );
         return;
       }
+      if (item.action === "exit_plan_mode") {
+        if (settings.chatMode === "plan") {
+          updateChatMode("accept_edits");
+          sendMode("accept_edits");
+        }
+        return;
+      }
       if (item.action === "show_plan") {
         if (settings.chatMode !== "plan") {
           updateChatMode("plan");
