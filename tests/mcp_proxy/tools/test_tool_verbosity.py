@@ -76,6 +76,7 @@ async def test_worktree_verbosity_reduction():
     mock_storage.create.return_value = mock_wt
     mock_storage.get_by_branch.return_value = None  # Ensure no collision
     mock_git.create_worktree.return_value.success = True
+    mock_git.has_unpushed_commits.return_value = (False, 0)
 
     # Mock resolve_project_context to avoid invalid repo errors
     with unittest.mock.patch(
