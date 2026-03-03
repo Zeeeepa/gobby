@@ -751,6 +751,7 @@ class TestVariablePersistence:
         mock_task_manager = MagicMock()
         mock_task = MagicMock()
         mock_task.id = "task-uuid-observer"
+        mock_task.seq_num = 99
         mock_task_manager.get_task.return_value = mock_task
 
         rule_engine = RuleEngine(db=db)
@@ -783,6 +784,7 @@ class TestVariablePersistence:
         variables = session_var_manager.get_variables("test-session")
         assert variables.get("task_claimed") is True
         assert "task-uuid-observer" in variables.get("claimed_tasks", {})
+        assert variables.get("claimed_tasks", {}).get("task-uuid-observer") == "#99"
 
     @pytest.mark.asyncio
     async def test_observer_and_rule_changes_both_persisted(

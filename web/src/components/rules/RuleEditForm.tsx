@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useId } from "react";
 import { SidebarPanel } from "../shared/SidebarPanel";
 import { CodeMirrorEditor } from "../shared/CodeMirrorEditor";
 import { ExpressionBuilder } from "./ExpressionBuilder";
@@ -97,12 +97,14 @@ export function RuleEditForm({
 }: RuleEditFormProps) {
   const [tagInput, setTagInput] = useState("");
   const [knownTags, setKnownTags] = useState<string[]>([]);
+  const [tagsError, setTagsError] = useState(false);
+  const tagListId = useId();
 
   useEffect(() => {
     fetch("/api/rules/tags")
       .then((r) => r.json())
-      .then((data) => setKnownTags(data.tags || []))
-      .catch(() => setKnownTags([]));
+      .then((data) => { setKnownTags(data.tags || []); setTagsError(false); })
+      .catch((err) => { console.error("Failed to fetch rule tags:", err); setKnownTags([]); setTagsError(true); });
   }, []);
 
   const tagSuggestions = useMemo(
@@ -324,10 +326,15 @@ export function RuleEditForm({
                     }
                   }}
                   placeholder="Add tag..."
-                  list="rule-tag-suggestions"
+                  list={tagListId}
                 />
+                {tagsError && (
+                  <span style={{ color: "var(--color-text-tertiary)", fontSize: 11 }}>
+                    Could not load tag suggestions
+                  </span>
+                )}
                 {tagSuggestions.length > 0 && (
-                  <datalist id="rule-tag-suggestions">
+                  <datalist id={tagListId}>
                     {tagSuggestions.map((t) => (
                       <option key={t} value={t} />
                     ))}

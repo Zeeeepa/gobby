@@ -294,6 +294,7 @@ elif effect.type == "mcp_call":
 **File**: `src/gobby/install/shared/variables/gobby-default-variables.yaml`
 
 Add alongside existing variables:
+
 ```yaml
   enforce_tdd:
     value: false

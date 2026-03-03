@@ -344,7 +344,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     if (conflicts.length === 0) return null
     const names = conflicts.map(r => r.name).join(', ')
     return `Priority ${ruleForm.priority} on "${ruleForm.event}" conflicts with: ${names}`
-  }, [rules, sidebarRule, ruleForm.event, ruleForm.priority])
+  }, [rules, sidebarRule, ruleForm.event, ruleForm.priority, ruleForm.name])
 
   return (
     <div className="rules-tab">

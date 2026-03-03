@@ -14,16 +14,36 @@ import logging
 import re
 import subprocess  # nosec B404 - subprocess needed for git commands
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
+
+import aiofiles
+
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
 
+class SessionManagerProtocol(Protocol):
+    def get(self, session_id: str) -> Any: ...
+    def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Any: ...
+    def update_summary(
+        self,
+        session_id: str,
+        summary_path: str | None = ...,
+        summary_markdown: str | None = ...,
+    ) -> Any: ...
+    def update_status(self, session_id: str, status: str) -> Any: ...
+
+
+class LLMServiceProtocol(Protocol):
+    def get_default_provider(self) -> Any: ...
+
+
 async def generate_session_summaries(
     session_id: str,
-    session_manager: Any,
-    llm_service: Any | None = None,
-    db: Any | None = None,
+    session_manager: SessionManagerProtocol,
+    llm_service: LLMServiceProtocol | None = None,
+    db: DatabaseProtocol | None = None,
     write_file: bool = False,
     output_path: str = "~/.gobby/session_summaries",
     set_handoff_ready: bool = True,
@@ -75,7 +95,7 @@ async def generate_session_summaries(
         }
 
     # Read and parse transcript
-    turns = _read_transcript(path)
+    turns = await _read_transcript(path)
 
     # Analyze transcript
     from gobby.sessions.analyzer import TranscriptAnalyzer
@@ -172,11 +192,11 @@ async def generate_session_summaries(
     }
 
 
-def _read_transcript(path: Path) -> list[dict[str, Any]]:
+async def _read_transcript(path: Path) -> list[dict[str, Any]]:
     """Read and parse JSONL transcript file."""
     turns: list[dict[str, Any]] = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
+    async with aiofiles.open(path, encoding="utf-8") as f:
+        async for line in f:
             if line.strip():
                 turns.append(json.loads(line))
     return turns
@@ -194,8 +214,8 @@ def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
                 cwd=cwd,
             )
             handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to get git status for %s: %s", cwd, e)
 
     try:
         result = subprocess.run(  # nosec B603 B607 - hardcoded git command
@@ -213,17 +233,17 @@ def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
                     commits.append({"hash": hash_val, "message": message})
             if commits:
                 handoff_ctx.git_commits = commits
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to get git log for %s: %s", cwd, e)
 
 
 async def _generate_full_summary(
     session: Any,
     turns: list[dict[str, Any]],
     handoff_ctx: Any,
-    llm_service: Any | None,
-    db: Any | None,
-    session_manager: Any,
+    llm_service: LLMServiceProtocol | None,
+    db: DatabaseProtocol | None,
+    session_manager: SessionManagerProtocol,
 ) -> tuple[str | None, str | None]:
     """Generate the full LLM-based archival summary.
 
@@ -259,7 +279,7 @@ async def _generate_full_summary(
             pass
 
         if not prompt_template:
-            raise ValueError("No prompt template found for handoff/session_end")
+            raise FileNotFoundError("Missing prompt template: handoff/session_end")
 
         # Prepare context for LLM
         from gobby.workflows.git_utils import get_file_changes, get_git_diff_summary
@@ -305,9 +325,9 @@ async def _generate_compact_summary(
     session: Any,
     turns: list[dict[str, Any]],
     handoff_ctx: Any,
-    llm_service: Any | None,
-    db: Any | None,
-    session_manager: Any,
+    llm_service: LLMServiceProtocol | None,
+    db: DatabaseProtocol | None,
+    session_manager: SessionManagerProtocol,
 ) -> tuple[str | None, str | None]:
     """Generate LLM-based compact handoff summary using handoff/compact prompt.
 
@@ -396,7 +416,7 @@ async def _generate_compact_summary(
         return None, str(e)
 
 
-def _get_claimed_tasks(session_id: str, db: Any) -> str:
+def _get_claimed_tasks(session_id: str, db: DatabaseProtocol) -> str:
     """Get tasks assigned to this session, formatted for LLM context.
 
     Args:
@@ -440,8 +460,8 @@ def _get_claimed_tasks(session_id: str, db: Any) -> str:
                 if blockers:
                     blocker_ids = ", ".join(d.depends_on[:8] for d in blockers)
                     line += f"\n  Blocked by: {blocker_ids}"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to get dependencies for task %s: %s", task.id, e)
 
             lines.append(line)
 
@@ -451,7 +471,7 @@ def _get_claimed_tasks(session_id: str, db: Any) -> str:
         return ""
 
 
-def _get_session_memories(session_id: str, db: Any) -> str:
+def _get_session_memories(session_id: str, db: DatabaseProtocol) -> str:
     """Get memories stored during this session, formatted for LLM context.
 
     Args:
@@ -484,8 +504,10 @@ def _get_session_memories(session_id: str, db: Any) -> str:
                     tag_list = json.loads(tags)
                     if isinstance(tag_list, list):
                         tags = ", ".join(tag_list)
-                except Exception:
+                except json.JSONDecodeError:
                     pass
+                except Exception as e:
+                    logger.debug("Failed to parse tags for memory in session: %s", e)
             mem_type = row["memory_type"] or "fact"
             line = f"- [{mem_type}] {content}"
             if tags:
@@ -546,7 +568,7 @@ async def _write_files(
     compact_markdown: str | None,
     write_file: bool,
     output_path: str,
-    session_manager: Any,
+    session_manager: SessionManagerProtocol,
 ) -> list[str]:
     """Write summary files to disk if requested."""
     files_written: list[str] = []

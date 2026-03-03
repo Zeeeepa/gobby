@@ -63,9 +63,6 @@ function buildExpression(
   operand: string,
 ): string {
   if (!variable || !operand) return "";
-  if (operator === "in" || operator === "not in") {
-    return `${variable} ${operator} ${operand}`;
-  }
   return `${variable} ${operator} ${operand}`;
 }
 
@@ -77,6 +74,8 @@ function unquote(s: string): string {
   return s;
 }
 
+const SPECIAL_LITERALS = new Set(["True", "False", "None"]);
+
 /** Quote a value for the expression string if it looks like a plain string. */
 function smartQuote(s: string): string {
   const trimmed = s.trim();
@@ -86,7 +85,7 @@ function smartQuote(s: string): string {
     return trimmed;
   }
   // Looks like a list, boolean, number, or variable reference — don't quote
-  if (trimmed.startsWith("[") || trimmed === "True" || trimmed === "False" || trimmed === "None" || /^\d+(\.\d+)?$/.test(trimmed) || trimmed.includes(".") || trimmed.includes("(")) {
+  if (trimmed.startsWith("[") || SPECIAL_LITERALS.has(trimmed) || /^\d+(\.\d+)?$/.test(trimmed) || trimmed.includes(".") || trimmed.includes("(")) {
     return trimmed;
   }
   return `"${trimmed}"`;
@@ -122,6 +121,8 @@ export function ExpressionBuilder({ value, onChange }: ExpressionBuilderProps) {
     } else {
       setMode("raw");
     }
+  // `mode` intentionally omitted — including it would re-trigger builder/raw
+  // switching whenever the external `value` syncs, causing unwanted mode flips.
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBuilderChange = useCallback(

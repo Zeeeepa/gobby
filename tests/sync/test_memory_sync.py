@@ -583,7 +583,7 @@ class TestExportMerge:
         config = MemoryBackupConfig(enabled=True, export_debounce=0.1)
         return MemorySyncManager(mock_db, mm, config)
 
-    def test_export_merges_with_existing_file(self, manager_with_memories, tmp_path):
+    def test_export_merges_with_existing_file(self, manager_with_memories, tmp_path) -> None:
         """File has A, B (old). DB has B, C. Result: A (file), B (DB version), C (DB)."""
         mem_file = tmp_path / "memories.jsonl"
         # Write file with records A and B (file version)
@@ -616,7 +616,7 @@ class TestExportMerge:
         # C added from DB
         assert "memory C" in results
 
-    def test_export_preserves_file_only_records(self, mock_db, tmp_path):
+    def test_export_preserves_file_only_records(self, mock_db, tmp_path) -> None:
         """File-only records survive even when DB is empty."""
         mm = MagicMock()
         mm.list_memories = MagicMock(return_value=[])
@@ -641,7 +641,7 @@ class TestExportMerge:
         assert "remote memory X" in contents
         assert "remote memory Y" in contents
 
-    def test_export_handles_corrupt_file_lines(self, manager_with_memories, tmp_path):
+    def test_export_handles_corrupt_file_lines(self, manager_with_memories, tmp_path) -> None:
         """Corrupt JSON lines in existing file are skipped, valid lines preserved."""
         mem_file = tmp_path / "memories.jsonl"
         with open(mem_file, "w") as f:

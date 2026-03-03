@@ -36,7 +36,7 @@ def _write_transcript(tmp_path: Path) -> str:
         {"type": "human", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}},
         {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}},
     ]
-    transcript.write_text("\n".join(json.dumps(l) for l in lines))
+    transcript.write_text("\n".join(json.dumps(record) for record in lines))
     return str(transcript)
 
 

@@ -4,6 +4,7 @@ import hashlib
 import logging
 import re
 import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -401,40 +402,33 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     # For /compact: PRE_COMPACT already kicked it off.
                     if session_source == "clear" and not parent.summary_markdown:
                         # Ensure generation is started (idempotent if already running)
+                        summary_event = threading.Event()
+                        max_wait_s = 90
                         if self._dispatch_session_summaries_fn:
                             try:
-                                self._dispatch_session_summaries_fn(parent_session_id, True)
+                                self._dispatch_session_summaries_fn(
+                                    parent_session_id, True, summary_event
+                                )
                             except Exception as e:
                                 self.logger.warning(
                                     f"Failed to dispatch session summaries "
                                     f"for parent {parent_session_id}: {e}"
                                 )
 
-                        # Poll for summary with backoff (LLM calls take 20-30s)
-                        import time
-
-                        max_wait_s = 90
-                        poll_interval_s = 2
-                        waited = 0.0
-                        while waited < max_wait_s:
-                            time.sleep(poll_interval_s)
-                            waited += poll_interval_s
-                            parent = self._session_storage.get(parent_session_id)
-                            if parent and parent.summary_markdown:
-                                self.logger.debug(
-                                    "Session summary ready for parent %s after %.0fs",
-                                    parent_session_id,
-                                    waited,
-                                )
-                                break
+                        # Wait for summary generation to complete
+                        if summary_event.wait(timeout=max_wait_s):
+                            self.logger.debug(
+                                "Session summary signaled for parent %s",
+                                parent_session_id,
+                            )
                         else:
                             self.logger.warning(
                                 "Timed out waiting for session summary for parent %s after %.0fs",
                                 parent_session_id,
                                 max_wait_s,
                             )
-                            # Re-read parent one last time
-                            parent = self._session_storage.get(parent_session_id)
+                        # Re-read parent after generation
+                        parent = self._session_storage.get(parent_session_id)
 
                     handoff_vars: dict[str, Any] = {}
                     if parent and session_source == "clear" and parent.summary_markdown:

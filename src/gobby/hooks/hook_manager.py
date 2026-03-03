@@ -31,6 +31,7 @@ import asyncio
 import logging
 import os
 import sqlite3
+import threading
 import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -760,7 +761,9 @@ class HookManager:
             self.logger.debug("_resolve_summary_output_path: fallback to global: %s", e)
         return fallback
 
-    def _dispatch_session_summaries(self, session_id: str, background: bool = False) -> None:
+    def _dispatch_session_summaries(
+        self, session_id: str, background: bool = False, done_event: threading.Event | None = None
+    ) -> None:
         """Fire session summary generation.
 
         Uses the shared generate_session_summaries() which reads the full
@@ -797,6 +800,9 @@ class HookManager:
                     exc,
                     exc_info=True,
                 )
+            finally:
+                if done_event:
+                    done_event.set()
 
         coro = _run()
 

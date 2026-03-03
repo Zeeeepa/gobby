@@ -101,7 +101,7 @@ class TestHandleBeforeAgent:
         )
 
         result = handler.handle_before_agent(event)
-        handler._dispatch_session_summaries_fn.assert_called_once_with("sess-1", False)
+        handler._dispatch_session_summaries_fn.assert_called_once_with("sess-1", False, None)
 
     def test_exit_command_generates_summaries(self) -> None:
         handler = _TestHandler()
