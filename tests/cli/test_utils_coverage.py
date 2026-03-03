@@ -414,8 +414,8 @@ def test_resolve_project_ref_by_name() -> None:
     assert result == "uuid-from-name"
 
 
-def test_resolve_project_ref_not_found() -> None:
-    """Returns None when project not found by uuid or name."""
+def test_resolve_project_ref_not_found_returns_none() -> None:
+    """Returns None when project not found and exit_on_not_found=False."""
     from gobby.cli.utils import resolve_project_ref
 
     mock_db = MagicMock()
@@ -427,8 +427,25 @@ def test_resolve_project_ref_not_found() -> None:
         patch("gobby.cli.utils.LocalDatabase", return_value=mock_db),
         patch("gobby.cli.utils.LocalProjectManager", return_value=mock_manager),
     ):
-        result = resolve_project_ref("nonexistent")
+        result = resolve_project_ref("nonexistent", exit_on_not_found=False)
     assert result is None
+
+
+def test_resolve_project_ref_not_found_exits() -> None:
+    """Exits when project not found and exit_on_not_found=True."""
+    from gobby.cli.utils import resolve_project_ref
+
+    mock_db = MagicMock()
+    mock_manager = MagicMock()
+    mock_manager.get.return_value = None
+    mock_manager.get_by_name.return_value = None
+
+    with (
+        patch("gobby.cli.utils.LocalDatabase", return_value=mock_db),
+        patch("gobby.cli.utils.LocalProjectManager", return_value=mock_manager),
+        pytest.raises(SystemExit),
+    ):
+        resolve_project_ref("nonexistent", exit_on_not_found=True)
     mock_db.close.assert_called_once()
 
 

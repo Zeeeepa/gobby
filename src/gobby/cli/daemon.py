@@ -51,7 +51,7 @@ def _neo4j_start(gobby_home: Path) -> None:
     try:
         from gobby.config.app import load_config
 
-        config = load_config(create_default=False)
+        config = load_config()
 
         # Inject neo4j auth from config (format: "user:password")
         if config.memory.neo4j_auth:

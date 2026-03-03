@@ -46,18 +46,6 @@ class TestValidateCommandWithNewFlags:
         assert result.exit_code == 0
         assert "--max-iterations" in result.output
 
-    def test_validate_help_shows_external_flag(self, runner: CliRunner) -> None:
-        """Test that validate --help shows --external flag."""
-        result = runner.invoke(cli, ["tasks", "validate", "--help"])
-        assert result.exit_code == 0
-        assert "--external" in result.output
-
-    def test_validate_help_shows_skip_build_flag(self, runner: CliRunner) -> None:
-        """Test that validate --help shows --skip-build flag."""
-        result = runner.invoke(cli, ["tasks", "validate", "--help"])
-        assert result.exit_code == 0
-        assert "--skip-build" in result.output
-
     def test_validate_help_shows_history_flag(self, runner: CliRunner) -> None:
         """Test that validate --help shows --history flag."""
         result = runner.invoke(cli, ["tasks", "validate", "--help"])
@@ -105,58 +93,6 @@ class TestValidateCommandWithNewFlags:
         # We're testing the CLI accepts the flag, not the implementation
         # Exit code 2 means Click rejected the flag as unrecognized
         assert result.exit_code != 2, f"Flag --max-iterations was rejected: {result.output}"
-
-    @patch("gobby.cli.tasks.ai.get_task_manager")
-    @patch("gobby.cli.tasks.ai.resolve_task_id")
-    @patch("gobby.config.app.load_config")
-    def test_validate_with_external_flag(
-        self,
-        mock_load_config: MagicMock,
-        mock_resolve: MagicMock,
-        mock_get_manager: MagicMock,
-        runner: CliRunner,
-        mock_task: MagicMock,
-    ) -> None:
-        """Test validate with --external flag."""
-        mock_resolve.return_value = mock_task
-        mock_manager = MagicMock()
-        mock_manager.list_tasks.return_value = []
-        mock_get_manager.return_value = mock_manager
-        mock_load_config.return_value = MagicMock()
-
-        result = runner.invoke(
-            cli,
-            ["tasks", "validate", "gt-test123", "--external", "--summary", "test changes"],
-        )
-
-        # Exit code 2 means Click rejected the flag as unrecognized
-        assert result.exit_code != 2, f"Flag --external was rejected: {result.output}"
-
-    @patch("gobby.cli.tasks.ai.get_task_manager")
-    @patch("gobby.cli.tasks.ai.resolve_task_id")
-    @patch("gobby.config.app.load_config")
-    def test_validate_with_skip_build_flag(
-        self,
-        mock_load_config: MagicMock,
-        mock_resolve: MagicMock,
-        mock_get_manager: MagicMock,
-        runner: CliRunner,
-        mock_task: MagicMock,
-    ) -> None:
-        """Test validate with --skip-build flag."""
-        mock_resolve.return_value = mock_task
-        mock_manager = MagicMock()
-        mock_manager.list_tasks.return_value = []
-        mock_get_manager.return_value = mock_manager
-        mock_load_config.return_value = MagicMock()
-
-        result = runner.invoke(
-            cli,
-            ["tasks", "validate", "gt-test123", "--skip-build", "--summary", "test changes"],
-        )
-
-        # Exit code 2 means Click rejected the flag as unrecognized
-        assert result.exit_code != 2, f"Flag --skip-build was rejected: {result.output}"
 
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
@@ -575,8 +511,6 @@ class TestValidateFlagCombinations:
                 "gt-test123",
                 "--max-iterations",
                 "3",
-                "--external",
-                "--skip-build",
                 "--summary",
                 "test changes",
             ],

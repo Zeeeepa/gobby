@@ -552,13 +552,12 @@ class TestLoadConfig:
         )
         assert config.daemon_port == 9000
 
-    def test_create_default_is_noop(self, temp_dir: Path) -> None:
-        """Test create_default is ignored (kept for API compat)."""
+    def test_missing_config_file_uses_defaults(self, temp_dir: Path) -> None:
+        """Test that a missing config file falls back to Pydantic defaults."""
         config_file = temp_dir / "new_config.yaml"
         assert not config_file.exists()
 
-        # create_default no longer creates files; bootstrap defaults are used
-        config = load_config(config_file=str(config_file), create_default=True)
+        config = load_config(config_file=str(config_file))
         assert config.daemon_port == 60887  # Pydantic default
 
     def test_load_config_with_none_path_uses_bootstrap(self, temp_dir: Path, monkeypatch) -> None:

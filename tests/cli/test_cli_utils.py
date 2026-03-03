@@ -131,12 +131,19 @@ class TestResolveProjectRef:
                 result = resolve_project_ref("my-named-project")
                 assert result == project.id
 
-    def test_not_found(self, temp_db) -> None:
-        """Test project not found returns None."""
+    def test_not_found_returns_none(self, temp_db) -> None:
+        """Test project not found returns None when exit_on_not_found=False."""
         with patch("gobby.cli.utils.LocalDatabase", return_value=temp_db):
             with patch.object(temp_db, "close"):
-                result = resolve_project_ref("nonexistent-project")
+                result = resolve_project_ref("nonexistent-project", exit_on_not_found=False)
                 assert result is None
+
+    def test_not_found_exits(self, temp_db) -> None:
+        """Test project not found exits when exit_on_not_found=True."""
+        with patch("gobby.cli.utils.LocalDatabase", return_value=temp_db):
+            with patch.object(temp_db, "close"):
+                with pytest.raises(SystemExit):
+                    resolve_project_ref("nonexistent-project", exit_on_not_found=True)
 
 
 # ==============================================================================

@@ -127,6 +127,9 @@ def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True)
     finally:
         db.close()
 
+    if exit_on_not_found:
+        click.echo(f"Project not found: {project_ref}", err=True)
+        raise SystemExit(1)
     return None
 
 
@@ -315,7 +318,7 @@ def kill_all_gobby_daemons() -> int:
 
     # Load config to get the configured ports
     try:
-        config = load_config(create_default=False)
+        config = load_config()
         http_port = config.daemon_port
         ws_port = config.websocket.port
     except Exception:
@@ -424,7 +427,7 @@ def init_local_storage() -> "LocalDatabase":
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
 
-    config = load_config(create_default=False)
+    config = load_config()
     hub_db_path = Path(config.database_path).expanduser()
 
     # Ensure hub db directory exists
