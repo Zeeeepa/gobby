@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SidebarPanel } from "../shared/SidebarPanel";
 import { CodeMirrorEditor } from "../shared/CodeMirrorEditor";
+import { ExpressionBuilder } from "./ExpressionBuilder";
 import "./RuleEditForm.css";
 
 const RULE_EVENTS = [
@@ -20,6 +21,23 @@ const EFFECT_TYPES = [
   "mcp_call",
   "observe",
 ];
+
+export interface RuleEditFormProps {
+  isOpen: boolean;
+  readOnly?: boolean;
+  form: RuleFormData;
+  onChange: (form: RuleFormData) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isEditing: boolean;
+  saveDisabled?: boolean;
+  sidebarView: "form" | "yaml";
+  onViewChange: (view: "form" | "yaml") => void;
+  yamlContent: string;
+  onYamlChange: (content: string) => void;
+  onYamlSave: () => void;
+  conflictWarning?: string | null;
+}
 
 export interface RuleFormData {
   name: string;
@@ -44,22 +62,6 @@ export const DEFAULT_RULE_FORM: RuleFormData = {
   when: "",
   effect: { type: "block", reason: "" },
 };
-
-interface RuleEditFormProps {
-  isOpen: boolean;
-  readOnly?: boolean;
-  form: RuleFormData;
-  onChange: (form: RuleFormData) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  isEditing: boolean;
-  saveDisabled?: boolean;
-  sidebarView: "form" | "yaml";
-  onViewChange: (view: "form" | "yaml") => void;
-  yamlContent: string;
-  onYamlChange: (content: string) => void;
-  onYamlSave: () => void;
-}
 
 function MetaRow({
   label,
@@ -90,8 +92,22 @@ export function RuleEditForm({
   yamlContent,
   onYamlChange,
   onYamlSave,
+  conflictWarning,
 }: RuleEditFormProps) {
   const [tagInput, setTagInput] = useState("");
+  const [knownTags, setKnownTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/rules/tags")
+      .then((r) => r.json())
+      .then((data) => setKnownTags(data.tags || []))
+      .catch(() => setKnownTags([]));
+  }, []);
+
+  const tagSuggestions = useMemo(
+    () => knownTags.filter((t) => !form.tags.includes(t)),
+    [knownTags, form.tags],
+  );
 
   const set = <K extends keyof RuleFormData>(key: K, value: RuleFormData[K]) =>
     onChange({ ...form, [key]: value });
@@ -229,6 +245,9 @@ export function RuleEditForm({
                 min={0}
               />
             </MetaRow>
+            {conflictWarning && (
+              <div className="rule-edit-conflict-warning">{conflictWarning}</div>
+            )}
             <MetaRow label="Group">
               <input
                 className="rule-edit-input"
@@ -242,15 +261,13 @@ export function RuleEditForm({
           {/* Condition */}
           <div className="rule-edit-section">
             <h4 className="rule-edit-section-title">Condition</h4>
-            <label className="rule-edit-field">
+            <div className="rule-edit-field">
               <span className="rule-edit-label">When (expression)</span>
-              <input
-                className="rule-edit-input rule-edit-mono"
+              <ExpressionBuilder
                 value={form.when}
-                onChange={(e) => set("when", e.target.value)}
-                placeholder='e.g. tool_name == "Edit"'
+                onChange={(v) => set("when", v)}
               />
-            </label>
+            </div>
           </div>
 
           {/* Effect */}
@@ -306,7 +323,15 @@ export function RuleEditForm({
                     }
                   }}
                   placeholder="Add tag..."
+                  list="rule-tag-suggestions"
                 />
+                {tagSuggestions.length > 0 && (
+                  <datalist id="rule-tag-suggestions">
+                    {tagSuggestions.map((t) => (
+                      <option key={t} value={t} />
+                    ))}
+                  </datalist>
+                )}
               </div>
             </div>
           </div>
