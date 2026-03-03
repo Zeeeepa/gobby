@@ -153,9 +153,13 @@ async def generate_session_summaries(
 
     # Persist to database
     if compact_markdown:
-        await asyncio.to_thread(session_manager.update_compact_markdown, session_id, compact_markdown)
+        await asyncio.to_thread(
+            session_manager.update_compact_markdown, session_id, compact_markdown
+        )
     if full_markdown:
-        await asyncio.to_thread(session_manager.update_summary, session_id, summary_markdown=full_markdown)
+        await asyncio.to_thread(
+            session_manager.update_summary, session_id, summary_markdown=full_markdown
+        )
 
     # Set handoff_ready status
     if set_handoff_ready:
@@ -220,7 +224,9 @@ async def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
     if not handoff_ctx.git_status:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "git", "status", "--short",
+                "git",
+                "status",
+                "--short",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
@@ -232,7 +238,11 @@ async def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "git", "log", "--oneline", "-10", "--format=%H|%s",
+            "git",
+            "log",
+            "--oneline",
+            "-10",
+            "--format=%H|%s",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
@@ -389,8 +399,16 @@ async def _generate_compact_summary(
 
         # Enrich with DB context
         resolved_db = db or getattr(session_manager, "db", None)
-        claimed_tasks = await asyncio.to_thread(_get_claimed_tasks, session.id, resolved_db) if resolved_db else ""
-        session_memories = await asyncio.to_thread(_get_session_memories, session.id, resolved_db) if resolved_db else ""
+        claimed_tasks = (
+            await asyncio.to_thread(_get_claimed_tasks, session.id, resolved_db)
+            if resolved_db
+            else ""
+        )
+        session_memories = (
+            await asyncio.to_thread(_get_session_memories, session.id, resolved_db)
+            if resolved_db
+            else ""
+        )
         first_digest_turn, recent_digest_turns = _extract_digest_turns(session.digest_markdown)
 
         # Get previous compact_markdown for cumulative compression
