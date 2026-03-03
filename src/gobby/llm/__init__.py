@@ -29,6 +29,8 @@ from gobby.llm.executor import (
     ToolSchema,
 )
 from gobby.llm.factory import create_llm_service
+from gobby.llm.gemini_executor import GeminiExecutor
+from gobby.llm.openai_executor import OpenAIExecutor
 from gobby.llm.service import LLMService
 
 __all__ = [
@@ -38,6 +40,7 @@ __all__ = [
     "ChatEvent",
     "ClaudeExecutor",
     "DoneEvent",
+    "GeminiExecutor",
     "LLMProvider",
     "LLMService",
     "MCPToolResult",
@@ -49,5 +52,6 @@ __all__ = [
     "ToolResult",
     "ToolResultEvent",
     "ToolSchema",
+    "OpenAIExecutor",
     "create_llm_service",
 ]
