@@ -1132,7 +1132,9 @@ def test_stop_ui_server_running_graceful(tmp_path: Path) -> None:
 
     with (
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
-        patch("gobby.cli.utils._is_process_alive", side_effect=lambda pid: next(alive_calls, False)),
+        patch(
+            "gobby.cli.utils._is_process_alive", side_effect=lambda pid: next(alive_calls, False)
+        ),
         patch("gobby.cli.utils.psutil.Process", return_value=mock_parent),
         patch("gobby.cli.utils.os.kill") as mock_kill,
         patch("gobby.cli.utils.time.sleep"),

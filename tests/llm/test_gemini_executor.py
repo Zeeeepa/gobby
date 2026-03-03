@@ -1,11 +1,13 @@
 """Tests for GeminiExecutor class."""
 
+from __future__ import annotations
+
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.llm.executor import AgentResult, ToolResult, ToolSchema
+from gobby.llm.executor import ToolResult, ToolSchema
 
 pytestmark = pytest.mark.unit
 
@@ -75,9 +77,7 @@ class TestGeminiExecutorInit:
         """GeminiExecutor initializes with adc mode."""
         from gobby.llm.gemini_executor import GeminiExecutor
 
-        executor = GeminiExecutor(
-            auth_mode="adc", project="my-project", location="us-east1"
-        )
+        executor = GeminiExecutor(auth_mode="adc", project="my-project", location="us-east1")
         assert executor.auth_mode == "adc"
         assert executor.project == "my-project"
         assert executor.location == "us-east1"
@@ -122,9 +122,7 @@ class TestGeminiExecutorClient:
         """Client is lazily created for adc mode with Vertex AI."""
         from gobby.llm.gemini_executor import GeminiExecutor
 
-        executor = GeminiExecutor(
-            auth_mode="adc", project="my-project", location="us-west1"
-        )
+        executor = GeminiExecutor(auth_mode="adc", project="my-project", location="us-west1")
         client = executor._get_client()
         mock_genai_module.Client.assert_called_once_with(
             vertexai=True, project="my-project", location="us-west1"
@@ -197,9 +195,7 @@ class TestGeminiExecutorRun:
         async def dummy_handler(name, args):
             return ToolResult(tool_name=name, success=True)
 
-        result = await executor.run(
-            prompt="Hello", tools=simple_tools, tool_handler=dummy_handler
-        )
+        result = await executor.run(prompt="Hello", tools=simple_tools, tool_handler=dummy_handler)
 
         assert result.status == "success"
         assert result.output == "Hello from Gemini!"
@@ -285,9 +281,7 @@ class TestGeminiExecutorRun:
         async def dummy_handler(name, args):
             return ToolResult(tool_name=name, success=True)
 
-        result = await executor.run(
-            prompt="Hello", tools=simple_tools, tool_handler=dummy_handler
-        )
+        result = await executor.run(prompt="Hello", tools=simple_tools, tool_handler=dummy_handler)
 
         assert result.status == "error"
         assert "API quota exceeded" in result.error
@@ -347,9 +341,7 @@ class TestGeminiExecutorRun:
         async def dummy_handler(name, args):
             return ToolResult(tool_name=name, success=True)
 
-        result = await executor.run(
-            prompt="Hello", tools=simple_tools, tool_handler=dummy_handler
-        )
+        result = await executor.run(prompt="Hello", tools=simple_tools, tool_handler=dummy_handler)
 
         assert result.status == "error"
         assert "No candidates" in result.error

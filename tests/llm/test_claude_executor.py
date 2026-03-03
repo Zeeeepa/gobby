@@ -149,7 +149,9 @@ class TestClaudeExecutorSDKMode:
         assert executor_sdk_mode.provider_name == "claude"
 
     @pytest.mark.asyncio
-    async def test_run_with_sdk_mode_delegates_to_sdk(self, executor_sdk_mode, simple_tools) -> None:
+    async def test_run_with_sdk_mode_delegates_to_sdk(
+        self, executor_sdk_mode, simple_tools
+    ) -> None:
         """SDK mode run() delegates to _run_with_sdk method."""
         # Verify the executor is in subscription mode
         assert executor_sdk_mode.auth_mode == "subscription"

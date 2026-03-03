@@ -157,14 +157,16 @@ class TestOpenAIExecutorRun:
 
         return OpenAIExecutor(api_key="sk-test")
 
-    def _make_text_response(self, text: str, prompt_tokens: int = 10, completion_tokens: int = 5) -> MagicMock:
+    def _make_text_response(
+        self, text: str, prompt_tokens: int = 10, completion_tokens: int = 5
+    ) -> MagicMock:
         """Helper to build a mock text-only response."""
         message = MagicMock()
         message.content = text
         message.tool_calls = None
-        message.model_dump = MagicMock(return_value={
-            "role": "assistant", "content": text, "tool_calls": None
-        })
+        message.model_dump = MagicMock(
+            return_value={"role": "assistant", "content": text, "tool_calls": None}
+        )
 
         choice = MagicMock()
         choice.message = message
@@ -179,8 +181,12 @@ class TestOpenAIExecutorRun:
         return response
 
     def _make_tool_call_response(
-        self, tool_name: str, args_json: str, tool_call_id: str = "call_123",
-        prompt_tokens: int = 15, completion_tokens: int = 8
+        self,
+        tool_name: str,
+        args_json: str,
+        tool_call_id: str = "call_123",
+        prompt_tokens: int = 15,
+        completion_tokens: int = 8,
     ) -> MagicMock:
         """Helper to build a mock tool call response."""
         tc = MagicMock()
@@ -191,11 +197,15 @@ class TestOpenAIExecutorRun:
         message = MagicMock()
         message.content = None
         message.tool_calls = [tc]
-        message.model_dump = MagicMock(return_value={
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [{"id": tool_call_id, "function": {"name": tool_name, "arguments": args_json}}],
-        })
+        message.model_dump = MagicMock(
+            return_value={
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": tool_call_id, "function": {"name": tool_name, "arguments": args_json}}
+                ],
+            }
+        )
 
         choice = MagicMock()
         choice.message = message
@@ -221,9 +231,7 @@ class TestOpenAIExecutorRun:
         async def dummy_handler(name, args):
             return ToolResult(tool_name=name, success=True)
 
-        result = await executor.run(
-            prompt="Hi", tools=simple_tools, tool_handler=dummy_handler
-        )
+        result = await executor.run(prompt="Hi", tools=simple_tools, tool_handler=dummy_handler)
 
         assert result.status == "success"
         assert result.output == "Hello!"
@@ -238,17 +246,13 @@ class TestOpenAIExecutorRun:
         text_resp = self._make_text_response("Found results for gobby.", 20, 10)
 
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=[tc_resp, text_resp]
-        )
+        mock_client.chat.completions.create = AsyncMock(side_effect=[tc_resp, text_resp])
         executor._client = mock_client
 
         async def handler(name, args):
             return ToolResult(tool_name=name, success=True, result={"hits": 5})
 
-        result = await executor.run(
-            prompt="Search gobby", tools=simple_tools, tool_handler=handler
-        )
+        result = await executor.run(prompt="Search gobby", tools=simple_tools, tool_handler=handler)
 
         assert result.status == "success"
         assert result.output == "Found results for gobby."
@@ -262,17 +266,13 @@ class TestOpenAIExecutorRun:
     async def test_run_api_error(self, executor, simple_tools) -> None:
         """Run returns error on API failure."""
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=Exception("Rate limited")
-        )
+        mock_client.chat.completions.create = AsyncMock(side_effect=Exception("Rate limited"))
         executor._client = mock_client
 
         async def dummy_handler(name, args):
             return ToolResult(tool_name=name, success=True)
 
-        result = await executor.run(
-            prompt="Hi", tools=simple_tools, tool_handler=dummy_handler
-        )
+        result = await executor.run(prompt="Hi", tools=simple_tools, tool_handler=dummy_handler)
 
         assert result.status == "error"
         assert "Rate limited" in result.error
@@ -307,9 +307,7 @@ class TestOpenAIExecutorRun:
         text_resp = self._make_text_response("Error occurred.")
 
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=[tc_resp, text_resp]
-        )
+        mock_client.chat.completions.create = AsyncMock(side_effect=[tc_resp, text_resp])
         executor._client = mock_client
 
         async def failing_handler(name, args):
@@ -331,17 +329,13 @@ class TestOpenAIExecutorRun:
         text_resp = self._make_text_response("Done.")
 
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=[tc_resp, text_resp]
-        )
+        mock_client.chat.completions.create = AsyncMock(side_effect=[tc_resp, text_resp])
         executor._client = mock_client
 
         async def handler(name, args):
             return ToolResult(tool_name=name, success=True, result={})
 
-        result = await executor.run(
-            prompt="Search", tools=simple_tools, tool_handler=handler
-        )
+        result = await executor.run(prompt="Search", tools=simple_tools, tool_handler=handler)
 
         assert result.status == "success"
         # Args should fall back to empty dict

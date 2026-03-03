@@ -528,4 +528,3 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle
     </div>
   )
 }
-

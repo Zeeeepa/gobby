@@ -412,7 +412,9 @@ class MemoryBackupManager:
                                 if key:
                                     existing_by_content[key] = data
                             except json.JSONDecodeError as e:
-                                logger.debug("Skipping malformed JSONL line in %s: %s", file_path, e)
+                                logger.debug(
+                                    "Skipping malformed JSONL line in %s: %s", file_path, e
+                                )
                                 continue
                 except OSError as e:
                     logger.debug("Cannot read memories file %s: %s", file_path, e)

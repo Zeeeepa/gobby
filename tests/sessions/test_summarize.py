@@ -33,8 +33,14 @@ def _write_transcript(tmp_path: Path) -> str:
     """Write a minimal JSONL transcript and return its path."""
     transcript = tmp_path / "transcript.jsonl"
     lines = [
-        {"type": "human", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}},
-        {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}},
+        {
+            "type": "human",
+            "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+        },
+        {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]},
+        },
     ]
     transcript.write_text("\n".join(json.dumps(record) for record in lines))
     return str(transcript)
@@ -45,9 +51,7 @@ class TestGenerateSessionSummaries:
 
     @pytest.mark.asyncio
     async def test_no_session_manager(self) -> None:
-        result = await generate_session_summaries(
-            session_id="s1", session_manager=None
-        )
+        result = await generate_session_summaries(session_id="s1", session_manager=None)
         assert result["success"] is False
         assert "not available" in result["error"]
 
@@ -155,7 +159,10 @@ class TestGenerateSessionSummaries:
         with (
             patch("gobby.sessions.summarize._enrich_git_context"),
             patch("gobby.sessions.formatting.format_handoff_as_markdown", return_value="# Compact"),
-            patch("gobby.sessions.summarize._generate_full_summary", return_value=("# Full Summary", None)),
+            patch(
+                "gobby.sessions.summarize._generate_full_summary",
+                return_value=("# Full Summary", None),
+            ),
         ):
             result = await generate_session_summaries(
                 session_id="sess-1",
@@ -175,7 +182,9 @@ class TestGenerateSessionSummaries:
 
         with (
             patch("gobby.sessions.summarize._enrich_git_context"),
-            patch("gobby.sessions.summarize._generate_full_summary", return_value=(None, "LLM error")),
+            patch(
+                "gobby.sessions.summarize._generate_full_summary", return_value=(None, "LLM error")
+            ),
         ):
             result = await generate_session_summaries(
                 session_id="sess-1",
