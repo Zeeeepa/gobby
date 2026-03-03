@@ -32,7 +32,7 @@ Note: Gobby is currently in alpha. Expect rough edges and breaking changes until
 If you've tried Beads or TaskMaster, you know the pain: databases that corrupt, agents that can't figure out the schema, worktrees that fall out of sync. Gobby's task system was designed by someone who got fed up with all of them.
 
 - **Dependency graphs** that agents actually understand
-- **TDD expansion** — describe a feature, get red/green/blue subtasks with test-first ordering  
+- **TDD expansion** — describe a feature, get red/green/blue subtasks with test-first ordering
 - **Validation gates** — tasks can't close without passing criteria (with git diff context)
 - **Git-native sync** — `.gobby/tasks.jsonl` lives in your repo, works with worktrees
 - **Commit linking** — `[task-id] feat: thing` auto-links commits to tasks

@@ -89,7 +89,7 @@ class TestHandleBeforeAgent:
             metadata={"_platform_session_id": "sess-1"},
         )
 
-        result = handler.handle_before_agent(event)
+        handler.handle_before_agent(event)
         handler._session_manager.update_session_status.assert_called_with("sess-1", "active")
 
     def test_clear_command_generates_summaries(self) -> None:
@@ -100,7 +100,7 @@ class TestHandleBeforeAgent:
             metadata={"_platform_session_id": "sess-1"},
         )
 
-        result = handler.handle_before_agent(event)
+        handler.handle_before_agent(event)
         handler._dispatch_session_summaries_fn.assert_called_once_with("sess-1", False, None)
 
     def test_exit_command_generates_summaries(self) -> None:
@@ -111,7 +111,7 @@ class TestHandleBeforeAgent:
             metadata={"_platform_session_id": "sess-1"},
         )
 
-        result = handler.handle_before_agent(event)
+        handler.handle_before_agent(event)
         handler._dispatch_session_summaries_fn.assert_called_once()
 
     def test_skill_interception(self) -> None:

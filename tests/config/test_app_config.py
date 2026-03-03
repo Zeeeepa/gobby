@@ -589,9 +589,7 @@ class TestLoadConfig:
         with pytest.raises(ValueError, match="Configuration validation failed"):
             load_config(config_file=str(bootstrap_file))
 
-    def test_load_config_invalid_type_falls_back_to_defaults(
-        self, temp_dir: Path
-    ) -> None:
+    def test_load_config_invalid_type_falls_back_to_defaults(self, temp_dir: Path) -> None:
         """Test load_config falls back to defaults when bootstrap has invalid type."""
         bootstrap_file = temp_dir / "bootstrap.yaml"
         # Write string instead of int for port — bootstrap silently falls back
@@ -728,7 +726,8 @@ class TestSaveConfigTestGuard:
         monkeypatch.setenv("GOBBY_TEST_PROTECT", "1")
 
         with pytest.raises(
-            RuntimeError, match="export_config_to_yaml.*would write to production path.*during tests"
+            RuntimeError,
+            match="export_config_to_yaml.*would write to production path.*during tests",
         ):
             save_config(default_config, config_file=None)
 
