@@ -110,10 +110,13 @@ class DaemonProxy:
             timeout = config.mcp_client_proxy.tool_timeouts[tool_name]
         # Fallback for LLM-based task tools if not explicit in config
         elif tool_name in (
+            "close_task",
             "expand_task",
             "apply_tdd",
             "suggest_next_task",
             "validate_task",
+            "validate_and_fix",
+            "run_fix_attempt",
         ):
             timeout = 300.0
         # Wait tools: use the requested timeout plus a buffer
