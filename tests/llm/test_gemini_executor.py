@@ -160,7 +160,7 @@ class TestGeminiExecutorRun:
     """Tests for the agentic loop."""
 
     @pytest.fixture
-    def executor(self, mock_genai_module) -> "GeminiExecutor":
+    def executor(self, mock_genai_module) -> GeminiExecutor:
         """Create a GeminiExecutor with mocked client."""
         from gobby.llm.gemini_executor import GeminiExecutor
 
