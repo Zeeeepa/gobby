@@ -7,10 +7,12 @@ signal handling, and PID file management. Extracted from runner.py.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import signal
 import subprocess
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -167,6 +169,40 @@ async def expire_approval_timeouts_loop(
             logger.error(f"Error in approval timeout loop: {e}")
 
 
+def _get_gobby_home() -> Path:
+    """Get the gobby home directory."""
+    return Path(os.environ.get("GOBBY_HOME", Path.home() / ".gobby"))
+
+
+def write_shutdown_source(source: str, sender_pid: int | None = None) -> None:
+    """Write a marker file identifying why/who is sending SIGTERM."""
+    try:
+        data = {
+            "source": source,
+            "sender_pid": sender_pid or os.getpid(),
+            "timestamp": time.time(),
+        }
+        (_get_gobby_home() / "shutdown_source.json").write_text(json.dumps(data))
+    except Exception:
+        pass  # Best effort — don't break shutdown flow
+
+
+def read_shutdown_source() -> str:
+    """Read and remove the shutdown source marker. Returns description string."""
+    source_file = _get_gobby_home() / "shutdown_source.json"
+    try:
+        if source_file.exists():
+            data = json.loads(source_file.read_text())
+            source_file.unlink(missing_ok=True)
+            age = time.time() - data.get("timestamp", 0)
+            if age < 10:  # Only trust if written within last 10 seconds
+                return f"source={data['source']}, sender_pid={data.get('sender_pid')}"
+            return f"stale shutdown_source.json (age={age:.1f}s): {data}"
+        return "unknown (no shutdown_source.json — external SIGTERM)"
+    except Exception as e:
+        return f"unknown (error reading shutdown_source.json: {e})"
+
+
 def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
     """Register SIGTERM/SIGINT handlers to trigger graceful shutdown."""
     loop = asyncio.get_running_loop()
@@ -176,8 +212,7 @@ def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
             import traceback
 
             logger.info(
-                "Received %s (signal %d), initiating graceful shutdown... "
-                "(pid=%d, ppid=%d)",
+                "Received %s (signal %d), initiating graceful shutdown... (pid=%d, ppid=%d)",
                 sig.name,
                 sig.value,
                 os.getpid(),
@@ -185,6 +220,7 @@ def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
             )
             # Log stack trace to help identify what triggered the signal
             logger.info("Stack at signal receipt:\n%s", "".join(traceback.format_stack()))
+            logger.info("Shutdown source: %s", read_shutdown_source())
             shutdown_callback()
 
         return handle_shutdown

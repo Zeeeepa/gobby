@@ -218,6 +218,9 @@ class Watchdog:
                     pid = int(f.read().strip())
 
                 logger.info(f"Stopping existing daemon (PID {pid})")
+                from gobby.runner_maintenance import write_shutdown_source
+
+                write_shutdown_source("watchdog")
                 os.kill(pid, signal.SIGTERM)
 
                 # Wait for graceful shutdown

@@ -137,6 +137,9 @@ async def stop_daemon_process(pid: int | None = None) -> dict[str, Any]:
     deadline = asyncio.get_running_loop().time() + timeout
 
     try:
+        from gobby.runner_maintenance import write_shutdown_source
+
+        write_shutdown_source("mcp_stop")
         os.kill(pid, signal.SIGTERM)
 
         # Poll for termination
