@@ -263,11 +263,9 @@ class GobbyRunner:
                         memory_manager=self.memory_manager,
                         config=self.config.memory_sync,
                     )
-                    # Wire up listener to trigger export on changes
-                    self.memory_manager.storage.add_change_listener(
-                        self.memory_sync_manager.trigger_export
-                    )
-                    logger.debug("MemorySyncManager initialized and listener attached")
+                    # No per-change listener — the file is a backup, not a live mirror.
+                    # Export happens at: daemon shutdown, session end, explicit sync_export.
+                    logger.debug("MemorySyncManager initialized (export on shutdown/session-end)")
 
                     # Import synced memories before exporting
                     # (e.g. from git on a new machine with more memories than local DB)
