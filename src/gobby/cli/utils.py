@@ -296,14 +296,15 @@ def wait_for_port_available(port: int, host: str = "localhost", timeout: float =
 
 def kill_all_gobby_daemons() -> int:
     """
-    Find and kill all gobby DAEMON processes (not CLI commands).
+    Find and kill all gobby DAEMON and WATCHDOG processes (not CLI commands).
 
-    Only kills processes that are actually running daemon servers,
+    Only kills processes that are actually running daemon servers or watchdogs,
     not CLI invocations or other tools.
 
     Detection methods:
     1. Matches gobby.runner (the main daemon process)
-    2. Matches processes listening on daemon ports (60887/60888)
+    2. Matches gobby.watchdog (the watchdog process)
+    3. Matches processes listening on daemon ports (60887/60888)
 
     Returns:
         Number of processes killed
@@ -343,13 +344,15 @@ def kill_all_gobby_daemons() -> int:
             cmdline = proc.cmdline()
             cmdline_str = " ".join(cmdline)
 
-            # Match gobby.runner which is the actual daemon process
-            # Started via: python -m gobby.runner
+            # Match gobby.runner and gobby.watchdog processes
+            # Started via: python -m gobby.runner / python -m gobby.watchdog
             is_gobby_daemon = (
                 "python" in cmdline_str.lower()
                 and (
-                    # Match gobby.runner (new package)
+                    # Match gobby.runner (the main daemon process)
                     "gobby.runner" in cmdline_str
+                    # Match gobby.watchdog (the watchdog process)
+                    or "gobby.watchdog" in cmdline_str
                     # Also match legacy gobby_client.runner if it exists
                     or "gobby_client.runner" in cmdline_str
                 )

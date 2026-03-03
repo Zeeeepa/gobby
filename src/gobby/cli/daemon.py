@@ -26,6 +26,7 @@ from .utils import (
     kill_all_gobby_daemons,
     setup_logging,
     spawn_ui_server,
+    stop_watchdog,
     wait_for_port_available,
 )
 from .utils import (
@@ -206,7 +207,10 @@ def start(
         except Exception:
             pid_file.unlink()
 
-    # Kill any existing gobby processes
+    # Kill any existing watchdog before spawning a new one
+    stop_watchdog(quiet=True)
+
+    # Kill any existing gobby processes (daemons + orphaned watchdogs)
     click.echo("Checking for existing gobby processes...")
     killed_count = kill_all_gobby_daemons()
     if killed_count > 0:
