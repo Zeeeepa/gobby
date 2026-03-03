@@ -1898,6 +1898,11 @@ export function useChat() {
 
   // View a CLI session (read-only, no WS subscription — loads via REST)
   const viewSession = useCallback((sessionId: string) => {
+    // Skip if already viewing/attached to this session
+    if (viewingSessionIdRef.current === sessionId || attachedSessionIdRef.current === sessionId) {
+      return;
+    }
+
     // Detach from any active WS subscription first
     if (attachedSessionIdRef.current) {
       if (wsRef.current?.readyState === WebSocket.OPEN) {

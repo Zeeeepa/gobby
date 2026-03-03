@@ -15,7 +15,7 @@ export const CanvasPanel: React.FC<Props> = ({ state, panelWidth, onResize, onCl
   if (isMobile) {
     return (
       <div className="flex flex-col w-full h-full bg-background z-20">
-        <CanvasPanelHeader title={state.title} onClose={onClose} />
+        <CanvasPanelHeader title={state.title} onClose={onClose} isMobile />
         <div className="flex-1 overflow-hidden relative">
           <iframe
             src={state.url}
