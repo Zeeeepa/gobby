@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 133
+BASELINE_VERSION = 134
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -838,11 +838,33 @@ CREATE TABLE auth_sessions (
     remember_me INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_auth_sessions_expires ON auth_sessions(expires_at);
+
+CREATE TABLE model_costs (
+    model TEXT PRIMARY KEY,
+    provider TEXT,
+    input_cost_per_token REAL NOT NULL,
+    output_cost_per_token REAL NOT NULL,
+    source TEXT NOT NULL DEFAULT 'litellm',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 # Migrations beyond v133.
 # Add new migrations here. Do not modify the baseline schema above.
-MIGRATIONS: list[tuple[int, str, MigrationAction]] = []
+MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
+    (
+        134,
+        "Add model_costs table for LiteLLM-backed cost cache",
+        """CREATE TABLE model_costs (
+    model TEXT PRIMARY KEY,
+    provider TEXT,
+    input_cost_per_token REAL NOT NULL,
+    output_cost_per_token REAL NOT NULL,
+    source TEXT NOT NULL DEFAULT 'litellm',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)""",
+    ),
+]
 
 
 def get_current_version(db: LocalDatabase) -> int:

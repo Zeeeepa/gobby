@@ -119,6 +119,17 @@ class GobbyRunner:
             config_store=self.config_store,
         )
 
+        # Populate model costs from LiteLLM into DB and load into memory
+        from gobby.llm.cost_table import init as init_cost_table
+        from gobby.storage.model_costs import ModelCostStore
+
+        try:
+            cost_store = ModelCostStore(self.database)
+            cost_store.populate_from_litellm()
+            init_cost_table(self.database)
+        except Exception as e:
+            logger.warning(f"Failed to populate model costs: {e}")
+
         self.session_manager = LocalSessionManager(self.database)
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
