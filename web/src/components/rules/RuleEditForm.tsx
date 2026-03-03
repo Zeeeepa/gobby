@@ -710,7 +710,9 @@ function SchemaArgEditor({
 }) {
   const [addingArg, setAddingArg] = useState(false);
   const addArgRef = useRef<HTMLSelectElement>(null);
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { if (addingArg) addArgRef.current?.focus(); }, [addingArg]);
+  useEffect(() => () => { if (blurTimerRef.current) clearTimeout(blurTimerRef.current); }, []);
 
   const properties =
     (inputSchema?.properties as Record<
@@ -821,7 +823,7 @@ function SchemaArgEditor({
               }
             }}
             aria-label="Choose argument"
-            onBlur={() => setTimeout(() => setAddingArg(false), 150)}
+            onBlur={() => { blurTimerRef.current = setTimeout(() => setAddingArg(false), 150); }}
           >
             <option value="">Choose argument...</option>
             {availableOptional.map((k) => {

@@ -170,7 +170,7 @@
 }
 
 .rule-edit-chip-remove:hover {
-  color: #ef4444;
+  color: var(--color-destructive, #ef4444);
 }
 
 .rule-edit-chip-add {
@@ -215,7 +215,7 @@
 }
 
 .rule-edit-kv-remove:hover {
-  color: #ef4444;
+  color: var(--color-destructive, #ef4444);
 }
 
 .rule-edit-kv-add {
@@ -341,7 +341,7 @@
 }
 
 .rule-edit-required {
-  color: #ef4444;
+  color: var(--color-destructive, #ef4444);
   margin-left: 2px;
 }
 

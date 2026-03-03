@@ -219,7 +219,7 @@ def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
                 os.getppid(),
             )
             # Log stack trace to help identify what triggered the signal
-            logger.info("Stack at signal receipt:\n%s", "".join(traceback.format_stack()))
+            logger.debug("Stack at signal receipt:\n%s", "".join(traceback.format_stack()))
             logger.info("Shutdown source: %s", read_shutdown_source())
             shutdown_callback()
 
@@ -232,7 +232,7 @@ def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
 def cleanup_pid_file() -> None:
     """Remove PID file if it points to our process."""
     try:
-        pid_file = Path(os.environ.get("GOBBY_HOME", Path.home() / ".gobby")) / "gobby.pid"
+        pid_file = _get_gobby_home() / "gobby.pid"
         if pid_file.exists():
             stored_pid = int(pid_file.read_text().strip())
             if stored_pid == os.getpid():

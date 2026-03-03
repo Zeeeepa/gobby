@@ -283,7 +283,6 @@ class SessionLifecycleManager:
                 llm_service=self.llm_service,
                 db=self.db,
                 write_file=True,
-                output_path="~/.gobby/session_summaries",
                 set_handoff_ready=False,  # already expired, don't change status
             )
         except Exception as e:

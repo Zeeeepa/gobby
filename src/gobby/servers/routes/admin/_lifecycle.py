@@ -90,21 +90,18 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
             current_pid = os.getpid()
             port = server.port
 
+            # Write shutdown source in the parent before spawning restarter
+            from gobby.runner_maintenance import write_shutdown_source
+
+            write_shutdown_source("http_restart")
+
             # Inline Python script for the detached restarter process.
             # It waits for the current daemon PID to exit, then spawns a new one.
             restarter_script = f"""
-import os, sys, time, signal, subprocess, json
+import os, sys, time, signal, subprocess
 pid = {current_pid}
 port = {port}
 python = {sys.executable!r}
-
-# Write shutdown source marker
-gobby_home = os.environ.get("GOBBY_HOME", os.path.expanduser("~/.gobby"))
-try:
-    with open(os.path.join(gobby_home, "shutdown_source.json"), "w") as _sf:
-        json.dump({{"source": "http_restart", "sender_pid": os.getpid(), "timestamp": time.time()}}, _sf)
-except Exception:
-    pass
 
 # Wait for current daemon to exit (up to 30s)
 for _ in range(300):

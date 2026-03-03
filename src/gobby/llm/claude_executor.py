@@ -285,7 +285,7 @@ class ClaudeExecutor(AgentExecutor):
                     if result_msg and result_msg.usage:
                         prompt_tokens = result_msg.usage.get("input_tokens", 0)
                         completion_tokens = result_msg.usage.get("output_tokens", 0)
-                    if result_msg and result_msg.total_cost_usd:
+                    if result_msg and result_msg.total_cost_usd is not None:
                         total_cost = result_msg.total_cost_usd
                     cost_info = CostInfo(
                         model=model,

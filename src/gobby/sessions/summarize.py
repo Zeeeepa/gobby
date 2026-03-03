@@ -196,10 +196,21 @@ async def _read_transcript(path: Path) -> list[dict[str, Any]]:
     """Read and parse JSONL transcript file."""
     turns: list[dict[str, Any]] = []
     async with aiofiles.open(path, encoding="utf-8") as f:
-        async for line in f:
+        async for idx, line in async_enumerate(f):
             if line.strip():
-                turns.append(json.loads(line))
+                try:
+                    turns.append(json.loads(line))
+                except json.JSONDecodeError:
+                    logger.warning("Skipping malformed JSONL line %d in %s", idx + 1, path)
     return turns
+
+
+async def async_enumerate(aiter: Any, start: int = 0) -> Any:
+    """Async version of enumerate."""
+    idx = start
+    async for item in aiter:
+        yield idx, item
+        idx += 1
 
 
 def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
@@ -279,7 +290,7 @@ async def _generate_full_summary(
             pass
 
         if not prompt_template:
-            raise FileNotFoundError("Missing prompt template: handoff/session_end")
+            return None, "Missing prompt template: handoff/session_end"
 
         # Prepare context for LLM
         from gobby.workflows.git_utils import get_file_changes, get_git_diff_summary
