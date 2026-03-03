@@ -167,11 +167,11 @@ def register_handoff_tools(
             session_after = session_manager.get(session.id)
             send_content = ""
             if session_after:
-                send_content = session_after.summary_markdown or session_after.compact_markdown or ""
-            if send_content:
-                summary_result["send_result"] = _send_to_peer(
-                    session.id, to_session, send_content
+                send_content = (
+                    session_after.summary_markdown or session_after.compact_markdown or ""
                 )
+            if send_content:
+                summary_result["send_result"] = _send_to_peer(session.id, to_session, send_content)
 
         return summary_result
 

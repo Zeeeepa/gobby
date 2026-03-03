@@ -594,7 +594,6 @@ async def build_turn_and_digest(
         return {"error": str(e)}
 
 
-
 async def memory_extract_from_session(
     memory_manager: Any,
     session_manager: Any,

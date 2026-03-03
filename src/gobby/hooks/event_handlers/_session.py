@@ -429,8 +429,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                                 break
                         else:
                             self.logger.warning(
-                                "Timed out waiting for session summary for parent %s "
-                                "after %.0fs",
+                                "Timed out waiting for session summary for parent %s after %.0fs",
                                 parent_session_id,
                                 max_wait_s,
                             )

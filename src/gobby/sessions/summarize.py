@@ -435,7 +435,7 @@ def _get_claimed_tasks(session_id: str, db: Any) -> str:
                 from gobby.storage.task_dependencies import TaskDependencyManager
 
                 dep_mgr = TaskDependencyManager(db)
-                deps = dep_mgr.get_dependencies(task.id)
+                deps = dep_mgr.get_all_dependencies(task.id)
                 blockers = [d for d in deps if d.dep_type == "blocks"]
                 if blockers:
                     blocker_ids = ", ".join(d.depends_on[:8] for d in blockers)
