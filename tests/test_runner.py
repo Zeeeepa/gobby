@@ -448,6 +448,7 @@ class TestGobbyRunnerInitialization:
         mock_memory_manager = MagicMock()
         mock_memory_manager.storage = MagicMock()
         mock_memory_sync_manager = MagicMock()
+        mock_memory_sync_manager.import_sync.return_value = 0
 
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "MemoryManager" not in str(p)]
@@ -463,7 +464,8 @@ class TestGobbyRunnerInitialization:
             runner = GobbyRunner()
 
             assert runner.memory_sync_manager == mock_memory_sync_manager
-            mock_memory_manager.storage.add_change_listener.assert_called_once()
+            mock_memory_sync_manager.import_sync.assert_called_once()
+            mock_memory_sync_manager.export_sync.assert_called_once()
 
     def test_init_memory_sync_manager_exception(self) -> None:
         """Test MemorySyncManager initialization exception is handled."""
