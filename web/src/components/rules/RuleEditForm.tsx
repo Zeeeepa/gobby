@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { SidebarPanel } from "../shared/SidebarPanel";
 import { CodeMirrorEditor } from "../shared/CodeMirrorEditor";
 import { ExpressionBuilder } from "./ExpressionBuilder";
+import { useMcp, type McpToolSchema } from "../../hooks/useMcp";
 import "./RuleEditForm.css";
 
 const RULE_EVENTS = [
@@ -538,57 +539,7 @@ function EffectFields({
   }
 
   if (type === "mcp_call") {
-    const args = (effect.arguments as Record<string, string>) ?? {};
-    const argPairs = Object.entries(args).map(([key, value]) => ({
-      key,
-      value: String(value),
-    }));
-    return (
-      <>
-        <label className="rule-edit-field">
-          <span className="rule-edit-label">Server</span>
-          <input
-            className="rule-edit-input"
-            value={(effect.server as string) ?? ""}
-            onChange={(e) => onChange({ server: e.target.value })}
-            placeholder="gobby-tasks"
-          />
-        </label>
-        <label className="rule-edit-field">
-          <span className="rule-edit-label">Tool</span>
-          <input
-            className="rule-edit-input"
-            value={(effect.tool as string) ?? ""}
-            onChange={(e) => onChange({ tool: e.target.value })}
-            placeholder="create_task"
-          />
-        </label>
-        <div className="rule-edit-field">
-          <span className="rule-edit-label">Arguments</span>
-          <MatchEditor
-            pairs={argPairs}
-            onChange={(pairs) => {
-              const obj: Record<string, string> = {};
-              for (const p of pairs) if (p.key.trim()) obj[p.key] = p.value;
-              onChange({ arguments: obj });
-            }}
-          />
-        </div>
-        <label
-          className="rule-edit-field"
-          style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-        >
-          <input
-            type="checkbox"
-            checked={!!effect.background}
-            onChange={(e) => onChange({ background: e.target.checked })}
-          />
-          <span className="rule-edit-label" style={{ textTransform: "none" }}>
-            Run in background
-          </span>
-        </label>
-      </>
-    );
+    return <McpCallFields effect={effect} onChange={onChange} />;
   }
 
   if (type === "observe") {
@@ -620,53 +571,309 @@ function EffectFields({
   return null;
 }
 
-function MatchEditor({
-  pairs,
+function McpCallFields({
+  effect,
   onChange,
 }: {
-  pairs: { key: string; value: string }[];
-  onChange: (pairs: { key: string; value: string }[]) => void;
+  effect: Record<string, unknown>;
+  onChange: (u: Record<string, unknown>) => void;
 }) {
+  const { servers, toolsByServer, fetchToolSchema } = useMcp();
+  const [schema, setSchema] = useState<McpToolSchema | null>(null);
+  const [loadingSchema, setLoadingSchema] = useState(false);
+
+  const selectedServer = (effect.server as string) ?? "";
+  const selectedTool = (effect.tool as string) ?? "";
+  const args = (effect.arguments as Record<string, unknown>) ?? {};
+
+  useEffect(() => {
+    if (!selectedServer || !selectedTool) {
+      setSchema(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSchema(true);
+    fetchToolSchema(selectedServer, selectedTool)
+      .then((s) => {
+        if (!cancelled) setSchema(s);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSchema(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedServer, selectedTool, fetchToolSchema]);
+
+  const connectedServers = servers.filter((s) => s.connected);
+  const serverNames = connectedServers.map((s) => s.name);
+  const availableTools = toolsByServer[selectedServer] ?? [];
+  const toolNames = availableTools.map((t) => t.name);
+
+  return (
+    <>
+      <label className="rule-edit-field">
+        <span className="rule-edit-label">Server</span>
+        <select
+          className="rule-edit-input"
+          value={selectedServer}
+          onChange={(e) => {
+            onChange({ server: e.target.value, tool: "", arguments: {} });
+          }}
+        >
+          <option value="">Select server...</option>
+          {selectedServer && !serverNames.includes(selectedServer) && (
+            <option value={selectedServer}>
+              {selectedServer} (disconnected)
+            </option>
+          )}
+          {connectedServers.map((s) => (
+            <option key={s.name} value={s.name}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="rule-edit-field">
+        <span className="rule-edit-label">Tool</span>
+        <select
+          className="rule-edit-input"
+          value={selectedTool}
+          disabled={!selectedServer}
+          onChange={(e) => {
+            onChange({ tool: e.target.value, arguments: {} });
+          }}
+        >
+          <option value="">
+            {selectedServer ? "Select tool..." : "Select a server first"}
+          </option>
+          {selectedTool && !toolNames.includes(selectedTool) && (
+            <option value={selectedTool}>{selectedTool}</option>
+          )}
+          {availableTools.map((t) => (
+            <option key={t.name} value={t.name}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {schema?.description && (
+        <div className="rule-edit-tool-desc">{schema.description}</div>
+      )}
+      <div className="rule-edit-field">
+        <span className="rule-edit-label">
+          Arguments
+          {loadingSchema && (
+            <span className="rule-edit-hint"> (loading schema...)</span>
+          )}
+        </span>
+        <SchemaArgEditor
+          args={args}
+          inputSchema={schema?.inputSchema ?? null}
+          onChange={(newArgs) => onChange({ arguments: newArgs })}
+        />
+      </div>
+      <label
+        className="rule-edit-field"
+        style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+      >
+        <input
+          type="checkbox"
+          checked={!!effect.background}
+          onChange={(e) => onChange({ background: e.target.checked })}
+        />
+        <span className="rule-edit-label" style={{ textTransform: "none" }}>
+          Run in background
+        </span>
+      </label>
+    </>
+  );
+}
+
+function SchemaArgEditor({
+  args,
+  inputSchema,
+  onChange,
+}: {
+  args: Record<string, unknown>;
+  inputSchema: Record<string, unknown> | null;
+  onChange: (args: Record<string, unknown>) => void;
+}) {
+  const [addingArg, setAddingArg] = useState(false);
+
+  const properties =
+    (inputSchema?.properties as Record<
+      string,
+      Record<string, unknown>
+    >) ?? {};
+  const requiredKeys = (inputSchema?.required as string[]) ?? [];
+  const requiredSet = new Set(requiredKeys);
+  const schemaKeys = Object.keys(properties);
+
+  // Required keys first, then keys already in args, deduped
+  const visibleKeys = [
+    ...requiredKeys,
+    ...Object.keys(args).filter((k) => !requiredSet.has(k)),
+  ].filter((k, i, arr) => arr.indexOf(k) === i);
+
+  // Optional schema keys not yet in args
+  const availableOptional = schemaKeys.filter(
+    (k) => !requiredSet.has(k) && !(k in args),
+  );
+
+  const updateArg = (key: string, value: unknown) => {
+    onChange({ ...args, [key]: value });
+  };
+
+  const removeArg = (key: string) => {
+    const next = { ...args };
+    delete next[key];
+    onChange(next);
+  };
+
+  const addOptionalArg = (key: string) => {
+    const prop = properties[key];
+    const propType = (prop?.type as string) ?? "string";
+    const defaultVal =
+      propType === "boolean"
+        ? false
+        : propType === "number" || propType === "integer"
+          ? 0
+          : "";
+    onChange({ ...args, [key]: defaultVal });
+    setAddingArg(false);
+  };
+
   return (
     <div className="rule-edit-kv">
-      {pairs.map((p, i) => (
-        <div key={i} className="rule-edit-kv-row">
-          <input
+      {visibleKeys.map((key) => {
+        const prop = properties[key];
+        const isRequired = requiredSet.has(key);
+        const isSchema = key in properties;
+        const propType = (prop?.type as string) ?? "string";
+        const description = prop?.description as string | undefined;
+
+        return (
+          <div key={key} className="rule-edit-kv-row">
+            {isSchema ? (
+              <span className="rule-edit-kv-label" title={description}>
+                {key}
+                {isRequired && (
+                  <span className="rule-edit-required">*</span>
+                )}
+              </span>
+            ) : (
+              <input
+                className="rule-edit-input"
+                value={key}
+                onChange={(e) => {
+                  const newKey = e.target.value;
+                  const next: Record<string, unknown> = {};
+                  for (const [k, v] of Object.entries(args)) {
+                    next[k === key ? newKey : k] = v;
+                  }
+                  onChange(next);
+                }}
+                placeholder="key"
+              />
+            )}
+            <ArgValueInput
+              type={propType}
+              value={args[key]}
+              onChange={(v) => updateArg(key, v)}
+            />
+            {!isRequired && (
+              <button
+                type="button"
+                className="rule-edit-kv-remove"
+                onClick={() => removeArg(key)}
+              >
+                &times;
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {addingArg ? (
+        <div className="rule-edit-kv-row">
+          <select
             className="rule-edit-input"
-            value={p.key}
+            style={{ flex: 1 }}
+            value=""
             onChange={(e) => {
-              const next = [...pairs];
-              next[i] = { ...next[i], key: e.target.value };
-              onChange(next);
+              if (e.target.value === "__custom__") {
+                onChange({ ...args, "": "" });
+                setAddingArg(false);
+              } else if (e.target.value) {
+                addOptionalArg(e.target.value);
+              }
             }}
-            placeholder="key"
-          />
-          <input
-            className="rule-edit-input"
-            value={p.value}
-            onChange={(e) => {
-              const next = [...pairs];
-              next[i] = { ...next[i], value: e.target.value };
-              onChange(next);
-            }}
-            placeholder="value"
-          />
-          <button
-            type="button"
-            className="rule-edit-kv-remove"
-            onClick={() => onChange(pairs.filter((_, j) => j !== i))}
+            autoFocus
+            onBlur={() => setTimeout(() => setAddingArg(false), 150)}
           >
-            &times;
-          </button>
+            <option value="">Choose argument...</option>
+            {availableOptional.map((k) => {
+              const desc = properties[k]?.description as string | undefined;
+              return (
+                <option key={k} value={k}>
+                  {k}{desc ? ` — ${desc}` : ""}
+                </option>
+              );
+            })}
+            <option value="__custom__">Custom argument...</option>
+          </select>
         </div>
-      ))}
-      <button
-        type="button"
-        className="rule-edit-kv-add"
-        onClick={() => onChange([...pairs, { key: "", value: "" }])}
-      >
-        + Add
-      </button>
+      ) : (
+        <button
+          type="button"
+          className="rule-edit-kv-add"
+          onClick={() => setAddingArg(true)}
+        >
+          + Add argument
+        </button>
+      )}
     </div>
+  );
+}
+
+function ArgValueInput({
+  type,
+  value,
+  onChange,
+}: {
+  type: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  if (type === "boolean") {
+    return (
+      <input
+        type="checkbox"
+        checked={!!value}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ margin: "0 auto" }}
+      />
+    );
+  }
+  if (type === "number" || type === "integer") {
+    return (
+      <input
+        className="rule-edit-input"
+        type="number"
+        value={value == null ? "" : String(value)}
+        onChange={(e) =>
+          onChange(e.target.value === "" ? "" : Number(e.target.value))
+        }
+        placeholder="0"
+      />
+    );
+  }
+  return (
+    <input
+      className="rule-edit-input"
+      value={value == null ? "" : String(value)}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="value"
+    />
   );
 }

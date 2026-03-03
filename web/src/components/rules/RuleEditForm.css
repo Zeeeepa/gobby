@@ -313,6 +313,43 @@
   height: 150px;
 }
 
+/* MCP call schema-aware fields */
+.rule-edit-tool-desc {
+  font-size: calc(var(--font-size-base) * 0.6875);
+  color: var(--text-muted);
+  padding: 2px 0;
+  line-height: 1.4;
+}
+
+.rule-edit-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.rule-edit-kv-label {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(var(--font-size-base) * 0.75);
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rule-edit-required {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.rule-edit-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Read-only display */
 .rule-edit-readonly-value {
   font-size: calc(var(--font-size-base) * 0.8125);
