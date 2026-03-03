@@ -117,7 +117,9 @@ export function MobileChatDrawer({
               </div>
             )}
             {sessions.map((session) => {
-              const title = session.title || `Chat ${session.ref}`
+              const seqLabel = session.seq_num != null ? `#${session.seq_num}` : null;
+              const titleText = session.title || `Chat ${session.ref}`;
+              const title = seqLabel ? `${seqLabel}: ${titleText}` : titleText;
               const isActive = session.external_id === activeSessionId
               return (
                 <div
