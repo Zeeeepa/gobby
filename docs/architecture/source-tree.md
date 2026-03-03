@@ -147,7 +147,7 @@ gobby/                                  # Project root
 │   ├── worktrees/                      # Git worktree management
 │   ├── install/                        # CLI hook dispatcher files
 │   │   └── shared/                     # Shared rules, skills, workflows
-│   │       ├── rules/                  # 11 bundled rule groups (YAML)
+│   │       ├── rules/                  # 13 bundled rule groups (YAML)
 │   │       ├── skills/                 # ~23 bundled skills
 │   │       └── workflows/             # Built-in workflow definitions
 │   └── utils/                          # Utilities (git, daemon client, etc.)
