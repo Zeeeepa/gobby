@@ -179,12 +179,10 @@ class GeminiExecutor(AgentExecutor):
                 # Track token usage
                 if hasattr(response, "usage_metadata") and response.usage_metadata:
                     meta = response.usage_metadata
-                    cost_tracker.prompt_tokens += getattr(
-                        meta, "prompt_token_count", 0
-                    ) or 0
-                    cost_tracker.completion_tokens += getattr(
-                        meta, "candidates_token_count", 0
-                    ) or 0
+                    cost_tracker.prompt_tokens += getattr(meta, "prompt_token_count", 0) or 0
+                    cost_tracker.completion_tokens += (
+                        getattr(meta, "candidates_token_count", 0) or 0
+                    )
 
                 # Check for function calls in response
                 candidate = response.candidates[0] if response.candidates else None
@@ -204,9 +202,7 @@ class GeminiExecutor(AgentExecutor):
                 ]
 
                 # Extract text content
-                text_parts = [
-                    p.text for p in parts if hasattr(p, "text") and p.text
-                ]
+                text_parts = [p.text for p in parts if hasattr(p, "text") and p.text]
                 if text_parts:
                     final_output = "\n".join(text_parts)
 
@@ -254,9 +250,7 @@ class GeminiExecutor(AgentExecutor):
                             content = f"Error: {result.error}"
                     except Exception as e:
                         self.logger.error(f"Tool handler error for {fn_name}: {e}")
-                        record.result = ToolResult(
-                            tool_name=fn_name, success=False, error=str(e)
-                        )
+                        record.result = ToolResult(tool_name=fn_name, success=False, error=str(e))
                         content = f"Error: {e}"
 
                     response_parts.append(
@@ -267,9 +261,7 @@ class GeminiExecutor(AgentExecutor):
                     )
 
                 # All function responses go in a single user Content message
-                contents.append(
-                    types.Content(role="user", parts=response_parts)
-                )
+                contents.append(types.Content(role="user", parts=response_parts))
 
             # Max turns reached
             cost_tracker.total_cost = calculate_cost(

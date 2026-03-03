@@ -209,7 +209,7 @@ def protect_production_resources(
     # Set environment variables as a first line of defense
     safe_config_file = safe_logs_dir / "config-test.yaml"
     env_vars = {
-        "GOBBY_TEST_PROTECT": "1",  # Enable safety switch in app.py and database.py
+        "GOBBY_TEST_PROTECT": "1",  # Enable safety switch in app.py, database.py, and cli/utils.py
         "GOBBY_DATABASE_PATH": str(safe_db_path),
         "GOBBY_CONFIG_FILE": str(safe_config_file),  # Redirect config reads/writes
         "GOBBY_LOGGING_CLIENT": str(safe_log_client),

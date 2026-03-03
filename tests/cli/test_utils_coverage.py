@@ -721,6 +721,7 @@ def test_kill_all_gobby_daemons_no_processes() -> None:
     mock_config.websocket.port = 60888
 
     with (
+        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.utils.load_config", return_value=mock_config),
         patch("gobby.cli.utils.psutil.process_iter", return_value=[]),
         patch("gobby.cli.utils.psutil.Process") as mock_proc_cls,
@@ -739,6 +740,7 @@ def test_kill_all_gobby_daemons_config_fallback() -> None:
     from gobby.cli.utils import kill_all_gobby_daemons
 
     with (
+        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.utils.load_config", side_effect=Exception("no config")),
         patch("gobby.cli.utils.psutil.process_iter", return_value=[]),
         patch("gobby.cli.utils.psutil.Process") as mock_proc_cls,
@@ -772,6 +774,7 @@ def test_kill_all_gobby_daemons_kills_runner_process() -> None:
     parent_proc.pid = 1
 
     with (
+        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.utils.load_config", return_value=mock_config),
         patch("gobby.cli.utils.os.getpid", return_value=10000),
         patch("gobby.cli.utils.os.getppid", return_value=10001),
@@ -805,6 +808,7 @@ def test_kill_all_gobby_daemons_force_kill_on_timeout() -> None:
     parent_proc.pid = 1
 
     with (
+        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.utils.load_config", return_value=mock_config),
         patch("gobby.cli.utils.os.getpid", return_value=10000),
         patch("gobby.cli.utils.os.getppid", return_value=10001),
@@ -842,6 +846,7 @@ def test_kill_all_gobby_daemons_port_match() -> None:
     parent_proc.pid = 1
 
     with (
+        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.utils.load_config", return_value=mock_config),
         patch("gobby.cli.utils.os.getpid", return_value=10000),
         patch("gobby.cli.utils.os.getppid", return_value=10001),
@@ -870,6 +875,7 @@ def test_kill_all_gobby_daemons_skips_self() -> None:
     parent_proc.pid = 1
 
     with (
+        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.utils.load_config", return_value=mock_config),
         patch("gobby.cli.utils.os.getpid", return_value=10000),
         patch("gobby.cli.utils.os.getppid", return_value=10001),
@@ -897,6 +903,7 @@ def test_kill_all_gobby_daemons_handles_process_error() -> None:
     parent_proc.pid = 1
 
     with (
+        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.utils.load_config", return_value=mock_config),
         patch("gobby.cli.utils.os.getpid", return_value=10000),
         patch("gobby.cli.utils.os.getppid", return_value=10001),

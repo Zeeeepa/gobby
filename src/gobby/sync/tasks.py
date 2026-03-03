@@ -334,9 +334,7 @@ class TaskSyncManager:
 
                             # Handle labels (stored as JSON in SQLite)
                             labels_raw = data.get("labels")
-                            labels_json = (
-                                json.dumps(labels_raw) if labels_raw else None
-                            )
+                            labels_json = json.dumps(labels_raw) if labels_raw else None
 
                             # Common synced field values
                             synced_values = {
@@ -399,9 +397,7 @@ class TaskSyncManager:
                             if not existing_row:
                                 # New task — INSERT with all synced fields
                                 columns = ", ".join(["id"] + list(synced_values.keys()))
-                                placeholders = ", ".join(
-                                    ["?"] * (1 + len(synced_values))
-                                )
+                                placeholders = ", ".join(["?"] * (1 + len(synced_values)))
                                 conn.execute(
                                     f"INSERT INTO tasks ({columns}) VALUES ({placeholders})",
                                     (task_id, *synced_values.values()),
@@ -411,9 +407,7 @@ class TaskSyncManager:
                                 # preserving session-local columns (assignee,
                                 # created_in_session_id, closed_in_session_id,
                                 # compacted_at, summary)
-                                set_clause = ", ".join(
-                                    f"{col} = ?" for col in synced_values
-                                )
+                                set_clause = ", ".join(f"{col} = ?" for col in synced_values)
                                 conn.execute(
                                     f"UPDATE tasks SET {set_clause} WHERE id = ?",
                                     (*synced_values.values(), task_id),

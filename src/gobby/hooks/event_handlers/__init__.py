@@ -98,7 +98,9 @@ class EventHandlers(
         self._workflow_config = workflow_config
         self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
         self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")
-        self._dispatch_session_summaries_fn: Callable[[str, bool, threading.Event | None], None] | None = None
+        self._dispatch_session_summaries_fn: (
+            Callable[[str, bool, threading.Event | None], None] | None
+        ) = None
         self.logger = logger or logging.getLogger(__name__)
 
         # Build handler map
