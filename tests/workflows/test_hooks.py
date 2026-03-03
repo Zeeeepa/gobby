@@ -782,7 +782,7 @@ class TestVariablePersistence:
 
         variables = session_var_manager.get_variables("test-session")
         assert variables.get("task_claimed") is True
-        assert variables.get("claimed_task_id") == "task-uuid-observer"
+        assert "task-uuid-observer" in variables.get("claimed_tasks", {})
 
     @pytest.mark.asyncio
     async def test_observer_and_rule_changes_both_persisted(

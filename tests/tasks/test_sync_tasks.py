@@ -450,6 +450,203 @@ class TestImportEdgeCases:
             sync_manager.import_from_jsonl()
 
 
+class TestClosedStateRoundTrip:
+    """Tests that closed task metadata survives export → import round-trip."""
+
+    @pytest.mark.integration
+    def test_closed_task_round_trip_preserves_all_fields(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """Test that a closed task with full metadata survives export → import."""
+        task = task_manager.create_task(sample_project["id"], "Task to close")
+
+        # Simulate a fully closed task with all metadata
+        sync_manager.db.execute(
+            """UPDATE tasks SET
+                status = 'closed',
+                closed_at = '2026-01-15T10:00:00+00:00',
+                closed_reason = 'completed',
+                closed_commit_sha = 'abc123def456',
+                labels = '["bug", "p0"]',
+                category = 'code',
+                agent_name = 'fix-agent',
+                accepted_by_user = 1,
+                requires_user_review = 1,
+                is_expanded = 1,
+                expansion_status = 'completed',
+                complexity_score = 3,
+                estimated_subtasks = 5,
+                expansion_context = 'expanded from epic',
+                use_external_validator = 1,
+                reference_doc = 'docs/spec.md',
+                github_issue_number = 42,
+                github_pr_number = 99,
+                github_repo = 'owner/repo',
+                linear_issue_id = 'LIN-123',
+                linear_team_id = 'TEAM-1',
+                start_date = '2026-01-10',
+                due_date = '2026-01-20',
+                workflow_name = 'tdd',
+                verification = 'tests pass',
+                sequence_order = 3
+            WHERE id = ?""",
+            (task.id,),
+        )
+
+        # Export
+        sync_manager.export_to_jsonl()
+
+        # Verify JSONL has the closed fields
+        lines = sync_manager.export_path.read_text().strip().split("\n")
+        data = json.loads(lines[0])
+        assert data["status"] == "closed"
+        assert data["closed_at"] is not None
+        assert data["closed_reason"] == "completed"
+        assert data["closed_commit_sha"] == "abc123def456"
+        assert data["labels"] == ["bug", "p0"]
+        assert data["category"] == "code"
+        assert data["agent_name"] == "fix-agent"
+        assert data["accepted_by_user"] is True
+        assert data["requires_user_review"] is True
+        assert data["is_expanded"] is True
+        assert data["expansion_status"] == "completed"
+        assert data["github_issue_number"] == 42
+        assert data["github_pr_number"] == 99
+        assert data["github_repo"] == "owner/repo"
+        assert data["linear_issue_id"] == "LIN-123"
+        assert data["linear_team_id"] == "TEAM-1"
+        assert data["start_date"] == "2026-01-10"
+        assert data["due_date"] == "2026-01-20"
+        assert data["workflow_name"] == "tdd"
+        assert data["verification"] == "tests pass"
+        assert data["sequence_order"] == 3
+        assert data["reference_doc"] == "docs/spec.md"
+        assert data["complexity_score"] == 3
+        assert data["estimated_subtasks"] == 5
+
+        # Delete task from DB to simulate fresh import
+        sync_manager.db.execute("PRAGMA foreign_keys = OFF")
+        sync_manager.db.execute("DELETE FROM tasks WHERE id = ?", (task.id,))
+        sync_manager.db.execute("PRAGMA foreign_keys = ON")
+        row = sync_manager.db.fetchone("SELECT 1 FROM tasks WHERE id = ?", (task.id,))
+        assert row is None
+
+        # Import from JSONL
+        sync_manager.import_from_jsonl()
+
+        # Verify all closed state fields survived
+        reimported = task_manager.get_task(task.id)
+        assert reimported is not None
+        assert reimported.status == "closed"
+        # closed_at is normalized with microsecond precision during export
+        assert reimported.closed_at == "2026-01-15T10:00:00.000000+00:00"
+        assert reimported.closed_reason == "completed"
+        assert reimported.closed_commit_sha == "abc123def456"
+        assert reimported.labels == ["bug", "p0"]
+        assert reimported.category == "code"
+        assert reimported.agent_name == "fix-agent"
+        assert reimported.accepted_by_user is True
+        assert reimported.requires_user_review is True
+        assert reimported.is_expanded is True
+        assert reimported.expansion_status == "completed"
+        assert reimported.github_issue_number == 42
+        assert reimported.github_pr_number == 99
+        assert reimported.github_repo == "owner/repo"
+        assert reimported.linear_issue_id == "LIN-123"
+        assert reimported.linear_team_id == "TEAM-1"
+        assert reimported.start_date == "2026-01-10"
+        assert reimported.due_date == "2026-01-20"
+        assert reimported.workflow_name == "tdd"
+        assert reimported.verification == "tests pass"
+        assert reimported.sequence_order == 3
+        assert reimported.reference_doc == "docs/spec.md"
+        assert reimported.complexity_score == 3
+        assert reimported.estimated_subtasks == 5
+
+    @pytest.mark.integration
+    def test_update_path_preserves_session_local_fields(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """Test that UPDATE import path preserves session-local columns."""
+        task = task_manager.create_task(sample_project["id"], "Session task")
+
+        # Set session-local fields that should NOT be wiped by import
+        # Disable FK checks since session IDs reference sessions table
+        sync_manager.db.execute("PRAGMA foreign_keys = OFF")
+        sync_manager.db.execute(
+            """UPDATE tasks SET
+                assignee = 'session-uuid-123',
+                created_in_session_id = 'session-aaa',
+                closed_in_session_id = 'session-bbb',
+                compacted_at = '2026-01-10T00:00:00+00:00',
+                summary = 'Compaction summary text',
+                updated_at = '2020-01-01T00:00:00+00:00'
+            WHERE id = ?""",
+            (task.id,),
+        )
+        sync_manager.db.execute("PRAGMA foreign_keys = ON")
+
+        # Create JSONL with newer timestamp to trigger UPDATE path
+        jsonl_data = {
+            "id": task.id,
+            "title": "Updated title from JSONL",
+            "description": "Updated desc",
+            "status": "closed",
+            "closed_at": "2026-02-01T00:00:00+00:00",
+            "closed_reason": "done",
+            "created_at": task.created_at,
+            "updated_at": "2026-01-01T00:00:00+00:00",
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "priority": 2,
+            "task_type": "task",
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(jsonl_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        # Verify synced fields were updated
+        updated = task_manager.get_task(task.id)
+        assert updated.title == "Updated title from JSONL"
+        assert updated.status == "closed"
+        assert updated.closed_at == "2026-02-01T00:00:00+00:00"
+        assert updated.closed_reason == "done"
+
+        # Verify session-local fields were PRESERVED (not wiped to NULL)
+        row = sync_manager.db.fetchone(
+            "SELECT assignee, created_in_session_id, closed_in_session_id, "
+            "compacted_at, summary FROM tasks WHERE id = ?",
+            (task.id,),
+        )
+        assert row["assignee"] == "session-uuid-123"
+        assert row["created_in_session_id"] == "session-aaa"
+        assert row["closed_in_session_id"] == "session-bbb"
+        assert row["compacted_at"] == "2026-01-10T00:00:00+00:00"
+        assert row["summary"] == "Compaction summary text"
+
+    @pytest.mark.integration
+    def test_export_includes_priority_and_task_type(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """Test that export includes priority and task_type fields."""
+        task = task_manager.create_task(sample_project["id"], "Typed task")
+        sync_manager.db.execute(
+            "UPDATE tasks SET priority = 1, task_type = 'bug' WHERE id = ?",
+            (task.id,),
+        )
+
+        sync_manager.export_to_jsonl()
+
+        lines = sync_manager.export_path.read_text().strip().split("\n")
+        data = json.loads(lines[0])
+        assert data["priority"] == 1
+        assert data["task_type"] == "bug"
+
+
 class TestExportEdgeCases:
     """Tests for export edge cases and error handling."""
 

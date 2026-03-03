@@ -552,7 +552,7 @@ class TestSessionMoreCoverage:
                 return_value={
                     "handoff_source": "clear",
                     "task_claimed": True,
-                    "claimed_task_id": "task-1",
+                    "claimed_tasks": {"task-1": "#1"},
                 },
             ),
             patch(

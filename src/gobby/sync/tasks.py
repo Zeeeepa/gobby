@@ -148,6 +148,8 @@ class TaskSyncManager:
                     "title": task.title,
                     "description": task.description,
                     "status": task.status,
+                    "priority": task.priority,
+                    "task_type": task.task_type,
                     # Normalize timestamps to ensure RFC 3339 compliance (with timezone)
                     "created_at": _normalize_timestamp(task.created_at),
                     "updated_at": _normalize_timestamp(task.updated_at),
@@ -156,6 +158,12 @@ class TaskSyncManager:
                     "deps_on": sorted(deps_map.get(task.id, [])),  # Sort deps for stability
                     # Commit SHAs are already normalized at write time by link_commit()
                     "commits": sorted(set(task.commits)) if task.commits else [],
+                    # Closed state fields
+                    "closed_at": _normalize_timestamp(task.closed_at),
+                    "closed_reason": task.closed_reason,
+                    "closed_commit_sha": task.closed_commit_sha,
+                    # Labels (already a list on Task model)
+                    "labels": task.labels if task.labels else None,
                     # Validation history (for tracking validation state across syncs)
                     "validation": (
                         {
@@ -168,6 +176,33 @@ class TaskSyncManager:
                         if task.validation_status
                         else None
                     ),
+                    # Expansion fields
+                    "is_expanded": task.is_expanded,
+                    "expansion_status": task.expansion_status,
+                    "category": task.category,
+                    "complexity_score": task.complexity_score,
+                    "estimated_subtasks": task.estimated_subtasks,
+                    "expansion_context": task.expansion_context,
+                    "use_external_validator": task.use_external_validator,
+                    # Review status
+                    "accepted_by_user": task.accepted_by_user,
+                    "requires_user_review": task.requires_user_review,
+                    # Agent/workflow fields
+                    "agent_name": task.agent_name,
+                    "workflow_name": task.workflow_name,
+                    "verification": task.verification,
+                    "sequence_order": task.sequence_order,
+                    # Spec traceability
+                    "reference_doc": task.reference_doc,
+                    # External integrations
+                    "github_issue_number": task.github_issue_number,
+                    "github_pr_number": task.github_pr_number,
+                    "github_repo": task.github_repo,
+                    "linear_issue_id": task.linear_issue_id,
+                    "linear_team_id": task.linear_team_id,
+                    # Scheduling fields
+                    "start_date": task.start_date,
+                    "due_date": task.due_date,
                     # Escalation fields (normalize timestamps)
                     "escalated_at": _normalize_timestamp(task.escalated_at),
                     "escalation_reason": task.escalation_reason,
@@ -284,10 +319,6 @@ class TaskSyncManager:
                                 skipped_count += 1
 
                         if should_update:
-                            # Use INSERT OR REPLACE to handle upsert generically
-                            # Note: Labels not in JSONL currently based on export logic
-                            # Note: We need to respect the exact fields from JSONL
-
                             # Handle commits array (stored as JSON in SQLite)
                             commits_json = (
                                 json.dumps(data["commits"]) if data.get("commits") else None
@@ -301,45 +332,92 @@ class TaskSyncManager:
                             validation_criteria = validation.get("criteria")
                             validation_override_reason = validation.get("override_reason")
 
-                            conn.execute(
-                                """
-                                INSERT OR REPLACE INTO tasks (
-                                    id, project_id, title, description, parent_task_id,
-                                    status, priority, task_type, created_at, updated_at,
-                                    commits, validation_status, validation_feedback,
-                                    validation_fail_count, validation_criteria,
-                                    validation_override_reason, escalated_at, escalation_reason,
-                                    seq_num, path_cache
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                (
-                                    task_id,
-                                    data.get("project_id"),
-                                    data["title"],
-                                    data.get("description"),
-                                    data.get(
-                                        "parent_id"
-                                    ),  # Note: JSONL uses parent_id, not parent_task_id
-                                    data["status"],
-                                    data.get("priority", 2),
-                                    data.get("task_type", "task"),
-                                    data["created_at"],
-                                    data["updated_at"],
-                                    commits_json,
-                                    validation_status,
-                                    validation_feedback,
-                                    validation_fail_count,
-                                    validation_criteria,
-                                    validation_override_reason,
-                                    data.get("escalated_at"),
-                                    data.get("escalation_reason"),
-                                    # Preserve existing seq_num/path_cache if JSONL doesn't have them
-                                    data["seq_num"] if "seq_num" in data else existing_seq_num,
+                            # Handle labels (stored as JSON in SQLite)
+                            labels_raw = data.get("labels")
+                            labels_json = (
+                                json.dumps(labels_raw) if labels_raw else None
+                            )
+
+                            # Common synced field values
+                            synced_values = {
+                                "project_id": data.get("project_id"),
+                                "title": data["title"],
+                                "description": data.get("description"),
+                                "parent_task_id": data.get("parent_id"),
+                                "status": data["status"],
+                                "priority": data.get("priority", 2),
+                                "task_type": data.get("task_type", "task"),
+                                "created_at": data["created_at"],
+                                "updated_at": data["updated_at"],
+                                "commits": commits_json,
+                                "closed_at": data.get("closed_at"),
+                                "closed_reason": data.get("closed_reason"),
+                                "closed_commit_sha": data.get("closed_commit_sha"),
+                                "labels": labels_json,
+                                "validation_status": validation_status,
+                                "validation_feedback": validation_feedback,
+                                "validation_fail_count": validation_fail_count,
+                                "validation_criteria": validation_criteria,
+                                "validation_override_reason": validation_override_reason,
+                                "is_expanded": int(data.get("is_expanded", False)),
+                                "expansion_status": data.get("expansion_status", "none"),
+                                "category": data.get("category"),
+                                "complexity_score": data.get("complexity_score"),
+                                "estimated_subtasks": data.get("estimated_subtasks"),
+                                "expansion_context": data.get("expansion_context"),
+                                "use_external_validator": int(
+                                    data.get("use_external_validator", False)
+                                ),
+                                "accepted_by_user": int(data.get("accepted_by_user", False)),
+                                "requires_user_review": int(
+                                    data.get("requires_user_review", False)
+                                ),
+                                "agent_name": data.get("agent_name"),
+                                "workflow_name": data.get("workflow_name"),
+                                "verification": data.get("verification"),
+                                "sequence_order": data.get("sequence_order"),
+                                "reference_doc": data.get("reference_doc"),
+                                "github_issue_number": data.get("github_issue_number"),
+                                "github_pr_number": data.get("github_pr_number"),
+                                "github_repo": data.get("github_repo"),
+                                "linear_issue_id": data.get("linear_issue_id"),
+                                "linear_team_id": data.get("linear_team_id"),
+                                "start_date": data.get("start_date"),
+                                "due_date": data.get("due_date"),
+                                "escalated_at": data.get("escalated_at"),
+                                "escalation_reason": data.get("escalation_reason"),
+                                "seq_num": (
+                                    data["seq_num"] if "seq_num" in data else existing_seq_num
+                                ),
+                                "path_cache": (
                                     data["path_cache"]
                                     if "path_cache" in data
-                                    else existing_path_cache,
+                                    else existing_path_cache
                                 ),
-                            )
+                            }
+
+                            if not existing_row:
+                                # New task — INSERT with all synced fields
+                                columns = ", ".join(["id"] + list(synced_values.keys()))
+                                placeholders = ", ".join(
+                                    ["?"] * (1 + len(synced_values))
+                                )
+                                conn.execute(
+                                    f"INSERT INTO tasks ({columns}) VALUES ({placeholders})",
+                                    (task_id, *synced_values.values()),
+                                )
+                            else:
+                                # Existing task — UPDATE only synced fields,
+                                # preserving session-local columns (assignee,
+                                # created_in_session_id, closed_in_session_id,
+                                # compacted_at, summary)
+                                set_clause = ", ".join(
+                                    f"{col} = ?" for col in synced_values
+                                )
+                                conn.execute(
+                                    f"UPDATE tasks SET {set_clause} WHERE id = ?",
+                                    (*synced_values.values(), task_id),
+                                )
 
                         # Collect dependencies for Phase 2
                         if "deps_on" in data:

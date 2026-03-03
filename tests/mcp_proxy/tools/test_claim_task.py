@@ -438,7 +438,7 @@ class TestClaimTaskSessionVariables:
             assert call_args[0][0] == "my-session-id"
             merged_vars = call_args[0][1]
             assert merged_vars["task_claimed"] is True
-            assert merged_vars["claimed_task_id"] == sample_task.id
+            assert sample_task.id in merged_vars["claimed_tasks"]
 
 
 class TestClaimTaskVsUpdateTask:

@@ -449,8 +449,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     if session_source in ("compact", "clear"):
                         _TASK_CLAIM_KEYS = (
                             "task_claimed",
-                            "claimed_task_id",
-                            "task_ref",
+                            "claimed_tasks",
                             "session_had_task",
                         )
                         task_handoff = {
@@ -458,29 +457,28 @@ class SessionEventHandlerMixin(EventHandlersBase):
                         }
                         if task_handoff:
                             sv_mgr.merge_variables(session_id, task_handoff)
-                            # Re-assign task and re-link to new session
-                            if task_handoff.get("task_claimed") and task_handoff.get(
-                                "claimed_task_id"
-                            ):
-                                claimed_id = task_handoff["claimed_task_id"]
-                                if self._task_manager:
-                                    try:
-                                        self._task_manager.update_task(
-                                            claimed_id, assignee=session_id
-                                        )
-                                    except Exception as e:
-                                        self.logger.debug(
-                                            f"Best-effort task re-assignment failed for session={session_id} task={claimed_id}: {e}"
-                                        )
-                                if self._session_task_manager:
-                                    try:
-                                        self._session_task_manager.link_task(
-                                            session_id, claimed_id, "claimed"
-                                        )
-                                    except Exception as e:
-                                        self.logger.debug(
-                                            f"Best-effort session-task link failed for session={session_id} task={claimed_id}: {e}"
-                                        )
+                            # Re-assign all claimed tasks and re-link to new session
+                            claimed_tasks = task_handoff.get("claimed_tasks") or {}
+                            if task_handoff.get("task_claimed") and claimed_tasks:
+                                for claimed_id in claimed_tasks:
+                                    if self._task_manager:
+                                        try:
+                                            self._task_manager.update_task(
+                                                claimed_id, assignee=session_id
+                                            )
+                                        except Exception as e:
+                                            self.logger.debug(
+                                                f"Best-effort task re-assignment failed for session={session_id} task={claimed_id}: {e}"
+                                            )
+                                    if self._session_task_manager:
+                                        try:
+                                            self._session_task_manager.link_task(
+                                                session_id, claimed_id, "claimed"
+                                            )
+                                        except Exception as e:
+                                            self.logger.debug(
+                                                f"Best-effort session-task link failed for session={session_id} task={claimed_id}: {e}"
+                                            )
 
         # Populate task_context session variable for inject_context rule templates
         if event.task_id and session_id and self._session_storage:
