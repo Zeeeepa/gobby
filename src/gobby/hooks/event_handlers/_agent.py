@@ -327,12 +327,12 @@ class AgentEventHandlerMixin(EventHandlersBase):
             # Mark session as handoff_ready so it can be found as parent after compact
             if self._session_manager:
                 self._session_manager.update_session_status(session_id, "handoff_ready")
-            # Generate boundary summaries from digest before compaction
+            # Generate session summaries from digest before compaction
             try:
                 if self._dispatch_session_summaries_fn:
                     self._dispatch_session_summaries_fn(session_id, False, None)
             except Exception as e:
-                self.logger.warning(f"Failed to generate boundary summaries on compact: {e}")
+                self.logger.warning(f"Failed to generate session summaries on compact: {e}")
         else:
             self.logger.debug(f"PRE_COMPACT ({trigger})")
 

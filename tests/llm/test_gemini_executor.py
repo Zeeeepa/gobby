@@ -42,7 +42,7 @@ def mock_genai_module():
 
 
 @pytest.fixture
-def simple_tools():
+def simple_tools() -> list[ToolSchema]:
     """Create simple tool schemas for testing."""
     return [
         ToolSchema(
@@ -162,7 +162,7 @@ class TestGeminiExecutorRun:
     """Tests for the agentic loop."""
 
     @pytest.fixture
-    def executor(self, mock_genai_module):
+    def executor(self, mock_genai_module) -> "GeminiExecutor":
         """Create a GeminiExecutor with mocked client."""
         from gobby.llm.gemini_executor import GeminiExecutor
 
@@ -170,7 +170,7 @@ class TestGeminiExecutorRun:
         return executor
 
     @pytest.mark.asyncio
-    async def test_run_simple_response(self, executor, simple_tools, mock_genai_module):
+    async def test_run_simple_response(self, executor, simple_tools, mock_genai_module) -> None:
         """Run returns text response when no function calls."""
         # Mock response with text only (no function calls)
         mock_part = MagicMock()
@@ -209,7 +209,7 @@ class TestGeminiExecutorRun:
         assert result.cost_info.completion_tokens == 5
 
     @pytest.mark.asyncio
-    async def test_run_with_function_call(self, executor, simple_tools, mock_genai_module):
+    async def test_run_with_function_call(self, executor, simple_tools, mock_genai_module) -> None:
         """Run handles function calls and sends results back."""
         # First response: function call
         mock_fc = MagicMock()
@@ -274,7 +274,7 @@ class TestGeminiExecutorRun:
         assert result.cost_info.completion_tokens == 25
 
     @pytest.mark.asyncio
-    async def test_run_api_error(self, executor, simple_tools, mock_genai_module):
+    async def test_run_api_error(self, executor, simple_tools, mock_genai_module) -> None:
         """Run returns error status on API failure."""
         mock_client = MagicMock()
         mock_client.aio.models.generate_content = AsyncMock(
@@ -293,7 +293,7 @@ class TestGeminiExecutorRun:
         assert "API quota exceeded" in result.error
 
     @pytest.mark.asyncio
-    async def test_run_max_turns(self, executor, simple_tools, mock_genai_module):
+    async def test_run_max_turns(self, executor, simple_tools, mock_genai_module) -> None:
         """Run returns partial status when max turns reached."""
         # Always return a function call
         mock_fc = MagicMock()
@@ -334,7 +334,7 @@ class TestGeminiExecutorRun:
         assert result.turns_used == 2
 
     @pytest.mark.asyncio
-    async def test_run_no_candidates(self, executor, simple_tools, mock_genai_module):
+    async def test_run_no_candidates(self, executor, simple_tools, mock_genai_module) -> None:
         """Run handles empty candidates response."""
         mock_response = MagicMock()
         mock_response.candidates = []
@@ -355,7 +355,7 @@ class TestGeminiExecutorRun:
         assert "No candidates" in result.error
 
     @pytest.mark.asyncio
-    async def test_run_tool_handler_error(self, executor, simple_tools, mock_genai_module):
+    async def test_run_tool_handler_error(self, executor, simple_tools, mock_genai_module) -> None:
         """Run handles tool handler exceptions gracefully."""
         mock_fc = MagicMock()
         mock_fc.name = "get_weather"

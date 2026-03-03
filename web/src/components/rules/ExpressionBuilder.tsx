@@ -85,7 +85,7 @@ function smartQuote(s: string): string {
     return trimmed;
   }
   // Looks like a list, boolean, number, dotted variable ref, or function call — don't quote
-  if (trimmed.startsWith("[") || SPECIAL_LITERALS.has(trimmed) || /^\d+(\.\d+)?$/.test(trimmed) || /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(trimmed) || /^[A-Za-z_]\w*\(.*\)$/.test(trimmed)) {
+  if (trimmed.startsWith("[") || SPECIAL_LITERALS.has(trimmed) || /^\d+(\.\d+)*$/.test(trimmed) || /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(trimmed) || /^[A-Za-z_]\w*\(.*\)$/.test(trimmed)) {
     return trimmed;
   }
   return `"${trimmed}"`;

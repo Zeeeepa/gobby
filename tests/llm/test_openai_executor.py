@@ -21,7 +21,7 @@ def mock_openai_module():
 
 
 @pytest.fixture
-def simple_tools():
+def simple_tools() -> list[ToolSchema]:
     """Create simple tool schemas for testing."""
     return [
         ToolSchema(
@@ -157,7 +157,7 @@ class TestOpenAIExecutorRun:
 
         return OpenAIExecutor(api_key="sk-test")
 
-    def _make_text_response(self, text, prompt_tokens=10, completion_tokens=5):
+    def _make_text_response(self, text: str, prompt_tokens: int = 10, completion_tokens: int = 5) -> MagicMock:
         """Helper to build a mock text-only response."""
         message = MagicMock()
         message.content = text
@@ -179,9 +179,9 @@ class TestOpenAIExecutorRun:
         return response
 
     def _make_tool_call_response(
-        self, tool_name, args_json, tool_call_id="call_123",
-        prompt_tokens=15, completion_tokens=8
-    ):
+        self, tool_name: str, args_json: str, tool_call_id: str = "call_123",
+        prompt_tokens: int = 15, completion_tokens: int = 8
+    ) -> MagicMock:
         """Helper to build a mock tool call response."""
         tc = MagicMock()
         tc.id = tool_call_id
@@ -210,7 +210,7 @@ class TestOpenAIExecutorRun:
         return response
 
     @pytest.mark.asyncio
-    async def test_run_simple_response(self, executor, simple_tools):
+    async def test_run_simple_response(self, executor, simple_tools) -> None:
         """Run returns text when no tool calls."""
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
@@ -232,7 +232,7 @@ class TestOpenAIExecutorRun:
         assert result.cost_info.prompt_tokens == 10
 
     @pytest.mark.asyncio
-    async def test_run_with_tool_call(self, executor, simple_tools):
+    async def test_run_with_tool_call(self, executor, simple_tools) -> None:
         """Run handles tool calls and sends results back."""
         tc_resp = self._make_tool_call_response("search", '{"query": "gobby"}')
         text_resp = self._make_text_response("Found results for gobby.", 20, 10)
@@ -259,7 +259,7 @@ class TestOpenAIExecutorRun:
         assert result.cost_info.prompt_tokens == 35
 
     @pytest.mark.asyncio
-    async def test_run_api_error(self, executor, simple_tools):
+    async def test_run_api_error(self, executor, simple_tools) -> None:
         """Run returns error on API failure."""
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
@@ -278,7 +278,7 @@ class TestOpenAIExecutorRun:
         assert "Rate limited" in result.error
 
     @pytest.mark.asyncio
-    async def test_run_max_turns(self, executor, simple_tools):
+    async def test_run_max_turns(self, executor, simple_tools) -> None:
         """Run returns partial when max turns exhausted."""
         tc_resp = self._make_tool_call_response("search", '{"query": "test"}')
 
@@ -301,7 +301,7 @@ class TestOpenAIExecutorRun:
         assert len(result.tool_calls) == 2
 
     @pytest.mark.asyncio
-    async def test_run_tool_handler_error(self, executor, simple_tools):
+    async def test_run_tool_handler_error(self, executor, simple_tools) -> None:
         """Run handles tool handler exceptions gracefully."""
         tc_resp = self._make_tool_call_response("search", '{"query": "test"}')
         text_resp = self._make_text_response("Error occurred.")
@@ -325,7 +325,7 @@ class TestOpenAIExecutorRun:
         assert result.tool_calls[0].result.success is False
 
     @pytest.mark.asyncio
-    async def test_run_malformed_json_args(self, executor, simple_tools):
+    async def test_run_malformed_json_args(self, executor, simple_tools) -> None:
         """Run handles malformed JSON in tool call arguments."""
         tc_resp = self._make_tool_call_response("search", "not valid json")
         text_resp = self._make_text_response("Done.")

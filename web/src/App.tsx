@@ -701,9 +701,10 @@ export default function App() {
   /* "Watch in Chat" from Sessions page — observe CLI session in real-time */
   const handleWatchInChat = useCallback(
     (session: GobbySession) => {
-      if (viewingSessionId === session.id) return;
       setActiveTab("chat");
-      viewSession(session.id);
+      if (viewingSessionId !== session.id) {
+        viewSession(session.id);
+      }
     },
     [viewSession, viewingSessionId],
   );

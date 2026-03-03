@@ -150,11 +150,14 @@ def claim_next(self, party_id, queue_name, member_id) -> WorkItem | None:
         ).fetchone()
         if not row:
             return None
-        conn.execute(
+        result = conn.execute(
             "UPDATE party_work_queue SET status='claimed', "
             "claimed_by_member_id=?, claimed_at=? WHERE id=? AND status='available'",
             (member_id, now, row["id"]),
         )
+        if result.rowcount == 0:
+            return None  # Lost race: another claimer claimed this row first
+        return self._row_to_work_item(row)
 ```
 
 ### Schema (part of migration 104)

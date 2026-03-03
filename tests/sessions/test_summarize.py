@@ -185,3 +185,42 @@ class TestGenerateSessionSummaries:
 
         assert result["success"] is False
         assert "LLM error" in result["error"]
+
+
+class TestGetClaimedTasks:
+    """Tests for _get_claimed_tasks()."""
+
+    def test_returns_empty_on_no_tasks(self) -> None:
+        """Returns empty string when session has no tasks."""
+        from gobby.sessions.summarize import _get_claimed_tasks
+
+        mock_db = MagicMock()
+        with patch("gobby.storage.session_tasks.SessionTaskManager") as MockSTM:
+            MockSTM.return_value.get_session_tasks.return_value = []
+            result = _get_claimed_tasks("sess-1", mock_db)
+        assert result == ""
+
+    def test_formats_task_with_seq_num(self) -> None:
+        """Formats tasks with seq_num refs and descriptions."""
+        from gobby.sessions.summarize import _get_claimed_tasks
+
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-1234"
+        mock_task.seq_num = 42
+        mock_task.status = "in_progress"
+        mock_task.title = "Fix the bug"
+        mock_task.description = "A short description"
+
+        mock_db = MagicMock()
+        with (
+            patch("gobby.storage.session_tasks.SessionTaskManager") as MockSTM,
+            patch("gobby.storage.task_dependencies.TaskDependencyManager") as MockDep,
+        ):
+            MockSTM.return_value.get_session_tasks.return_value = [{"task": mock_task}]
+            MockDep.return_value.get_all_dependencies.return_value = []
+            result = _get_claimed_tasks("sess-1", mock_db)
+
+        assert "#42" in result
+        assert "[in_progress]" in result
+        assert "Fix the bug" in result
+        assert "A short description" in result

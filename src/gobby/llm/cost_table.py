@@ -8,7 +8,10 @@ LiteLLMExecutor uses litellm.completion_cost() instead — this module is only
 for native SDK executors that don't have LiteLLM's cost tracking.
 """
 
+import logging
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -79,6 +82,7 @@ def lookup_cost(model: str) -> ModelCost:
     if best_match is not None:
         return MODEL_COSTS[best_match]
 
+    logger.debug("No cost data for model %r — returning zero cost", model)
     return _ZERO_COST
 
 
@@ -98,8 +102,9 @@ def calculate_cost(
     Returns:
         Total cost in USD. Returns 0.0 for unknown models.
     """
+    prompt_tokens = max(0, prompt_tokens)
+    completion_tokens = max(0, completion_tokens)
     costs = lookup_cost(model)
     return (
-        costs.input_cost_per_token * prompt_tokens
-        + costs.output_cost_per_token * completion_tokens
+        costs.input_cost_per_token * prompt_tokens + costs.output_cost_per_token * completion_tokens
     )

@@ -208,7 +208,7 @@ class OpenAIExecutor(AgentExecutor):
                     try:
                         fn_args = json.loads(tool_call.function.arguments)
                     except json.JSONDecodeError:
-                        logger.warning(
+                        self.logger.warning(
                             "Malformed tool call arguments for %s: %s",
                             tool_call.function.name,
                             tool_call.function.arguments,

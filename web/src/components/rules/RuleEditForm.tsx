@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useId } from "react";
+import { useState, useEffect, useMemo, useId, useRef } from "react";
 import { SidebarPanel } from "../shared/SidebarPanel";
 import { CodeMirrorEditor } from "../shared/CodeMirrorEditor";
 import { ExpressionBuilder } from "./ExpressionBuilder";
@@ -101,10 +101,12 @@ export function RuleEditForm({
   const tagListId = useId();
 
   useEffect(() => {
-    fetch("/api/rules/tags")
+    const controller = new AbortController();
+    fetch("/api/rules/tags", { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => { setKnownTags(data.tags || []); setTagsError(false); })
-      .catch((err) => { console.error("Failed to fetch rule tags:", err); setKnownTags([]); setTagsError(true); });
+      .catch((err) => { if (!controller.signal.aborted) { console.error("Failed to fetch rule tags:", err); setKnownTags([]); setTagsError(true); } });
+    return () => controller.abort();
   }, []);
 
   const tagSuggestions = useMemo(
@@ -707,6 +709,8 @@ function SchemaArgEditor({
   onChange: (args: Record<string, unknown>) => void;
 }) {
   const [addingArg, setAddingArg] = useState(false);
+  const addArgRef = useRef<HTMLSelectElement>(null);
+  useEffect(() => { if (addingArg) addArgRef.current?.focus(); }, [addingArg]);
 
   const properties =
     (inputSchema?.properties as Record<
@@ -804,6 +808,7 @@ function SchemaArgEditor({
       {addingArg ? (
         <div className="rule-edit-kv-row">
           <select
+            ref={addArgRef}
             className="rule-edit-input"
             style={{ flex: 1 }}
             value=""
@@ -815,7 +820,7 @@ function SchemaArgEditor({
                 addOptionalArg(e.target.value);
               }
             }}
-            autoFocus
+            aria-label="Choose argument"
             onBlur={() => setTimeout(() => setAddingArg(false), 150)}
           >
             <option value="">Choose argument...</option>
@@ -869,7 +874,7 @@ function ArgValueInput({
         type="number"
         value={value == null ? "" : String(value)}
         onChange={(e) =>
-          onChange(e.target.value === "" ? "" : Number(e.target.value))
+          onChange(e.target.value === "" ? null : Number(e.target.value))
         }
         placeholder="0"
       />

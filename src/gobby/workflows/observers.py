@@ -87,7 +87,7 @@ def detect_task_claim(
                 closed_task = task_manager.get_task(raw_close_id)
                 if closed_task:
                     closed_task_id = closed_task.id
-            except Exception as e:
+            except (ValueError, KeyError) as e:
                 logger.warning(f"Cannot resolve closed task ref '{raw_close_id}': {e}")
                 return
 
@@ -101,12 +101,9 @@ def detect_task_claim(
                 f"(task_claimed={merge['task_claimed']})"
             )
         else:
-            # Fallback: can't resolve UUID, clear everything
-            variables["task_claimed"] = False
-            variables["claimed_tasks"] = {}
-            logger.info(
-                f"Session {session_id}: cleared all claimed_tasks "
-                f"(could not resolve closed task ref)"
+            logger.warning(
+                f"Session {session_id}: could not resolve closed task ref — "
+                f"skipping claimed_tasks update"
             )
         return
 

@@ -19,7 +19,7 @@ export const CanvasPanel: React.FC<Props> = ({ state, panelWidth, onResize, onCl
         <div className="flex-1 overflow-hidden relative">
           <iframe
             src={state.url}
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts"
             className="absolute inset-0 w-full h-full border-0 bg-white"
             title={state.title || "Canvas"}
           />
@@ -44,7 +44,7 @@ export const CanvasPanel: React.FC<Props> = ({ state, panelWidth, onResize, onCl
         <div className="flex-1 overflow-hidden relative">
           <iframe
             src={state.url}
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts"
             className="absolute inset-0 w-full h-full border-0 bg-white"
             title={state.title || "Canvas"}
           />

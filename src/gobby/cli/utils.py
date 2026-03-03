@@ -309,6 +309,10 @@ def kill_all_gobby_daemons() -> int:
     Returns:
         Number of processes killed
     """
+    if os.environ.get("GOBBY_TEST_PROTECT", "").lower() in ("1", "true", "yes"):
+        logger.warning("kill_all_gobby_daemons called during test — skipping")
+        return 0
+
     # Load config to get the configured ports
     try:
         config = load_config(create_default=False)

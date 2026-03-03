@@ -430,7 +430,7 @@ def _get_claimed_tasks(session_id: str, db: DatabaseProtocol) -> str:
         from gobby.storage.session_tasks import SessionTaskManager
 
         stm = SessionTaskManager(db)
-        task_rows = stm.get_session_tasks(session_id)
+        task_rows: list[dict[str, Any]] = stm.get_session_tasks(session_id)
         if not task_rows:
             return ""
 
