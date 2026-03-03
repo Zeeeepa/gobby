@@ -75,6 +75,9 @@ function unquote(s: string): string {
 }
 
 const SPECIAL_LITERALS = new Set(["True", "False", "None"]);
+const NUMBER_RE = /^\d+(\.\d+)?$/;
+const IDENT_OR_PATH_RE = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/;
+const FUNCTION_CALL_RE = /^[A-Za-z_]\w*\(.*\)$/;
 
 /** Quote a value for the expression string if it looks like a plain string. */
 function smartQuote(s: string): string {
@@ -85,7 +88,7 @@ function smartQuote(s: string): string {
     return trimmed;
   }
   // Looks like a list, boolean, number, dotted variable ref, or function call — don't quote
-  if (trimmed.startsWith("[") || SPECIAL_LITERALS.has(trimmed) || /^\d+(\.\d+)?$/.test(trimmed) || /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(trimmed) || /^[A-Za-z_]\w*\(.*\)$/.test(trimmed)) {
+  if (trimmed.startsWith("[") || SPECIAL_LITERALS.has(trimmed) || NUMBER_RE.test(trimmed) || IDENT_OR_PATH_RE.test(trimmed) || FUNCTION_CALL_RE.test(trimmed)) {
     return trimmed;
   }
   return `"${trimmed}"`;
@@ -174,6 +177,7 @@ export function ExpressionBuilder({ value, onChange }: ExpressionBuilderProps) {
       {mode === "builder" ? (
         <div className="expr-builder-row">
           <select
+            aria-label="Select variable"
             value={variable}
             onChange={(e) =>
               handleBuilderChange(e.target.value, operator, operand)
@@ -190,6 +194,7 @@ export function ExpressionBuilder({ value, onChange }: ExpressionBuilderProps) {
             )}
           </select>
           <select
+            aria-label="Select operator"
             value={operator}
             onChange={(e) =>
               handleBuilderChange(variable, e.target.value, operand)
@@ -202,6 +207,7 @@ export function ExpressionBuilder({ value, onChange }: ExpressionBuilderProps) {
             ))}
           </select>
           <input
+            aria-label="Operand value"
             value={operand}
             onChange={(e) =>
               handleBuilderChange(variable, operator, e.target.value)

@@ -342,16 +342,19 @@ def create_worktrees_registry(
         # Auto-detect use_local when not explicitly set
         resolved_use_local = use_local
         if resolved_use_local is None and create_branch:
-            has_unpushed, unpushed_count = await asyncio.to_thread(
-                resolved_git_mgr.has_unpushed_commits, base_branch
-            )
-            if has_unpushed:
-                resolved_use_local = True
-                logger.info(
-                    "Auto-detected %d unpushed commit(s) on '%s', using local branch ref",
-                    unpushed_count,
-                    base_branch,
+            try:
+                has_unpushed, unpushed_count = await asyncio.to_thread(
+                    resolved_git_mgr.has_unpushed_commits, base_branch
                 )
+                if has_unpushed:
+                    resolved_use_local = True
+                    logger.info(
+                        "Auto-detected %d unpushed commit(s) on '%s', using local branch ref",
+                        unpushed_count,
+                        base_branch,
+                    )
+            except Exception as e:
+                logger.warning("Auto-detect unpushed commits failed: %s", e)
         if resolved_use_local is None:
             resolved_use_local = False
 

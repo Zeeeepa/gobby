@@ -175,7 +175,7 @@ def register_handoff_tools(
             if send_content:
                 summary_result["send_result"] = _send_to_peer(session.id, to_session, send_content)
             else:
-                summary_result["send_result"] = {"sent": False, "reason": "no_content"}
+                summary_result["send_result"] = {"success": False, "reason": "no_content"}
 
         return summary_result
 

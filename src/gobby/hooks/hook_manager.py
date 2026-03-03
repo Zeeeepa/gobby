@@ -819,12 +819,17 @@ class HookManager:
                     if done_event:
                         done_event.set()
             else:
-                try:
-                    asyncio.run(coro)
-                except Exception as e:
-                    self.logger.warning("_dispatch_session_summaries: background failed: %s", e)
-                    if done_event:
-                        done_event.set()
+                import threading
+
+                def _run_coro() -> None:
+                    try:
+                        asyncio.run(coro)
+                    except Exception as e:
+                        self.logger.warning("_dispatch_session_summaries: background failed: %s", e)
+                        if done_event:
+                            done_event.set()
+
+                threading.Thread(target=_run_coro, daemon=True).start()
 
     def shutdown(self) -> None:
         """

@@ -389,7 +389,10 @@ def kill_all_gobby_daemons() -> int:
                 from gobby.runner_maintenance import write_shutdown_source
 
                 try:
-                    write_shutdown_source("cli_kill_all")
+                    try:
+                        write_shutdown_source("cli_kill_all")
+                    except Exception as e:
+                        logger.warning("Failed to write shutdown source: %s", e)
                     proc.send_signal(signal.SIGTERM)
                     # Wait up to 5 seconds for graceful shutdown
                     proc.wait(timeout=5)

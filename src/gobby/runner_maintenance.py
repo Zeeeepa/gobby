@@ -179,8 +179,14 @@ def write_shutdown_source(source: str, sender_pid: int | None = None) -> None:
             "timestamp": time.time(),
         }
         (get_gobby_home() / "shutdown_source.json").write_text(json.dumps(data))
-    except Exception:
-        pass  # Best effort — don't break shutdown flow
+    except Exception as e:
+        logger.debug(
+            "Failed to write shutdown source=%s pid=%d: %s",
+            source,
+            sender_pid or os.getpid(),
+            e,
+            exc_info=True,
+        )
 
 
 def read_shutdown_source() -> str:

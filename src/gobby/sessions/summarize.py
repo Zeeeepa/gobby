@@ -22,6 +22,8 @@ from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
+TURN_PATTERN = re.compile(r"^### Turn \d+", re.MULTILINE)
+
 
 class SessionManagerProtocol(Protocol):
     def get(self, session_id: str) -> Any: ...
@@ -73,7 +75,7 @@ async def generate_session_summaries(
     if not session_manager:
         return {"success": False, "error": "Session manager not available"}
 
-    session = session_manager.get(session_id)
+    session = await asyncio.to_thread(session_manager.get, session_id)
     if not session:
         return {"success": False, "error": "No session found", "session_id": session_id}
 
@@ -151,13 +153,13 @@ async def generate_session_summaries(
 
     # Persist to database
     if compact_markdown:
-        session_manager.update_compact_markdown(session_id, compact_markdown)
+        await asyncio.to_thread(session_manager.update_compact_markdown, session_id, compact_markdown)
     if full_markdown:
-        session_manager.update_summary(session_id, summary_markdown=full_markdown)
+        await asyncio.to_thread(session_manager.update_summary, session_id, summary_markdown=full_markdown)
 
     # Set handoff_ready status
     if set_handoff_ready:
-        session_manager.update_status(session_id, "handoff_ready")
+        await asyncio.to_thread(session_manager.update_status, session_id, "handoff_ready")
 
     # Write files if requested
     files_written = await _write_files(
@@ -248,6 +250,18 @@ async def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
         logger.debug("Failed to get git log for %s: %s", cwd, e)
 
 
+def _resolve_provider(llm_service: LLMServiceProtocol | None) -> Any:
+    """Resolve LLM provider from service or fallback to ClaudeLLMProvider."""
+    provider = llm_service.get_default_provider() if llm_service else None
+    if not provider:
+        from gobby.config.app import load_config
+        from gobby.llm.claude import ClaudeLLMProvider
+
+        config = load_config()
+        provider = ClaudeLLMProvider(config)
+    return provider
+
+
 async def _generate_full_summary(
     session: Any,
     turns: list[dict[str, Any]],
@@ -262,16 +276,7 @@ async def _generate_full_summary(
         Tuple of (full_markdown, error_message). One will be None.
     """
     try:
-        # Resolve LLM provider
-        provider = None
-        if llm_service:
-            provider = llm_service.get_default_provider()
-        if not provider:
-            from gobby.config.app import load_config
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            config = load_config()
-            provider = ClaudeLLMProvider(config)
+        provider = _resolve_provider(llm_service)
 
         # Get transcript parser
         from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
@@ -346,16 +351,7 @@ async def _generate_compact_summary(
         Tuple of (compact_markdown, error_message). One will be None.
     """
     try:
-        # Resolve LLM provider (same logic as full summary)
-        provider = None
-        if llm_service:
-            provider = llm_service.get_default_provider()
-        if not provider:
-            from gobby.config.app import load_config
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            config = load_config()
-            provider = ClaudeLLMProvider(config)
+        provider = _resolve_provider(llm_service)
 
         # Get transcript parser
         from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
@@ -393,8 +389,8 @@ async def _generate_compact_summary(
 
         # Enrich with DB context
         resolved_db = db or getattr(session_manager, "db", None)
-        claimed_tasks = _get_claimed_tasks(session.id, resolved_db) if resolved_db else ""
-        session_memories = _get_session_memories(session.id, resolved_db) if resolved_db else ""
+        claimed_tasks = await asyncio.to_thread(_get_claimed_tasks, session.id, resolved_db) if resolved_db else ""
+        session_memories = await asyncio.to_thread(_get_session_memories, session.id, resolved_db) if resolved_db else ""
         first_digest_turn, recent_digest_turns = _extract_digest_turns(session.digest_markdown)
 
         # Get previous compact_markdown for cumulative compression
@@ -445,6 +441,9 @@ def _get_claimed_tasks(session_id: str, db: DatabaseProtocol) -> str:
         if not task_rows:
             return ""
 
+        from gobby.storage.task_dependencies import TaskDependencyManager
+
+        dep_mgr = TaskDependencyManager(db)
         lines: list[str] = []
         for row in task_rows:
             task = row["task"]
@@ -463,9 +462,6 @@ def _get_claimed_tasks(session_id: str, db: DatabaseProtocol) -> str:
 
             # Include blocking dependencies
             try:
-                from gobby.storage.task_dependencies import TaskDependencyManager
-
-                dep_mgr = TaskDependencyManager(db)
                 deps = dep_mgr.get_all_dependencies(task.id)
                 blockers = [d for d in deps if d.dep_type == "blocks"]
                 if blockers:
@@ -542,9 +538,8 @@ def _extract_digest_turns(digest_markdown: str | None) -> tuple[str, str]:
         return "", ""
 
     # Split on ### Turn N headings
-    turn_pattern = re.compile(r"^### Turn \d+", re.MULTILINE)
-    parts = turn_pattern.split(digest_markdown)
-    headings = turn_pattern.findall(digest_markdown)
+    parts = TURN_PATTERN.split(digest_markdown)
+    headings = TURN_PATTERN.findall(digest_markdown)
 
     if not headings:
         # No turn structure — return first 500 chars as first turn

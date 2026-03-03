@@ -83,11 +83,13 @@ def detect_task_claim(
         closed_task_id: str | None = None
         raw_close_id = arguments.get("task_id")
         if raw_close_id and task_manager:
+            from gobby.storage.tasks import TaskNotFoundError
+
             try:
                 closed_task = task_manager.get_task(raw_close_id)
                 if closed_task:
                     closed_task_id = closed_task.id
-            except (ValueError, KeyError) as e:
+            except (ValueError, KeyError, TaskNotFoundError) as e:
                 logger.warning(f"Cannot resolve closed task ref '{raw_close_id}': {e}")
                 return
 
