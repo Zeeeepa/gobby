@@ -1,6 +1,5 @@
 import asyncio
 import json
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -232,32 +231,24 @@ class TestTaskSyncManager:
         assert t2_fresh.title == "File Newer"
 
     @pytest.mark.integration
-    def test_export_skips_when_unchanged(self, sync_manager, task_manager, sample_project) -> None:
-        """Test that export doesn't update meta file when content unchanged."""
-        # Create a task and export
+    def test_export_always_writes_fresh_content(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """Test that export always writes correct content, even if file was externally modified."""
         task_manager.create_task(sample_project["id"], "Task 1")
         sync_manager.export_to_jsonl()
 
-        meta_path = sync_manager.export_path.parent / "tasks_meta.json"
-        assert meta_path.exists()
+        # Read correct content
+        correct_content = sync_manager.export_path.read_text()
+        assert "Task 1" in correct_content
 
-        # Read initial meta
-        with open(meta_path) as f:
-            initial_meta = json.load(f)
-        initial_timestamp = initial_meta["last_exported"]
+        # Externally overwrite the file (simulates git checkout/merge)
+        sync_manager.export_path.write_text('{"id": "stale", "title": "Stale data"}\n')
 
-        # Wait a bit to ensure timestamp would differ
-        time.sleep(0.1)
-
-        # Export again without changes
+        # Export again — should restore correct content
         sync_manager.export_to_jsonl()
-
-        # Meta file should NOT have been updated (timestamp unchanged)
-        with open(meta_path) as f:
-            final_meta = json.load(f)
-
-        assert final_meta["last_exported"] == initial_timestamp
-        assert final_meta["content_hash"] == initial_meta["content_hash"]
+        restored_content = sync_manager.export_path.read_text()
+        assert restored_content == correct_content
 
 
 class TestGetSyncStatus:
@@ -272,20 +263,8 @@ class TestGetSyncStatus:
         assert result["synced"] is False
 
     @pytest.mark.integration
-    def test_get_sync_status_no_meta_file(self, sync_manager) -> None:
-        """Test sync status when export file exists but meta file doesn't."""
-        # Create export file without meta
-        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
-        sync_manager.export_path.write_text("{}\n")
-
-        result = sync_manager.get_sync_status()
-
-        assert result["status"] == "no_meta"
-        assert result["synced"] is False
-
-    @pytest.mark.integration
     def test_get_sync_status_available(self, sync_manager, task_manager, sample_project) -> None:
-        """Test sync status when both files exist."""
+        """Test sync status when export file exists."""
         # Create and export a task
         task_manager.create_task(sample_project["id"], "Test Task")
         sync_manager.export_to_jsonl()
@@ -294,25 +273,6 @@ class TestGetSyncStatus:
 
         assert result["status"] == "available"
         assert result["synced"] is True
-        assert "last_exported" in result
-        assert "hash" in result
-        assert result["hash"] is not None
-
-    @pytest.mark.integration
-    def test_get_sync_status_error_on_corrupt_meta(self, sync_manager) -> None:
-        """Test sync status when meta file is corrupted."""
-        # Create export file
-        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
-        sync_manager.export_path.write_text("{}\n")
-
-        # Create corrupted meta file
-        meta_path = sync_manager.export_path.parent / "tasks_meta.json"
-        meta_path.write_text("not valid json{{{")
-
-        result = sync_manager.get_sync_status()
-
-        assert result["status"] == "error"
-        assert result["synced"] is False
 
 
 class TestImportEdgeCases:
@@ -565,29 +525,6 @@ class TestExportEdgeCases:
         data = json.loads(lines[0])
 
         assert data["commits"] == ["commit1", "commit2"]
-
-    @pytest.mark.integration
-    def test_export_with_corrupted_meta_file(
-        self, sync_manager, task_manager, sample_project
-    ) -> None:
-        """Test export handles corrupted meta file."""
-        task_manager.create_task(sample_project["id"], "Task 1")
-
-        # Create corrupted meta file first
-        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
-        meta_path = sync_manager.export_path.parent / "tasks_meta.json"
-        meta_path.write_text("not valid json{{{")
-
-        # Export should work despite corrupted meta
-        sync_manager.export_to_jsonl()
-
-        assert sync_manager.export_path.exists()
-
-        # Meta should now be valid
-        with open(meta_path) as f:
-            meta = json.load(f)
-        assert "content_hash" in meta
-        assert "last_exported" in meta
 
     @pytest.mark.integration
     def test_export_error_propagates(self, sync_manager, task_manager, sample_project) -> None:

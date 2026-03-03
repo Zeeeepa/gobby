@@ -223,7 +223,6 @@ bmad-custom-src/
 .DS_Store
 .scripts/
 .gobby/config.yaml
-.gobby/tasks_meta.json
 .gobby/agents/
 .gobby/workflows/
 .gobby/plugins/

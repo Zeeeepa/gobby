@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import logging
 import time
@@ -178,29 +177,6 @@ class TaskSyncManager:
                 }
                 export_data.append(task_dict)
 
-            # Calculate content hash first to check if anything changed
-            jsonl_content = ""
-            for item in export_data:
-                jsonl_content += json.dumps(item, sort_keys=True) + "\n"
-
-            content_hash = hashlib.sha256(jsonl_content.encode("utf-8")).hexdigest()
-
-            # Check existing hash before writing anything
-            meta_path = target_path.parent / "tasks_meta.json"
-            existing_hash = None
-            if meta_path.exists():
-                try:
-                    with open(meta_path, encoding="utf-8") as f:
-                        existing_meta = json.load(f)
-                        existing_hash = existing_meta.get("content_hash")
-                except (json.JSONDecodeError, OSError):
-                    pass  # Will write fresh meta
-
-            # Skip writing if content hasn't changed
-            if content_hash == existing_hash:
-                logger.debug(f"Task export skipped - no changes (hash: {content_hash[:8]})")
-                return
-
             # Write JSONL file
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -208,16 +184,7 @@ class TaskSyncManager:
                 for item in export_data:
                     f.write(json.dumps(item) + "\n")
 
-            # Write meta file
-            meta_data = {
-                "content_hash": content_hash,
-                "last_exported": datetime.now(UTC).isoformat(),
-            }
-
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta_data, f, indent=2)
-
-            logger.info(f"Exported {len(tasks)} tasks to {target_path} (hash: {content_hash[:8]})")
+            logger.info(f"Exported {len(tasks)} tasks to {target_path}")
 
         except Exception as e:
             logger.error(f"Failed to export tasks: {e}", exc_info=True)
@@ -421,36 +388,12 @@ class TaskSyncManager:
 
     def get_sync_status(self) -> dict[str, Any]:
         """
-        Get sync status by comparing content hash.
+        Get sync status based on whether the export file exists.
         """
         if not self.export_path.exists():
             return {"status": "no_file", "synced": False}
 
-        meta_path = self.export_path.parent / "tasks_meta.json"
-        if not meta_path.exists():
-            return {"status": "no_meta", "synced": False}
-
-        try:
-            with open(meta_path, encoding="utf-8") as f:
-                meta = json.load(f)
-
-            # Note: To properly detect if file changed, we'd need to recalculate hash
-            # using the same logic as export (sorted json dumps). For now, we rely on
-            # the meta file to tell us when the file was last exported.
-
-            # For checking if DB is ahead of Export, we'd need to dry-run export.
-            # For checking if File is ahead of DB (Import needed), we check if file changed since last import?
-            # Or simplified: "synced" if last export timestamp > last DB update?
-            # That requires tracking last import time.
-
-            return {
-                "status": "available",
-                "last_exported": meta.get("last_exported"),
-                "hash": meta.get("content_hash"),
-                "synced": True,  # Placeholder
-            }
-        except Exception:
-            return {"status": "error", "synced": False}
+        return {"status": "available", "synced": True}
 
     def trigger_export(self, project_id: str | None = None) -> None:
         """
