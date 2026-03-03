@@ -233,6 +233,7 @@ bmad-custom-src/
 .gobby/session_summaries/
 reports/
 bandit_report.json
+coderabbit.md
 ./*.txt
 ./*.log
 _bmad/
