@@ -171,12 +171,26 @@ def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
     """Register SIGTERM/SIGINT handlers to trigger graceful shutdown."""
     loop = asyncio.get_running_loop()
 
-    def handle_shutdown() -> None:
-        logger.info("Received shutdown signal, initiating graceful shutdown...")
-        shutdown_callback()
+    def _make_handler(sig: signal.Signals) -> Callable[[], None]:
+        def handle_shutdown() -> None:
+            import traceback
+
+            logger.info(
+                "Received %s (signal %d), initiating graceful shutdown... "
+                "(pid=%d, ppid=%d)",
+                sig.name,
+                sig.value,
+                os.getpid(),
+                os.getppid(),
+            )
+            # Log stack trace to help identify what triggered the signal
+            logger.info("Stack at signal receipt:\n%s", "".join(traceback.format_stack()))
+            shutdown_callback()
+
+        return handle_shutdown
 
     for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, handle_shutdown)
+        loop.add_signal_handler(sig, _make_handler(sig))
 
 
 def cleanup_pid_file() -> None:
