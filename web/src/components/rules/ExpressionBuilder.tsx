@@ -6,7 +6,7 @@ const VARIABLES = [
   "source",
   'tool_input.get("server_name")',
   'tool_input.get("tool_name")',
-  'variables.get("task_claimed")',
+  'variables.get("claimed_tasks")',
   'variables.get("pre_existing_errors_triaged")',
 ];
 
@@ -85,7 +85,7 @@ function smartQuote(s: string): string {
     return trimmed;
   }
   // Looks like a list, boolean, number, dotted variable ref, or function call — don't quote
-  if (trimmed.startsWith("[") || SPECIAL_LITERALS.has(trimmed) || /^\d+(\.\d+)*$/.test(trimmed) || /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(trimmed) || /^[A-Za-z_]\w*\(.*\)$/.test(trimmed)) {
+  if (trimmed.startsWith("[") || SPECIAL_LITERALS.has(trimmed) || /^\d+(\.\d+)?$/.test(trimmed) || /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(trimmed) || /^[A-Za-z_]\w*\(.*\)$/.test(trimmed)) {
     return trimmed;
   }
   return `"${trimmed}"`;
@@ -157,6 +157,7 @@ export function ExpressionBuilder({ value, onChange }: ExpressionBuilderProps) {
           className={`expr-builder-toggle-btn ${mode === "builder" ? "expr-builder-toggle-btn--active" : ""}`}
           onClick={() => switchMode("builder")}
           disabled={mode === "raw" && !canBuild}
+          aria-pressed={mode === "builder"}
         >
           Builder
         </button>
@@ -164,6 +165,7 @@ export function ExpressionBuilder({ value, onChange }: ExpressionBuilderProps) {
           type="button"
           className={`expr-builder-toggle-btn ${mode === "raw" ? "expr-builder-toggle-btn--active" : ""}`}
           onClick={() => switchMode("raw")}
+          aria-pressed={mode === "raw"}
         >
           Raw
         </button>

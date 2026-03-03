@@ -423,7 +423,7 @@ class TestHandlePreCompact:
         result = handler.handle_pre_compact(event)
         assert result.decision == "allow"
         handler._session_manager.update_session_status.assert_called_with("sess-1", "handoff_ready")
-        handler._dispatch_session_summaries_fn.assert_called_once()
+        handler._dispatch_session_summaries_fn.assert_called_once_with("sess-1", False, None)
 
     def test_no_session_id(self) -> None:
         handler = _TestHandler()

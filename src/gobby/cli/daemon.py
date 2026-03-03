@@ -210,7 +210,7 @@ def start(
     # Kill any existing watchdog before spawning a new one
     stop_watchdog(quiet=True)
 
-    # Kill any existing gobby processes (daemons + orphaned watchdogs)
+    # Kill any existing gobby daemon processes
     click.echo("Checking for existing gobby processes...")
     killed_count = kill_all_gobby_daemons()
     if killed_count > 0:

@@ -386,9 +386,9 @@ def kill_all_gobby_daemons() -> int:
                 click.echo(f"Found gobby daemon (PID {proc.pid}): {cmdline_str[:100]}")
 
                 # Try graceful shutdown first (SIGTERM)
-                try:
-                    from gobby.runner_maintenance import write_shutdown_source
+                from gobby.runner_maintenance import write_shutdown_source
 
+                try:
                     write_shutdown_source("cli_kill_all")
                     proc.send_signal(signal.SIGTERM)
                     # Wait up to 5 seconds for graceful shutdown

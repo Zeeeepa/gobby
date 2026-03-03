@@ -13,6 +13,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import platform
@@ -341,7 +342,9 @@ def create_worktrees_registry(
         # Auto-detect use_local when not explicitly set
         resolved_use_local = use_local
         if resolved_use_local is None and create_branch:
-            has_unpushed, unpushed_count = resolved_git_mgr.has_unpushed_commits(base_branch)
+            has_unpushed, unpushed_count = await asyncio.to_thread(
+                resolved_git_mgr.has_unpushed_commits, base_branch
+            )
             if has_unpushed:
                 resolved_use_local = True
                 logger.info(

@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 _derive_logger = logging.getLogger(__name__)
 
+SUMMARY_GENERATION_TIMEOUT_S = 90
+
 
 @dataclass
 class AgentActivationResult:
@@ -403,7 +405,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     if session_source == "clear" and not parent.summary_markdown:
                         # Ensure generation is started (idempotent if already running)
                         summary_event = threading.Event()
-                        max_wait_s = 90
+                        max_wait_s = SUMMARY_GENERATION_TIMEOUT_S
                         dispatched = False
                         if self._dispatch_session_summaries_fn:
                             try:

@@ -24,7 +24,7 @@ export const CanvasPanelHeader: React.FC<Props> = ({ title, onClose, isMobile = 
         onClick={onClose}
         aria-label="Close Canvas"
       >
-        <svg width={isMobile ? 20 : 16} height={isMobile ? 20 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg aria-hidden="true" width={isMobile ? 20 : 16} height={isMobile ? 20 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 6L6 18M6 6l12 12" />
         </svg>
       </Button>

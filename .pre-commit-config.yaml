@@ -85,7 +85,7 @@ repos:
     hooks:
       - id: pip-audit
         name: pip-audit (dependency CVEs)
-        entry: bash -c 'branch=$(git rev-parse --abbrev-ref HEAD); if [ "$branch" = "main" ] || [ "$branch" = "dev" ]; then uv run pip-audit; else echo "Skipping pip-audit on branch $branch (only runs on main/dev)"; fi'
+        entry: bash -c 'branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); if [ "$branch" = "main" ] || [ "$branch" = "dev" ]; then uv run pip-audit; else echo "Skipping pip-audit on branch $branch (only runs on main/dev)"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]

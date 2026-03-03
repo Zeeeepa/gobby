@@ -165,8 +165,8 @@ def detect_task_claim(
             task_obj = task_manager.get_task(task_id)
             if task_obj and task_obj.seq_num:
                 ref = f"#{task_obj.seq_num}"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to resolve task ref for %s: %s", task_id, e)
     merge = add_claimed_task(variables, task_id, ref)
     variables.update(merge)
     variables["session_had_task"] = True

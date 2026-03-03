@@ -14,8 +14,9 @@ import signal
 import subprocess
 import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from gobby.cli.utils import get_gobby_home
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.metrics import ToolMetricsManager
@@ -169,11 +170,6 @@ async def expire_approval_timeouts_loop(
             logger.error(f"Error in approval timeout loop: {e}")
 
 
-def _get_gobby_home() -> Path:
-    """Get the gobby home directory."""
-    return Path(os.environ.get("GOBBY_HOME", Path.home() / ".gobby"))
-
-
 def write_shutdown_source(source: str, sender_pid: int | None = None) -> None:
     """Write a marker file identifying why/who is sending SIGTERM."""
     try:
@@ -182,14 +178,14 @@ def write_shutdown_source(source: str, sender_pid: int | None = None) -> None:
             "sender_pid": sender_pid or os.getpid(),
             "timestamp": time.time(),
         }
-        (_get_gobby_home() / "shutdown_source.json").write_text(json.dumps(data))
+        (get_gobby_home() / "shutdown_source.json").write_text(json.dumps(data))
     except Exception:
         pass  # Best effort — don't break shutdown flow
 
 
 def read_shutdown_source() -> str:
     """Read and remove the shutdown source marker. Returns description string."""
-    source_file = _get_gobby_home() / "shutdown_source.json"
+    source_file = get_gobby_home() / "shutdown_source.json"
     try:
         if source_file.exists():
             data = json.loads(source_file.read_text())
@@ -232,7 +228,7 @@ def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
 def cleanup_pid_file() -> None:
     """Remove PID file if it points to our process."""
     try:
-        pid_file = _get_gobby_home() / "gobby.pid"
+        pid_file = get_gobby_home() / "gobby.pid"
         if pid_file.exists():
             stored_pid = int(pid_file.read_text().strip())
             if stored_pid == os.getpid():

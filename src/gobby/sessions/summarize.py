@@ -9,10 +9,10 @@ at session boundaries. Used by:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
-import subprocess  # nosec B404 - subprocess needed for git commands
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -104,7 +104,7 @@ async def generate_session_summaries(
     handoff_ctx = analyzer.extract_handoff_context(turns)
 
     # Enrich with real-time git status
-    _enrich_git_context(handoff_ctx, path.parent)
+    await _enrich_git_context(handoff_ctx, path.parent)
 
     # Determine what to generate (neither flag = both)
     generate_compact = compact_only or not full_only
@@ -213,32 +213,32 @@ async def async_enumerate(aiter: Any, start: int = 0) -> Any:
         idx += 1
 
 
-def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
+async def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
     """Enrich HandoffContext with real-time git status and commits."""
     if not handoff_ctx.git_status:
         try:
-            result = subprocess.run(  # nosec B603 B607 - hardcoded git command
-                ["git", "status", "--short"],
-                capture_output=True,
-                text=True,
-                timeout=5,
+            proc = await asyncio.create_subprocess_exec(
+                "git", "status", "--short",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
             )
-            handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            handoff_ctx.git_status = stdout.decode().strip() if proc.returncode == 0 else ""
         except Exception as e:
             logger.debug("Failed to get git status for %s: %s", cwd, e)
 
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded git command
-            ["git", "log", "--oneline", "-10", "--format=%H|%s"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+        proc = await asyncio.create_subprocess_exec(
+            "git", "log", "--oneline", "-10", "--format=%H|%s",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        if result.returncode == 0:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        if proc.returncode == 0:
             commits = []
-            for line in result.stdout.strip().split("\n"):
+            for line in stdout.decode().strip().split("\n"):
                 if "|" in line:
                     hash_val, message = line.split("|", 1)
                     commits.append({"hash": hash_val, "message": message})
