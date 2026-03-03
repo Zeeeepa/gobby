@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import sys
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.llm.executor import ToolResult, ToolSchema
+
+if TYPE_CHECKING:
+    from gobby.llm.gemini_executor import GeminiExecutor
 
 pytestmark = pytest.mark.unit
 
