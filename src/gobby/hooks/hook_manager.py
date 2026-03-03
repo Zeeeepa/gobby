@@ -819,7 +819,6 @@ class HookManager:
                     if done_event:
                         done_event.set()
             else:
-                import threading
 
                 def _run_coro() -> None:
                     try:

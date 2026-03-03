@@ -532,7 +532,7 @@ def create_handoff(
                     compact_markdown = updated.compact_markdown
             if not compact_markdown:
                 click.echo(
-                    f"Warning: LLM compact summary failed ({compact_result.get('full_error', 'unknown')}), using code-only fallback",
+                    f"Warning: LLM compact summary failed ({compact_result.get('full_error') or compact_result.get('error', 'unknown')}), using code-only fallback",
                     err=True,
                 )
                 compact_markdown = format_handoff_as_markdown(handoff_ctx)

@@ -90,7 +90,7 @@ class TestGeminiExecutorInit:
         """GeminiExecutor uses custom default model."""
         from gobby.llm.gemini_executor import GeminiExecutor
 
-        executor = GeminiExecutor(default_model="gemini-2.5-pro")
+        executor = GeminiExecutor(default_model="gemini-2.5-pro", api_key="test-key")
         assert executor.default_model == "gemini-2.5-pro"
 
     def test_init_default_location(self, mock_genai_module) -> None:
@@ -104,8 +104,17 @@ class TestGeminiExecutorInit:
         """Provider name is 'gemini'."""
         from gobby.llm.gemini_executor import GeminiExecutor
 
-        executor = GeminiExecutor()
+        executor = GeminiExecutor(api_key="test-key")
         assert executor.provider_name == "gemini"
+
+    def test_init_api_key_mode_requires_key(self, mock_genai_module) -> None:
+        """GeminiExecutor raises ValueError when api_key mode has no key."""
+        import pytest
+
+        from gobby.llm.gemini_executor import GeminiExecutor
+
+        with pytest.raises(ValueError, match="api_key is required"):
+            GeminiExecutor(auth_mode="api_key")
 
 
 class TestGeminiExecutorClient:
@@ -151,7 +160,7 @@ class TestGeminiExecutorToolConversion:
         """Tools are converted to genai format."""
         from gobby.llm.gemini_executor import GeminiExecutor
 
-        executor = GeminiExecutor()
+        executor = GeminiExecutor(api_key="test-key")
         result = executor._convert_tools(simple_tools)
 
         # Should return a list with one Tool containing declarations

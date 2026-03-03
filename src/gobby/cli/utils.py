@@ -861,9 +861,12 @@ def stop_daemon(quiet: bool = False) -> bool:
 
     try:
         # Send SIGTERM signal for graceful shutdown
-        from gobby.runner_maintenance import write_shutdown_source
+        try:
+            from gobby.runner_maintenance import write_shutdown_source
 
-        write_shutdown_source("cli_stop")
+            write_shutdown_source("cli_stop")
+        except Exception:
+            pass  # Best-effort — must not prevent os.kill below
         os.kill(pid, signal.SIGTERM)
         if not quiet:
             click.echo(f"Sent shutdown signal to Gobby daemon (PID {pid})")

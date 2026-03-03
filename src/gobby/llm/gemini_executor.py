@@ -59,6 +59,11 @@ class GeminiExecutor(AgentExecutor):
             project: GCP project ID (for adc mode).
             location: GCP region (for adc mode, defaults to "us-central1").
         """
+        if auth_mode == "api_key" and not api_key:
+            raise ValueError(
+                "api_key is required when auth_mode='api_key'. "
+                "Set GEMINI_API_KEY or pass api_key explicitly."
+            )
         self.auth_mode = auth_mode
         self.default_model = default_model
         self.api_key = api_key
