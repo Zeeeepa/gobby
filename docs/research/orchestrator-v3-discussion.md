@@ -1,10 +1,11 @@
-# Orchestrator v2: Design Discussion
+# Orchestrator v3: Design Discussion
 
 > Design discussion captured 2026-03-02, session #2369.
 
 ## Problem Statement
 
 The current orchestrator creates one worktree per task, producing N branches and N merge operations for an epic with N subtasks. This:
+
 - Compounds merge conflict risk (N-way merge at completion)
 - Creates unnecessary disk/git overhead
 - Branches from `origin/base_branch` by default, missing unpushed local commits from other agents (bug #9538)
@@ -92,6 +93,7 @@ One worktree/clone per epic. Multiple agents work in it simultaneously. This is 
 ## Components to Build
 
 ### 1. `task_affected_files` Table + Manager
+
 - Junction table: `(task_id, file_path, annotation_source, created_at)`
 - Indexes on both `task_id` and `file_path`
 - `TaskAffectedFilesManager` following `TaskDependencyManager` pattern
@@ -99,12 +101,14 @@ One worktree/clone per epic. Multiple agents work in it simultaneously. This is 
 - `annotation_source`: 'expansion' | 'manual' | 'observed' (future: from git diff)
 
 ### 2. Planning Agent Definition
+
 - New agent definition YAML (replaces skill-based expansion)
 - Uses enhanced expansion prompt with `affected_files` field
 - Creates task tree via `TaskTreeBuilder` (existing) with file annotations
 - Suggests parallel paths alongside dependencies
 
 ### 3. Dependency Analysis Agent Definition
+
 - New agent definition YAML
 - Explores codebase to validate/refine file annotations from planning agent
 - Creates blocking dependencies via `TaskDependencyManager` (existing)
@@ -112,6 +116,7 @@ One worktree/clone per epic. Multiple agents work in it simultaneously. This is 
 - Handles nuanced cross-file dependencies (imports, shared state)
 
 ### 4. `suggest_next_tasks` (Plural) MCP Tool
+
 - Returns batch of non-conflicting ready tasks
 - Uses `TaskAffectedFilesManager.find_overlapping_tasks()` to filter
 - Considers in-progress tasks' file annotations (don't dispatch overlapping work)
@@ -119,17 +124,20 @@ One worktree/clone per epic. Multiple agents work in it simultaneously. This is 
 - Reuses scoring logic from existing `suggest_next_task` (extract shared helper)
 
 ### 5. Expansion Prompt Update
+
 - Add `affected_files` field to subtask schema
 - Add `parallel_group` field (suggested parallelization)
 - Update rules to require file predictions for each subtask
 - Existing file: `src/gobby/tasks/prompts/expand-task.md`
 
 ### 6. Tree Builder Update
+
 - Wire `affected_files` from JSON nodes into `TaskAffectedFilesManager`
 - ~10 lines in `_create_node()` — builder already reads arbitrary fields
 - Existing file: `src/gobby/tasks/tree_builder.py`
 
 ### 7. Orchestrator Pipeline Update
+
 - Remove per-task worktree creation
 - Add epic worktree creation (first iteration only, `_worktree_id` persisted)
 - Replace `suggest_next_task` with `suggest_next_tasks`
@@ -141,29 +149,38 @@ One worktree/clone per epic. Multiple agents work in it simultaneously. This is 
 ## Open Questions
 
 ### Q1: How does the dependency analysis agent interact with the task system?
+
 Does it call MCP tools directly (add_dependency, update affected_files)? Or does it produce a JSON spec that the orchestrator pipeline applies? The former gives the agent more autonomy. The latter gives the pipeline more control.
 
 ### Q2: Should the planning agent be separate from expansion, or replace it?
+
 Current expansion is a skill + LLM call. The planning agent would be a spawned agent that can explore the codebase during expansion. More expensive but produces better file annotations. Could the planning agent use the expansion prompt internally?
 
 ### Q3: How do we handle the ruff/formatter serialization problem?
+
 Options:
+
 - The dependency agent marks tasks with global formatter steps as serialization points
 - Agents run formatters only on their own files (enforced by agent instructions)
 - The last agent in a parallel batch runs the global format pass
 - The orchestrator runs a format step between batches
 
 ### Q4: What happens when a task touches unexpected files?
+
 File annotations are advisory predictions. If an agent modifies files not in its annotation:
+
 - In the shared worktree model, this could conflict with parallel agents
 - Post-hoc: update `task_affected_files` with `annotation_source='observed'` from git diff
 - Should the orchestrator re-analyze dependencies mid-execution?
 
 ### Q5: How does this interact with clones (Gemini)?
+
 Clones work the same way conceptually — one clone per epic, parallel agents inside it. The orchestrator shouldn't care whether the isolation context is a worktree or clone. The `spawn_agent` tool already supports both via `worktree_id` and `clone_id`.
 
 ### Q6: What's the minimum viable version?
+
 Possible staging:
+
 - **Stage 1**: Fix #9538 (use_local), modify orchestrator to reuse one worktree per epic, sequential dispatch. Parity with Gastown/Maestro.
 - **Stage 2**: Add `task_affected_files` table, expansion prompt changes, tree builder wiring. Infrastructure for file-based analysis.
 - **Stage 3**: Planning agent + dependency analysis agent. Smart dependency setup.
