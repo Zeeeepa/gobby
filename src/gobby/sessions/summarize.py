@@ -506,8 +506,6 @@ def _get_session_memories(session_id: str, db: DatabaseProtocol) -> str:
                         tags = ", ".join(tag_list)
                 except json.JSONDecodeError:
                     pass
-                except Exception as e:
-                    logger.debug("Failed to parse tags for memory in session: %s", e)
             mem_type = row["memory_type"] or "fact"
             line = f"- [{mem_type}] {content}"
             if tags:

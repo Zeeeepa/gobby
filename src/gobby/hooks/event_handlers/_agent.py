@@ -79,13 +79,13 @@ class AgentEventHandlerMixin(EventHandlersBase):
             # Handle /clear command - generate boundary summaries before clear/exit
             # and set handoff_source so session-end marks the session handoff_ready.
             if prompt_lower in ("/clear", "/exit"):
-                self.logger.debug(f"Detected {prompt_lower} - generating boundary summaries")
+                self.logger.debug(f"Detected {prompt_lower} - generating session summaries")
                 try:
                     if self._dispatch_session_summaries_fn:
                         self._dispatch_session_summaries_fn(session_id, False, None)
                 except Exception as e:
                     self.logger.warning(
-                        f"Failed to generate boundary summaries on {prompt_lower}: {e}"
+                        f"Failed to generate session summaries on {prompt_lower}: {e}"
                     )
                 # Belt-and-suspenders: set handoff_source directly in addition to
                 # the prepare-clear-handoff rule, so session-end marks handoff_ready

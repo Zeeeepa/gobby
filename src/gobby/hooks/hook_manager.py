@@ -816,11 +816,15 @@ class HookManager:
                     asyncio.run_coroutine_threadsafe(coro, self._loop)
                 except Exception as e:
                     self.logger.warning("_dispatch_session_summaries: failed to schedule: %s", e)
+                    if done_event:
+                        done_event.set()
             else:
                 try:
                     asyncio.run(coro)
                 except Exception as e:
                     self.logger.warning("_dispatch_session_summaries: background failed: %s", e)
+                    if done_event:
+                        done_event.set()
 
     def shutdown(self) -> None:
         """

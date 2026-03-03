@@ -404,11 +404,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
                         # Ensure generation is started (idempotent if already running)
                         summary_event = threading.Event()
                         max_wait_s = 90
+                        dispatched = False
                         if self._dispatch_session_summaries_fn:
                             try:
                                 self._dispatch_session_summaries_fn(
                                     parent_session_id, True, summary_event
                                 )
+                                dispatched = True
                             except Exception as e:
                                 self.logger.warning(
                                     f"Failed to dispatch session summaries "
@@ -416,17 +418,18 @@ class SessionEventHandlerMixin(EventHandlersBase):
                                 )
 
                         # Wait for summary generation to complete
-                        if summary_event.wait(timeout=max_wait_s):
-                            self.logger.debug(
-                                "Session summary signaled for parent %s",
-                                parent_session_id,
-                            )
-                        else:
-                            self.logger.warning(
-                                "Timed out waiting for session summary for parent %s after %.0fs",
-                                parent_session_id,
-                                max_wait_s,
-                            )
+                        if dispatched:
+                            if summary_event.wait(timeout=max_wait_s):
+                                self.logger.debug(
+                                    "Session summary signaled for parent %s",
+                                    parent_session_id,
+                                )
+                            else:
+                                self.logger.warning(
+                                    "Timed out waiting for session summary for parent %s after %.0fs",
+                                    parent_session_id,
+                                    max_wait_s,
+                                )
                         # Re-read parent after generation
                         parent = self._session_storage.get(parent_session_id)
 

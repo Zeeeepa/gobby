@@ -24,7 +24,7 @@ After this work, the workflow system has three cleanly separated concerns:
 
 **How they compose:**
 
-```
+```text
 Pipeline (orchestration)
   ├── mcp step: scan open tasks
   ├── mcp step: find next task
@@ -606,7 +606,7 @@ These are outdated and reference removed concepts (extends, inline rule_definiti
 
 ## Implementation Order
 
-```
+```text
 Stage 1 ──────────────────────────────► (immediate value, bug fixes)
 Stage 2 ──────────────────────────────► (foundational: agent simplification)
          ├─ Stage 3 ──────────────────► (data layer, parallel with 6)

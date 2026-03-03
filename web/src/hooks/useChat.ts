@@ -754,10 +754,13 @@ export function useChat() {
           const mapped = mapApiMessages(msgs);
           // Preserve REST-loaded transcript when re-attaching to viewed session
           if (viewingSessionIdRef.current === sid && messagesRef.current.length > 0) {
+            const mappedById = new Map(mapped.map(m => [m.id, m]));
+            // Merge updates into existing messages, then append truly new ones
             const existingIds = new Set(messagesRef.current.map(m => m.id));
+            const merged = messagesRef.current.map(m => mappedById.get(m.id) ?? m);
             const newMsgs = mapped.filter(m => !existingIds.has(m.id));
-            if (newMsgs.length > 0) {
-              setMessages(prev => [...prev, ...newMsgs]);
+            if (newMsgs.length > 0 || mappedById.size > 0) {
+              setMessages([...merged, ...newMsgs]);
             }
           } else {
             setMessages(mapped);

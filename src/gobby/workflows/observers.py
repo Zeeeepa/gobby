@@ -89,6 +89,7 @@ def detect_task_claim(
                     closed_task_id = closed_task.id
             except Exception as e:
                 logger.warning(f"Cannot resolve closed task ref '{raw_close_id}': {e}")
+                return
 
         if closed_task_id:
             from gobby.workflows.task_claim_state import remove_claimed_task
@@ -172,10 +173,7 @@ def detect_task_claim(
     merge = add_claimed_task(variables, task_id, ref)
     variables.update(merge)
     variables["session_had_task"] = True
-    logger.info(
-        f"Session {session_id}: added {task_id} to claimed_tasks "
-        f"(via {inner_tool_name})"
-    )
+    logger.info(f"Session {session_id}: added {task_id} to claimed_tasks (via {inner_tool_name})")
 
     # Auto-link task to session
     if inner_tool_name in ("update_task", "claim_task"):

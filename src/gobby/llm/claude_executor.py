@@ -67,8 +67,7 @@ class ClaudeExecutor(AgentExecutor):
         """
         if auth_mode not in ("subscription", "api_key"):
             raise ValueError(
-                f"Unsupported auth_mode '{auth_mode}'. "
-                "Use 'subscription' or 'api_key'."
+                f"Unsupported auth_mode '{auth_mode}'. Use 'subscription' or 'api_key'."
             )
 
         self.auth_mode = auth_mode
@@ -85,9 +84,7 @@ class ClaudeExecutor(AgentExecutor):
                 )
             self._cli_path = cli_path
         elif auth_mode == "api_key" and not api_key:
-            raise ValueError(
-                "api_key is required for api_key auth mode."
-            )
+            raise ValueError("api_key is required for api_key auth mode.")
 
     @property
     def provider_name(self) -> str:
@@ -252,10 +249,12 @@ class ClaudeExecutor(AgentExecutor):
         async def _run_query() -> AgentResult:
             result_text = ""
             turns_used = 0
+            result_msg: ResultMessage | None = None
 
             try:
                 async for message in query(prompt=prompt, options=options):
                     if isinstance(message, ResultMessage):
+                        result_msg = message
                         if message.result:
                             result_text = message.result
                     elif isinstance(message, AssistantMessage):
@@ -277,7 +276,23 @@ class ClaudeExecutor(AgentExecutor):
                 # Build cost info for api_key mode
                 cost_info: CostInfo | None = None
                 if self.auth_mode == "api_key":
-                    cost_info = CostInfo(model=model)
+                    # Extract token counts from the last ResultMessage
+                    prompt_tokens = 0
+                    completion_tokens = 0
+                    total_cost = 0.0
+                    # Walk messages to find the ResultMessage with usage
+                    # (result_msg captured during iteration above)
+                    if result_msg and result_msg.usage:
+                        prompt_tokens = result_msg.usage.get("input_tokens", 0)
+                        completion_tokens = result_msg.usage.get("output_tokens", 0)
+                    if result_msg and result_msg.total_cost_usd:
+                        total_cost = result_msg.total_cost_usd
+                    cost_info = CostInfo(
+                        model=model,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_cost=total_cost,
+                    )
 
                 return AgentResult(
                     output=result_text,

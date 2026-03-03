@@ -8,7 +8,10 @@ codex/openai provider with api_key auth mode.
 import asyncio
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 from gobby.llm.cost_table import calculate_cost
 from gobby.llm.executor import (
@@ -57,9 +60,9 @@ class OpenAIExecutor(AgentExecutor):
         self.api_key = api_key
         self.api_base = api_base
         self.logger = logger
-        self._client: Any = None
+        self._client: AsyncOpenAI | None = None
 
-    def _get_client(self) -> Any:
+    def _get_client(self) -> "AsyncOpenAI":
         """Lazily initialize the AsyncOpenAI client."""
         if self._client is None:
             from openai import AsyncOpenAI
@@ -124,10 +127,12 @@ class OpenAIExecutor(AgentExecutor):
 
             # Build initial messages
             messages: list[dict[str, Any]] = []
-            messages.append({
-                "role": "system",
-                "content": system_prompt or "You are a helpful assistant.",
-            })
+            messages.append(
+                {
+                    "role": "system",
+                    "content": system_prompt or "You are a helpful assistant.",
+                }
+            )
             messages.append({"role": "user", "content": prompt})
 
             while turns_used < max_turns:
@@ -158,11 +163,19 @@ class OpenAIExecutor(AgentExecutor):
                 # Track token usage
                 if hasattr(response, "usage") and response.usage:
                     cost_tracker.prompt_tokens += response.usage.prompt_tokens or 0
-                    cost_tracker.completion_tokens += (
-                        response.usage.completion_tokens or 0
-                    )
+                    cost_tracker.completion_tokens += response.usage.completion_tokens or 0
 
                 # Process response
+                if not response.choices:
+                    self.logger.error("OpenAI returned empty choices for model %s", effective_model)
+                    return AgentResult(
+                        output=final_output,
+                        status="error",
+                        tool_calls=tool_calls_records,
+                        error="OpenAI returned empty choices",
+                        turns_used=turns_used,
+                        cost_info=cost_tracker,
+                    )
                 choice = response.choices[0]
                 message = choice.message
                 tool_calls = getattr(message, "tool_calls", None)
@@ -195,6 +208,11 @@ class OpenAIExecutor(AgentExecutor):
                     try:
                         fn_args = json.loads(tool_call.function.arguments)
                     except json.JSONDecodeError:
+                        logger.warning(
+                            "Malformed tool call arguments for %s: %s",
+                            tool_call.function.name,
+                            tool_call.function.arguments,
+                        )
                         fn_args = {}
 
                     # Record the call
@@ -216,17 +234,17 @@ class OpenAIExecutor(AgentExecutor):
                             content = f"Error: {result.error}"
                     except Exception as e:
                         self.logger.error(f"Tool handler error for {fn_name}: {e}")
-                        record.result = ToolResult(
-                            tool_name=fn_name, success=False, error=str(e)
-                        )
+                        record.result = ToolResult(tool_name=fn_name, success=False, error=str(e))
                         content = f"Error: {e}"
 
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": fn_name,
-                        "content": content,
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": fn_name,
+                            "content": content,
+                        }
+                    )
 
             # Max turns reached
             cost_tracker.total_cost = calculate_cost(

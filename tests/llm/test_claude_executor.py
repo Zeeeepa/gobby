@@ -148,6 +148,7 @@ class TestClaudeExecutorSDKMode:
         """SDK mode executor returns correct provider name."""
         assert executor_sdk_mode.provider_name == "claude"
 
+    @pytest.mark.asyncio
     async def test_run_with_sdk_mode_delegates_to_sdk(self, executor_sdk_mode, simple_tools):
         """SDK mode run() delegates to _run_with_sdk method."""
         # Verify the executor is in subscription mode
@@ -207,6 +208,7 @@ class TestClaudeExecutorApiKeyMode:
         executor = ClaudeExecutor(auth_mode="api_key", api_key="sk-ant-test")
         assert executor._cli_path == ""
 
+    @pytest.mark.asyncio
     async def test_run_api_key_mode_delegates_to_sdk(self, mock_anthropic_module):
         """api_key mode run() delegates to _run_with_sdk."""
         from gobby.llm.claude_executor import ClaudeExecutor

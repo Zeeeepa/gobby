@@ -411,13 +411,22 @@ class MemoryBackupManager:
                                 key = data.get("content", "").strip()
                                 if key:
                                     existing_by_content[key] = data
-                            except json.JSONDecodeError:
+                            except json.JSONDecodeError as e:
+                                logger.debug("Skipping malformed JSONL line in %s: %s", file_path, e)
                                 continue
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.debug("Cannot read memories file %s: %s", file_path, e)
 
             # 2. Build DB records (authoritative for local content)
-            memories = self.memory_manager.list_memories(limit=10000)
+            memories: list[Any] = []
+            page_size = 1000
+            offset = 0
+            while True:
+                page = self.memory_manager.list_memories(limit=page_size, offset=offset)
+                memories.extend(page)
+                if len(page) < page_size:
+                    break
+                offset += page_size
             unique_memories = self._deduplicate_memories(memories)
 
             db_by_content: dict[str, dict[str, Any]] = {}
@@ -446,7 +455,7 @@ class MemoryBackupManager:
 
             return len(merged)
         except Exception as e:
-            logger.error(f"Failed to export memories: {e}")
+            logger.error("Failed to export memories: %s", e, exc_info=True)
             return 0
 
 

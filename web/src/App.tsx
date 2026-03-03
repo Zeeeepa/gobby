@@ -801,6 +801,7 @@ export default function App() {
       clearHistory,
       sendMessage,
       settings.model,
+      settings.chatMode,
       effectiveProjectId,
       updateChatMode,
       sendMode,

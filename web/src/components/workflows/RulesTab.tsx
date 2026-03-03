@@ -335,7 +335,8 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
   }, [filteredRules, onAllEnabledChange])
 
   const conflictWarning = useMemo(() => {
-    if (!sidebarRule || sidebarRule.id === '__new__' ? !ruleForm.name : false) return null
+    const isNew = !sidebarRule || sidebarRule.id === '__new__'
+    if (isNew && !ruleForm.name) return null
     const conflicts = rules.filter(r =>
       r.name !== (sidebarRule?.id === '__new__' ? '' : sidebarRule?.name) &&
       r.event === ruleForm.event &&

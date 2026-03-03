@@ -35,7 +35,7 @@ The orchestrator should automate the judgment calls the user currently makes man
 
 ### Flow
 
-```
+```text
 1. Epic arrives (task or plan)
         |
         v

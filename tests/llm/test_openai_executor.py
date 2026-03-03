@@ -209,6 +209,7 @@ class TestOpenAIExecutorRun:
         response.usage = usage
         return response
 
+    @pytest.mark.asyncio
     async def test_run_simple_response(self, executor, simple_tools):
         """Run returns text when no tool calls."""
         mock_client = MagicMock()
@@ -230,6 +231,7 @@ class TestOpenAIExecutorRun:
         assert result.cost_info is not None
         assert result.cost_info.prompt_tokens == 10
 
+    @pytest.mark.asyncio
     async def test_run_with_tool_call(self, executor, simple_tools):
         """Run handles tool calls and sends results back."""
         tc_resp = self._make_tool_call_response("search", '{"query": "gobby"}')
@@ -256,6 +258,7 @@ class TestOpenAIExecutorRun:
         assert result.cost_info is not None
         assert result.cost_info.prompt_tokens == 35
 
+    @pytest.mark.asyncio
     async def test_run_api_error(self, executor, simple_tools):
         """Run returns error on API failure."""
         mock_client = MagicMock()
@@ -274,6 +277,7 @@ class TestOpenAIExecutorRun:
         assert result.status == "error"
         assert "Rate limited" in result.error
 
+    @pytest.mark.asyncio
     async def test_run_max_turns(self, executor, simple_tools):
         """Run returns partial when max turns exhausted."""
         tc_resp = self._make_tool_call_response("search", '{"query": "test"}')
@@ -296,6 +300,7 @@ class TestOpenAIExecutorRun:
         assert result.turns_used == 2
         assert len(result.tool_calls) == 2
 
+    @pytest.mark.asyncio
     async def test_run_tool_handler_error(self, executor, simple_tools):
         """Run handles tool handler exceptions gracefully."""
         tc_resp = self._make_tool_call_response("search", '{"query": "test"}')
@@ -319,6 +324,7 @@ class TestOpenAIExecutorRun:
         assert result.tool_calls[0].result is not None
         assert result.tool_calls[0].result.success is False
 
+    @pytest.mark.asyncio
     async def test_run_malformed_json_args(self, executor, simple_tools):
         """Run handles malformed JSON in tool call arguments."""
         tc_resp = self._make_tool_call_response("search", "not valid json")
