@@ -275,14 +275,11 @@ class ClaudeLLMProvider(LLMProvider):
 
         # Configure Claude Agent SDK
         options = ClaudeAgentOptions(
-            system_prompt=(
-                "You are a session summary generator. Create comprehensive, actionable summaries. "
-                "IMPORTANT: Do NOT use any tools. Generate the summary entirely from the provided context. "
-                "Do NOT attempt to read files, search code, or use any other tools."
-            ),
-            max_turns=2,  # Allow recovery if model still tries a tool on first turn
+            system_prompt="You are a session summary generator. Create comprehensive, actionable summaries.",
+            max_turns=1,
             model=self.config.session_summary.model,
-            allowed_tools=[],
+            tools=[],  # Passes --tools "" to CLI, disabling all built-in tools
+            allowed_tools=[],  # Intent: no tools. Note: SDK ignores due to falsy [] check
             mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
