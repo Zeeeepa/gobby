@@ -4,14 +4,19 @@ Provides tools for managing file annotations on tasks:
 - set_affected_files: Bulk set files for a task
 - get_affected_files: Query files for a task
 - find_file_overlaps: Detect file contention between tasks
+- wire_affected_files_from_spec: Extract affected_files from expansion spec and wire to child tasks
 """
 
+import json
+import logging
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.task_affected_files import AnnotationSource, TaskAffectedFileManager
 from gobby.storage.tasks import TaskNotFoundError
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.tasks._context import RegistryContext
@@ -155,6 +160,105 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
             "required": ["task_ids"],
         },
         func=find_file_overlaps,
+    )
+
+    # --- wire_affected_files_from_spec ---
+
+    def wire_affected_files_from_spec(
+        parent_task_id: str,
+    ) -> dict[str, Any]:
+        """Wire affected files from expansion spec to created child tasks.
+
+        Reads the expansion spec from the parent task's expansion_context,
+        extracts affected_files per subtask entry, matches them to child tasks
+        by title, and stores via TaskAffectedFileManager.
+
+        Args:
+            parent_task_id: Parent task with completed expansion (has children)
+
+        Returns:
+            {"wired": int, "total_subtasks": int, "skipped": int}
+        """
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, parent_task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid parent_task_id: {e}"}
+
+        # Load parent task and spec
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {parent_task_id} not found"}
+
+        if not task.expansion_context:
+            return {"error": "No expansion spec on parent task"}
+
+        try:
+            spec = json.loads(task.expansion_context)
+        except json.JSONDecodeError as e:
+            return {"error": f"Invalid expansion_context JSON: {e}"}
+
+        subtasks_spec = spec.get("subtasks", [])
+        if not subtasks_spec:
+            return {"error": "No subtasks in expansion spec"}
+
+        # Get child tasks
+        children = ctx.task_manager.list_tasks(
+            project_id=task.project_id,
+            parent_task_id=resolved_id,
+        )
+        if not children:
+            return {"error": "No child tasks found. Run execute_expansion first."}
+
+        # Build title -> child task ID mapping
+        title_to_child_id: dict[str, str] = {}
+        for child in children:
+            title_to_child_id[child.title] = child.id
+
+        wired = 0
+        skipped = 0
+        for st in subtasks_spec:
+            files = st.get("affected_files", [])
+            if not files:
+                skipped += 1
+                continue
+
+            title = st.get("title", "")
+            child_id = title_to_child_id.get(title)
+            if not child_id:
+                logger.warning(
+                    f"wire_affected_files: no child task matches title '{title}'"
+                )
+                skipped += 1
+                continue
+
+            af_manager.set_files(child_id, files, "expansion")
+            wired += 1
+
+        logger.info(
+            f"Wired affected files for {wired}/{len(subtasks_spec)} subtasks "
+            f"under parent {parent_task_id}"
+        )
+
+        return {
+            "wired": wired,
+            "total_subtasks": len(subtasks_spec),
+            "skipped": skipped,
+        }
+
+    registry.register(
+        name="wire_affected_files_from_spec",
+        description="Wire affected files from expansion spec to child tasks. Reads spec from parent, sets files on matching children.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "parent_task_id": {
+                    "type": "string",
+                    "description": "Parent task reference with completed expansion",
+                },
+            },
+            "required": ["parent_task_id"],
+        },
+        func=wire_affected_files_from_spec,
     )
 
     return registry

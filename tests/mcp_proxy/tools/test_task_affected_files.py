@@ -1,5 +1,6 @@
 """Tests for task affected files MCP tools."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -166,3 +167,155 @@ class TestFindFileOverlaps:
                 result = find_overlaps(task_ids=["bad-id"])
 
                 assert "error" in result
+
+
+def _make_mock_task(
+    task_id: str = "parent-1",
+    title: str = "Parent",
+    project_id: str = "proj-1",
+    expansion_context: str | None = None,
+) -> MagicMock:
+    """Create a mock task object."""
+    task = MagicMock()
+    task.id = task_id
+    task.title = title
+    task.project_id = project_id
+    task.expansion_context = expansion_context
+    return task
+
+
+def _make_mock_child(task_id: str, title: str) -> MagicMock:
+    """Create a mock child task."""
+    child = MagicMock()
+    child.id = task_id
+    child.title = title
+    return child
+
+
+class TestWireAffectedFilesFromSpec:
+    def test_wire_success(self, ctx, mock_resolve) -> None:
+        from gobby.mcp_proxy.tools.tasks._affected_files import create_affected_files_registry
+
+        spec = {
+            "subtasks": [
+                {
+                    "title": "Add models",
+                    "affected_files": ["src/models.py", "tests/test_models.py"],
+                },
+                {
+                    "title": "Add routes",
+                    "affected_files": ["src/routes.py"],
+                },
+            ]
+        }
+        parent = _make_mock_task(expansion_context=json.dumps(spec))
+        ctx.task_manager.get_task.return_value = parent
+        ctx.task_manager.list_tasks.return_value = [
+            _make_mock_child("child-1", "Add models"),
+            _make_mock_child("child-2", "Add routes"),
+        ]
+
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._affected_files.TaskAffectedFileManager"
+        ) as MockMgr:
+            mock_mgr = MockMgr.return_value
+            mock_mgr.set_files.return_value = []
+
+            registry = create_affected_files_registry(ctx)
+            wire_fn = registry.get_tool("wire_affected_files_from_spec")
+            result = wire_fn(parent_task_id="parent-1")
+
+            assert result["wired"] == 2
+            assert result["total_subtasks"] == 2
+            assert result["skipped"] == 0
+            assert mock_mgr.set_files.call_count == 2
+            mock_mgr.set_files.assert_any_call(
+                "child-1", ["src/models.py", "tests/test_models.py"], "expansion"
+            )
+            mock_mgr.set_files.assert_any_call("child-2", ["src/routes.py"], "expansion")
+
+    def test_wire_skips_subtasks_without_files(self, ctx, mock_resolve) -> None:
+        from gobby.mcp_proxy.tools.tasks._affected_files import create_affected_files_registry
+
+        spec = {
+            "subtasks": [
+                {"title": "Research", "category": "research"},  # no affected_files
+                {"title": "Add code", "affected_files": ["src/code.py"]},
+            ]
+        }
+        parent = _make_mock_task(expansion_context=json.dumps(spec))
+        ctx.task_manager.get_task.return_value = parent
+        ctx.task_manager.list_tasks.return_value = [
+            _make_mock_child("child-1", "Research"),
+            _make_mock_child("child-2", "Add code"),
+        ]
+
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._affected_files.TaskAffectedFileManager"
+        ) as MockMgr:
+            mock_mgr = MockMgr.return_value
+            mock_mgr.set_files.return_value = []
+
+            registry = create_affected_files_registry(ctx)
+            wire_fn = registry.get_tool("wire_affected_files_from_spec")
+            result = wire_fn(parent_task_id="parent-1")
+
+            assert result["wired"] == 1
+            assert result["skipped"] == 1
+            mock_mgr.set_files.assert_called_once_with("child-2", ["src/code.py"], "expansion")
+
+    def test_wire_no_expansion_context(self, ctx, mock_resolve) -> None:
+        from gobby.mcp_proxy.tools.tasks._affected_files import create_affected_files_registry
+
+        parent = _make_mock_task(expansion_context=None)
+        ctx.task_manager.get_task.return_value = parent
+
+        with patch("gobby.mcp_proxy.tools.tasks._affected_files.TaskAffectedFileManager"):
+            registry = create_affected_files_registry(ctx)
+            wire_fn = registry.get_tool("wire_affected_files_from_spec")
+            result = wire_fn(parent_task_id="parent-1")
+
+            assert "error" in result
+            assert "no expansion spec" in result["error"].lower()
+
+    def test_wire_no_children(self, ctx, mock_resolve) -> None:
+        from gobby.mcp_proxy.tools.tasks._affected_files import create_affected_files_registry
+
+        spec = {"subtasks": [{"title": "Task", "affected_files": ["a.py"]}]}
+        parent = _make_mock_task(expansion_context=json.dumps(spec))
+        ctx.task_manager.get_task.return_value = parent
+        ctx.task_manager.list_tasks.return_value = []
+
+        with patch("gobby.mcp_proxy.tools.tasks._affected_files.TaskAffectedFileManager"):
+            registry = create_affected_files_registry(ctx)
+            wire_fn = registry.get_tool("wire_affected_files_from_spec")
+            result = wire_fn(parent_task_id="parent-1")
+
+            assert "error" in result
+            assert "no child tasks" in result["error"].lower()
+
+    def test_wire_title_mismatch_skipped(self, ctx, mock_resolve) -> None:
+        from gobby.mcp_proxy.tools.tasks._affected_files import create_affected_files_registry
+
+        spec = {
+            "subtasks": [
+                {"title": "Nonexistent title", "affected_files": ["src/a.py"]},
+            ]
+        }
+        parent = _make_mock_task(expansion_context=json.dumps(spec))
+        ctx.task_manager.get_task.return_value = parent
+        ctx.task_manager.list_tasks.return_value = [
+            _make_mock_child("child-1", "Different title"),
+        ]
+
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._affected_files.TaskAffectedFileManager"
+        ) as MockMgr:
+            mock_mgr = MockMgr.return_value
+            registry = create_affected_files_registry(ctx)
+            wire_fn = registry.get_tool("wire_affected_files_from_spec")
+            result = wire_fn(parent_task_id="parent-1")
+
+            assert result["wired"] == 0
+            assert result["skipped"] == 1
+            mock_mgr.set_files.assert_not_called()

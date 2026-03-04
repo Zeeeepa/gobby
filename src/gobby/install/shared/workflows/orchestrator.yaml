@@ -44,6 +44,15 @@ steps:
       arguments:
         task_id: "${{ inputs.session_task }}"
 
+  # --- Expand epic if not yet expanded (first iteration only) ---
+  - id: expand_epic
+    condition: "${{ (not inputs._worktree_id) and (get_epic.output.result.is_expanded == false) }}"
+    invoke_pipeline:
+      name: expand-task
+      arguments:
+        task_id: "${{ inputs.session_task }}"
+        session_id: "${{ session_id }}"
+
   # --- Scan task states ---
   - id: scan_open
     mcp:
