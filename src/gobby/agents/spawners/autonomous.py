@@ -160,6 +160,9 @@ class AutonomousRunner:
             cwd=self.cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
             env=env,
+            # Enable partial messages to get per-API-call usage from
+            # message_start stream events (accurate context tracking).
+            include_partial_messages=True,
         )
 
         self._client = ClaudeSDKClient(options=options)
@@ -179,10 +182,19 @@ class AutonomousRunner:
             await self._client.query(self.prompt)
 
             # Consume the response stream
+            _last_call_input: dict[str, int] | None = None
             async for message in self._client.receive_response():
                 if message is None:
                     continue
                 if isinstance(message, StreamEvent):
+                    # Capture per-API-call input usage from message_start
+                    ev = message.event
+                    if isinstance(ev, dict) and ev.get("type") == "message_start":
+                        msg_body = ev.get("message")
+                        if isinstance(msg_body, dict):
+                            u = msg_body.get("usage")
+                            if isinstance(u, dict):
+                                _last_call_input = u
                     continue
                 if isinstance(message, ResultMessage):
                     # Capture SDK session ID for cross-mode resume
