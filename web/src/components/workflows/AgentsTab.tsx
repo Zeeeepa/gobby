@@ -7,6 +7,7 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { YamlEditorModal } from './WorkflowsPage'
 import { AgentEditForm } from '../agents/AgentEditForm'
 import type { AgentFormData } from '../agents/AgentEditForm'
+import type { WorkflowStep } from '../agents/AgentStepsEditor'
 
 // =============================================================================
 // Types
@@ -38,6 +39,9 @@ interface AgentDefInfo {
     } | null
     lifecycle_variables: Record<string, unknown>
     default_variables: Record<string, unknown>
+    steps?: WorkflowStep[] | null
+    step_variables?: Record<string, unknown> | null
+    exit_condition?: string | null
   }
   source: string
   source_path: string | null
@@ -185,6 +189,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   const [editRuleSelectors, setEditRuleSelectors] = useState<{ include: string[]; exclude: string[] } | null>(null)
   const [editVariables, setEditVariables] = useState<Record<string, unknown>>({})
   const [editSkills, setEditSkills] = useState<string[]>([])
+  const [editSteps, setEditSteps] = useState<WorkflowStep[]>([])
 
   // Sidebar view state (form vs YAML)
   const [sidebarView, setSidebarView] = useState<'form' | 'yaml'>('form')
@@ -233,6 +238,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       setEditRuleSelectors(null)
       setEditVariables({})
       setEditSkills([])
+      setEditSteps([])
       setSelectedAgent(null)
       setSidebarView('form')
       setSidebarYamlContent(yaml.dump({
@@ -376,6 +382,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         workflows.skill_selectors = { include: editSkills }
       }
       if (Object.keys(workflows).length > 0) body.workflows = workflows
+      if (editSteps.length > 0) body.steps = editSteps
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions`, {
         method: 'POST',
@@ -415,6 +422,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       pipeline: (d.workflows?.pipeline as string) || '',
     })
     setEditingId(item.db_id)
+    setEditSteps(((d as Record<string, unknown>).steps as WorkflowStep[]) || [])
     setEditRules((d.workflows?.rules as string[]) || [])
     const rs = d.workflows?.rule_selectors as { include: string[]; exclude: string[] } | undefined
     setEditRuleSelectors(rs || null)
@@ -462,6 +470,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         workflows.skill_selectors = { include: editSkills }
       }
       if (Object.keys(workflows).length > 0) body.workflows = workflows
+      if (editSteps.length > 0) body.steps = editSteps
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
         method: 'PUT',
@@ -1046,6 +1055,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         pipelines={pipelineList}
         editSkills={editSkills}
         onSkillsChange={setEditSkills}
+        steps={editSteps}
+        onStepsChange={setEditSteps}
         agentNames={definitions.filter(d => !d.deleted_at && d.source !== 'template' && d.enabled !== false).map(d => d.definition.name)}
       />
     </div>

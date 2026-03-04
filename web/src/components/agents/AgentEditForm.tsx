@@ -4,6 +4,8 @@ import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 import { AgentRulesEditor } from './AgentRulesEditor'
 import { AgentVariablesEditor } from './AgentVariablesEditor'
 import { AgentSkillsEditor } from './AgentSkillsEditor'
+import { AgentStepsEditor } from './AgentStepsEditor'
+import type { WorkflowStep } from './AgentStepsEditor'
 
 export interface AgentFormData {
   name: string
@@ -49,6 +51,9 @@ export interface AgentItemForPanel {
     } | null
     lifecycle_variables: Record<string, unknown>
     default_variables: Record<string, unknown>
+    steps?: WorkflowStep[] | null
+    step_variables?: Record<string, unknown> | null
+    exit_condition?: string | null
   }
   source: string
   source_path: string | null
@@ -89,6 +94,8 @@ interface AgentEditFormProps {
   pipelines?: { id: string; name: string }[]
   editSkills?: string[]
   onSkillsChange?: (skills: string[]) => void
+  steps?: WorkflowStep[]
+  onStepsChange?: (steps: WorkflowStep[]) => void
   agentNames?: string[]
 }
 
@@ -152,6 +159,7 @@ export function AgentEditForm({
   yamlContent, onYamlChange, onYamlSave,
   pipelines,
   editSkills, onSkillsChange,
+  steps, onStepsChange,
   agentNames,
 }: AgentEditFormProps) {
   const [customModelInput, setCustomModelInput] = useState(false)
@@ -358,6 +366,23 @@ export function AgentEditForm({
                   <div key={key} className="agent-vars-row">
                     <code className="agent-vars-key">{key}</code>
                     <span className="agent-vars-value">{typeof val === 'string' ? val : JSON.stringify(val)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {rd.steps && rd.steps.length > 0 && (
+            <div className="agent-edit-section">
+              <h4 className="agent-edit-section-title">Steps ({rd.steps.length})</h4>
+              <div className="step-readonly-list">
+                {rd.steps.map((s, i) => (
+                  <div key={i} className="step-readonly-item">
+                    <span className="step-name-badge">{s.name}</span>
+                    <span className="step-readonly-summary">
+                      {s.description || ''}
+                      {s.transitions && s.transitions.length > 0 ? ` \u2192 ${s.transitions.map(t => t.to).join(', ')}` : ''}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -581,6 +606,17 @@ export function AgentEditForm({
                 definitionId={editingId}
                 variables={variables}
                 onVariablesChange={onVariablesChange}
+              />
+            </div>
+          )}
+
+          {/* Steps */}
+          {onStepsChange && steps !== undefined && (
+            <div className="agent-edit-section">
+              <h4 className="agent-edit-section-title">Steps</h4>
+              <AgentStepsEditor
+                steps={steps}
+                onChange={onStepsChange}
               />
             </div>
           )}

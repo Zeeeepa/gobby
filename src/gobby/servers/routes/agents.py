@@ -68,6 +68,9 @@ class UpdateAgentDefinitionRequest(BaseModel):
     workflows: dict[str, Any] | None = None
     lifecycle_variables: dict[str, Any] | None = None
     default_variables: dict[str, Any] | None = None
+    steps: list[dict[str, Any]] | None = None
+    step_variables: dict[str, Any] | None = None
+    exit_condition: str | None = None
     enabled: bool | None = None
 
 
@@ -287,6 +290,9 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 body_dict["lifecycle_variables"] = fields["lifecycle_variables"]
             if "default_variables" in fields:
                 body_dict["default_variables"] = fields["default_variables"]
+            for key in ("steps", "step_variables", "exit_condition"):
+                if key in fields:
+                    body_dict[key] = fields[key]
 
             update_fields: dict[str, Any] = {
                 "definition_json": _json.dumps(body_dict),

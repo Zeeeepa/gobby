@@ -409,11 +409,16 @@ class RuleEngine:
             variables["_observations"] = obs_list
 
         elif effect.type == "mcp_call":
+            raw_args = effect.arguments or {}
+            rendered_args = {
+                k: self._render_template(v, ctx, allowed_funcs) if isinstance(v, str) else v
+                for k, v in raw_args.items()
+            }
             mcp_calls.append(
                 {
                     "server": effect.server,
                     "tool": effect.tool,
-                    "arguments": effect.arguments or {},
+                    "arguments": rendered_args,
                     "background": effect.background,
                 }
             )
