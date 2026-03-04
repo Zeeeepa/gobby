@@ -452,6 +452,7 @@ class CloneIsolationHandler(IsolationHandler):
 
         # Determine base branch - use parent's current branch if default "main" was passed
         base_branch = config.base_branch
+        use_local = False
 
         # If base_branch is the default "main", check if parent is on a different branch
         if self._git_manager is not None:
@@ -464,18 +465,42 @@ class CloneIsolationHandler(IsolationHandler):
                 logger = logging.getLogger(__name__)
                 logger.info(f"Using parent's current branch '{base_branch}' for clone")
 
+            # Check for unpushed commits on the base branch
+            try:
+                has_unpushed, unpushed_count = self._git_manager.has_unpushed_commits(
+                    base_branch
+                )
+                if has_unpushed:
+                    use_local = True
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        f"Using local repo for clone "
+                        f"({unpushed_count} unpushed commits on '{base_branch}')"
+                    )
+            except Exception:
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "Failed to check unpushed commits for clone, using remote",
+                    exc_info=True,
+                )
+
         # Generate clone path
         from pathlib import Path
 
         project_name = Path(config.project_path).name
         clone_path = self._generate_clone_path(branch_name, project_name)
 
-        # Create shallow clone
+        # Create clone (full when use_local, shallow otherwise)
         result = self._clone_manager.create_clone(
             clone_path=clone_path,
             branch_name=branch_name,
             base_branch=base_branch,
-            shallow=True,
+            shallow=not use_local,
+            use_local=use_local,
         )
 
         if not result.success:
