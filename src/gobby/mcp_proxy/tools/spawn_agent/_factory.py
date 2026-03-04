@@ -302,6 +302,79 @@ def create_spawn_agent_registry(
 
         return result
 
+    @registry.tool(
+        name="dispatch_batch",
+        description=(
+            "Dispatch multiple agents in parallel for non-conflicting tasks. "
+            "Takes task briefs from suggest_next_tasks and spawns an agent for each. "
+            "Uses asyncio.gather for concurrent spawning."
+        ),
+    )
+    async def dispatch_batch(
+        suggestions: list[dict[str, Any]],
+        agent: str = "developer",
+        worktree_id: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        parent_session_id: str | None = None,
+        mode: str = "terminal",
+    ) -> dict[str, Any]:
+        """Dispatch multiple agents for non-conflicting tasks.
+
+        Args:
+            suggestions: Task briefs from suggest_next_tasks output
+            agent: Agent definition name (default: "developer")
+            worktree_id: Shared worktree ID for all agents
+            provider: AI provider override
+            model: Model override
+            parent_session_id: Parent session reference
+            mode: Execution mode (default: "terminal")
+
+        Returns:
+            Dict with dispatched count and per-task results
+        """
+        import asyncio
+
+        if not suggestions:
+            return {"dispatched": 0, "results": []}
+
+        async def _spawn_one(suggestion: dict[str, Any]) -> dict[str, Any]:
+            task_ref = suggestion.get("ref", suggestion.get("id", "unknown"))
+            task_title = suggestion.get("title", "")
+            task_id = suggestion.get("id")
+            try:
+                result = await spawn_agent(
+                    prompt=f"Implement task {task_ref}: {task_title}",
+                    agent=agent,
+                    task_id=task_id,
+                    worktree_id=worktree_id,
+                    provider=provider,
+                    model=model,
+                    parent_session_id=parent_session_id,
+                    mode=mode,  # type: ignore[arg-type]
+                )
+                return {
+                    "task_ref": task_ref,
+                    "run_id": result.get("run_id", ""),
+                    "success": result.get("success", False),
+                }
+            except Exception as e:
+                logger.error(f"Failed to spawn agent for {task_ref}: {e}")
+                return {
+                    "task_ref": task_ref,
+                    "run_id": "",
+                    "success": False,
+                    "error": str(e),
+                }
+
+        results = await asyncio.gather(*[_spawn_one(s) for s in suggestions])
+        dispatched = sum(1 for r in results if r["success"])
+
+        return {
+            "dispatched": dispatched,
+            "results": list(results),
+        }
+
     return registry
 
 

@@ -2,10 +2,10 @@ name: orchestrator
 type: pipeline
 version: "2.0"
 description: |
-  Async, dependency-aware orchestration pipeline with single worktree per epic.
+  Async, dependency-aware orchestration pipeline with parallel dispatch.
   Creates one worktree on first dispatch, reuses it for all subsequent tasks.
-  Sequential dispatch ensures only one developer runs at a time.
-  Merge happens once at epic completion.
+  Dispatches multiple non-conflicting tasks in parallel using file annotations
+  to detect contention. Merge happens once at epic completion.
 
 inputs:
   session_task: null
@@ -93,15 +93,16 @@ steps:
       if [ "$DONE" = "true" ]; then echo "Orchestration complete. All tasks closed." >&2; fi;
       echo "{\"done\": $DONE}"
 
-  # --- Find next dispatchable task (sequential: only when no in-progress tasks) ---
+  # --- Find next dispatchable tasks (parallel: dispatch when below capacity) ---
   - id: find_next
-    condition: "${{ (not all_closed.output.done) and (scan_in_progress.output.tasks | length == 0) }}"
+    condition: "${{ (not all_closed.output.done) and ((scan_in_progress.output.tasks | length) < inputs.max_concurrent) }}"
     mcp:
       server: gobby-tasks
-      tool: suggest_next_task
+      tool: suggest_next_tasks
       arguments:
         parent_task_id: "${{ inputs.session_task }}"
         session_id: "${{ session_id }}"
+        max_count: "${{ inputs.max_concurrent - (scan_in_progress.output.tasks | length) }}"
 
   # --- MERGE PHASE (blocking — one merge at epic completion) ---
   # Merge when: only approved tasks remain (no open, in_progress, or needs_review)
@@ -130,7 +131,7 @@ steps:
 
   # --- CREATE EPIC WORKTREE (first iteration only) ---
   - id: create_worktree
-    condition: "${{ (not inputs._worktree_id) and (find_next.output.suggestion.ref if find_next.output and find_next.output.suggestion else '') }}"
+    condition: "${{ (not inputs._worktree_id) and (find_next.output.suggestions[0].ref if find_next.output and find_next.output.suggestions else '') }}"
     mcp:
       server: gobby-worktrees
       tool: create_worktree
@@ -141,21 +142,29 @@ steps:
         use_local: true
         provider: "${{ inputs.developer_provider }}"
 
-  # --- DISPATCH DEVELOPER (fire-and-forget, sequential) ---
-  - id: spawn_developer
-    condition: "${{ find_next.output.suggestion.ref if find_next.output and find_next.output.suggestion else '' }}"
+  # --- DISPATCH DEVELOPERS (fire-and-forget, parallel batch) ---
+  - id: spawn_developers
+    condition: "${{ find_next.output.suggestions | length > 0 if find_next.output else false }}"
     mcp:
       server: gobby-agents
-      tool: spawn_agent
+      tool: dispatch_batch
       arguments:
-        prompt: "Implement task ${{ find_next.output.suggestion.ref }}: ${{ find_next.output.suggestion.title }}"
+        suggestions: "${{ find_next.output.suggestions }}"
         agent: "${{ inputs.developer_agent }}"
-        task_id: "${{ find_next.output.suggestion.id }}"
         worktree_id: "${{ inputs._worktree_id or (create_worktree.output.worktree_id if create_worktree.output else '') }}"
         provider: "${{ inputs.developer_provider }}"
         model: "${{ inputs.developer_model }}"
         parent_session_id: "${{ session_id }}"
         mode: terminal
+
+  # --- ANNOTATE OBSERVED FILES (post-hoc, one per iteration) ---
+  - id: annotate_observed
+    condition: "${{ scan_needs_review.output.tasks | length > 0 }}"
+    mcp:
+      server: gobby-tasks
+      tool: update_observed_files
+      arguments:
+        task_id: "${{ scan_needs_review.output.tasks[0].id }}"
 
   # --- DISPATCH QA (fire-and-forget, with worktree context) ---
   - id: spawn_qa

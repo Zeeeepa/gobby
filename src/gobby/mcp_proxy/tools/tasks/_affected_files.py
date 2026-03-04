@@ -247,6 +247,90 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
             "skipped": skipped,
         }
 
+    # --- update_observed_files ---
+
+    def update_observed_files(
+        task_id: str,
+    ) -> dict[str, Any]:
+        """Annotate a task's affected files from its linked commits.
+
+        Looks up commits linked to the task, runs git diff-tree to get
+        changed files, and stores them as 'observed' annotations. This
+        provides post-hoc file tracking for conflict detection.
+
+        Args:
+            task_id: Task reference (#N, path, or UUID)
+
+        Returns:
+            Dict with task_id, commits_processed, files_observed, and files list
+        """
+        import subprocess
+
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        # Get linked commits from task
+        commit_shas = task.commits or []
+
+        if not commit_shas:
+            return {
+                "task_id": resolved_id,
+                "commits_processed": 0,
+                "files_observed": 0,
+                "files": [],
+            }
+
+        # Collect changed files from each commit
+        all_files: set[str] = set()
+        commits_processed = 0
+        for sha in commit_shas:
+            try:
+                result = subprocess.run(
+                    ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    all_files.update(result.stdout.strip().split("\n"))
+                    commits_processed += 1
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                logger.warning(f"Failed to get diff-tree for commit {sha}")
+
+        if all_files:
+            af_manager.set_files(resolved_id, sorted(all_files), "observed")
+
+        return {
+            "task_id": resolved_id,
+            "commits_processed": commits_processed,
+            "files_observed": len(all_files),
+            "files": sorted(all_files),
+        }
+
+    registry.register(
+        name="update_observed_files",
+        description="Annotate a task's affected files from its linked commits. "
+        "Runs git diff-tree on each commit to discover actually-changed files "
+        "and stores them as 'observed' annotations for conflict detection.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N, path, or UUID",
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=update_observed_files,
+    )
+
     registry.register(
         name="wire_affected_files_from_spec",
         description="Wire affected files from expansion spec to child tasks. Reads spec from parent, sets files on matching children.",
