@@ -31,11 +31,9 @@ class TestRunPipelineNoWait:
     @pytest.mark.asyncio
     async def test_run_pipeline_returns_immediately(self) -> None:
         """run_pipeline always returns immediately with execution_id."""
-        import json
         from unittest.mock import AsyncMock, MagicMock
 
         from gobby.mcp_proxy.tools.pipelines._execution import run_pipeline
-        from gobby.workflows.pipeline_state import ExecutionStatus
 
         mock_loader = AsyncMock()
         mock_loader.load_pipeline.return_value = MagicMock(
@@ -63,7 +61,10 @@ class TestRunPipelineNoWait:
         assert result["success"] is True
         assert result["execution_id"] == "pe-test123"
         assert result["status"] == "running"
-        assert "will be notified" in result["message"].lower() or "started" in result["message"].lower()
+        assert (
+            "will be notified" in result["message"].lower()
+            or "started" in result["message"].lower()
+        )
 
 
 class TestWaitForAgentRemoved:

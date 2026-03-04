@@ -386,9 +386,7 @@ class TestFailStaleRunningExecutions:
     def test_marks_running_executions_as_interrupted(self, manager) -> None:
         """Running executions are marked as interrupted (non-terminal, can be resumed)."""
         execution = manager.create_execution(pipeline_name="stale-pipeline")
-        manager.update_execution_status(
-            execution_id=execution.id, status=ExecutionStatus.RUNNING
-        )
+        manager.update_execution_status(execution_id=execution.id, status=ExecutionStatus.RUNNING)
 
         count = manager.fail_stale_running_executions()
 
@@ -414,15 +412,9 @@ class TestFailStaleRunningExecutions:
     def test_also_fails_running_steps(self, manager) -> None:
         """Running steps belonging to stale executions are also failed."""
         execution = manager.create_execution(pipeline_name="stale-pipeline")
-        manager.update_execution_status(
-            execution_id=execution.id, status=ExecutionStatus.RUNNING
-        )
-        step = manager.create_step_execution(
-            execution_id=execution.id, step_id="s1"
-        )
-        manager.update_step_execution(
-            step_execution_id=step.id, status=StepStatus.RUNNING
-        )
+        manager.update_execution_status(execution_id=execution.id, status=ExecutionStatus.RUNNING)
+        step = manager.create_step_execution(execution_id=execution.id, step_id="s1")
+        manager.update_step_execution(step_execution_id=step.id, status=StepStatus.RUNNING)
 
         manager.fail_stale_running_executions()
 
@@ -434,9 +426,7 @@ class TestFailStaleRunningExecutions:
         """Returns 0 when no running executions exist."""
         # Create a completed execution — should not be affected
         execution = manager.create_execution(pipeline_name="done-pipeline")
-        manager.update_execution_status(
-            execution_id=execution.id, status=ExecutionStatus.COMPLETED
-        )
+        manager.update_execution_status(execution_id=execution.id, status=ExecutionStatus.COMPLETED)
 
         count = manager.fail_stale_running_executions()
         assert count == 0
@@ -444,9 +434,7 @@ class TestFailStaleRunningExecutions:
     def test_exclude_ids_skips_excluded_executions(self, manager) -> None:
         """Excluded execution IDs are not failed."""
         resumable = manager.create_execution(pipeline_name="resumable-pipeline")
-        manager.update_execution_status(
-            execution_id=resumable.id, status=ExecutionStatus.RUNNING
-        )
+        manager.update_execution_status(execution_id=resumable.id, status=ExecutionStatus.RUNNING)
         non_resumable = manager.create_execution(pipeline_name="non-resumable-pipeline")
         manager.update_execution_status(
             execution_id=non_resumable.id, status=ExecutionStatus.RUNNING
@@ -463,9 +451,7 @@ class TestFailStaleRunningExecutions:
     def test_exclude_ids_skips_steps_of_excluded_executions(self, manager) -> None:
         """Steps belonging to excluded executions are not failed."""
         resumable = manager.create_execution(pipeline_name="resumable-pipeline")
-        manager.update_execution_status(
-            execution_id=resumable.id, status=ExecutionStatus.RUNNING
-        )
+        manager.update_execution_status(execution_id=resumable.id, status=ExecutionStatus.RUNNING)
         step = manager.create_step_execution(execution_id=resumable.id, step_id="s1")
         manager.update_step_execution(step_execution_id=step.id, status=StepStatus.RUNNING)
 
@@ -477,9 +463,7 @@ class TestFailStaleRunningExecutions:
     def test_exclude_ids_empty_set_fails_all(self, manager) -> None:
         """Empty exclude_ids set fails all running executions."""
         execution = manager.create_execution(pipeline_name="test-pipeline")
-        manager.update_execution_status(
-            execution_id=execution.id, status=ExecutionStatus.RUNNING
-        )
+        manager.update_execution_status(execution_id=execution.id, status=ExecutionStatus.RUNNING)
 
         count = manager.fail_stale_running_executions(exclude_ids=set())
         assert count == 1
@@ -495,9 +479,7 @@ class TestApprovalTimeout:
         manager.update_execution_status(
             execution_id=execution.id, status=ExecutionStatus.WAITING_APPROVAL
         )
-        step = manager.create_step_execution(
-            execution_id=execution.id, step_id="approval-step"
-        )
+        step = manager.create_step_execution(execution_id=execution.id, step_id="approval-step")
         # Set to waiting with a 1-second timeout and a started_at in the past
         manager.update_step_execution(
             step_execution_id=step.id,
@@ -520,9 +502,7 @@ class TestApprovalTimeout:
         manager.update_execution_status(
             execution_id=execution.id, status=ExecutionStatus.WAITING_APPROVAL
         )
-        step = manager.create_step_execution(
-            execution_id=execution.id, step_id="no-timeout-step"
-        )
+        step = manager.create_step_execution(execution_id=execution.id, step_id="no-timeout-step")
         manager.update_step_execution(
             step_execution_id=step.id,
             status=StepStatus.WAITING_APPROVAL,
@@ -537,9 +517,7 @@ class TestApprovalTimeout:
         manager.update_execution_status(
             execution_id=execution.id, status=ExecutionStatus.WAITING_APPROVAL
         )
-        step = manager.create_step_execution(
-            execution_id=execution.id, step_id="fresh-step"
-        )
+        step = manager.create_step_execution(execution_id=execution.id, step_id="fresh-step")
         # Set a very long timeout (1 hour)
         manager.update_step_execution(
             step_execution_id=step.id,

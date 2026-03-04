@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -324,7 +323,5 @@ class TestMigration137:
 
     def test_agent_runs_has_continuation_prompt(self, db) -> None:
         """agent_runs table has continuation_prompt column."""
-        row = db.fetchone(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_runs'"
-        )
+        row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_runs'")
         assert "continuation_prompt" in row["sql"]

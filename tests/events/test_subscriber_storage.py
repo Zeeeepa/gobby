@@ -55,9 +55,7 @@ class TestCompletionSubscribers:
         subs = manager.get_completion_subscribers("pe-abc123")
         assert subs == []
 
-    def test_remove_subscribers_noop_if_none(
-        self, manager: LocalPipelineExecutionManager
-    ) -> None:
+    def test_remove_subscribers_noop_if_none(self, manager: LocalPipelineExecutionManager) -> None:
         """Remove on nonexistent completion_id doesn't raise."""
         manager.remove_completion_subscribers("nonexistent")
 
@@ -69,9 +67,7 @@ class TestCompletionSubscribers:
         assert manager.get_completion_subscribers("pe-1") == ["sess-a"]
         assert manager.get_completion_subscribers("pe-2") == ["sess-b"]
 
-    def test_add_completion_subscribers_bulk(
-        self, manager: LocalPipelineExecutionManager
-    ) -> None:
+    def test_add_completion_subscribers_bulk(self, manager: LocalPipelineExecutionManager) -> None:
         """Bulk add multiple subscribers at once."""
         manager.add_completion_subscribers("pe-abc123", ["sess-1", "sess-2", "sess-3"])
         subs = manager.get_completion_subscribers("pe-abc123")

@@ -61,9 +61,9 @@ class TestTddEnforcementSync:
         rules = manager.list_all(workflow_type="rule")
         rule_names = {r.name for r in rules}
 
-        assert TDD_ENFORCEMENT_RULES.issubset(rule_names), (
-            f"Missing: {TDD_ENFORCEMENT_RULES - rule_names}"
-        )
+        assert TDD_ENFORCEMENT_RULES.issubset(
+            rule_names
+        ), f"Missing: {TDD_ENFORCEMENT_RULES - rule_names}"
 
     def test_all_rules_have_group(self, db, manager) -> None:
         """All rules should have group='tdd-enforcement'."""

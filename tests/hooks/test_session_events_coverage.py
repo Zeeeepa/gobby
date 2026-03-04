@@ -147,13 +147,11 @@ class TestFindGeminiTranscript:
         cwd = str(tmp_path / "project")
         project_hash = hashlib.sha256(cwd.encode()).hexdigest()
 
-        chats_dir = Path.home() / ".gemini" / "tmp" / project_hash / "chats"
         # We need to mock this since we can't create in $HOME
         with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
             mock_home = MagicMock()
             MockPath.home.return_value = mock_home
 
-            mock_chats = MagicMock()
             mock_home.__truediv__ = MagicMock(return_value=MagicMock())
             # Build chain: home / ".gemini" / "tmp" / hash / "chats"
             chain = MagicMock()
@@ -187,7 +185,7 @@ class TestFindGeminiTranscript:
                 [MagicMock(__str__=lambda self: "/fake/session-recent.json")],  # fallback
             ]
 
-            result = handler._find_gemini_transcript({"cwd": "/some/cwd"}, "")
+            handler._find_gemini_transcript({"cwd": "/some/cwd"}, "")
             # Verify it attempted the fallback glob
             assert chain.glob.call_count >= 1
 
@@ -284,7 +282,7 @@ class TestHandleSessionEnd:
         event = _make_event(event_type=HookEventType.SESSION_END, session_id="ext-1")
 
         handler._session_manager.lookup_session_id.return_value = "db-sess-1"
-        resp = handler.handle_session_end(event)
+        handler.handle_session_end(event)
 
         assert event.metadata.get("_platform_session_id") == "db-sess-1"
         handler._message_processor.unregister_session.assert_called_with("db-sess-1")
@@ -539,8 +537,8 @@ class TestSessionMoreCoverage:
         mock_parent.seq_num = 1
 
         # storage.get(external) -> None
-        handler._session_storage.get.side_effect = (
-            lambda sid: mock_parent if sid == "parent-1" else None
+        handler._session_storage.get.side_effect = lambda sid: (
+            mock_parent if sid == "parent-1" else None
         )
         handler._session_storage.find_parent.return_value = mock_parent
 
@@ -555,9 +553,7 @@ class TestSessionMoreCoverage:
                     "claimed_tasks": {"task-1": "#1"},
                 },
             ),
-            patch(
-                "gobby.workflows.state_manager.SessionVariableManager.merge_variables"
-            ) as mock_merge,
+            patch("gobby.workflows.state_manager.SessionVariableManager.merge_variables"),
         ):
             handler._session_manager.register_session.return_value = "new-sess-1"
 

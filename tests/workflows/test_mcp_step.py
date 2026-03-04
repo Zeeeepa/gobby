@@ -501,9 +501,7 @@ class TestMCPTemplateRendering:
 
         context: dict = {
             "inputs": {},
-            "steps": {
-                "execute": {"output": {"created": ["#9633", "#9634", "#9635"]}}
-            },
+            "steps": {"execute": {"output": {"created": ["#9633", "#9634", "#9635"]}}},
         }
 
         rendered = executor.renderer.render_step(step, context)
@@ -536,9 +534,7 @@ class TestMCPTemplateRendering:
 
         context: dict = {
             "inputs": {},
-            "steps": {
-                "prev": {"output": {"settings": {"timeout": 600, "retries": 3}}}
-            },
+            "steps": {"prev": {"output": {"settings": {"timeout": 600, "retries": 3}}}},
         }
 
         rendered = executor.renderer.render_step(step, context)
@@ -571,9 +567,7 @@ class TestMCPTemplateRendering:
 
         context: dict = {
             "inputs": {},
-            "steps": {
-                "prev": {"output": {"ids": ["#1", "#2"]}}
-            },
+            "steps": {"prev": {"output": {"ids": ["#1", "#2"]}}},
         }
 
         rendered = executor.renderer.render_step(step, context)

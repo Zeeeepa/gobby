@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -47,9 +46,7 @@ class TestWakeDispatch:
         self, session_manager: MagicMock, ism_manager: MagicMock
     ) -> None:
         """agent_depth=0 → InterSessionMessage."""
-        session_manager.get.return_value = FakeSession(
-            id="sess-1", agent_depth=0
-        )
+        session_manager.get.return_value = FakeSession(id="sess-1", agent_depth=0)
         dispatcher = WakeDispatcher(
             session_manager=session_manager,
             ism_manager=ism_manager,

@@ -234,7 +234,7 @@ class AgentRunner:
                         turns_used=0,
                     )
                 # Ensure the loaded workflow is actually a PipelineDefinition or a valid WorkflowDefinition
-                elif not isinstance(workflow_definition, (PipelineDefinition, WorkflowDefinition)):
+                elif not isinstance(workflow_definition, PipelineDefinition | WorkflowDefinition):
                     return AgentResult(
                         output="",
                         status="error",

@@ -20,6 +20,7 @@ pytestmark = pytest.mark.unit
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class MockWebSocket:
     """WebSocket mock that can optionally raise on send."""
 
@@ -116,6 +117,7 @@ def host() -> ChatMixinHost:
 # 1. _safe_send tests
 # ---------------------------------------------------------------------------
 
+
 class TestSafeSend:
     """Tests for the _safe_send disconnection detection helper."""
 
@@ -208,6 +210,7 @@ class TestSafeSend:
 # 2. _classify_chat_error tests
 # ---------------------------------------------------------------------------
 
+
 class TestClassifyChatError:
     """Tests for the _classify_chat_error static method."""
 
@@ -256,6 +259,7 @@ class TestClassifyChatError:
 # 3. Persistence failure warning tests
 # ---------------------------------------------------------------------------
 
+
 class TestPersistFailureWarning:
     """Tests for chat_warning on persistence failures."""
 
@@ -287,12 +291,12 @@ class TestPersistFailureWarning:
             await host._stream_chat_response(ws, "conv-4", "test", None)
 
         # Should have logged at ERROR level
-        assert any("Failed to persist" in r.message for r in caplog.records if r.levelno >= logging.ERROR)
+        assert any(
+            "Failed to persist" in r.message for r in caplog.records if r.levelno >= logging.ERROR
+        )
 
         # Should have sent chat_warning to client
-        warnings = [
-            json.loads(m) for m in ws.sent_messages if "chat_warning" in m
-        ]
+        warnings = [json.loads(m) for m in ws.sent_messages if "chat_warning" in m]
         assert len(warnings) >= 1
         assert warnings[0]["code"] == "PERSIST_FAILED"
 
@@ -350,6 +354,7 @@ class TestPersistFailureWarning:
 # ---------------------------------------------------------------------------
 # 4. Orphaned tool result warning test
 # ---------------------------------------------------------------------------
+
 
 class TestOrphanedToolResult:
     """Tests for warning when ToolResult arrives without prior ToolCall."""

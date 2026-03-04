@@ -31,8 +31,11 @@ def ctx():
 
 def _make_af(task_id: str, file_path: str, source: str = "manual") -> TaskAffectedFile:
     return TaskAffectedFile(
-        id=1, task_id=task_id, file_path=file_path,
-        annotation_source=source, created_at="2026-01-01T00:00:00",
+        id=1,
+        task_id=task_id,
+        file_path=file_path,
+        annotation_source=source,
+        created_at="2026-01-01T00:00:00",
     )
 
 

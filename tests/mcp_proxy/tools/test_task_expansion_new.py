@@ -455,11 +455,13 @@ class TestValidateExpansionSpec:
         """Test validating spec with missing title, description, category."""
         task_manager.update_task(
             parent_task,
-            expansion_context=json.dumps({
-                "subtasks": [
-                    {"title": ""},  # empty title, no description, no category
-                ]
-            }),
+            expansion_context=json.dumps(
+                {
+                    "subtasks": [
+                        {"title": ""},  # empty title, no description, no category
+                    ]
+                }
+            ),
             expansion_status="pending",
         )
         validate_fn = expansion_registry["validate_expansion_spec"].func

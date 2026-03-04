@@ -94,9 +94,7 @@ class TestSubscribers:
         assert subs == ["sess-1"]
 
     @pytest.mark.asyncio
-    async def test_subscribe_unregistered_raises(
-        self, registry: CompletionEventRegistry
-    ) -> None:
+    async def test_subscribe_unregistered_raises(self, registry: CompletionEventRegistry) -> None:
         with pytest.raises(KeyError):
             registry.subscribe("nonexistent", "sess-1")
 
@@ -167,9 +165,7 @@ class TestCleanup:
         assert registry.get_subscribers("pe-abc123") == []
 
     @pytest.mark.asyncio
-    async def test_cleanup_unregistered_is_noop(
-        self, registry: CompletionEventRegistry
-    ) -> None:
+    async def test_cleanup_unregistered_is_noop(self, registry: CompletionEventRegistry) -> None:
         registry.cleanup("nonexistent")  # Should not raise
 
 
