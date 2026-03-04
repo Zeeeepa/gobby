@@ -36,7 +36,6 @@ interface AgentDefInfo {
       variables?: Record<string, unknown>
       [key: string]: unknown
     } | null
-    extends: string | null
     lifecycle_variables: Record<string, unknown>
     default_variables: Record<string, unknown>
   }
@@ -92,7 +91,7 @@ const ISOLATION_COLORS: Record<string, string> = {
 }
 
 const DEFAULT_FORM: AgentFormData = {
-  name: '', extends: '', description: '', role: '', goal: '', personality: '', instructions: '',
+  name: '', description: '', role: '', goal: '', personality: '', instructions: '',
   provider: 'inherit', model: '', mode: 'inherit', isolation: 'inherit',
   base_branch: 'inherit', timeout: 0, max_turns: 0, pipeline: '',
 }
@@ -114,7 +113,6 @@ const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
 
 function agentDefToYaml(d: AgentDefInfo['definition']): string {
   const obj: Record<string, unknown> = { name: d.name }
-  if (d.extends) obj.extends = d.extends
   if (d.description) obj.description = d.description
   if (d.role) obj.role = d.role
   if (d.goal) obj.goal = d.goal
@@ -368,7 +366,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (createForm.personality) body.personality = createForm.personality
       if (createForm.instructions) body.instructions = createForm.instructions
       if (createForm.model) body.model = createForm.model
-      if (createForm.extends) body.extends = createForm.extends
       // Nest rules, rule_selectors, variables, pipeline under workflows
       const workflows: Record<string, unknown> = {}
       if (editRules.length > 0) workflows.rules = editRules
@@ -403,7 +400,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     const d = item.definition
     setCreateForm({
       name: d.name,
-      extends: d.extends || '',
       description: d.description || '',
       role: d.role || '',
       goal: d.goal || '',
@@ -443,7 +439,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     try {
       const body: Record<string, unknown> = {
         name: createForm.name,
-        extends: createForm.extends || null,
         description: createForm.description || null,
         role: createForm.role || null,
         goal: createForm.goal || null,
@@ -628,7 +623,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       const body: Record<string, unknown> = {
         name: (parsed.name as string) || yamlAgent.definition.name,
         description: parsed.description ?? null,
-        extends: parsed.extends ?? null,
         sources: parsed.sources ?? null,
         role: parsed.role ?? null,
         goal: parsed.goal ?? null,
@@ -678,7 +672,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       const body: Record<string, unknown> = {
         name: (parsed.name as string) || createForm.name,
         description: parsed.description ?? null,
-        extends: parsed.extends ?? null,
         sources: parsed.sources ?? null,
         role: parsed.role ?? null,
         goal: parsed.goal ?? null,

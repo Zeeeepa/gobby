@@ -70,7 +70,6 @@ class RuleEngine:
         session_id: str,
         variables: dict[str, Any],
         eval_context: dict[str, Any] | None = None,
-        extra_rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]] | None = None,
     ) -> HookResponse:
         """Evaluate all matching rules for an event.
 
@@ -137,10 +136,6 @@ class RuleEngine:
 
         # 1. Load enabled rules for this event, sorted by priority
         rules = self._load_rules(rule_event)
-
-        # 1b. Append extra rules (e.g. from agent rule_definitions)
-        if extra_rules:
-            rules.extend((row, body) for row, body in extra_rules if body.event == rule_event)
 
         # 2. Apply session overrides
         overrides = self._load_session_overrides(session_id)
@@ -367,16 +362,12 @@ class RuleEngine:
     ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
         """Filter rules based on resolved selectors (if any) stored in session variables.
 
-        Rules with ``source='agent'`` (injected from agent rule_definitions)
-        always pass — they are not subject to the active-rules selector.
         """
         active_names = variables.get("_active_rule_names")
         if active_names is None:
             return rules  # no filter — current behavior preserved
         active_set = set(active_names)
-        return [
-            (row, body) for row, body in rules if row.name in active_set or row.source == "agent"
-        ]
+        return [(row, body) for row, body in rules if row.name in active_set]
 
     def _apply_effect(
         self,

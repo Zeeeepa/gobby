@@ -386,6 +386,30 @@ async def spawn_agent_impl(
     session_id = str(uuid.uuid4())
     run_id = f"run-{uuid.uuid4().hex[:12]}"
 
+    # 9b. Create WorkflowInstance for agent step workflow
+    step_wf_name = (initial_variables or {}).get("_step_workflow_name")
+    if step_wf_name and agent_body and agent_body.steps and db:
+        from gobby.workflows.definitions import WorkflowInstance
+        from gobby.workflows.state_manager import WorkflowInstanceManager
+
+        step_instance = WorkflowInstance(
+            id=str(uuid.uuid4()),
+            session_id=session_id,
+            workflow_name=step_wf_name,
+            enabled=True,
+            priority=10,
+            current_step=agent_body.steps[0].name,
+            variables=dict(agent_body.step_variables),
+        )
+        WorkflowInstanceManager(db).save_instance(step_instance)
+        logger.info(
+            "Created step workflow instance %s for session %s (agent=%s, step=%s)",
+            step_wf_name,
+            session_id,
+            agent_body.name,
+            agent_body.steps[0].name,
+        )
+
     # 10. Build initial_variables (merge factory's with impl's own)
     effective_initial_variables: dict[str, Any] = {}
     if initial_variables:

@@ -698,6 +698,7 @@ def create_agents_registry(
         list_agent_definitions,
         toggle_agent_definition,
         update_agent_rules,
+        update_agent_steps,
         update_agent_variables,
     )
 
@@ -780,6 +781,18 @@ def create_agents_registry(
         if _def_manager is None:
             return {"error": "Agent definition tools require database connection"}
         return update_agent_variables(_def_manager, name, set_vars, remove)
+
+    @registry.tool(
+        name="update_agent_steps",
+        description="Replace an agent's inline step workflow steps. Pass steps list or None to clear.",
+    )
+    def _update_agent_steps(
+        name: str,
+        steps: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Agent definition tools require database connection"}
+        return update_agent_steps(_def_manager, name, steps)
 
     # Register spawn_agent tool from spawn_agent module
     from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry

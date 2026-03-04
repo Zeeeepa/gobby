@@ -29,6 +29,8 @@ def _agent_summary(row: WorkflowDefinitionRow) -> dict[str, Any]:
         "mode": body.get("mode"),
         "model": body.get("model"),
         "isolation": body.get("isolation"),
+        "has_steps": bool(body.get("steps")),
+        "step_count": len(body.get("steps") or []),
         "enabled": row.enabled,
         "source": row.source,
         "project_id": row.project_id,
@@ -54,6 +56,9 @@ def _agent_detail(row: WorkflowDefinitionRow) -> dict[str, Any]:
         "personality": body.get("personality"),
         "instructions": body.get("instructions"),
         "workflows": body.get("workflows"),
+        "steps": body.get("steps"),
+        "step_variables": body.get("step_variables"),
+        "exit_condition": body.get("exit_condition"),
         "enabled": row.enabled,
         "source": row.source,
         "project_id": row.project_id,
@@ -86,7 +91,7 @@ def get_agent_definition(
     name: str,
 ) -> dict[str, Any]:
     """
-    Get an agent definition by name, resolving extends chains.
+    Get an agent definition by name via direct DB lookup.
 
     Args:
         def_manager: Definition storage manager
@@ -95,26 +100,34 @@ def get_agent_definition(
     Returns:
         Dict with success and full agent detail, or error if not found
     """
-    from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    if row is None or row.workflow_type != "agent":
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
 
     try:
-        agent_body = resolve_agent(name, def_manager.db)
-        if not agent_body:
-            return {"success": False, "error": f"Agent definition '{name}' not found"}
+        body = json.loads(row.definition_json)
+        if "name" not in body:
+            body["name"] = row.name
+        # Validate
+        AgentDefinitionBody.model_validate(body)
+    except Exception as e:
+        return {"success": False, "error": f"Failed to parse agent definition: {e}"}
 
-        # Get the row to augment with DB-specific fields
-        row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
-        dump = agent_body.model_dump()
+    # Normalize provider for display
+    provider = body.get("provider", "inherit")
+    if provider == "inherit":
+        provider = "claude"
+    body["provider"] = provider
 
-        if row:
-            dump["id"] = row.id
-            dump["source"] = row.source
-            dump["project_id"] = row.project_id
-            dump["enabled"] = row.enabled
+    detail = {
+        **body,
+        "id": row.id,
+        "source": row.source,
+        "project_id": row.project_id,
+        "enabled": row.enabled,
+    }
 
-        return {"success": True, "agent": dump}
-    except AgentResolutionError as e:
-        return {"success": False, "error": str(e)}
+    return {"success": True, "agent": detail}
 
 
 def create_agent_definition(
@@ -310,3 +323,38 @@ def update_agent_variables(
     logger.info("Updated variables for agent '%s': %s", name, list(variables.keys()))
 
     return {"success": True, "variables": variables}
+
+
+def update_agent_steps(
+    def_manager: LocalWorkflowDefinitionManager,
+    name: str,
+    steps: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """
+    Replace an agent's steps entirely.
+
+    Args:
+        def_manager: Definition storage manager
+        name: Agent name
+        steps: New steps list (or None to clear)
+
+    Returns:
+        Dict with success and updated steps info
+    """
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    if row is None or row.workflow_type != "agent":
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
+
+    body = json.loads(row.definition_json)
+    body["steps"] = steps
+
+    # Validate the full model
+    try:
+        AgentDefinitionBody.model_validate(body)
+    except Exception as e:
+        return {"success": False, "error": f"Validation failed: {e}"}
+
+    def_manager.update(row.id, definition_json=json.dumps(body))
+    logger.info("Updated steps for agent '%s': %d steps", name, len(steps or []))
+
+    return {"success": True, "steps": steps, "step_count": len(steps or [])}

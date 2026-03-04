@@ -6,6 +6,7 @@ and delegates to spawn_agent_impl for execution.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -28,7 +29,7 @@ def _load_agent_body(
     db: DatabaseProtocol | None,
     project_id: str | None = None,
 ) -> AgentDefinitionBody | None:
-    """Load an agent definition from workflow_definitions, applying extends chain.
+    """Load an agent definition from workflow_definitions via direct lookup.
 
     Args:
         name: Agent name to look up.
@@ -36,18 +37,57 @@ def _load_agent_body(
         project_id: Optional project id for scoped agents.
 
     Returns:
-        AgentDefinitionBody if found and resolved cleanly, None otherwise.
+        AgentDefinitionBody if found, None otherwise.
     """
     if db is None:
         return None
 
-    from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
+    from gobby.workflows.agent_resolver import resolve_agent
 
-    try:
-        return resolve_agent(name, db, project_id=project_id)
-    except AgentResolutionError as e:
-        logger.error(f"Agent resolution failed: {e}")
-        return None
+    return resolve_agent(name, db, project_id=project_id)
+
+
+def _register_agent_step_workflow(
+    agent_body: AgentDefinitionBody,
+    db: DatabaseProtocol,
+) -> str:
+    """Register a synthetic WorkflowDefinition from agent's inline steps.
+
+    Creates or updates a workflow definition in the DB that the step enforcement
+    engine can look up via WorkflowInstance.workflow_name.
+
+    Returns the workflow name.
+    """
+    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+    step_workflow_name = f"{agent_body.name}-steps"
+    def_manager = LocalWorkflowDefinitionManager(db)
+
+    wf_data = {
+        "name": step_workflow_name,
+        "description": f"Auto-generated step workflow for {agent_body.name} agent",
+        "type": "step",
+        "version": "2.0",
+        "enabled": False,
+        "steps": [step.model_dump() for step in agent_body.steps],
+        "variables": agent_body.step_variables,
+        "exit_condition": agent_body.exit_condition,
+    }
+    definition_json = json.dumps(wf_data)
+
+    existing = def_manager.get_by_name(step_workflow_name)
+    if existing:
+        def_manager.update(existing.id, definition_json=definition_json)
+    else:
+        def_manager.create(
+            name=step_workflow_name,
+            definition_json=definition_json,
+            workflow_type="workflow",
+            enabled=False,
+            source="agent",
+        )
+
+    return step_workflow_name
 
 
 def create_spawn_agent_registry(
@@ -193,6 +233,11 @@ def create_spawn_agent_registry(
                 initial_variables["_agent_rules"] = agent_body.workflows.rules
             if agent_body.workflows.variables:
                 initial_variables.update(agent_body.workflows.variables)
+
+        # Auto-register inline step workflow if agent has steps
+        if agent_body and agent_body.steps and db:
+            step_wf_name = _register_agent_step_workflow(agent_body, db)
+            initial_variables["_step_workflow_name"] = step_wf_name
 
         # Inject _assigned_pipeline if the workflow is a PipelineDefinition
         if effective_workflow:

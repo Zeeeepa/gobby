@@ -27,7 +27,6 @@ class CreateAgentDefinitionRequest(BaseModel):
     name: str
     project_id: str | None = None
     description: str | None = None
-    extends: str | None = None
     sources: list[str] | None = None
     role: str | None = None
     goal: str | None = None
@@ -52,7 +51,6 @@ class UpdateAgentDefinitionRequest(BaseModel):
 
     name: str | None = None
     description: str | None = None
-    extends: str | None = None
     sources: list[str] | None = None
     role: str | None = None
     goal: str | None = None
@@ -210,7 +208,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             body = AgentDefinitionBody(
                 name=request.name,
                 description=request.description,
-                extends=request.extends,
                 sources=request.sources,
                 role=request.role,
                 goal=request.goal,

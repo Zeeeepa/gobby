@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Literal
@@ -36,7 +38,7 @@ class RuleDefinition(BaseModel):
             rule["command_not_pattern"] = self.command_not_pattern
         return rule
 
-    def to_rule_definition_body(self) -> "RuleDefinitionBody":
+    def to_rule_definition_body(self) -> RuleDefinitionBody:
         """Convert inline agent rule_definition to RuleDefinitionBody for rule engine."""
         effect = RuleEffect(
             type=self.action,
@@ -136,7 +138,7 @@ class RuleDefinitionBody(BaseModel):
     agent_scope: list[str] | None = None  # Only active for these agent types
 
     @model_validator(mode="after")
-    def _validate_effects(self) -> "RuleDefinitionBody":
+    def _validate_effects(self) -> RuleDefinitionBody:
         has_effect = self.effect is not None
         has_effects = self.effects is not None and len(self.effects) > 0
         if has_effect and has_effects:
@@ -213,7 +215,6 @@ class AgentDefinitionBody(BaseModel):
 
     name: str
     description: str | None = None
-    extends: str | None = None
     sources: list[str] | None = None  # Session sources this agent applies to (None = all)
     # Structured prompt fields (composed into preamble at spawn time)
     role: str | None = None
@@ -230,8 +231,11 @@ class AgentDefinitionBody(BaseModel):
     max_turns: int = 0
     # Orchestration
     workflows: AgentWorkflows = Field(default_factory=AgentWorkflows)
-    rule_definitions: dict[str, RuleDefinition] = Field(default_factory=dict)
     enabled: bool = True
+    # Inline step workflow (replaces external step workflow YAML files)
+    steps: list[WorkflowStep] | None = None
+    step_variables: dict[str, Any] = Field(default_factory=dict)
+    exit_condition: str | None = None
 
     def build_prompt_preamble(self) -> str | None:
         """Build structured prompt preamble from role/goal/personality/instructions."""
@@ -543,7 +547,7 @@ class WorkflowInstance(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WorkflowInstance":
+    def from_dict(cls, data: dict[str, Any]) -> WorkflowInstance:
         """Deserialize from a dictionary, parsing ISO datetime strings."""
         parsed = dict(data)
         for field in ("step_entered_at", "created_at", "updated_at"):

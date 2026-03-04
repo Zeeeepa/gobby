@@ -7,7 +7,6 @@ import { AgentSkillsEditor } from './AgentSkillsEditor'
 
 export interface AgentFormData {
   name: string
-  extends: string
   description: string
   role: string
   goal: string
@@ -391,15 +390,9 @@ export function AgentEditForm({
         </>
       ) : (
         <>
-          {/* Name & Extends */}
+          {/* Name */}
           <div className="agent-edit-section">
             <FormInput label="Name" value={form.name} onChange={v => set('name', v)} placeholder="my-agent" required />
-            <MetaRow label="Extends">
-              <select className="agent-edit-input" value={form.extends} onChange={e => set('extends', e.target.value)}>
-                <option value="">(none)</option>
-                {availableParents.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </MetaRow>
           </div>
 
           {/* Editable meta */}
