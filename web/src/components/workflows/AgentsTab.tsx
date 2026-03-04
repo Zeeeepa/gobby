@@ -1057,7 +1057,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         onSkillsChange={setEditSkills}
         steps={editSteps}
         onStepsChange={setEditSteps}
-        agentNames={definitions.filter(d => !d.deleted_at && d.source !== 'template' && d.enabled !== false).map(d => d.definition.name)}
       />
     </div>
   )

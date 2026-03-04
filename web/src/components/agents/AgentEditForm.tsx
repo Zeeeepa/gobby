@@ -96,7 +96,6 @@ interface AgentEditFormProps {
   onSkillsChange?: (skills: string[]) => void
   steps?: WorkflowStep[]
   onStepsChange?: (steps: WorkflowStep[]) => void
-  agentNames?: string[]
 }
 
 function FormInput({ label, value, onChange, placeholder, required }: {
@@ -160,7 +159,6 @@ export function AgentEditForm({
   pipelines,
   editSkills, onSkillsChange,
   steps, onStepsChange,
-  agentNames,
 }: AgentEditFormProps) {
   const [customModelInput, setCustomModelInput] = useState(false)
   const [customBranchInput, setCustomBranchInput] = useState(false)
@@ -185,8 +183,6 @@ export function AgentEditForm({
     : []
 
   const title = readOnly ? (rd?.name || 'Agent') : (isEditing ? 'Edit Agent' : 'Create Agent')
-
-  const availableParents = (agentNames || []).filter(n => n !== form.name)
 
   const headerContent = (
     <>
