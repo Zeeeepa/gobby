@@ -136,7 +136,10 @@ async def spawn_agent_impl(
     _raw_mode: str | None = mode
     # Reject explicitly invalid modes early (before fallback logic)
     if _raw_mode is not None and _raw_mode not in (*VALID_MODES, "inherit"):
-        return {"success": False, "error": f"Invalid mode '{_raw_mode}'. Must be one of: {', '.join(VALID_MODES)}"}
+        return {
+            "success": False,
+            "error": f"Invalid mode '{_raw_mode}'. Must be one of: {', '.join(VALID_MODES)}",
+        }
     if _raw_mode is None and agent_body:
         _raw_mode = agent_body.mode
     if _raw_mode in (None, "inherit"):

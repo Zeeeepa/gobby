@@ -547,7 +547,11 @@ class TestCreateGeminiExecutorIntegration:
 
         with patch.dict(
             sys.modules,
-            {"google": mock_google, "google.genai": mock_genai, "google.genai.types": mock_genai.types},
+            {
+                "google": mock_google,
+                "google.genai": mock_genai,
+                "google.genai.types": mock_genai.types,
+            },
         ):
             from gobby.llm.resolver import _create_gemini_executor
 
@@ -571,7 +575,11 @@ class TestCreateGeminiExecutorIntegration:
 
         with patch.dict(
             sys.modules,
-            {"google": mock_google, "google.genai": mock_genai, "google.genai.types": mock_genai.types},
+            {
+                "google": mock_google,
+                "google.genai": mock_genai,
+                "google.genai.types": mock_genai.types,
+            },
         ):
             from gobby.llm.resolver import _create_gemini_executor
 
@@ -597,7 +605,11 @@ class TestCreateGeminiExecutorIntegration:
 
         with patch.dict(
             sys.modules,
-            {"google": mock_google, "google.genai": mock_genai, "google.genai.types": mock_genai.types},
+            {
+                "google": mock_google,
+                "google.genai": mock_genai,
+                "google.genai.types": mock_genai.types,
+            },
         ):
             from gobby.llm.resolver import _create_gemini_executor
 
@@ -621,7 +633,11 @@ class TestCreateGeminiExecutorIntegration:
 
         with patch.dict(
             sys.modules,
-            {"google": mock_google, "google.genai": mock_genai, "google.genai.types": mock_genai.types},
+            {
+                "google": mock_google,
+                "google.genai": mock_genai,
+                "google.genai.types": mock_genai.types,
+            },
         ):
             from gobby.llm.resolver import _create_gemini_executor
 
