@@ -23,6 +23,7 @@ from claude_agent_sdk.types import (
 logger = logging.getLogger(__name__)
 
 from gobby.llm.sdk_utils import ADDITIONAL_CONTEXT_LIMIT as _ADDITIONAL_CONTEXT_LIMIT
+from gobby.llm.sdk_utils import truncate_additional_context as _truncate
 
 # Tools that are blocked in plan mode (write operations)
 _PLAN_MODE_BLOCKED_TOOLS: frozenset[str] = frozenset({"Edit", "Write", "NotebookEdit"})
@@ -125,7 +126,7 @@ def _response_to_prompt_output(resp: dict[str, Any] | None) -> SyncHookJSONOutpu
     if context:
         output["hookSpecificOutput"] = UserPromptSubmitHookSpecificOutput(
             hookEventName="UserPromptSubmit",
-            additionalContext=context,
+            additionalContext=_truncate(context),
         )
     return output
 
@@ -149,7 +150,7 @@ def _response_to_pre_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOut
         output["hookSpecificOutput"] = PreToolUseHookSpecificOutput(
             hookEventName="PreToolUse",
         )
-        output["hookSpecificOutput"]["additionalContext"] = resp["context"]  # type: ignore[typeddict-unknown-key]
+        output["hookSpecificOutput"]["additionalContext"] = _truncate(resp["context"])  # type: ignore[typeddict-unknown-key]
     return output
 
 
@@ -162,7 +163,7 @@ def _response_to_post_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOu
     if context:
         output["hookSpecificOutput"] = PostToolUseHookSpecificOutput(
             hookEventName="PostToolUse",
-            additionalContext=context,
+            additionalContext=_truncate(context),
         )
     return output
 
@@ -182,7 +183,7 @@ def _response_to_stop_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
             Any,
             {  # No SDK TypedDict for Stop
                 "hookEventName": "Stop",
-                "additionalContext": context,
+                "additionalContext": _truncate(context),
             },
         )
     return output
@@ -223,7 +224,7 @@ def _response_to_compact_output(resp: dict[str, Any] | None) -> SyncHookJSONOutp
             Any,
             {  # No SDK TypedDict for PreCompact
                 "hookEventName": "PreCompact",
-                "additionalContext": context,
+                "additionalContext": _truncate(context),
             },
         )
     return output
