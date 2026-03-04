@@ -294,53 +294,6 @@ export function useChat() {
   // adopting the SDK session ID doesn't reset the user's mode to the default.
   const [conversationSwitchKey, setConversationSwitchKey] = useState(0);
 
-  // Fetch messages from DB on mount if we have a persisted dbSessionId
-  useEffect(() => {
-    const storedDbSid = loadDbSessionId();
-    const convId = conversationIdRef.current;
-    if (!storedDbSid) return;
-
-    let cancelled = false;
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-
-    // Validate session still exists before loading messages
-    fetch(`${baseUrl}/api/sessions/${storedDbSid}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((sessionData) => {
-        if (cancelled) return;
-        // Session gone or deleted — clear stale localStorage, start fresh
-        if (!sessionData?.session || sessionData.session.status === "deleted") {
-          saveDbSessionId(null);
-          const newId = uuid();
-          conversationIdRef.current = newId;
-          setConversationId(newId);
-          setConversationSwitchKey((k) => k + 1);
-          saveConversationId(newId);
-          setDbSessionId(null);
-          return;
-        }
-        // Session is live — fetch its messages
-        return fetch(
-          `${baseUrl}/api/sessions/${storedDbSid}/messages?limit=100&offset=0`,
-        )
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (cancelled || !data?.messages?.length) return;
-            if (conversationIdRef.current !== convId) return;
-            const mapped = mapApiMessages(data.messages);
-            if (mapped.length > 0) {
-              setMessages(mapped);
-            }
-          });
-      })
-      .catch((err) =>
-        console.error("Failed to validate/fetch session from DB:", err),
-      );
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;

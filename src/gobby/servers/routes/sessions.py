@@ -330,6 +330,69 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error listing sessions: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/bulk-move")
+    async def bulk_move_sessions(request: Request) -> dict[str, Any]:
+        """
+        Move sessions from one project to another in bulk.
+
+        Accepts from_project_id, to_project_id, and optional source filter.
+
+        Returns:
+            Count of moved sessions
+        """
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            from_project_id = body.get("from_project_id")
+            to_project_id = body.get("to_project_id")
+            source_filter = body.get("source")
+
+            if not from_project_id or not to_project_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Required fields: from_project_id, to_project_id",
+                )
+
+            sessions = server.session_manager.list(
+                project_id=from_project_id,
+                source=source_filter,
+                limit=1000,
+            )
+
+            moved = 0
+            for session in sessions:
+                try:
+                    server.session_manager.db.execute(
+                        "UPDATE sessions SET project_id = ? WHERE id = ?",
+                        (to_project_id, session.id),
+                    )
+                    moved += 1
+                except Exception as e:
+                    logger.warning(f"Failed to move session {session.id}: {e}")
+
+            logger.info(
+                f"Bulk-moved {moved} sessions from {from_project_id} to {to_project_id}"
+            )
+
+            return {
+                "status": "success",
+                "moved": moved,
+                "from_project_id": from_project_id,
+                "to_project_id": to_project_id,
+            }
+
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Bulk move sessions error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/{session_id}")
     async def sessions_get(session_id: str) -> dict[str, Any]:
         """
