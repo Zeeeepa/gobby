@@ -275,8 +275,12 @@ class ClaudeLLMProvider(LLMProvider):
 
         # Configure Claude Agent SDK
         options = ClaudeAgentOptions(
-            system_prompt="You are a session summary generator. Create comprehensive, actionable summaries.",
-            max_turns=1,
+            system_prompt=(
+                "You are a session summary generator. Create comprehensive, actionable summaries. "
+                "IMPORTANT: Do NOT use any tools. Generate the summary entirely from the provided context. "
+                "Do NOT attempt to read files, search code, or use any other tools."
+            ),
+            max_turns=2,  # Allow recovery if model still tries a tool on first turn
             model=self.config.session_summary.model,
             allowed_tools=[],
             mcp_servers={},
@@ -295,7 +299,14 @@ class ClaudeLLMProvider(LLMProvider):
             return summary_text
 
         try:
-            return await _run_query()
+            summary_text = await _run_query()
+            if not summary_text:
+                sid = context.get("session_id", "unknown")
+                self.logger.warning(
+                    "Claude SDK query returned empty response for summary generation (session %s)",
+                    sid,
+                )
+            return summary_text
         except Exception as e:
             self.logger.error(f"Failed to generate summary with Claude: {e}")
             return f"Session summary generation failed: {e}"

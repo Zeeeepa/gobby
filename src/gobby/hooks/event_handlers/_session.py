@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 _derive_logger = logging.getLogger(__name__)
 
-SUMMARY_GENERATION_TIMEOUT_S = 90
+SUMMARY_GENERATION_TIMEOUT_S = 120
 
 
 @dataclass
@@ -402,7 +402,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     # For /clear: summary generation was kicked off by
                     # BEFORE_AGENT (fire-and-forget). Poll until it arrives.
                     # For /compact: PRE_COMPACT already kicked it off.
-                    if session_source == "clear" and not parent.summary_markdown:
+                    # Both paths wait for the summary to be generated.
+                    needs_wait = (
+                        (session_source == "clear" and not parent.summary_markdown)
+                        or (session_source == "compact" and not parent.compact_markdown)
+                    )
+                    if needs_wait:
                         # Ensure generation is started (idempotent if already running)
                         summary_event = threading.Event()
                         max_wait_s = SUMMARY_GENERATION_TIMEOUT_S
