@@ -608,7 +608,7 @@ class ClaudeLLMProvider(LLMProvider):
         tool_calls: list[ToolCall] = []
         pending_tool_calls: dict[str, ToolCall] = {}  # Map tool_use_id -> ToolCall
 
-        from gobby.llm.claude_streaming import parse_server_name as _parse_server_name
+        from gobby.llm.sdk_utils import parse_server_name as _parse_server_name
 
         # Run async query
         async def _run_query() -> str:

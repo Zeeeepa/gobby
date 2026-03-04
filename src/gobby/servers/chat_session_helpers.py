@@ -22,9 +22,7 @@ from claude_agent_sdk.types import (
 
 logger = logging.getLogger(__name__)
 
-# Claude Code / Agent SDK hard-truncates additionalContext at 10K chars.
-# We cap slightly below to avoid the ugly "... [output truncated]" suffix.
-_ADDITIONAL_CONTEXT_LIMIT = 9_950
+from gobby.llm.sdk_utils import ADDITIONAL_CONTEXT_LIMIT as _ADDITIONAL_CONTEXT_LIMIT
 
 # Tools that are blocked in plan mode (write operations)
 _PLAN_MODE_BLOCKED_TOOLS: frozenset[str] = frozenset({"Edit", "Write", "NotebookEdit"})
@@ -111,13 +109,7 @@ def _find_mcp_config() -> str | None:
     return None
 
 
-def _parse_server_name(full_tool_name: str) -> str:
-    """Extract server name from mcp__{server}__{tool} format."""
-    if full_tool_name.startswith("mcp__"):
-        parts = full_tool_name.split("__")
-        if len(parts) >= 2:
-            return parts[1]
-    return "builtin"
+from gobby.llm.sdk_utils import parse_server_name as _parse_server_name
 
 
 def _response_to_prompt_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
