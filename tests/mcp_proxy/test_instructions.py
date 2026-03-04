@@ -54,7 +54,7 @@ class TestBuildGobbyInstructions:
         assert "task" in result.lower()  # task before editing
         assert "session_id" in result  # session_id required
 
-    def test_emphasizes_progressive_disclosure(self) -> None:
+    def test_emphasizes_progressive_discovery(self) -> None:
         """Instructions should emphasize progressive discovery pattern."""
         from gobby.mcp_proxy.instructions import build_gobby_instructions
 
