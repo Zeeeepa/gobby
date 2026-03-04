@@ -156,20 +156,14 @@ async def run_pipeline(
     inputs: dict[str, Any],
     project_id: str,
     session_id: str | None = None,
-    wait: bool = False,
-    wait_timeout: int = 300,
+    continuation_prompt: str | None = None,
 ) -> dict[str, Any]:
     """
     Run a pipeline by name.
 
-    When wait=False (default), the pipeline is launched as a background task
-    and the execution_id is returned immediately for polling via
-    get_pipeline_status.
-
-    When wait=True, the pipeline is awaited directly and the full execution
-    status (with all step outputs) is returned upon completion. If the
-    pipeline does not finish within wait_timeout seconds, partial results
-    are returned and the pipeline continues running in the background.
+    Always returns immediately with execution_id. The pipeline runs as a
+    background task. Callers are notified via the completion event registry
+    when the pipeline finishes.
 
     Args:
         loader: WorkflowLoader instance
@@ -178,11 +172,12 @@ async def run_pipeline(
         inputs: Input values for the pipeline
         project_id: Project context for the execution
         session_id: Optional session that triggered execution
-        wait: If True, block until pipeline completes (default: False)
-        wait_timeout: Max seconds to wait when wait=True (default: 300)
+        continuation_prompt: Instructions for what to do when the pipeline
+            completes. Stored with the execution and included in the
+            completion notification sent to subscribers.
 
     Returns:
-        Dict with execution_id and status/results
+        Dict with execution_id and status
     """
     if not executor:
         return {"success": False, "error": "No executor configured"}
@@ -224,25 +219,14 @@ async def run_pipeline(
     )
     _register_background_task(task)
 
-    if wait:
-        # Block until completion or timeout — asyncio.wait does NOT cancel
-        # the task on timeout, so the pipeline keeps running
-        done, _ = await asyncio.wait({task}, timeout=wait_timeout)
-
-        status = get_pipeline_status(executor.execution_manager, execution_id)
-        if not done:
-            status["timed_out"] = True
-            status["message"] = (
-                f"Pipeline still running after {wait_timeout}s. "
-                "Use get_pipeline_status to poll for completion."
-            )
-        return status
-
     return {
         "success": True,
         "status": "running",
         "execution_id": execution_id,
-        "message": f"Pipeline '{name}' started. Poll status with get_pipeline_status.",
+        "message": (
+            f"Pipeline '{name}' started. "
+            "You will be notified when it completes."
+        ),
     }
 
 

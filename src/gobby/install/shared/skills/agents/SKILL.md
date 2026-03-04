@@ -58,16 +58,6 @@ Check if spawning is allowed from a session. Returns whether the depth limit or 
 
 Dry-run a spawn — validates agent definition, workflow, isolation, and runtime without actually executing. Accepts the same key parameters as `spawn_agent` (`agent`, `workflow`, `task_id`, `isolation`, `mode`, `provider`, `branch_name`, `base_branch`, `parent_session_id`, `project_path`).
 
-### wait_for_agent(run_id, timeout?, poll_interval?)
-
-Block until an agent reaches a terminal status (`success`, `error`, `timeout`, `cancelled`) or the wait timeout expires.
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `run_id` | yes | The agent run ID to wait on |
-| `timeout` | no | Max wait time in seconds |
-| `poll_interval` | no | Polling interval in seconds |
-
 ### stop_agent(run_id)
 
 Mark a running agent as cancelled in the DB. Does **not** kill the process — use `kill_agent` for that.

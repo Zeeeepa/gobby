@@ -41,13 +41,9 @@ steps:
 
   # --- 2. Wait for researcher to complete ---
   - id: wait_researcher
-    mcp:
-      server: gobby-agents
-      tool: wait_for_agent
-      arguments:
-        run_id: "${{ steps.spawn_researcher.output.run_id }}"
-        timeout: "${{ inputs.wait_timeout }}"
-        kill_on_timeout: true
+    wait:
+      completion_id: "${{ steps.spawn_researcher.output.run_id }}"
+      timeout: "${{ inputs.wait_timeout }}"
 
   # --- 3. Validate the saved spec ---
   - id: validate

@@ -383,7 +383,7 @@ class TestRunPipelineTool:
         assert result["success"] is True
         assert result["status"] == "running"
         assert result["execution_id"] == "pe-abc123"
-        assert "get_pipeline_status" in result["message"]
+        assert "notified" in result["message"].lower() or "started" in result["message"].lower()
 
     @pytest.mark.asyncio
     async def test_run_pipeline_returns_running_even_if_approval_needed(

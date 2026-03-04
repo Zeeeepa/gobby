@@ -57,6 +57,7 @@ class PipelineExecutor:
         event_callback: PipelineEventCallback | None = None,
         tool_proxy_getter: Any | None = None,
         session_manager: Any | None = None,
+        completion_registry: Any | None = None,
     ):
         """Initialize the pipeline executor.
 
@@ -71,6 +72,7 @@ class PipelineExecutor:
                            Signature: async def callback(event: str, execution_id: str, **kwargs)
             tool_proxy_getter: Optional callable returning ToolProxyService for MCP steps
             session_manager: Optional LocalSessionManager for session creation
+            completion_registry: Optional CompletionEventRegistry for wait steps
         """
         self.db = db
         self.execution_manager = execution_manager
@@ -80,6 +82,7 @@ class PipelineExecutor:
         self.event_callback = event_callback
         self.tool_proxy_getter = tool_proxy_getter
         self.session_manager = session_manager
+        self.completion_registry = completion_registry
 
         self.renderer = StepRenderer(template_engine)
         self.approval_manager = ApprovalManager(
@@ -105,6 +108,36 @@ class PipelineExecutor:
                     extra={"event": event, "execution_id": execution_id},
                     exc_info=True,
                 )
+
+    async def _notify_completion(
+        self,
+        execution_id: str,
+        status: str,
+        pipeline_name: str,
+        outputs: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Notify the completion registry that a pipeline finished.
+
+        Fail-open: errors are logged but never propagate to the caller.
+        """
+        if not self.completion_registry:
+            return
+        try:
+            result: dict[str, Any] = {
+                "status": status,
+                "pipeline_name": pipeline_name,
+            }
+            if outputs is not None:
+                result["outputs"] = outputs
+            if error is not None:
+                result["error"] = error
+            await self.completion_registry.notify(execution_id, result)
+        except Exception:
+            logger.warning(
+                "Failed to notify completion registry for %s", execution_id,
+                exc_info=True,
+            )
 
     async def execute(
         self,
@@ -372,6 +405,11 @@ class PipelineExecutor:
                 outputs=outputs,
             )
 
+            # Notify completion registry
+            await self._notify_completion(
+                execution.id, "completed", pipeline.name, outputs=outputs
+            )
+
         except ApprovalRequired:
             # Don't treat approval as an error - just re-raise
             raise
@@ -414,6 +452,11 @@ class PipelineExecutor:
                 pipeline_name=pipeline.name,
                 error=str(e),
             )
+
+            # Notify completion registry
+            await self._notify_completion(
+                execution.id, "failed", pipeline.name, error=str(e)
+            )
             raise
 
         return execution
@@ -428,7 +471,10 @@ class PipelineExecutor:
         # Render any template variables in the step
         rendered_step = self.renderer.render_step(step, context)
 
-        if step.exec:
+        if step.wait:
+            # Block until completion event fires
+            return await self._execute_wait_step(rendered_step, context)
+        elif step.exec:
             # Execute shell command
             return await execute_exec_step(rendered_step.exec, context)
         elif step.prompt:
@@ -451,6 +497,51 @@ class PipelineExecutor:
         else:
             logger.warning(f"Step {step.id} has no action defined")
             return None
+
+    async def _execute_wait_step(
+        self,
+        rendered_step: Any,
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute a wait step by blocking on the completion registry.
+
+        Args:
+            rendered_step: Step with rendered template variables
+            context: Execution context
+
+        Returns:
+            The completion result dict
+
+        Raises:
+            asyncio.TimeoutError: If timeout expires before completion
+            RuntimeError: If no completion registry configured
+        """
+        wait_config = rendered_step.wait
+        completion_id = wait_config.get("completion_id")
+        timeout = wait_config.get("timeout", 600)
+
+        if not completion_id:
+            raise ValueError(f"wait step requires completion_id, got: {wait_config}")
+
+        if not self.completion_registry:
+            raise RuntimeError(
+                f"wait step '{rendered_step.id}' requires a completion_registry "
+                "but none is configured on the PipelineExecutor"
+            )
+
+        # Convert timeout to float
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError):
+            timeout = 600.0
+
+        logger.info(
+            f"Wait step '{rendered_step.id}' blocking on completion_id={completion_id} "
+            f"(timeout={timeout}s)"
+        )
+
+        result = await self.completion_registry.wait(completion_id, timeout=timeout)
+        return result
 
     async def approve(
         self,

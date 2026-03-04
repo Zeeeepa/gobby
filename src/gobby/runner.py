@@ -360,6 +360,11 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Failed to initialize workflow loader: {e}")
 
+        # Initialize completion event registry for push-based notifications
+        from gobby.events.completion_registry import CompletionEventRegistry
+
+        self.completion_registry = CompletionEventRegistry()
+
         # Create pipeline executor at startup if we have project context
         if self.workflow_loader is not None and self.project_id:
             try:
@@ -377,6 +382,7 @@ class GobbyRunner:
                     loader=self.workflow_loader,
                     template_engine=TemplateEngine(),
                     session_manager=self.session_manager,
+                    completion_registry=self.completion_registry,
                 )
                 logger.info("Pipeline executor initialized at startup")
             except Exception as e:
@@ -401,6 +407,7 @@ class GobbyRunner:
                 session_storage=self.session_manager,
                 executors=executors,
                 max_agent_depth=5,
+                completion_registry=self.completion_registry,
             )
             logger.debug(f"AgentRunner initialized with executors: {list(executors.keys())}")
         except Exception as e:
@@ -480,6 +487,7 @@ class GobbyRunner:
             pipeline_executor=self.pipeline_executor,
             workflow_loader=self.workflow_loader,
             pipeline_execution_manager=self.pipeline_execution_manager,
+            completion_registry=self.completion_registry,
             agent_lifecycle_monitor=self.agent_lifecycle_monitor,
             cron_storage=self.cron_storage,
             cron_scheduler=self.cron_scheduler,

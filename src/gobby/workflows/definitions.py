@@ -406,7 +406,7 @@ class MCPStepConfig(BaseModel):
 class PipelineStep(BaseModel):
     """A single step in a pipeline workflow.
 
-    Steps must have exactly one execution type: exec, prompt, invoke_pipeline, or mcp.
+    Steps must have exactly one execution type: exec, prompt, invoke_pipeline, mcp, or wait.
     """
 
     id: str
@@ -417,6 +417,7 @@ class PipelineStep(BaseModel):
     invoke_pipeline: str | dict[str, Any] | None = None  # Name of pipeline to invoke
     mcp: MCPStepConfig | None = None  # Call MCP tool directly
     activate_workflow: dict[str, Any] | None = None  # Activate workflow on session
+    wait: dict[str, Any] | None = None  # Block until completion event fires
 
     # Optional fields
     condition: str | None = None  # Condition for step execution
@@ -432,18 +433,19 @@ class PipelineStep(BaseModel):
             self.invoke_pipeline,
             self.mcp,
             self.activate_workflow,
+            self.wait,
         ]
         specified = [t for t in exec_types if t is not None]
 
         if len(specified) == 0:
             raise ValueError(
                 "PipelineStep requires at least one execution type: "
-                "exec, prompt, invoke_pipeline, mcp, or activate_workflow"
+                "exec, prompt, invoke_pipeline, mcp, activate_workflow, or wait"
             )
         if len(specified) > 1:
             raise ValueError(
-                "PipelineStep exec, prompt, invoke_pipeline, mcp, and activate_workflow "
-                "are mutually exclusive - only one allowed"
+                "PipelineStep exec, prompt, invoke_pipeline, mcp, activate_workflow, "
+                "and wait are mutually exclusive - only one allowed"
             )
 
 

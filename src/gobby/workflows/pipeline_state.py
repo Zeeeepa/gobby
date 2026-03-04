@@ -13,14 +13,28 @@ from typing import Any
 
 
 class ExecutionStatus(Enum):
-    """Status values for pipeline executions."""
+    """Status of a pipeline execution."""
 
     PENDING = "pending"
+    """Initial state. Execution created but not yet started."""
+
     RUNNING = "running"
+    """Pipeline is actively executing steps."""
+
     WAITING_APPROVAL = "waiting_approval"
+    """Paused at an approval gate. Resumes on approve/reject."""
+
     COMPLETED = "completed"
+    """All steps finished successfully. Terminal state."""
+
     FAILED = "failed"
+    """A step raised an unrecoverable error. Terminal state."""
+
     CANCELLED = "cancelled"
+    """Execution was stopped by a deliberate decision. Terminal state."""
+
+    INTERRUPTED = "interrupted"
+    """Was running when daemon stopped. Non-terminal — can be resumed or retried."""
 
 
 class StepStatus(Enum):
