@@ -1,8 +1,8 @@
-tags: [progressive-disclosure, enforcement, mcp]
+tags: [progressive-discovery, enforcement, mcp]
 
 rules:
-  reset-progressive-disclosure:
-    description: "Clear all progressive disclosure state on context loss"
+  reset-progressive-discovery:
+    description: "Clear all progressive discovery state on context loss"
     event: session_start
     enabled: false
     priority: 80

@@ -703,7 +703,7 @@ class RuleEngine:
         tool_name = event.data.get("tool_name", "")
         wf_name = instance.workflow_name
 
-        # Discovery tools always pass — agents need progressive disclosure in every step
+        # Discovery tools always pass — agents need progressive discovery in every step
         if tool_name.startswith("mcp__gobby__"):
             mcp_suffix = tool_name[len("mcp__gobby__") :]
             if is_discovery_tool(mcp_suffix):

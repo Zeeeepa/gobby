@@ -1,8 +1,8 @@
 ---
 name: progressive-discovery
-description: "Progressive disclosure pattern for MCP tools and skills. Teaches agents just-in-time discovery to minimize token usage."
+description: "Progressive discovery pattern for MCP tools and skills. Teaches agents just-in-time discovery to minimize token usage."
 category: core
-alwaysApply: true
+alwaysApply: false
 injectionFormat: content
 metadata:
   gobby:
@@ -19,7 +19,7 @@ metadata:
 - Search: `search_skills(query="topic")` on `gobby-skills`
 - Hubs: `search_hub(query)` on `gobby-skills`
 
-**MCP Tools** — progressive disclosure (each step gates the next):
+**MCP Tools** — progressive discovery (each step gates the next):
 1. `list_mcp_servers()` — discover servers (~50 tokens)
 2. `list_tools(server_name)` — discover tools (~100 tokens per server)
 3. `get_tool_schema(server_name, tool_name)` — get full inputSchema (just-in-time)

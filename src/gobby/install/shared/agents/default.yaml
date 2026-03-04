@@ -33,7 +33,7 @@ instructions: |
   disclosure).
 
   ## Tool Usage
-  Use progressive disclosure for MCP tools:
+  Use progressive discovery for MCP tools:
   1. list_mcp_servers() — discover servers
   2. list_tools(server_name) — see what's available
   3. get_tool_schema(server_name, tool_name) — get schema first

@@ -1,7 +1,7 @@
-# Progressive disclosure rules - enforce tool discovery order.
+# Progressive discovery rules - enforce tool discovery order.
 # Requires list_mcp_servers → list_tools → get_tool_schema → call_tool.
 
-group: progressive-disclosure
+group: progressive-discovery
 tags: [enforcement, mcp]
 
 rules:

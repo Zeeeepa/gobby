@@ -29,7 +29,7 @@ instructions: |
   - Do NOT use raw git merge commands. Use ONLY merge_worktree MCP tool. Exception: you are allowed to run 'git fetch origin'.
   - Do NOT edit or write files — you only merge.
   - Do NOT stop or exit without calling kill_agent.
-  - Use progressive disclosure: list_mcp_servers → list_tools → get_tool_schema → call_tool.
+  - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
 
 step_variables:
   merge_complete: false

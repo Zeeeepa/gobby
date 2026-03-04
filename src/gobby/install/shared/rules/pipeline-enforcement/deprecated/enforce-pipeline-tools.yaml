@@ -11,4 +11,4 @@ rules:
       type: block
       reason: >
         Pipeline agent: only MCP discovery and pipeline execution tools are allowed.
-        Use progressive disclosure to discover servers, then call run_pipeline.
+        Use progressive discovery to discover servers, then call run_pipeline.

@@ -175,7 +175,7 @@ class ToolProxyService:
         session_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        List tools for a specific server with progressive disclosure format.
+        List tools for a specific server with progressive discovery format.
 
         When session_id is provided and a workflow is active, tools are filtered
         based on the current phase's allowed_tools and blocked_tools settings.

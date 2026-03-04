@@ -1,6 +1,6 @@
-"""Tests for progressive-disclosure.yaml rules.
+"""Tests for progressive-discovery.yaml rules.
 
-Verifies blocking rules enforce progressive disclosure (list_mcp_servers →
+Verifies blocking rules enforce progressive discovery (list_mcp_servers →
 list_tools → get_tool_schema → call_tool), tracker rules record state,
 and reset rules clear state on context loss.
 
@@ -27,7 +27,7 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db(tmp_path) -> LocalDatabase:
-    db_path = tmp_path / "test_progressive_disclosure.db"
+    db_path = tmp_path / "test_progressive_discovery.db"
     database = LocalDatabase(db_path)
     run_migrations(database)
     return database
@@ -55,15 +55,15 @@ PROGRESSIVE_DISCLOSURE_RULES = {
     "track-schema-lookup",
     "track-servers-listed",
     "track-listed-servers",
-    "reset-progressive-disclosure",
+    "reset-progressive-discovery",
 }
 
 
 class TestProgressiveDisclosureSync:
-    """Test that progressive-disclosure.yaml syncs correctly."""
+    """Test that progressive-discovery.yaml syncs correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
-        """All progressive-disclosure rules should sync to workflow_definitions."""
+        """All progressive-discovery rules should sync to workflow_definitions."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
@@ -73,15 +73,15 @@ class TestProgressiveDisclosureSync:
             f"Missing: {PROGRESSIVE_DISCLOSURE_RULES - rule_names}"
         )
 
-    def test_all_rules_have_progressive_disclosure_tag(self, db, manager) -> None:
-        """All rules should be tagged with 'progressive-disclosure'."""
+    def test_all_rules_have_progressive_discovery_tag(self, db, manager) -> None:
+        """All rules should be tagged with 'progressive-discovery'."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
         for row in rules:
             if row.name in PROGRESSIVE_DISCLOSURE_RULES:
-                assert row.tags and "progressive-disclosure" in row.tags, (
-                    f"{row.name} missing 'progressive-disclosure' tag"
+                assert row.tags and "progressive-discovery" in row.tags, (
+                    f"{row.name} missing 'progressive-discovery' tag"
                 )
 
     def test_all_rules_are_valid_pydantic(self, db, manager) -> None:
@@ -256,13 +256,13 @@ class TestTrackListedServers:
 
 
 class TestResetRules:
-    """Verify reset-progressive-disclosure multi-effect rule clears all state on context loss."""
+    """Verify reset-progressive-discovery multi-effect rule clears all state on context loss."""
 
     def test_resets_all_three_variables(self, db, manager) -> None:
         """Should reset unlocked_tools, servers_listed, and listed_servers."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("reset-progressive-disclosure")
+        row = manager.get_by_name("reset-progressive-discovery")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -280,7 +280,7 @@ class TestResetRules:
         """Reset rule should fire on clear, compact, and conditional resume."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("reset-progressive-disclosure")
+        row = manager.get_by_name("reset-progressive-discovery")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
@@ -289,7 +289,7 @@ class TestResetRules:
 
 
 class TestPriorityOrdering:
-    """Verify priority ordering within progressive-disclosure group."""
+    """Verify priority ordering within progressive-discovery group."""
 
     def test_blocks_ordered_before_trackers(self, db, manager) -> None:
         """Block rules should have lower or equal priority numbers to tracker rules."""
@@ -323,7 +323,7 @@ def _make_hook_event(
 
 
 class TestRuleEngineIntegration:
-    """End-to-end tests: RuleEngine.evaluate() with progressive disclosure rules.
+    """End-to-end tests: RuleEngine.evaluate() with progressive discovery rules.
 
     These test the actual condition evaluation path including is_server_listed,
     is_tool_unlocked, and is_discovery_tool — the functions that were missing
@@ -333,7 +333,7 @@ class TestRuleEngineIntegration:
     @pytest.fixture
     def engine(self, db) -> RuleEngine:
         _sync_bundled(db)
-        # Disable all rules first, then enable only the progressive disclosure rules
+        # Disable all rules first, then enable only the progressive discovery rules
         # (avoids interference from other rules that may have been synced as enabled)
         db.execute("UPDATE workflow_definitions SET enabled = 0")
         for name in PROGRESSIVE_DISCLOSURE_RULES:

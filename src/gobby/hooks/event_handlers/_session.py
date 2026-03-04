@@ -343,7 +343,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Step 2c: Pipeline workflows are executed by the agent via run_pipeline MCP tool.
         # Agent rules enforce pipeline execution by blocking all tools except
-        # progressive disclosure and run_pipeline.
+        # progressive discovery and run_pipeline.
         if workflow_name and session_id:
             self.logger.debug(
                 "Pipeline workflow registered for session — agent will execute via run_pipeline",

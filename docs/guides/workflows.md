@@ -283,7 +283,7 @@ Gobby ships with 11 rule groups that are synced to the database on startup:
 |-------|-------|---------|
 | `worker-safety` | 4 | Block git push, force push, destructive git, require task before edit |
 | `tool-hygiene` | 2 | Require `uv` for Python, track pending memory review |
-| `progressive-disclosure` | 9 | Enforce MCP tool discovery order (list_servers → list_tools → get_schema → call_tool) |
+| `progressive-discovery` | 9 | Enforce MCP tool discovery order (list_servers → list_tools → get_schema → call_tool) |
 | `task-enforcement` | 8 | Block native task tools, require task before edit, commits before close |
 | `stop-gates` | 10 | Count stop attempts, block premature stops, reset on new prompt |
 | `plan-mode` | 5 | Detect enter/exit plan mode, manage mode_level |

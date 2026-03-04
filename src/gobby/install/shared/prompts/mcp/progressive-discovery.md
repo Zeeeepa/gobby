@@ -1,12 +1,12 @@
 ---
-name: mcp-progressive-disclosure
-description: MCP server instructions for progressive tool disclosure
+name: mcp-progressive-discovery
+description: MCP server instructions for progressive tool discovery
 version: "1.0"
 ---
 <gobby_system>
 
 <tool_discovery>
-Progressive disclosure is ENFORCED — each step gates the next:
+Progressive discovery is ENFORCED — each step gates the next:
 1. `list_mcp_servers()` — Must call first (once per session)
 2. `list_tools(server_name="...")` — Unlocked after step 1; call per server
 3. `get_tool_schema(server_name, tool_name)` — Unlocked after step 2 for that server
@@ -17,7 +17,7 @@ The name `"gobby"` is the MCP proxy namespace, not a server name.
 </tool_discovery>
 
 <skills>
-Discover skills with progressive disclosure too:
+Discover skills with progressive discovery too:
 1. `list_skills()` on `gobby-skills` — Names and descriptions
 2. `get_skill(name="...")` — Full skill content (use after list_skills or search_skills)
 3. `search_skills(query="...")` — Semantic search by topic (independent entry point, like list_skills)
@@ -43,7 +43,7 @@ RIGHT — Just-in-time discovery:
 <rules>
 - Create/claim a task before using Edit, Write, or NotebookEdit tools
 - Pass session_id to create_task (required), claim_task (required), and close_task (optional, for tracking)
-- NEVER load all tool schemas upfront — use progressive disclosure
+- NEVER load all tool schemas upfront — use progressive discovery
 </rules>
 
 </gobby_system>

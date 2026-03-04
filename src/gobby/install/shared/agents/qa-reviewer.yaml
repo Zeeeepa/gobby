@@ -26,7 +26,7 @@ instructions: |
   - Do NOT call git push — the merge agent handles pushing.
   - Do NOT stop or exit without calling kill_agent.
   - Always use `uv run` for Python commands.
-  - Use progressive disclosure: list_mcp_servers → list_tools → get_tool_schema → call_tool.
+  - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
 
 step_variables:
   review_complete: false

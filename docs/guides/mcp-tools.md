@@ -9,7 +9,7 @@ Gobby exposes **145+ internal tools** across 11 tool registries, plus direct too
 1. **Direct Tools** - Called directly on the Gobby MCP server
 2. **Internal Tools** - Called via `call_tool()` to `gobby-*` registries
 
-## Progressive Disclosure Pattern
+## Progressive Discovery Pattern
 
 For token efficiency, use the three-step workflow **on-demand** when you need a tool:
 
@@ -103,7 +103,7 @@ call_tool("gobby-tasks", "create_task", {
 
 #### `list_tools(server_name?)`
 
-List tools with lightweight metadata for progressive disclosure.
+List tools with lightweight metadata for progressive discovery.
 
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |

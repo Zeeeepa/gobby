@@ -34,7 +34,7 @@ instructions: |
   - Do NOT call execute_expansion — that's the pipeline's job.
   - Do NOT call close_task or create_task — you only produce specs.
   - Do NOT summarize plan sections — preserve full content verbatim.
-  - Always use progressive disclosure for MCP tools.
+  - Always use progressive discovery for MCP tools.
 
 step_variables:
   spec_saved: false
