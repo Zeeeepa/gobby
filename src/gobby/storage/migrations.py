@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 134
+BASELINE_VERSION = 135
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -847,6 +847,17 @@ CREATE TABLE model_costs (
     source TEXT NOT NULL DEFAULT 'litellm',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE task_affected_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    file_path TEXT NOT NULL,
+    annotation_source TEXT NOT NULL DEFAULT 'expansion',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(task_id, file_path)
+);
+CREATE INDEX idx_taf_task_id ON task_affected_files(task_id);
+CREATE INDEX idx_taf_file_path ON task_affected_files(file_path);
 """
 
 # Migrations beyond v133.
@@ -863,6 +874,20 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     source TEXT NOT NULL DEFAULT 'litellm',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 )""",
+    ),
+    (
+        135,
+        "Add task_affected_files table for file-based dependency analysis",
+        """CREATE TABLE task_affected_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    file_path TEXT NOT NULL,
+    annotation_source TEXT NOT NULL DEFAULT 'expansion',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(task_id, file_path)
+);
+CREATE INDEX idx_taf_task_id ON task_affected_files(task_id);
+CREATE INDEX idx_taf_file_path ON task_affected_files(file_path)""",
     ),
 ]
 
