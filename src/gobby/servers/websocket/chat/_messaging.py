@@ -203,6 +203,9 @@ class ChatMessagingMixin:
             logger.warning("Chat message from unregistered client")
             return
 
+        # Track which conversation this client is in (for scoped broadcasts)
+        client_info["conversation_id"] = conversation_id
+
         # Extract inject_context for tool result injection into LLM conversation
         inject_context = data.get("inject_context")
 
