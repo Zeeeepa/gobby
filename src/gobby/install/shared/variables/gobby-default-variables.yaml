@@ -31,6 +31,15 @@ variables:
   pre_existing_errors_triaged:
     value: false
     description: Default pre_existing_errors_triaged to false
+  enforce_tdd:
+    value: false
+    description: "Enable TDD enforcement (block new code files until test is written first)"
+  tdd_nudged_files:
+    value: []
+    description: "Files that have been TDD-nudged this session (internal)"
+  tdd_tests_written:
+    value: []
+    description: "Test files written during TDD this session (internal)"
   enforce_tool_schema_check:
     value: true
     description: Default enforce_tool_schema_check to true
