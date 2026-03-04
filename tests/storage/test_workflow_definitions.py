@@ -426,6 +426,8 @@ def test_list_all_filter_project(
         ("proj-1", "Test Project"),
     )
 
+    # Create a global workflow (project_id=NULL)
+    manager.create(name="global-wf", definition_json=SAMPLE_DEFINITION)
     manager.create(name="proj-wf", definition_json=SAMPLE_DEFINITION, project_id="proj-1")
 
     results = manager.list_all(project_id="proj-1")
@@ -433,7 +435,7 @@ def test_list_all_filter_project(
 
     # Should include project-scoped AND global
     assert "proj-wf" in names
-    # Bundled (global) workflows should also be present
+    assert "global-wf" in names
     assert any(w.project_id is None for w in results)
 
 
@@ -573,9 +575,13 @@ def test_install_from_template_preserves_disabled(manager: LocalWorkflowDefiniti
     assert installed.enabled is False
 
 
-def test_install_from_template_rejects_non_template(manager: LocalWorkflowDefinitionManager) -> None:
+def test_install_from_template_rejects_non_template(
+    manager: LocalWorkflowDefinitionManager,
+) -> None:
     """Test that installing a non-template item raises ValueError."""
-    installed = manager.create(name="custom-item", definition_json=SAMPLE_DEFINITION, source="installed")
+    installed = manager.create(
+        name="custom-item", definition_json=SAMPLE_DEFINITION, source="installed"
+    )
 
     with pytest.raises(ValueError, match="not a template"):
         manager.install_from_template(installed.id)
@@ -595,9 +601,7 @@ def test_install_from_template_rejects_duplicate(manager: LocalWorkflowDefinitio
 # =============================================================================
 
 
-def test_move_to_project(
-    db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_move_to_project(db: LocalDatabase, manager: LocalWorkflowDefinitionManager) -> None:
     """Test moving an installed definition to project scope."""
     db.execute(
         "INSERT INTO projects (id, name, created_at, updated_at) "
@@ -614,9 +618,7 @@ def test_move_to_project(
     assert moved.project_id == "proj-1"
 
 
-def test_move_to_global(
-    db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-) -> None:
+def test_move_to_global(db: LocalDatabase, manager: LocalWorkflowDefinitionManager) -> None:
     """Test moving a project-scoped definition to global scope."""
     db.execute(
         "INSERT INTO projects (id, name, created_at, updated_at) "
@@ -655,11 +657,19 @@ def test_move_template_raises(manager: LocalWorkflowDefinitionManager) -> None:
 
 def test_install_all_templates(manager: LocalWorkflowDefinitionManager) -> None:
     """Test bulk installation of all eligible template definitions."""
-    manager.create(name="b1", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
-    manager.create(name="b2", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
+    manager.create(
+        name="b1", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule"
+    )
+    manager.create(
+        name="b2", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule"
+    )
     # Already has a custom counterpart - should be skipped
-    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule")
-    manager.create(name="b3", definition_json=SAMPLE_DEFINITION, source="installed", workflow_type="rule")
+    manager.create(
+        name="b3", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule"
+    )
+    manager.create(
+        name="b3", definition_json=SAMPLE_DEFINITION, source="installed", workflow_type="rule"
+    )
 
     created = manager.install_all_templates(workflow_type="rule")
 
