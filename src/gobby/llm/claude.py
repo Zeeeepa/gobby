@@ -103,11 +103,11 @@ class ClaudeLLMProvider(LLMProvider):
 
         return find_cli_path()
 
-    def _verify_cli_path(self) -> str | None:
+    async def _verify_cli_path(self) -> str | None:
         """Verify CLI path is still valid. Delegates to claude_cli.verify_cli_path()."""
         from gobby.llm.claude_cli import verify_cli_path
 
-        cli_path = verify_cli_path(self._claude_cli_path)
+        cli_path = await verify_cli_path(self._claude_cli_path)
         self._claude_cli_path = cli_path
         return cli_path
 
@@ -219,7 +219,7 @@ class ClaudeLLMProvider(LLMProvider):
         Always tries SDK first (works with any auth_mode if CLI is available),
         falls back to LiteLLM only if CLI is unavailable.
         """
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_summary_sdk(context, prompt_template)
         elif self._litellm:
@@ -231,7 +231,7 @@ class ClaudeLLMProvider(LLMProvider):
         self, context: dict[str, Any], prompt_template: str | None = None
     ) -> str:
         """Generate session summary using Claude Agent SDK (subscription mode)."""
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if not cli_path:
             return "Session summary unavailable (Claude CLI not found)"
 
@@ -303,7 +303,7 @@ class ClaudeLLMProvider(LLMProvider):
 
         Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
         """
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_text_sdk(prompt, system_prompt, model, max_tokens)
         elif self._litellm:
@@ -319,7 +319,7 @@ class ClaudeLLMProvider(LLMProvider):
         max_tokens: int | None = None,
     ) -> str:
         """Generate text using Claude Agent SDK (subscription mode)."""
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if not cli_path:
             raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
@@ -430,7 +430,7 @@ class ClaudeLLMProvider(LLMProvider):
             RuntimeError: If no LLM backend is available
             ValueError: If response is empty or not valid JSON
         """
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_json_sdk(prompt, system_prompt, model)
         elif self._litellm:
@@ -557,7 +557,7 @@ class ClaudeLLMProvider(LLMProvider):
                 tool_calls=[],
             )
 
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if not cli_path:
             return MCPToolResult(
                 text="Generation unavailable (Claude CLI not found)",
@@ -703,7 +703,7 @@ class ClaudeLLMProvider(LLMProvider):
             yield DoneEvent(tool_calls_count=0)
             return
 
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if not cli_path:
             yield TextChunk(content="Generation unavailable (Claude CLI not found)")
             yield DoneEvent(tool_calls_count=0)
@@ -782,7 +782,7 @@ class ClaudeLLMProvider(LLMProvider):
         context: str | None = None,
     ) -> str:
         """Describe image using Claude Agent SDK (subscription mode)."""
-        cli_path = self._verify_cli_path()
+        cli_path = await self._verify_cli_path()
         if not cli_path:
             return "Image description unavailable (Claude CLI not found)"
 
