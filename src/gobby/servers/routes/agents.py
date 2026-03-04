@@ -263,7 +263,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             for key in (
                 "name",
                 "description",
-                "extends",
                 "sources",
                 "role",
                 "goal",
