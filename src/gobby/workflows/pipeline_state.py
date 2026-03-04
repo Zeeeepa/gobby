@@ -86,7 +86,9 @@ class PipelineExecution:
             resume_token=row["resume_token"],
             session_id=row["session_id"],
             parent_execution_id=row["parent_execution_id"],
-            continuation_prompt=row["continuation_prompt"] if "continuation_prompt" in row.keys() else None,
+            continuation_prompt=row["continuation_prompt"]
+            if "continuation_prompt" in row.keys()
+            else None,
         )
 
     def to_dict(self) -> dict[str, Any]:

@@ -360,9 +360,7 @@ class RuleEngine:
         rules: list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]],
         variables: dict[str, Any],
     ) -> list[tuple[WorkflowDefinitionRow, RuleDefinitionBody]]:
-        """Filter rules based on resolved selectors (if any) stored in session variables.
-
-        """
+        """Filter rules based on resolved selectors (if any) stored in session variables."""
         active_names = variables.get("_active_rule_names")
         if active_names is None:
             return rules  # no filter — current behavior preserved

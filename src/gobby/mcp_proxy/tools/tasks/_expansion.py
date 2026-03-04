@@ -383,9 +383,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # 5. Plan section coverage
         if task.description:
-            plan_sections = set(
-                re.findall(r"^###\s+(\d+\.\d+)\s", task.description, re.MULTILINE)
-            )
+            plan_sections = set(re.findall(r"^###\s+(\d+\.\d+)\s", task.description, re.MULTILINE))
             if plan_sections:
                 covered: set[str] = set()
                 for st in subtasks:
@@ -398,9 +396,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
                 missing = plan_sections - covered
                 if missing:
-                    errors.append(
-                        f"Plan sections not covered by any subtask: {sorted(missing)}"
-                    )
+                    errors.append(f"Plan sections not covered by any subtask: {sorted(missing)}")
 
         return {
             "valid": len(errors) == 0,

@@ -69,7 +69,7 @@ def _register_agent_step_workflow(
         "type": "step",
         "version": "2.0",
         "enabled": False,
-        "steps": [step.model_dump() for step in agent_body.steps],
+        "steps": [step.model_dump() for step in (agent_body.steps or [])],
         "variables": agent_body.step_variables,
         "exit_condition": agent_body.exit_condition,
     }
@@ -293,8 +293,11 @@ def create_spawn_agent_registry(
         run_id = result.get("run_id")
         if result.get("success") and run_id and completion_registry and resolved_parent_session_id:
             _auto_subscribe_agent(
-                completion_registry, run_id, resolved_parent_session_id,
-                session_manager, db,
+                completion_registry,
+                run_id,
+                resolved_parent_session_id,
+                session_manager,
+                db,
             )
 
         return result
@@ -321,7 +324,9 @@ def _auto_subscribe_agent(
             if parent_session_id not in lineage_ids:
                 lineage_ids.append(parent_session_id)
         except Exception:
-            logger.debug("Could not resolve session lineage for %s", parent_session_id, exc_info=True)
+            logger.debug(
+                "Could not resolve session lineage for %s", parent_session_id, exc_info=True
+            )
 
     try:
         completion_registry.register(run_id, subscribers=lineage_ids)
@@ -337,4 +342,6 @@ def _auto_subscribe_agent(
             em = LocalPipelineExecutionManager(db=db, project_id="")
             em.add_completion_subscribers(run_id, lineage_ids)
         except Exception:
-            logger.debug("Failed to persist completion subscribers for run %s", run_id, exc_info=True)
+            logger.debug(
+                "Failed to persist completion subscribers for run %s", run_id, exc_info=True
+            )

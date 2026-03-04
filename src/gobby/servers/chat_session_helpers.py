@@ -20,10 +20,9 @@ from claude_agent_sdk.types import (
     UserPromptSubmitHookSpecificOutput,
 )
 
-logger = logging.getLogger(__name__)
-
-from gobby.llm.sdk_utils import ADDITIONAL_CONTEXT_LIMIT as _ADDITIONAL_CONTEXT_LIMIT
 from gobby.llm.sdk_utils import truncate_additional_context as _truncate
+
+logger = logging.getLogger(__name__)
 
 # Tools that are blocked in plan mode (write operations)
 _PLAN_MODE_BLOCKED_TOOLS: frozenset[str] = frozenset({"Edit", "Write", "NotebookEdit"})
@@ -108,9 +107,6 @@ def _find_mcp_config() -> str | None:
             return str(config)
 
     return None
-
-
-from gobby.llm.sdk_utils import parse_server_name as _parse_server_name
 
 
 def _response_to_prompt_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:

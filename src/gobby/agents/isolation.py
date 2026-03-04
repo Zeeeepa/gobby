@@ -467,9 +467,7 @@ class CloneIsolationHandler(IsolationHandler):
 
             # Check for unpushed commits on the base branch
             try:
-                has_unpushed, unpushed_count = self._git_manager.has_unpushed_commits(
-                    base_branch
-                )
+                has_unpushed, unpushed_count = self._git_manager.has_unpushed_commits(base_branch)
                 if has_unpushed:
                     use_local = True
                     import logging

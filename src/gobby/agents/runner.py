@@ -522,9 +522,7 @@ class AgentRunner:
             self._tracker.untrack(agent_run.id)
 
             # Notify completion registry
-            await self._notify_completion(
-                agent_run.id, result.status, result.output, result.error
-            )
+            await self._notify_completion(agent_run.id, result.status, result.output, result.error)
 
             # Set run_id and child_session_id on the result so callers don't need to call list_runs()
             result.run_id = agent_run.id
@@ -547,9 +545,7 @@ class AgentRunner:
             self._tracker.untrack(agent_run.id)
 
             # Notify completion registry
-            await self._notify_completion(
-                agent_run.id, "error", None, str(e)
-            )
+            await self._notify_completion(agent_run.id, "error", None, str(e))
 
             return AgentResult(
                 output="",
@@ -580,7 +576,8 @@ class AgentRunner:
             await self._completion_registry.notify(run_id, result)
         except Exception:
             self.logger.warning(
-                "Failed to notify completion registry for run %s", run_id,
+                "Failed to notify completion registry for run %s",
+                run_id,
                 exc_info=True,
             )
 

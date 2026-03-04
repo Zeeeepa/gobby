@@ -89,7 +89,9 @@ def _auto_subscribe_lineage(
     # Register in-memory event + subscribers
     try:
         completion_registry.register(
-            completion_id, subscribers=lineage_ids, continuation_prompt=continuation_prompt,
+            completion_id,
+            subscribers=lineage_ids,
+            continuation_prompt=continuation_prompt,
         )
     except Exception:
         logger.debug("Failed to register completion event %s", completion_id, exc_info=True)
@@ -104,7 +106,9 @@ def _auto_subscribe_lineage(
             em = LocalPipelineExecutionManager(db=db, project_id="")
             em.add_completion_subscribers(completion_id, lineage_ids)
         except Exception:
-            logger.debug("Failed to persist completion subscribers for %s", completion_id, exc_info=True)
+            logger.debug(
+                "Failed to persist completion subscribers for %s", completion_id, exc_info=True
+            )
 
 
 def _resolve_session_ref(ref: str, session_manager: "LocalSessionManager | None") -> str:
@@ -160,8 +164,12 @@ def create_pipelines_registry(
 
     # Register dynamic tools for pipelines with expose_as_tool=True
     _register_exposed_pipeline_tools(
-        registry, _loader, _get_executor, session_manager,
-        completion_registry=_completion_registry, db=db,
+        registry,
+        _loader,
+        _get_executor,
+        session_manager,
+        completion_registry=_completion_registry,
+        db=db,
     )
 
     @registry.tool(
@@ -265,8 +273,12 @@ def create_pipelines_registry(
         execution_id = result.get("execution_id")
         if result.get("success") and execution_id and _completion_registry:
             _auto_subscribe_lineage(
-                _completion_registry, execution_id, resolved_id,
-                session_manager, continuation_prompt, db,
+                _completion_registry,
+                execution_id,
+                resolved_id,
+                session_manager,
+                continuation_prompt,
+                db,
             )
 
         return result
@@ -457,8 +469,13 @@ def _register_exposed_pipeline_tools(
             continue
 
         _create_pipeline_tool(
-            registry, pipeline, loader, executor_getter, session_manager,
-            completion_registry=completion_registry, db=db,
+            registry,
+            pipeline,
+            loader,
+            executor_getter,
+            session_manager,
+            completion_registry=completion_registry,
+            db=db,
         )
 
 
@@ -526,8 +543,12 @@ def _create_pipeline_tool(
         execution_id = result.get("execution_id")
         if result.get("success") and execution_id and _completion_registry:
             _auto_subscribe_lineage(
-                _completion_registry, execution_id, resolved_id,
-                session_manager, continuation_prompt, db,
+                _completion_registry,
+                execution_id,
+                resolved_id,
+                session_manager,
+                continuation_prompt,
+                db,
             )
 
         return result

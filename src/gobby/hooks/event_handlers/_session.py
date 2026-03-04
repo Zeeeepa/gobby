@@ -403,9 +403,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     # BEFORE_AGENT (fire-and-forget). Poll until it arrives.
                     # For /compact: PRE_COMPACT already kicked it off.
                     # Both paths wait for the summary to be generated.
-                    needs_wait = (
-                        (session_source == "clear" and not parent.summary_markdown)
-                        or (session_source == "compact" and not parent.compact_markdown)
+                    needs_wait = (session_source == "clear" and not parent.summary_markdown) or (
+                        session_source == "compact" and not parent.compact_markdown
                     )
                     if needs_wait:
                         # Ensure generation is started (idempotent if already running)
@@ -735,16 +734,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Deterministic claimed task context injection for pre-created sessions
         if session_id and existing_session.project_id and not event.task_id:
-            claimed_ctx = self._build_claimed_task_context(
-                session_id, existing_session.project_id
-            )
+            claimed_ctx = self._build_claimed_task_context(session_id, existing_session.project_id)
             if claimed_ctx:
                 additional_context.append(claimed_ctx)
 
         # Fetch claimed task info for system_message tree display
-        claimed_tasks_info = self._get_claimed_task_info(
-            session_id, existing_session.project_id
-        )
+        claimed_tasks_info = self._get_claimed_task_info(session_id, existing_session.project_id)
 
         return self._compose_session_response(
             session=existing_session,

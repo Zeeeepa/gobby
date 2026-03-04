@@ -183,7 +183,9 @@ class StepRenderer:
                     resolved = self._resolve_expression(m.group(1), context)
                     # Coerce string results (e.g. "600" → 600) but preserve
                     # native types like list/dict unchanged.
-                    rendered[key] = self._coerce_value(resolved) if isinstance(resolved, str) else resolved
+                    rendered[key] = (
+                        self._coerce_value(resolved) if isinstance(resolved, str) else resolved
+                    )
                 else:
                     rendered_val = self.render_string(value, context)
                     rendered[key] = self._coerce_value(rendered_val)

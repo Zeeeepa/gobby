@@ -33,11 +33,9 @@ from gobby.llm.claude_models import (
     ToolResultEvent,
     resolve_context_window,
 )
+from gobby.llm.sdk_utils import format_exception_group, parse_server_name, sanitize_error
 
 logger = logging.getLogger(__name__)
-
-
-from gobby.llm.sdk_utils import format_exception_group, parse_server_name, sanitize_error
 
 
 async def stream_with_mcp_tools(

@@ -60,7 +60,9 @@ class AgentRun:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             sdk_session_id=row["sdk_session_id"] if "sdk_session_id" in row.keys() else None,
-            continuation_prompt=row["continuation_prompt"] if "continuation_prompt" in row.keys() else None,
+            continuation_prompt=row["continuation_prompt"]
+            if "continuation_prompt" in row.keys()
+            else None,
         )
 
     def to_dict(self) -> dict[str, Any]:

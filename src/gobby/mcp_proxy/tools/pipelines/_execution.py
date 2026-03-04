@@ -224,10 +224,7 @@ async def run_pipeline(
         "success": True,
         "status": "running",
         "execution_id": execution_id,
-        "message": (
-            f"Pipeline '{name}' started. "
-            "You will be notified when it completes."
-        ),
+        "message": (f"Pipeline '{name}' started. You will be notified when it completes."),
     }
 
 

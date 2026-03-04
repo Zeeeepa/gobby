@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable, Coroutine
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -119,11 +119,11 @@ class WakeDispatcher:
             # Check if session itself has an external_id (SDK session)
             session = self._session_manager.get(session_id)
             if session and getattr(session, "external_id", None):
-                return session.external_id
+                return cast(str | None, session.external_id)
 
             # Check agent_runs where this session is the child
             sdk_id = self._agent_run_manager.get_sdk_session_id_for_session(session_id)
-            return sdk_id
+            return cast(str | None, sdk_id)
         except Exception:
             logger.debug(
                 "Could not resolve sdk_session_id for session %s",
@@ -154,6 +154,6 @@ class WakeDispatcher:
         """Extract tmux session name from terminal_context JSON."""
         try:
             ctx = json.loads(terminal_context)
-            return ctx.get("tmux_session")
+            return cast(str | None, ctx.get("tmux_session"))
         except (json.JSONDecodeError, TypeError):
             return None

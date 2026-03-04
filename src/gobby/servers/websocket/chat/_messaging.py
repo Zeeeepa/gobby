@@ -291,9 +291,7 @@ class ChatMessagingMixin:
                 return True
             except (ConnectionClosed, ConnectionClosedError):
                 ws_connected = False
-                logger.debug(
-                    "Client disconnected during chat stream for %s", conversation_id[:8]
-                )
+                logger.debug("Client disconnected during chat stream for %s", conversation_id[:8])
                 return False
 
         def _session_ref() -> str | None:
@@ -327,12 +325,14 @@ class ChatMessagingMixin:
             except Exception as e:
                 logger.error(f"Failed to persist {role} message for {conversation_id[:8]}: {e}")
                 try:
-                    await _safe_send({
-                        "type": "chat_warning",
-                        "conversation_id": conversation_id,
-                        "warning": "Message may not be saved to history",
-                        "code": "PERSIST_FAILED",
-                    })
+                    await _safe_send(
+                        {
+                            "type": "chat_warning",
+                            "conversation_id": conversation_id,
+                            "warning": "Message may not be saved to history",
+                            "code": "PERSIST_FAILED",
+                        }
+                    )
                 except Exception:
                     pass
 
@@ -406,12 +406,14 @@ class ChatMessagingMixin:
             except Exception as e:
                 logger.error(f"Failed to persist tool call for {conversation_id[:8]}: {e}")
                 try:
-                    await _safe_send({
-                        "type": "chat_warning",
-                        "conversation_id": conversation_id,
-                        "warning": "Tool call may not be saved to history",
-                        "code": "PERSIST_FAILED",
-                    })
+                    await _safe_send(
+                        {
+                            "type": "chat_warning",
+                            "conversation_id": conversation_id,
+                            "warning": "Tool call may not be saved to history",
+                            "code": "PERSIST_FAILED",
+                        }
+                    )
                 except Exception:
                     pass
 

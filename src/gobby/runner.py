@@ -6,7 +6,7 @@ import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import uvicorn
 
@@ -366,7 +366,7 @@ class GobbyRunner:
         from gobby.storage.agents import LocalAgentRunManager
         from gobby.storage.inter_session_messages import InterSessionMessageManager
 
-        ism_manager = InterSessionMessageManager(self.database)
+        ism_manager = InterSessionMessageManager(cast(LocalDatabase, self.database))
         agent_run_manager = LocalAgentRunManager(self.database)
 
         # tmux sender: wraps the global TmuxSessionManager singleton
@@ -374,7 +374,7 @@ class GobbyRunner:
             from gobby.agents.tmux import get_tmux_session_manager
 
             mgr = get_tmux_session_manager()
-            await asyncio.to_thread(mgr.send_keys, tmux_session_name, message + "\n")
+            await mgr.send_keys(tmux_session_name, message + "\n")
 
         self.wake_dispatcher = WakeDispatcher(
             session_manager=self.session_manager,
@@ -740,7 +740,9 @@ class GobbyRunner:
                                 status=_ES.INTERRUPTED,
                             )
                             for exe in interrupted:
-                                subs = self.pipeline_execution_manager.get_completion_subscribers(exe.id)
+                                subs = self.pipeline_execution_manager.get_completion_subscribers(
+                                    exe.id
+                                )
                                 if subs:
                                     self.completion_registry.register(exe.id, subscribers=subs)
                                     await self.completion_registry.notify(
@@ -751,17 +753,24 @@ class GobbyRunner:
                                             "error": "Daemon restarted while execution was in progress",
                                         },
                                         message=(
-                                            f"[Completion Notification] Pipeline \"{exe.pipeline_name}\" "
+                                            f'[Completion Notification] Pipeline "{exe.pipeline_name}" '
                                             f"({exe.id}) was interrupted.\n"
                                             f"Status: interrupted (daemon restarted)\n"
                                             f"You may retry with run_pipeline."
                                         ),
                                     )
-                                    self.pipeline_execution_manager.remove_completion_subscribers(exe.id)
+                                    self.pipeline_execution_manager.remove_completion_subscribers(
+                                        exe.id
+                                    )
                                     self.completion_registry.cleanup(exe.id)
-                            logger.info("Notified subscribers of %d interrupted pipeline(s)", len(interrupted))
+                            logger.info(
+                                "Notified subscribers of %d interrupted pipeline(s)",
+                                len(interrupted),
+                            )
                         except Exception as e:
-                            logger.warning("Failed to wake subscribers of interrupted pipelines: %s", e)
+                            logger.warning(
+                                "Failed to wake subscribers of interrupted pipelines: %s", e
+                            )
                 except Exception as e:
                     logger.warning(f"Pipeline recovery after restart failed: {e}")
 

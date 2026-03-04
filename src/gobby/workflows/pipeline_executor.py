@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from gobby.workflows.pipeline.gatekeeper import ApprovalManager
 from gobby.workflows.pipeline.handlers import (
@@ -135,7 +135,8 @@ class PipelineExecutor:
             await self.completion_registry.notify(execution_id, result)
         except Exception:
             logger.warning(
-                "Failed to notify completion registry for %s", execution_id,
+                "Failed to notify completion registry for %s",
+                execution_id,
                 exc_info=True,
             )
 
@@ -406,9 +407,7 @@ class PipelineExecutor:
             )
 
             # Notify completion registry
-            await self._notify_completion(
-                execution.id, "completed", pipeline.name, outputs=outputs
-            )
+            await self._notify_completion(execution.id, "completed", pipeline.name, outputs=outputs)
 
         except ApprovalRequired:
             # Don't treat approval as an error - just re-raise
@@ -454,9 +453,7 @@ class PipelineExecutor:
             )
 
             # Notify completion registry
-            await self._notify_completion(
-                execution.id, "failed", pipeline.name, error=str(e)
-            )
+            await self._notify_completion(execution.id, "failed", pipeline.name, error=str(e))
             raise
 
         return execution
@@ -541,7 +538,7 @@ class PipelineExecutor:
         )
 
         result = await self.completion_registry.wait(completion_id, timeout=timeout)
-        return result
+        return cast(dict[str, Any], result)
 
     async def approve(
         self,

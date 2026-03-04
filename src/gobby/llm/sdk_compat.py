@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 _original_parse_message = _message_parser.parse_message
 
+
 def _tolerant_parse_message(data: dict[str, Any]) -> object | None:
     """parse_message wrapper that returns None for unknown message types.
 

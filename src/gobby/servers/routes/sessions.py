@@ -374,9 +374,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 except Exception as e:
                     logger.warning(f"Failed to move session {session.id}: {e}")
 
-            logger.info(
-                f"Bulk-moved {moved} sessions from {from_project_id} to {to_project_id}"
-            )
+            logger.info(f"Bulk-moved {moved} sessions from {from_project_id} to {to_project_id}")
 
             return {
                 "status": "success",

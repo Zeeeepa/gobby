@@ -48,7 +48,9 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
             return {"error": f"Invalid task_id: {e}"}
 
         if source not in ("expansion", "manual", "observed"):
-            return {"error": f"Invalid source: {source}. Must be 'expansion', 'manual', or 'observed'."}
+            return {
+                "error": f"Invalid source: {source}. Must be 'expansion', 'manual', or 'observed'."
+            }
 
         annotation_source: AnnotationSource = source  # type: ignore[assignment]
         results = af_manager.set_files(resolved_id, files, annotation_source)
@@ -132,12 +134,14 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
         # Convert tuple keys to string for JSON serialization
         result = []
         for (task_a, task_b), shared_files in overlaps.items():
-            result.append({
-                "task_a": task_a,
-                "task_b": task_b,
-                "shared_files": shared_files,
-                "overlap_count": len(shared_files),
-            })
+            result.append(
+                {
+                    "task_a": task_a,
+                    "task_b": task_b,
+                    "shared_files": shared_files,
+                    "overlap_count": len(shared_files),
+                }
+            )
 
         return {
             "task_count": len(resolved_ids),
@@ -225,9 +229,7 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
             title = st.get("title", "")
             child_id = title_to_child_id.get(title)
             if not child_id:
-                logger.warning(
-                    f"wire_affected_files: no child task matches title '{title}'"
-                )
+                logger.warning(f"wire_affected_files: no child task matches title '{title}'")
                 skipped += 1
                 continue
 

@@ -492,9 +492,7 @@ class LocalPipelineExecutionManager:
             (completion_id, session_id),
         )
 
-    def add_completion_subscribers(
-        self, completion_id: str, session_ids: list[str]
-    ) -> None:
+    def add_completion_subscribers(self, completion_id: str, session_ids: list[str]) -> None:
         """Bulk add subscribers for a completion event.
 
         Args:

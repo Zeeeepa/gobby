@@ -81,9 +81,7 @@ class TaskAffectedFileManager:
                         results.append(TaskAffectedFile.from_row(row))
                 except sqlite3.IntegrityError:
                     # UNIQUE constraint — file already exists from another source
-                    logger.debug(
-                        f"File {file_path} already tracked for task {task_id}"
-                    )
+                    logger.debug(f"File {file_path} already tracked for task {task_id}")
             return results
 
     def get_files(self, task_id: str) -> list[TaskAffectedFile]:
@@ -130,9 +128,7 @@ class TaskAffectedFileManager:
             deleted: bool = cursor.rowcount > 0
             return deleted
 
-    def find_overlapping_tasks(
-        self, task_ids: list[str]
-    ) -> dict[tuple[str, str], list[str]]:
+    def find_overlapping_tasks(self, task_ids: list[str]) -> dict[tuple[str, str], list[str]]:
         """Find tasks that share affected files.
 
         Args:

@@ -46,14 +46,22 @@ from gobby.llm.claude_models import (
     ToolResultEvent,
     resolve_context_window,
 )
+from gobby.llm.sdk_utils import (
+    ADDITIONAL_CONTEXT_LIMIT as _ADDITIONAL_CONTEXT_LIMIT,
+)
+from gobby.llm.sdk_utils import (
+    format_exception_group,
+    sanitize_error,
+)
+from gobby.llm.sdk_utils import (
+    parse_server_name as _parse_server_name,
+)
 from gobby.servers.chat_session_helpers import (
-    _ADDITIONAL_CONTEXT_LIMIT,
     PendingApproval,
     _find_cli_path,
     _find_mcp_config,
     _find_project_root,
     _load_chat_system_prompt,
-    _parse_server_name,
     _response_to_compact_output,
     _response_to_post_tool_output,
     _response_to_pre_tool_output,
@@ -63,9 +71,6 @@ from gobby.servers.chat_session_helpers import (
 from gobby.servers.chat_session_permissions import ChatSessionPermissionsMixin
 
 logger = logging.getLogger(__name__)
-
-
-from gobby.llm.sdk_utils import format_exception_group, sanitize_error
 
 
 @dataclass
