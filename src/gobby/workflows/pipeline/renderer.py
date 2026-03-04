@@ -166,13 +166,27 @@ class StepRenderer:
             pass
         return value
 
+    def _resolve_expression(self, expr: str, context: dict[str, Any]) -> Any:
+        """Evaluate a pure ${{ expr }} and return the native value."""
+        allowed_funcs: dict[str, Any] = {"len": len, "bool": bool, "str": str, "int": int}
+        evaluator = SafeExpressionEvaluator(context, allowed_funcs)
+        return evaluator.evaluate_value(expr)
+
     def render_mcp_arguments(self, args: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Render template variables in MCP arguments and coerce types."""
         rendered: dict[str, Any] = {}
         for key, value in args.items():
             if isinstance(value, str):
-                rendered_val = self.render_string(value, context)
-                rendered[key] = self._coerce_value(rendered_val)
+                # Pure expression: "${{ expr }}" — preserve native type (list, dict, etc.)
+                m = re.fullmatch(r"\$\{\{\s*(.*?)\s*\}\}", value.strip(), re.DOTALL)
+                if m:
+                    resolved = self._resolve_expression(m.group(1), context)
+                    # Coerce string results (e.g. "600" → 600) but preserve
+                    # native types like list/dict unchanged.
+                    rendered[key] = self._coerce_value(resolved) if isinstance(resolved, str) else resolved
+                else:
+                    rendered_val = self.render_string(value, context)
+                    rendered[key] = self._coerce_value(rendered_val)
             elif isinstance(value, dict):
                 rendered[key] = self.render_mcp_arguments(value, context)
             elif isinstance(value, list):
