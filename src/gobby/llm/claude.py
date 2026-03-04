@@ -177,6 +177,32 @@ class ClaudeLLMProvider(LLMProvider):
             self.logger.warning("Jinja2 not available, using str.format fallback")
             return prompt_template.format(**formatted_context)
 
+    @staticmethod
+    def _is_transient_error(e: Exception) -> bool:
+        """Classify whether an error is transient (worth retrying).
+
+        Permanent errors (auth failures, invalid requests) are not retried.
+        Transient errors (timeouts, rate limits, server errors) are retried.
+        """
+        msg = str(e).lower()
+        # Permanent error patterns — fail fast
+        permanent_patterns = [
+            "401",
+            "403",
+            "invalid_api_key",
+            "authentication",
+            "unauthorized",
+            "invalid request",
+            "invalid_request",
+            "permission denied",
+            "not_found",
+            "404",
+        ]
+        for pattern in permanent_patterns:
+            if pattern in msg:
+                return False
+        return True
+
     async def _retry_async(
         self,
         operation: Any,
@@ -185,28 +211,38 @@ class ClaudeLLMProvider(LLMProvider):
         on_retry: Any | None = None,
     ) -> Any:
         """
-        Execute an async operation with retry logic.
+        Execute an async operation with retry logic and error classification.
+
+        Permanent errors (auth, invalid request) fail immediately.
+        Transient errors use exponential backoff with jitter.
 
         Args:
             operation: Callable that returns an awaitable (coroutine factory).
             max_retries: Maximum number of attempts (default: 3).
-            delay: Delay in seconds between retries (default: 1.0).
+            delay: Base delay in seconds between retries (default: 1.0).
             on_retry: Optional callback(attempt: int, error: Exception) called on retry.
 
         Returns:
             Result of the operation if successful.
 
         Raises:
-            Exception: The last exception if all retries fail.
+            Exception: The last exception if all retries fail, or immediately
+                      for permanent errors.
         """
+        import random
+
         for attempt in range(max_retries):
             try:
                 return await operation()
             except Exception as e:
+                if not self._is_transient_error(e):
+                    raise
                 if attempt < max_retries - 1:
                     if on_retry:
                         on_retry(attempt, e)
-                    await asyncio.sleep(delay)
+                    # Exponential backoff with jitter
+                    backoff = delay * (2**attempt) + random.uniform(0, delay * 0.5)
+                    await asyncio.sleep(backoff)
                 else:
                     raise
 
