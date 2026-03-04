@@ -80,6 +80,7 @@ def create_agents_registry(
     db: Any | None = None,
     # For firing synthetic stop events on agent kill
     hook_manager_resolver: Any | None = None,
+    completion_registry: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -94,6 +95,7 @@ def create_agents_registry(
         clone_storage: Clone storage for spawn_agent isolation.
         clone_manager: Clone git manager for spawn_agent isolation.
         db: Database instance for agent definition lookups.
+        completion_registry: CompletionEventRegistry for auto-subscribing parent sessions.
 
     Returns:
         InternalToolRegistry with all agent tools registered.
@@ -701,6 +703,7 @@ def create_agents_registry(
         clone_manager=clone_manager,
         session_manager=session_manager,
         db=db,
+        completion_registry=completion_registry,
     )
 
     # Merge spawn_agent tools into agents registry

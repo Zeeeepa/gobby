@@ -59,6 +59,54 @@ __all__ = [
 ]
 
 
+def _auto_subscribe_lineage(
+    completion_registry: Any,
+    completion_id: str,
+    session_id: str,
+    session_manager: "LocalSessionManager | None",
+    continuation_prompt: str | None,
+    db: DatabaseProtocol | None,
+) -> None:
+    """Register a completion event and subscribe the calling session + its lineage.
+
+    Also persists subscribers to DB for daemon restart recovery.
+    """
+    # Gather lineage session IDs (root → current)
+    lineage_ids: list[str] = [session_id]
+    if session_manager:
+        try:
+            from gobby.agents.session import ChildSessionManager
+
+            child_mgr = ChildSessionManager(session_manager)
+            lineage = child_mgr.get_session_lineage(session_id)
+            lineage_ids = [s.id for s in lineage]
+            # Ensure caller is included even if lineage lookup didn't find it
+            if session_id not in lineage_ids:
+                lineage_ids.append(session_id)
+        except Exception:
+            logger.debug("Could not resolve session lineage for %s", session_id, exc_info=True)
+
+    # Register in-memory event + subscribers
+    try:
+        completion_registry.register(
+            completion_id, subscribers=lineage_ids, continuation_prompt=continuation_prompt,
+        )
+    except Exception:
+        logger.debug("Failed to register completion event %s", completion_id, exc_info=True)
+        return
+
+    # Persist subscribers to DB for restart recovery
+    if db is not None:
+        try:
+            from gobby.storage.pipelines import LocalPipelineExecutionManager
+
+            # Use a lightweight manager just for subscriber CRUD
+            em = LocalPipelineExecutionManager(db=db, project_id="")
+            em.add_completion_subscribers(completion_id, lineage_ids)
+        except Exception:
+            logger.debug("Failed to persist completion subscribers for %s", completion_id, exc_info=True)
+
+
 def _resolve_session_ref(ref: str, session_manager: "LocalSessionManager | None") -> str:
     """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
     if session_manager is None:
@@ -77,6 +125,7 @@ def create_pipelines_registry(
     execution_manager_getter: Callable[[], Any | None] | None = None,
     db: DatabaseProtocol | None = None,
     session_manager: "LocalSessionManager | None" = None,
+    completion_registry: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a pipeline tool registry with all pipeline-related tools.
@@ -89,6 +138,7 @@ def create_pipelines_registry(
             (or None) at call time. Resolved lazily like executor_getter.
         db: Database instance for definition CRUD operations
         session_manager: Session manager for resolving session references
+        completion_registry: CompletionEventRegistry for auto-subscribing callers
 
     Returns:
         InternalToolRegistry with pipeline tools registered
@@ -97,6 +147,7 @@ def create_pipelines_registry(
     _get_executor = executor_getter or (lambda: None)
     _get_execution_manager = execution_manager_getter or (lambda: None)
     _def_manager = LocalWorkflowDefinitionManager(db) if db is not None else None
+    _completion_registry = completion_registry
 
     def _resolve_session(ref: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
@@ -108,7 +159,10 @@ def create_pipelines_registry(
     )
 
     # Register dynamic tools for pipelines with expose_as_tool=True
-    _register_exposed_pipeline_tools(registry, _loader, _get_executor, session_manager)
+    _register_exposed_pipeline_tools(
+        registry, _loader, _get_executor, session_manager,
+        completion_registry=_completion_registry, db=db,
+    )
 
     @registry.tool(
         name="list_pipelines",
@@ -197,7 +251,7 @@ def create_pipelines_registry(
                 return {"success": False, "error": f"Session '{session_id}' not found"}
             project_id = session.project_id
 
-        return await run_pipeline(
+        result = await run_pipeline(
             loader=_loader,
             executor=_get_executor(),
             name=name,
@@ -206,6 +260,16 @@ def create_pipelines_registry(
             session_id=resolved_id,
             continuation_prompt=continuation_prompt,
         )
+
+        # Auto-subscribe caller session + lineage to completion events
+        execution_id = result.get("execution_id")
+        if result.get("success") and execution_id and _completion_registry:
+            _auto_subscribe_lineage(
+                _completion_registry, execution_id, resolved_id,
+                session_manager, continuation_prompt, db,
+            )
+
+        return result
 
     @registry.tool(
         name="approve_pipeline",
@@ -359,6 +423,8 @@ def _register_exposed_pipeline_tools(
     loader: Any | None,
     executor_getter: Callable[[], Any | None],
     session_manager: "LocalSessionManager | None" = None,
+    completion_registry: Any | None = None,
+    db: DatabaseProtocol | None = None,
 ) -> None:
     """
     Register dynamic tools for pipelines with expose_as_tool=True.
@@ -370,6 +436,8 @@ def _register_exposed_pipeline_tools(
         loader: WorkflowLoader for discovering pipelines
         executor_getter: Callable returning PipelineExecutor at call time
         session_manager: Session manager for resolving session references
+        completion_registry: CompletionEventRegistry for auto-subscribing callers
+        db: Database for persisting subscribers
     """
     if loader is None:
         logger.debug("Skipping dynamic pipeline tools: no loader")
@@ -388,7 +456,10 @@ def _register_exposed_pipeline_tools(
         if not getattr(pipeline, "expose_as_tool", False):
             continue
 
-        _create_pipeline_tool(registry, pipeline, loader, executor_getter, session_manager)
+        _create_pipeline_tool(
+            registry, pipeline, loader, executor_getter, session_manager,
+            completion_registry=completion_registry, db=db,
+        )
 
 
 def _create_pipeline_tool(
@@ -397,6 +468,8 @@ def _create_pipeline_tool(
     loader: Any,
     executor_getter: Callable[[], Any | None],
     session_manager: "LocalSessionManager | None" = None,
+    completion_registry: Any | None = None,
+    db: DatabaseProtocol | None = None,
 ) -> None:
     """
     Create a dynamic tool for a single pipeline.
@@ -407,7 +480,10 @@ def _create_pipeline_tool(
         loader: WorkflowLoader for loading pipelines
         executor_getter: Callable returning PipelineExecutor at call time
         session_manager: Session manager for resolving session references
+        completion_registry: CompletionEventRegistry for auto-subscribing callers
+        db: Database for persisting subscribers
     """
+    _completion_registry = completion_registry
     tool_name = f"pipeline:{pipeline.name}"
     description = pipeline.description or f"Run the {pipeline.name} pipeline"
 
@@ -436,7 +512,7 @@ def _create_pipeline_tool(
                 return {"success": False, "error": f"Session '{session_id}' not found"}
             project_id = session.project_id
 
-        return await run_pipeline(
+        result = await run_pipeline(
             loader=loader,
             executor=executor_getter(),
             name=pipeline_name,
@@ -445,6 +521,16 @@ def _create_pipeline_tool(
             session_id=resolved_id,
             continuation_prompt=continuation_prompt,
         )
+
+        # Auto-subscribe caller session + lineage to completion events
+        execution_id = result.get("execution_id")
+        if result.get("success") and execution_id and _completion_registry:
+            _auto_subscribe_lineage(
+                _completion_registry, execution_id, resolved_id,
+                session_manager, continuation_prompt, db,
+            )
+
+        return result
 
     # Register the tool with the schema
     registry.register(

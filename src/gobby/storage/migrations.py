@@ -908,6 +908,12 @@ CREATE INDEX idx_taf_file_path ON task_affected_files(file_path)""",
 );
 CREATE INDEX idx_completion_subscribers_completion ON completion_subscribers(completion_id)""",
     ),
+    (
+        137,
+        "Add continuation_prompt to pipeline_executions and agent_runs",
+        """ALTER TABLE pipeline_executions ADD COLUMN continuation_prompt TEXT;
+ALTER TABLE agent_runs ADD COLUMN continuation_prompt TEXT""",
+    ),
 ]
 
 

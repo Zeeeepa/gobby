@@ -360,10 +360,32 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Failed to initialize workflow loader: {e}")
 
-        # Initialize completion event registry for push-based notifications
+        # Initialize completion event registry with wake dispatcher
         from gobby.events.completion_registry import CompletionEventRegistry
+        from gobby.events.wake import WakeDispatcher
+        from gobby.storage.agents import LocalAgentRunManager
+        from gobby.storage.inter_session_messages import InterSessionMessageManager
 
-        self.completion_registry = CompletionEventRegistry()
+        ism_manager = InterSessionMessageManager(self.database)
+        agent_run_manager = LocalAgentRunManager(self.database)
+
+        # tmux sender: wraps the global TmuxSessionManager singleton
+        async def _tmux_send(tmux_session_name: str, message: str) -> None:
+            from gobby.agents.tmux import get_tmux_session_manager
+
+            mgr = get_tmux_session_manager()
+            await asyncio.to_thread(mgr.send_keys, tmux_session_name, message + "\n")
+
+        self.wake_dispatcher = WakeDispatcher(
+            session_manager=self.session_manager,
+            ism_manager=ism_manager,
+            tmux_sender=_tmux_send,
+            agent_run_manager=agent_run_manager,
+        )
+
+        self.completion_registry = CompletionEventRegistry(
+            wake_callback=self.wake_dispatcher.wake,
+        )
 
         # Create pipeline executor at startup if we have project context
         if self.workflow_loader is not None and self.project_id:
@@ -708,6 +730,38 @@ class GobbyRunner:
                     )
                     if stale_count > 0:
                         logger.info(f"Failed {stale_count} non-resumable stale pipeline executions")
+
+                    # Wake subscribers of interrupted (non-resumed) pipelines
+                    if stale_count > 0 and self.completion_registry:
+                        try:
+                            from gobby.workflows.pipeline_state import ExecutionStatus as _ES
+
+                            interrupted = self.pipeline_execution_manager.list_executions(
+                                status=_ES.INTERRUPTED,
+                            )
+                            for exe in interrupted:
+                                subs = self.pipeline_execution_manager.get_completion_subscribers(exe.id)
+                                if subs:
+                                    self.completion_registry.register(exe.id, subscribers=subs)
+                                    await self.completion_registry.notify(
+                                        exe.id,
+                                        result={
+                                            "status": "interrupted",
+                                            "pipeline_name": exe.pipeline_name,
+                                            "error": "Daemon restarted while execution was in progress",
+                                        },
+                                        message=(
+                                            f"[Completion Notification] Pipeline \"{exe.pipeline_name}\" "
+                                            f"({exe.id}) was interrupted.\n"
+                                            f"Status: interrupted (daemon restarted)\n"
+                                            f"You may retry with run_pipeline."
+                                        ),
+                                    )
+                                    self.pipeline_execution_manager.remove_completion_subscribers(exe.id)
+                                    self.completion_registry.cleanup(exe.id)
+                            logger.info("Notified subscribers of %d interrupted pipeline(s)", len(interrupted))
+                        except Exception as e:
+                            logger.warning("Failed to wake subscribers of interrupted pipelines: %s", e)
                 except Exception as e:
                     logger.warning(f"Pipeline recovery after restart failed: {e}")
 

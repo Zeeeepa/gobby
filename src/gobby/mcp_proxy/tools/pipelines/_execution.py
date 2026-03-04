@@ -200,6 +200,7 @@ async def run_pipeline(
             pipeline_name=name,
             inputs_json=json.dumps(inputs),
             session_id=session_id,
+            continuation_prompt=continuation_prompt,
         )
         execution_id = execution.id
     except Exception as e:

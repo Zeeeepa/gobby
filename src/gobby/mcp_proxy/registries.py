@@ -65,6 +65,7 @@ def setup_internal_registries(
     config_store: ConfigStore | None = None,
     config_setter: Callable[[DaemonConfig], None] | None = None,
     memory_sync_manager: Any | None = None,
+    completion_registry: Any | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -222,6 +223,7 @@ def setup_internal_registries(
             clone_manager=clone_git_manager,
             db=db,
             hook_manager_resolver=hook_manager_resolver,
+            completion_registry=completion_registry,
         )
 
         # Add inter-agent messaging tools if dependencies are available
@@ -376,6 +378,7 @@ def setup_internal_registries(
         execution_manager_getter=lambda: pipeline_execution_manager,
         db=db,
         session_manager=local_session_manager,
+        completion_registry=completion_registry,
     )
     manager.add_registry(pipelines_registry)
     logger.debug("Pipelines registry initialized")

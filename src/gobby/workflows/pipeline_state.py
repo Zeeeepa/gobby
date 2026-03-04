@@ -68,6 +68,7 @@ class PipelineExecution:
     resume_token: str | None = None  # Token for resuming after approval
     session_id: str | None = None  # Session that triggered execution
     parent_execution_id: str | None = None  # For nested pipeline invocations
+    continuation_prompt: str | None = None  # Instructions for wake notification
 
     @classmethod
     def from_row(cls, row: Any) -> PipelineExecution:
@@ -85,6 +86,7 @@ class PipelineExecution:
             resume_token=row["resume_token"],
             session_id=row["session_id"],
             parent_execution_id=row["parent_execution_id"],
+            continuation_prompt=row["continuation_prompt"] if "continuation_prompt" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -102,6 +104,7 @@ class PipelineExecution:
             "resume_token": self.resume_token,
             "session_id": self.session_id,
             "parent_execution_id": self.parent_execution_id,
+            "continuation_prompt": self.continuation_prompt,
         }
 
 
