@@ -11,5 +11,7 @@ rules:
       type: block
       tools: ["mcp__gobby__call_tool"]
       reason: |
-        You must call get_tool_schema(...) before call_tool. Steps: list_mcp_servers → list_tools → get_tool_schema → call_tool.
+        Call get_tool_schema("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name', '') }}") first, then retry.
+
+        Steps: list_mcp_servers → list_tools → get_tool_schema → call_tool.
     
