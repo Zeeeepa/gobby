@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 136
+BASELINE_VERSION = 138
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -866,6 +866,23 @@ CREATE TABLE completion_subscribers (
     PRIMARY KEY (completion_id, session_id)
 );
 CREATE INDEX idx_completion_subscribers_completion ON completion_subscribers(completion_id);
+
+CREATE TABLE test_runs (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    project_id TEXT,
+    category TEXT NOT NULL,
+    command TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    exit_code INTEGER,
+    summary TEXT,
+    output_file TEXT,
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_test_runs_session ON test_runs(session_id);
+CREATE INDEX idx_test_runs_status ON test_runs(status);
 """
 
 # Migrations beyond v133.
@@ -913,6 +930,26 @@ CREATE INDEX idx_completion_subscribers_completion ON completion_subscribers(com
         "Add continuation_prompt to pipeline_executions and agent_runs",
         """ALTER TABLE pipeline_executions ADD COLUMN continuation_prompt TEXT;
 ALTER TABLE agent_runs ADD COLUMN continuation_prompt TEXT""",
+    ),
+    (
+        138,
+        "Add test_runs table for gobby-tests MCP server",
+        """CREATE TABLE test_runs (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    project_id TEXT,
+    category TEXT NOT NULL,
+    command TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    exit_code INTEGER,
+    summary TEXT,
+    output_file TEXT,
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_test_runs_session ON test_runs(session_id);
+CREATE INDEX idx_test_runs_status ON test_runs(status)""",
     ),
 ]
 

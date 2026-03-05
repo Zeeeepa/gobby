@@ -395,6 +395,21 @@ def setup_internal_registries(
         except (ImportError, RuntimeError, OSError) as e:
             logger.debug(f"Cron registry not initialized: {e}")
 
+    # Initialize testing registry if database is available
+    if db is not None:
+        try:
+            from gobby.mcp_proxy.tools.testing import create_testing_registry
+
+            testing_registry = create_testing_registry(
+                db=db,
+                llm_service=llm_service,
+                config=_config.test_summarizer if _config else None,
+            )
+            manager.add_registry(testing_registry)
+            logger.debug("Testing registry initialized")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug(f"Testing registry not initialized: {e}")
+
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
 

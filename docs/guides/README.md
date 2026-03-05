@@ -14,6 +14,7 @@ Documentation guides for using Gobby's features.
 | [pipelines.md](pipelines.md) | Pipeline workflows with data flow and approval gates |
 | [lobster-migration.md](lobster-migration.md) | Migrating from Lobster to Gobby pipelines |
 | [search.md](search.md) | Unified search with TF-IDF, embeddings, and hybrid modes |
+| [testing.md](testing.md) | Token-efficient test/lint/typecheck infrastructure for agents |
 
 ## Parallel Development
 

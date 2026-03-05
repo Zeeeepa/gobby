@@ -68,11 +68,13 @@ def detect_verification_commands(cwd: Path) -> VerificationCommands:
         VerificationCommands with detected commands.
     """
     verification = VerificationCommands()
+    detected_any = False
 
     # Check for Python project (pyproject.toml)
     pyproject_path = cwd / "pyproject.toml"
     if pyproject_path.exists():
         logger.debug("Detected Python project (pyproject.toml)")
+        detected_any = True
 
         # Check for tests directory
         tests_dir = cwd / "tests"
@@ -89,12 +91,11 @@ def detect_verification_commands(cwd: Path) -> VerificationCommands:
             verification.type_check = "uv run mypy ."
             verification.lint = "uv run ruff check ."
 
-        return verification
-
     # Check for Node.js project (package.json)
     package_json_path = cwd / "package.json"
     if package_json_path.exists():
         logger.debug("Detected Node.js project (package.json)")
+        detected_any = True
 
         try:
             with open(package_json_path) as f:
@@ -102,26 +103,57 @@ def detect_verification_commands(cwd: Path) -> VerificationCommands:
 
             scripts = package_data.get("scripts", {})
 
-            # Check for test script
-            if "test" in scripts:
-                verification.unit_tests = "npm test"
-
-            # Check for lint script
-            if "lint" in scripts:
-                verification.lint = "npm run lint"
-
-            # Check for type-check script (common names)
-            for script_name in ["type-check", "typecheck", "types", "tsc"]:
-                if script_name in scripts:
-                    verification.type_check = f"npm run {script_name}"
-                    break
+            if verification.unit_tests:
+                # Python already claimed primary slots — use custom for Node.js
+                if "test" in scripts:
+                    verification.custom["frontend_tests"] = "npm test"
+                if "lint" in scripts:
+                    verification.custom["frontend_lint"] = "npm run lint"
+                for script_name in ["type-check", "typecheck", "types", "tsc"]:
+                    if script_name in scripts:
+                        verification.custom["ts_check"] = f"npm run {script_name}"
+                        break
+            else:
+                # Node.js is the primary language
+                if "test" in scripts:
+                    verification.unit_tests = "npm test"
+                if "lint" in scripts:
+                    verification.lint = "npm run lint"
+                for script_name in ["type-check", "typecheck", "types", "tsc"]:
+                    if script_name in scripts:
+                        verification.type_check = f"npm run {script_name}"
+                        break
 
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to parse package.json: {e}")
 
-        return verification
+    # Check for Rust project (Cargo.toml)
+    cargo_path = cwd / "Cargo.toml"
+    if cargo_path.exists():
+        logger.debug("Detected Rust project (Cargo.toml)")
+        detected_any = True
+        if not verification.unit_tests:
+            verification.unit_tests = "cargo test"
+            verification.lint = "cargo clippy"
+        else:
+            verification.custom["cargo_test"] = "cargo test"
+            verification.custom["clippy"] = "cargo clippy"
 
-    logger.debug("No recognized project type detected")
+    # Check for Go project (go.mod)
+    go_mod_path = cwd / "go.mod"
+    if go_mod_path.exists():
+        logger.debug("Detected Go project (go.mod)")
+        detected_any = True
+        if not verification.unit_tests:
+            verification.unit_tests = "go test ./..."
+            verification.lint = "go vet ./..."
+        else:
+            verification.custom["go_test"] = "go test ./..."
+            verification.custom["go_vet"] = "go vet ./..."
+
+    if not detected_any:
+        logger.debug("No recognized project type detected")
+
     return verification
 
 
