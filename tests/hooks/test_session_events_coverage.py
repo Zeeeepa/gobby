@@ -182,9 +182,10 @@ class TestFindGeminiTranscript:
                 [MagicMock(__str__=lambda self: "/fake/session-recent.json")],  # fallback
             ]
 
-            handler._find_gemini_transcript({"cwd": "/some/cwd"}, "")
-            # Verify it attempted the fallback glob
+            result = handler._find_gemini_transcript({"cwd": "/some/cwd"}, "")
+            # Verify it attempted the fallback glob (returns None since mock file isn't readable)
             assert chain.glob.call_count >= 1
+            assert result is None
 
 
 # ---------------------------------------------------------------------------

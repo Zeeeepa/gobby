@@ -643,6 +643,23 @@ class TestDetectCommitLink:
 
         assert "task_has_commits" not in variables
 
+    def test_auto_link_commits_sets_task_has_commits(
+        self, variables, make_after_tool_event
+    ) -> None:
+        event = make_after_tool_event(
+            "mcp__gobby__call_tool",
+            tool_input={
+                "server_name": "gobby-tasks",
+                "tool_name": "auto_link_commits",
+                "arguments": {},
+            },
+            tool_output={"success": True, "result": {"linked": 3}},
+        )
+
+        detect_commit_link(event, variables, SESSION_ID)
+
+        assert variables["task_has_commits"] is True
+
     def test_ignores_non_commit_tools(self, variables, make_after_tool_event) -> None:
         event = make_after_tool_event(
             "mcp__gobby__call_tool",

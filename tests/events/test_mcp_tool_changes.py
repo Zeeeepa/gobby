@@ -6,6 +6,8 @@ import inspect
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 class TestRunPipelineNoWait:
     """run_pipeline no longer accepts wait/wait_timeout parameters."""

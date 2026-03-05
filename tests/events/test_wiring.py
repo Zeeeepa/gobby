@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from gobby.events.completion_registry import CompletionEventRegistry
 from gobby.workflows.pipeline_state import ExecutionStatus
 

@@ -13,6 +13,8 @@ import asyncio
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 from gobby.workflows.pipeline_state import ExecutionStatus
 
 

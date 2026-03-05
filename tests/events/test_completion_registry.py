@@ -6,6 +6,8 @@ import asyncio
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from gobby.events.completion_registry import CompletionEventRegistry
 
 

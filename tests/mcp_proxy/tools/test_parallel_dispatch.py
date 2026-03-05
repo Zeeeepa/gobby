@@ -550,7 +550,6 @@ class TestUpdateObservedFiles:
         task.id = "task-1"
         ctx.task_manager.get_task.return_value = task
         task.commits = ["abc123"]
-        ctx.task_manager.get_task.return_value = task
 
         with (
             patch(

@@ -174,7 +174,7 @@ class TestCreateClone:
         mock_git_manager.shallow_clone.assert_not_called()
         # Source should be the local repo path
         call_args = mock_git_manager.full_clone.call_args
-        assert str(mock_git_manager.repo_path) in str(call_args)
+        assert call_args.kwargs["remote_url"] == str(mock_git_manager.repo_path)
 
 
 class TestGetClone:

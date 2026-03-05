@@ -54,10 +54,10 @@ class TestWakeDispatch:
         await dispatcher.wake("sess-1", "Pipeline completed", {"status": "completed"})
 
         ism_manager.create_message.assert_called_once()
-        call_kwargs = ism_manager.create_message.call_args
-        assert call_kwargs[1]["to_session"] == "sess-1"
-        assert call_kwargs[1]["message_type"] == "completion_notification"
-        assert "Pipeline completed" in call_kwargs[1]["content"]
+        call_kwargs = ism_manager.create_message.call_args.kwargs
+        assert call_kwargs["to_session"] == "sess-1"
+        assert call_kwargs["message_type"] == "completion_notification"
+        assert "Pipeline completed" in call_kwargs["content"]
 
     @pytest.mark.asyncio
     async def test_terminal_agent_gets_tmux(
