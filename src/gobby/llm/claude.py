@@ -241,7 +241,7 @@ class ClaudeLLMProvider(LLMProvider):
                     if on_retry:
                         on_retry(attempt, e)
                     # Exponential backoff with jitter
-                    backoff = delay * (2**attempt) + random.uniform(0, delay * 0.5)
+                    backoff = delay * (2**attempt) + random.uniform(0, delay * 0.5)  # nosec B311
                     await asyncio.sleep(backoff)
                 else:
                     raise
