@@ -63,11 +63,23 @@ class TestSkillsMPSearch:
     """Tests for SkillsMPProvider search functionality."""
 
     @pytest.mark.asyncio
+    async def test_search_raises_without_api_key(self) -> None:
+        """Test search raises RuntimeError when API key is not set."""
+        provider = SkillsMPProvider(
+            hub_name="skillsmp",
+            base_url="https://skillsmp.com/api/v1",
+        )
+
+        with pytest.raises(RuntimeError, match="API key not configured"):
+            await provider.search("test")
+
+    @pytest.mark.asyncio
     async def test_search_returns_hub_skill_info_list(self) -> None:
         """Test search returns list of HubSkillInfo."""
         provider = SkillsMPProvider(
             hub_name="skillsmp",
             base_url="https://skillsmp.com/api/v1",
+            auth_token="sk_test_key",
         )
 
         mock_response = {
@@ -102,6 +114,7 @@ class TestSkillsMPSearch:
         provider = SkillsMPProvider(
             hub_name="skillsmp",
             base_url="https://skillsmp.com/api/v1",
+            auth_token="sk_test_key",
         )
 
         with patch.object(provider, "_make_request", return_value={"skills": []}):
@@ -128,7 +141,7 @@ class TestSkillsMPDiscover:
 
     @pytest.mark.asyncio
     async def test_discover_unauthenticated(self) -> None:
-        """Test discover reports unauthenticated status."""
+        """Test discover reports unauthenticated status with error message."""
         provider = SkillsMPProvider(
             hub_name="skillsmp",
             base_url="https://skillsmp.com/api/v1",
@@ -136,10 +149,22 @@ class TestSkillsMPDiscover:
 
         result = await provider.discover()
         assert result["authenticated"] is False
+        assert "SKILLSMP_API_KEY" in result["error"]
 
 
 class TestSkillsMPListSkills:
     """Tests for SkillsMPProvider list_skills functionality."""
+
+    @pytest.mark.asyncio
+    async def test_list_skills_raises_without_api_key(self) -> None:
+        """Test list_skills raises RuntimeError when API key is not set."""
+        provider = SkillsMPProvider(
+            hub_name="skillsmp",
+            base_url="https://skillsmp.com/api/v1",
+        )
+
+        with pytest.raises(RuntimeError, match="API key not configured"):
+            await provider.list_skills()
 
     @pytest.mark.asyncio
     async def test_list_skills_returns_hub_skill_info_list(self) -> None:
@@ -147,6 +172,7 @@ class TestSkillsMPListSkills:
         provider = SkillsMPProvider(
             hub_name="skillsmp",
             base_url="https://skillsmp.com/api/v1",
+            auth_token="sk_test_key",
         )
 
         mock_response = {

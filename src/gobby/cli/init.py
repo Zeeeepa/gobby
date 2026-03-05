@@ -88,9 +88,9 @@ def init(
                     "(or sudo dnf install tmux)"
                 )
 
-        # Check clawdhub CLI (skill hub search)
-        if not shutil.which("clawdhub"):
-            click.echo("  Warning: clawdhub CLI not found. Install: npm i -g clawdhub")
+        # Check clawhub CLI (skill hub search)
+        if not shutil.which("clawhub"):
+            click.echo("  Warning: clawhub CLI not found. Install: npm i -g clawhub")
 
         # Check Cisco skill-scanner (skill safety scanning)
         try:
