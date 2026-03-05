@@ -46,6 +46,8 @@ class CompletionEventRegistry:
             subscribers: Session IDs to notify on completion
             continuation_prompt: Optional prompt describing what to do with results
         """
+        if completion_id in self._events:
+            logger.warning("Overwriting existing completion registration: %s", completion_id)
         self._events[completion_id] = asyncio.Event()
         self._subscribers[completion_id] = list(subscribers)
         if continuation_prompt:

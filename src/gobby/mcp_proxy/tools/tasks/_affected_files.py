@@ -213,10 +213,12 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
         if not children:
             return {"error": "No child tasks found. Run execute_expansion first."}
 
-        # Build title -> child task ID mapping
+        # Build title -> child task ID mapping (exact + normalized fallback)
         title_to_child_id: dict[str, str] = {}
+        normalized_to_child_id: dict[str, str] = {}
         for child in children:
             title_to_child_id[child.title] = child.id
+            normalized_to_child_id[child.title.strip().lower()] = child.id
 
         wired = 0
         skipped = 0
@@ -228,6 +230,8 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
 
             title = st.get("title", "")
             child_id = title_to_child_id.get(title)
+            if not child_id:
+                child_id = normalized_to_child_id.get(title.strip().lower())
             if not child_id:
                 logger.warning(f"wire_affected_files: no child task matches title '{title}'")
                 skipped += 1

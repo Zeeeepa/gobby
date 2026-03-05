@@ -499,8 +499,12 @@ class LocalPipelineExecutionManager:
             completion_id: Execution or run ID to subscribe to
             session_ids: Sessions to notify on completion
         """
-        for session_id in session_ids:
-            self.add_completion_subscriber(completion_id, session_id)
+        if not session_ids:
+            return
+        self.db.executemany(
+            "INSERT OR IGNORE INTO completion_subscribers (completion_id, session_id) VALUES (?, ?)",
+            [(completion_id, sid) for sid in session_ids],
+        )
 
     def get_completion_subscribers(self, completion_id: str) -> list[str]:
         """Get all subscriber session IDs for a completion event.

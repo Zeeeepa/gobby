@@ -468,6 +468,11 @@ class PipelineExecutor:
         # Render any template variables in the step
         rendered_step = self.renderer.render_step(step, context)
 
+        # Warn if multiple step types are set — only the first match executes
+        step_types = [f for f in ("wait", "exec", "prompt", "invoke_pipeline", "mcp", "activate_workflow") if getattr(step, f, None)]
+        if len(step_types) > 1:
+            logger.warning("Step %s has multiple types set: %s — only '%s' will execute", step.id, step_types, step_types[0])
+
         if step.wait:
             # Block until completion event fires
             return await self._execute_wait_step(rendered_step, context)

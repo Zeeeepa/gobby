@@ -13,6 +13,7 @@ Each handler implements the IsolationHandler ABC to provide:
 """
 
 import asyncio
+import subprocess  # nosec B404 - needed for git error handling
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -477,7 +478,7 @@ class CloneIsolationHandler(IsolationHandler):
                         f"Using local repo for clone "
                         f"({unpushed_count} unpushed commits on '{base_branch}')"
                     )
-            except Exception:
+            except (subprocess.CalledProcessError, OSError):
                 import logging
 
                 logger = logging.getLogger(__name__)

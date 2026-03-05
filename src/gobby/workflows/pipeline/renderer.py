@@ -11,6 +11,9 @@ from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
 
+# Common helper functions for expression evaluation in pipelines.
+_PIPELINE_EVAL_FUNCS: dict[str, Any] = {"len": len, "bool": bool, "str": str, "int": int}
+
 # Env-var suffixes that indicate sensitive values (case-insensitive check).
 _SENSITIVE_SUFFIXES = (
     "_SECRET",
@@ -168,8 +171,7 @@ class StepRenderer:
 
     def _resolve_expression(self, expr: str, context: dict[str, Any]) -> Any:
         """Evaluate a pure ${{ expr }} and return the native value."""
-        allowed_funcs: dict[str, Any] = {"len": len, "bool": bool, "str": str, "int": int}
-        evaluator = SafeExpressionEvaluator(context, allowed_funcs)
+        evaluator = SafeExpressionEvaluator(context, _PIPELINE_EVAL_FUNCS)
         return evaluator.evaluate_value(expr)
 
     def render_mcp_arguments(self, args: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
@@ -263,14 +265,7 @@ class StepRenderer:
                 "session_id": context.get("session_id"),
                 "parent_session_id": context.get("parent_session_id"),
             }
-            # Allow common helper functions for conditions
-            allowed_funcs: dict[str, Any] = {
-                "len": len,
-                "bool": bool,
-                "str": str,
-                "int": int,
-            }
-            evaluator = SafeExpressionEvaluator(eval_context, allowed_funcs)
+            evaluator = SafeExpressionEvaluator(eval_context, _PIPELINE_EVAL_FUNCS)
             return evaluator.evaluate(condition)
         except ValueError as e:
             if self.strict_conditions:

@@ -147,7 +147,7 @@ class ChatMessagingMixin:
             return "Rate limited by Claude API. Please wait and try again.", "RATE_LIMITED"
         if "auth" in msg or "401" in msg or "403" in msg or "api_key" in msg:
             return "Authentication error with Claude API.", "AUTH_ERROR"
-        if isinstance(exc, asyncio.TimeoutError) or "timeout" in msg:
+        if isinstance(exc, TimeoutError) or "timeout" in msg:
             return "Request timed out. Please try again.", "TIMEOUT"
         if "connection" in msg:
             return "Connection to Claude API failed. Please try again.", "CONNECTION_ERROR"
