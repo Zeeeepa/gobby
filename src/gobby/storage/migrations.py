@@ -194,7 +194,8 @@ CREATE TABLE agent_runs (
     completed_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    sdk_session_id TEXT
+    sdk_session_id TEXT,
+    continuation_prompt TEXT
 );
 CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
 CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
@@ -709,7 +710,8 @@ CREATE TABLE pipeline_executions (
     completed_at TEXT,
     resume_token TEXT UNIQUE,
     session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-    parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE
+    parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE,
+    continuation_prompt TEXT
 );
 CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
 CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
