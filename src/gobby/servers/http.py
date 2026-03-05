@@ -478,6 +478,17 @@ class HTTPServer:
                 )
                 logger.debug("Session coordinator connected to agent lifecycle monitor")
 
+            # Wire completion_registry to session_coordinator for agent completion events
+            if (
+                hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_session_coordinator")
+                and self.services.completion_registry
+            ):
+                app.state.hook_manager._session_coordinator.set_completion_registry(
+                    self.services.completion_registry
+                )
+                logger.debug("Completion registry connected to session coordinator")
+
             # Initialize canvas broadcaster
             from gobby.mcp_proxy.tools.canvas import set_broadcaster
 

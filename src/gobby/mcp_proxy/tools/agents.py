@@ -240,6 +240,7 @@ def create_agents_registry(
         signal: str = "TERM",
         force: bool = False,
         debug: bool = False,
+        status: str | None = None,
     ) -> dict[str, Any]:
         """
         Kill a running agent process.
@@ -254,6 +255,9 @@ def create_agents_registry(
             force: Use SIGKILL immediately (equivalent to signal="KILL")
             debug: If True, kill agent process but preserve workflow state and leave
                 terminal open for inspection. Default: False (full cleanup).
+            status: Completion status for the agent run. Self-termination defaults
+                to "success", parent-initiated kill defaults to "cancelled".
+                Agents can pass "error" to indicate failure.
 
         Returns:
             Dict with success status and kill details.
@@ -318,13 +322,28 @@ def create_agents_registry(
             return result
 
         if result.get("success"):
-            # Self-termination (session_id path) → mark as success
-            # Parent-initiated kill (run_id path) → mark as cancelled
+            # Self-termination (session_id path) → default success
+            # Parent-initiated kill (run_id path) → default cancelled
+            # Caller can override with explicit status
             is_self_termination = resolved_session_id is not None
-            if is_self_termination:
+            effective_status = status or ("success" if is_self_termination else "cancelled")
+            if effective_status == "success":
                 runner.complete_run(run_id)
+            elif effective_status == "cancelled":
+                runner.cancel_run(run_id)
+            elif effective_status == "error":
+                runner.run_storage.fail(run_id, error="Agent self-reported error")
             else:
                 runner.cancel_run(run_id)
+                effective_status = "cancelled"
+
+            # Notify completion registry so pipeline wait steps unblock
+            if completion_registry and run_id:
+                try:
+                    notify_result: dict[str, Any] = {"status": effective_status, "run_id": run_id}
+                    await completion_registry.notify(run_id, notify_result)
+                except Exception:
+                    logger.debug("Failed to notify completion registry for run %s", run_id, exc_info=True)
 
             # Clean up the tmux session (remain-on-exit keeps dead panes alive)
             if not debug and tmux_session_name:
