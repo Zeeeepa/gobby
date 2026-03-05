@@ -12,7 +12,12 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable, Coroutine
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from gobby.storage.agents import LocalAgentRunManager
+    from gobby.storage.inter_session_messages import InterSessionMessageManager
+    from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +41,11 @@ class WakeDispatcher:
 
     def __init__(
         self,
-        session_manager: Any,
-        ism_manager: Any,
+        session_manager: LocalSessionManager,
+        ism_manager: InterSessionMessageManager,
         tmux_sender: TmuxSender | None = None,
         sdk_resumer: SdkResumer | None = None,
-        agent_run_manager: Any | None = None,
+        agent_run_manager: LocalAgentRunManager | None = None,
     ) -> None:
         self._session_manager = session_manager
         self._ism_manager = ism_manager
@@ -123,7 +128,7 @@ class WakeDispatcher:
 
             # Check agent_runs where this session is the child
             sdk_id = self._agent_run_manager.get_sdk_session_id_for_session(session_id)
-            return cast(str | None, sdk_id)
+            return sdk_id
         except Exception:
             logger.debug(
                 "Could not resolve sdk_session_id for session %s",

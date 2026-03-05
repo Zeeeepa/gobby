@@ -26,6 +26,7 @@ from gobby.storage.agents import LocalAgentRunManager
 __all__ = ["AgentRunner"]
 
 if TYPE_CHECKING:
+    from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.sessions import LocalSessionManager
     from gobby.workflows.hooks import WorkflowHookHandler
@@ -62,7 +63,7 @@ class AgentRunner:
         executors: dict[str, AgentExecutor],
         max_agent_depth: int = 1,
         workflow_loader: WorkflowLoader | None = None,
-        completion_registry: Any | None = None,
+        completion_registry: CompletionEventRegistry | None = None,
     ):
         """
         Initialize AgentRunner.

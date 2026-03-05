@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
+    from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.storage.clones import LocalCloneManager
     from gobby.storage.config_store import ConfigStore
     from gobby.storage.database import DatabaseProtocol
@@ -65,7 +66,7 @@ def setup_internal_registries(
     config_store: ConfigStore | None = None,
     config_setter: Callable[[DaemonConfig], None] | None = None,
     memory_sync_manager: Any | None = None,
-    completion_registry: Any | None = None,
+    completion_registry: CompletionEventRegistry | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
