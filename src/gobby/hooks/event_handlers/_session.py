@@ -975,7 +975,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     # Reconcile session variables with DB state
                     sv_mgr.set_variable(session_id, "task_claimed", True)
                     sv_mgr.set_variable(session_id, "claimed_tasks", reconciled)
-                    return result
+                    return result or None
             except Exception:
                 pass
             return None
