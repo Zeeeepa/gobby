@@ -295,7 +295,7 @@ class ToolProxyService:
                 return {
                     "success": False,
                     "error": "Invalid arguments: expected dict, got string that isn't valid JSON",
-                    "error_code": ToolProxyErrorCode.VALIDATION_ERROR.value,
+                    "error_code": ToolProxyErrorCode.INVALID_ARGUMENTS.value,
                 }
 
         # Check tool filter before execution
