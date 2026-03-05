@@ -190,3 +190,9 @@ ask the user how to proceed (fix spec, re-run researcher, or override).
 **Session compaction recovery**:
 If expansion was interrupted after the researcher saved the spec, the skill
 detects the pending spec in Phase 0 and resumes from Phase 3 automatically.
+
+## See Also
+
+- [Task Expansion Guide](docs/guides/task-expansion.md) — How expansion works end-to-end
+- [TDD Enforcement Guide](docs/guides/tdd-enforcement.md) — TDD sandwich pattern applied during expansion
+- [Orchestrator Guide](docs/guides/orchestrator.md) — How the orchestrator invokes expansion
