@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -69,7 +69,6 @@ class TestRunCheck:
     @pytest.mark.asyncio
     async def test_run_check_success(self, registry, project_dir: Path) -> None:
         """Test run_check resolves from project.json and returns summary."""
-        from gobby.utils.project_context import get_project_context
 
         mock_context = {
             "id": "test-proj-123",
@@ -90,9 +89,7 @@ class TestRunCheck:
         ):
             from gobby.config.features import ProjectVerificationConfig
 
-            mock_verif.return_value = ProjectVerificationConfig(
-                lint="echo 'All checks passed'"
-            )
+            mock_verif.return_value = ProjectVerificationConfig(lint="echo 'All checks passed'")
 
             tool_fn = registry.get_tool("run_check")
             result = await tool_fn(category="lint")

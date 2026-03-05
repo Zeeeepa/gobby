@@ -469,7 +469,15 @@ class TestDetectVerificationMultiLanguage:
         web = tmp_path / "web"
         web.mkdir()
         (web / "package.json").write_text(
-            json.dumps({"scripts": {"test": "vitest run", "type-check": "tsc --noEmit", "lint": "eslint ."}})
+            json.dumps(
+                {
+                    "scripts": {
+                        "test": "vitest run",
+                        "type-check": "tsc --noEmit",
+                        "lint": "eslint .",
+                    }
+                }
+            )
         )
 
         result = detect_verification_commands(tmp_path)
@@ -505,7 +513,9 @@ class TestDetectVerificationMultiLanguage:
         web = tmp_path / "web"
         web.mkdir()
         (web / "package.json").write_text(
-            json.dumps({"scripts": {"test": "vitest", "lint": "eslint .", "type-check": "tsc --noEmit"}})
+            json.dumps(
+                {"scripts": {"test": "vitest", "lint": "eslint .", "type-check": "tsc --noEmit"}}
+            )
         )
 
         result = detect_verification_commands(tmp_path)
@@ -517,9 +527,7 @@ class TestDetectVerificationMultiLanguage:
 
     def test_root_nodejs_no_subdir(self, tmp_path: Path) -> None:
         """Root package.json without subdirectory uses no cd prefix."""
-        (tmp_path / "package.json").write_text(
-            json.dumps({"scripts": {"test": "jest"}})
-        )
+        (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": "jest"}}))
 
         result = detect_verification_commands(tmp_path)
         assert result.unit_tests == "npm test"
@@ -533,13 +541,17 @@ class TestUpdateProjectJsonVerification:
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
         project_file = gobby_dir / "project.json"
-        project_file.write_text(json.dumps({
-            "id": "proj-123",
-            "name": "test",
-            "created_at": "2024-01-01",
-            "verification": {"unit_tests": "old command"},
-            "hooks": {"pre-commit": {"run": ["lint"]}},
-        }))
+        project_file.write_text(
+            json.dumps(
+                {
+                    "id": "proj-123",
+                    "name": "test",
+                    "created_at": "2024-01-01",
+                    "verification": {"unit_tests": "old command"},
+                    "hooks": {"pre-commit": {"run": ["lint"]}},
+                }
+            )
+        )
 
         verification = VerificationCommands(
             unit_tests="uv run pytest tests/ -v",
@@ -562,15 +574,19 @@ class TestUpdateProjectJsonVerification:
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
         project_file = gobby_dir / "project.json"
-        project_file.write_text(json.dumps({
-            "id": "proj-123",
-            "name": "test",
-            "created_at": "2024-01-01",
-            "verification": {
-                "unit_tests": "old",
-                "custom": {"manual_check": "make verify"},
-            },
-        }))
+        project_file.write_text(
+            json.dumps(
+                {
+                    "id": "proj-123",
+                    "name": "test",
+                    "created_at": "2024-01-01",
+                    "verification": {
+                        "unit_tests": "old",
+                        "custom": {"manual_check": "make verify"},
+                    },
+                }
+            )
+        )
 
         verification = VerificationCommands(
             unit_tests="pytest",

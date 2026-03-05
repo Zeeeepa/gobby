@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

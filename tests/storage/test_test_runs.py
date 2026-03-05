@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
-from gobby.storage.test_run_models import TestRun
 from gobby.storage.test_runs import TestRunStorage
 
 pytestmark = pytest.mark.unit
