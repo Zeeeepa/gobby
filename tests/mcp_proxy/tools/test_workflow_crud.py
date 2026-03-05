@@ -84,7 +84,7 @@ class TestCreateWorkflow:
         assert result["success"] is True
         defn = result["definition"]
         assert defn["name"] == "test-workflow"
-        assert defn["workflow_type"] == "workflow"
+        assert defn["workflow_type"] == "pipeline"
         assert defn["description"] == "A test workflow"
         assert defn["version"] == "1.0"
 
@@ -365,7 +365,7 @@ class TestExportWorkflow:
 
         assert result["success"] is True
         assert result["name"] == "test-workflow"
-        assert result["workflow_type"] == "workflow"
+        assert result["workflow_type"] == "pipeline"
         assert "name: test-workflow" in result["yaml_content"]
 
     def test_export_by_id(
@@ -545,13 +545,19 @@ class TestNoDatabaseError:
 class TestPipelineTypeFiltering:
     """Pipeline CRUD wrappers reject non-pipeline definitions."""
 
-    def test_update_pipeline_rejects_workflow(
-        self, def_manager: LocalWorkflowDefinitionManager, loader: WorkflowLoader
+    def test_update_pipeline_rejects_non_pipeline(
+        self, def_manager: LocalWorkflowDefinitionManager
     ) -> None:
         from gobby.mcp_proxy.tools.pipelines import _require_pipeline
 
-        create_workflow_definition(def_manager, loader, VALID_WORKFLOW_YAML)
-        err = _require_pipeline(def_manager, name="test-workflow")
+        # Create a non-pipeline definition directly
+        def_manager.create(
+            name="test-rule",
+            definition_json='{"name": "test-rule", "event": "stop"}',
+            workflow_type="rule",
+            source="installed",
+        )
+        err = _require_pipeline(def_manager, name="test-rule")
 
         assert err is not None
         assert err["success"] is False

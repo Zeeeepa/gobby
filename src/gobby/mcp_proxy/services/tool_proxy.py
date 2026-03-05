@@ -1,5 +1,6 @@
 """Tool proxy service."""
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -287,6 +288,15 @@ class ToolProxyService:
 
         """
         arguments = arguments or {}
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (json.JSONDecodeError, TypeError):
+                return {
+                    "success": False,
+                    "error": "Invalid arguments: expected dict, got string that isn't valid JSON",
+                    "error_code": ToolProxyErrorCode.VALIDATION_ERROR.value,
+                }
 
         # Check tool filter before execution
         if self._tool_filter and session_id:

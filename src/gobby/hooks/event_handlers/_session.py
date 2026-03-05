@@ -958,6 +958,26 @@ class SessionEventHandlerMixin(EventHandlersBase):
             return None
 
         if not session_vars.get("task_claimed") or not session_vars.get("claimed_tasks"):
+            # DB fallback: check for tasks still assigned to this session
+            try:
+                db_tasks = self._task_manager.list_tasks(
+                    assignee=session_id,
+                    status="in_progress",
+                    project_id=project_id,
+                )
+                if db_tasks:
+                    reconciled = {}
+                    result: list[tuple[str, str, str]] = []
+                    for task in db_tasks:
+                        ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+                        reconciled[task.id] = ref
+                        result.append((ref, task.status, task.title))
+                    # Reconcile session variables with DB state
+                    sv_mgr.set_variable(session_id, "task_claimed", True)
+                    sv_mgr.set_variable(session_id, "claimed_tasks", reconciled)
+                    return result
+            except Exception:
+                pass
             return None
 
         claimed_tasks: dict[str, Any] = session_vars["claimed_tasks"]
