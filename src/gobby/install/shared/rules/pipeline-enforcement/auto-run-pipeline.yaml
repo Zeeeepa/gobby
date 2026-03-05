@@ -18,4 +18,5 @@ rules:
         tool: run_pipeline
         arguments:
           name: "{{ _assigned_pipeline }}"
+          session_id: "{{ event.session_id }}"
         background: true

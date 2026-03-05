@@ -316,3 +316,5 @@ class ClaudeExecutor(AgentExecutor):
                 error=f"Execution timed out after {timeout}s",
                 turns_used=turns_counter[0],
             )
+        finally:
+            _tool_pool.shutdown(wait=False)
