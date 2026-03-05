@@ -78,7 +78,16 @@ class WorkflowHookHandler:
             detect_mcp_call,
             detect_plan_mode_from_context,
             detect_task_claim,
+            reconcile_claimed_tasks,
         )
+
+        # Reconcile stale claimed_tasks on STOP before rule evaluation
+        if event.event_type == HookEventType.STOP:
+            reconcile_claimed_tasks(
+                variables,
+                session_id,
+                task_manager=self._task_manager,
+            )
 
         # Task claim/release tracking (AFTER_TOOL for gobby-tasks calls)
         if event.event_type == HookEventType.AFTER_TOOL:

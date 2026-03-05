@@ -790,3 +790,181 @@ class TestConsecutiveBlockScoping:
         )
         r3 = await engine.evaluate(read_event, "sess-1", variables)
         assert r3.decision == "allow"
+
+
+# ---------------------------------------------------------------------------
+# Claimed task reconciliation on STOP
+# ---------------------------------------------------------------------------
+
+
+def _make_task(
+    task_id: str,
+    status: str = "in_progress",
+    assignee: str | None = "sess-1",
+) -> "Task":
+    """Create a minimal Task dataclass for reconciliation tests."""
+    from gobby.storage.tasks import Task
+
+    return Task(
+        id=task_id,
+        project_id="proj-1",
+        title="Test task",
+        status=status,
+        priority=1,
+        task_type="task",
+        created_at="2026-01-01T00:00:00Z",
+        updated_at="2026-01-01T00:00:00Z",
+        assignee=assignee,
+    )
+
+
+class TestClaimedTaskReconciliation:
+    """Test reconcile_claimed_tasks() fixes false positives on STOP."""
+
+    def test_reconcile_fixes_inconsistent_boolean(self) -> None:
+        """task_claimed=True with empty claimed_tasks → corrected to False."""
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {},
+        }
+        reconcile_claimed_tasks(variables, "sess-1")
+
+        assert variables["task_claimed"] is False
+
+    def test_reconcile_noop_when_both_falsy(self) -> None:
+        """No changes when task_claimed is already False and dict is empty."""
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        variables: dict[str, object] = {
+            "task_claimed": False,
+            "claimed_tasks": {},
+        }
+        reconcile_claimed_tasks(variables, "sess-1")
+
+        assert variables["task_claimed"] is False
+        assert variables["claimed_tasks"] == {}
+
+    def test_reconcile_prunes_closed_tasks(self) -> None:
+        """Task in dict that is closed in DB → pruned, task_claimed=False."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+        task_manager.get_task.return_value = _make_task("uuid-1", status="closed")
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {"uuid-1": "#10"},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is False
+        assert variables["claimed_tasks"] == {}
+
+    def test_reconcile_prunes_reassigned_tasks(self) -> None:
+        """Task assigned to a different session → pruned."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+        task_manager.get_task.return_value = _make_task(
+            "uuid-1", status="in_progress", assignee="other-session"
+        )
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {"uuid-1": "#10"},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is False
+        assert variables["claimed_tasks"] == {}
+
+    def test_reconcile_prunes_deleted_tasks(self) -> None:
+        """Task not found in DB → pruned."""
+        from unittest.mock import MagicMock
+
+        from gobby.storage.tasks import TaskNotFoundError
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+        task_manager.get_task.side_effect = TaskNotFoundError("gone")
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {"uuid-1": "#10"},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is False
+        assert variables["claimed_tasks"] == {}
+
+    def test_reconcile_preserves_valid_claims(self) -> None:
+        """Task still in_progress + assigned to this session → survives."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+        task_manager.get_task.return_value = _make_task(
+            "uuid-1", status="in_progress", assignee="sess-1"
+        )
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {"uuid-1": "#10"},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is True
+        assert variables["claimed_tasks"] == {"uuid-1": "#10"}
+
+    def test_reconcile_mixed_valid_and_stale(self) -> None:
+        """Mix of valid and stale claims → only valid ones survive."""
+        from unittest.mock import MagicMock
+
+        from gobby.storage.tasks import TaskNotFoundError
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+
+        def get_task_side_effect(task_id):
+            if task_id == "uuid-valid":
+                return _make_task("uuid-valid", status="in_progress", assignee="sess-1")
+            elif task_id == "uuid-closed":
+                return _make_task("uuid-closed", status="closed", assignee="sess-1")
+            else:
+                raise TaskNotFoundError("gone")
+
+        task_manager.get_task.side_effect = get_task_side_effect
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {
+                "uuid-valid": "#1",
+                "uuid-closed": "#2",
+                "uuid-deleted": "#3",
+            },
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is True
+        assert variables["claimed_tasks"] == {"uuid-valid": "#1"}
+
+    def test_reconcile_no_task_manager(self) -> None:
+        """Graceful skip when task_manager is unavailable — no crash, no changes."""
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {"uuid-1": "#10"},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=None)
+
+        # Should not modify — can't verify without DB
+        assert variables["task_claimed"] is True
+        assert variables["claimed_tasks"] == {"uuid-1": "#10"}

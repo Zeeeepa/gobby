@@ -285,6 +285,61 @@ def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], sessio
             return
 
 
+def reconcile_claimed_tasks(
+    variables: dict[str, Any],
+    session_id: str,
+    task_manager: "LocalTaskManager | None" = None,
+) -> None:
+    """Reconcile claimed_tasks dict against DB state on STOP events.
+
+    Fixes two classes of false positives:
+    - task_claimed=True with empty claimed_tasks (set by stale rule side-effect)
+    - Stale entries in claimed_tasks (task closed/reassigned externally)
+
+    Must run BEFORE rule evaluation on STOP so the require-task-close gate
+    sees accurate state.
+    """
+    claimed_tasks: dict[str, str] = dict(variables.get("claimed_tasks") or {})
+
+    # Fix inconsistency: task_claimed=True but dict is empty
+    if not claimed_tasks:
+        if variables.get("task_claimed"):
+            logger.info(
+                f"Session {session_id}: reconcile — task_claimed=True with empty "
+                f"claimed_tasks, correcting to False"
+            )
+            variables["task_claimed"] = False
+        return
+
+    # Without a task manager we can't verify DB state — leave as-is
+    if not task_manager:
+        logger.debug(
+            f"Session {session_id}: reconcile — no task_manager, skipping DB verification"
+        )
+        return
+
+    from gobby.storage.tasks import TaskNotFoundError
+
+    pruned: list[str] = []
+    for task_uuid, ref in list(claimed_tasks.items()):
+        try:
+            task = task_manager.get_task(task_uuid)
+        except (TaskNotFoundError, ValueError, KeyError):
+            task = None
+
+        if task is None or task.status != "in_progress" or task.assignee != session_id:
+            pruned.append(f"{ref}({task_uuid[:8]})")
+            del claimed_tasks[task_uuid]
+
+    if pruned:
+        logger.info(
+            f"Session {session_id}: reconcile — pruned stale claims: {', '.join(pruned)}"
+        )
+
+    variables["claimed_tasks"] = claimed_tasks
+    variables["task_claimed"] = len(claimed_tasks) > 0
+
+
 def detect_mcp_call(event: "HookEvent", variables: dict[str, Any], session_id: str) -> None:
     """Track MCP tool calls by server/tool for rule engine conditions.
 
