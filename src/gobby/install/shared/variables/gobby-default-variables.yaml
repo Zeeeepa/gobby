@@ -50,11 +50,27 @@ variables:
     value: true
     description: Default auto_inject_handoff to true (populate full_session_summary/compact_session_summary template vars on session start)
   servers_listed:
-    value: false
-    description: Default servers_listed to false
+    value: true
+    description: "Pre-seed servers_listed (internal servers are known at startup)"
   listed_servers:
-    value: []
-    description: Default listed_servers to empty list
+    value:
+      - gobby-tasks
+      - gobby-sessions
+      - gobby-memory
+      - gobby-workflows
+      - gobby-canvas
+      - gobby-metrics
+      - gobby-agents
+      - gobby-worktrees
+      - gobby-clones
+      - gobby-merge
+      - gobby-hub
+      - gobby-config
+      - gobby-voice
+      - gobby-skills
+      - gobby-cron
+      - gobby-tests
+    description: "Pre-seed listed_servers with internal server names"
   unlocked_tools:
     value: []
     description: Default unlocked_tools to empty list
