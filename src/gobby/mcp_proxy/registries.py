@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -342,18 +343,26 @@ def setup_internal_registries(
             ClawdHubProvider,
             GitHubCollectionProvider,
             HubManager,
-            SkillHubProvider,
+            SkillsMPProvider,
         )
 
         # Get skills config (or use defaults)
         skills_config = _config.skills if _config and hasattr(_config, "skills") else SkillsConfig()
 
+        # Resolve hub API keys from env vars
+        api_keys: dict[str, str] = {}
+        for _hub_name, hub_config in skills_config.hubs.items():
+            if hub_config.auth_key_name:
+                value = os.environ.get(hub_config.auth_key_name)
+                if value:
+                    api_keys[hub_config.auth_key_name] = value
+
         # Create hub manager with configured hubs
-        hub_manager = HubManager(configs=skills_config.hubs)
+        hub_manager = HubManager(configs=skills_config.hubs, api_keys=api_keys)
 
         # Register provider factories
         hub_manager.register_provider_factory("clawdhub", ClawdHubProvider)
-        hub_manager.register_provider_factory("skillhub", SkillHubProvider)
+        hub_manager.register_provider_factory("skillsmp", SkillsMPProvider)
         hub_manager.register_provider_factory("github-collection", GitHubCollectionProvider)
         hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
         hub_manager._skill_description_config = (

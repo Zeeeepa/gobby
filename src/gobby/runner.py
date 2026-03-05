@@ -167,13 +167,22 @@ class GobbyRunner:
                 ClawdHubProvider,
                 GitHubCollectionProvider,
                 HubManager,
-                SkillHubProvider,
+                SkillsMPProvider,
             )
 
             skills_config = self.config.skills if hasattr(self.config, "skills") else SkillsConfig()
-            self.hub_manager = HubManager(configs=skills_config.hubs)
+
+            # Resolve hub API keys from env vars
+            api_keys: dict[str, str] = {}
+            for _hub_name, hub_config in skills_config.hubs.items():
+                if hub_config.auth_key_name:
+                    value = os.environ.get(hub_config.auth_key_name)
+                    if value:
+                        api_keys[hub_config.auth_key_name] = value
+
+            self.hub_manager = HubManager(configs=skills_config.hubs, api_keys=api_keys)
             self.hub_manager.register_provider_factory("clawdhub", ClawdHubProvider)
-            self.hub_manager.register_provider_factory("skillhub", SkillHubProvider)
+            self.hub_manager.register_provider_factory("skillsmp", SkillsMPProvider)
             self.hub_manager.register_provider_factory(
                 "github-collection", GitHubCollectionProvider
             )

@@ -121,6 +121,7 @@ class TestClawdHubProviderSearch:
             hub_name="clawdhub",
             base_url="https://clawdhub.com",
         )
+        provider._cli_available = True
 
         search_results = {
             "skills": [
@@ -155,10 +156,23 @@ class TestClawdHubProviderSearch:
             hub_name="clawdhub",
             base_url="https://clawdhub.com",
         )
+        provider._cli_available = True
 
         with patch.object(provider, "_run_cli_command", return_value={"skills": []}):
             results = await provider.search("nonexistent")
             assert results == []
+
+    @pytest.mark.asyncio
+    async def test_search_raises_when_cli_unavailable(self) -> None:
+        """Test search raises RuntimeError when CLI is not installed."""
+        provider = ClawdHubProvider(
+            hub_name="clawdhub",
+            base_url="https://clawdhub.com",
+        )
+        provider._cli_available = False
+
+        with pytest.raises(RuntimeError, match="CLI not installed"):
+            await provider.search("test")
 
 
 class TestClawdHubProviderDiscover:
@@ -189,6 +203,7 @@ class TestClawdHubProviderListSkills:
             hub_name="clawdhub",
             base_url="https://clawdhub.com",
         )
+        provider._cli_available = True
 
         list_results = {
             "skills": [
@@ -218,6 +233,7 @@ class TestClawdHubProviderDownload:
             hub_name="clawdhub",
             base_url="https://clawdhub.com",
         )
+        provider._cli_available = True
 
         install_result = {
             "success": True,

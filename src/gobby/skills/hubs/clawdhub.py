@@ -171,7 +171,15 @@ class ClawdHubProvider(HubProvider):
 
         Returns:
             List of matching skills with basic info
+
+        Raises:
+            RuntimeError: If clawdhub CLI is not installed
         """
+        if self._cli_available is None:
+            self._cli_available = await self._check_cli_available()
+        if not self._cli_available:
+            raise RuntimeError("ClawdHub CLI not installed. Install with: npm i -g clawdhub")
+
         result = await self._run_cli_command("search", [query, "--limit", str(limit)])
 
         skills = result.get("skills", [])
@@ -200,7 +208,15 @@ class ClawdHubProvider(HubProvider):
 
         Returns:
             List of skills with basic info
+
+        Raises:
+            RuntimeError: If clawdhub CLI is not installed
         """
+        if self._cli_available is None:
+            self._cli_available = await self._check_cli_available()
+        if not self._cli_available:
+            raise RuntimeError("ClawdHub CLI not installed. Install with: npm i -g clawdhub")
+
         args = ["--limit", str(limit)]
         if offset > 0:
             args.extend(["--offset", str(offset)])
@@ -265,6 +281,15 @@ class ClawdHubProvider(HubProvider):
         Returns:
             DownloadResult with success status, path, version, or error
         """
+        if self._cli_available is None:
+            self._cli_available = await self._check_cli_available()
+        if not self._cli_available:
+            return DownloadResult(
+                success=False,
+                slug=slug,
+                error="ClawdHub CLI not installed. Install with: npm i -g clawdhub",
+            )
+
         args = [slug]
 
         if version:

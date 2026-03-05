@@ -88,6 +88,19 @@ def init(
                     "(or sudo dnf install tmux)"
                 )
 
+        # Check clawdhub CLI (skill hub search)
+        if not shutil.which("clawdhub"):
+            click.echo("  Warning: clawdhub CLI not found. Install: npm i -g clawdhub")
+
+        # Check Cisco skill-scanner (skill safety scanning)
+        try:
+            import skill_scanner  # noqa: F401
+        except ImportError:
+            click.echo(
+                "  Warning: cisco-ai-skill-scanner not found. "
+                "Install: uv add cisco-ai-skill-scanner"
+            )
+
         # Show detected verification commands
         if result.verification:
             verification_dict = result.verification.to_dict()
