@@ -343,7 +343,9 @@ def create_agents_registry(
                     notify_result: dict[str, Any] = {"status": effective_status, "run_id": run_id}
                     await completion_registry.notify(run_id, notify_result)
                 except Exception:
-                    logger.debug("Failed to notify completion registry for run %s", run_id, exc_info=True)
+                    logger.debug(
+                        "Failed to notify completion registry for run %s", run_id, exc_info=True
+                    )
 
             # Clean up the tmux session (remain-on-exit keeps dead panes alive)
             if not debug and tmux_session_name:

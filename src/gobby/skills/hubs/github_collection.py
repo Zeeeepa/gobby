@@ -168,9 +168,7 @@ class GitHubCollectionProvider(HubProvider):
 
             # Check for nested structure: probe first dir for SKILL.md
             if skills and skills[0].get("_url"):
-                has_skill_md = await self._dir_has_skill_md(
-                    skills[0]["slug"], headers, params
-                )
+                has_skill_md = await self._dir_has_skill_md(skills[0]["slug"], headers, params)
                 if not has_skill_md:
                     # Nested: each top-level dir is a category, recurse
                     nested_skills = []
@@ -210,9 +208,7 @@ class GitHubCollectionProvider(HubProvider):
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.head(
-                    url, headers=headers, params=params, timeout=10.0
-                )
+                response = await client.head(url, headers=headers, params=params, timeout=10.0)
                 return response.status_code == 200
         except httpx.RequestError:
             return False
@@ -228,16 +224,12 @@ class GitHubCollectionProvider(HubProvider):
             return []
 
         owner, repo = self._repo.split("/", 1)
-        sub_path = (
-            f"{self._path.strip('/')}/{category_name}" if self._path else category_name
-        )
+        sub_path = f"{self._path.strip('/')}/{category_name}" if self._path else category_name
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{sub_path}"
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    url, headers=headers, params=params, timeout=30.0
-                )
+                response = await client.get(url, headers=headers, params=params, timeout=30.0)
                 response.raise_for_status()
                 contents: list[dict[str, Any]] = response.json()
 

@@ -469,9 +469,18 @@ class PipelineExecutor:
         rendered_step = self.renderer.render_step(step, context)
 
         # Warn if multiple step types are set — only the first match executes
-        step_types = [f for f in ("wait", "exec", "prompt", "invoke_pipeline", "mcp", "activate_workflow") if getattr(step, f, None)]
+        step_types = [
+            f
+            for f in ("wait", "exec", "prompt", "invoke_pipeline", "mcp", "activate_workflow")
+            if getattr(step, f, None)
+        ]
         if len(step_types) > 1:
-            logger.warning("Step %s has multiple types set: %s — only '%s' will execute", step.id, step_types, step_types[0])
+            logger.warning(
+                "Step %s has multiple types set: %s — only '%s' will execute",
+                step.id,
+                step_types,
+                step_types[0],
+            )
 
         if step.wait:
             # Block until completion event fires
@@ -535,7 +544,11 @@ class PipelineExecutor:
         try:
             timeout = float(timeout)
         except (TypeError, ValueError):
-            logger.warning("Invalid timeout value %r for wait step '%s', defaulting to 600s", timeout, rendered_step.id)
+            logger.warning(
+                "Invalid timeout value %r for wait step '%s', defaulting to 600s",
+                timeout,
+                rendered_step.id,
+            )
             timeout = 600.0
 
         logger.info(

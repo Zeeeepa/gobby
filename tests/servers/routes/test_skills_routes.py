@@ -7,9 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-
 from gobby.config.app import DaemonConfig
-
 from tests.servers.conftest import create_http_server
 
 pytestmark = pytest.mark.unit

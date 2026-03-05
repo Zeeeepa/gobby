@@ -393,9 +393,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             # Update session-task link to reflect reopen
             if prior_assignee:
                 try:
-                    ctx.session_task_manager.link_task(
-                        prior_assignee, resolved_id, "reopened"
-                    )
+                    ctx.session_task_manager.link_task(prior_assignee, resolved_id, "reopened")
                 except Exception as e:
                     logger.debug("Best-effort session link update on reopen failed: %s", e)
 

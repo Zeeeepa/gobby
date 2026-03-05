@@ -892,7 +892,6 @@ class TestRendererInvokePipelineDict:
 
         assert rendered.invoke_pipeline["arguments"]["session_ref"] == "sess-xyz"
 
-
     def test_renders_wait_completion_id(self, renderer) -> None:
         """Wait step completion_id template should be rendered."""
         step = PipelineStep(

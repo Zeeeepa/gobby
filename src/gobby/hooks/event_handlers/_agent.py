@@ -319,7 +319,9 @@ class AgentEventHandlerMixin(EventHandlersBase):
 
         # Skip handoff logic for Gemini - it fires PreCompress too frequently
         if event.source == SessionSource.GEMINI:
-            self.logger.debug("PRE_COMPACT (%s): session %s [Gemini - skipped]", trigger, session_id)
+            self.logger.debug(
+                "PRE_COMPACT (%s): session %s [Gemini - skipped]", trigger, session_id
+            )
             return HookResponse(decision="allow")
 
         if session_id:

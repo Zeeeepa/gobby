@@ -467,7 +467,9 @@ class SessionCoordinator:
             else:
                 loop.run_until_complete(self._completion_registry.notify(run_id, result))
         except Exception:
-            self.logger.debug("Failed to notify completion registry for run %s", run_id, exc_info=True)
+            self.logger.debug(
+                "Failed to notify completion registry for run %s", run_id, exc_info=True
+            )
 
     def release_session_worktrees(self, session_id: str) -> None:
         """

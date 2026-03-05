@@ -123,9 +123,7 @@ class StepRenderer:
                     )
 
             if rendered_step.wait and isinstance(rendered_step.wait, dict):
-                rendered_step.wait = self.render_mcp_arguments(
-                    rendered_step.wait, render_context
-                )
+                rendered_step.wait = self.render_mcp_arguments(rendered_step.wait, render_context)
 
         except Exception as e:
             raise ValueError(f"Failed to render step {step.id}: {e}") from e

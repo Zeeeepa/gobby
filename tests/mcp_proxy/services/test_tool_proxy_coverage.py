@@ -996,9 +996,7 @@ class TestCallToolStringArgumentCoercion:
         return manager
 
     @pytest.mark.asyncio
-    async def test_string_arguments_coerced_to_dict(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_string_arguments_coerced_to_dict(self, mock_mcp_manager, mock_internal_manager):
         """Test that JSON string arguments are parsed to dict."""
         mock_registry = MagicMock()
         mock_registry.call = AsyncMock(return_value={"status": "ok"})
@@ -1010,9 +1008,7 @@ class TestCallToolStringArgumentCoercion:
             validate_arguments=False,
         )
 
-        result = await proxy.call_tool(
-            "gobby-tasks", "create_task", '{"title": "Test task"}'
-        )
+        result = await proxy.call_tool("gobby-tasks", "create_task", '{"title": "Test task"}')
 
         assert result["status"] == "ok"
         mock_registry.call.assert_called_once()
@@ -1056,17 +1052,13 @@ class TestCallToolStringArgumentCoercion:
             validate_arguments=False,
         )
 
-        result = await proxy.call_tool(
-            "gobby-tasks", "create_task", "not valid json {"
-        )
+        result = await proxy.call_tool("gobby-tasks", "create_task", "not valid json {")
 
         assert result["success"] is False
         assert "Invalid arguments" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_json_array_arguments_rejected(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_json_array_arguments_rejected(self, mock_mcp_manager, mock_internal_manager):
         """Test that JSON array arguments (non-dict) are rejected."""
         proxy = ToolProxyService(
             mcp_manager=mock_mcp_manager,
@@ -1074,9 +1066,7 @@ class TestCallToolStringArgumentCoercion:
             validate_arguments=False,
         )
 
-        result = await proxy.call_tool(
-            "gobby-tasks", "create_task", '[1, 2, 3]'
-        )
+        result = await proxy.call_tool("gobby-tasks", "create_task", "[1, 2, 3]")
 
         assert result["success"] is False
         assert "expected dict" in result["error"]

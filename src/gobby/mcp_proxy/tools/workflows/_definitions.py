@@ -170,7 +170,10 @@ def update_workflow_definition(
         elif yaml_type in _LEGACY_TYPE_MAP:
             fields["workflow_type"] = _LEGACY_TYPE_MAP[yaml_type]
         elif yaml_type is not None:
-            return {"success": False, "error": f"Invalid type '{yaml_type}'. Valid types: {', '.join(sorted(_VALID_WORKFLOW_TYPES))}"}
+            return {
+                "success": False,
+                "error": f"Invalid type '{yaml_type}'. Valid types: {', '.join(sorted(_VALID_WORKFLOW_TYPES))}",
+            }
         # If yaml_type is absent, preserve existing workflow_type
         if "version" in data:
             fields["version"] = str(data["version"])
