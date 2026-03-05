@@ -226,7 +226,7 @@ def _resolve_ready_tasks(
     if session_id and not parent_task_id:
         try:
             resolved_session_id = session_manager.resolve_session_reference(session_id, project_id)
-        except Exception as e:
+        except (ValueError, KeyError, LookupError) as e:
             logger.warning(f"Could not resolve session_id '{session_id}': {e}")
             resolved_session_id = session_id
 

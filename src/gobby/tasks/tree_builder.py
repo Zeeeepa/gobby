@@ -180,7 +180,10 @@ class TaskTreeBuilder:
             # Store parallel_group as a label with parallel: prefix
             parallel_group = node.get("parallel_group")
             if parallel_group:
-                self.task_manager.add_label(task.id, f"parallel:{parallel_group}")
+                try:
+                    self.task_manager.add_label(task.id, f"parallel:{parallel_group}")
+                except Exception as e:
+                    self._errors.append(f"Failed to add parallel label to task {task.id}: {e}")
 
             # Check for duplicate titles (warn but continue for partial functionality)
             if title in self._title_to_id:

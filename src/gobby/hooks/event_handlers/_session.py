@@ -990,8 +990,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 task = self._task_manager.get_task(task_uuid, project_id=project_id)
                 ref = f"#{task.seq_num}" if task.seq_num else task_uuid[:8]
                 result.append((ref, task.status, task.title))
-            except Exception:
-                # Task may have been deleted — show what we can
+            except Exception as e:
+                _derive_logger.debug("Failed to fetch task %s: %s", task_uuid[:8], e)
                 result.append((task_uuid[:8], "unknown", "(deleted)"))
         return result or None
 

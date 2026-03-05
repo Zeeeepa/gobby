@@ -535,6 +535,7 @@ class PipelineExecutor:
         try:
             timeout = float(timeout)
         except (TypeError, ValueError):
+            logger.warning("Invalid timeout value %r for wait step '%s', defaulting to 600s", timeout, rendered_step.id)
             timeout = 600.0
 
         logger.info(
