@@ -11,13 +11,13 @@ from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
+    from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.hooks.hook_manager import HookManager
     from gobby.llm.service import LLMService
     from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
-    from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.storage.clones import LocalCloneManager
     from gobby.storage.config_store import ConfigStore
     from gobby.storage.database import DatabaseProtocol
