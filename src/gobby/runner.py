@@ -875,7 +875,9 @@ class GobbyRunner:
 
             # Cancel background pipeline tasks
             try:
-                from gobby.mcp_proxy.tools.workflows._pipeline_execution import cleanup_background_tasks
+                from gobby.mcp_proxy.tools.workflows._pipeline_execution import (
+                    cleanup_background_tasks,
+                )
 
                 await asyncio.wait_for(cleanup_background_tasks(), timeout=5.0)
             except TimeoutError:
