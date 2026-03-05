@@ -801,7 +801,7 @@ def _make_task(
     task_id: str,
     status: str = "in_progress",
     assignee: str | None = "sess-1",
-) -> "Task":
+):
     """Create a minimal Task dataclass for reconciliation tests."""
     from gobby.storage.tasks import Task
 
