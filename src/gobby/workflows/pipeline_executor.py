@@ -697,9 +697,19 @@ class PipelineExecutor:
             Dict of output name -> value
         """
         outputs: dict[str, Any] = {}
+        # Build render context once for Jinja2 expressions
+        render_ctx = (
+            self.renderer.build_render_context(context)
+            if self.renderer.template_engine
+            else {}
+        )
 
         for name, expr in pipeline.outputs.items():
-            if isinstance(expr, str) and expr.startswith("$"):
+            if isinstance(expr, str) and "${{" in expr:
+                # Render Jinja2 template expression
+                rendered = self.renderer.render_string(expr, render_ctx)
+                outputs[name] = rendered
+            elif isinstance(expr, str) and expr.startswith("$"):
                 # Resolve $step.output reference
                 value = self._resolve_reference(expr, context)
                 outputs[name] = value

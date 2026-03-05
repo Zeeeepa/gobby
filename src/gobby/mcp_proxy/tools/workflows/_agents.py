@@ -83,7 +83,7 @@ def list_agent_definitions(
     """
     rows = def_manager.list_all(workflow_type="agent", enabled=enabled, project_id=project_id)
     agents = [_agent_summary(r) for r in rows]
-    return {"agents": agents, "count": len(agents)}
+    return {"success": True, "agents": agents, "count": len(agents)}
 
 
 def get_agent_definition(
@@ -102,7 +102,7 @@ def get_agent_definition(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
-        return {"error": f"Agent definition '{name}' not found"}
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
 
     try:
         body = json.loads(row.definition_json)
@@ -111,14 +111,14 @@ def get_agent_definition(
         # Validate
         AgentDefinitionBody.model_validate(body)
     except Exception as e:
-        return {"error": f"Failed to parse agent definition: {e}"}
+        return {"success": False, "error": f"Failed to parse agent definition: {e}"}
 
     detail = _agent_detail(row)
     # Normalize provider for display
     if detail.get("provider") in (None, "inherit"):
         detail["provider"] = "claude"
 
-    return {"agent": detail}
+    return {"success": True, "agent": detail}
 
 
 def create_agent_definition(
@@ -146,14 +146,14 @@ def create_agent_definition(
     try:
         AgentDefinitionBody.model_validate(definition)
     except Exception as e:
-        return {"error": f"Validation failed: {e}"}
+        return {"success": False, "error": f"Validation failed: {e}"}
 
     # Check for duplicate name (including templates)
     existing = def_manager.get_by_name(name) or def_manager.get_by_name(
         name, include_templates=True
     )
     if existing is not None:
-        return {"error": f"Agent definition '{name}' already exists"}
+        return {"success": False, "error": f"Agent definition '{name}' already exists"}
 
     row = def_manager.create(
         name=name,
@@ -165,7 +165,7 @@ def create_agent_definition(
     )
     logger.info("Created agent definition '%s' (id=%s)", name, row.id)
 
-    return {"agent": _agent_detail(row)}
+    return {"success": True, "agent": _agent_detail(row)}
 
 
 def toggle_agent_definition(
@@ -186,12 +186,12 @@ def toggle_agent_definition(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
-        return {"error": f"Agent definition '{name}' not found"}
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
 
     updated = def_manager.update(row.id, enabled=enabled)
     logger.info("Toggled agent definition '%s' enabled=%s", name, enabled)
 
-    return {"agent": _agent_detail(updated)}
+    return {"success": True, "agent": _agent_detail(updated)}
 
 
 def delete_agent_definition(
@@ -214,10 +214,11 @@ def delete_agent_definition(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
-        return {"error": f"Agent definition '{name}' not found"}
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
 
     if row.source in ("bundled", "template") and not force:
         return {
+            "success": False,
             "error": (
                 f"Agent definition '{name}' is a template and will be re-created on restart. "
                 "Use force=True to delete anyway."
@@ -226,10 +227,10 @@ def delete_agent_definition(
 
     deleted = def_manager.delete(row.id)
     if not deleted:
-        return {"error": f"Failed to delete agent definition '{name}'"}
+        return {"success": False, "error": f"Failed to delete agent definition '{name}'"}
 
     logger.info("Deleted agent definition '%s' (id=%s)", name, row.id)
-    return {"deleted": {"id": row.id, "name": row.name}}
+    return {"success": True, "deleted": {"id": row.id, "name": row.name}}
 
 
 def update_agent_rules(
@@ -252,7 +253,7 @@ def update_agent_rules(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
-        return {"error": f"Agent definition '{name}' not found"}
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
 
     body = json.loads(row.definition_json)
     workflows = body.get("workflows", {})
@@ -271,7 +272,7 @@ def update_agent_rules(
     def_manager.update(row.id, definition_json=json.dumps(body))
     logger.info("Updated rules for agent '%s': %s", name, rules)
 
-    return {"rules": rules}
+    return {"success": True, "rules": rules}
 
 
 def update_agent_variables(
@@ -294,7 +295,7 @@ def update_agent_variables(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
-        return {"error": f"Agent definition '{name}' not found"}
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
 
     body = json.loads(row.definition_json)
     workflows = body.get("workflows", {})
@@ -312,7 +313,7 @@ def update_agent_variables(
     def_manager.update(row.id, definition_json=json.dumps(body))
     logger.info("Updated variables for agent '%s': %s", name, list(variables.keys()))
 
-    return {"variables": variables}
+    return {"success": True, "variables": variables}
 
 
 def update_agent_steps(
@@ -333,7 +334,7 @@ def update_agent_steps(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "agent":
-        return {"error": f"Agent definition '{name}' not found"}
+        return {"success": False, "error": f"Agent definition '{name}' not found"}
 
     body = json.loads(row.definition_json)
     body["steps"] = steps
@@ -342,9 +343,9 @@ def update_agent_steps(
     try:
         AgentDefinitionBody.model_validate(body)
     except Exception as e:
-        return {"error": f"Validation failed: {e}"}
+        return {"success": False, "error": f"Validation failed: {e}"}
 
     def_manager.update(row.id, definition_json=json.dumps(body))
     logger.info("Updated steps for agent '%s': %d steps", name, len(steps or []))
 
-    return {"steps": steps, "step_count": len(steps or [])}
+    return {"success": True, "steps": steps, "step_count": len(steps or [])}

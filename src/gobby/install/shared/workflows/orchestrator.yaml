@@ -46,7 +46,7 @@ steps:
 
   # --- Expand epic if not yet expanded (first iteration only) ---
   - id: expand_epic
-    condition: "${{ (not inputs._worktree_id) and (get_epic.output.result.is_expanded == false) }}"
+    condition: "${{ (not inputs._worktree_id) and (get_epic.output.is_expanded == false) }}"
     invoke_pipeline:
       name: expand-task
       arguments:
@@ -136,7 +136,7 @@ steps:
       server: gobby-worktrees
       tool: create_worktree
       arguments:
-        branch_name: "epic-${{ get_epic.output.result.seq_num }}"
+        branch_name: "epic-${{ get_epic.output.seq_num }}"
         base_branch: "${{ inputs.merge_target }}"
         task_id: "${{ inputs.session_task }}"
         use_local: true

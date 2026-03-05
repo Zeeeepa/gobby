@@ -126,6 +126,8 @@ class DaemonProxy:
             "wait_for_task",
             "wait_for_any_task",
             "wait_for_all_tasks",
+            "wait_for_completion",
+            "wait_for_agent",
         ):
             # Extract timeout from arguments, default to 300s if not specified
             arg_timeout = float((arguments or {}).get("timeout", 300.0))
