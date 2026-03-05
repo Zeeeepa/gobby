@@ -326,9 +326,7 @@ def _update_project_json_verification(
     # Merge custom entries: new detection wins, but keep manual entries not in detection
     merged_custom = {**existing_custom, **verification_dict.get("custom", {})}
 
-    project_data["verification"] = {
-        k: v for k, v in verification_dict.items() if k != "custom"
-    }
+    project_data["verification"] = {k: v for k, v in verification_dict.items() if k != "custom"}
     if merged_custom:
         project_data["verification"]["custom"] = merged_custom
 

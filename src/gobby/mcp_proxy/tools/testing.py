@@ -165,9 +165,7 @@ def create_testing_registry(
             result: dict[str, Any] = {"success": True, **run.to_dict()}
 
             if include_output:
-                result["output"] = runner.get_output(
-                    run, offset=output_offset, limit=output_limit
-                )
+                result["output"] = runner.get_output(run, offset=output_offset, limit=output_limit)
 
             return result
 

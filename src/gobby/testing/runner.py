@@ -106,13 +106,16 @@ class TestRunner:
         except Exception as e:
             logger.exception("Test run %s failed unexpectedly", run.id)
             now = datetime.now(UTC).isoformat()
-            run = self.storage.update_run(
-                run.id,
-                status="failed",
-                exit_code=-1,
-                summary=f"Internal error: {e}",
-                completed_at=now,
-            ) or run
+            run = (
+                self.storage.update_run(
+                    run.id,
+                    status="failed",
+                    exit_code=-1,
+                    summary=f"Internal error: {e}",
+                    completed_at=now,
+                )
+                or run
+            )
 
         return run
 
@@ -132,20 +135,21 @@ class TestRunner:
         )
 
         try:
-            stdout_bytes, _ = await asyncio.wait_for(
-                process.communicate(), timeout=timeout
-            )
+            stdout_bytes, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except TimeoutError:
             process.kill()
             await process.wait()
             now = datetime.now(UTC).isoformat()
-            return self.storage.update_run(
-                run.id,
-                status="timeout",
-                exit_code=-1,
-                summary=f"Command timed out after {timeout}s",
-                completed_at=now,
-            ) or run
+            return (
+                self.storage.update_run(
+                    run.id,
+                    status="timeout",
+                    exit_code=-1,
+                    summary=f"Command timed out after {timeout}s",
+                    completed_at=now,
+                )
+                or run
+            )
 
         output = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
         exit_code = process.returncode or 0
@@ -163,14 +167,17 @@ class TestRunner:
             status = "failed"
 
         now = datetime.now(UTC).isoformat()
-        return self.storage.update_run(
-            run.id,
-            status=status,
-            exit_code=exit_code,
-            summary=summary,
-            output_file=str(output_file),
-            completed_at=now,
-        ) or run
+        return (
+            self.storage.update_run(
+                run.id,
+                status=status,
+                exit_code=exit_code,
+                summary=summary,
+                output_file=str(output_file),
+                completed_at=now,
+            )
+            or run
+        )
 
     def _brief_success(self, output: str) -> str:
         """Extract a brief success summary from output (last few meaningful lines)."""
@@ -199,9 +206,7 @@ class TestRunner:
             try:
                 provider = self.llm_service.get_provider(self.config.provider)
                 if provider:
-                    prompt = _SUMMARIZE_PROMPT.format(
-                        category=category, output=truncated
-                    )
+                    prompt = _SUMMARIZE_PROMPT.format(category=category, output=truncated)
                     llm_timeout = self.config.timeout
                     summary = await asyncio.wait_for(
                         provider.generate_text(
@@ -243,11 +248,23 @@ class TestRunner:
             Dict with lines, total_lines, offset, limit, has_more
         """
         if not run.output_file:
-            return {"lines": [], "total_lines": 0, "offset": offset, "limit": limit, "has_more": False}
+            return {
+                "lines": [],
+                "total_lines": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False,
+            }
 
         output_path = Path(run.output_file)
         if not output_path.exists():
-            return {"lines": [], "total_lines": 0, "offset": offset, "limit": limit, "has_more": False}
+            return {
+                "lines": [],
+                "total_lines": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False,
+            }
 
         all_lines = output_path.read_text(encoding="utf-8").splitlines()
         total = len(all_lines)

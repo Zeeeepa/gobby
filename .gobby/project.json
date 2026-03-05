@@ -25,7 +25,8 @@
     "pre-push": {
       "run": [
         "type_check",
-        "ts_check"
+        "ts_check",
+        "frontend_tests"
       ],
       "fail_fast": false,
       "timeout": 1800

@@ -313,9 +313,7 @@ def reconcile_claimed_tasks(
 
     # Without a task manager we can't verify DB state — leave as-is
     if not task_manager:
-        logger.debug(
-            f"Session {session_id}: reconcile — no task_manager, skipping DB verification"
-        )
+        logger.debug(f"Session {session_id}: reconcile — no task_manager, skipping DB verification")
         return
 
     from gobby.storage.tasks import TaskNotFoundError
@@ -332,9 +330,7 @@ def reconcile_claimed_tasks(
             del claimed_tasks[task_uuid]
 
     if pruned:
-        logger.info(
-            f"Session {session_id}: reconcile — pruned stale claims: {', '.join(pruned)}"
-        )
+        logger.info(f"Session {session_id}: reconcile — pruned stale claims: {', '.join(pruned)}")
 
     variables["claimed_tasks"] = claimed_tasks
     variables["task_claimed"] = len(claimed_tasks) > 0
