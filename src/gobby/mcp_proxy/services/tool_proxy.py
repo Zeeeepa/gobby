@@ -297,6 +297,12 @@ class ToolProxyService:
                     "error": "Invalid arguments: expected dict, got string that isn't valid JSON",
                     "error_code": ToolProxyErrorCode.INVALID_ARGUMENTS.value,
                 }
+        if not isinstance(arguments, dict):
+            return {
+                "success": False,
+                "error": f"Invalid arguments: expected dict, got {type(arguments).__name__}",
+                "error_code": ToolProxyErrorCode.INVALID_ARGUMENTS.value,
+            }
 
         # Check tool filter before execution
         if self._tool_filter and session_id:

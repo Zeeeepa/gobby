@@ -278,7 +278,9 @@ function AdvancedSection({ step, onChange }: { step: WorkflowStep; onChange: (s:
                     try {
                       const parsed = JSON.parse(text)
                       if (Array.isArray(parsed)) onChange({ [key]: parsed })
-                    } catch { /* ignore parse errors while typing */ }
+                    } catch {
+                      // Parse errors expected while user is typing — no-op
+                    }
                   }}
                   rows={3}
                   placeholder="[]"
