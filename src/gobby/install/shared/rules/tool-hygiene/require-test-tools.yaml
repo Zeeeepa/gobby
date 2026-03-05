@@ -9,18 +9,8 @@ rules:
     effect:
       type: block
       tools: [Bash]
-      command_pattern: >-
-        (?:uv\s+run\s+(?:pytest|mypy)|
-        (?:npm|yarn|pnpm|bun)\s+(?:run\s+)?(?:test|lint|typecheck|type-check)|
-        npx\s+(?:vitest|jest|tsc|eslint)|
-        cargo\s+(?:test|clippy)|
-        go\s+(?:test|vet)|
-        uv\s+run\s+ruff\s+check(?!\s+--fix))
-      command_not_pattern: >-
-        (?:uv\s+run\s+ruff\s+(?:format|check\s+--fix)|
-        npm\s+run\s+(?:format|fix)|
-        cargo\s+fmt|
-        go\s+fmt)
+      command_pattern: "(?:uv\\s+run\\s+(?:pytest|mypy)|(?:npm|yarn|pnpm|bun)\\s+(?:run\\s+)?(?:test|lint|typecheck|type-check)|npx\\s+(?:vitest|jest|tsc|eslint)|cargo\\s+(?:test|clippy)|go\\s+(?:test|vet)|uv\\s+run\\s+ruff\\s+check(?!\\s+--fix))"
+      command_not_pattern: "(?:uv\\s+run\\s+ruff\\s+(?:format|check\\s+--fix)|npm\\s+run\\s+(?:format|fix)|cargo\\s+fmt|go\\s+fmt)"
       reason: |
         Direct test/lint/typecheck via Bash wastes context tokens.
         Use gobby-tests MCP tools instead:
