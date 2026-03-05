@@ -22,8 +22,13 @@ pytestmark = pytest.mark.unit
 class TestScoreTasks:
     """Tests for the extracted _score_tasks helper."""
 
-    def _make_task(self, task_id: str, priority: int = 2, complexity: int | None = None,
-                   category: str | None = None) -> MagicMock:
+    def _make_task(
+        self,
+        task_id: str,
+        priority: int = 2,
+        complexity: int | None = None,
+        category: str | None = None,
+    ) -> MagicMock:
         task = MagicMock()
         task.id = task_id
         task.priority = priority
@@ -66,7 +71,7 @@ class TestScoreTasks:
 
         # Leaf should score higher (same priority, +25 bonus)
         assert scored[0][0].id == "leaf"
-        assert scored[0][2] is True   # is_leaf
+        assert scored[0][2] is True  # is_leaf
         assert scored[1][2] is False  # not leaf
 
     def test_no_leaf_preference_when_disabled(self) -> None:
@@ -126,7 +131,7 @@ class TestScoreTasks:
         # t1 should have proximity boost
         t1_result = next(s for s in scored if s[0].id == "t1")
         t2_result = next(s for s in scored if s[0].id == "t2")
-        assert t1_result[3] > 0   # proximity_boost > 0
+        assert t1_result[3] > 0  # proximity_boost > 0
         assert t2_result[3] == 0  # no proximity
 
 
@@ -153,7 +158,11 @@ class TestSuggestNextTasks:
         task.status = status
         task.complexity_score = None
         task.category = None
-        task.to_brief.return_value = {"id": task_id, "ref": f"#{task_id}", "title": f"Task {task_id}"}
+        task.to_brief.return_value = {
+            "id": task_id,
+            "ref": f"#{task_id}",
+            "title": f"Task {task_id}",
+        }
         return task
 
     def _make_af(self, file_path: str) -> MagicMock:
@@ -345,10 +354,11 @@ class TestDispatchBatch:
     async def test_dispatches_multiple_agents(self, registry_deps) -> None:
         runner, tm, db, session_manager = registry_deps
 
-        with patch("gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body") as mock_load, \
-             patch("gobby.mcp_proxy.tools.spawn_agent._factory.spawn_agent_impl") as mock_impl:
-
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body") as mock_load,
+            patch("gobby.mcp_proxy.tools.spawn_agent._factory.spawn_agent_impl") as mock_impl,
+        ):
             mock_ctx.return_value = {"id": "proj-1"}
             mock_load.return_value = None
             mock_impl.return_value = {"success": True, "run_id": "run-abc"}
@@ -356,7 +366,9 @@ class TestDispatchBatch:
             from gobby.mcp_proxy.tools.spawn_agent._factory import create_spawn_agent_registry
 
             registry = create_spawn_agent_registry(
-                runner=runner, task_manager=tm, db=db,
+                runner=runner,
+                task_manager=tm,
+                db=db,
                 session_manager=session_manager,
             )
             dispatch = registry.get_tool("dispatch_batch")
@@ -383,7 +395,9 @@ class TestDispatchBatch:
             mock_ctx.return_value = {"id": "proj-1"}
 
             registry = create_spawn_agent_registry(
-                runner=runner, task_manager=tm, db=db,
+                runner=runner,
+                task_manager=tm,
+                db=db,
                 session_manager=session_manager,
             )
             dispatch = registry.get_tool("dispatch_batch")
@@ -405,10 +419,11 @@ class TestDispatchBatch:
                 raise RuntimeError("agent spawn failed")
             return {"success": True, "run_id": f"run-{call_count}"}
 
-        with patch("gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body") as mock_load, \
-             patch("gobby.mcp_proxy.tools.spawn_agent._factory.spawn_agent_impl") as mock_impl_patch:
-
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body") as mock_load,
+            patch("gobby.mcp_proxy.tools.spawn_agent._factory.spawn_agent_impl") as mock_impl_patch,
+        ):
             mock_ctx.return_value = {"id": "proj-1"}
             mock_load.return_value = None
             mock_impl_patch.side_effect = mock_impl
@@ -416,7 +431,9 @@ class TestDispatchBatch:
             from gobby.mcp_proxy.tools.spawn_agent._factory import create_spawn_agent_registry
 
             registry = create_spawn_agent_registry(
-                runner=runner, task_manager=tm, db=db,
+                runner=runner,
+                task_manager=tm,
+                db=db,
                 session_manager=session_manager,
             )
             dispatch = registry.get_tool("dispatch_batch")
@@ -458,8 +475,10 @@ class TestUpdateObservedFiles:
         task.commits = []
         ctx.task_manager.get_task.return_value = task
 
-        with patch("gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
-                    return_value="task-1"):
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
+            return_value="task-1",
+        ):
             registry = create_affected_files_registry(ctx)
             update_obs = registry.get_tool("update_observed_files")
             result = update_obs(task_id="task-1")
@@ -478,10 +497,13 @@ class TestUpdateObservedFiles:
         task.commits = ["abc123", "def456"]
         ctx.task_manager.get_task.return_value = task
 
-        with patch("gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
-                    return_value="task-1"), \
-             patch("subprocess.run") as mock_run:
-
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
+                return_value="task-1",
+            ),
+            patch("subprocess.run") as mock_run,
+        ):
             # First commit changes 2 files, second changes 1 (with overlap)
             def run_side(cmd, **kwargs):
                 sha = cmd[-1]
@@ -509,8 +531,10 @@ class TestUpdateObservedFiles:
 
         ctx = self._make_ctx()
 
-        with patch("gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
-                    side_effect=TaskNotFoundError("not found")):
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
+            side_effect=TaskNotFoundError("not found"),
+        ):
             registry = create_affected_files_registry(ctx)
             update_obs = registry.get_tool("update_observed_files")
             result = update_obs(task_id="nonexistent")
@@ -528,10 +552,13 @@ class TestUpdateObservedFiles:
         task.commits = ["abc123"]
         ctx.task_manager.get_task.return_value = task
 
-        with patch("gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
-                    return_value="task-1"), \
-             patch("subprocess.run") as mock_run:
-
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._affected_files.resolve_task_id_for_mcp",
+                return_value="task-1",
+            ),
+            patch("subprocess.run") as mock_run,
+        ):
             result_mock = MagicMock()
             result_mock.returncode = 128  # git error
             result_mock.stdout = ""

@@ -225,9 +225,7 @@ def _resolve_ready_tasks(
     # Auto-scope to session_task if session_id is provided and parent_task_id is not set
     if session_id and not parent_task_id:
         try:
-            resolved_session_id = session_manager.resolve_session_reference(
-                session_id, project_id
-            )
+            resolved_session_id = session_manager.resolve_session_reference(session_id, project_id)
         except Exception as e:
             logger.warning(f"Could not resolve session_id '{session_id}': {e}")
             resolved_session_id = session_id
@@ -248,17 +246,13 @@ def _resolve_ready_tasks(
 
     # Get ready tasks
     if parent_task_id:
-        ready_tasks = _get_ready_descendants(
-            task_manager, parent_task_id, task_type, project_id
-        )
+        ready_tasks = _get_ready_descendants(task_manager, parent_task_id, task_type, project_id)
         # If no ready descendants, check if the parent task itself is ready
         if not ready_tasks:
             parent_task = task_manager.get_task(parent_task_id)
             if parent_task and parent_task.status == "open":
                 if task_type is None or parent_task.task_type == task_type:
-                    ready_check = task_manager.list_ready_tasks(
-                        project_id=project_id, limit=200
-                    )
+                    ready_check = task_manager.list_ready_tasks(project_id=project_id, limit=200)
                     if any(t.id == parent_task_id for t in ready_check):
                         ready_tasks = [parent_task]
     else:
@@ -564,8 +558,13 @@ def create_readiness_registry(
             return {"error": str(e), "suggestion": None}
 
         result = _resolve_ready_tasks(
-            task_manager, session_manager, session_var_manager,
-            task_type, parent_task_id, session_id, project_id,
+            task_manager,
+            session_manager,
+            session_var_manager,
+            task_type,
+            parent_task_id,
+            session_id,
+            project_id,
         )
         if "early_return" in result:
             early_return: dict[str, Any] = result["early_return"]
@@ -689,8 +688,13 @@ def create_readiness_registry(
             return {"error": str(e), "suggestions": []}
 
         result = _resolve_ready_tasks(
-            task_manager, session_manager, session_var_manager,
-            task_type, parent_task_id, session_id, project_id,
+            task_manager,
+            session_manager,
+            session_var_manager,
+            task_type,
+            parent_task_id,
+            session_id,
+            project_id,
         )
         if "early_return" in result:
             early: dict[str, Any] = result["early_return"]

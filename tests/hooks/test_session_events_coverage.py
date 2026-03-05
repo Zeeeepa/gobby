@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import tempfile
 from datetime import datetime
 from unittest.mock import MagicMock, patch
@@ -144,7 +143,6 @@ class TestFindGeminiTranscript:
     def test_match_by_prefix(self, tmp_path) -> None:
         handler = _TestHandler()
         cwd = str(tmp_path / "project")
-        project_hash = hashlib.sha256(cwd.encode()).hexdigest()
 
         # We need to mock this since we can't create in $HOME
         with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
