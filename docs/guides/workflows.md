@@ -1,3 +1,5 @@
+> **DEPRECATED**: This document is superseded by [Rules](./rules.md) (for rule-specific content) and [Workflows Overview](./workflows-overview.md) (for the full workflow system). This file is retained for reference only.
+
 # Gobby Workflows
 
 Workflows transform Gobby from a passive session tracker into an **enforcement layer** for AI agent behavior. Instead of relying on prompts to guide behavior, Gobby uses **rules** to enforce tool restrictions, inject context, and manage state -- all declaratively in YAML.

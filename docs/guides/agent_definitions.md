@@ -1,3 +1,5 @@
+> **DEPRECATED**: This document is superseded by [Agents](./agents.md). This file is retained for reference only.
+
 # Agent Definitions Guide
 
 Agent Definitions (Agents V3) represent a configuration-driven identity and orchestration model for Gobby agents. They provide a unified schema for spawning agents and establishing persona/context across interactive sessions.

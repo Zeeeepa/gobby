@@ -1,3 +1,5 @@
+> **DEPRECATED**: This document is superseded by [Rules](./rules.md) which includes the complete effects reference. This file is retained for reference only.
+
 # Rule Effects Reference
 
 Rules in Gobby use four primitive effect types to control agent behavior. Each rule fires a single effect when its conditions are met. This document is the complete reference for all effect types.
