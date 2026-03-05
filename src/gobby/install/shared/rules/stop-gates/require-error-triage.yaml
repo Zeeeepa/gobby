@@ -19,13 +19,14 @@ rules:
           Before stopping, run lint and tests on files you touched.
 
           If you discover errors or test failures:
-          1. Check: is the failing code in committed or uncommitted files?
-             - `git diff --name-only` shows uncommitted changes
-             - If the error is in UNCOMMITTED code you didn't write: another agent
-               may be working on it. Create a bug task and move on.
-             - If the error is in COMMITTED code: you found it, you fix it.
-               Claim or create a task, fix the bug, commit, then stop.
-          2. Every error you discover is your responsibility until resolved or tasked.
+          1. Check: is the failing code related to YOUR changes?
+             - Run `git diff --name-only` to see uncommitted changes.
+             - If the failure is in code YOU changed: fix it, commit, then stop.
+             - If the failure is pre-existing or in code you didn't touch:
+               create a bug task (do NOT claim it), then clear the gate.
+             - If another agent has uncommitted changes in the failing file:
+               create a bug task and move on.
+          2. Every error you discover must be either fixed or tasked before stopping.
 
           After verification passes clean, confirm:
           set_variable(name="pre_existing_errors_triaged", value=true)
