@@ -73,7 +73,12 @@ class WorkflowHookHandler:
 
         Must run BEFORE rule evaluation so conditions have current data.
         """
-        from .observers import detect_mcp_call, detect_plan_mode_from_context, detect_task_claim
+        from .observers import (
+            detect_commit_link,
+            detect_mcp_call,
+            detect_plan_mode_from_context,
+            detect_task_claim,
+        )
 
         # Task claim/release tracking (AFTER_TOOL for gobby-tasks calls)
         if event.event_type == HookEventType.AFTER_TOOL:
@@ -84,6 +89,7 @@ class WorkflowHookHandler:
                 session_task_manager=self._session_task_manager,
                 task_manager=self._task_manager,
             )
+            detect_commit_link(event, variables, session_id)
             detect_mcp_call(event, variables, session_id)
 
         # Plan mode detection (BEFORE_AGENT for system reminder tags)

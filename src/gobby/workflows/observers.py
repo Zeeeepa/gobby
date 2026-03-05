@@ -184,6 +184,53 @@ def detect_task_claim(
                 logger.warning(f"Failed to auto-link task {task_id}: {e}")
 
 
+def detect_commit_link(event: "HookEvent", variables: dict[str, Any], session_id: str) -> None:
+    """Detect when a commit is linked to a task in this session.
+
+    Sets ``task_has_commits: true`` when ``link_commit`` succeeds or
+    ``close_task`` succeeds with a ``commit_sha`` argument.  Multiple
+    rules depend on this variable (require-error-triage, require-commit-
+    before-close, block-skip-validation-with-commit, require-memory-review).
+
+    Args:
+        event: The AFTER_TOOL hook event
+        variables: Session variables dict (modified in place)
+        session_id: The platform session ID (for logging)
+    """
+    if variables.get("task_has_commits"):
+        return  # Already set, no need to re-check
+
+    if not event.data:
+        return
+
+    server_name = event.data.get("mcp_server", "")
+    if server_name != "gobby-tasks":
+        return
+
+    inner_tool = event.data.get("mcp_tool", "")
+    if inner_tool not in ("link_commit", "close_task", "auto_link_commits"):
+        return
+
+    # For close_task, only count if commit_sha was provided
+    if inner_tool == "close_task":
+        tool_input = event.data.get("tool_input", {}) or {}
+        arguments = tool_input.get("arguments", {}) or {}
+        if not arguments.get("commit_sha"):
+            return
+
+    # Verify the call succeeded
+    tool_output = event.data.get("tool_output") or {}
+    if isinstance(tool_output, dict):
+        if tool_output.get("error") or tool_output.get("status") == "error":
+            return
+        result = tool_output.get("result", {})
+        if isinstance(result, dict) and result.get("error"):
+            return
+
+    variables["task_has_commits"] = True
+    logger.info(f"Session {session_id}: task_has_commits=true (via {inner_tool})")
+
+
 def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], session_id: str) -> None:
     """Detect plan mode from system reminders injected by Claude Code.
 
