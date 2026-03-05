@@ -15,9 +15,9 @@ rules:
 
         Execute these steps in order:
         1. list_mcp_servers() — discover available MCP servers
-        2. list_tools("gobby-pipelines") — find the run_pipeline tool
-        3. get_tool_schema("gobby-pipelines", "run_pipeline") — get the schema
-        4. call_tool("gobby-pipelines", "run_pipeline", {"name": "{{ _assigned_pipeline }}"})
+        2. list_tools("gobby-workflows") — find the run_pipeline tool
+        3. get_tool_schema("gobby-workflows", "run_pipeline") — get the schema
+        4. call_tool("gobby-workflows", "run_pipeline", {"name": "{{ _assigned_pipeline }}"})
 
         You are restricted to MCP discovery and pipeline execution tools only.
         All other tools are blocked by your enforcement rules.

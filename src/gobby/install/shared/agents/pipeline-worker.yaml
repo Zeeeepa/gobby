@@ -34,15 +34,15 @@ steps:
     status_message: |
       Execute your assigned pipeline using MCP tools:
       1. list_mcp_servers() — discover servers
-      2. list_tools("gobby-pipelines") — find run_pipeline
-      3. get_tool_schema("gobby-pipelines", "run_pipeline") — get schema
-      4. call_tool("gobby-pipelines", "run_pipeline", {"name": "..."})
+      2. list_tools("gobby-workflows") — find run_pipeline
+      3. get_tool_schema("gobby-workflows", "run_pipeline") — get schema
+      4. call_tool("gobby-workflows", "run_pipeline", {"name": "..."})
     allowed_tools:
       - mcp__gobby__call_tool
       - mcp__gobby__list_mcp_servers
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
     allowed_mcp_tools:
-      - "gobby-pipelines:run_pipeline"
+      - "gobby-workflows:run_pipeline"
       - "gobby-agents:kill_agent"
       - "gobby-agents:send_message"

@@ -130,18 +130,18 @@ call_tool("gobby-agents", "complete_command", {
 
 ```python
 # List definitions
-call_tool("gobby-agents", "list_agent_definitions", {"enabled": true})
+call_tool("gobby-workflows", "list_agent_definitions", {"enabled": true})
 
 # Get definition
-call_tool("gobby-agents", "get_agent_definition", {"name": "developer"})
+call_tool("gobby-workflows", "get_agent_definition", {"name": "developer"})
 
 # Create definition
-call_tool("gobby-agents", "create_agent_definition", {
+call_tool("gobby-workflows", "create_agent_definition", {
     "name": "my-agent", "definition": { ... }
 })
 
 # Toggle enabled/disabled
-call_tool("gobby-agents", "toggle_agent_definition", {
+call_tool("gobby-workflows", "toggle_agent_definition", {
     "name": "my-agent", "enabled": true
 })
 ```
@@ -433,13 +433,13 @@ Ready to install.
 
 ```python
 # Create via MCP
-call_tool("gobby-agents", "create_agent_definition", {
+call_tool("gobby-workflows", "create_agent_definition", {
     "name": "<agent-name>",
     "definition": { ... }
 })
 
 # Enable it
-call_tool("gobby-agents", "toggle_agent_definition", {
+call_tool("gobby-workflows", "toggle_agent_definition", {
     "name": "<agent-name>",
     "enabled": true
 })

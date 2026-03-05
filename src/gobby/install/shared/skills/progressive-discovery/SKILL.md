@@ -59,6 +59,5 @@ call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "#123
 | `gobby-skills` | Skill management |
 | `gobby-metrics` | Usage metrics |
 | `gobby-artifacts` | Artifact storage |
-| `gobby-pipelines` | Pipeline execution |
 
 Use `list_mcp_servers()` to see all connected servers with live status.

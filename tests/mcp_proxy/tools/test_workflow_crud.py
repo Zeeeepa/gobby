@@ -424,9 +424,9 @@ class TestRegistryIntegration:
         assert "export_workflow" in tool_names
 
     def test_pipelines_registry_has_crud_tools(self, db: LocalDatabase) -> None:
-        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
-        registry = create_pipelines_registry(db=db)
+        registry = create_workflows_registry(db=db)
         tool_names = [t["name"] for t in registry.list_tools()]
 
         assert "get_pipeline" in tool_names
@@ -444,9 +444,9 @@ class TestRegistryIntegration:
         assert "create_workflow" in tool_names
 
     def test_pipelines_crud_no_db(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
-        registry = create_pipelines_registry()
+        registry = create_workflows_registry()
         tool_names = [t["name"] for t in registry.list_tools()]
 
         assert "create_pipeline" in tool_names
@@ -498,36 +498,36 @@ class TestNoDatabaseError:
 
     @pytest.mark.asyncio
     async def test_create_pipeline_no_db(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
-        registry = create_pipelines_registry()
+        registry = create_workflows_registry()
         result = await registry.call("create_pipeline", {"yaml_content": VALID_PIPELINE_YAML})
         assert "error" in result
         assert "Pipeline definition tools require database connection" in result["error"]
 
     @pytest.mark.asyncio
     async def test_update_pipeline_no_db(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
-        registry = create_pipelines_registry()
+        registry = create_workflows_registry()
         result = await registry.call("update_pipeline", {"name": "x", "description": "y"})
         assert "error" in result
         assert "Pipeline definition tools require database connection" in result["error"]
 
     @pytest.mark.asyncio
     async def test_delete_pipeline_no_db(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
-        registry = create_pipelines_registry()
+        registry = create_workflows_registry()
         result = await registry.call("delete_pipeline", {"name": "x"})
         assert "error" in result
         assert "Pipeline definition tools require database connection" in result["error"]
 
     @pytest.mark.asyncio
     async def test_export_pipeline_no_db(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
-        registry = create_pipelines_registry()
+        registry = create_workflows_registry()
         result = await registry.call("export_pipeline", {"name": "x"})
         assert "error" in result
         assert "Pipeline definition tools require database connection" in result["error"]
@@ -544,7 +544,7 @@ class TestPipelineTypeFiltering:
     def test_update_pipeline_rejects_non_pipeline(
         self, def_manager: LocalWorkflowDefinitionManager
     ) -> None:
-        from gobby.mcp_proxy.tools.pipelines import _require_pipeline
+        from gobby.mcp_proxy.tools.workflows._pipelines import _require_pipeline
 
         # Create a non-pipeline definition directly
         def_manager.create(
@@ -562,7 +562,7 @@ class TestPipelineTypeFiltering:
     def test_update_pipeline_accepts_pipeline(
         self, def_manager: LocalWorkflowDefinitionManager, loader: WorkflowLoader
     ) -> None:
-        from gobby.mcp_proxy.tools.pipelines import _require_pipeline
+        from gobby.mcp_proxy.tools.workflows._pipelines import _require_pipeline
 
         create_workflow_definition(def_manager, loader, VALID_PIPELINE_YAML)
         err = _require_pipeline(def_manager, name="test-pipeline")
@@ -573,7 +573,7 @@ class TestPipelineTypeFiltering:
         self,
         def_manager: LocalWorkflowDefinitionManager,
     ) -> None:
-        from gobby.mcp_proxy.tools.pipelines import _require_pipeline
+        from gobby.mcp_proxy.tools.workflows._pipelines import _require_pipeline
 
         err = _require_pipeline(def_manager, name="nonexistent")
 

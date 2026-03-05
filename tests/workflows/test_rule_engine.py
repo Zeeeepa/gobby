@@ -1406,7 +1406,7 @@ class TestMcpCallTemplateRendering:
                 effects=[
                     RuleEffect(
                         type="mcp_call",
-                        server="gobby-pipelines",
+                        server="gobby-workflows",
                         tool="run_pipeline",
                         arguments={"name": "{{ _assigned_pipeline }}"},
                         background=True,
@@ -1424,7 +1424,7 @@ class TestMcpCallTemplateRendering:
         mcp_calls = response.metadata.get("mcp_calls", [])
         assert len(mcp_calls) == 1
         call = mcp_calls[0]
-        assert call["server"] == "gobby-pipelines"
+        assert call["server"] == "gobby-workflows"
         assert call["tool"] == "run_pipeline"
         assert call["arguments"]["name"] == "my-deploy-pipeline"
         assert call["background"] is True

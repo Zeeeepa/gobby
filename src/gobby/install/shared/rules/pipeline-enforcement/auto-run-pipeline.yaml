@@ -14,7 +14,7 @@ rules:
           You are a pipeline execution agent. Your pipeline ({{ _assigned_pipeline }}) is starting automatically.
           Monitor progress and handle any approval gates via MCP tools.
       - type: mcp_call
-        server: gobby-pipelines
+        server: gobby-workflows
         tool: run_pipeline
         arguments:
           name: "{{ _assigned_pipeline }}"

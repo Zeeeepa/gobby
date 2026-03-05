@@ -123,7 +123,7 @@ class HTTPServer:
                 )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
-            # Setup internal registries (gobby-tasks, gobby-memory, gobby-pipelines, etc.)
+            # Setup internal registries (gobby-tasks, gobby-memory, gobby-workflows, etc.)
             self._internal_manager = setup_internal_registries(
                 _config=services.config,
                 _session_manager=None,  # Not needed for internal registries

@@ -39,7 +39,7 @@ instructions: |
 
   Internal servers: gobby-tasks, gobby-sessions, gobby-memory,
   gobby-workflows, gobby-agents, gobby-worktrees, gobby-clones,
-  gobby-pipelines, gobby-skills, gobby-metrics, gobby-hub, gobby-merge.
+  gobby-skills, gobby-metrics, gobby-hub, gobby-merge.
 
   Never guess parameter names — always check the schema first.
 

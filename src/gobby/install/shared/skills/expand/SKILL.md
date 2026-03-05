@@ -109,7 +109,7 @@ Delegate to the `expand-task` pipeline. This spawns a researcher agent that expl
 the codebase and produces a spec, then validates and executes it mechanically.
 
 ```python
-result = call_tool("gobby-pipelines", "run_pipeline", {
+result = call_tool("gobby-workflows", "run_pipeline", {
     "name": "expand-task",
     "session_id": "<session_id>",
     "inputs": {

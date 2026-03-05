@@ -13,19 +13,19 @@ class TestRunPipelineNoWait:
     """run_pipeline no longer accepts wait/wait_timeout parameters."""
 
     def test_no_wait_parameter(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines._execution import run_pipeline
+        from gobby.mcp_proxy.tools.workflows._pipeline_execution import run_pipeline
 
         sig = inspect.signature(run_pipeline)
         assert "wait" not in sig.parameters
 
     def test_no_wait_timeout_parameter(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines._execution import run_pipeline
+        from gobby.mcp_proxy.tools.workflows._pipeline_execution import run_pipeline
 
         sig = inspect.signature(run_pipeline)
         assert "wait_timeout" not in sig.parameters
 
     def test_has_continuation_prompt_parameter(self) -> None:
-        from gobby.mcp_proxy.tools.pipelines._execution import run_pipeline
+        from gobby.mcp_proxy.tools.workflows._pipeline_execution import run_pipeline
 
         sig = inspect.signature(run_pipeline)
         assert "continuation_prompt" in sig.parameters
@@ -35,7 +35,7 @@ class TestRunPipelineNoWait:
         """run_pipeline always returns immediately with execution_id."""
         from unittest.mock import AsyncMock, MagicMock
 
-        from gobby.mcp_proxy.tools.pipelines._execution import run_pipeline
+        from gobby.mcp_proxy.tools.workflows._pipeline_execution import run_pipeline
 
         mock_loader = AsyncMock()
         mock_loader.load_pipeline.return_value = MagicMock(

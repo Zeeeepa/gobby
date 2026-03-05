@@ -1,12 +1,8 @@
 """
-Internal MCP tools for Gobby Pipeline System.
+Pipeline tool registration for the unified gobby-workflows server.
 
-Exposes functionality for:
-- list_pipelines: Discover available pipeline definitions
-- Dynamic pipeline tools: Pipelines with expose_as_tool=True are exposed as MCP tools
-
-These tools are registered with the InternalToolRegistry and accessed
-via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
+Contains helpers and a register_pipeline_tools() function that adds all
+pipeline-related MCP tools to a given InternalToolRegistry.
 """
 
 import asyncio
@@ -15,18 +11,19 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.pipelines._discovery import list_pipelines
-from gobby.mcp_proxy.tools.pipelines._execution import (
-    approve_pipeline,
-    get_pipeline_status,
-    reject_pipeline,
-    run_pipeline,
-)
 from gobby.mcp_proxy.tools.workflows._definitions import (
+    _resolve_definition,
     create_workflow_definition,
     delete_workflow_definition,
     export_workflow_definition,
     update_workflow_definition,
+)
+from gobby.mcp_proxy.tools.workflows._pipeline_discovery import list_pipelines
+from gobby.mcp_proxy.tools.workflows._pipeline_execution import (
+    approve_pipeline,
+    get_pipeline_status,
+    reject_pipeline,
+    run_pipeline,
 )
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -43,8 +40,6 @@ def _require_pipeline(
     definition_id: str | None = None,
 ) -> dict[str, Any] | None:
     """Resolve a definition and verify it's a pipeline. Returns error dict or None."""
-    from gobby.mcp_proxy.tools.workflows._definitions import _resolve_definition
-
     try:
         row = _resolve_definition(def_manager, name, definition_id)
     except ValueError as e:
@@ -52,11 +47,6 @@ def _require_pipeline(
     if row.workflow_type != "pipeline":
         return {"success": False, "error": f"'{row.name}' is a workflow, not a pipeline"}
     return None
-
-
-__all__ = [
-    "create_pipelines_registry",
-]
 
 
 def _auto_subscribe_lineage(
@@ -123,44 +113,40 @@ def _resolve_session_ref(ref: str, session_manager: "LocalSessionManager | None"
     return str(session_manager.resolve_session_reference(ref, project_id))
 
 
-def create_pipelines_registry(
+def register_pipeline_tools(
+    registry: InternalToolRegistry,
     loader: Any | None = None,
     executor_getter: Callable[[], Any | None] | None = None,
     execution_manager_getter: Callable[[], Any | None] | None = None,
     db: DatabaseProtocol | None = None,
     session_manager: "LocalSessionManager | None" = None,
     completion_registry: Any | None = None,
-) -> InternalToolRegistry:
+    def_manager: LocalWorkflowDefinitionManager | None = None,
+) -> None:
     """
-    Create a pipeline tool registry with all pipeline-related tools.
+    Register all pipeline-related tools on an existing registry.
 
     Args:
+        registry: The InternalToolRegistry to add pipeline tools to
         loader: WorkflowLoader instance for discovering pipelines
-        executor_getter: Callable returning PipelineExecutor (or None) at call time.
-            Resolved lazily so the registry can be created before the executor exists.
+        executor_getter: Callable returning PipelineExecutor (or None) at call time
         execution_manager_getter: Callable returning LocalPipelineExecutionManager
-            (or None) at call time. Resolved lazily like executor_getter.
         db: Database instance for definition CRUD operations
         session_manager: Session manager for resolving session references
         completion_registry: CompletionEventRegistry for auto-subscribing callers
-
-    Returns:
-        InternalToolRegistry with pipeline tools registered
+        def_manager: Definition manager for pipeline CRUD (created from db if not provided)
     """
     _loader = loader
     _get_executor = executor_getter or (lambda: None)
     _get_execution_manager = execution_manager_getter or (lambda: None)
-    _def_manager = LocalWorkflowDefinitionManager(db) if db is not None else None
+    _def_manager = def_manager
+    if _def_manager is None and db is not None:
+        _def_manager = LocalWorkflowDefinitionManager(db)
     _completion_registry = completion_registry
 
     def _resolve_session(ref: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
         return _resolve_session_ref(ref, session_manager)
-
-    registry = InternalToolRegistry(
-        name="gobby-pipelines",
-        description="Pipeline management - list, run, and monitor pipeline executions",
-    )
 
     # Register dynamic tools for pipelines with expose_as_tool=True
     _register_exposed_pipeline_tools(
@@ -427,8 +413,6 @@ def create_pipelines_registry(
             return err
         return export_workflow_definition(_def_manager, name, definition_id)
 
-    return registry
-
 
 def _register_exposed_pipeline_tools(
     registry: InternalToolRegistry,
@@ -442,14 +426,6 @@ def _register_exposed_pipeline_tools(
     Register dynamic tools for pipelines with expose_as_tool=True.
 
     Each exposed pipeline becomes an MCP tool named "pipeline:<pipeline_name>".
-
-    Args:
-        registry: The registry to add tools to
-        loader: WorkflowLoader for discovering pipelines
-        executor_getter: Callable returning PipelineExecutor at call time
-        session_manager: Session manager for resolving session references
-        completion_registry: CompletionEventRegistry for auto-subscribing callers
-        db: Database for persisting subscribers
     """
     if loader is None:
         logger.debug("Skipping dynamic pipeline tools: no loader")
@@ -488,18 +464,7 @@ def _create_pipeline_tool(
     completion_registry: Any | None = None,
     db: DatabaseProtocol | None = None,
 ) -> None:
-    """
-    Create a dynamic tool for a single pipeline.
-
-    Args:
-        registry: The registry to add the tool to
-        pipeline: The PipelineDefinition to expose
-        loader: WorkflowLoader for loading pipelines
-        executor_getter: Callable returning PipelineExecutor at call time
-        session_manager: Session manager for resolving session references
-        completion_registry: CompletionEventRegistry for auto-subscribing callers
-        db: Database for persisting subscribers
-    """
+    """Create a dynamic tool for a single pipeline."""
     _completion_registry = completion_registry
     tool_name = f"pipeline:{pipeline.name}"
     description = pipeline.description or f"Run the {pipeline.name} pipeline"
@@ -565,15 +530,7 @@ def _create_pipeline_tool(
 
 
 def _build_input_schema(pipeline: Any) -> dict[str, Any]:
-    """
-    Build JSON Schema for pipeline inputs.
-
-    Args:
-        pipeline: The PipelineDefinition
-
-    Returns:
-        JSON Schema dict for the pipeline's inputs
-    """
+    """Build JSON Schema for pipeline inputs."""
     properties = {}
     required = []
 

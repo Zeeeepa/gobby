@@ -167,12 +167,15 @@ def setup_internal_registries(
         manager.add_registry(memory_registry)
         logger.debug("Memory registry initialized")
 
-    # Initialize workflows registry (always available)
+    # Initialize workflows registry (always available — umbrella for pipelines + agent defs)
     from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
     workflows_registry = create_workflows_registry(
         session_manager=local_session_manager,
         db=getattr(local_session_manager, "db", None) if local_session_manager else None,
+        executor_getter=lambda: pipeline_executor,
+        execution_manager_getter=lambda: pipeline_execution_manager,
+        completion_registry=completion_registry,
     )
     manager.add_registry(workflows_registry)
     logger.debug("Workflows registry initialized")
@@ -378,20 +381,6 @@ def setup_internal_registries(
         logger.debug("Skills registry initialized")
     else:
         logger.debug("Skills registry not initialized: db is None")
-
-    # Initialize pipelines registry (always registered; executor resolved lazily at tool call time)
-    from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
-
-    pipelines_registry = create_pipelines_registry(
-        loader=workflow_loader,
-        executor_getter=lambda: pipeline_executor,
-        execution_manager_getter=lambda: pipeline_execution_manager,
-        db=db,
-        session_manager=local_session_manager,
-        completion_registry=completion_registry,
-    )
-    manager.add_registry(pipelines_registry)
-    logger.debug("Pipelines registry initialized")
 
     # Initialize cron registry if database is available
     if db is not None:

@@ -719,7 +719,7 @@ class GobbyRunner:
             # Resume interrupted pipelines and fail non-resumable stale executions
             if self.pipeline_executor and self.pipeline_execution_manager and self.workflow_loader:
                 try:
-                    from gobby.mcp_proxy.tools.pipelines._execution import (
+                    from gobby.mcp_proxy.tools.workflows._pipeline_execution import (
                         resume_interrupted_pipelines,
                     )
 
@@ -875,7 +875,7 @@ class GobbyRunner:
 
             # Cancel background pipeline tasks
             try:
-                from gobby.mcp_proxy.tools.pipelines._execution import cleanup_background_tasks
+                from gobby.mcp_proxy.tools.workflows._pipeline_execution import cleanup_background_tasks
 
                 await asyncio.wait_for(cleanup_background_tasks(), timeout=5.0)
             except TimeoutError:

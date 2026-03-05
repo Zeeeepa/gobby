@@ -207,7 +207,7 @@ class TestAutoSubscribeLineage:
 
     def test_auto_subscribe_registers_and_persists(self, db) -> None:
         """_auto_subscribe_lineage registers event and persists to DB."""
-        from gobby.mcp_proxy.tools.pipelines import _auto_subscribe_lineage
+        from gobby.mcp_proxy.tools.workflows._pipelines import _auto_subscribe_lineage
         from gobby.storage.pipelines import LocalPipelineExecutionManager
 
         registry = CompletionEventRegistry()
@@ -234,7 +234,7 @@ class TestAutoSubscribeLineage:
 
     def test_auto_subscribe_with_lineage(self) -> None:
         """Lineage traversal subscribes all ancestors."""
-        from gobby.mcp_proxy.tools.pipelines import _auto_subscribe_lineage
+        from gobby.mcp_proxy.tools.workflows._pipelines import _auto_subscribe_lineage
 
         registry = CompletionEventRegistry()
 
