@@ -31,6 +31,9 @@ variables:
   pre_existing_errors_triaged:
     value: false
     description: Default pre_existing_errors_triaged to false
+  error_triage_blocks:
+    value: 0
+    description: "Count of times require-error-triage has blocked this session (circuit breaker at 3)"
   enforce_tdd:
     value: false
     description: "Enable TDD enforcement (block new code files until test is written first)"

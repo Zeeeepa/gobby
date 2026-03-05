@@ -118,7 +118,6 @@ class RuleEngine:
             variables["consecutive_tool_blocks"] = 0
             variables["_last_blocked_tool"] = ""
             variables["tool_block_pending"] = False
-            variables["pre_existing_errors_triaged"] = False
             variables["stop_attempts"] = 0
 
         # Auto-increment stop attempts (universal — not configurable)

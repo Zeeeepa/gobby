@@ -168,7 +168,7 @@ class TestRequireErrorTriage:
     """Verify require-error-triage blocks stop until triage confirmed."""
 
     def test_blocks_on_stop(self, db, manager) -> None:
-        """Should be a block effect on stop event."""
+        """Should have a block effect on stop event."""
         _sync_bundled(db)
 
         row = _get_rule(manager, "require-error-triage")
@@ -176,7 +176,9 @@ class TestRequireErrorTriage:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "stop"
-        assert body.effect.type == "block"
+        effect_types = {e.type for e in body.resolved_effects}
+        assert "block" in effect_types
+        assert "set_variable" in effect_types
 
     def test_when_checks_triage_flag(self, db, manager) -> None:
         """Should check pre_existing_errors_triaged and task_has_commits."""
@@ -252,9 +254,9 @@ class TestRequireTaskClose:
 class TestBeforeAgentResetsPlumbing:
     """Test hardcoded BEFORE_AGENT resets in RuleEngine.
 
-    BEFORE_AGENT clears all stop-cycle state: tool_block_pending,
-    pre_existing_errors_triaged, stop_attempts, consecutive_tool_blocks,
-    _last_blocked_tool.
+    BEFORE_AGENT clears per-turn stop-cycle state: tool_block_pending,
+    stop_attempts, consecutive_tool_blocks, _last_blocked_tool.
+    It does NOT reset pre_existing_errors_triaged (session-scoped).
     """
 
     @pytest.mark.asyncio
@@ -269,19 +271,19 @@ class TestBeforeAgentResetsPlumbing:
         assert variables.get("tool_block_pending") is False
 
     @pytest.mark.asyncio
-    async def test_clears_pre_existing_errors_triaged(self, db) -> None:
-        """BEFORE_AGENT should clear pre_existing_errors_triaged."""
+    async def test_preserves_pre_existing_errors_triaged(self, db) -> None:
+        """BEFORE_AGENT should NOT reset pre_existing_errors_triaged (fix for infinite loop bug)."""
         engine = RuleEngine(db)
         variables: dict[str, object] = {"pre_existing_errors_triaged": True}
 
         event = _make_event(HookEventType.BEFORE_AGENT)
         await engine.evaluate(event, "sess-1", variables)
 
-        assert variables.get("pre_existing_errors_triaged") is False
+        assert variables.get("pre_existing_errors_triaged") is True
 
     @pytest.mark.asyncio
     async def test_full_reset_on_new_turn(self, db) -> None:
-        """BEFORE_AGENT should reset all stop-cycle variables at once."""
+        """BEFORE_AGENT should reset stop-cycle variables (but not pre_existing_errors_triaged)."""
         engine = RuleEngine(db)
         variables: dict[str, object] = {
             "tool_block_pending": True,
@@ -295,7 +297,7 @@ class TestBeforeAgentResetsPlumbing:
         await engine.evaluate(event, "sess-1", variables)
 
         assert variables["tool_block_pending"] is False
-        assert variables["pre_existing_errors_triaged"] is False
+        assert variables["pre_existing_errors_triaged"] is True
         assert variables["stop_attempts"] == 0
         assert variables["consecutive_tool_blocks"] == 0
         assert variables["_last_blocked_tool"] == ""
