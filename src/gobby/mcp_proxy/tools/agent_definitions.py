@@ -113,19 +113,10 @@ def get_agent_definition(
     except Exception as e:
         return {"success": False, "error": f"Failed to parse agent definition: {e}"}
 
+    detail = _agent_detail(row)
     # Normalize provider for display
-    provider = body.get("provider", "inherit")
-    if provider == "inherit":
-        provider = "claude"
-    body["provider"] = provider
-
-    detail = {
-        **body,
-        "id": row.id,
-        "source": row.source,
-        "project_id": row.project_id,
-        "enabled": row.enabled,
-    }
+    if detail.get("provider") in (None, "inherit"):
+        detail["provider"] = "claude"
 
     return {"success": True, "agent": detail}
 

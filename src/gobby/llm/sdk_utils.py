@@ -39,4 +39,4 @@ def truncate_additional_context(text: str) -> str:
     """Truncate text to fit within the SDK's additionalContext limit."""
     if len(text) <= ADDITIONAL_CONTEXT_LIMIT:
         return text
-    return text[:ADDITIONAL_CONTEXT_LIMIT]
+    return text[: ADDITIONAL_CONTEXT_LIMIT - 16] + "\n... [truncated]"
