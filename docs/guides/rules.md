@@ -799,6 +799,5 @@ gobby workflows set-var <name> <value> --session <ID>
 ## See Also
 
 - [Workflows Overview](./workflows-overview.md) — How rules, agents, and pipelines compose
-- [Rule Effects Reference](./workflow-actions.md) — Detailed effect field reference
 - [Variables](./variables.md) — Session variables, initialization, condition helpers
 - [Agents](./agents.md) — Agent selectors that control which rules are active
