@@ -350,6 +350,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             from_project_id = body.get("from_project_id")
             to_project_id = body.get("to_project_id")
             source_filter = body.get("source")
+            limit = body.get("limit", 100)
 
             if not from_project_id or not to_project_id:
                 raise HTTPException(
@@ -357,28 +358,43 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                     detail="Required fields: from_project_id, to_project_id",
                 )
 
+            # Validate target project exists
+            db = server.session_manager.db
+            target = db.fetchone("SELECT id FROM projects WHERE id = ?", (to_project_id,))
+            if not target:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Target project {to_project_id} not found",
+                )
+
             sessions = server.session_manager.list(
                 project_id=from_project_id,
                 source=source_filter,
-                limit=1000,
+                limit=limit,
             )
 
+            session_ids = [s.id for s in sessions]
             moved = 0
-            for session in sessions:
-                try:
-                    server.session_manager.db.execute(
-                        "UPDATE sessions SET project_id = ? WHERE id = ?",
-                        (to_project_id, session.id),
+
+            if session_ids:
+                with db.transaction() as conn:
+                    placeholders = ",".join("?" for _ in session_ids)
+                    conn.execute(
+                        f"UPDATE sessions SET project_id = ? WHERE id IN ({placeholders})",  # noqa: S608
+                        (to_project_id, *session_ids),
                     )
-                    moved += 1
-                except Exception as e:
-                    logger.warning(f"Failed to move session {session.id}: {e}")
+                    moved = len(session_ids)
 
             logger.info(f"Bulk-moved {moved} sessions from {from_project_id} to {to_project_id}")
+
+            # Notify connected clients
+            for sid in session_ids:
+                await _broadcast_session("session_updated", sid)
 
             return {
                 "status": "success",
                 "moved": moved,
+                "total_matching": len(sessions),
                 "from_project_id": from_project_id,
                 "to_project_id": to_project_id,
             }
