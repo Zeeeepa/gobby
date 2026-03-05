@@ -136,6 +136,18 @@ class TestRunStorage:
         )
         return [TestRun.from_row(row) for row in rows]
 
+    def cleanup_stale_runs(self) -> int:
+        """Mark any 'running' test runs as failed (interrupted by daemon restart)."""
+        now = datetime.now(UTC).isoformat()
+        cursor = self.db.execute(
+            "UPDATE test_runs SET status = 'failed', summary = 'Interrupted by daemon restart', completed_at = ? WHERE status = 'running'",
+            (now,),
+        )
+        count = cursor.rowcount
+        if count > 0:
+            logger.info("Cleaned up %d stale test runs from previous daemon session", count)
+        return count
+
     def cleanup_old_runs(self, days: int = 7) -> int:
         """Delete runs older than the given number of days."""
         cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
