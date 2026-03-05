@@ -1249,9 +1249,7 @@ class TestWaitForCompletionTool:
         return registry
 
     @pytest.fixture
-    def registry(
-        self, mock_loader, mock_executor, mock_execution_manager, completion_registry
-    ):
+    def registry(self, mock_loader, mock_executor, mock_execution_manager, completion_registry):
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
         return create_workflows_registry(
@@ -1262,9 +1260,7 @@ class TestWaitForCompletionTool:
         )
 
     @pytest.mark.asyncio
-    async def test_wait_returns_result_on_success(
-        self, registry, completion_registry
-    ) -> None:
+    async def test_wait_returns_result_on_success(self, registry, completion_registry) -> None:
         completion_registry.wait.return_value = {"status": "success", "run_id": "run-1"}
 
         result = await registry.call(
@@ -1282,17 +1278,13 @@ class TestWaitForCompletionTool:
     ) -> None:
         completion_registry.wait.side_effect = KeyError("not registered")
 
-        result = await registry.call(
-            "wait_for_completion", {"completion_id": "bogus"}
-        )
+        result = await registry.call("wait_for_completion", {"completion_id": "bogus"})
 
         assert result["success"] is False
         assert "not registered" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_wait_returns_error_on_timeout(
-        self, registry, completion_registry
-    ) -> None:
+    async def test_wait_returns_error_on_timeout(self, registry, completion_registry) -> None:
         completion_registry.wait.side_effect = TimeoutError()
 
         result = await registry.call(
@@ -1316,22 +1308,16 @@ class TestWaitForCompletionTool:
             completion_registry=None,
         )
 
-        result = await registry.call(
-            "wait_for_completion", {"completion_id": "run-1"}
-        )
+        result = await registry.call("wait_for_completion", {"completion_id": "run-1"})
 
         assert result["success"] is False
         assert "not available" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_wait_with_no_timeout(
-        self, registry, completion_registry
-    ) -> None:
+    async def test_wait_with_no_timeout(self, registry, completion_registry) -> None:
         completion_registry.wait.return_value = {"status": "success"}
 
-        result = await registry.call(
-            "wait_for_completion", {"completion_id": "run-1"}
-        )
+        result = await registry.call("wait_for_completion", {"completion_id": "run-1"})
 
         assert result["success"] is True
         completion_registry.wait.assert_awaited_once_with("run-1", timeout=None)

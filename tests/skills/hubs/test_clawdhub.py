@@ -189,10 +189,7 @@ class TestClawdHubProviderSearch:
         provider._cli_available = True
         provider._cli_binary = "clawhub"
 
-        text_output = (
-            "- Searching\n"
-            "commit-message  v1.0.0  Generate commits\n"
-        )
+        text_output = "- Searching\ncommit-message  v1.0.0  Generate commits\n"
 
         with patch.object(provider, "_run_cli_command", return_value=text_output):
             results = await provider.search("commit")

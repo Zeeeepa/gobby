@@ -86,10 +86,7 @@ class SkillsMPProvider(HubProvider):
             "authenticated": authenticated,
         }
         if not authenticated:
-            info["error"] = (
-                "SKILLSMP_API_KEY not set. "
-                "Search and listing require authentication."
-            )
+            info["error"] = "SKILLSMP_API_KEY not set. Search and listing require authentication."
         return info
 
     async def search(
@@ -99,8 +96,7 @@ class SkillsMPProvider(HubProvider):
     ) -> list[HubSkillInfo]:
         if not self.auth_token:
             raise RuntimeError(
-                "SkillsMP API key not configured. "
-                "Set the SKILLSMP_API_KEY environment variable."
+                "SkillsMP API key not configured. Set the SKILLSMP_API_KEY environment variable."
             )
 
         result = await self._make_request(
@@ -129,8 +125,7 @@ class SkillsMPProvider(HubProvider):
     ) -> list[HubSkillInfo]:
         if not self.auth_token:
             raise RuntimeError(
-                "SkillsMP API key not configured. "
-                "Set the SKILLSMP_API_KEY environment variable."
+                "SkillsMP API key not configured. Set the SKILLSMP_API_KEY environment variable."
             )
 
         result = await self._make_request(

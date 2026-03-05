@@ -175,20 +175,24 @@ class ClawdHubProvider(HubProvider):
             # Try to parse "slug  vX.Y.Z  description" format
             match = re.match(r"^(\S+)\s+v(\S+)\s+(.*)", line)
             if match:
-                results.append({
-                    "slug": match.group(1),
-                    "version": match.group(2),
-                    "description": match.group(3).strip(),
-                })
+                results.append(
+                    {
+                        "slug": match.group(1),
+                        "version": match.group(2),
+                        "description": match.group(3).strip(),
+                    }
+                )
             else:
                 # Fallback: treat whole line as slug
                 parts = line.split(None, 1)
                 if parts:
-                    results.append({
-                        "slug": parts[0],
-                        "version": "",
-                        "description": parts[1] if len(parts) > 1 else "",
-                    })
+                    results.append(
+                        {
+                            "slug": parts[0],
+                            "version": "",
+                            "description": parts[1] if len(parts) > 1 else "",
+                        }
+                    )
         return results
 
     async def discover(self) -> dict[str, Any]:
