@@ -13,7 +13,7 @@ describe('test utilities', () => {
       const ws = createMockWebSocket()
       restore = ws.restore
 
-      const socket = new WebSocket('ws://localhost:1234')
+      new WebSocket('ws://localhost:1234')
       expect(ws.instances).toHaveLength(1)
       expect(ws.instances[0].url).toBe('ws://localhost:1234')
 
@@ -74,7 +74,7 @@ describe('test utilities', () => {
       expect(mockStorage.length).toBe(1)
 
       localStorage.setItem('key2', 'value2')
-      expect(mockStorage.key(0)).toBe('key1')
+      expect((mockStorage.key as (index: number) => string | null)(0)).toBe('key1')
       expect(mockStorage.length).toBe(2)
 
       localStorage.removeItem('key1')
