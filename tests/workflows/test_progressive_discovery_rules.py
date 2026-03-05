@@ -69,9 +69,9 @@ class TestProgressiveDisclosureSync:
         rules = manager.list_all(workflow_type="rule")
         rule_names = {r.name for r in rules}
 
-        assert PROGRESSIVE_DISCLOSURE_RULES.issubset(rule_names), (
-            f"Missing: {PROGRESSIVE_DISCLOSURE_RULES - rule_names}"
-        )
+        assert PROGRESSIVE_DISCLOSURE_RULES.issubset(
+            rule_names
+        ), f"Missing: {PROGRESSIVE_DISCLOSURE_RULES - rule_names}"
 
     def test_all_rules_have_progressive_discovery_tag(self, db, manager) -> None:
         """All rules should be tagged with 'progressive-discovery'."""
@@ -80,9 +80,9 @@ class TestProgressiveDisclosureSync:
         rules = manager.list_all(workflow_type="rule")
         for row in rules:
             if row.name in PROGRESSIVE_DISCLOSURE_RULES:
-                assert row.tags and "progressive-discovery" in row.tags, (
-                    f"{row.name} missing 'progressive-discovery' tag"
-                )
+                assert (
+                    row.tags and "progressive-discovery" in row.tags
+                ), f"{row.name} missing 'progressive-discovery' tag"
 
     def test_all_rules_are_valid_pydantic(self, db, manager) -> None:
         """All synced rules should be valid RuleDefinitionBody instances."""
@@ -507,9 +507,9 @@ class TestRuleEngineIntegration:
         )
         result = await engine.evaluate(after_list_servers, "test-session", variables)
         assert result.decision == "allow"
-        assert variables.get("servers_listed") is True, (
-            "track-servers-listed should set servers_listed=True"
-        )
+        assert (
+            variables.get("servers_listed") is True
+        ), "track-servers-listed should set servers_listed=True"
 
         # Step 2: Fire after_tool for list_tools (native tool name)
         after_list_tools = _make_hook_event(
@@ -519,9 +519,9 @@ class TestRuleEngineIntegration:
         )
         result = await engine.evaluate(after_list_tools, "test-session", variables)
         assert result.decision == "allow"
-        assert "gobby-tasks" in variables.get("listed_servers", []), (
-            "track-listed-servers should append server to listed_servers"
-        )
+        assert "gobby-tasks" in variables.get(
+            "listed_servers", []
+        ), "track-listed-servers should append server to listed_servers"
 
         # Step 3: Fire after_tool for get_tool_schema (native tool name)
         after_schema = _make_hook_event(
@@ -531,9 +531,9 @@ class TestRuleEngineIntegration:
         )
         result = await engine.evaluate(after_schema, "test-session", variables)
         assert result.decision == "allow"
-        assert "gobby-tasks:create_task" in variables.get("unlocked_tools", []), (
-            "track-schema-lookup should append server:tool to unlocked_tools"
-        )
+        assert "gobby-tasks:create_task" in variables.get(
+            "unlocked_tools", []
+        ), "track-schema-lookup should append server:tool to unlocked_tools"
 
     @pytest.mark.asyncio
     async def test_full_round_trip_via_rule_engine(self, engine) -> None:
