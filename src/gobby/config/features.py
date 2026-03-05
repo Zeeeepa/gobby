@@ -405,6 +405,11 @@ class TestSummarizerConfig(BaseModel):
         default=200,
         description="Max lines of output sent to LLM for summarization",
     )
+    timeout: int = Field(
+        default=30,
+        gt=0,
+        description="Timeout in seconds for the LLM summarization call",
+    )
 
 
 class ReviewConfig(BaseModel):

@@ -40,6 +40,7 @@ def create_testing_registry(
     from gobby.testing.runner import TestRunner
 
     storage = TestRunStorage(db)
+    storage.cleanup_stale_runs()
     runner = TestRunner(storage=storage, llm_service=llm_service, config=config)
 
     registry = InternalToolRegistry(
@@ -65,7 +66,7 @@ def create_testing_registry(
 
         Args:
             category: Verification category (e.g., 'unit_tests', 'lint', 'type_check', 'format', 'ts_check')
-            paths: Override target paths (appended to command)
+            paths: Override target paths (replaces path args in command)
             extra_args: Extra arguments to append to the command
             timeout: Command timeout in seconds (default 300)
         """

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -65,7 +66,7 @@ class TestRunner:
             category: Verification category name (e.g., 'unit_tests', 'lint')
             command: The command to execute
             cwd: Working directory for the command
-            paths: Override paths in command (appended)
+            paths: Override paths in command (replaces path args)
             extra_args: Extra arguments to append
             timeout: Command timeout in seconds
             session_id: Session that triggered the run
@@ -77,7 +78,18 @@ class TestRunner:
         # Build final command
         cmd = command
         if paths:
-            cmd = f"{cmd} {paths}"
+            # Replace existing path-like positional args with the override paths.
+            # Keeps command words (uv, run, pytest, ruff, check, etc.) and flags.
+            parts = shlex.split(cmd)
+            cmds = []
+            flags = []
+            for part in parts:
+                if part.startswith("-"):
+                    flags.append(part)
+                elif "/" not in part:
+                    cmds.append(part)
+                # else: drop path-like positional args (e.g. "tests/", "src/")
+            cmd = shlex.join(cmds + shlex.split(paths) + flags)
         if extra_args:
             cmd = f"{cmd} {extra_args}"
 
@@ -173,7 +185,7 @@ class TestRunner:
     async def _summarize_failure(self, output: str, category: str) -> str:
         """Use LLM to extract only errors from failure output.
 
-        Falls back to last 50 lines if LLM is unavailable.
+        Falls back to last 50 lines if LLM is unavailable or times out.
         """
         max_lines = 200
         if self.config:
@@ -182,7 +194,7 @@ class TestRunner:
         lines = output.strip().splitlines()
         truncated = "\n".join(lines[-max_lines:])
 
-        # Try LLM summarization
+        # Try LLM summarization with timeout (same pattern as title synthesis)
         if self.llm_service and self.config and self.config.enabled:
             try:
                 provider = self.llm_service.get_provider(self.config.provider)
@@ -190,13 +202,23 @@ class TestRunner:
                     prompt = _SUMMARIZE_PROMPT.format(
                         category=category, output=truncated
                     )
-                    summary = await provider.generate_text(
-                        prompt=prompt,
-                        model=self.config.model,
-                        max_tokens=1024,
+                    llm_timeout = self.config.timeout
+                    summary = await asyncio.wait_for(
+                        provider.generate_text(
+                            prompt=prompt,
+                            model=self.config.model,
+                            max_tokens=1024,
+                        ),
+                        timeout=llm_timeout,
                     )
                     if summary:
                         return summary.strip()
+            except TimeoutError:
+                logger.warning(
+                    "LLM summarization timed out after %ss for %s, falling back to raw tail",
+                    self.config.timeout,
+                    category,
+                )
             except Exception as e:
                 logger.warning("LLM summarization failed, falling back to raw tail: %s", e)
 
