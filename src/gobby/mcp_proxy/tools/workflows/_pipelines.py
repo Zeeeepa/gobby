@@ -43,9 +43,9 @@ def _require_pipeline(
     try:
         row = _resolve_definition(def_manager, name, definition_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
     if row.workflow_type != "pipeline":
-        return {"success": False, "error": f"'{row.name}' is a workflow, not a pipeline"}
+        return {"error": f"'{row.name}' is a workflow, not a pipeline"}
     return None
 
 
@@ -172,19 +172,17 @@ def register_pipeline_tools(
         timeout: float | None = None,
     ) -> dict[str, Any]:
         if _completion_registry is None:
-            return {"success": False, "error": "Completion registry not available"}
+            return {"error": "Completion registry not available"}
         try:
             result = await _completion_registry.wait(completion_id, timeout=timeout)
-            return {"success": True, "completion_id": completion_id, **result}
+            return {"completion_id": completion_id, **result}
         except KeyError:
             return {
-                "success": False,
                 "error": f"Completion event {completion_id!r} not registered. "
                 "Ensure the agent or pipeline was started first.",
             }
         except TimeoutError:
             return {
-                "success": False,
                 "error": f"Timed out waiting for completion event {completion_id!r}",
                 "timeout": timeout,
             }
@@ -207,7 +205,7 @@ def register_pipeline_tools(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         if _loader is None:
-            return {"success": False, "error": "Pipeline tools require a workflow loader"}
+            return {"error": "Pipeline tools require a workflow loader"}
 
         from pathlib import Path
 
@@ -223,12 +221,11 @@ def register_pipeline_tools(
         definition = await _loader.load_workflow(name, proj)
 
         if not definition:
-            return {"success": False, "error": f"Pipeline '{name}' not found"}
+            return {"error": f"Pipeline '{name}' not found"}
         if not isinstance(definition, PipelineDefinition):
-            return {"success": False, "error": f"'{name}' is a workflow, not a pipeline"}
+            return {"error": f"'{name}' is a workflow, not a pipeline"}
 
         return {
-            "success": True,
             "name": definition.name,
             "type": "pipeline",
             "description": definition.description,
@@ -267,13 +264,13 @@ def register_pipeline_tools(
         try:
             resolved_id = _resolve_session(session_id)
         except ValueError as e:
-            return {"success": False, "error": f"Invalid session_id: {e}"}
+            return {"error": f"Invalid session_id: {e}"}
 
         project_id = ""
         if session_manager is not None:
             session = await asyncio.to_thread(session_manager.get, resolved_id)
             if session is None:
-                return {"success": False, "error": f"Session '{session_id}' not found"}
+                return {"error": f"Session '{session_id}' not found"}
             project_id = session.project_id
 
         result = await run_pipeline(
@@ -310,7 +307,7 @@ def register_pipeline_tools(
     ) -> dict[str, Any]:
         executor = _get_executor()
         if executor is None:
-            return {"success": False, "error": "Pipeline executor not available"}
+            return {"error": "Pipeline executor not available"}
         return await approve_pipeline(
             executor=executor,
             token=token,
@@ -327,7 +324,7 @@ def register_pipeline_tools(
     ) -> dict[str, Any]:
         executor = _get_executor()
         if executor is None:
-            return {"success": False, "error": "Pipeline executor not available"}
+            return {"error": "Pipeline executor not available"}
         return await reject_pipeline(
             executor=executor,
             token=token,
@@ -343,7 +340,7 @@ def register_pipeline_tools(
     ) -> dict[str, Any]:
         em = _get_execution_manager()
         if em is None:
-            return {"success": False, "error": "Pipeline execution manager not available"}
+            return {"error": "Pipeline execution manager not available"}
         return get_pipeline_status(
             execution_manager=em,
             execution_id=execution_id,
@@ -359,7 +356,6 @@ def register_pipeline_tools(
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
             return {
-                "success": False,
                 "error": "Pipeline definition tools require database connection",
             }
         import yaml as _yaml
@@ -367,9 +363,9 @@ def register_pipeline_tools(
         try:
             data = _yaml.safe_load(yaml_content)
         except _yaml.YAMLError as e:
-            return {"success": False, "error": f"Invalid YAML: {e}"}
+            return {"error": f"Invalid YAML: {e}"}
         if not isinstance(data, dict) or data.get("type") != "pipeline":
-            return {"success": False, "error": "YAML must have 'type: pipeline'"}
+            return {"error": "YAML must have 'type: pipeline'"}
         return create_workflow_definition(_def_manager, _loader, yaml_content, project_id)
 
     @registry.tool(
@@ -388,7 +384,6 @@ def register_pipeline_tools(
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
             return {
-                "success": False,
                 "error": "Pipeline definition tools require database connection",
             }
         err = _require_pipeline(_def_manager, name, definition_id)
@@ -418,7 +413,6 @@ def register_pipeline_tools(
     ) -> dict[str, Any]:
         if _def_manager is None or _loader is None:
             return {
-                "success": False,
                 "error": "Pipeline definition tools require database connection",
             }
         err = _require_pipeline(_def_manager, name, definition_id)
@@ -436,7 +430,6 @@ def register_pipeline_tools(
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {
-                "success": False,
                 "error": "Pipeline definition tools require database connection",
             }
         err = _require_pipeline(_def_manager, name, definition_id)
@@ -510,19 +503,19 @@ def _create_pipeline_tool(
         session_id = kwargs.pop("session_id", None)
         continuation_prompt = kwargs.pop("continuation_prompt", None)
         if not session_id:
-            return {"success": False, "error": "session_id is required"}
+            return {"error": "session_id is required"}
 
         # Resolve session reference and derive project_id
         try:
             resolved_id = _resolve_session_ref(session_id, session_manager)
         except ValueError as e:
-            return {"success": False, "error": f"Invalid session_id: {e}"}
+            return {"error": f"Invalid session_id: {e}"}
 
         project_id = ""
         if session_manager is not None:
             session = await asyncio.to_thread(session_manager.get, resolved_id)
             if session is None:
-                return {"success": False, "error": f"Session '{session_id}' not found"}
+                return {"error": f"Session '{session_id}' not found"}
             project_id = session.project_id
 
         result = await run_pipeline(

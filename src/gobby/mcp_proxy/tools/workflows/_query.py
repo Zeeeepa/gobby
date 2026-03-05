@@ -47,12 +47,11 @@ async def get_workflow(
     definition = await loader.load_workflow(name, proj)
 
     if not definition:
-        return {"success": False, "error": f"Workflow '{name}' not found"}
+        return {"error": f"Workflow '{name}' not found"}
 
     # Handle WorkflowDefinition vs PipelineDefinition
     if isinstance(definition, WorkflowDefinition):
         return {
-            "success": True,
             "name": definition.name,
             "enabled": definition.enabled,
             "description": definition.description,
@@ -76,7 +75,6 @@ async def get_workflow(
     else:
         # PipelineDefinition
         return {
-            "success": True,
             "name": definition.name,
             "type": "pipeline",
             "description": definition.description,
@@ -199,7 +197,7 @@ def list_workflows(
                     exc_info=True,
                 )
 
-    return {"success": True, "workflows": workflows, "count": len(workflows)}
+    return {"workflows": workflows, "count": len(workflows)}
 
 
 def get_workflow_status(
@@ -226,7 +224,6 @@ def get_workflow_status(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "success": False,
             "has_workflow": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
@@ -235,7 +232,7 @@ def get_workflow_status(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"success": False, "has_workflow": False, "error": str(e)}
+        return {"has_workflow": False, "error": str(e)}
 
     session_vars = (
         session_var_manager.get_variables(resolved_session_id) if session_var_manager else {}
@@ -256,7 +253,6 @@ def get_workflow_status(
         ]
 
     return {
-        "success": True,
         "has_workflow": len(workflows) > 0,
         "session_id": resolved_session_id,
         "workflows": workflows,

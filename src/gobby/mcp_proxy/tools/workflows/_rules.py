@@ -110,7 +110,7 @@ def list_rules(
 
     formatter = _rule_brief if brief else _rule_summary
     rules = [formatter(r) for r in rows]
-    return {"success": True, "rules": rules, "count": len(rules)}
+    return {"rules": rules, "count": len(rules)}
 
 
 def get_rule(
@@ -129,9 +129,9 @@ def get_rule(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "rule":
-        return {"success": False, "error": f"Rule '{name}' not found"}
+        return {"error": f"Rule '{name}' not found"}
 
-    return {"success": True, "rule": _rule_detail(row)}
+    return {"rule": _rule_detail(row)}
 
 
 def toggle_rule(
@@ -152,15 +152,15 @@ def toggle_rule(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "rule":
-        return {"success": False, "error": f"Rule '{name}' not found"}
+        return {"error": f"Rule '{name}' not found"}
 
     if row.source == "template":
-        return {"success": False, "error": f"Rule '{name}' is a template — install it first"}
+        return {"error": f"Rule '{name}' is a template — install it first"}
 
     updated = def_manager.update(row.id, enabled=enabled)
     logger.info("Toggled rule '%s' enabled=%s", name, enabled)
 
-    return {"success": True, "rule": _rule_detail(updated)}
+    return {"rule": _rule_detail(updated)}
 
 
 def create_rule(
@@ -185,14 +185,14 @@ def create_rule(
     try:
         RuleDefinitionBody.model_validate(definition)
     except Exception as e:
-        return {"success": False, "error": f"Validation failed: {e}"}
+        return {"error": f"Validation failed: {e}"}
 
     # Check for duplicate name (including templates)
     existing = def_manager.get_by_name(name) or def_manager.get_by_name(
         name, include_templates=True
     )
     if existing is not None:
-        return {"success": False, "error": f"Rule '{name}' already exists"}
+        return {"error": f"Rule '{name}' already exists"}
 
     # Hard-delete any soft-deleted rule that would block the UNIQUE constraint
     deleted_row = def_manager.get_by_name(name, include_deleted=True)
@@ -211,7 +211,7 @@ def create_rule(
     )
     logger.info("Created rule '%s' (id=%s)", name, row.id)
 
-    return {"success": True, "rule": _rule_detail(row)}
+    return {"rule": _rule_detail(row)}
 
 
 def delete_rule(
@@ -234,11 +234,10 @@ def delete_rule(
     """
     row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "rule":
-        return {"success": False, "error": f"Rule '{name}' not found"}
+        return {"error": f"Rule '{name}' not found"}
 
     if row.source in ("bundled", "template") and not force:
         return {
-            "success": False,
             "error": (
                 f"Rule '{name}' is a template and will be re-created on restart. "
                 "Use force=True to delete anyway."
@@ -247,7 +246,7 @@ def delete_rule(
 
     deleted = def_manager.delete(row.id)
     if not deleted:
-        return {"success": False, "error": f"Failed to delete rule '{name}'"}
+        return {"error": f"Failed to delete rule '{name}'"}
 
     logger.info("Deleted rule '%s' (id=%s)", name, row.id)
-    return {"success": True, "deleted": {"id": row.id, "name": row.name}}
+    return {"deleted": {"id": row.id, "name": row.name}}

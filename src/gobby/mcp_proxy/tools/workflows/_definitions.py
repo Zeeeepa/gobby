@@ -78,28 +78,26 @@ def create_workflow_definition(
     try:
         data = _validate_yaml(yaml_content)
     except yaml.YAMLError as e:
-        return {"success": False, "error": f"YAML parse error: {e}"}
+        return {"error": f"YAML parse error: {e}"}
     except (ValueError, TypeError) as e:
-        return {"success": False, "error": f"Validation failed: {e}"}
+        return {"error": f"Validation failed: {e}"}
 
     name = data["name"]
     existing = def_manager.get_by_name(name, project_id=project_id)
     if existing:
         return {
-            "success": False,
             "error": f"Definition '{name}' already exists (id={existing.id}). Use update_workflow to modify it.",
         }
 
     try:
         row = def_manager.import_from_yaml(yaml_content, project_id=project_id)
     except Exception as e:
-        return {"success": False, "error": f"Import failed: {e}"}
+        return {"error": f"Import failed: {e}"}
 
     loader.clear_cache()
     logger.info("Created workflow definition '%s' (id=%s)", row.name, row.id)
 
     return {
-        "success": True,
         "definition": {
             "id": row.id,
             "name": row.name,
@@ -149,7 +147,7 @@ def update_workflow_definition(
     try:
         row = _resolve_definition(def_manager, name, definition_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     fields: dict[str, Any] = {}
 
@@ -157,7 +155,7 @@ def update_workflow_definition(
         try:
             data = _validate_yaml(yaml_content)
         except Exception as e:
-            return {"success": False, "error": f"YAML validation failed: {e}"}
+            return {"error": f"YAML validation failed: {e}"}
         fields["definition_json"] = json.dumps(data)
         # Sync top-level metadata from YAML
         if "description" in data:
@@ -171,7 +169,6 @@ def update_workflow_definition(
             fields["workflow_type"] = _LEGACY_TYPE_MAP[yaml_type]
         elif yaml_type is not None:
             return {
-                "success": False,
                 "error": f"Invalid type '{yaml_type}'. Valid types: {', '.join(sorted(_VALID_WORKFLOW_TYPES))}",
             }
         # If yaml_type is absent, preserve existing workflow_type
@@ -195,18 +192,17 @@ def update_workflow_definition(
         fields["tags"] = tags
 
     if not fields:
-        return {"success": False, "error": "No fields to update"}
+        return {"error": "No fields to update"}
 
     try:
         updated = def_manager.update(row.id, **fields)
     except Exception as e:
-        return {"success": False, "error": f"Update failed: {e}"}
+        return {"error": f"Update failed: {e}"}
 
     loader.clear_cache()
     logger.info("Updated workflow definition '%s' (id=%s)", updated.name, updated.id)
 
     return {
-        "success": True,
         "definition": {
             "id": updated.id,
             "name": updated.name,
@@ -246,11 +242,10 @@ def delete_workflow_definition(
     try:
         row = _resolve_definition(def_manager, name, definition_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     if row.source in ("bundled", "template") and not force:
         return {
-            "success": False,
             "error": (
                 f"Definition '{row.name}' is a template and will be re-created on restart. "
                 "Use force=True to delete anyway."
@@ -259,12 +254,12 @@ def delete_workflow_definition(
 
     deleted = def_manager.delete(row.id)
     if not deleted:
-        return {"success": False, "error": f"Failed to delete definition '{row.name}'"}
+        return {"error": f"Failed to delete definition '{row.name}'"}
 
     loader.clear_cache()
     logger.info("Deleted workflow definition '%s' (id=%s)", row.name, row.id)
 
-    return {"success": True, "deleted": {"id": row.id, "name": row.name}}
+    return {"deleted": {"id": row.id, "name": row.name}}
 
 
 def restore_workflow_definition(
@@ -288,21 +283,20 @@ def restore_workflow_definition(
     try:
         row = _resolve_definition(def_manager, name, definition_id, include_deleted=True)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     if row.deleted_at is None:
-        return {"success": False, "error": f"Definition '{row.name}' is not deleted"}
+        return {"error": f"Definition '{row.name}' is not deleted"}
 
     try:
         restored = def_manager.restore(row.id)
     except Exception as e:
-        return {"success": False, "error": f"Restore failed: {e}"}
+        return {"error": f"Restore failed: {e}"}
 
     loader.clear_cache()
     logger.info("Restored workflow definition '%s' (id=%s)", restored.name, restored.id)
 
     return {
-        "success": True,
         "definition": {
             "id": restored.id,
             "name": restored.name,
@@ -333,15 +327,14 @@ def export_workflow_definition(
     try:
         row = _resolve_definition(def_manager, name, definition_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     try:
         yaml_content = def_manager.export_to_yaml(row.id)
     except Exception as e:
-        return {"success": False, "error": f"Export failed: {e}"}
+        return {"error": f"Export failed: {e}"}
 
     return {
-        "success": True,
         "name": row.name,
         "workflow_type": row.workflow_type,
         "yaml_content": yaml_content,

@@ -21,7 +21,7 @@ async def list_pipelines(
         Dict with list of pipeline info or error
     """
     if not loader:
-        return {"success": False, "error": "No loader configured"}
+        return {"error": "No loader configured"}
 
     try:
         discovered = await loader.discover_pipeline_workflows(project_path=project_path)
@@ -43,13 +43,12 @@ async def list_pipelines(
             pipelines.append(pipeline_info)
 
         return {
-            "success": True,
             "pipelines": pipelines,
             "count": len(pipelines),
         }
 
     except (FileNotFoundError, ValueError) as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
     except Exception:
         logger.exception("Unexpected error discovering pipelines")
-        return {"success": False, "error": "Internal error during pipeline discovery"}
+        return {"error": "Internal error during pipeline discovery"}
