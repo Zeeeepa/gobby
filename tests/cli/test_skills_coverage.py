@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -930,7 +931,7 @@ class TestHelperFunctions:
 
         ctx = MagicMock(spec=["obj"])
         ctx.obj = None
-        with pytest.raises(Exception):
+        with pytest.raises(click.ClickException):
             get_daemon_client(ctx)
 
     def test_get_daemon_client_wrong_type(self, runner: CliRunner) -> None:
@@ -938,7 +939,7 @@ class TestHelperFunctions:
 
         ctx = MagicMock(spec=["obj"])
         ctx.obj = {"config": "not-a-DaemonConfig"}
-        with pytest.raises(Exception):
+        with pytest.raises(click.ClickException):
             get_daemon_client(ctx)
 
     @patch("gobby.cli.skills.DaemonClient")

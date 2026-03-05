@@ -6,9 +6,9 @@ import asyncio
 
 import pytest
 
-pytestmark = pytest.mark.unit
-
 from gobby.events.completion_registry import CompletionEventRegistry
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-pytestmark = pytest.mark.unit
-
 from gobby.events.completion_registry import CompletionEventRegistry
 from gobby.events.wake import WakeDispatcher
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

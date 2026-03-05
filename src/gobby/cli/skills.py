@@ -796,7 +796,12 @@ def hub_list(ctx: click.Context, json_output: bool) -> None:
 
 @hub.command("add")
 @click.argument("name")
-@click.option("--type", "hub_type", required=True, help="Hub type (clawdhub, skillsmp, github, claude-plugins)")
+@click.option(
+    "--type",
+    "hub_type",
+    required=True,
+    help="Hub type (clawdhub, skillsmp, github, claude-plugins)",
+)
 @click.option("--url", "base_url", default=None, help="Base URL for skillsmp/claude-plugins type")
 @click.option("--repo", default=None, help="GitHub repo (owner/repo) for github type")
 @click.option("--branch", default=None, help="Branch for github type (default: main)")
