@@ -125,12 +125,15 @@ class RuleEngine:
             variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
             logger.debug(
                 "STOP gate diagnostics: session_id=%s, auto_task_ref=%r, "
-                "stop_attempts=%s, task_claimed=%s, claimed_tasks=%s",
+                "stop_attempts=%s, task_claimed=%s, claimed_tasks=%s, "
+                "pre_existing_errors_triaged=%s, error_triage_blocks=%s",
                 session_id,
                 variables.get("auto_task_ref"),
                 variables["stop_attempts"],
                 variables.get("task_claimed"),
                 variables.get("claimed_tasks"),
+                variables.get("pre_existing_errors_triaged"),
+                variables.get("error_triage_blocks", 0),
             )
 
         # 1. Load enabled rules for this event, sorted by priority
