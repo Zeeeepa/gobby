@@ -351,7 +351,7 @@ def create_spawn_agent_registry(
                     provider=provider,
                     model=model,
                     parent_session_id=parent_session_id,
-                    mode=mode,  # type: ignore[arg-type]
+                    mode=mode,
                 )
                 return {
                     "task_ref": task_ref,

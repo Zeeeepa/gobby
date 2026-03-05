@@ -967,15 +967,15 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 )
                 if db_tasks:
                     reconciled = {}
-                    result: list[tuple[str, str, str]] = []
+                    db_result: list[tuple[str, str, str]] = []
                     for task in db_tasks:
                         ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
                         reconciled[task.id] = ref
-                        result.append((ref, task.status, task.title))
+                        db_result.append((ref, task.status, task.title))
                     # Reconcile session variables with DB state
                     sv_mgr.set_variable(session_id, "task_claimed", True)
                     sv_mgr.set_variable(session_id, "claimed_tasks", reconciled)
-                    return result or None
+                    return db_result or None
             except Exception:
                 pass
             return None
