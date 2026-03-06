@@ -181,6 +181,28 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
                 logger.warning(f"Failed to check Neo4j status: {e}")
                 memory_stats["neo4j"] = {"configured": False, "installed": False, "healthy": False}
 
+        # Get pipeline execution statistics
+        pipeline_stats: dict[str, Any] = {
+            "running": 0,
+            "waiting_approval": 0,
+            "completed": 0,
+            "failed": 0,
+            "total": 0,
+        }
+        try:
+            from gobby.storage.pipelines import LocalPipelineExecutionManager
+            from gobby.workflows.pipeline_state import ExecutionStatus
+
+            mgr = LocalPipelineExecutionManager(db=server.services.database, project_id="")
+            for status_val in ["running", "waiting_approval", "completed", "failed"]:
+                execs = mgr.list_executions(status=ExecutionStatus(status_val), limit=200)
+                pipeline_stats[status_val] = len(execs)
+            pipeline_stats["total"] = sum(
+                pipeline_stats[k] for k in ["running", "waiting_approval", "completed", "failed"]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to get pipeline stats: {e}")
+
         # Get skills statistics
         skills_stats: dict[str, Any] = {"total": 0}
         if server.skill_manager is not None:
@@ -218,6 +240,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             "tasks": task_stats,
             "memory": memory_stats,
             "skills": skills_stats,
+            "pipelines": pipeline_stats,
             "response_time_ms": response_time_ms,
         }
 
