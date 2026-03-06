@@ -395,7 +395,7 @@ class OutputCompressionConfig(BaseModel):
         "output is compressed before reaching the LLM context window.",
     )
     min_output_length: int = Field(
-        default=2000,
+        default=1000,
         description="Minimum output length (chars) before compression triggers",
     )
     max_compressed_lines: int = Field(

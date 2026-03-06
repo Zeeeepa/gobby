@@ -33,7 +33,23 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
 
     from gobby.compression import OutputCompressor
 
-    compressor = OutputCompressor()
+    # Read compression config from daemon (best-effort, fall back to defaults)
+    min_length = 1000
+    excluded: list[str] = []
+    try:
+        from gobby.utils.daemon_client import DaemonClient
+
+        resp = DaemonClient().get("/api/config/values", timeout=1.0).json()
+        cfg = resp.get("output_compression", {})
+        min_length = cfg.get("min_output_length", min_length)
+        excluded = cfg.get("excluded_commands", excluded)
+    except Exception:
+        pass
+
+    compressor = OutputCompressor(
+        min_length=min_length,
+        excluded_commands=excluded,
+    )
     compressed = compressor.compress(cmd, raw_output)
 
     if stats:
