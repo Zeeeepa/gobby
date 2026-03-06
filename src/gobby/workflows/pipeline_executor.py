@@ -417,7 +417,19 @@ class PipelineExecutor:
                     output=step_output,
                 )
 
-            # 5. Mark execution as completed
+            # 5. Safety net — verify no steps failed before marking completed
+            failed_steps = self.execution_manager.get_failed_steps(execution.id)
+            if failed_steps:
+                failed_ids = [s.step_id for s in failed_steps]
+                outputs = self._build_outputs(pipeline, context)
+                self.execution_manager.update_execution_status(
+                    execution_id=execution.id,
+                    status=ExecutionStatus.FAILED,
+                    outputs_json=json.dumps(outputs),
+                )
+                raise RuntimeError(f"Pipeline has failed steps: {', '.join(failed_ids)}")
+
+            # Mark execution as completed
             outputs = self._build_outputs(pipeline, context)
             completed = self.execution_manager.update_execution_status(
                 execution_id=execution.id,

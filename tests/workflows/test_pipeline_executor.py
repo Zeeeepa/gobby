@@ -38,6 +38,7 @@ def mock_execution_manager():
     mock_step.status = StepStatus.PENDING
     manager.create_step_execution.return_value = mock_step
     manager.update_step_execution.return_value = mock_step
+    manager.get_failed_steps.return_value = []
     return manager
 
 

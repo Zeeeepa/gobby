@@ -156,6 +156,7 @@ def mock_execution_manager():
     manager.update_execution_status.return_value = mock_execution
     manager.create_step_execution.return_value = mock_step
     manager.update_step_execution.return_value = mock_step
+    manager.get_failed_steps.return_value = []
     return manager
 
 
