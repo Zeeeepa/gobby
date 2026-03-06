@@ -1,7 +1,5 @@
 """Tests for OutputCompressor."""
 
-import pytest
-
 from gobby.compression.compressor import CompressionResult, OutputCompressor
 
 
