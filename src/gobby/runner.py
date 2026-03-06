@@ -453,6 +453,7 @@ class GobbyRunner:
 
         self.completion_registry = CompletionEventRegistry(
             wake_callback=self.wake_dispatcher.wake,
+            pipeline_rerun_callback=self._rerun_pipeline,
         )
 
         # Create pipeline executor at startup if we have project context
@@ -646,6 +647,42 @@ class GobbyRunner:
             # Register pipeline event callback for WebSocket broadcasting
             if self.pipeline_executor:
                 setup_pipeline_event_broadcasting(self.websocket_server, self.pipeline_executor)
+
+    async def _rerun_pipeline(self, continuation: dict[str, Any]) -> None:
+        """Re-invoke a pipeline from a completion continuation.
+
+        Called by CompletionEventRegistry when an agent completes and a
+        pipeline continuation was registered. Runs the pipeline as a new
+        background execution.
+        """
+        from gobby.mcp_proxy.tools.workflows._pipeline_execution import run_pipeline
+
+        pipeline_name = continuation.get("pipeline_name")
+        inputs = continuation.get("inputs", {})
+        session_id = continuation.get("session_id")
+        project_id = continuation.get("project_id", self.project_id or "")
+
+        if not pipeline_name:
+            logger.error("Pipeline continuation missing pipeline_name: %s", continuation)
+            return
+
+        logger.info(
+            "Pipeline continuation: re-invoking %s (iteration %s)",
+            pipeline_name,
+            inputs.get("_current_iteration", "?"),
+        )
+
+        result = await run_pipeline(
+            loader=self.workflow_loader,
+            executor=self.pipeline_executor,
+            name=pipeline_name,
+            inputs=inputs,
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+        if not result.get("success"):
+            logger.error("Pipeline continuation failed for %s: %s", pipeline_name, result)
 
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""

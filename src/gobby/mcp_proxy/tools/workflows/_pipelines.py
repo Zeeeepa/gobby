@@ -191,6 +191,89 @@ def register_pipeline_tools(
             }
 
     @registry.tool(
+        name="register_pipeline_continuation",
+        description=(
+            "Register pipeline continuations for dispatched agents. When any agent "
+            "completes, the specified pipeline is re-invoked with the given inputs. "
+            "Used by the orchestrator for event-driven re-invocation instead of polling."
+        ),
+    )
+    async def _register_pipeline_continuation(
+        dispatch_outputs: dict[str, Any],
+        pipeline_name: str,
+        inputs: dict[str, Any],
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        if _completion_registry is None:
+            return {"success": False, "error": "Completion registry not available"}
+
+        # Extract run_ids from dispatch outputs
+        run_ids: list[str] = []
+
+        developers_output = dispatch_outputs.get("developers")
+        if developers_output:
+            # dispatch_batch returns {results: [{run_id, ...}, ...]}
+            results = developers_output.get("results", [])
+            if isinstance(results, list):
+                for r in results:
+                    if isinstance(r, dict) and r.get("run_id"):
+                        run_ids.append(r["run_id"])
+
+        qa_output = dispatch_outputs.get("qa")
+        if qa_output and isinstance(qa_output, dict) and qa_output.get("run_id"):
+            run_ids.append(qa_output["run_id"])
+
+        merge_output = dispatch_outputs.get("merge")
+        if merge_output and isinstance(merge_output, dict) and merge_output.get("run_id"):
+            run_ids.append(merge_output["run_id"])
+
+        if not run_ids:
+            return {
+                "success": True,
+                "registered": 0,
+                "message": "No active agents to register continuations for",
+            }
+
+        # Resolve session and project context
+        resolved_session_id = None
+        project_id = ""
+        if session_id:
+            try:
+                resolved_session_id = _resolve_session_ref(session_id, session_manager)
+            except ValueError:
+                resolved_session_id = session_id
+
+            if session_manager is not None and resolved_session_id:
+                try:
+                    session = session_manager.get(resolved_session_id)
+                    if session:
+                        project_id = session.project_id
+                except Exception:
+                    pass
+
+        continuation_config = {
+            "pipeline_name": pipeline_name,
+            "inputs": inputs,
+            "session_id": resolved_session_id or session_id,
+            "project_id": project_id,
+        }
+
+        registered = 0
+        for run_id in run_ids:
+            # Ensure the completion event is registered before adding continuation
+            if not _completion_registry.is_registered(run_id):
+                _completion_registry.register(run_id, subscribers=[])
+            _completion_registry.register_continuation(run_id, continuation_config)
+            registered += 1
+
+        return {
+            "success": True,
+            "registered": registered,
+            "run_ids": run_ids,
+            "pipeline_name": pipeline_name,
+        }
+
+    @registry.tool(
         name="list_pipelines",
         description="List available pipeline definitions from project and global directories.",
     )

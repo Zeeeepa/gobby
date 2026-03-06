@@ -6,7 +6,7 @@ This directory contains 14 bundled rule groups. These are **templates** — they
 
 | Group | Dir | Rules | Purpose |
 |-------|-----|-------|---------|
-| `worker-safety` | `worker-safety/` | 6 | Block git push (global + worker-scoped), force push, destructive git, agent spawn from merge, external GitHub issues |
+| `worker-safety` | `worker-safety/` | 7 | Block git push (global + worker-scoped), force push, destructive git, bash sleep, agent spawn from merge, external GitHub issues |
 | `tool-hygiene` | `tool-hygiene/` | 2 | Require `uv` for Python, track pending memory review |
 | `progressive-discovery` | `progressive-discovery/` | 7 | Enforce MCP discovery order: list_servers → list_tools → get_schema → call_tool |
 | `task-enforcement` | `task-enforcement/` | 6 | Block native task tools, require task before edit, track claims, require commits before close, block validation skip |

@@ -665,7 +665,7 @@ Gobby ships with 14 rule groups (plus deprecated). All bundled rules have `enabl
 
 | Group | Rules | Purpose |
 |-------|-------|---------|
-| `worker-safety` | 6 | Block git push (all agents + worker-specific), force push, destructive git, agent spawn from merge agents, external GitHub issues |
+| `worker-safety` | 7 | Block git push (all agents + worker-specific), force push, destructive git, bash sleep, agent spawn from merge agents, external GitHub issues |
 | `tool-hygiene` | 2 | Require `uv` for Python, track pending memory review |
 | `progressive-discovery` | 7 | Enforce MCP discovery order: list_servers → list_tools → get_schema → call_tool |
 | `task-enforcement` | 6 | Block native task tools, require task before edit, track claims, require commits before close, block validation skip with commit |
