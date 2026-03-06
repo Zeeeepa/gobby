@@ -85,7 +85,7 @@ class TestTaskEnforcementSync:
         for row in rules:
             if row.name in TASK_ENFORCEMENT_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type in {"block", "set_variable"}
+                assert body.effect.type in {"block", "set_variable", "observe"}
 
 
 class TestBlockNativeTaskTools:
@@ -373,10 +373,10 @@ class TestBlockAskDuringStopCompliance:
 
 
 class TestTrackTaskClaim:
-    """Verify track-task-claim sets task_claimed on claim."""
+    """Verify track-task-claim observes task claim events."""
 
     def test_sets_task_claimed_true(self, db, manager) -> None:
-        """Should set task_claimed to true."""
+        """Should use observe effect to track task claims."""
         _sync_bundled(db)
 
         row = manager.get_by_name("track-task-claim")
@@ -384,9 +384,7 @@ class TestTrackTaskClaim:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "task_claimed"
-        assert body.effect.value is True
+        assert body.effect.type == "observe"
 
     def test_when_matches_claim_and_create(self, db, manager) -> None:
         """Should fire on claim_task and create_task."""
