@@ -53,7 +53,8 @@ dependencies = [
     # faster-whisper for voice STT
     "faster-whisper>=1.0.0",
     "cisco-ai-skill-scanner>=0.1.1",
-
+    # tree-sitter AST parsing for code indexing (gobby-code)
+    "tree-sitter-language-pack>=0.13.0",
     # Native SDK executors for autonomous mode
     "google-genai>=1.0.0",
     "openai>=1.0.0",

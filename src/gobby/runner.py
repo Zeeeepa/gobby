@@ -236,6 +236,65 @@ class GobbyRunner:
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
 
+        # Code Index (native AST-based symbol indexing)
+        self.code_indexer: Any | None = None
+        if hasattr(self.config, "code_index") and self.config.code_index.enabled:
+            try:
+                from gobby.code_index.graph import CodeGraph
+                from gobby.code_index.indexer import CodeIndexer
+                from gobby.code_index.parser import CodeParser
+                from gobby.code_index.searcher import CodeSearcher
+                from gobby.code_index.storage import CodeIndexStorage
+                from gobby.code_index.summarizer import SymbolSummarizer
+
+                ci_config = self.config.code_index
+                ci_storage = CodeIndexStorage(self.database)
+                ci_parser = CodeParser(ci_config)
+                ci_graph = CodeGraph()  # Neo4j client wired later if available
+                ci_summarizer = (
+                    SymbolSummarizer(self.llm_service, ci_config)
+                    if self.llm_service and ci_config.summary_enabled
+                    else None
+                )
+
+                # Reuse memory embed_fn if available
+                ci_embed_fn: Callable[..., Any] | None = None
+                if self.llm_service and ci_config.embedding_enabled:
+                    from functools import partial
+
+                    ci_embed_fn = partial(
+                        generate_embedding,
+                        model=self.config.memory.embedding_model
+                        if hasattr(self.config, "memory")
+                        else "text-embedding-3-small",
+                    )
+
+                ci_vector_store = self.vector_store if ci_config.embedding_enabled else None
+
+                self.code_indexer = CodeIndexer(
+                    storage=ci_storage,
+                    parser=ci_parser,
+                    vector_store=ci_vector_store,
+                    embed_fn=ci_embed_fn,
+                    graph=ci_graph if ci_config.graph_enabled else None,
+                    summarizer=ci_summarizer,
+                    config=ci_config,
+                )
+
+                # Create searcher and attach to indexer for http.py wiring
+                ci_searcher = CodeSearcher(
+                    storage=ci_storage,
+                    vector_store=ci_vector_store,
+                    embed_fn=ci_embed_fn,
+                    graph=ci_graph if ci_config.graph_enabled else None,
+                    config=ci_config,
+                )
+                self.code_indexer.searcher = ci_searcher
+
+                logger.info("Code indexer initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize code indexer: {e}")
+
         # MCP Proxy Manager - Initialize early for tool access
         # LocalMCPManager handles server/tool storage in SQLite
         self.mcp_db_manager = LocalMCPManager(self.database)
@@ -520,6 +579,7 @@ class GobbyRunner:
             pipeline_execution_manager=self.pipeline_execution_manager,
             completion_registry=self.completion_registry,
             agent_lifecycle_monitor=self.agent_lifecycle_monitor,
+            code_indexer=self.code_indexer,
             cron_storage=self.cron_storage,
             cron_scheduler=self.cron_scheduler,
             skill_manager=self.skill_manager,
@@ -704,6 +764,23 @@ class GobbyRunner:
                 cleanup_zombie_messages_loop(self.database, lambda: self._shutdown_requested),
                 name="zombie-message-cleanup",
             )
+
+            # Start code index maintenance loop
+            self._code_index_task: asyncio.Task[None] | None = None
+            if self.code_indexer:
+                from gobby.code_index.maintenance import code_index_maintenance_loop
+
+                shutdown_event = asyncio.Event()
+                # Wire shutdown event to _shutdown_requested flag
+                self._code_index_shutdown = shutdown_event
+                self._code_index_task = asyncio.create_task(
+                    code_index_maintenance_loop(
+                        self.code_indexer,
+                        shutdown_flag=shutdown_event,
+                        interval=self.config.code_index.maintenance_interval_seconds,
+                    ),
+                    name="code-index-maintenance",
+                )
 
             # Start periodic approval timeout expiry (every 60s)
             self._approval_timeout_task: asyncio.Task[None] | None = None

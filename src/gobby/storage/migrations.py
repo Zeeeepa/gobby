@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 142
+BASELINE_VERSION = 143
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -871,6 +871,57 @@ CREATE TABLE completion_subscribers (
     PRIMARY KEY (completion_id, session_id)
 );
 CREATE INDEX idx_completion_subscribers_completion ON completion_subscribers(completion_id);
+
+CREATE TABLE code_indexed_projects (
+    id TEXT PRIMARY KEY,
+    root_path TEXT NOT NULL,
+    total_files INTEGER NOT NULL DEFAULT 0,
+    total_symbols INTEGER NOT NULL DEFAULT 0,
+    last_indexed_at TEXT,
+    index_duration_ms INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE code_indexed_files (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    language TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    symbol_count INTEGER NOT NULL DEFAULT 0,
+    byte_size INTEGER NOT NULL DEFAULT 0,
+    indexed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(project_id, file_path)
+);
+CREATE INDEX idx_cif_project ON code_indexed_files(project_id);
+
+CREATE TABLE code_symbols (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    name TEXT NOT NULL,
+    qualified_name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    language TEXT NOT NULL,
+    byte_start INTEGER NOT NULL,
+    byte_end INTEGER NOT NULL,
+    line_start INTEGER NOT NULL,
+    line_end INTEGER NOT NULL,
+    signature TEXT,
+    docstring TEXT,
+    parent_symbol_id TEXT,
+    content_hash TEXT NOT NULL,
+    summary TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_cs_project ON code_symbols(project_id);
+CREATE INDEX idx_cs_file ON code_symbols(project_id, file_path);
+CREATE INDEX idx_cs_name ON code_symbols(name);
+CREATE INDEX idx_cs_qualified ON code_symbols(qualified_name);
+CREATE INDEX idx_cs_kind ON code_symbols(kind);
+CREATE INDEX idx_cs_parent ON code_symbols(parent_symbol_id);
 """
 
 # Migrations beyond v133.
@@ -958,6 +1009,60 @@ CREATE INDEX idx_test_runs_status ON test_runs(status)""",
         142,
         "Index agent_runs task_id",
         """CREATE INDEX IF NOT EXISTS idx_agent_runs_task_id ON agent_runs(task_id)""",
+    ),
+    (
+        143,
+        "Add code index tables (code_indexed_projects, code_indexed_files, code_symbols)",
+        """CREATE TABLE IF NOT EXISTS code_indexed_projects (
+    id TEXT PRIMARY KEY,
+    root_path TEXT NOT NULL,
+    total_files INTEGER NOT NULL DEFAULT 0,
+    total_symbols INTEGER NOT NULL DEFAULT 0,
+    last_indexed_at TEXT,
+    index_duration_ms INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS code_indexed_files (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    language TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    symbol_count INTEGER NOT NULL DEFAULT 0,
+    byte_size INTEGER NOT NULL DEFAULT 0,
+    indexed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(project_id, file_path)
+);
+CREATE INDEX IF NOT EXISTS idx_cif_project ON code_indexed_files(project_id);
+
+CREATE TABLE IF NOT EXISTS code_symbols (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    name TEXT NOT NULL,
+    qualified_name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    language TEXT NOT NULL,
+    byte_start INTEGER NOT NULL,
+    byte_end INTEGER NOT NULL,
+    line_start INTEGER NOT NULL,
+    line_end INTEGER NOT NULL,
+    signature TEXT,
+    docstring TEXT,
+    parent_symbol_id TEXT,
+    content_hash TEXT NOT NULL,
+    summary TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_cs_project ON code_symbols(project_id);
+CREATE INDEX IF NOT EXISTS idx_cs_file ON code_symbols(project_id, file_path);
+CREATE INDEX IF NOT EXISTS idx_cs_name ON code_symbols(name);
+CREATE INDEX IF NOT EXISTS idx_cs_qualified ON code_symbols(qualified_name);
+CREATE INDEX IF NOT EXISTS idx_cs_kind ON code_symbols(kind);
+CREATE INDEX IF NOT EXISTS idx_cs_parent ON code_symbols(parent_symbol_id)""",
     ),
 ]
 

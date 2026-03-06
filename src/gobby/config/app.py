@@ -19,6 +19,7 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
+from gobby.config.code_index import CodeIndexConfig
 from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
@@ -456,6 +457,10 @@ class DaemonConfig(BaseModel):
     output_compression: OutputCompressionConfig = Field(
         default_factory=OutputCompressionConfig,
         description="Output compression for token optimization (RTK-inspired)",
+    )
+    code_index: CodeIndexConfig = Field(
+        default_factory=CodeIndexConfig,
+        description="Native AST-based code indexing configuration",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
