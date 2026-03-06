@@ -96,23 +96,23 @@ steps:
       server: gobby-workflows
       tool: pipeline_eval
       arguments:
-        done: "${{ (scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0) }}"
+        done: "${{ len(scan_open.output.tasks) == 0 and len(scan_in_progress.output.tasks) == 0 and len(scan_needs_review.output.tasks) == 0 and len(scan_approved.output.tasks) == 0 }}"
 
   # --- Find next dispatchable tasks (parallel: dispatch when below capacity) ---
   - id: find_next
-    condition: "${{ (not all_closed.output.done) and ((scan_in_progress.output.tasks | length) < inputs.max_concurrent) }}"
+    condition: "${{ (not all_closed.output.done) and (len(scan_in_progress.output.tasks) < inputs.max_concurrent) }}"
     mcp:
       server: gobby-tasks
       tool: suggest_next_tasks
       arguments:
         parent_task_id: "${{ inputs.session_task }}"
         session_id: "${{ session_id }}"
-        max_count: "${{ inputs.max_concurrent - (scan_in_progress.output.tasks | length) }}"
+        max_count: "${{ inputs.max_concurrent - len(scan_in_progress.output.tasks) }}"
 
   # --- MERGE PHASE (blocking — one merge at epic completion) ---
   # Merge when: only approved tasks remain (no open, in_progress, or needs_review)
   - id: spawn_merge
-    condition: "${{ (scan_approved.output.tasks | length > 0) and (scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) }}"
+    condition: "${{ (len(scan_approved.output.tasks) > 0) and (len(scan_open.output.tasks) == 0) and (len(scan_in_progress.output.tasks) == 0) and (len(scan_needs_review.output.tasks) == 0) }}"
     mcp:
       server: gobby-agents
       tool: spawn_agent
@@ -149,7 +149,7 @@ steps:
 
   # --- DISPATCH DEVELOPERS (fire-and-forget, parallel batch) ---
   - id: spawn_developers
-    condition: "${{ find_next.output.suggestions | length > 0 if find_next.output else false }}"
+    condition: "${{ len(find_next.output.suggestions) > 0 if find_next.output else false }}"
     mcp:
       server: gobby-agents
       tool: dispatch_batch
@@ -164,7 +164,7 @@ steps:
 
   # --- ANNOTATE OBSERVED FILES (post-hoc, one per iteration) ---
   - id: annotate_observed
-    condition: "${{ scan_needs_review.output.tasks | length > 0 }}"
+    condition: "${{ len(scan_needs_review.output.tasks) > 0 }}"
     mcp:
       server: gobby-tasks
       tool: update_observed_files
