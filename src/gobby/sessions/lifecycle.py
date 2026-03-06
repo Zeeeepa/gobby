@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gobby.config.sessions import SessionLifecycleConfig
+from gobby.sessions.transcript_archive import backup_transcript
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
@@ -196,6 +197,8 @@ class SessionLifecycleManager:
         if not sessions:
             return 0
 
+        archive_dir = getattr(self.config, "transcript_archive_dir", None)
+
         processed = 0
         for session in sessions:
             try:
@@ -203,6 +206,20 @@ class SessionLifecycleManager:
                 self.session_manager.mark_transcript_processed(session.id)
                 processed += 1
                 logger.debug(f"Processed transcript for session {session.id}")
+
+                # Best-effort backup of the transcript archive
+                if session.jsonl_path and session.external_id:
+                    try:
+                        await asyncio.to_thread(
+                            backup_transcript,
+                            session.external_id,
+                            session.jsonl_path,
+                            archive_dir,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Transcript backup failed for {session.id}: {e}"
+                        )
             except Exception as e:
                 logger.error(f"Failed to process transcript for {session.id}: {e}")
 

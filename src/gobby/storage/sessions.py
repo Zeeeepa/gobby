@@ -491,6 +491,7 @@ class LocalSessionManager:
         status: str | None = None,
         source: str | None = None,
         limit: int = 100,
+        exclude_subagents: bool = False,
     ) -> list[Session]:
         """
         List sessions with optional filters.
@@ -500,6 +501,7 @@ class LocalSessionManager:
             status: Filter by status
             source: Filter by CLI source
             limit: Maximum number of results
+            exclude_subagents: If True, only return top-level sessions (agent_depth = 0)
 
         Returns:
             List of Session instances
@@ -522,6 +524,10 @@ class LocalSessionManager:
         if source:
             conditions.append("source = ?")
             params.append(source)
+        if exclude_subagents:
+            conditions.append(
+                "(parent_session_id IS NULL OR parent_session_id = '') AND agent_depth = 0"
+            )
 
         where_clause = " AND ".join(conditions)
         params.append(limit)
