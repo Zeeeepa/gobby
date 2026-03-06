@@ -13,10 +13,9 @@ import logging
 import os
 import signal
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
-
-from pathlib import Path
 
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
