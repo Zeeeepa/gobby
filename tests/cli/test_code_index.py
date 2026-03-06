@@ -36,7 +36,7 @@ class TestCodeIndexIndex:
         mock_client.call_http_api.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "index", str(tmp_path)])
+        result = runner.invoke(cli, ["index", "index", str(tmp_path)])
 
         assert result.exit_code == 0
         assert "Files indexed: 10" in result.output
@@ -62,7 +62,7 @@ class TestCodeIndexIndex:
         mock_client.call_http_api.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "index", str(tmp_path), "--full"])
+        result = runner.invoke(cli, ["index", "index", str(tmp_path), "--full"])
 
         assert result.exit_code == 0
         call_args = mock_client.call_http_api.call_args
@@ -74,13 +74,13 @@ class TestCodeIndexIndex:
         mock_client.check_health.return_value = (False, "Connection refused")
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "index", str(tmp_path)])
+        result = runner.invoke(cli, ["index", "index", str(tmp_path)])
 
         assert result.exit_code != 0
         assert "Daemon not running" in result.output
 
     def test_index_invalid_path(self, runner: CliRunner) -> None:
-        result = runner.invoke(cli, ["code-index", "index", "/nonexistent/path"])
+        result = runner.invoke(cli, ["index", "index", "/nonexistent/path"])
 
         assert result.exit_code != 0
         assert "Not a directory" in result.output
@@ -96,7 +96,7 @@ class TestCodeIndexIndex:
         mock_client.call_http_api.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "index", str(tmp_path)])
+        result = runner.invoke(cli, ["index", "index", str(tmp_path)])
 
         assert result.exit_code != 0
         assert "Indexing failed" in result.output
@@ -119,7 +119,7 @@ class TestCodeIndexStatus:
         mock_client.call_http_api.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "status"])
+        result = runner.invoke(cli, ["index", "status"])
 
         assert result.exit_code == 0
         assert "proj-1" in result.output
@@ -135,7 +135,7 @@ class TestCodeIndexStatus:
         mock_client.call_http_api.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "status"])
+        result = runner.invoke(cli, ["index", "status"])
 
         assert result.exit_code == 0
         assert "No indexed projects" in result.output
@@ -158,7 +158,7 @@ class TestCodeIndexStatus:
         mock_client.call_http_api.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "status", "-p", "my-proj"])
+        result = runner.invoke(cli, ["index", "status", "-p", "my-proj"])
 
         assert result.exit_code == 0
         assert "my-proj" in result.output
@@ -179,7 +179,7 @@ class TestCodeIndexInvalidate:
         mock_client.call_http_api.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "invalidate", "-p", "my-proj"])
+        result = runner.invoke(cli, ["index", "invalidate", "-p", "my-proj"])
 
         assert result.exit_code == 0
         assert "Index invalidated" in result.output
@@ -191,7 +191,7 @@ class TestCodeIndexInvalidate:
         mock_client.check_health.return_value = (False, "Connection refused")
         mock_get_client.return_value = mock_client
 
-        result = runner.invoke(cli, ["code-index", "invalidate", "-p", "test"])
+        result = runner.invoke(cli, ["index", "invalidate", "-p", "test"])
 
         assert result.exit_code != 0
         assert "Daemon not running" in result.output
@@ -199,13 +199,13 @@ class TestCodeIndexInvalidate:
 
 def test_help(runner: CliRunner) -> None:
     """code-index --help works."""
-    result = runner.invoke(cli, ["code-index", "--help"])
+    result = runner.invoke(cli, ["index", "--help"])
     assert result.exit_code == 0
     assert "Code indexing commands" in result.output
 
 
 def test_index_help(runner: CliRunner) -> None:
     """code-index index --help works."""
-    result = runner.invoke(cli, ["code-index", "index", "--help"])
+    result = runner.invoke(cli, ["index", "index", "--help"])
     assert result.exit_code == 0
     assert "Index a directory" in result.output

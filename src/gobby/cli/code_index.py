@@ -32,7 +32,7 @@ def _require_daemon(client: DaemonClient) -> None:
         raise click.ClickException(f"Daemon not running: {err}")
 
 
-@click.group("code-index")
+@click.group("index")
 def code_index() -> None:
     """Code indexing commands."""
     pass
