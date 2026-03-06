@@ -40,10 +40,6 @@ WRONG — Loading all schemas upfront (wastes 30-40K tokens):
 RIGHT — Just-in-time discovery:
   get_tool_schema("gobby-tasks", "create_task")  # Learn required params
   call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "#123"})
-
-ALSO OK — Direct call when you know the params:
-  call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "#123"})
-  # If params are wrong, error includes full schema for self-correction
 </common_mistakes>
 
 <rules>
