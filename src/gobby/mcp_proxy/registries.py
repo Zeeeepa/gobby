@@ -262,6 +262,7 @@ def setup_internal_registries(
             worktree_storage=worktree_storage,
             git_manager=git_manager,
             project_id=project_id,
+            task_manager=task_manager,
         )
         manager.add_registry(worktrees_registry)
         logger.debug("Worktrees registry initialized")
