@@ -192,7 +192,8 @@ class TestExecuteMCPStep:
         mock_tool_proxy.call_tool.assert_called_once_with(
             "gobby-tasks", "suggest_next_task", {"parent_task_id": "#123"}
         )
-        assert result["success"] is True
+        # success key is stripped by handler (commit 509f7ad5)
+        assert "success" not in result
         assert result["task_id"] == "#42"
 
     @pytest.mark.asyncio
