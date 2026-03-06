@@ -35,12 +35,6 @@ LLM_TASK_TOOLS = (
     "run_fix_attempt",
 )
 
-# Code indexing tools that may take > 30s on large codebases
-SLOW_CODE_TOOLS = (
-    "index_folder",
-    "index_repo",
-    "invalidate_index",
-)
 
 __all__ = [
     "create_stdio_mcp_server",
@@ -127,9 +121,6 @@ class DaemonProxy:
             timeout = config.mcp_client_proxy.tool_timeouts[tool_name]
         # Fallback for LLM-based task tools if not explicit in config
         elif tool_name in LLM_TASK_TOOLS:
-            timeout = 300.0
-        # Code indexing tools that scan large directories
-        elif tool_name in SLOW_CODE_TOOLS:
             timeout = 300.0
         # Wait tools: use the requested timeout plus a buffer
         elif tool_name in (

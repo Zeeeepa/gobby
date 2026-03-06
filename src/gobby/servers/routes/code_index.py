@@ -26,6 +26,20 @@ class IncrementalIndexRequest(BaseModel):
     project_id: str = ""
 
 
+class IndexDirectoryRequest(BaseModel):
+    """Request body for POST /api/code-index/index."""
+
+    path: str
+    project_id: str = ""
+    incremental: bool = True
+
+
+class InvalidateRequest(BaseModel):
+    """Request body for POST /api/code-index/invalidate."""
+
+    project_id: str = ""
+
+
 def create_code_index_router(server: HTTPServer) -> APIRouter:
     """Create code index router."""
     router = APIRouter(prefix="/api/code-index", tags=["code-index"])
@@ -69,6 +83,58 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
         )
 
         return JSONResponse(content=result)
+
+    @router.post("/index")
+    async def index_directory(body: IndexDirectoryRequest) -> JSONResponse:
+        """Index a directory (called by CLI `gobby code-index index`)."""
+        services = server.services
+        code_indexer = getattr(services, "code_indexer", None)
+
+        if code_indexer is None:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Code indexer not available"},
+            )
+
+        pid = body.project_id or getattr(services, "project_id", "") or "default"
+
+        try:
+            result = await code_indexer.index_directory(
+                root_path=body.path,
+                project_id=pid,
+                incremental=body.incremental,
+            )
+            return JSONResponse(content=result.to_dict())
+        except Exception as e:
+            logger.error(f"Index directory failed: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)},
+            )
+
+    @router.post("/invalidate")
+    async def invalidate_index(body: InvalidateRequest) -> JSONResponse:
+        """Clear index for a project (called by CLI `gobby code-index invalidate`)."""
+        services = server.services
+        code_indexer = getattr(services, "code_indexer", None)
+
+        if code_indexer is None:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Code indexer not available"},
+            )
+
+        pid = body.project_id or getattr(services, "project_id", "") or "default"
+
+        try:
+            await code_indexer.invalidate(pid)
+            return JSONResponse(content={"status": "ok", "project_id": pid})
+        except Exception as e:
+            logger.error(f"Invalidate index failed: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)},
+            )
 
     @router.get("/status")
     async def index_status(project_id: str = "") -> JSONResponse:

@@ -15,21 +15,6 @@ def create_indexing_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
         description="Code indexing operations",
     )
 
-    @registry.tool(description="Index a local directory. Returns symbol counts and timing.")
-    async def index_folder(
-        path: str,
-        project_id: str = "",
-        incremental: bool = True,
-    ) -> dict[str, Any]:
-        """Index all supported files in a directory."""
-        pid = project_id or ctx.project_id or "default"
-        result = await ctx.indexer.index_directory(
-            root_path=path,
-            project_id=pid,
-            incremental=incremental,
-        )
-        return result.to_dict()
-
     @registry.tool(description="List all indexed projects with stats.")
     def list_indexed() -> list[dict[str, Any]]:
         """List indexed projects."""

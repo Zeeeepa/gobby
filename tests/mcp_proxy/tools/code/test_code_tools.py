@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from gobby.code_index.indexer import CodeIndexer
-from gobby.code_index.models import Symbol
 from gobby.code_index.parser import CodeParser
 from gobby.code_index.searcher import CodeSearcher
 from gobby.code_index.storage import CodeIndexStorage
@@ -162,8 +160,8 @@ def test_expected_tools_present(registry) -> None:
     """Registry includes key tools from all sub-registries."""
     tool_names = {t["name"] for t in registry.list_tools()}
 
-    # Indexing tools
-    assert "index_folder" in tool_names
+    # Indexing tools (index_folder moved to CLI)
+    assert "index_folder" not in tool_names
     assert "list_indexed" in tool_names
     assert "invalidate_index" in tool_names
 
@@ -184,12 +182,11 @@ def test_expected_tools_present(registry) -> None:
 
 def test_get_schema_for_known_tool(registry) -> None:
     """get_schema returns schema dict for a known tool."""
-    schema = registry.get_schema("index_folder")
+    schema = registry.get_schema("list_indexed")
     assert schema is not None
-    assert schema["name"] == "index_folder"
+    assert schema["name"] == "list_indexed"
     assert "description" in schema
     assert "inputSchema" in schema
-    assert "properties" in schema["inputSchema"]
 
 
 def test_get_schema_for_search_symbols(registry) -> None:
