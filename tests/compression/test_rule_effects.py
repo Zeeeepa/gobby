@@ -1,8 +1,6 @@
 """Integration tests for rewrite_input and compress_output rule effects."""
 
-import warnings
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -37,26 +35,22 @@ class TestRewriteInputEffect:
 
 class TestCompressOutputEffect:
     def test_compress_output_model(self) -> None:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            effect = RuleEffect(
-                type="compress_output",
-                strategy="pytest",
-                max_lines=50,
-            )
+        effect = RuleEffect(
+            type="compress_output",
+            strategy="pytest",
+            max_lines=50,
+        )
         assert effect.type == "compress_output"
         assert effect.strategy == "pytest"
         assert effect.max_lines == 50
 
     def test_compress_output_in_rule_body(self) -> None:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            body = RuleDefinitionBody(
-                event="after_tool",
-                effect=RuleEffect(
-                    type="compress_output",
-                ),
-            )
+        body = RuleDefinitionBody(
+            event="after_tool",
+            effect=RuleEffect(
+                type="compress_output",
+            ),
+        )
         effects = body.resolved_effects
         assert len(effects) == 1
         assert effects[0].type == "compress_output"

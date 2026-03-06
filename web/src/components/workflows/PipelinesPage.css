@@ -37,7 +37,7 @@
   font-size: calc(var(--font-size-base) * 0.65);
   padding: 0.05rem 0.35rem;
   border-radius: 999px;
-  background: #3b82f6;
+  background: var(--accent);
   color: #fff;
   font-weight: 600;
   line-height: 1.2;

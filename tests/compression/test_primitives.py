@@ -140,7 +140,7 @@ class TestGroupLines:
         result = group_lines(lines, mode="by_file")
         text = "".join(result)
         assert "src/foo.py (2 matches)" in text
-        assert "src/bar.py (1 matches)" in text
+        assert "src/bar.py (1 match)" in text
 
     def test_errors_warnings_separates(self) -> None:
         lines = [

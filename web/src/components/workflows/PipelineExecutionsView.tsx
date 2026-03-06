@@ -125,6 +125,7 @@ export function PipelineExecutionsView({
                           </div>
                           <div className="pipeline-approval-actions">
                             <button
+                              type="button"
                               className="pipeline-btn pipeline-btn--approve"
                               onClick={() => handleApprove(waitingStep.approval_token!)}
                               disabled={actionLoading === waitingStep.approval_token}
@@ -132,6 +133,7 @@ export function PipelineExecutionsView({
                               {actionLoading === waitingStep.approval_token ? 'Approving...' : 'Approve'}
                             </button>
                             <button
+                              type="button"
                               className="pipeline-btn pipeline-btn--reject"
                               onClick={() => handleReject(waitingStep.approval_token!)}
                               disabled={actionLoading === waitingStep.approval_token}

@@ -113,7 +113,7 @@ export function usePipelineExecutions(projectId?: string) {
       method: 'POST',
     })
     if (!res.ok) throw new Error(`Failed to approve: ${res.statusText}`)
-    fetchExecutions()
+    await fetchExecutions()
     return res.json()
   }, [fetchExecutions])
 
@@ -122,7 +122,7 @@ export function usePipelineExecutions(projectId?: string) {
       method: 'POST',
     })
     if (!res.ok) throw new Error(`Failed to reject: ${res.statusText}`)
-    fetchExecutions()
+    await fetchExecutions()
     return res.json()
   }, [fetchExecutions])
 

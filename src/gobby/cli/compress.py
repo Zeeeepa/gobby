@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 import click
+import httpx
 
 
 @click.command()
@@ -39,12 +40,12 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
     try:
         from gobby.utils.daemon_client import DaemonClient
 
-        resp = DaemonClient().get("/api/config/values", timeout=1.0).json()
+        resp = DaemonClient().call_http_api("/api/config/values", method="GET", timeout=1.0).json()
         cfg = resp.get("output_compression", {})
         min_length = cfg.get("min_output_length", min_length)
         excluded = cfg.get("excluded_commands", excluded)
         max_lines = cfg.get("max_compressed_lines", 100)
-    except Exception:
+    except (httpx.HTTPError, ValueError, KeyError):
         max_lines = 100
 
     compressor = OutputCompressor(
@@ -69,16 +70,17 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
             from gobby.utils.daemon_client import DaemonClient
 
             client = DaemonClient()
-            client.post(
+            client.call_http_api(
                 "/api/metrics/counter",
-                json={
+                method="POST",
+                json_data={
                     "name": "compression_chars_saved",
                     "value": compressed.original_chars - compressed.compressed_chars,
                     "labels": {"strategy": compressed.strategy_name},
                 },
                 timeout=1.0,
             )
-        except Exception:
+        except httpx.HTTPError:
             pass  # Non-critical — don't fail the command
 
     click.echo(compressed.compressed, nl=False)

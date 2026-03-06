@@ -29,7 +29,7 @@ def sample_jsonl(tmp_path: Path) -> Path:
 
 
 class TestGetArchiveDir:
-    def test_default_creates_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_creates_dir(self, tmp_path: Path) -> None:
         custom = str(tmp_path / "custom_archive")
         result = get_archive_dir(custom)
         assert result == Path(custom)

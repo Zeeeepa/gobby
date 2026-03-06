@@ -540,22 +540,38 @@ class LocalPipelineExecutionManager:
         steps = self.get_steps_for_execution(execution_id)
         found = False
         count = 0
-        for step in steps:
-            if step.step_id == from_step_id:
-                found = True
-            if found:
-                self.db.execute(
-                    """
-                    UPDATE step_executions
-                    SET status = ?, output_json = NULL, error = NULL,
-                        started_at = NULL, completed_at = NULL,
-                        approval_token = NULL, approved_by = NULL, approved_at = NULL
-                    WHERE id = ?
-                    """,
-                    (StepStatus.PENDING.value, step.id),
-                )
-                count += 1
+        with self.db.transaction():
+            for step in steps:
+                if step.step_id == from_step_id:
+                    found = True
+                if found:
+                    self.db.execute(
+                        """
+                        UPDATE step_executions
+                        SET status = ?, output_json = NULL, error = NULL,
+                            started_at = NULL, completed_at = NULL,
+                            approval_token = NULL, approved_by = NULL, approved_at = NULL
+                        WHERE id = ?
+                        """,
+                        (StepStatus.PENDING.value, step.id),
+                    )
+                    count += 1
         return count
+
+    def get_failed_steps(self, execution_id: str) -> list[StepExecution]:
+        """Get failed steps for an execution.
+
+        Args:
+            execution_id: Pipeline execution ID
+
+        Returns:
+            List of StepExecution instances with FAILED status
+        """
+        rows = self.db.fetchall(
+            "SELECT * FROM step_executions WHERE execution_id = ? AND status = ?",
+            (execution_id, StepStatus.FAILED.value),
+        )
+        return [StepExecution.from_row(row) for row in rows]
 
     def get_steps_for_execution(self, execution_id: str) -> list[StepExecution]:
         """Get all steps for an execution.

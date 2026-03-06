@@ -398,7 +398,8 @@ def _group_by_file(lines: list[str]) -> list[str]:
 
     result: list[str] = []
     for filepath, matches in groups.items():
-        result.append(f"{filepath} ({len(matches)} matches):\n")
+        count = len(matches)
+        result.append(f"{filepath} ({count} {'match' if count == 1 else 'matches'}):\n")
         for ml in matches[:5]:
             result.append(f"  {ml.strip()}\n")
         if len(matches) > 5:

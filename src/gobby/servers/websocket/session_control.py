@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+from pathlib import Path
+
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 from gobby.servers.chat_session import ChatSession
@@ -340,7 +342,7 @@ class SessionControlMixin:
             jsonl_path = source_session.jsonl_path
             if jsonl_path and source_session.external_id:
                 original_exists = await asyncio.to_thread(
-                    lambda: __import__("pathlib").Path(jsonl_path).is_file()
+                    lambda: Path(jsonl_path).is_file()
                 )
                 if not original_exists:
                     restored = await asyncio.to_thread(
@@ -432,8 +434,8 @@ class SessionControlMixin:
             running = registry.get_by_session(session_id)
             if running:
                 return f"session has an active agent ({running.mode})"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Resume block check failed for %s: %s", session_id, e)
 
         # 2. Active agent (DB fallback — pending/running agent_runs)
         session_manager = getattr(self, "session_manager", None)
@@ -447,8 +449,8 @@ class SessionControlMixin:
                 )
                 if row:
                     return "session has a pending or running agent"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Resume block check failed for %s: %s", session_id, e)
 
             # 3. Active pipeline
             try:
@@ -460,8 +462,8 @@ class SessionControlMixin:
                 )
                 if row:
                     return "session has an active pipeline"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Resume block check failed for %s: %s", session_id, e)
 
         # 4. Active web chat session (in-memory)
         if session_id in {

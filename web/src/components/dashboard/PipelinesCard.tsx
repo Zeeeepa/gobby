@@ -38,7 +38,7 @@ export function PipelinesCard({ pipelines }: Props) {
       </div>
       <div className="dash-card-body">
         <div className="dash-donut-container">
-          <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+          <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-label="Pipeline status chart">
             <circle
               cx={SIZE / 2}
               cy={SIZE / 2}

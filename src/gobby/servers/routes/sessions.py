@@ -187,8 +187,8 @@ async def _compute_resumability(
                 "WHERE status IN ('pending', 'running') AND parent_session_id IS NOT NULL"
             )
             active_agent_session_ids = {r["parent_session_id"] for r in rows}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to fetch active agent session ids: %s", e)
 
         try:
             rows = db.fetchall(
@@ -196,8 +196,8 @@ async def _compute_resumability(
                 "WHERE status IN ('pending', 'running', 'waiting_approval') AND session_id IS NOT NULL"
             )
             active_pipeline_session_ids = {r["session_id"] for r in rows}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to fetch active pipeline session ids: %s", e)
 
     # Active web chat session IDs
     ws_server = server.services.websocket_server

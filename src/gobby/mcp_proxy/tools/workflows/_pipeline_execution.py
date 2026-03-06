@@ -308,6 +308,10 @@ async def resume_pipeline(
                 resume_step_id = step.step_id
                 break
             if step.error and step.status in (StepStatus.COMPLETED, StepStatus.SKIPPED):
+                logger.warning(
+                    "Step %s has status %s but carries error: %s",
+                    step.step_id, step.status.value, step.error[:200]
+                )
                 resume_step_id = step.step_id
                 break
         if not resume_step_id:
@@ -324,8 +328,8 @@ async def resume_pipeline(
     if execution.inputs_json:
         try:
             inputs = json.loads(execution.inputs_json)
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning("Malformed inputs_json for execution %s: %s", execution_id, e)
 
     # Mark as running before spawning background task
     execution_manager.update_execution_status(
