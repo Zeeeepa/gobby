@@ -304,13 +304,15 @@ def register_pipeline_tools(
     @registry.tool(
         name="resume_pipeline",
         description=(
-            "Resume a failed pipeline execution from the failed step. "
-            "Completed and skipped steps are preserved. Only works on executions with status 'failed'."
+            "Resume a failed pipeline execution. Resets steps from the failure point "
+            "(or from_step if specified) to PENDING, then re-executes. "
+            "Only works on executions with status 'failed'."
         ),
     )
     async def _resume_pipeline(
         execution_id: str,
         session_id: str,
+        from_step: str | None = None,
     ) -> dict[str, Any]:
         # Resolve session reference and derive project_id
         try:
@@ -333,6 +335,7 @@ def register_pipeline_tools(
             execution_id=execution_id,
             project_id=project_id,
             session_id=resolved_id,
+            from_step=from_step,
         )
 
         # Auto-subscribe caller session + lineage to completion events

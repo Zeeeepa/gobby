@@ -532,6 +532,31 @@ class LocalPipelineExecutionManager:
             (completion_id,),
         )
 
+    def reset_steps_from(self, execution_id: str, from_step_id: str) -> int:
+        """Reset a step and all subsequent steps to PENDING.
+
+        Clears output, error, and timestamps. Returns count of reset steps.
+        """
+        steps = self.get_steps_for_execution(execution_id)
+        found = False
+        count = 0
+        for step in steps:
+            if step.step_id == from_step_id:
+                found = True
+            if found:
+                self.db.execute(
+                    """
+                    UPDATE step_executions
+                    SET status = ?, output_json = NULL, error = NULL,
+                        started_at = NULL, completed_at = NULL,
+                        approval_token = NULL, approved_by = NULL, approved_at = NULL
+                    WHERE id = ?
+                    """,
+                    (StepStatus.PENDING.value, step.id),
+                )
+                count += 1
+        return count
+
     def get_steps_for_execution(self, execution_id: str) -> list[StepExecution]:
         """Get all steps for an execution.
 

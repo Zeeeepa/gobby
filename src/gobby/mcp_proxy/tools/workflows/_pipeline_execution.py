@@ -67,6 +67,7 @@ class PipelineExecutionManager(Protocol):
         approved_by: str | None = None,
         approval_timeout_seconds: int | None = None,
     ) -> StepExecution | None: ...
+    def reset_steps_from(self, execution_id: str, from_step_id: str) -> int: ...
     def create_execution(
         self, pipeline_name: str, inputs_json: str, session_id: str | None = None
     ) -> PipelineExecution: ...
@@ -235,12 +236,14 @@ async def resume_pipeline(
     execution_id: str,
     project_id: str,
     session_id: str | None = None,
+    from_step: str | None = None,
 ) -> dict[str, Any]:
     """
-    Resume a failed pipeline execution from the failed step.
+    Resume a failed pipeline execution by resetting steps from the failure point.
 
-    Completed and skipped steps are preserved. The executor's resume path
-    (pipeline_executor.py:267-310) handles skipping them automatically.
+    Determines the resume point (explicit from_step, or auto-detected first
+    failed/errored step), resets that step and all subsequent steps to PENDING,
+    then re-executes via the executor's resume path.
 
     Args:
         loader: WorkflowLoader instance
@@ -249,6 +252,7 @@ async def resume_pipeline(
         execution_id: ID of the failed execution to resume
         project_id: Project context for the execution
         session_id: Optional session that triggered the resume
+        from_step: Optional step ID to resume from (resets this and all later steps)
 
     Returns:
         Dict with execution_id and status
@@ -285,6 +289,36 @@ async def resume_pipeline(
             "error": f"Pipeline '{execution.pipeline_name}' not found",
         }
 
+    # Determine resume point and reset steps
+    steps = execution_manager.get_steps_for_execution(execution_id)
+    if from_step:
+        # User specified — validate it exists
+        step_ids = [s.step_id for s in steps]
+        if from_step not in step_ids:
+            return {
+                "success": False,
+                "error": f"Step '{from_step}' not found. Available: {step_ids}",
+            }
+        resume_step_id = from_step
+    else:
+        # Auto-detect: first FAILED step, or first step with error data
+        resume_step_id = None
+        for step in steps:
+            if step.status == StepStatus.FAILED:
+                resume_step_id = step.step_id
+                break
+            if step.error and step.status in (StepStatus.COMPLETED, StepStatus.SKIPPED):
+                resume_step_id = step.step_id
+                break
+        if not resume_step_id:
+            return {
+                "success": False,
+                "error": "No failed or errored step found to resume from",
+            }
+
+    # Reset the resume point and all subsequent steps to PENDING
+    reset_count = execution_manager.reset_steps_from(execution_id, resume_step_id)
+
     # Parse stored inputs
     inputs: dict[str, Any] = {}
     if execution.inputs_json:
@@ -317,9 +351,11 @@ async def resume_pipeline(
         "success": True,
         "status": "resuming",
         "execution_id": execution_id,
+        "reset_from_step": resume_step_id,
+        "steps_reset": reset_count,
         "message": (
-            f"Pipeline '{execution.pipeline_name}' resuming from failed step. "
-            "You will be notified when it completes."
+            f"Pipeline '{execution.pipeline_name}' resuming from step '{resume_step_id}' "
+            f"({reset_count} step(s) reset). You will be notified when it completes."
         ),
     }
 
