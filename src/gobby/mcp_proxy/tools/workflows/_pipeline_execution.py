@@ -228,6 +228,102 @@ async def run_pipeline(
     }
 
 
+async def resume_pipeline(
+    loader: PipelineLoader | None,
+    executor: Any | None,
+    execution_manager: PipelineExecutionManager | None,
+    execution_id: str,
+    project_id: str,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Resume a failed pipeline execution from the failed step.
+
+    Completed and skipped steps are preserved. The executor's resume path
+    (pipeline_executor.py:267-310) handles skipping them automatically.
+
+    Args:
+        loader: WorkflowLoader instance
+        executor: PipelineExecutor instance
+        execution_manager: LocalPipelineExecutionManager instance
+        execution_id: ID of the failed execution to resume
+        project_id: Project context for the execution
+        session_id: Optional session that triggered the resume
+
+    Returns:
+        Dict with execution_id and status
+    """
+    if not executor:
+        return {"success": False, "error": "No executor configured"}
+
+    if not execution_manager:
+        return {"success": False, "error": "No execution manager configured"}
+
+    if not loader:
+        return {"success": False, "error": "No loader configured"}
+
+    # Look up the execution
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        return {"success": False, "error": f"Execution '{execution_id}' not found"}
+
+    if execution.status != ExecutionStatus.FAILED:
+        return {
+            "success": False,
+            "error": f"Only failed pipelines can be resumed (current status: {execution.status.value})",
+        }
+
+    # Load the pipeline definition
+    try:
+        pipeline = await loader.load_pipeline(execution.pipeline_name)
+    except ValueError as e:
+        return {"success": False, "error": f"Invalid pipeline '{execution.pipeline_name}': {e}"}
+
+    if not pipeline:
+        return {
+            "success": False,
+            "error": f"Pipeline '{execution.pipeline_name}' not found",
+        }
+
+    # Parse stored inputs
+    inputs: dict[str, Any] = {}
+    if execution.inputs_json:
+        try:
+            inputs = json.loads(execution.inputs_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Mark as running before spawning background task
+    execution_manager.update_execution_status(
+        execution_id=execution_id,
+        status=ExecutionStatus.RUNNING,
+    )
+
+    task = asyncio.create_task(
+        _execute_pipeline_background(
+            executor,
+            pipeline,
+            inputs,
+            project_id,
+            execution_id,
+            execution.pipeline_name,
+            session_id=session_id or execution.session_id,
+        ),
+        name=f"pipeline-resume-{execution.pipeline_name}-{execution_id[:8]}",
+    )
+    _register_background_task(task)
+
+    return {
+        "success": True,
+        "status": "resuming",
+        "execution_id": execution_id,
+        "message": (
+            f"Pipeline '{execution.pipeline_name}' resuming from failed step. "
+            "You will be notified when it completes."
+        ),
+    }
+
+
 async def approve_pipeline(
     executor: PipelineExecutor,
     token: str,

@@ -23,6 +23,7 @@ from gobby.mcp_proxy.tools.workflows._pipeline_execution import (
     approve_pipeline,
     get_pipeline_status,
     reject_pipeline,
+    resume_pipeline,
     run_pipeline,
 )
 from gobby.storage.database import DatabaseProtocol
@@ -295,6 +296,53 @@ def register_pipeline_tools(
                 resolved_id,
                 session_manager,
                 continuation_prompt,
+                db,
+            )
+
+        return result
+
+    @registry.tool(
+        name="resume_pipeline",
+        description=(
+            "Resume a failed pipeline execution from the failed step. "
+            "Completed and skipped steps are preserved. Only works on executions with status 'failed'."
+        ),
+    )
+    async def _resume_pipeline(
+        execution_id: str,
+        session_id: str,
+    ) -> dict[str, Any]:
+        # Resolve session reference and derive project_id
+        try:
+            resolved_id = _resolve_session(session_id)
+        except ValueError as e:
+            return {"success": False, "error": f"Invalid session_id: {e}"}
+
+        project_id = ""
+        if session_manager is not None:
+            session = await asyncio.to_thread(session_manager.get, resolved_id)
+            if session is None:
+                return {"success": False, "error": f"Session '{session_id}' not found"}
+            project_id = session.project_id
+
+        em = _get_execution_manager()
+        result = await resume_pipeline(
+            loader=_loader,
+            executor=_get_executor(),
+            execution_manager=em,
+            execution_id=execution_id,
+            project_id=project_id,
+            session_id=resolved_id,
+        )
+
+        # Auto-subscribe caller session + lineage to completion events
+        if result.get("success") and _completion_registry:
+            _auto_subscribe_lineage(
+                _completion_registry,
+                execution_id,
+                resolved_id,
+                session_manager,
+                None,
                 db,
             )
 
