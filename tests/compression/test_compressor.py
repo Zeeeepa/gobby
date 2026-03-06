@@ -102,6 +102,55 @@ class TestOutputCompressor:
         assert r.strategy_name == "python-lint"
         assert r.compressed_chars < r.original_chars
 
+    def test_max_lines_caps_long_output(self) -> None:
+        """max_lines acts as a final cap after pipeline primitives."""
+        output = "".join(f"line {i}\n" for i in range(200))
+        c = OutputCompressor(min_length=100, max_lines=30)
+        r = c.compress("some-unknown-tool", output)
+        # truncate() marker is "\n[... N lines omitted ...]\n\n" (3 extra lines)
+        # so total = 30 content + 3 marker = 33
+        result_lines = r.compressed.splitlines()
+        assert len(result_lines) <= 33
+        assert len(result_lines) < 200  # significantly reduced
+        assert "lines omitted" in r.compressed
+
+    def test_max_lines_no_op_when_under_cap(self) -> None:
+        """max_lines doesn't truncate further when output is already short."""
+        output = "".join(f"line {i}\n" for i in range(200))
+        c = OutputCompressor(min_length=100, max_lines=500)
+        r = c.compress("some-unknown-tool", output)
+        # Fallback truncation (head=20, tail=20) already reduces to ~43 lines
+        # (20 head + 20 tail + 3 marker lines). max_lines=500 adds no extra cap.
+        lines = r.compressed.splitlines()
+        assert len(lines) <= 43
+        # Only one omission marker from the fallback truncation
+        assert r.compressed.count("lines omitted") == 1
+
+    def test_max_lines_zero_means_no_cap(self) -> None:
+        """max_lines=0 disables the final cap."""
+        output = "".join(f"line {i}\n" for i in range(200))
+        c = OutputCompressor(min_length=100, max_lines=0)
+        r = c.compress("some-unknown-tool", output)
+        # Fallback truncation still applies (head=20, tail=20), but no extra cap
+        assert r.strategy_name == "fallback"
+        assert r.compressed.count("lines omitted") == 1
+
+    def test_max_lines_head_tail_split(self) -> None:
+        """max_lines cap preserves head and tail content with omission marker."""
+        # Use unknown command so fallback (head=20, tail=20) runs first,
+        # then max_lines=10 cap truncates further
+        output = "".join(f"unique-line-{chr(65 + (i % 26))}-{i}\n" for i in range(200))
+        c = OutputCompressor(min_length=100, max_lines=10)
+        r = c.compress("some-unknown-tool", output)
+        lines = r.compressed.splitlines()
+        # 10 content + 3 marker = 13 max
+        assert len(lines) <= 13
+        assert "lines omitted" in r.compressed
+        # Verify head content preserved (first line from original)
+        assert "unique-line-A-0" in r.compressed
+        # Verify tail content preserved (last line from original)
+        assert "unique-line-" in lines[-1]
+
     def test_preserves_exit_code_via_cli(self) -> None:
         """Test that CompressionResult is a clean dataclass."""
         r = CompressionResult(

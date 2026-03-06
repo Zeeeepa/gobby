@@ -43,11 +43,13 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
         cfg = resp.get("output_compression", {})
         min_length = cfg.get("min_output_length", min_length)
         excluded = cfg.get("excluded_commands", excluded)
+        max_lines = cfg.get("max_compressed_lines", 100)
     except Exception:
-        pass
+        max_lines = 100
 
     compressor = OutputCompressor(
         min_length=min_length,
+        max_lines=max_lines,
         excluded_commands=excluded,
     )
     compressed = compressor.compress(cmd, raw_output)

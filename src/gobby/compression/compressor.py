@@ -358,6 +358,12 @@ class OutputCompressor:
             # Fallback: truncate to head+tail
             lines = truncate(lines, head=20, tail=20)
 
+        # Apply max_lines as a final cap (post-pipeline)
+        if self.max_lines and len(lines) > self.max_lines:
+            cap_head = (self.max_lines * 3) // 5  # 60% head
+            cap_tail = self.max_lines - cap_head   # 40% tail
+            lines = truncate(lines, head=cap_head, tail=cap_tail)
+
         compressed = "".join(lines)
         compressed_chars = len(compressed)
 
