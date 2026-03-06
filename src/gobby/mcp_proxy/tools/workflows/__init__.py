@@ -506,12 +506,12 @@ def create_workflows_registry(
 
     @registry.tool(
         name="pipeline_eval",
-        description="Evaluate and return structured data within a pipeline. Arguments are passed through as the step output. Use with template expressions to compute values from prior step outputs.",
+        description="Evaluate and return structured data within a pipeline. Pass a dict of key-value pairs; they become the step output. Use with template expressions to compute values from prior step outputs.",
     )
-    def _pipeline_eval(**kwargs: Any) -> dict[str, Any]:
+    def _pipeline_eval(data: dict[str, Any]) -> dict[str, Any]:
         # Coerce string booleans/numbers from template rendering
         coerced: dict[str, Any] = {}
-        for k, v in kwargs.items():
+        for k, v in data.items():
             if isinstance(v, str):
                 if v.lower() == "true":
                     coerced[k] = True

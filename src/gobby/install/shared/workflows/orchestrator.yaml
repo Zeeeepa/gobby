@@ -96,7 +96,8 @@ steps:
       server: gobby-workflows
       tool: pipeline_eval
       arguments:
-        done: "${{ len(scan_open.output.tasks) == 0 and len(scan_in_progress.output.tasks) == 0 and len(scan_needs_review.output.tasks) == 0 and len(scan_approved.output.tasks) == 0 }}"
+        data:
+          done: "${{ len(scan_open.output.tasks) == 0 and len(scan_in_progress.output.tasks) == 0 and len(scan_needs_review.output.tasks) == 0 and len(scan_approved.output.tasks) == 0 }}"
 
   # --- Find next dispatchable tasks (parallel: dispatch when below capacity) ---
   - id: find_next
