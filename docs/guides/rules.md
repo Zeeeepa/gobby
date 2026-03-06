@@ -308,7 +308,7 @@ pipeline-auto-run:
   when: "variables.get('_assigned_pipeline')"
   effect:
     type: mcp_call
-    server: gobby-pipelines
+    server: gobby-workflows
     tool: run_pipeline
     arguments:
       name: "{{ _assigned_pipeline }}"
@@ -394,7 +394,7 @@ pipeline-auto-run:
         ## Pipeline Execution Mode
         You are a pipeline execution agent. Your pipeline ({{ _assigned_pipeline }}) is starting automatically.
     - type: mcp_call
-      server: gobby-pipelines
+      server: gobby-workflows
       tool: run_pipeline
       arguments:
         name: "{{ _assigned_pipeline }}"

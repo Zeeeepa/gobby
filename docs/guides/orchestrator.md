@@ -82,7 +82,7 @@ The worktree is created with an epic-level branch name: `epic-{seq_num}`.
     server: gobby-worktrees
     tool: create_worktree
     arguments:
-      branch_name: "epic-${{ get_epic.output.result.seq_num }}"
+      branch_name: "epic-${{ get_epic.output.seq_num }}"
       base_branch: "${{ inputs.merge_target }}"
       use_local: true
 ```
@@ -242,13 +242,13 @@ gobby pipelines run orchestrator \
 ### Via MCP
 
 ```python
-call_tool("gobby-pipelines", "run_pipeline", {
+call_tool("gobby-workflows", "run_pipeline", {
     "name": "orchestrator",
     "inputs": {
         "session_task": "#42",
         "merge_target": "main"
     },
-    "wait": False  # Long-running — don't block
+    "continuation_prompt": "Orchestrator completed. Review task states."
 })
 ```
 

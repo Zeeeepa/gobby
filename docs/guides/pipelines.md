@@ -385,8 +385,8 @@ curl -X POST http://localhost:60887/api/pipelines/reject/<token>
 
 **MCP**:
 ```python
-call_tool("gobby-pipelines", "approve_pipeline", {"token": "<token>"})
-call_tool("gobby-pipelines", "reject_pipeline", {"token": "<token>"})
+call_tool("gobby-workflows", "approve_pipeline", {"token": "<token>"})
+call_tool("gobby-workflows", "reject_pipeline", {"token": "<token>"})
 ```
 
 On approval, the pipeline resumes. On rejection, the step is `FAILED` and execution is `CANCELLED`.
@@ -423,8 +423,7 @@ stateDiagram-v2
 
 When run via MCP tools (`run_pipeline`), pipelines execute as background `asyncio` tasks:
 
-- `wait=False` (default): Returns `execution_id` immediately. Poll with `get_pipeline_status`.
-- `wait=True`: Blocks up to `wait_timeout` seconds (default 300). If timeout, returns partial status and pipeline continues in background.
+`run_pipeline` always returns immediately with an `execution_id`. Use `get_pipeline_status` to poll, `wait_for_completion` to block, or `continuation_prompt` to get notified when done.
 
 ### Resume After Approval
 
@@ -464,7 +463,7 @@ steps:
 
   # Expand epic if not yet expanded (first iteration only)
   - id: expand_epic
-    condition: "${{ not inputs._worktree_id and not get_epic.output.result.is_expanded }}"
+    condition: "${{ not inputs._worktree_id and not get_epic.output.is_expanded }}"
     invoke_pipeline:
       name: expand-task
       arguments:
@@ -614,7 +613,7 @@ steps:
 
 Agents can then invoke it:
 ```python
-call_tool("gobby-pipelines", "pipeline:run-tests", {"test_filter": "test_api"})
+call_tool("gobby-workflows", "pipeline:run-tests", {"test_filter": "test_api"})
 ```
 
 ---
@@ -718,11 +717,11 @@ The CLI tries the daemon HTTP API first (full-featured). If daemon is unavailabl
 
 | Server | Tool | Description |
 |--------|------|-------------|
-| `gobby-pipelines` | `list_pipelines` | List available definitions |
-| `gobby-pipelines` | `run_pipeline` | Run with inputs (`wait`, `wait_timeout` params) |
-| `gobby-pipelines` | `approve_pipeline` | Approve by token |
-| `gobby-pipelines` | `reject_pipeline` | Reject by token |
-| `gobby-pipelines` | `get_pipeline_status` | Get execution status |
+| `gobby-workflows` | `list_pipelines` | List available definitions |
+| `gobby-workflows` | `run_pipeline` | Run with inputs. Returns immediately; use `continuation_prompt` or `wait_for_completion` |
+| `gobby-workflows` | `approve_pipeline` | Approve by token |
+| `gobby-workflows` | `reject_pipeline` | Reject by token |
+| `gobby-workflows` | `get_pipeline_status` | Get execution status |
 | `gobby-workflows` | `create_pipeline` | Create/update pipeline definition |
 | `gobby-workflows` | `delete_pipeline` | Delete pipeline definition |
 | `gobby-workflows` | `export_pipeline` | Export as YAML |

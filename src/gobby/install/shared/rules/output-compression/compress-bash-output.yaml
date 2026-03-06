@@ -1,0 +1,21 @@
+tags: [output-compression, token-optimization, gobby, default]
+
+rules:
+  compress-bash-output:
+    description: "Rewrite verbose Bash commands through gobby compress"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: >
+      event.data.get('tool_name') == 'Bash'
+      and any(p in str(event.data.get('tool_input', {}).get('command', ''))
+              for p in ['git ', 'pytest', 'cargo test', 'npm test',
+                        'ruff ', 'mypy ', 'eslint ', 'tsc ',
+                        'go test', 'go build', 'cargo build',
+                        'docker ', 'kubectl ', 'pip ',
+                        'npm install', 'npm list'])
+    effect:
+      type: rewrite_input
+      input_updates:
+        command: "gobby compress -- {{ event.data.tool_input.command }}"
+      auto_approve: true

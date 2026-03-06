@@ -71,11 +71,14 @@ call_tool("gobby-tasks", "create_task", {
 ### 2.1 Run Expansion
 
 ```python
-call_tool("gobby-pipelines", "run_pipeline", {
+result = call_tool("gobby-workflows", "run_pipeline", {
     "name": "expand-task",
-    "inputs": {"task_id": "<epic_id>", "session_id": "<session_id>"},
-    "wait": True,
-    "wait_timeout": 600
+    "inputs": {"task_id": "<epic_id>", "session_id": "<session_id>"}
+})
+# Block until expansion completes
+call_tool("gobby-workflows", "wait_for_completion", {
+    "execution_id": result["execution_id"],
+    "timeout": 600
 })
 ```
 
@@ -123,7 +126,7 @@ call_tool("gobby-tasks", "get_affected_files", {"task_id": "<subtask_id>"})
 ### 3.1 Start Orchestrator
 
 ```python
-call_tool("gobby-pipelines", "run_pipeline", {
+call_tool("gobby-workflows", "run_pipeline", {
     "name": "orchestrator",
     "inputs": {
         "session_task": "<epic_id>",
@@ -132,7 +135,7 @@ call_tool("gobby-pipelines", "run_pipeline", {
         "poll_interval": 10,
         "max_iterations": 50
     },
-    "wait": False
+    "continuation_prompt": "Orchestrator completed. Check task states and report results."
 })
 ```
 

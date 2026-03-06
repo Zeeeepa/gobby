@@ -68,5 +68,5 @@ instructions: |
 workflows:
   rule_selectors:
     include:
-      - "tag:gobby"
+      - "tag:default"
   variables: {}
