@@ -9,7 +9,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from tree_sitter import Query, QueryCursor
+try:
+    from tree_sitter import Query, QueryCursor
+except ImportError:
+    Query = None  # type: ignore[assignment,misc]
+    QueryCursor = None  # type: ignore[assignment,misc]
 
 from gobby.code_index.hasher import file_content_hash, symbol_content_hash
 from gobby.code_index.languages import (
@@ -40,6 +44,11 @@ class CodeParser:
     """Parses source files into symbols using tree-sitter."""
 
     def __init__(self, config: CodeIndexConfig) -> None:
+        if Query is None:
+            raise ImportError(
+                "tree-sitter is required for code indexing. "
+                "Install it with: uv pip install tree-sitter-language-pack"
+            )
         self.config = config
         self._supported_languages = set(config.languages)
 

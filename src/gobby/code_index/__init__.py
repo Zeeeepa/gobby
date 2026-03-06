@@ -13,12 +13,10 @@ from gobby.code_index.models import (
     IndexResult,
     Symbol,
 )
-from gobby.code_index.parser import CodeParser
 from gobby.code_index.security import is_binary, should_exclude, validate_path
 
 __all__ = [
     "CallRelation",
-    "CodeParser",
     "ImportRelation",
     "IndexedFile",
     "IndexedProject",
