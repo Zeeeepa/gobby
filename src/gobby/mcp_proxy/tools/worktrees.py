@@ -382,14 +382,25 @@ def create_worktrees_registry(
         # Resolve task_id (#N -> UUID) before DB insert
         resolved_task_id = _resolve_task_id(task_id) if task_id else None
 
-        # Record in database
-        worktree = worktree_storage.create(
-            project_id=resolved_project_id,
-            branch_name=branch_name,
-            worktree_path=worktree_path,
-            base_branch=base_branch,
-            task_id=resolved_task_id,
-        )
+        # Record in database — clean up git worktree on failure
+        try:
+            worktree = worktree_storage.create(
+                project_id=resolved_project_id,
+                branch_name=branch_name,
+                worktree_path=worktree_path,
+                base_branch=base_branch,
+                task_id=resolved_task_id,
+            )
+        except Exception as db_err:
+            try:
+                resolved_git_mgr.delete_worktree(
+                    worktree_path, force=True, delete_branch=True, branch_name=branch_name
+                )
+            except Exception as cleanup_err:
+                logger.warning(
+                    "Failed to clean up orphaned worktree %s: %s", worktree_path, cleanup_err
+                )
+            return {"success": False, "error": f"Failed to record worktree in database: {db_err}"}
 
         # Copy project.json and install provider hooks
         _copy_project_json_to_worktree(resolved_git_mgr.repo_path, worktree.worktree_path)
