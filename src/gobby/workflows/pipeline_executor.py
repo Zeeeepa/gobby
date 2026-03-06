@@ -185,7 +185,11 @@ class PipelineExecutor:
         if _pipeline_stack is None:
             _pipeline_stack = frozenset()
 
-        if pipeline.name in _pipeline_stack:
+        # Block cross-pipeline cycles (A→B→A) but allow self-recursion (A→A).
+        # Self-recursion is bounded by the depth limit above.
+        if pipeline.name in _pipeline_stack and _pipeline_stack != frozenset(
+            {pipeline.name}
+        ):
             raise RuntimeError(
                 f"Pipeline cycle detected: '{pipeline.name}' is already in the "
                 f"call stack {sorted(_pipeline_stack)}."
