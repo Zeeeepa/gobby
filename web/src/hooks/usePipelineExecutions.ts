@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useWebSocketEvent } from './useWebSocketEvent'
 
 export interface PipelineStepExecution {
   id: number
@@ -34,8 +35,6 @@ export function usePipelineExecutions(projectId?: string) {
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>({})
   const refetchTimerRef = useRef<number | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectRef = useRef<number | null>(null)
 
   const fetchExecutions = useCallback(async () => {
     const params = new URLSearchParams()
@@ -62,51 +61,20 @@ export function usePipelineExecutions(projectId?: string) {
     fetchExecutions()
   }, [fetchExecutions])
 
-  // Debounced refetch on WebSocket events
-  const scheduleRefetch = useCallback(() => {
+  // Real-time updates via singleton WebSocket
+  useWebSocketEvent('pipeline_event', useCallback(() => {
     if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
     refetchTimerRef.current = window.setTimeout(() => {
       fetchExecutions()
     }, 500)
-  }, [fetchExecutions])
+  }, [fetchExecutions]))
 
-  // WebSocket for real-time updates
+  // Clean up debounce timer on unmount
   useEffect(() => {
-    const connect = () => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) return
-
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`)
-      wsRef.current = ws
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'subscribe', events: ['pipeline_event'] }))
-      }
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.type === 'pipeline_event') {
-            scheduleRefetch()
-          }
-        } catch {
-          // ignore parse errors
-        }
-      }
-
-      ws.onclose = () => {
-        reconnectRef.current = window.setTimeout(connect, 3000)
-      }
-    }
-
-    connect()
-
     return () => {
-      if (reconnectRef.current) clearTimeout(reconnectRef.current)
       if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
-      wsRef.current?.close()
     }
-  }, [scheduleRefetch])
+  }, [])
 
   const approvePipeline = useCallback(async (token: string) => {
     const res = await fetch(`/api/pipelines/approve/${encodeURIComponent(token)}`, {
