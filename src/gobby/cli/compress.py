@@ -85,6 +85,6 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
 
     output = compressed.compressed
     if compressed.strategy_name not in ("passthrough", "excluded"):
-        output = f"[Output compressed by gobby — {compressed.strategy_name}, {compressed.savings_pct:.0f}% reduction]\n{output}"
+        output = f"[Output compressed by Gobby — {compressed.strategy_name}, {compressed.savings_pct:.0f}% reduction]\n{output}"
     click.echo(output, nl=False)
     sys.exit(result.returncode)

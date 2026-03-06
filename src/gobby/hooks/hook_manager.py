@@ -404,7 +404,7 @@ class HookManager:
                     result = compressor.compress(command_hint, tool_output)
                     if result.strategy_name not in ("passthrough", "excluded"):
                         response.modified_output = (
-                            f"[Output compressed by gobby — {result.strategy_name}, "
+                            f"[Output compressed by Gobby — {result.strategy_name}, "
                             f"{result.savings_pct:.0f}% reduction]\n{result.compressed}"
                         )
                         self.logger.info(
