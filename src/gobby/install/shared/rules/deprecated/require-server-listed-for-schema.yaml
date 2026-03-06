@@ -1,4 +1,4 @@
-tags: [progressive-discovery, enforcement, mcp]
+tags: [progressive-discovery, enforcement, mcp, gobby, default]
 
 rules:
   require-server-listed-for-schema:
@@ -11,4 +11,6 @@ rules:
       type: block
       tools: ["mcp__gobby__get_tool_schema"]
       reason: |
-        Call list_tools(server_name="{{ tool_input.get('server_name', '') }}") first, then retry get_tool_schema.
+        Call list_tools("{{ tool_input.get('server_name', 'unknown') }}") first, then retry.
+
+        Steps: list_mcp_servers → list_tools → get_tool_schema → call_tool.

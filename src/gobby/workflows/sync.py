@@ -421,6 +421,22 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
 
     _ensure_gobby_tag_on_installed(manager, "rule")
 
+    # Propagate tags from templates to installed copies where they've drifted
+    # (fixes bug #9657: create_rule doesn't propagate definition_json tags to row-level tags)
+    db.execute(
+        "UPDATE workflow_definitions SET tags = ("
+        "  SELECT t.tags FROM workflow_definitions t"
+        "  WHERE t.name = workflow_definitions.name"
+        "    AND t.source = 'template' AND t.deleted_at IS NULL"
+        ") WHERE source = 'installed' AND deleted_at IS NULL"
+        "  AND workflow_type = 'rule'"
+        "  AND tags != ("
+        "    SELECT t.tags FROM workflow_definitions t"
+        "    WHERE t.name = workflow_definitions.name"
+        "      AND t.source = 'template' AND t.deleted_at IS NULL"
+        "  )",
+    )
+
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         "Rule definition sync complete",
@@ -479,6 +495,8 @@ def _propagate_to_installed(
                 "Propagated changes to installed copy",
                 extra={"rule": rule_name, "fields": list(updates.keys())},
             )
+
+
 
 
 def _sync_single_rule(
