@@ -92,7 +92,10 @@ export function PipelineExecutionsView({
               >
                 <div
                   className="pipeline-execution-header"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleExpanded(execution.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(execution.id) } }}
                 >
                   <div className="pipeline-execution-info">
                     <StatusBadge status={execution.status} />
@@ -192,7 +195,7 @@ function StepDisplay({ step, index }: { step: PipelineStepExecution; index: numb
 
   return (
     <div className={`pipeline-step pipeline-step--${step.status}`}>
-      <div className="pipeline-step-header" onClick={() => setShowOutput(!showOutput)}>
+      <div className="pipeline-step-header" role="button" tabIndex={0} onClick={() => setShowOutput(!showOutput)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowOutput(!showOutput) } }}>
         <div className="pipeline-step-info">
           <StepStatusIcon status={step.status} />
           <span className="pipeline-step-index">{index + 1}.</span>
@@ -280,7 +283,7 @@ function formatJson(json: string): string {
 // Icons
 function PipelineIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
     </svg>
   )
@@ -290,6 +293,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg
       width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      aria-hidden="true"
       style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
     >
       <polyline points="6 9 12 15 18 9" />
@@ -299,7 +303,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 
 function AlertIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <circle cx="12" cy="12" r="10" />
       <line x1="12" y1="8" x2="12" y2="12" />
       <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -309,7 +313,7 @@ function AlertIcon() {
 
 function CheckIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <polyline points="20 6 9 17 4 12" />
     </svg>
   )
@@ -317,7 +321,7 @@ function CheckIcon() {
 
 function XIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
@@ -326,7 +330,7 @@ function XIcon() {
 
 function CircleIcon({ className }: { className?: string }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={className}>
       <circle cx="12" cy="12" r="10" />
     </svg>
   )
@@ -334,7 +338,7 @@ function CircleIcon({ className }: { className?: string }) {
 
 function ClockIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
     </svg>
@@ -343,7 +347,7 @@ function ClockIcon() {
 
 function SkipIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <polygon points="5 4 15 12 5 20 5 4" />
       <line x1="19" y1="5" x2="19" y2="19" />
     </svg>
@@ -352,7 +356,7 @@ function SkipIcon() {
 
 function Spinner() {
   return (
-    <svg className="pipeline-spinner" width="14" height="14" viewBox="0 0 24 24">
+    <svg className="pipeline-spinner" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="31.4" strokeDashoffset="10" />
     </svg>
   )

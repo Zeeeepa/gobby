@@ -4,6 +4,8 @@ import pytest
 
 from gobby.compression.primitives import dedup, filter_lines, group_lines, truncate
 
+pytestmark = pytest.mark.unit
+
 
 class TestFilterLines:
     def test_removes_matching_lines(self) -> None:

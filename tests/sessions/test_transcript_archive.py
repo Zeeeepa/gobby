@@ -11,6 +11,8 @@ from gobby.sessions.transcript_archive import (
     restore_transcript,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture()
 def archive_dir(tmp_path: Path) -> str:

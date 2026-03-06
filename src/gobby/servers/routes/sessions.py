@@ -396,15 +396,15 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             for session in sessions:
                 # If resumability requested, skip non-resumable sessions
                 if include_resumability:
-                    is_resumable, _ = resumability.get(session.id, (False, None))
+                    is_resumable, blocked_reason = resumability.get(session.id, (False, None))
                     if not is_resumable:
                         continue
 
                 session_data = session.to_dict()
                 session_data["message_count"] = message_counts.get(session.id, 0)
                 if include_resumability:
-                    session_data["is_resumable"] = True
-                    session_data["resume_blocked_reason"] = None
+                    session_data["is_resumable"] = is_resumable
+                    session_data["resume_blocked_reason"] = blocked_reason
                 session_list.append(session_data)
 
             response_time_ms = (time.perf_counter() - start_time) * 1000

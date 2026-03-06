@@ -103,7 +103,7 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
             content: '',
             timestamp: new Date(msg.timestamp),
             toolCalls,
-            contentBlocks: [{ type: 'tool_chain', calls: toolCalls }],
+            contentBlocks: [{ type: 'tool_chain', calls: [...toolCalls] }],
           }
           lastAssistant = chatMsg
           result.push(chatMsg)

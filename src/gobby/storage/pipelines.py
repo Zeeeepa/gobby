@@ -536,6 +536,9 @@ class LocalPipelineExecutionManager:
         """Reset a step and all subsequent steps to PENDING.
 
         Clears output, error, and timestamps. Returns count of reset steps.
+
+        Raises:
+            ValueError: If from_step_id is not found in the execution's steps.
         """
         steps = self.get_steps_for_execution(execution_id)
         found = False
@@ -556,6 +559,10 @@ class LocalPipelineExecutionManager:
                         (StepStatus.PENDING.value, step.id),
                     )
                     count += 1
+        if not found:
+            raise ValueError(
+                f"Step '{from_step_id}' not found in execution '{execution_id}'"
+            )
         return count
 
     def get_failed_steps(self, execution_id: str) -> list[StepExecution]:
@@ -572,6 +579,40 @@ class LocalPipelineExecutionManager:
             (execution_id, StepStatus.FAILED.value),
         )
         return [StepExecution.from_row(row) for row in rows]
+
+    def count_by_status(self) -> dict[str, int]:
+        """Count executions grouped by status.
+
+        Returns:
+            Dict mapping status values to their counts.
+        """
+        rows = self.db.fetchall(
+            "SELECT status, COUNT(*) as cnt FROM pipeline_executions WHERE project_id = ? GROUP BY status",
+            (self.project_id,),
+        )
+        return {row["status"]: row["cnt"] for row in rows}
+
+    def get_steps_for_executions(self, execution_ids: list[str]) -> dict[str, list[StepExecution]]:
+        """Batch-load steps for multiple executions.
+
+        Args:
+            execution_ids: List of pipeline execution IDs.
+
+        Returns:
+            Dict mapping execution_id to list of StepExecution instances.
+        """
+        if not execution_ids:
+            return {}
+        placeholders = ", ".join("?" for _ in execution_ids)
+        rows = self.db.fetchall(
+            f"SELECT * FROM step_executions WHERE execution_id IN ({placeholders}) ORDER BY id",  # nosec B608
+            tuple(execution_ids),
+        )
+        result: dict[str, list[StepExecution]] = {eid: [] for eid in execution_ids}
+        for row in rows:
+            step = StepExecution.from_row(row)
+            result[step.execution_id].append(step)
+        return result
 
     def get_steps_for_execution(self, execution_id: str) -> list[StepExecution]:
         """Get all steps for an execution.

@@ -191,12 +191,11 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
         }
         try:
             from gobby.storage.pipelines import LocalPipelineExecutionManager
-            from gobby.workflows.pipeline_state import ExecutionStatus
 
             mgr = LocalPipelineExecutionManager(db=server.services.database, project_id="")
-            for status_val in ["running", "waiting_approval", "completed", "failed"]:
-                execs = mgr.list_executions(status=ExecutionStatus(status_val), limit=200)
-                pipeline_stats[status_val] = len(execs)
+            status_counts = mgr.count_by_status()
+            for key in ["running", "waiting_approval", "completed", "failed"]:
+                pipeline_stats[key] = status_counts.get(key, 0)
             pipeline_stats["total"] = sum(
                 pipeline_stats[k] for k in ["running", "waiting_approval", "completed", "failed"]
             )

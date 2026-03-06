@@ -1,11 +1,11 @@
 """Integration tests for rewrite_input and compress_output rule effects."""
 
-from datetime import UTC, datetime
-
 import pytest
 
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from gobby.hooks.events import HookResponse
 from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect
+
+pytestmark = pytest.mark.unit
 
 
 class TestRewriteInputEffect:

@@ -91,9 +91,14 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             limit=limit,
         )
 
+        # Batch-load steps for all executions in one query
+        all_steps = execution_manager.get_steps_for_executions(
+            [e.id for e in executions]
+        )
+
         result = []
         for execution in executions:
-            steps = execution_manager.get_steps_for_execution(execution.id)
+            steps = all_steps.get(execution.id, [])
             result.append({
                 "id": execution.id,
                 "pipeline_name": execution.pipeline_name,

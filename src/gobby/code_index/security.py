@@ -17,11 +17,22 @@ _SECRET_EXTENSIONS = frozenset({
     ".pfx",
     ".jks",
     ".keystore",
+    ".secret",
 })
 
 _SECRET_PREFIXES = frozenset({
     "credentials",
     ".env",
+    "id_rsa",
+    "id_ed25519",
+    "token",
+})
+
+_SECRET_SUBSTRINGS = frozenset({
+    "api_key",
+    "apikey",
+    "_secret.",
+    "_token.",
 })
 
 
@@ -80,6 +91,10 @@ def has_secret_extension(path: Path) -> bool:
 
     for prefix in _SECRET_PREFIXES:
         if name.startswith(prefix):
+            return True
+
+    for substring in _SECRET_SUBSTRINGS:
+        if substring in name:
             return True
 
     return False

@@ -26,6 +26,7 @@ from gobby.utils.project_context import get_project_context
 from gobby.worktrees.git import WorktreeGitManager
 
 if TYPE_CHECKING:
+    from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.worktrees.git import WorktreeGitManager
 
@@ -250,7 +251,7 @@ def create_worktrees_registry(
     git_manager: WorktreeGitManager | None = None,
     project_id: str | None = None,
     session_manager: Any | None = None,
-    task_manager: Any | None = None,
+    task_manager: LocalTaskManager | None = None,
 ) -> InternalToolRegistry:
     """
     Create a worktree tool registry with all worktree-related tools.

@@ -124,6 +124,7 @@ def prepare_terminal_spawn(
         git_branch: Optional git branch
         prompt: Optional initial prompt
         max_agent_depth: Maximum agent depth
+        task_id: Optional task ID to link to the agent
 
     Returns:
         PreparedSpawn with all necessary spawn configuration

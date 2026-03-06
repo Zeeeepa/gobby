@@ -1,6 +1,10 @@
 """Tests for OutputCompressor."""
 
+import pytest
+
 from gobby.compression.compressor import CompressionResult, OutputCompressor
+
+pytestmark = pytest.mark.unit
 
 
 class TestCompressionResult:

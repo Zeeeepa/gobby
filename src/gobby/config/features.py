@@ -396,10 +396,12 @@ class OutputCompressionConfig(BaseModel):
     )
     min_output_length: int = Field(
         default=1000,
+        ge=0,
         description="Minimum output length (chars) before compression triggers",
     )
     max_compressed_lines: int = Field(
         default=100,
+        ge=0,
         description="Target maximum lines after compression",
     )
     excluded_commands: list[str] = Field(
