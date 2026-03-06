@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 138
+BASELINE_VERSION = 140
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -264,6 +264,7 @@ CREATE TABLE session_messages (
     tool_name TEXT,
     tool_input TEXT,
     tool_result TEXT,
+    tool_use_id TEXT,
     timestamp TEXT NOT NULL,
     raw_json TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -940,6 +941,11 @@ CREATE INDEX idx_test_runs_status ON test_runs(status)""",
         139,
         "Drop test_runs table (gobby-tests replaced by output compression)",
         """DROP TABLE IF EXISTS test_runs""",
+    ),
+    (
+        140,
+        "Add tool_use_id column to session_messages for ID-based tool result matching",
+        """ALTER TABLE session_messages ADD COLUMN tool_use_id TEXT""",
     ),
 ]
 
