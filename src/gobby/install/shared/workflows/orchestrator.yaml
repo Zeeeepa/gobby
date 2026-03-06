@@ -30,7 +30,11 @@ steps:
   # --- Guard ---
   - id: check_limit
     condition: "${{ inputs._current_iteration >= inputs.max_iterations }}"
-    exec: "echo 'ERROR: max iterations reached ({{ inputs._current_iteration }}/{{ inputs.max_iterations }})' && exit 1"
+    mcp:
+      server: gobby-workflows
+      tool: fail_pipeline
+      arguments:
+        message: "Max iterations reached (${{ inputs._current_iteration }}/${{ inputs.max_iterations }})"
 
   - id: fetch_origin
     exec: "git fetch origin"
@@ -88,10 +92,11 @@ steps:
 
   # --- Check completion ---
   - id: all_closed
-    exec: >
-      DONE=${{ ((scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0)) | lower }};
-      if [ "$DONE" = "true" ]; then echo "Orchestration complete. All tasks closed." >&2; fi;
-      echo "{\"done\": $DONE}"
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        done: "${{ (scan_open.output.tasks | length == 0) and (scan_in_progress.output.tasks | length == 0) and (scan_needs_review.output.tasks | length == 0) and (scan_approved.output.tasks | length == 0) }}"
 
   # --- Find next dispatchable tasks (parallel: dispatch when below capacity) ---
   - id: find_next

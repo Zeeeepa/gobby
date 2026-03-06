@@ -90,7 +90,7 @@ def pipeline_with_prompt():
     return PipelineDefinition(
         name="prompt-pipeline",
         steps=[
-            PipelineStep(id="analyze", exec="./analyze.sh"),
+            PipelineStep(id="analyze", exec="echo analyzing"),
             PipelineStep(id="report", prompt="Generate report from $analyze.output"),
         ],
     )
@@ -106,7 +106,7 @@ def pipeline_with_inputs():
             "mode": {"type": "string", "default": "fast"},
         },
         steps=[
-            PipelineStep(id="process", exec="./process.sh $inputs.target"),
+            PipelineStep(id="process", exec="echo processing"),
         ],
     )
 

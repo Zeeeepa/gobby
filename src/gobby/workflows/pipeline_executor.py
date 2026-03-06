@@ -368,6 +368,31 @@ class PipelineExecutor:
                 # Execute the step
                 step_output = await self._execute_step(step, context, project_id)
 
+                # Detect exec step failures from non-zero exit codes
+                if isinstance(step_output, dict) and step_output.get("exit_code", 0) != 0:
+                    error_msg = (
+                        step_output.get("stderr") or step_output.get("stdout") or "Unknown error"
+                    )
+                    context["steps"][step.id] = {"output": step_output}
+                    self.execution_manager.update_step_execution(
+                        step_execution_id=step_execution.id,
+                        status=StepStatus.FAILED,
+                        output_json=json.dumps(step_output),
+                        error=f"Exit code {step_output['exit_code']}: {error_msg}",
+                    )
+                    raise RuntimeError(
+                        f"Step '{step.id}' failed with exit code {step_output['exit_code']}"
+                    )
+
+                # For exec steps with JSON stdout, merge parsed data into output
+                if isinstance(step_output, dict) and "stdout" in step_output:
+                    try:
+                        parsed = json.loads(step_output["stdout"].strip())
+                        if isinstance(parsed, dict):
+                            step_output.update(parsed)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+
                 # Store step output in context for subsequent steps
                 context["steps"][step.id] = {"output": step_output}
 
