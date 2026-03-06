@@ -321,6 +321,7 @@ async def resume_pipeline(
             }
 
     # Reset the resume point and all subsequent steps to PENDING
+    assert resume_step_id is not None  # Guaranteed by early return above
     reset_count = execution_manager.reset_steps_from(execution_id, resume_step_id)
 
     # Parse stored inputs

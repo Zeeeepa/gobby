@@ -93,6 +93,19 @@ fi
     "pre-push": """
 # Gobby verification runner for pre-push
 # Runs configured verification commands (type_check, unit_tests, security, etc.)
+
+# Skip verification for branch deletions (no code being pushed)
+DELETE_ONLY=true
+while read local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" != "0000000000000000000000000000000000000000" ]; then
+        DELETE_ONLY=false
+        break
+    fi
+done
+if [ "$DELETE_ONLY" = true ]; then
+    exit 0
+fi
+
 if command -v gobby >/dev/null 2>&1; then
     gobby hooks run pre-push 2>/dev/null
     GOBBY_EXIT=$?
