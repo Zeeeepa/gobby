@@ -403,7 +403,10 @@ class HookManager:
                     )
                     result = compressor.compress(command_hint, tool_output)
                     if result.strategy_name not in ("passthrough", "excluded"):
-                        response.modified_output = result.compressed
+                        response.modified_output = (
+                            f"[Output compressed by gobby — {result.strategy_name}, "
+                            f"{result.savings_pct:.0f}% reduction]\n{result.compressed}"
+                        )
                         self.logger.info(
                             "Compressed MCP output: strategy=%s savings=%.0f%% (%d->%d chars)",
                             result.strategy_name,

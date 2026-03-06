@@ -83,5 +83,8 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
         except httpx.HTTPError:
             pass  # Non-critical — don't fail the command
 
-    click.echo(compressed.compressed, nl=False)
+    output = compressed.compressed
+    if compressed.strategy_name not in ("passthrough", "excluded"):
+        output = f"[Output compressed by gobby — {compressed.strategy_name}, {compressed.savings_pct:.0f}% reduction]\n{output}"
+    click.echo(output, nl=False)
     sys.exit(result.returncode)
