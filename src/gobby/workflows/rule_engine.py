@@ -448,6 +448,19 @@ class RuleEngine:
                     k: self._render_template(v, ctx, allowed_funcs) if isinstance(v, str) else v
                     for k, v in effect.input_updates.items()
                 }
+                # For MCP call_tool, nest updates inside arguments
+                # (mirrors the unwrapping in _build_eval_context)
+                event = ctx.get("event")
+                if event and event.data.get("tool_name") in ("call_tool", "mcp__gobby__call_tool"):
+                    original_args = event.data.get("tool_input", {}).get("arguments", {})
+                    if isinstance(original_args, str):
+                        try:
+                            original_args = json.loads(original_args)
+                        except (json.JSONDecodeError, TypeError):
+                            original_args = {}
+                    if not isinstance(original_args, dict):
+                        original_args = {}
+                    rendered_updates = {"arguments": {**original_args, **rendered_updates}}
                 rewrite_meta = variables.setdefault("_rewrite_input", {})
                 rewrite_meta["input_updates"] = rendered_updates
                 rewrite_meta["auto_approve"] = effect.auto_approve

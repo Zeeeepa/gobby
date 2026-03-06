@@ -19,6 +19,15 @@ class TemplateRenderer(Protocol):
     def render(self, template_str: str, context: dict[str, Any]) -> str: ...
 
 
+def _regex_replace(value: str, pattern: str, replacement: str) -> str:
+    """Jinja2 filter: regex substitution.
+
+    Usage in templates:
+        {{ text | regex_replace('pattern', 'replacement') }}
+    """
+    return re.sub(pattern, replacement, str(value))
+
+
 def _regex_search(value: str, pattern: str, group: int = 1) -> str:
     """Jinja2 filter: extract a regex capture group from text.
 
@@ -57,6 +66,7 @@ class TemplateEngine:
             lstrip_blocks=True,
         )
         self.env.filters["regex_search"] = _regex_search
+        self.env.filters["regex_replace"] = _regex_replace
 
     def render(self, template_str: str, context: dict[str, Any]) -> str:
         """

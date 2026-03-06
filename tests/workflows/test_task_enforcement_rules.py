@@ -47,7 +47,7 @@ TASK_ENFORCEMENT_RULES = {
     "block-native-task-tools",
     "require-task-before-edit",
     "require-commit-before-close",
-    "block-skip-validation-with-commit",
+    "strip-skip-validation-with-commit",
     "block-ask-during-stop-compliance",
     "track-task-claim",
 }
@@ -85,7 +85,8 @@ class TestTaskEnforcementSync:
         for row in rules:
             if row.name in TASK_ENFORCEMENT_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type in {"block", "set_variable", "observe"}
+                effect_types = {e.type for e in body.resolved_effects}
+                assert effect_types <= {"block", "set_variable", "observe", "inject_context", "rewrite_input"}
 
 
 class TestBlockNativeTaskTools:
@@ -319,26 +320,27 @@ class TestRequireCommitBeforeClose:
         assert "commit_sha" in body.when
 
 
-class TestBlockSkipValidationWithCommit:
-    """Verify block-skip-validation-with-commit blocks skip_validation."""
+class TestStripSkipValidationWithCommit:
+    """Verify strip-skip-validation-with-commit rewrites skip_validation."""
 
-    def test_blocks_close_task_mcp(self, db, manager) -> None:
-        """Should block gobby-tasks:close_task."""
+    def test_rewrites_close_task(self, db, manager) -> None:
+        """Should use rewrite_input + inject_context effects."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("block-skip-validation-with-commit")
+        row = manager.get_by_name("strip-skip-validation-with-commit")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
-        assert body.effect.type == "block"
-        assert "gobby-tasks:close_task" in body.effect.mcp_tools
+        effect_types = {e.type for e in body.resolved_effects}
+        assert "rewrite_input" in effect_types
+        assert "inject_context" in effect_types
 
     def test_when_checks_skip_validation(self, db, manager) -> None:
         """Should check skip_validation flag."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("block-skip-validation-with-commit")
+        row = manager.get_by_name("strip-skip-validation-with-commit")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
