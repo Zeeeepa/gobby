@@ -254,7 +254,7 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         """Handle dict literals (e.g., {'key': 'value'} or {})."""
         return {
             self.visit(k): self.visit(v)
-            for k, v in zip(node.keys, node.values)
+            for k, v in zip(node.keys, node.values, strict=True)
             if k is not None
         }
 
