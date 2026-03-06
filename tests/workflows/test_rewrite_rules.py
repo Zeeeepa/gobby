@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -156,8 +157,6 @@ class TestMCPRewriteNesting:
             ),
         )
 
-        import json
-
         event = _make_event(
             data={
                 "tool_name": "mcp__gobby__call_tool",
@@ -310,6 +309,35 @@ class TestRegexReplaceFilter:
         assert "uv pip" in result
 
 
+class TestShlexQuoteFilter:
+    """Tests for the shlex_quote Jinja2 filter."""
+
+    def test_simple_quote(self) -> None:
+        engine = TemplateEngine()
+        result = engine.render(
+            "gobby compress -- {{ cmd | shlex_quote }}",
+            {"cmd": "git log --oneline"},
+        )
+        assert result == "gobby compress -- 'git log --oneline'"
+
+    def test_metacharacters_escaped(self) -> None:
+        engine = TemplateEngine()
+        result = engine.render(
+            "gobby compress -- {{ cmd | shlex_quote }}",
+            {"cmd": "echo hello; rm -rf /"},
+        )
+        # shlex.quote wraps in single quotes, neutralizing the semicolon
+        assert result == "gobby compress -- 'echo hello; rm -rf /'"
+
+    def test_empty_string(self) -> None:
+        engine = TemplateEngine()
+        result = engine.render(
+            "{{ cmd | shlex_quote }}",
+            {"cmd": ""},
+        )
+        assert result == "''"
+
+
 class TestRequireUvRewrite:
     """Tests for the require-uv rewrite rule pattern."""
 
@@ -406,8 +434,8 @@ class TestRequireUvRewrite:
         # The per-effect when still matches ('python' is in the string), so rewrite fires,
         # but the regex shouldn't match 'uv run python' because it's preceded by 'uv run '
         # not by a statement separator. The result should still contain 'uv run python'.
-        if response.modified_input:
-            assert "uv run python" in response.modified_input["command"]
+        assert response.modified_input is not None
+        assert "uv run python" in response.modified_input["command"]
 
     @pytest.mark.asyncio
     async def test_compound_command(

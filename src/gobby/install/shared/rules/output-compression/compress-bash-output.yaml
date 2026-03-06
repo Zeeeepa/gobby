@@ -13,9 +13,10 @@ rules:
                         'ruff ', 'mypy ', 'eslint ', 'tsc ',
                         'go test', 'go build', 'cargo build',
                         'docker ', 'kubectl ', 'pip ',
-                        'npm install', 'npm list'])
+                        'npm install', 'npm list',
+                        'yarn ', 'make ', 'gradle ', 'mvn '])
     effect:
       type: rewrite_input
       input_updates:
-        command: "gobby compress -- {{ event.data.tool_input.command }}"
+        command: "gobby compress -- {{ event.data.tool_input.command | shlex_quote }}"
       auto_approve: true
