@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 140
+BASELINE_VERSION = 142
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -195,12 +195,14 @@ CREATE TABLE agent_runs (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     sdk_session_id TEXT,
-    continuation_prompt TEXT
+    continuation_prompt TEXT,
+    task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
 CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
 CREATE INDEX idx_agent_runs_status ON agent_runs(status);
 CREATE INDEX idx_agent_runs_provider ON agent_runs(provider);
+CREATE INDEX idx_agent_runs_task_id ON agent_runs(task_id);
 
 CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
@@ -946,6 +948,16 @@ CREATE INDEX idx_test_runs_status ON test_runs(status)""",
         140,
         "Add tool_use_id column to session_messages for ID-based tool result matching",
         """ALTER TABLE session_messages ADD COLUMN tool_use_id TEXT""",
+    ),
+    (
+        141,
+        "Add task_id to agent_runs for dedup tracking",
+        """ALTER TABLE agent_runs ADD COLUMN task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL""",
+    ),
+    (
+        142,
+        "Index agent_runs task_id",
+        """CREATE INDEX IF NOT EXISTS idx_agent_runs_task_id ON agent_runs(task_id)""",
     ),
 ]
 
