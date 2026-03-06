@@ -63,13 +63,41 @@ def _git_repo_root() -> str | None:
         return None
 
 
-@click.group("index")
+class _IndexGroup(click.Group):
+    """Click group that defaults to the 'index' subcommand.
+
+    - ``gobby index`` (no args) → runs the index subcommand
+    - ``gobby index src/`` (path) → routes to index subcommand
+    - ``gobby index --full`` (option) → routes to index subcommand
+    - ``gobby index status`` (known subcommand) → normal routing
+    - ``gobby index --help`` → shows group help
+    """
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        # Inject default 'index' subcommand unless a known subcommand or --help is given
+        if not args or (args[0] not in self.commands and args[0] not in ("--help", "-h")):
+            args = ["index"] + list(args)
+        return super().parse_args(ctx, args)
+
+
+@click.group("index", cls=_IndexGroup)
 def code_index() -> None:
-    """Code indexing commands."""
+    """Code indexing commands.
+
+    Defaults to indexing the current git repo when run without a subcommand.
+
+    \b
+    Examples:
+        gobby index                  # Index current git repo
+        gobby index src/             # Index specific path
+        gobby index --full           # Full re-index
+        gobby index status           # Show stats
+        gobby index invalidate       # Clear index
+    """
     pass
 
 
-@code_index.command("index")
+@code_index.command("index", hidden=True)
 @click.argument("path", required=False, default=None)
 @click.option("--project-id", "-p", default="", help="Project ID (default: auto-detect)")
 @click.option("--full", is_flag=True, help="Full re-index (skip incremental)")
@@ -85,13 +113,13 @@ def index_cmd(ctx: click.Context, path: str | None, project_id: str, full: bool)
 
     Examples:
 
-        gobby index index
+        gobby index
 
-        gobby index index src/
+        gobby index src/
 
-        gobby index index . --full
+        gobby index . --full
 
-        gobby index index /path/to/project -p my-project
+        gobby index /path/to/project -p my-project
     """
     if path is None:
         path = _git_repo_root() or "."

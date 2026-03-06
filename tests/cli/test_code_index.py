@@ -32,7 +32,7 @@ def _mock_index_result(**overrides) -> IndexResult:
 
 
 class TestCodeIndexIndex:
-    """Tests for gobby index index."""
+    """Tests for gobby index (default subcommand)."""
 
     @patch("gobby.cli.code_index._get_indexer")
     def test_index_success(self, mock_get_indexer: MagicMock, runner: CliRunner, tmp_path) -> None:
@@ -40,7 +40,7 @@ class TestCodeIndexIndex:
         mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result())
         mock_get_indexer.return_value = mock_indexer
 
-        result = runner.invoke(cli, ["index", "index", str(tmp_path)])
+        result = runner.invoke(cli, ["index", str(tmp_path)])
 
         assert result.exit_code == 0
         assert "Files indexed: 10" in result.output
@@ -55,14 +55,14 @@ class TestCodeIndexIndex:
         mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result(files_skipped=0))
         mock_get_indexer.return_value = mock_indexer
 
-        result = runner.invoke(cli, ["index", "index", str(tmp_path), "--full"])
+        result = runner.invoke(cli, ["index", str(tmp_path), "--full"])
 
         assert result.exit_code == 0
         call_kwargs = mock_indexer.index_directory.call_args[1]
         assert call_kwargs["incremental"] is False
 
     def test_index_invalid_path(self, runner: CliRunner) -> None:
-        result = runner.invoke(cli, ["index", "index", "/nonexistent/path"])
+        result = runner.invoke(cli, ["index", "/nonexistent/path"])
 
         assert result.exit_code != 0
         assert "Not a directory" in result.output
@@ -75,7 +75,7 @@ class TestCodeIndexIndex:
         ))
         mock_get_indexer.return_value = mock_indexer
 
-        result = runner.invoke(cli, ["index", "index", str(tmp_path)])
+        result = runner.invoke(cli, ["index", str(tmp_path)])
 
         assert result.exit_code == 0
         assert "Errors: 2" in result.output
@@ -92,7 +92,7 @@ class TestCodeIndexIndex:
         mock_get_indexer.return_value = mock_indexer
 
         with patch("gobby.cli.code_index.os.path.isdir", return_value=True):
-            result = runner.invoke(cli, ["index", "index"])
+            result = runner.invoke(cli, ["index"])
 
         assert result.exit_code == 0
         call_kwargs = mock_indexer.index_directory.call_args[1]
@@ -105,7 +105,7 @@ class TestCodeIndexIndex:
         mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result())
         mock_get_indexer.return_value = mock_indexer
 
-        result = runner.invoke(cli, ["index", "index", str(tmp_path), "-p", "my-proj"])
+        result = runner.invoke(cli, ["index", str(tmp_path), "-p", "my-proj"])
 
         assert result.exit_code == 0
         call_kwargs = mock_indexer.index_directory.call_args[1]
@@ -206,14 +206,22 @@ class TestCodeIndexInvalidate:
 
 
 def test_help(runner: CliRunner) -> None:
-    """index --help works."""
+    """index --help works and shows examples."""
     result = runner.invoke(cli, ["index", "--help"])
     assert result.exit_code == 0
     assert "Code indexing commands" in result.output
+    assert "status" in result.output
+    assert "invalidate" in result.output
 
 
-def test_index_help(runner: CliRunner) -> None:
-    """index index --help works."""
-    result = runner.invoke(cli, ["index", "index", "--help"])
+@patch("gobby.cli.code_index._get_indexer")
+def test_default_routing_with_path(mock_get_indexer: MagicMock, runner: CliRunner, tmp_path) -> None:
+    """gobby index <path> routes to the index subcommand without explicit 'index'."""
+    mock_indexer = MagicMock()
+    mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result())
+    mock_get_indexer.return_value = mock_indexer
+
+    result = runner.invoke(cli, ["index", str(tmp_path)])
+
     assert result.exit_code == 0
-    assert "Index a directory" in result.output
+    assert "Files indexed: 10" in result.output
