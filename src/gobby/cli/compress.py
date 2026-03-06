@@ -1,0 +1,67 @@
+"""CLI command: gobby compress -- <command>
+
+Runs a command and compresses its output for LLM consumption.
+Used by PreToolUse hook rewriting to reduce token usage.
+"""
+
+import subprocess
+import sys
+
+import click
+
+
+@click.command()
+@click.option("--stats", is_flag=True, help="Show compression statistics to stderr")
+@click.argument("command", nargs=-1, required=True)
+def compress(command: tuple[str, ...], stats: bool) -> None:
+    """Run a command and compress its output for LLM consumption.
+
+    Usage: gobby compress -- git status
+    """
+    cmd = " ".join(command)
+
+    result = subprocess.run(
+        cmd,
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+
+    raw_output = result.stdout
+    if result.stderr:
+        raw_output += result.stderr
+
+    from gobby.compression import OutputCompressor
+
+    compressor = OutputCompressor()
+    compressed = compressor.compress(cmd, raw_output)
+
+    if stats:
+        click.echo(
+            f"[compress] strategy={compressed.strategy_name} "
+            f"original={compressed.original_chars} "
+            f"compressed={compressed.compressed_chars} "
+            f"savings={compressed.savings_pct:.1f}%",
+            err=True,
+        )
+
+    # Track savings via gobby-metrics (best-effort, non-blocking)
+    if compressed.strategy_name not in ("passthrough", "excluded"):
+        try:
+            from gobby.utils.daemon_client import DaemonClient
+
+            client = DaemonClient()
+            client.post(
+                "/api/metrics/counter",
+                json={
+                    "name": "compression_chars_saved",
+                    "value": compressed.original_chars - compressed.compressed_chars,
+                    "labels": {"strategy": compressed.strategy_name},
+                },
+                timeout=1.0,
+            )
+        except Exception:
+            pass  # Non-critical — don't fail the command
+
+    click.echo(compressed.compressed, nl=False)
+    sys.exit(result.returncode)

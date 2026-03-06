@@ -327,7 +327,7 @@ class TestPreseedProgressiveDiscovery:
         assert isinstance(vars_and_values["listed_servers"], list)
         assert "gobby-tasks" in vars_and_values["listed_servers"]
         assert "gobby-memory" in vars_and_values["listed_servers"]
-        assert len(vars_and_values["listed_servers"]) == 16
+        assert len(vars_and_values["listed_servers"]) == 15
 
     def test_preseed_has_no_when_condition(self, db, manager) -> None:
         """Preseed should fire on every session_start (no when condition)."""
@@ -669,7 +669,6 @@ class TestRuleEngineIntegration:
                 "gobby-voice",
                 "gobby-skills",
                 "gobby-cron",
-                "gobby-tests",
             ],
             "unlocked_tools": [],
         }

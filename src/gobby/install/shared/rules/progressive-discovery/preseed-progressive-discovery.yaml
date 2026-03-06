@@ -28,4 +28,3 @@ rules:
           - gobby-voice
           - gobby-skills
           - gobby-cron
-          - gobby-tests

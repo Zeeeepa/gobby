@@ -70,6 +70,5 @@ call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "#123
 | `gobby-voice` | Voice chat |
 | `gobby-skills` | Skill management |
 | `gobby-cron` | Scheduled jobs |
-| `gobby-tests` | Test runner |
 
 Use `list_mcp_servers()` to see all connected servers including external ones.

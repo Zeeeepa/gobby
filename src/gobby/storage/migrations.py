@@ -868,23 +868,6 @@ CREATE TABLE completion_subscribers (
     PRIMARY KEY (completion_id, session_id)
 );
 CREATE INDEX idx_completion_subscribers_completion ON completion_subscribers(completion_id);
-
-CREATE TABLE test_runs (
-    id TEXT PRIMARY KEY,
-    session_id TEXT,
-    project_id TEXT,
-    category TEXT NOT NULL,
-    command TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'running',
-    exit_code INTEGER,
-    summary TEXT,
-    output_file TEXT,
-    started_at TEXT NOT NULL,
-    completed_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_test_runs_session ON test_runs(session_id);
-CREATE INDEX idx_test_runs_status ON test_runs(status);
 """
 
 # Migrations beyond v133.
@@ -952,6 +935,11 @@ ALTER TABLE agent_runs ADD COLUMN continuation_prompt TEXT""",
 );
 CREATE INDEX idx_test_runs_session ON test_runs(session_id);
 CREATE INDEX idx_test_runs_status ON test_runs(status)""",
+    ),
+    (
+        139,
+        "Drop test_runs table (gobby-tests replaced by output compression)",
+        """DROP TABLE IF EXISTS test_runs""",
     ),
 ]
 

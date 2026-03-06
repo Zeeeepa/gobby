@@ -30,12 +30,12 @@ from gobby.config.features import (
     MemoryFactExtractionConfig,
     MergeResolutionConfig,
     MetricsConfig,
+    OutputCompressionConfig,
     ProjectVerificationConfig,
     RecommendToolsConfig,
     ReviewConfig,
     SkillDescriptionConfig,
     TaskDescriptionConfig,
-    TestSummarizerConfig,
     ToolSummarizerConfig,
 )
 from gobby.config.llm_providers import LLMProvidersConfig
@@ -453,9 +453,9 @@ class DaemonConfig(BaseModel):
         default_factory=SkillDescriptionConfig,
         description="Skill description synthesis LLM configuration",
     )
-    test_summarizer: TestSummarizerConfig = Field(
-        default_factory=TestSummarizerConfig,
-        description="Test/lint/typecheck output summarization configuration",
+    output_compression: OutputCompressionConfig = Field(
+        default_factory=OutputCompressionConfig,
+        description="Output compression for token optimization (RTK-inspired)",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
