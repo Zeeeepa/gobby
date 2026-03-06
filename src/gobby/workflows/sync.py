@@ -508,6 +508,8 @@ def _sync_single_rule(
     group = rule_data.get("group", file_group)
     if group:
         body_dict["group"] = group
+    if rule_data.get("agent_scope"):
+        body_dict["agent_scope"] = rule_data["agent_scope"]
 
     # Validate with Pydantic
     try:
