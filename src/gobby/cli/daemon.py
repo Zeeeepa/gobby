@@ -218,9 +218,7 @@ def start(
                     proc = psutil.Process(pid)
                     cmdline_str = " ".join(proc.cmdline())
                     if "gobby" in cmdline_str.lower():
-                        click.echo(
-                            f"Gobby daemon is already running (PID: {pid})", err=True
-                        )
+                        click.echo(f"Gobby daemon is already running (PID: {pid})", err=True)
                         sys.exit(1)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass

@@ -9,12 +9,15 @@ rules:
     when: >
       event.data.get('tool_name') == 'Bash'
       and any(p in str(event.data.get('tool_input', {}).get('command', ''))
-              for p in ['git ', 'pytest', 'cargo test', 'npm test',
+              for p in ['git ', 'pytest', 'vitest', 'jest ', 'mocha ',
+                        'cargo test', 'cargo build',
+                        'npm test', 'npm install', 'npm list', 'npx ',
+                        'pnpm ', 'bun ', 'yarn ',
                         'ruff ', 'mypy ', 'eslint ', 'tsc ',
-                        'go test', 'go build', 'cargo build',
-                        'docker ', 'kubectl ', 'pip ',
-                        'npm install', 'npm list',
-                        'yarn ', 'make ', 'gradle ', 'mvn '])
+                        'go test', 'go build',
+                        'docker ', 'kubectl ', 'pip ', 'uv ',
+                        'make ', 'gradle ', 'mvn ',
+                        'turbo ', 'nx ', 'webpack', 'vite '])
     effect:
       type: rewrite_input
       input_updates:

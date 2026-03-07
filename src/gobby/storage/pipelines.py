@@ -560,9 +560,7 @@ class LocalPipelineExecutionManager:
                     )
                     count += 1
         if not found:
-            raise ValueError(
-                f"Step '{from_step_id}' not found in execution '{execution_id}'"
-            )
+            raise ValueError(f"Step '{from_step_id}' not found in execution '{execution_id}'")
         return count
 
     def get_failed_steps(self, execution_id: str) -> list[StepExecution]:

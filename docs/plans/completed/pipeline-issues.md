@@ -11,27 +11,6 @@ Found during a deep exploration of the pipeline engine, rules, workflows, and re
 The `ApprovalManager` in `gatekeeper.py` calls the webhook notifier with keyword arguments that don't match the `WebhookNotifier.notify_approval_pending` signature.
 
 **Caller** (`src/gobby/workflows/pipeline/gatekeeper.py:101-109`):
-```python
-await self.webhook_notifier.notify_approval_pending(
-    execution_id=execution.id,   # passes string ID
-    step_id=step.id,
-    token=token,
-    message=message,
-    pipeline=pipeline,
-)
-```
-
-**Receiver** (`src/gobby/workflows/pipeline_webhooks.py:41-47`):
-```python
-async def notify_approval_pending(
-    self,
-    execution: PipelineExecution,  # expects PipelineExecution object
-    pipeline: PipelineDefinition,
-    step_id: str,
-    token: str,
-    message: str,
-) -> None:
-```
 
 The caller passes `execution_id=execution.id` (a string) but the receiver expects `execution: PipelineExecution` (a dataclass). This would raise `TypeError: got an unexpected keyword argument 'execution_id'` at runtime. Currently masked because webhooks are rarely configured.
 

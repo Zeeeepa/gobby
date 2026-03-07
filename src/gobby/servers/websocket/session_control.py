@@ -340,9 +340,7 @@ class SessionControlMixin:
         if sdk_resume_id and source_session:
             jsonl_path = source_session.jsonl_path
             if jsonl_path and source_session.external_id:
-                original_exists = await asyncio.to_thread(
-                    lambda: Path(jsonl_path).is_file()
-                )
+                original_exists = await asyncio.to_thread(lambda: Path(jsonl_path).is_file())
                 if not original_exists:
                     restored = await asyncio.to_thread(
                         restore_transcript,
@@ -465,10 +463,7 @@ class SessionControlMixin:
                 logger.debug("Resume block check failed for %s: %s", session_id, e)
 
         # 4. Active web chat session (in-memory)
-        if session_id in {
-            getattr(s, "db_session_id", None)
-            for s in self._chat_sessions.values()
-        }:
+        if session_id in {getattr(s, "db_session_id", None) for s in self._chat_sessions.values()}:
             return "session is active in another web chat"
 
         return None
@@ -806,9 +801,7 @@ class SessionControlMixin:
             session_manager = getattr(self, "session_manager", None)
             try:
                 if session_manager:
-                    await asyncio.to_thread(
-                        session_manager.update, db_session_id, status="expired"
-                    )
+                    await asyncio.to_thread(session_manager.update, db_session_id, status="expired")
             except Exception as e:
                 logger.warning(f"Failed to soft-delete session from DB: {e}")
 

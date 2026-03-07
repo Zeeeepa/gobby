@@ -53,9 +53,7 @@ def register_transcript_tools(
         project_id = project_ctx.get("id") if project_ctx else None
 
         try:
-            resolved_id = session_manager.resolve_session_reference(
-                session_id, project_id
-            )
+            resolved_id = session_manager.resolve_session_reference(session_id, project_id)
         except Exception:
             return {"error": f"Could not resolve session: {session_id}"}
 
@@ -77,8 +75,7 @@ def register_transcript_tools(
     @registry.tool(
         name="get_transcript_status",
         description=(
-            "Check if a transcript blob is stored for a session "
-            "and get compression stats."
+            "Check if a transcript blob is stored for a session and get compression stats."
         ),
     )
     def get_transcript_status(session_id: str) -> dict[str, Any]:
@@ -96,9 +93,7 @@ def register_transcript_tools(
         project_id = project_ctx.get("id") if project_ctx else None
 
         try:
-            resolved_id = session_manager.resolve_session_reference(
-                session_id, project_id
-            )
+            resolved_id = session_manager.resolve_session_reference(session_id, project_id)
         except Exception:
             return {"error": f"Could not resolve session: {session_id}"}
 

@@ -279,9 +279,7 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
 
         gen = generators[0]
         if not isinstance(gen.target, ast.Name):
-            raise ValueError(
-                f"Unsupported comprehension target: {type(gen.target).__name__}"
-            )
+            raise ValueError(f"Unsupported comprehension target: {type(gen.target).__name__}")
         target_name = gen.target.id
         iterable = self.visit(gen.iter)
 

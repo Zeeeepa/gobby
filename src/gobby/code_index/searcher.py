@@ -77,9 +77,7 @@ class CodeSearcher:
         # Source 2: Qdrant semantic search (if available)
         if self._vector_store is not None and self._embed_fn is not None:
             try:
-                semantic_results = await self._semantic_search(
-                    query, project_id, limit * 2
-                )
+                semantic_results = await self._semantic_search(query, project_id, limit * 2)
                 for rank, (sym_id, _score) in enumerate(semantic_results):
                     if sym_id not in score_map:
                         score_map[sym_id] = {}
@@ -134,7 +132,11 @@ class CodeSearcher:
         if embedding is None:
             return []
 
-        collection = f"{self._config.qdrant_collection_prefix}{project_id}" if self._config else f"code_symbols_{project_id}"
+        collection = (
+            f"{self._config.qdrant_collection_prefix}{project_id}"
+            if self._config
+            else f"code_symbols_{project_id}"
+        )
 
         hits = await self._vector_store.search(
             collection_name=collection,
@@ -144,9 +146,7 @@ class CodeSearcher:
 
         return [(hit.id, hit.score) for hit in hits]
 
-    async def _graph_boost(
-        self, query: str, project_id: str
-    ) -> list[str]:
+    async def _graph_boost(self, query: str, project_id: str) -> list[str]:
         """Get symbol IDs related to query via graph. Returns IDs for boosting."""
         if self._graph is None:
             return []

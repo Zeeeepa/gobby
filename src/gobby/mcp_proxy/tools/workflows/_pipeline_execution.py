@@ -310,7 +310,9 @@ async def resume_pipeline(
             if step.error and step.status in (StepStatus.COMPLETED, StepStatus.SKIPPED):
                 logger.warning(
                     "Step %s has status %s but carries error: %s",
-                    step.step_id, step.status.value, step.error[:200]
+                    step.step_id,
+                    step.status.value,
+                    step.error[:200],
                 )
                 resume_step_id = step.step_id
                 break

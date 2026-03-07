@@ -122,9 +122,7 @@ class CodeParser:
             rel_path = str(path)
 
         # Extract symbols
-        symbols = self._extract_symbols(
-            tree, source, spec, language, project_id, rel_path
-        )
+        symbols = self._extract_symbols(tree, source, spec, language, project_id, rel_path)
 
         # Extract imports
         imports = self._extract_imports(tree, source, spec, rel_path)
@@ -181,7 +179,7 @@ class CodeParser:
             if name_node is None or def_node is None:
                 continue
 
-            name = source[name_node.start_byte:name_node.end_byte].decode(
+            name = source[name_node.start_byte : name_node.end_byte].decode(
                 "utf-8", errors="replace"
             )
 
@@ -190,8 +188,7 @@ class CodeParser:
 
             # Extract signature (first line of the definition)
             start_line_bytes = source[
-                def_node.start_byte:
-                source.find(b"\n", def_node.start_byte)
+                def_node.start_byte : source.find(b"\n", def_node.start_byte)
                 if source.find(b"\n", def_node.start_byte) != -1
                 else def_node.end_byte
             ]
@@ -205,9 +202,7 @@ class CodeParser:
             # Compute content hash
             c_hash = symbol_content_hash(source, def_node.start_byte, def_node.end_byte)
 
-            symbol_id = Symbol.make_id(
-                project_id, rel_path, name, kind, def_node.start_byte
-            )
+            symbol_id = Symbol.make_id(project_id, rel_path, name, kind, def_node.start_byte)
 
             if symbol_id in seen_ids:
                 continue
@@ -248,8 +243,7 @@ class CodeParser:
             for j in range(i - 1, -1, -1):
                 parent = sorted_syms[j]
                 if parent.kind in ("class", "type") and (
-                    parent.byte_start <= sym.byte_start
-                    and parent.byte_end >= sym.byte_end
+                    parent.byte_start <= sym.byte_start and parent.byte_end >= sym.byte_end
                 ):
                     sym.parent_symbol_id = parent.id
                     sym.qualified_name = f"{parent.name}.{sym.name}"
@@ -257,9 +251,7 @@ class CodeParser:
                         sym.kind = "method"
                     break
 
-    def _extract_docstring(
-        self, node: Any, source: bytes, language: str
-    ) -> str | None:
+    def _extract_docstring(self, node: Any, source: bytes, language: str) -> str | None:
         """Try to extract a docstring from a definition node."""
         if language not in ("python", "javascript", "typescript"):
             return None
@@ -298,17 +290,15 @@ class CodeParser:
             # fall back to stripping quotes from full text
             for sc in string_node.children:
                 if hasattr(sc, "type") and sc.type == "string_content":
-                    raw = source[sc.start_byte:sc.end_byte].decode(
-                        "utf-8", errors="replace"
-                    )
+                    raw = source[sc.start_byte : sc.end_byte].decode("utf-8", errors="replace")
                     return raw.strip() if raw.strip() else None
 
-            raw = source[string_node.start_byte:string_node.end_byte].decode(
+            raw = source[string_node.start_byte : string_node.end_byte].decode(
                 "utf-8", errors="replace"
             )
             for q in ('"""', "'''", '"', "'"):
                 if raw.startswith(q) and raw.endswith(q):
-                    raw = raw[len(q):-len(q)]
+                    raw = raw[len(q) : -len(q)]
                     break
             return raw.strip() if raw.strip() else None
 
@@ -349,9 +339,7 @@ class CodeParser:
         for _, captures in matches:
             for _cap_name, nodes in captures.items():
                 node = nodes[0] if isinstance(nodes, list) else nodes
-                text = source[node.start_byte:node.end_byte].decode(
-                    "utf-8", errors="replace"
-                )
+                text = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
                 # Simple extraction: store the full import text as target_module
                 imports.append(
                     ImportRelation(
@@ -402,7 +390,7 @@ class CodeParser:
             if name_node is None:
                 continue
 
-            callee_name = source[name_node.start_byte:name_node.end_byte].decode(
+            callee_name = source[name_node.start_byte : name_node.end_byte].decode(
                 "utf-8", errors="replace"
             )
 

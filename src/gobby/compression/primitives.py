@@ -151,9 +151,7 @@ _DEDUP_NUMBER_RE = re.compile(r"\d+")
 # --- Truncation helpers ---
 
 
-def _truncate_per_section(
-    lines: list[str], max_lines: int, marker_pattern: str
-) -> list[str]:
+def _truncate_per_section(lines: list[str], max_lines: int, marker_pattern: str) -> list[str]:
     """Truncate each section (delimited by marker) independently."""
     marker_re = re.compile(marker_pattern)
     sections: list[list[str]] = []

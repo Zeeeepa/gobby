@@ -409,9 +409,7 @@ def kill_all_gobby_daemons() -> int:
                         proc.wait(timeout=2)
                         click.echo(f"Force killed PID {proc.pid}")
                     except psutil.TimeoutExpired:
-                        click.echo(
-                            f"Warning: PID {proc.pid} did not exit after SIGKILL", err=True
-                        )
+                        click.echo(f"Warning: PID {proc.pid} did not exit after SIGKILL", err=True)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass  # Process died between kill and wait
                     killed_count += 1  # Count as killed — we sent SIGKILL

@@ -1,10 +1,10 @@
-# Plan: Native AST-Based Code Indexing (inspired by jcodemunch-mcp)
+# Plan: Native AST-Based Code Indexing
 
 ## Context
 
-Gobby's agents currently explore code via file-level reads (`Read`, `Grep`, `Glob`), which wastes context window tokens on large codebases. [jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) demonstrates that tree-sitter AST parsing with symbol-level retrieval can achieve 98-99% token savings. Rather than adding jcodemunch as a dependency, we're building native AST indexing as a `gobby-code` internal MCP registry — leveraging Gobby's existing storage trifecta (SQLite for structured data, Qdrant for embeddings, Neo4j for relationships).
+Gobby's agents currently explore code via file-level reads (`Read`, `Grep`, `Glob`), which wastes context window tokens on large codebases. We will demonstrate that tree-sitter AST parsing with symbol-level retrieval can achieve 98-99% token savings. Rather than adding jcodemunch as a dependency, we're building native AST indexing as a `gobby-code` internal MCP registry — leveraging Gobby's existing storage trifecta (SQLite for structured data, Qdrant for embeddings, Neo4j for relationships).
 
-**Indexing trigger:** Manual via MCP tool calls (parity with jcodemunch: `index_folder` / `index_repo`), with potential for auto-indexing later.
+**Indexing trigger:** Manual via MCP tool calls (`index_folder` / `index_repo`), with potential for auto-indexing later.
 
 **Language support:** All 13 languages from day one (Python, JS, TS, Go, Rust, Java, PHP, Dart, C#, C, C++, Elixir, Ruby).
 
@@ -13,9 +13,11 @@ Gobby's agents currently explore code via file-level reads (`Read`, `Grep`, `Glo
 ## Implementation
 
 ### Step 1: Add tree-sitter dependencies
+
 **File:** `pyproject.toml`
 
 Add to dependencies:
+
 ```
 "tree-sitter>=0.24.0",
 "tree-sitter-python>=0.23.0",
@@ -37,13 +39,17 @@ Note: Dart may need `tree-sitter-dart` or a community grammar. Verify availabili
 Run `uv sync` after.
 
 ### Step 2: Create the code indexing module
+
 **Directory:** `src/gobby/code_index/` (new module)
 
 #### `src/gobby/code_index/__init__.py`
+
 Exports: `CodeIndexer`, `Symbol`, `LanguageSpec`
 
 #### `src/gobby/code_index/models.py` (~80 lines)
+
 Data models:
+
 ```python
 @dataclass
 class Symbol:
@@ -72,14 +78,18 @@ class FileIndex:
 ```
 
 #### `src/gobby/code_index/languages.py` (~200 lines)
+
 Language registry inspired by jcodemunch's `LanguageSpec` pattern:
+
 - Map file extensions → language name → tree-sitter grammar
 - For each language, define which AST node types to extract (function_definition, class_definition, method_definition, etc.)
 - Support all 13 languages
 - Lazy-load grammars (only import tree-sitter-python when parsing .py files)
 
 #### `src/gobby/code_index/parser.py` (~250 lines)
+
 Core AST parser:
+
 - `parse_file(path: str) -> list[Symbol]` — parse a single file into symbols
 - Uses tree-sitter to walk AST, extract nodes matching the language spec
 - Computes byte offsets, signatures, docstrings
@@ -87,7 +97,9 @@ Core AST parser:
 - Handles nested symbols (methods inside classes → parent_id linkage)
 
 #### `src/gobby/code_index/indexer.py` (~300 lines)
+
 High-level indexer orchestrating parse + store:
+
 - `index_folder(path: str, project_id: str) -> IndexResult` — walk directory, filter files, parse each, store symbols
 - `index_repo(owner: str, repo: str, project_id: str) -> IndexResult` — clone/fetch from GitHub, then index_folder
 - File filtering: extension whitelist, skip patterns (node_modules, .git, vendor, build, dist), .gitignore respect, secret detection, binary detection, 500KB per-file limit
@@ -95,23 +107,29 @@ High-level indexer orchestrating parse + store:
 - Security: path traversal prevention, symlink protection (reuse patterns from `src/gobby/code_index/security.py`)
 
 #### `src/gobby/code_index/security.py` (~60 lines)
+
 Security checks (borrowed from jcodemunch's approach):
+
 - Path traversal prevention (resolve + check prefix)
 - Symlink escape detection
 - Secret file exclusion (.env, *.pem, *.key, credentials.*)
 - Binary file detection (extension + null-byte check)
 
 #### `src/gobby/code_index/retrieval.py` (~100 lines)
+
 O(1) symbol retrieval:
+
 - `get_symbol_source(symbol: Symbol, file_path: str) -> str` — read exact bytes using byte_offset + byte_length
 - `get_symbols_batch(symbol_ids: list[str]) -> list[tuple[str, str]]` — batch retrieval
 - Context lines support (N lines before/after the symbol)
 - Content hash verification for drift detection
 
 ### Step 3: Database storage layer
+
 **File:** `src/gobby/storage/code_index.py` (~200 lines)
 
 `CodeIndexStorage` class with CRUD:
+
 - `store_symbols(project_id, file_path, symbols)` — upsert symbols for a file
 - `get_symbol(symbol_id)` → Symbol
 - `get_symbols(symbol_ids)` → list[Symbol]
@@ -126,6 +144,7 @@ O(1) symbol retrieval:
 **File:** `src/gobby/storage/migrations.py`
 
 Add migration (next version after current baseline) creating tables:
+
 ```sql
 CREATE TABLE code_symbols (
     id TEXT PRIMARY KEY,
@@ -170,6 +189,7 @@ CREATE TABLE code_index_meta (
 ```
 
 ### Step 4: MCP tool registry (`gobby-code`)
+
 **File:** `src/gobby/mcp_proxy/tools/code_index.py` (~250 lines)
 
 Create `create_code_index_registry()` factory exposing 11 tools matching jcodemunch's API:
@@ -195,6 +215,7 @@ Every response includes a `_meta` object with token savings metrics (estimated t
 Add `code_index_storage` parameter to `setup_internal_registries()`. Conditionally create and register the code index registry.
 
 ### Step 5: Wire into the daemon
+
 **File:** `src/gobby/runner.py`
 
 Initialize `CodeIndexer` and `CodeIndexStorage` in `GobbyRunner`. Pass to service container.
@@ -204,16 +225,19 @@ Initialize `CodeIndexer` and `CodeIndexStorage` in `GobbyRunner`. Pass to servic
 Thread `code_index_storage` through to `setup_internal_registries()`.
 
 ### Step 6: Progressive discovery integration
+
 **File:** `src/gobby/mcp_proxy/instructions.py`
 
 Add `gobby-code` to pre-seeded server list with tool descriptions so agents know about symbol-level retrieval without calling `list_mcp_servers()` first.
 
 ### Step 7: Token savings tracking
+
 **File:** `src/gobby/code_index/metrics.py` (~50 lines)
 
 Simple tracker that accumulates token savings per session and persists to `code_index_meta` table. Each tool response includes `tokens_saved` (this call) and `total_tokens_saved` (cumulative).
 
 ### Step 8: Tests
+
 **Directory:** `tests/code_index/` (new)
 
 - `test_parser.py` — parse Python/JS/TS files, verify symbol extraction
@@ -223,12 +247,15 @@ Simple tracker that accumulates token savings per session and persists to `code_
 - `test_languages.py` — verify all 13 language specs extract correct node types
 
 **File:** `tests/mcp_proxy/tools/test_code_index.py`
+
 - Test the MCP tool registry end-to-end (index → search → retrieve)
 
 **File:** `tests/storage/test_code_index.py`
+
 - CRUD operations, search scoring, file hash tracking
 
 ## Critical Files to Modify (existing)
+
 | File | Change |
 |------|--------|
 | `pyproject.toml` | Add tree-sitter dependencies |
@@ -239,6 +266,7 @@ Simple tracker that accumulates token savings per session and persists to `code_
 | `src/gobby/servers/http.py` | Thread code indexer to registries |
 
 ## New Files
+
 | File | Purpose | Est. Lines |
 |------|---------|-----------|
 | `src/gobby/code_index/__init__.py` | Module exports | 10 |
@@ -262,6 +290,7 @@ Simple tracker that accumulates token savings per session and persists to `code_
 **Total: ~2,340 lines of new code + tests**
 
 ## What We're NOT Building (v1)
+
 - Qdrant integration for symbol embeddings (add in v2 for semantic code search)
 - Neo4j integration for call/import graphs (add in v2 for "find callers of X")
 - Auto-indexing on session start (add after manual indexing proves out)
@@ -269,6 +298,7 @@ Simple tracker that accumulates token savings per session and persists to `code_
 - GitHub API integration for `index_repo` (start with local `index_folder` only, `index_repo` can clone then index)
 
 ## Verification
+
 1. `uv sync` — tree-sitter dependencies install cleanly
 2. `uv run pytest tests/code_index/ -v` — all parser/indexer/retrieval/security tests pass
 3. `uv run pytest tests/storage/test_code_index.py -v` — storage CRUD tests pass

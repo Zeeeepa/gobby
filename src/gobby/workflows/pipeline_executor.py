@@ -187,9 +187,7 @@ class PipelineExecutor:
 
         # Block cross-pipeline cycles (A→B→A) but allow self-recursion (A→A).
         # Self-recursion is bounded by the depth limit above.
-        if pipeline.name in _pipeline_stack and _pipeline_stack != frozenset(
-            {pipeline.name}
-        ):
+        if pipeline.name in _pipeline_stack and _pipeline_stack != frozenset({pipeline.name}):
             raise RuntimeError(
                 f"Pipeline cycle detected: '{pipeline.name}' is already in the "
                 f"call stack {sorted(_pipeline_stack)}."
@@ -740,9 +738,7 @@ class PipelineExecutor:
         outputs: dict[str, Any] = {}
         # Build render context once for Jinja2 expressions
         render_ctx = (
-            self.renderer.build_render_context(context)
-            if self.renderer.template_engine
-            else {}
+            self.renderer.build_render_context(context) if self.renderer.template_engine else {}
         )
 
         for name, expr in pipeline.outputs.items():

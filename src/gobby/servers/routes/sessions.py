@@ -343,9 +343,16 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         status: str | None = None,
         source: str | None = None,
         limit: int = Query(100, ge=1, le=1000),
-        exclude_subagents: bool = Query(False, description="Exclude subagent sessions (agent_depth > 0)"),
-        include_resumability: bool = Query(False, description="Add is_resumable/resume_blocked_reason fields and filter non-resumable"),
-        current_session_id: str | None = Query(None, description="Caller's own session ID (excluded from resumable list)"),
+        exclude_subagents: bool = Query(
+            False, description="Exclude subagent sessions (agent_depth > 0)"
+        ),
+        include_resumability: bool = Query(
+            False,
+            description="Add is_resumable/resume_blocked_reason fields and filter non-resumable",
+        ),
+        current_session_id: str | None = Query(
+            None, description="Caller's own session ID (excluded from resumable list)"
+        ),
     ) -> dict[str, Any]:
         """
         List sessions with optional filtering and message counts.
@@ -391,9 +398,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             # Build resumability info if requested
             resumability: dict[str, tuple[bool, str | None]] = {}
             if include_resumability:
-                resumability = await _compute_resumability(
-                    server, sessions, current_session_id
-                )
+                resumability = await _compute_resumability(server, sessions, current_session_id)
 
             # Enrich sessions with counts
             session_list = []

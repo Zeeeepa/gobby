@@ -118,9 +118,7 @@ class CodeIndexer:
                 except (OSError, ValueError):
                     pass
 
-            stale = set(
-                self._storage.get_stale_files(project_id, current_hashes)
-            )
+            stale = set(self._storage.get_stale_files(project_id, current_hashes))
         else:
             stale = None  # Index everything
 
@@ -222,9 +220,7 @@ class CodeIndexer:
         # Add graph relationships (async, non-blocking on failure)
         if self._graph is not None and self._graph.available:
             try:
-                await self._add_graph_data(
-                    project_id, rel_path, parse_result, symbols
-                )
+                await self._add_graph_data(project_id, rel_path, parse_result, symbols)
             except Exception as e:
                 logger.debug(f"Graph update failed for {file_path}: {e}")
 
@@ -276,9 +272,7 @@ class CodeIndexer:
 
         logger.info(f"Invalidated code index for project {project_id}")
 
-    async def _embed_symbols(
-        self, symbols: list[Symbol], project_id: str
-    ) -> int:
+    async def _embed_symbols(self, symbols: list[Symbol], project_id: str) -> int:
         """Embed symbol text into Qdrant. Returns count embedded."""
         if not symbols or self._embed_fn is None or self._vector_store is None:
             return 0
@@ -315,16 +309,18 @@ class CodeIndexer:
             points = []
             for i, emb in enumerate(embeddings):
                 if emb is not None:
-                    points.append({
-                        "id": ids[i],
-                        "vector": emb,
-                        "payload": {
-                            "name": symbols[i].name,
-                            "kind": symbols[i].kind,
-                            "file_path": symbols[i].file_path,
-                            "project_id": project_id,
-                        },
-                    })
+                    points.append(
+                        {
+                            "id": ids[i],
+                            "vector": emb,
+                            "payload": {
+                                "name": symbols[i].name,
+                                "kind": symbols[i].kind,
+                                "file_path": symbols[i].file_path,
+                                "project_id": project_id,
+                            },
+                        }
+                    )
 
             if points:
                 await self._vector_store.batch_upsert(
@@ -366,10 +362,7 @@ class CodeIndexer:
             for call in parse_result.calls
         ]
 
-        contains = [
-            {"id": sym.id, "name": sym.name, "kind": sym.kind}
-            for sym in symbols
-        ]
+        contains = [{"id": sym.id, "name": sym.name, "kind": sym.kind} for sym in symbols]
 
         return await self._graph.add_relationships(
             project_id=project_id,

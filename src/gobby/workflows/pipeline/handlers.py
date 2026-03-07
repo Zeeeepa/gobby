@@ -48,8 +48,7 @@ async def execute_mcp_step(
     # Check for MCP-level failure (dict responses from internal tools)
     # Supports both old pattern (success=False) and new pattern (error key only)
     if isinstance(result, dict) and (
-        result.get("success") is False
-        or ("error" in result and result.get("success") is not True)
+        result.get("success") is False or ("error" in result and result.get("success") is not True)
     ):
         error_msg = result.get("error", "Unknown MCP tool error")
         raise RuntimeError(

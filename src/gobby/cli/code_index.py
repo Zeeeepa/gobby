@@ -182,11 +182,7 @@ def status_cmd(ctx: click.Context, project_id: str) -> None:
             return
         click.echo(f"Indexed projects ({len(projects)}):")
         for proj in projects:
-            click.echo(
-                f"  {proj.id}: "
-                f"{proj.total_files} files, "
-                f"{proj.total_symbols} symbols"
-            )
+            click.echo(f"  {proj.id}: {proj.total_files} files, {proj.total_symbols} symbols")
             if proj.last_indexed_at:
                 click.echo(f"    Last indexed: {proj.last_indexed_at}")
     else:

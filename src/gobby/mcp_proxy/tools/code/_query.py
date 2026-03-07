@@ -36,7 +36,9 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             for f in files
         ]
 
-    @registry.tool(description="Hierarchical symbol outline for a single file. Much cheaper than reading the file.")
+    @registry.tool(
+        description="Hierarchical symbol outline for a single file. Much cheaper than reading the file."
+    )
     def get_file_outline(
         file_path: str,
         project_id: str = "",
@@ -78,7 +80,9 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             "symbols": outline,
         }
 
-    @registry.tool(description="Get full source for a symbol by ID. O(1) retrieval via byte offsets.")
+    @registry.tool(
+        description="Get full source for a symbol by ID. O(1) retrieval via byte offsets."
+    )
     def get_symbol(
         symbol_id: str,
         project_id: str = "",
@@ -111,7 +115,9 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             results.append(d)
         return results
 
-    @registry.tool(description="Hybrid search: name + semantic + graph. Finds symbols by description or name.")
+    @registry.tool(
+        description="Hybrid search: name + semantic + graph. Finds symbols by description or name."
+    )
     async def search_symbols(
         query: str,
         project_id: str = "",
@@ -202,9 +208,7 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             return []
         return ctx.storage.get_stale_files(project_id, current_hashes)
 
-    def _read_symbol_source(
-        sym: Any, project_id: str | None
-    ) -> str | None:
+    def _read_symbol_source(sym: Any, project_id: str | None) -> str | None:
         """Read symbol source from file using byte offsets."""
         # Try to find the file on disk
         # Look up project stats for root_path
@@ -219,9 +223,7 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
 
         try:
             data = file_path.read_bytes()
-            return str(data[sym.byte_start:sym.byte_end].decode(
-                "utf-8", errors="replace"
-            ))
+            return str(data[sym.byte_start : sym.byte_end].decode("utf-8", errors="replace"))
         except (OSError, IndexError):
             return None
 

@@ -44,16 +44,21 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\bgit\s+status\b",
         "git-status",
         [
-            (filter_lines, {"patterns": [
-                r"^\s*$",
-                r"^On branch ",
-                r"^Your branch is ",
-                r"^  \(use \"git ",
-                r"^Changes not staged",
-                r"^Changes to be committed",
-                r"^Untracked files:",
-                r"^no changes added",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^\s*$",
+                        r"^On branch ",
+                        r"^Your branch is ",
+                        r"^  \(use \"git ",
+                        r"^Changes not staged",
+                        r"^Changes to be committed",
+                        r"^Untracked files:",
+                        r"^no changes added",
+                    ]
+                },
+            ),
             (group_lines, {"mode": "git_status"}),
         ],
     ),
@@ -61,12 +66,17 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\bgit\s+diff\b",
         "git-diff",
         [
-            (filter_lines, {"patterns": [
-                r"^index [0-9a-f]",
-                r"^diff --git",
-                r"^--- ",
-                r"^\+\+\+ ",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^index [0-9a-f]",
+                        r"^diff --git",
+                        r"^--- ",
+                        r"^\+\+\+ ",
+                    ]
+                },
+            ),
             (truncate, {"per_file_lines": 50, "file_marker": r"^@@\s"}),
         ],
     ),
@@ -74,10 +84,15 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\bgit\s+log\b",
         "git-log",
         [
-            (filter_lines, {"patterns": [
-                r"^Merge:",
-                r"^\s*$",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^Merge:",
+                        r"^\s*$",
+                    ]
+                },
+            ),
             (truncate, {"head": 40, "tail": 5}),
         ],
     ),
@@ -85,15 +100,20 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\bgit\s+(?:push|pull|fetch|clone)\b",
         "git-transfer",
         [
-            (filter_lines, {"patterns": [
-                r"^remote: Counting",
-                r"^remote: Compressing",
-                r"^remote: Total",
-                r"^Receiving objects:",
-                r"^Resolving deltas:",
-                r"^Unpacking objects:",
-                r"^remote: Enumerating",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^remote: Counting",
+                        r"^remote: Compressing",
+                        r"^remote: Total",
+                        r"^Receiving objects:",
+                        r"^Resolving deltas:",
+                        r"^Unpacking objects:",
+                        r"^remote: Enumerating",
+                    ]
+                },
+            ),
             (truncate, {"head": 5, "tail": 5}),
         ],
     ),
@@ -110,18 +130,23 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\b(?:pytest|py\.test)\b",
         "pytest",
         [
-            (filter_lines, {"patterns": [
-                r"^tests/.*PASSED",
-                r"^\s*$",
-                r"^=+ ?test session starts",
-                r"^platform ",
-                r"^plugins:",
-                r"^cachedir:",
-                r"^rootdir:",
-                r"^configfile:",
-                r"^collecting ",
-                r"^collected \d+ items?$",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^tests/.*PASSED",
+                        r"^\s*$",
+                        r"^=+ ?test session starts",
+                        r"^platform ",
+                        r"^plugins:",
+                        r"^cachedir:",
+                        r"^rootdir:",
+                        r"^configfile:",
+                        r"^collecting ",
+                        r"^collected \d+ items?$",
+                    ]
+                },
+            ),
             (group_lines, {"mode": "pytest_failures"}),
             (truncate, {"head": 50, "tail": 20}),
         ],
@@ -130,13 +155,18 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\bcargo\s+test\b",
         "cargo-test",
         [
-            (filter_lines, {"patterns": [
-                r"^\s+Running ",
-                r"^test .* \.\.\. ok$",
-                r"^\s*$",
-                r"^   Compiling ",
-                r"^    Finished ",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^\s+Running ",
+                        r"^test .* \.\.\. ok$",
+                        r"^\s*$",
+                        r"^   Compiling ",
+                        r"^    Finished ",
+                    ]
+                },
+            ),
             (group_lines, {"mode": "test_failures"}),
             (truncate, {"head": 50, "tail": 20}),
         ],
@@ -145,12 +175,17 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\b(?:npm\s+test|vitest|jest|mocha|go\s+test)\b",
         "generic-test",
         [
-            (filter_lines, {"patterns": [
-                r"^\s*$",
-                r"^\s*✓",
-                r"^\s*PASS\s",
-                r"^ok\s+\S+\s+\d",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^\s*$",
+                        r"^\s*✓",
+                        r"^\s*PASS\s",
+                        r"^ok\s+\S+\s+\d",
+                    ]
+                },
+            ),
             (group_lines, {"mode": "test_failures"}),
             (truncate, {"head": 50, "tail": 20}),
         ],
@@ -214,14 +249,19 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\b(?:cargo\s+build|go\s+build|next\s+build|webpack|make)\b",
         "build",
         [
-            (filter_lines, {"patterns": [
-                r"^\s*Compiling ",
-                r"^\s*Building ",
-                r"^\s*Downloading ",
-                r"^\s*Downloaded ",
-                r"^\[.*\]\s*\d+%",
-                r"^\s*$",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^\s*Compiling ",
+                        r"^\s*Building ",
+                        r"^\s*Downloading ",
+                        r"^\s*Downloaded ",
+                        r"^\[.*\]\s*\d+%",
+                        r"^\s*$",
+                    ]
+                },
+            ),
             (group_lines, {"mode": "errors_warnings"}),
             (truncate, {"head": 30, "tail": 10}),
         ],
@@ -231,15 +271,20 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\b(?:pip\s+(?:install|list)|npm\s+(?:install|ls|list)|uv\s+(?:pip|sync|add))\b",
         "package-mgmt",
         [
-            (filter_lines, {"patterns": [
-                r"^\s*Downloading ",
-                r"^\s*Installing ",
-                r"^\s*Using cached ",
-                r"^\s*Collecting ",
-                r"^npm warn",
-                r"^\s*$",
-                r"^added \d+ packages",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^\s*Downloading ",
+                        r"^\s*Installing ",
+                        r"^\s*Using cached ",
+                        r"^\s*Collecting ",
+                        r"^npm warn",
+                        r"^\s*$",
+                        r"^added \d+ packages",
+                    ]
+                },
+            ),
             (truncate, {"head": 10, "tail": 10}),
         ],
     ),
@@ -273,17 +318,23 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
         r"\b(?:wget|curl)\b",
         "download",
         [
-            (filter_lines, {"patterns": [
-                r"^\s*%\s+Total",
-                r"^\s*\d+\s+\d+",
-                r"^  % Total",
-                r"^\s*$",
-                r"^###",
-            ]}),
+            (
+                filter_lines,
+                {
+                    "patterns": [
+                        r"^\s*%\s+Total",
+                        r"^\s*\d+\s+\d+",
+                        r"^  % Total",
+                        r"^\s*$",
+                        r"^###",
+                    ]
+                },
+            ),
             (truncate, {"head": 10, "tail": 10}),
         ],
     ),
 ]
+
 
 @lru_cache(maxsize=1)
 def _get_pipelines() -> list[tuple[re.Pattern[str], str, PipelineSpec]]:
@@ -305,9 +356,7 @@ class OutputCompressor:
     ):
         self.min_length = min_length
         self.max_lines = max_lines
-        self._excluded_patterns = [
-            re.compile(p) for p in (excluded_commands or [])
-        ]
+        self._excluded_patterns = [re.compile(p) for p in (excluded_commands or [])]
 
     def compress(self, command: str, output: str) -> CompressionResult:
         """Compress command output using matched pipeline.
@@ -357,7 +406,7 @@ class OutputCompressor:
         # Apply max_lines as a final cap (post-pipeline)
         if self.max_lines and len(lines) > self.max_lines:
             cap_head = (self.max_lines * 3) // 5  # 60% head
-            cap_tail = self.max_lines - cap_head   # 40% tail
+            cap_tail = self.max_lines - cap_head  # 40% tail
             lines = truncate(lines, head=cap_head, tail=cap_tail)
 
         compressed = "".join(lines)

@@ -369,10 +369,7 @@ class ChatLifecycleMixin:
                 return
 
             payload = webhook_dispatcher._build_payload(event)
-            tasks = [
-                webhook_dispatcher._dispatch_single(ep, payload)
-                for ep in matching_endpoints
-            ]
+            tasks = [webhook_dispatcher._dispatch_single(ep, payload) for ep in matching_endpoints]
             await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as exc:
             logger.warning("Non-blocking webhook dispatch failed: %s", exc)

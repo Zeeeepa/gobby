@@ -535,12 +535,19 @@ async def ensure_daemon_running() -> None:
 
     # Check if running
     if is_daemon_running():
-        # Check health
-        if await check_daemon_http_health(port):
-            return
+        # 3 attempts before concluding unhealthy (5s timeout each)
+        for attempt in range(3):
+            if await check_daemon_http_health(port):
+                return
+            if attempt < 2:
+                logger.warning(
+                    "Daemon health check failed (attempt %d/3), retrying in 5s...",
+                    attempt + 1,
+                )
+                await asyncio.sleep(5)
 
-        # Unhealthy, restart
-        logger.warning("Daemon running but unhealthy, restarting...")
+        # 3 consecutive failures → restart
+        logger.warning("Daemon running but unhealthy after 3 checks, restarting...")
         pid = get_daemon_pid()
         await restart_daemon_process(pid, port, ws_port)
     else:

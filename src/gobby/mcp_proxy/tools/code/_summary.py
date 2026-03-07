@@ -15,7 +15,9 @@ def create_summary_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
         description="Code summary tools",
     )
 
-    @registry.tool(description="Get AI-generated summary for a symbol. Cached after first generation.")
+    @registry.tool(
+        description="Get AI-generated summary for a symbol. Cached after first generation."
+    )
     def get_summary(symbol_id: str) -> dict[str, Any]:
         """Get or generate summary for a symbol."""
         sym = ctx.storage.get_symbol(symbol_id)
@@ -37,7 +39,9 @@ def create_summary_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             "note": "Summary not yet generated. Background generation will create it.",
         }
 
-    @registry.tool(description="High-level project summary showing top-level modules and their symbol counts.")
+    @registry.tool(
+        description="High-level project summary showing top-level modules and their symbol counts."
+    )
     def get_repo_outline(project_id: str = "") -> dict[str, Any]:
         """Get high-level project outline."""
         pid = project_id or ctx.project_id or "default"
@@ -58,9 +62,7 @@ def create_summary_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             dir_stats[top_dir]["symbols"] += f.symbol_count
 
         # Sort by symbol count descending
-        sorted_dirs = sorted(
-            dir_stats.items(), key=lambda x: x[1]["symbols"], reverse=True
-        )
+        sorted_dirs = sorted(dir_stats.items(), key=lambda x: x[1]["symbols"], reverse=True)
 
         return {
             "project_id": pid,
@@ -68,9 +70,7 @@ def create_summary_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             "total_files": project.total_files,
             "total_symbols": project.total_symbols,
             "last_indexed_at": project.last_indexed_at,
-            "directories": [
-                {"path": d, **stats} for d, stats in sorted_dirs
-            ],
+            "directories": [{"path": d, **stats} for d, stats in sorted_dirs],
         }
 
     return registry

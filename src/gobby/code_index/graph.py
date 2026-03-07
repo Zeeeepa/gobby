@@ -132,9 +132,7 @@ class CodeGraph:
             logger.debug(f"find_usages failed: {e}")
             return []
 
-    async def get_imports(
-        self, file_path: str, project_id: str
-    ) -> list[dict[str, Any]]:
+    async def get_imports(self, file_path: str, project_id: str) -> list[dict[str, Any]]:
         """Get import graph for a file."""
         if not self.available:
             return []

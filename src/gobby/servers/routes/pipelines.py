@@ -81,9 +81,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             try:
                 status_filter = ExecutionStatus(status)
             except ValueError:
-                raise HTTPException(
-                    status_code=400, detail=f"Invalid status: {status}"
-                ) from None
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from None
 
         executions = execution_manager.list_executions(
             status=status_filter,
@@ -92,36 +90,36 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         )
 
         # Batch-load steps for all executions in one query
-        all_steps = execution_manager.get_steps_for_executions(
-            [e.id for e in executions]
-        )
+        all_steps = execution_manager.get_steps_for_executions([e.id for e in executions])
 
         result = []
         for execution in executions:
             steps = all_steps.get(execution.id, [])
-            result.append({
-                "id": execution.id,
-                "pipeline_name": execution.pipeline_name,
-                "project_id": execution.project_id,
-                "status": execution.status.value,
-                "created_at": execution.created_at,
-                "updated_at": execution.updated_at,
-                "completed_at": execution.completed_at,
-                "inputs_json": execution.inputs_json,
-                "outputs_json": execution.outputs_json,
-                "steps": [
-                    {
-                        "id": step.id,
-                        "step_id": step.step_id,
-                        "status": step.status.value,
-                        "started_at": step.started_at,
-                        "completed_at": step.completed_at,
-                        "output_json": step.output_json,
-                        "error": step.error,
-                    }
-                    for step in steps
-                ],
-            })
+            result.append(
+                {
+                    "id": execution.id,
+                    "pipeline_name": execution.pipeline_name,
+                    "project_id": execution.project_id,
+                    "status": execution.status.value,
+                    "created_at": execution.created_at,
+                    "updated_at": execution.updated_at,
+                    "completed_at": execution.completed_at,
+                    "inputs_json": execution.inputs_json,
+                    "outputs_json": execution.outputs_json,
+                    "steps": [
+                        {
+                            "id": step.id,
+                            "step_id": step.step_id,
+                            "status": step.status.value,
+                            "started_at": step.started_at,
+                            "completed_at": step.completed_at,
+                            "output_json": step.output_json,
+                            "error": step.error,
+                        }
+                        for step in steps
+                    ],
+                }
+            )
 
         return {"executions": result, "count": len(result)}
 

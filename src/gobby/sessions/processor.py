@@ -372,9 +372,7 @@ class SessionMessageProcessor:
         try:
             raw = await asyncio.to_thread(self._read_file_bytes, transcript_path)
             if raw:
-                await asyncio.to_thread(
-                    self.transcript_manager.store_transcript, session_id, raw
-                )
+                await asyncio.to_thread(self.transcript_manager.store_transcript, session_id, raw)
                 self._snapshot_throttle.record_snapshot(session_id)
         except Exception as e:
             logger.warning(f"Transcript snapshot failed for {session_id}: {e}")

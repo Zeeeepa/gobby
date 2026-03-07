@@ -99,9 +99,7 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
         pid = project_id or getattr(services, "project_id", "") or ""
         if not pid:
             projects = code_indexer.storage.list_indexed_projects()
-            return JSONResponse(
-                content={"projects": [p.to_dict() for p in projects]}
-            )
+            return JSONResponse(content={"projects": [p.to_dict() for p in projects]})
 
         stats = code_indexer.storage.get_project_stats(pid)
         if stats is None:
@@ -117,9 +115,7 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
         services = server.services
         code_indexer = getattr(services, "code_indexer", None)
         if code_indexer is None:
-            return JSONResponse(
-                status_code=503, content={"error": "Code indexer not available"}
-            )
+            return JSONResponse(status_code=503, content={"error": "Code indexer not available"})
 
         from gobby.code_index.watcher import handle_session_start_index
 

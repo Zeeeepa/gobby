@@ -69,10 +69,7 @@ async def _run_maintenance(indexer: CodeIndexer) -> None:
             )
             if result.files_indexed > 0:
                 logger.debug(
-                    f"Maintenance reindexed {result.files_indexed} files "
-                    f"for project {project.id}"
+                    f"Maintenance reindexed {result.files_indexed} files for project {project.id}"
                 )
         except Exception as e:
-            logger.warning(
-                f"Maintenance reindex failed for project {project.id}: {e}"
-            )
+            logger.warning(f"Maintenance reindex failed for project {project.id}: {e}")

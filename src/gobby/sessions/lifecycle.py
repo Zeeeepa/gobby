@@ -145,9 +145,7 @@ class SessionLifecycleManager:
         # Expire orphaned handoff_ready sessions (legitimate handoffs complete
         # within seconds, so 30 min is generous). This catches sessions that
         # never got picked up by a child session.
-        orphaned = self.session_manager.expire_orphaned_handoff_sessions(
-            timeout_minutes=30
-        )
+        orphaned = self.session_manager.expire_orphaned_handoff_sessions(timeout_minutes=30)
 
         # Then expire sessions that have been paused/active for too long
         expired = self.session_manager.expire_stale_sessions(
@@ -219,9 +217,7 @@ class SessionLifecycleManager:
                         if raw:
                             self.transcript_manager.store_transcript(session.id, raw)
                     except Exception as e:
-                        logger.warning(
-                            f"Transcript blob snapshot failed for {session.id}: {e}"
-                        )
+                        logger.warning(f"Transcript blob snapshot failed for {session.id}: {e}")
 
                 await self._process_session_transcript(session.id, session.jsonl_path)
                 self.session_manager.mark_transcript_processed(session.id)
@@ -238,9 +234,7 @@ class SessionLifecycleManager:
                             archive_dir,
                         )
                     except Exception as e:
-                        logger.warning(
-                            f"Transcript backup failed for {session.id}: {e}"
-                        )
+                        logger.warning(f"Transcript backup failed for {session.id}: {e}")
             except Exception as e:
                 logger.error(f"Failed to process transcript for {session.id}: {e}")
 

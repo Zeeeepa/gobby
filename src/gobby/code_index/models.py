@@ -46,9 +46,7 @@ class Symbol:
             self.updated_at = _now_iso()
 
     @staticmethod
-    def make_id(
-        project_id: str, file_path: str, name: str, kind: str, byte_start: int
-    ) -> str:
+    def make_id(project_id: str, file_path: str, name: str, kind: str, byte_start: int) -> str:
         """Generate deterministic UUID5 for a symbol."""
         key = f"{project_id}:{file_path}:{name}:{kind}:{byte_start}"
         return str(uuid.uuid5(CODE_INDEX_UUID_NAMESPACE, key))

@@ -81,9 +81,7 @@ class CodeIndexStorage:
 
     def get_symbol(self, symbol_id: str) -> Symbol | None:
         """Get a single symbol by ID."""
-        row = self.db.fetchone(
-            "SELECT * FROM code_symbols WHERE id = ?", (symbol_id,)
-        )
+        row = self.db.fetchone("SELECT * FROM code_symbols WHERE id = ?", (symbol_id,))
         return Symbol.from_row(row) if row else None
 
     def get_symbols(self, symbol_ids: list[str]) -> list[Symbol]:
@@ -97,9 +95,7 @@ class CodeIndexStorage:
         )
         return [Symbol.from_row(r) for r in rows]
 
-    def get_symbols_for_file(
-        self, project_id: str, file_path: str
-    ) -> list[Symbol]:
+    def get_symbols_for_file(self, project_id: str, file_path: str) -> list[Symbol]:
         """Get all symbols in a file."""
         rows = self.db.fetchall(
             "SELECT * FROM code_symbols WHERE project_id = ? AND file_path = ? ORDER BY line_start",
@@ -207,9 +203,7 @@ class CodeIndexStorage:
         )
         return [IndexedFile.from_row(r) for r in rows]
 
-    def get_stale_files(
-        self, project_id: str, current_hashes: dict[str, str]
-    ) -> list[str]:
+    def get_stale_files(self, project_id: str, current_hashes: dict[str, str]) -> list[str]:
         """Find files whose stored hash differs from current hash.
 
         Args:
@@ -284,9 +278,7 @@ class CodeIndexStorage:
 
     def list_indexed_projects(self) -> list[IndexedProject]:
         """List all indexed projects."""
-        rows = self.db.fetchall(
-            "SELECT * FROM code_indexed_projects ORDER BY last_indexed_at DESC"
-        )
+        rows = self.db.fetchall("SELECT * FROM code_indexed_projects ORDER BY last_indexed_at DESC")
         return [IndexedProject.from_row(r) for r in rows]
 
     # ── Summaries ────────────────────────────────────────────────────
@@ -299,9 +291,7 @@ class CodeIndexStorage:
                 (summary, symbol_id),
             )
 
-    def get_symbols_without_summaries(
-        self, project_id: str, limit: int = 50
-    ) -> list[Symbol]:
+    def get_symbols_without_summaries(self, project_id: str, limit: int = 50) -> list[Symbol]:
         """Get symbols that need summaries generated."""
         rows = self.db.fetchall(
             """SELECT * FROM code_symbols

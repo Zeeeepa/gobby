@@ -305,8 +305,11 @@ class RuleEngine:
             )
         if override_decision == "allow":
             return HookResponse(
-                decision="allow", context=ctx_str, metadata=meta,
-                modified_input=modified_input, auto_approve=auto_approve,
+                decision="allow",
+                context=ctx_str,
+                metadata=meta,
+                modified_input=modified_input,
+                auto_approve=auto_approve,
             )
 
         if block_reason:
@@ -318,8 +321,11 @@ class RuleEngine:
             )
 
         return HookResponse(
-            decision="allow", context=ctx_str, metadata=meta,
-            modified_input=modified_input, auto_approve=auto_approve,
+            decision="allow",
+            context=ctx_str,
+            metadata=meta,
+            modified_input=modified_input,
+            auto_approve=auto_approve,
         )
 
     def _load_rules(

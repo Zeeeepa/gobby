@@ -9,31 +9,37 @@ import fnmatch
 from pathlib import Path
 
 # Extensions that likely contain secrets
-_SECRET_EXTENSIONS = frozenset({
-    ".env",
-    ".pem",
-    ".key",
-    ".p12",
-    ".pfx",
-    ".jks",
-    ".keystore",
-    ".secret",
-})
+_SECRET_EXTENSIONS = frozenset(
+    {
+        ".env",
+        ".pem",
+        ".key",
+        ".p12",
+        ".pfx",
+        ".jks",
+        ".keystore",
+        ".secret",
+    }
+)
 
-_SECRET_PREFIXES = frozenset({
-    "credentials",
-    ".env",
-    "id_rsa",
-    "id_ed25519",
-    "token",
-})
+_SECRET_PREFIXES = frozenset(
+    {
+        "credentials",
+        ".env",
+        "id_rsa",
+        "id_ed25519",
+        "token",
+    }
+)
 
-_SECRET_SUBSTRINGS = frozenset({
-    "api_key",
-    "apikey",
-    "_secret.",
-    "_token.",
-})
+_SECRET_SUBSTRINGS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "_secret.",
+        "_token.",
+    }
+)
 
 
 def validate_path(path: Path, root: Path) -> bool:

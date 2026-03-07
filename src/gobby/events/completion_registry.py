@@ -130,9 +130,7 @@ class CompletionEventRegistry:
                 await self._pipeline_rerun_callback(continuation)
                 self._pipeline_continuations.pop(completion_id, None)
             except Exception:
-                logger.error(
-                    "Pipeline continuation failed for %s", completion_id, exc_info=True
-                )
+                logger.error("Pipeline continuation failed for %s", completion_id, exc_info=True)
 
     async def wait(self, completion_id: str, timeout: float | None = None) -> dict[str, Any]:
         """Block until a completion event fires.

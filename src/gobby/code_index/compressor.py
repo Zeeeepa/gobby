@@ -39,9 +39,7 @@ class CompressResult:
     def savings_pct(self) -> float:
         if self.original_chars == 0:
             return 0.0
-        return round(
-            (1 - self.compressed_chars / self.original_chars) * 100, 1
-        )
+        return round((1 - self.compressed_chars / self.original_chars) * 100, 1)
 
 
 class CodeIndexCompressor:
@@ -106,9 +104,7 @@ class CodeIndexCompressor:
             symbols_shown=len(symbols),
         )
 
-    def _find_symbols(
-        self, file_path: str, project_id: str
-    ) -> list[Symbol]:
+    def _find_symbols(self, file_path: str, project_id: str) -> list[Symbol]:
         """Find symbols for a file, trying path variants."""
         # Try exact path
         symbols = self._storage.get_symbols_for_file(project_id, file_path)
