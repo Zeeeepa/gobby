@@ -269,6 +269,54 @@ class TestTranslateToHookEvent:
         assert event.event_type == HookEventType.PERMISSION_REQUEST
 
 
+class TestBashFailureDetection:
+    """Test that Bash failures are detected via tool_result content."""
+
+    def test_post_tool_use_bash_failure_sets_is_failure(self) -> None:
+        """post-tool-use with Bash failure content → metadata.is_failure is True."""
+        adapter = ClaudeCodeAdapter()
+        native = {
+            "hook_type": "post-tool-use",
+            "input_data": {
+                "session_id": "ext-bash",
+                "tool_name": "Bash",
+                "tool_result": "ruff check failed\nExit code: 1",
+            },
+        }
+        event = adapter.translate_to_hook_event(native)
+        assert event.event_type == HookEventType.AFTER_TOOL
+        assert event.metadata.get("is_failure") is True
+        assert event.data.get("is_error") is True
+
+    def test_post_tool_use_bash_success_no_failure(self) -> None:
+        """post-tool-use with Bash success → no is_failure metadata."""
+        adapter = ClaudeCodeAdapter()
+        native = {
+            "hook_type": "post-tool-use",
+            "input_data": {
+                "session_id": "ext-bash",
+                "tool_name": "Bash",
+                "tool_result": "all good\nExit code: 0",
+            },
+        }
+        event = adapter.translate_to_hook_event(native)
+        assert event.metadata == {}
+
+    def test_post_tool_use_non_bash_unaffected(self) -> None:
+        """post-tool-use with non-Bash tool → no is_failure even with exit code text."""
+        adapter = ClaudeCodeAdapter()
+        native = {
+            "hook_type": "post-tool-use",
+            "input_data": {
+                "session_id": "ext-read",
+                "tool_name": "Read",
+                "tool_result": "Exit code: 1",
+            },
+        }
+        event = adapter.translate_to_hook_event(native)
+        assert event.metadata == {}
+
+
 class TestNormalizeEventData:
     """Test _normalize_event_data normalization logic."""
 

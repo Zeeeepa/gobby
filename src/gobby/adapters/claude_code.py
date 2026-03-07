@@ -98,13 +98,15 @@ class ClaudeCodeAdapter(BaseAdapter):
         # Extract session_id (Claude calls it session_id but it's the external_id)
         session_id = input_data.get("session_id", "")
 
-        # Check for failure flag in post-tool-use-failure
-        is_failure = hook_type == "post-tool-use-failure"
-        metadata = {"is_failure": is_failure} if is_failure else {}
-
-        # Normalize event data for CLI-agnostic processing
-        # This allows downstream code to use consistent field names
+        # Normalize event data for CLI-agnostic processing FIRST
+        # so that is_error detection (Phase 3) runs before we build metadata
         normalized_data = self._normalize_event_data(input_data)
+
+        # Check for failure: explicit hook type OR inferred from tool output
+        is_failure = hook_type == "post-tool-use-failure" or normalized_data.get(
+            "is_error", False
+        )
+        metadata = {"is_failure": is_failure} if is_failure else {}
 
         return HookEvent(
             event_type=event_type,

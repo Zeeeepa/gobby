@@ -11,13 +11,21 @@ Used by all adapters and the web-chat path.
 """
 
 import json as _json
+import re as _re
 from typing import Any
+
+# Tools that run shell commands — used for exit-code-based error detection
+_SHELL_TOOLS = frozenset({"Bash", "bash", "shell", "run_command"})
+
+# Pattern to detect non-zero exit codes in tool output text.
+# Matches: "Exit code: 1", "exit code 127", "Error: Exit code 2", etc.
+_EXIT_CODE_RE = _re.compile(r"[Ee]xit.?code[:\s]+(\d+)")
 
 
 def normalize_tool_fields(data: dict[str, Any]) -> dict[str, Any]:
     """Normalize tool-related fields in hook event data.
 
-    Two-phase normalization:
+    Three-phase normalization:
 
     1. **Field aliases** – flatten CLI-specific naming into canonical fields
        (``tool_name``, ``tool_input``) using ``setdefault`` semantics so
@@ -25,6 +33,8 @@ def normalize_tool_fields(data: dict[str, Any]) -> dict[str, Any]:
     2. **MCP enrichment** – delegates to :func:`normalize_mcp_fields` for
        ``mcp__`` prefix parsing, ``call_tool`` inner extraction, and
        ``tool_result``/``tool_response`` → ``tool_output``.
+    3. **Error detection** – infers ``is_error`` from tool output content
+       for shell tools (Bash) when the adapter didn't set it explicitly.
 
     This is the primary entry point.  All adapters should call this instead
     of ``normalize_mcp_fields()`` directly.
@@ -74,7 +84,12 @@ def normalize_tool_fields(data: dict[str, Any]) -> dict[str, Any]:
             data["mcp_tool"] = tool
 
     # ── Phase 2: MCP prefix/inner extraction + output aliases ──────────
-    return normalize_mcp_fields(data)
+    normalize_mcp_fields(data)
+
+    # ── Phase 3: infer is_error from tool output for shell tools ──────
+    _detect_tool_error(data)
+
+    return data
 
 
 def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:
@@ -136,3 +151,31 @@ def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:
         data["tool_output"] = data["tool_response"]
 
     return data
+
+
+def _detect_tool_error(data: dict[str, Any]) -> None:
+    """Infer ``is_error`` from tool output for shell tools (Phase 3).
+
+    Adapters like Windsurf and Copilot set ``is_error`` explicitly via
+    ``exit_code`` or ``resultType``.  Claude Code and Gemini do not — they
+    only provide the tool output text.  For shell tools (Bash), we parse the
+    output for non-zero exit code patterns and set ``is_error = True``.
+
+    Skips if ``is_error`` is already set to avoid overriding adapter-specific
+    detection.
+    """
+    if "is_error" in data:
+        return
+
+    tool_name = data.get("tool_name", "")
+    if tool_name not in _SHELL_TOOLS:
+        return
+
+    # Check tool_output (normalized) or fall back to tool_result (raw)
+    output = data.get("tool_output") or data.get("tool_result") or ""
+    if not isinstance(output, str):
+        return
+
+    match = _EXIT_CODE_RE.search(output)
+    if match and match.group(1) != "0":
+        data["is_error"] = True

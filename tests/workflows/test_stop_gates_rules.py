@@ -434,6 +434,81 @@ class TestToolBlockPendingPlumbing:
         assert response.decision == "allow"
 
 
+class TestBashErrorStopGate:
+    """End-to-end: Bash error detected via is_error → tool_block_pending → stop blocked.
+
+    This tests the full flow that was broken before normalization Phase 3:
+    Claude Code sends post-tool-use (not post-tool-use-failure) for Bash errors,
+    so is_error must be inferred from tool output content.
+    """
+
+    @pytest.mark.asyncio
+    async def test_bash_error_via_is_error_blocks_stop(self, db) -> None:
+        """AFTER_TOOL with Bash is_error=True → tool_block_pending → STOP blocked."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        # 1. Bash tool fails (is_error set by normalization Phase 3)
+        fail_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Bash", "is_error": True, "tool_output": "Exit code: 1"},
+        )
+        await engine.evaluate(fail_event, "sess-1", variables)
+        assert variables.get("tool_block_pending") is True
+
+        # 2. Stop is blocked
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, "sess-1", variables)
+        assert response.decision == "block"
+        assert "tool just failed" in response.reason.lower()
+
+    @pytest.mark.asyncio
+    async def test_bash_success_does_not_block_stop(self, db) -> None:
+        """AFTER_TOOL with Bash success → no tool_block_pending → stop allowed."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        ok_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Bash"},
+        )
+        await engine.evaluate(ok_event, "sess-1", variables)
+
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, "sess-1", variables)
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_full_bash_failure_recovery_cycle(self, db) -> None:
+        """End-to-end: Bash fails → stop blocked → Bash succeeds → stop allowed."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {}
+
+        # 1. Bash fails
+        fail_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Bash", "is_error": True},
+        )
+        await engine.evaluate(fail_event, "sess-1", variables)
+        assert variables.get("tool_block_pending") is True
+
+        # 2. Stop blocked (self-clears)
+        stop_event = _make_event(HookEventType.STOP)
+        r1 = await engine.evaluate(stop_event, "sess-1", variables)
+        assert r1.decision == "block"
+
+        # 3. Bash succeeds
+        ok_event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Bash"},
+        )
+        await engine.evaluate(ok_event, "sess-1", variables)
+
+        # 4. Stop allowed
+        r2 = await engine.evaluate(stop_event, "sess-1", variables)
+        assert r2.decision == "allow"
+
+
 class TestForceAllowStop:
     """Test force_allow_stop catastrophic failure bypass.
 

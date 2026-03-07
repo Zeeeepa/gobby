@@ -298,6 +298,120 @@ class TestNormalizeToolFieldsAlias:
         assert data["tool_output"] == "ok"
 
 
+class TestToolErrorDetection:
+    """Tests for Phase 3: shell tool error detection from output text."""
+
+    def test_bash_nonzero_exit_code_sets_is_error(self) -> None:
+        """Bash tool_result with non-zero exit code → is_error = True."""
+        data = {
+            "tool_name": "Bash",
+            "tool_result": "command not found\nExit code: 1",
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is True
+
+    def test_bash_exit_code_127(self) -> None:
+        """Exit code 127 (command not found) detected."""
+        data = {
+            "tool_name": "Bash",
+            "tool_result": "bash: foo: command not found\nExit code: 127",
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is True
+
+    def test_bash_zero_exit_code_no_is_error(self) -> None:
+        """Bash tool_result with zero exit code → is_error not set."""
+        data = {
+            "tool_name": "Bash",
+            "tool_result": "success output\nExit code: 0",
+        }
+        normalize_tool_fields(data)
+        assert "is_error" not in data
+
+    def test_bash_no_exit_code_in_output(self) -> None:
+        """Bash output without exit code pattern → is_error not set."""
+        data = {
+            "tool_name": "Bash",
+            "tool_result": "some normal output",
+        }
+        normalize_tool_fields(data)
+        assert "is_error" not in data
+
+    def test_non_bash_tool_unaffected(self) -> None:
+        """Non-shell tools should not get is_error from output text."""
+        data = {
+            "tool_name": "Read",
+            "tool_result": "Error: Exit code: 1",
+        }
+        normalize_tool_fields(data)
+        assert "is_error" not in data
+
+    def test_pre_existing_is_error_not_overridden(self) -> None:
+        """If is_error is already set (e.g. by adapter), don't override."""
+        data = {
+            "tool_name": "Bash",
+            "tool_result": "Exit code: 0",
+            "is_error": True,  # adapter already decided this is an error
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is True
+
+    def test_pre_existing_is_error_false_not_overridden(self) -> None:
+        """If is_error is explicitly False, don't override with detection."""
+        data = {
+            "tool_name": "Bash",
+            "tool_result": "Exit code: 1",
+            "is_error": False,
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is False
+
+    def test_lowercase_bash_tool_name(self) -> None:
+        """Lowercase 'bash' tool name should also be detected."""
+        data = {
+            "tool_name": "bash",
+            "tool_result": "error\nExit code: 2",
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is True
+
+    def test_shell_tool_name(self) -> None:
+        """'shell' tool name should also be detected."""
+        data = {
+            "tool_name": "shell",
+            "tool_result": "Exit code: 1",
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is True
+
+    def test_run_command_tool_name(self) -> None:
+        """'run_command' (Windsurf native) should also be detected."""
+        data = {
+            "tool_name": "run_command",
+            "tool_result": "exit code: 1",
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is True
+
+    def test_tool_output_used_when_tool_result_absent(self) -> None:
+        """Phase 2 normalizes tool_result → tool_output; Phase 3 checks tool_output."""
+        data = {
+            "tool_name": "Bash",
+            "tool_output": "failed\nexit code: 1",
+        }
+        normalize_tool_fields(data)
+        assert data["is_error"] is True
+
+    def test_non_string_tool_result_ignored(self) -> None:
+        """Dict tool_result (e.g. MCP JSON) should not be parsed for exit codes."""
+        data = {
+            "tool_name": "Bash",
+            "tool_result": {"exit_code": 1, "output": "fail"},
+        }
+        normalize_tool_fields(data)
+        assert "is_error" not in data
+
+
 class TestEndToEndRuleMatch:
     """Verify normalized data matches rule 'when' expressions."""
 
