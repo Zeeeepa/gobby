@@ -355,6 +355,30 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.debug(f"Could not check code index availability: {e}")
 
+        # Kick off session-start auto-indexing (fire-and-forget)
+        if session_id and project_id and cwd:
+
+            def _trigger_session_index() -> None:
+                try:
+                    import httpx
+
+                    from gobby.config.bootstrap import load_bootstrap
+
+                    port = load_bootstrap().daemon_port
+                    httpx.post(
+                        f"http://localhost:{port}/api/code-index/session-start",
+                        json={
+                            "project_id": project_id,
+                            "root_path": cwd,
+                            "session_id": session_id,
+                        },
+                        timeout=300,
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Session-start index request failed: {e}")
+
+            threading.Thread(target=_trigger_session_index, daemon=True).start()
+
         # Step 2d: Pipeline workflows are executed by the agent via run_pipeline MCP tool.
         # Agent rules enforce pipeline execution by blocking all tools except
         # progressive discovery and run_pipeline.

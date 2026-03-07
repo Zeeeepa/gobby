@@ -26,6 +26,14 @@ class IncrementalIndexRequest(BaseModel):
     project_id: str = ""
 
 
+class SessionStartIndexRequest(BaseModel):
+    """Request body for POST /api/code-index/session-start."""
+
+    project_id: str
+    root_path: str
+    session_id: str = ""
+
+
 def create_code_index_router(server: HTTPServer) -> APIRouter:
     """Create code index router."""
     router = APIRouter(prefix="/api/code-index", tags=["code-index"])
@@ -100,5 +108,38 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
             return JSONResponse(content={"indexed": False, "project_id": pid})
 
         return JSONResponse(content={"indexed": True, **stats.to_dict()})
+
+    @router.post("/session-start")
+    async def trigger_session_start_index(
+        request: Request, body: SessionStartIndexRequest
+    ) -> JSONResponse:
+        """Called by session handler to run incremental index on session start."""
+        services = server.services
+        code_indexer = getattr(services, "code_indexer", None)
+        if code_indexer is None:
+            return JSONResponse(
+                status_code=503, content={"error": "Code indexer not available"}
+            )
+
+        from gobby.code_index.watcher import handle_session_start_index
+
+        result = await handle_session_start_index(
+            indexer=code_indexer,
+            project_id=body.project_id,
+            root_path=body.root_path,
+        )
+
+        # Update code_index_available if indexing produced results
+        if body.session_id and result.get("files_indexed", 0) > 0:
+            try:
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                db = code_indexer.storage.db
+                sv_mgr = SessionVariableManager(db)
+                sv_mgr.set_variable(body.session_id, "code_index_available", True)
+            except Exception as e:
+                logger.debug(f"Failed to set code_index_available after index: {e}")
+
+        return JSONResponse(content=result)
 
     return router
