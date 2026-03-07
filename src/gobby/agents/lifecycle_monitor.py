@@ -15,8 +15,10 @@ import os
 import signal
 from typing import TYPE_CHECKING
 
-from gobby.agents.registry import RunningAgentRegistry
+from gobby.agents.idle_detector import IdleDetector
+from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.agents.tmux.session_manager import TmuxSessionManager
+from gobby.config.tmux import TmuxConfig
 from gobby.storage.agents import LocalAgentRunManager
 
 if TYPE_CHECKING:
@@ -47,6 +49,7 @@ class AgentLifecycleMonitor:
         check_interval_seconds: float = 30.0,
         completion_registry: CompletionEventRegistry | None = None,
         task_manager: LocalTaskManager | None = None,
+        tmux_config: TmuxConfig | None = None,
     ) -> None:
         self._registry = agent_registry
         self._agent_run_manager = agent_run_manager
@@ -55,7 +58,9 @@ class AgentLifecycleMonitor:
         self._check_interval = check_interval_seconds
         self._completion_registry = completion_registry
         self._task_manager = task_manager
-        self._tmux = TmuxSessionManager()
+        self._tmux_config = tmux_config or TmuxConfig()
+        self._tmux = TmuxSessionManager(config=self._tmux_config)
+        self._idle_detector = IdleDetector()
         self._running = False
         self._task: asyncio.Task[None] | None = None
 
@@ -115,6 +120,7 @@ class AgentLifecycleMonitor:
             try:
                 await self.check_dead_agents()
                 await self.check_expired_agents()
+                await self.check_idle_agents()
             except Exception as e:
                 logger.error(f"Agent lifecycle check error: {e}")
 
@@ -368,6 +374,124 @@ class AgentLifecycleMonitor:
             logger.info(f"Cleaned up {cleaned} expired agent(s)")
 
         return cleaned
+
+    async def check_idle_agents(self) -> int:
+        """Check for idle agents and reprompt or fail them.
+
+        Returns:
+            Number of agents reprompted or failed.
+        """
+        if not self._tmux_config.idle_check_enabled:
+            return 0
+
+        agents = self._registry.list_all()
+        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+
+        handled = 0
+        for agent in tmux_agents:
+            try:
+                handled += await self._handle_idle_check(agent)
+            except Exception as e:
+                logger.warning(f"Error checking idle state for agent {agent.run_id}: {e}")
+
+        return handled
+
+    async def _handle_idle_check(self, agent: RunningAgent) -> int:
+        """Handle idle check for a single agent. Returns 1 if action taken, 0 otherwise."""
+        tmux_name = agent.tmux_session_name
+        assert tmux_name is not None
+
+        # Capture last 5 lines from pane
+        pane_output = await self._tmux.capture_pane(tmux_name, lines=5)
+        if pane_output is None:
+            return 0
+
+        status = self._idle_detector.detect(pane_output)
+
+        if status == "active":
+            self._idle_detector.reset_idle(agent.run_id)
+            return 0
+
+        if status == "context_full":
+            logger.info(f"Agent {agent.run_id} hit context window limit — failing")
+            await self._fail_idle_agent(agent, reason="context window exhausted")
+            return 1
+
+        # status == "idle"
+        if self._idle_detector.should_fail(
+            agent.run_id, self._tmux_config.max_reprompt_attempts
+        ):
+            logger.info(
+                f"Agent {agent.run_id} still idle after "
+                f"{self._tmux_config.max_reprompt_attempts} reprompts — failing"
+            )
+            await self._fail_idle_agent(agent, reason="idle after max reprompt attempts")
+            return 1
+
+        if self._idle_detector.should_reprompt(
+            agent.run_id,
+            self._tmux_config.idle_timeout_seconds,
+            self._tmux_config.max_reprompt_attempts,
+        ):
+            logger.info(f"Reprompting idle agent {agent.run_id}")
+            sent = await self._tmux.send_keys(
+                tmux_name, IdleDetector.REPROMPT_MESSAGE + "\n"
+            )
+            if sent:
+                self._idle_detector.record_reprompt(agent.run_id)
+            return 1
+
+        return 0
+
+    async def _fail_idle_agent(self, agent: RunningAgent, reason: str) -> None:
+        """Fail an agent that is irrecoverably idle."""
+        # Mark DB record as error
+        db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
+        if db_run and db_run.status in ("pending", "running"):
+            await asyncio.to_thread(
+                self._agent_run_manager.fail,
+                agent.run_id,
+                error=f"Agent idle: {reason}",
+            )
+
+        # Recover task to open
+        await self._recover_task_from_failed_agent(agent.run_id)
+
+        # Fire completion event
+        if self._completion_registry:
+            try:
+                await self._completion_registry.notify(
+                    agent.run_id,
+                    result={"status": "error", "error": f"Agent idle: {reason}"},
+                    message=f"Agent {agent.run_id} failed ({reason})",
+                )
+            except Exception as e:
+                logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
+
+        # Kill tmux session
+        tmux_name = agent.tmux_session_name
+        if tmux_name:
+            await self._tmux.kill_session(tmux_name)
+
+        # Clean up idle detector state
+        self._idle_detector.clear_state(agent.run_id)
+
+        # Remove from registry
+        self._registry.remove(agent.run_id, status="failed")
+
+        # Release worktrees
+        if self._session_coordinator:
+            try:
+                self._session_coordinator.release_session_worktrees(agent.session_id)
+            except Exception as e:
+                logger.warning(f"Failed to release worktrees for idle agent {agent.run_id}: {e}")
+
+        # Release clones
+        if self._clone_storage and agent.clone_id:
+            try:
+                await asyncio.to_thread(self._clone_storage.release, agent.clone_id)
+            except Exception as e:
+                logger.warning(f"Failed to release clone for idle agent {agent.run_id}: {e}")
 
     async def cleanup_orphaned_db_runs(self) -> int:
         """One-shot cleanup for DB records orphaned after daemon restart.

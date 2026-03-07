@@ -42,3 +42,17 @@ class TmuxConfig(BaseModel):
         default=None,
         description="WSL distribution for Windows (e.g., 'Ubuntu'). None uses default.",
     )
+    idle_check_enabled: bool = Field(
+        default=True,
+        description="Enable idle agent detection and auto-reprompting.",
+    )
+    idle_timeout_seconds: int = Field(
+        default=60,
+        ge=10,
+        description="Seconds an agent must be idle before triggering a reprompt.",
+    )
+    max_reprompt_attempts: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum reprompt attempts before failing an idle agent.",
+    )

@@ -4,6 +4,8 @@ Tests for Isolation Handlers.
 Tests the isolation abstraction layer for spawn_agent unified API.
 """
 
+import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +17,7 @@ from gobby.agents.isolation import (
     NoneIsolationHandler,
     SpawnConfig,
     WorktreeIsolationHandler,
+    _patch_mcp_config_for_isolation,
     generate_branch_name,
     get_isolation_handler,
 )
@@ -975,3 +978,86 @@ class TestGetIsolationHandler:
         """Test get_isolation_handler('clone') raises if dependencies missing."""
         with pytest.raises(ValueError, match="clone_manager.*required"):
             get_isolation_handler("clone")
+
+
+class TestPatchMcpConfigForIsolation:
+    """Tests for _patch_mcp_config_for_isolation."""
+
+    @pytest.mark.asyncio
+    async def test_writes_mcp_json(self, tmp_path: Path) -> None:
+        """Writes .mcp.json with --project pointing to main repo."""
+        isolated_path = str(tmp_path / "worktree")
+        Path(isolated_path).mkdir()
+        main_repo = "/path/to/main/repo"
+
+        await _patch_mcp_config_for_isolation(main_repo, isolated_path, "gemini")
+
+        mcp_json = Path(isolated_path) / ".mcp.json"
+        assert mcp_json.exists()
+        data = json.loads(mcp_json.read_text())
+        gobby_server = data["mcpServers"]["gobby"]
+        assert gobby_server["command"] == "uv"
+        assert "--project" in gobby_server["args"]
+        assert main_repo in gobby_server["args"]
+        assert "gobby" in gobby_server["args"]
+        assert "mcp-server" in gobby_server["args"]
+
+    @pytest.mark.asyncio
+    async def test_patches_claude_json_for_claude_provider(self, tmp_path: Path) -> None:
+        """For claude provider, registers isolated path in ~/.claude.json."""
+        isolated_path = str(tmp_path / "worktree")
+        Path(isolated_path).mkdir()
+        main_repo = "/path/to/main/repo"
+
+        fake_claude_json = tmp_path / ".claude.json"
+        fake_claude_json.write_text("{}")
+
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            await _patch_mcp_config_for_isolation(main_repo, isolated_path, "claude")
+
+        data = json.loads(fake_claude_json.read_text())
+        assert isolated_path in data["projects"]
+        project_config = data["projects"][isolated_path]
+        assert "gobby" in project_config["mcpServers"]
+
+    @pytest.mark.asyncio
+    async def test_does_not_patch_claude_json_for_gemini(self, tmp_path: Path) -> None:
+        """For non-claude provider, does not touch ~/.claude.json."""
+        isolated_path = str(tmp_path / "worktree")
+        Path(isolated_path).mkdir()
+
+        fake_claude_json = tmp_path / ".claude.json"
+        # File doesn't exist initially
+
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            await _patch_mcp_config_for_isolation("/main", isolated_path, "gemini")
+
+        # Should NOT have created ~/.claude.json
+        assert not fake_claude_json.exists()
+
+    @pytest.mark.asyncio
+    async def test_preserves_existing_claude_json_data(self, tmp_path: Path) -> None:
+        """Patching should preserve existing data in ~/.claude.json."""
+        isolated_path = str(tmp_path / "worktree")
+        Path(isolated_path).mkdir()
+
+        fake_claude_json = tmp_path / ".claude.json"
+        existing = {"existingKey": "value", "projects": {"/other": {"foo": "bar"}}}
+        fake_claude_json.write_text(json.dumps(existing))
+
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            await _patch_mcp_config_for_isolation("/main", isolated_path, "claude")
+
+        data = json.loads(fake_claude_json.read_text())
+        assert data["existingKey"] == "value"
+        assert "/other" in data["projects"]
+        assert isolated_path in data["projects"]
+
+    @pytest.mark.asyncio
+    async def test_handles_write_failure_gracefully(self, tmp_path: Path) -> None:
+        """Should log warning but not raise on write failure."""
+        # Non-existent parent dir will cause write failure
+        isolated_path = str(tmp_path / "nonexistent" / "deep" / "path")
+
+        # Should not raise
+        await _patch_mcp_config_for_isolation("/main", isolated_path, "claude")

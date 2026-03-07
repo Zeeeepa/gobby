@@ -529,6 +529,7 @@ class GobbyRunner:
                 clone_storage=self.clone_storage,
                 completion_registry=self.completion_registry,
                 task_manager=self.task_manager,
+                tmux_config=self.config.tmux if hasattr(self.config, "tmux") else None,
             )
         except Exception as e:
             logger.warning(f"Failed to initialize AgentLifecycleMonitor: {e}")

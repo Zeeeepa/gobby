@@ -260,6 +260,13 @@ class WorktreeIsolationHandler(IsolationHandler):
             provider=config.provider,
         )
 
+        # Patch MCP config so agents use the main repo's gobby code
+        await _patch_mcp_config_for_isolation(
+            main_repo_path=self._git_manager.repo_path,
+            isolated_path=worktree_path,
+            provider=config.provider,
+        )
+
         # Success — clear partial state
         self._created_worktree_path = None
         self._created_worktree_id = None
@@ -527,6 +534,13 @@ class CloneIsolationHandler(IsolationHandler):
             provider=config.provider,
         )
 
+        # Patch MCP config so agents use the main repo's gobby code
+        await _patch_mcp_config_for_isolation(
+            main_repo_path=config.project_path,
+            isolated_path=clone_path,
+            provider=config.provider,
+        )
+
         # Success — clear partial state
         self._created_clone_path = None
         self._created_clone_id = None
@@ -656,6 +670,77 @@ Push your changes when ready to share with the original.
                 f"Filesystem error copying CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
                 exc_info=True,
             )
+
+
+async def _patch_mcp_config_for_isolation(
+    main_repo_path: str,
+    isolated_path: str,
+    provider: str,
+) -> None:
+    """Patch MCP server config so isolated agents use the main repo's gobby code.
+
+    Without this, ``uv run gobby mcp-server`` resolves from the isolated
+    environment's ``pyproject.toml``/``uv.lock``, which may be on an old
+    branch and missing recent fixes.
+
+    Writes a ``.mcp.json`` in the isolated directory that forces
+    ``--project <main_repo_path>`` so ``uv`` resolves from the main repo.
+
+    For Claude provider, also patches ``~/.claude.json`` to register the
+    isolated path as a project with the correct MCP server config.
+    """
+    import json
+    import logging
+    from pathlib import Path
+
+    logger = logging.getLogger(__name__)
+
+    mcp_config = {
+        "mcpServers": {
+            "gobby": {
+                "command": "uv",
+                "args": [
+                    "run",
+                    "--project",
+                    main_repo_path,
+                    "gobby",
+                    "mcp-server",
+                ],
+            }
+        }
+    }
+
+    mcp_json_path = Path(isolated_path) / ".mcp.json"
+    try:
+        await asyncio.to_thread(
+            mcp_json_path.write_text, json.dumps(mcp_config, indent=2) + "\n"
+        )
+        logger.info(f"Wrote MCP config to {mcp_json_path}")
+    except OSError as e:
+        logger.warning(f"Failed to write .mcp.json to {isolated_path}: {e}")
+        return
+
+    # For Claude provider, register the isolated path in ~/.claude.json
+    if provider in ("claude", "cursor", "windsurf", "copilot"):
+        claude_json_path = Path.home() / ".claude.json"
+        try:
+
+            def _patch_claude_json() -> None:
+                data: dict = {}
+                if claude_json_path.exists():
+                    data = json.loads(claude_json_path.read_text())
+
+                projects = data.setdefault("projects", {})
+                projects[isolated_path] = {
+                    "mcpServers": mcp_config["mcpServers"],
+                }
+
+                claude_json_path.write_text(json.dumps(data, indent=2) + "\n")
+
+            await asyncio.to_thread(_patch_claude_json)
+            logger.info(f"Registered isolated path in ~/.claude.json: {isolated_path}")
+        except Exception as e:
+            logger.warning(f"Failed to patch ~/.claude.json for {isolated_path}: {e}")
 
 
 def get_isolation_handler(

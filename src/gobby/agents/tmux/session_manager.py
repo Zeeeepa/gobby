@@ -397,6 +397,28 @@ class TmuxSessionManager:
             return False
         return True
 
+    async def capture_pane(self, session_name: str, lines: int = 5) -> str | None:
+        """Capture the last N lines from a tmux session's pane.
+
+        Args:
+            session_name: Target session name.
+            lines: Number of lines to capture from the bottom.
+
+        Returns:
+            Captured text, or None on failure.
+        """
+        rc, stdout, _stderr = await self._run(
+            "capture-pane",
+            "-t",
+            session_name,
+            "-p",  # print to stdout
+            "-J",  # join wrapped lines
+            f"-S-{lines}",  # start N lines from bottom
+        )
+        if rc != 0:
+            return None
+        return stdout
+
     async def send_keys(self, session_name: str, keys: str) -> bool:
         """Send raw keys to a tmux session (for web UI input forwarding).
 

@@ -614,3 +614,190 @@ class TestStartStop:
         task2 = monitor._task
         assert task1 is task2
         await monitor.stop()
+
+
+class TestCheckIdleAgents:
+    """Tests for idle agent detection and reprompting."""
+
+    @pytest.fixture
+    def idle_monitor(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+    ) -> AgentLifecycleMonitor:
+        from gobby.config.tmux import TmuxConfig
+
+        config = TmuxConfig(idle_check_enabled=True, idle_timeout_seconds=10, max_reprompt_attempts=2)
+        return AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            check_interval_seconds=1.0,
+            tmux_config=config,
+        )
+
+    @pytest.mark.asyncio
+    async def test_active_agent_not_touched(
+        self,
+        idle_monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Active agents should not be reprompted."""
+        _make_terminal_agent(registry, run_id="run-active", tmux_session_name="gobby-active")
+
+        with patch.object(
+            idle_monitor._tmux, "capture_pane", new_callable=AsyncMock, return_value="Running tests...\n"
+        ):
+            handled = await idle_monitor.check_idle_agents()
+
+        assert handled == 0
+
+    @pytest.mark.asyncio
+    async def test_idle_agent_reprompted(
+        self,
+        idle_monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Idle agent past timeout should be reprompted."""
+        import time
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-idle",
+        )
+        agent_run_manager.start(run.id)
+        _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-idle")
+
+        # Pre-set idle state to simulate timeout elapsed
+        state = idle_monitor._idle_detector.get_state(run.id)
+        state.first_idle_at = time.monotonic() - 120
+
+        with (
+            patch.object(
+                idle_monitor._tmux, "capture_pane", new_callable=AsyncMock, return_value="❯\n"
+            ),
+            patch.object(
+                idle_monitor._tmux, "send_keys", new_callable=AsyncMock, return_value=True
+            ) as mock_send,
+        ):
+            handled = await idle_monitor.check_idle_agents()
+
+        assert handled == 1
+        mock_send.assert_called_once()
+        assert "Continue working" in mock_send.call_args[0][1]
+
+    @pytest.mark.asyncio
+    async def test_idle_agent_failed_after_max_reprompts(
+        self,
+        idle_monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Agent should be failed after exhausting reprompt attempts."""
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-exhausted",
+        )
+        agent_run_manager.start(run.id)
+        _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-exhausted")
+
+        # Set reprompt count at max
+        state = idle_monitor._idle_detector.get_state(run.id)
+        state.reprompt_count = 2  # max_reprompt_attempts = 2
+
+        with (
+            patch.object(
+                idle_monitor._tmux, "capture_pane", new_callable=AsyncMock, return_value="❯\n"
+            ),
+            patch.object(
+                idle_monitor._tmux, "kill_session", new_callable=AsyncMock, return_value=True
+            ),
+        ):
+            handled = await idle_monitor.check_idle_agents()
+
+        assert handled == 1
+        assert registry.get(run.id) is None
+        updated = agent_run_manager.get(run.id)
+        assert updated is not None
+        assert updated.status == "error"
+        assert "idle" in (updated.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_context_full_fails_immediately(
+        self,
+        idle_monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Context-full agent should be failed immediately without reprompt."""
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-ctx-full",
+        )
+        agent_run_manager.start(run.id)
+        _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-ctx")
+
+        with (
+            patch.object(
+                idle_monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value="The context window is full.\n❯\n",
+            ),
+            patch.object(
+                idle_monitor._tmux, "kill_session", new_callable=AsyncMock, return_value=True
+            ),
+        ):
+            handled = await idle_monitor.check_idle_agents()
+
+        assert handled == 1
+        assert registry.get(run.id) is None
+        updated = agent_run_manager.get(run.id)
+        assert updated is not None
+        assert updated.status == "error"
+        assert "context" in (updated.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_disabled_idle_check(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+    ) -> None:
+        """Idle check should be skipped when disabled."""
+        from gobby.config.tmux import TmuxConfig
+
+        config = TmuxConfig(idle_check_enabled=False)
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            tmux_config=config,
+        )
+        _make_terminal_agent(registry, run_id="run-skip", tmux_session_name="gobby-skip")
+
+        handled = await mon.check_idle_agents()
+        assert handled == 0
+
+    @pytest.mark.asyncio
+    async def test_capture_pane_failure_skipped(
+        self,
+        idle_monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Agent should be skipped if capture_pane returns None."""
+        _make_terminal_agent(registry, run_id="run-no-capture", tmux_session_name="gobby-nocap")
+
+        with patch.object(
+            idle_monitor._tmux, "capture_pane", new_callable=AsyncMock, return_value=None
+        ):
+            handled = await idle_monitor.check_idle_agents()
+
+        assert handled == 0

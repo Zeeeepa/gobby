@@ -1,0 +1,136 @@
+"""Idle agent detection via tmux pane content analysis.
+
+Examines the last few lines of a tmux pane to determine whether an agent
+is idle at a prompt, has exhausted its context window, or is still working.
+"""
+
+from __future__ import annotations
+
+import re
+import time
+from dataclasses import dataclass
+
+
+@dataclass
+class IdleState:
+    """Tracks idle state for a single agent."""
+
+    first_idle_at: float | None = None
+    reprompt_count: int = 0
+    last_reprompt_at: float | None = None
+
+
+class IdleDetector:
+    """Detects idle agents by pattern-matching tmux pane output.
+
+    Three detection modes:
+    1. **Idle prompt** — agent is sitting at ❯ or $ prompt (repromptable)
+    2. **Context full** — agent hit context limits (immediate fail, reprompt won't help)
+    3. **Active** — agent is still working (no action needed)
+    """
+
+    IDLE_PROMPT_PATTERNS: list[re.Pattern[str]] = [
+        re.compile(r"^\s*[❯>]\s*$"),  # Claude Code idle prompt
+        re.compile(r"^\s*\$\s*$"),  # Shell prompt (agent exited)
+    ]
+
+    CONTEXT_FULL_PATTERNS: list[re.Pattern[str]] = [
+        re.compile(r"context.*window.*full", re.IGNORECASE),
+        re.compile(r"would you like to continue", re.IGNORECASE),
+        re.compile(r"run out of context", re.IGNORECASE),
+        re.compile(r"conversation is too long", re.IGNORECASE),
+    ]
+
+    REPROMPT_MESSAGE = (
+        "Continue working on your task. If you are done, call close_task and then kill_agent."
+    )
+
+    def __init__(self) -> None:
+        self._states: dict[str, IdleState] = {}
+
+    def get_state(self, run_id: str) -> IdleState:
+        """Get or create idle state for an agent."""
+        if run_id not in self._states:
+            self._states[run_id] = IdleState()
+        return self._states[run_id]
+
+    def clear_state(self, run_id: str) -> None:
+        """Remove tracking state for an agent (on cleanup)."""
+        self._states.pop(run_id, None)
+
+    def detect(self, pane_output: str) -> str:
+        """Classify pane output as 'idle', 'context_full', or 'active'.
+
+        Args:
+            pane_output: Last few lines captured from the tmux pane.
+
+        Returns:
+            One of: 'idle', 'context_full', 'active'
+        """
+        lines = pane_output.strip().splitlines()
+        if not lines:
+            return "active"
+
+        # Check all lines for context-full patterns (takes priority)
+        full_text = "\n".join(lines)
+        for pattern in self.CONTEXT_FULL_PATTERNS:
+            if pattern.search(full_text):
+                return "context_full"
+
+        # Check last non-empty line for idle prompt
+        for line in reversed(lines):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            for pattern in self.IDLE_PROMPT_PATTERNS:
+                if pattern.match(line):
+                    return "idle"
+            # If last non-empty line doesn't match idle, agent is active
+            break
+
+        return "active"
+
+    def should_reprompt(
+        self,
+        run_id: str,
+        idle_timeout_seconds: int,
+        max_reprompt_attempts: int,
+    ) -> bool:
+        """Check if an idle agent should be reprompted.
+
+        Returns True if the agent has been idle long enough and hasn't
+        exceeded max reprompt attempts.
+        """
+        state = self.get_state(run_id)
+        now = time.monotonic()
+
+        if state.first_idle_at is None:
+            state.first_idle_at = now
+            return False
+
+        elapsed = now - state.first_idle_at
+        if elapsed < idle_timeout_seconds:
+            return False
+
+        if state.reprompt_count >= max_reprompt_attempts:
+            return False
+
+        return True
+
+    def should_fail(self, run_id: str, max_reprompt_attempts: int) -> bool:
+        """Check if an idle agent should be failed (exhausted reprompts)."""
+        state = self.get_state(run_id)
+        return state.reprompt_count >= max_reprompt_attempts
+
+    def record_reprompt(self, run_id: str) -> None:
+        """Record that a reprompt was sent."""
+        state = self.get_state(run_id)
+        state.reprompt_count += 1
+        state.last_reprompt_at = time.monotonic()
+        # Reset idle timer so we wait again before next reprompt
+        state.first_idle_at = time.monotonic()
+
+    def reset_idle(self, run_id: str) -> None:
+        """Reset idle tracking when agent becomes active again."""
+        state = self.get_state(run_id)
+        state.first_idle_at = None
