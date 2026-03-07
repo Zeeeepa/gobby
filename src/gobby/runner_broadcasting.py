@@ -41,6 +41,21 @@ def setup_agent_event_broadcasting(websocket_server: WebSocketServer) -> None:
         if not websocket_server:
             return
 
+        # Guard: this callback may be invoked from a sync context (e.g.,
+        # session_coordinator.complete_agent_run via hook handler) where no
+        # event loop is running.  All work below uses asyncio.create_task
+        # which requires a running loop.  Silently skip if unavailable —
+        # the broadcast is non-critical UI refreshing.
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            logger.debug(
+                "Skipping agent event broadcast for %s/%s (no running event loop)",
+                event_type,
+                run_id,
+            )
+            return
+
         def _log_broadcast_exception(task: asyncio.Task[None]) -> None:
             """Log exceptions from broadcast task to avoid silent failures."""
             try:

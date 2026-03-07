@@ -11,6 +11,7 @@ Classes:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 import threading
@@ -77,9 +78,17 @@ class SessionCoordinator:
         # Lock for session lookups to prevent race conditions (double firing)
         self._lookup_lock = threading.Lock()
 
+        # Reference to the main event loop for cross-thread async scheduling
+        self._event_loop: asyncio.AbstractEventLoop | None = None
+
     def set_completion_registry(self, registry: Any) -> None:
         """Inject completion registry after construction (avoids circular init ordering)."""
         self._completion_registry = registry
+        # Capture the event loop at wiring time (called from the async startup path)
+        try:
+            self._event_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
 
     # ==================== REGISTRATION TRACKING ====================
 
@@ -454,18 +463,33 @@ class SessionCoordinator:
             self.logger.warning(f"Failed to release worktrees for session {session.id}: {e}")
 
     def _notify_agent_completion(self, run_id: str, status: str) -> None:
-        """Fire completion event for an agent run (fail-open, idempotent)."""
+        """Fire completion event for an agent run (fail-open, idempotent).
+
+        This may be called from a sync context (hook handler thread) where no
+        event loop is running.  Uses run_coroutine_threadsafe with the stored
+        main loop reference to safely schedule the async notify call.
+        """
         if not self._completion_registry:
             return
         try:
-            import asyncio
-
             result = {"status": status, "run_id": run_id}
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.create_task(self._completion_registry.notify(run_id, result))
+            coro = self._completion_registry.notify(run_id, result)
+
+            # Prefer the current running loop (if we happen to be in async context)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(coro)
+                return
+            except RuntimeError:
+                pass
+
+            # Fall back to stored main event loop (cross-thread scheduling)
+            if self._event_loop and not self._event_loop.is_closed():
+                asyncio.run_coroutine_threadsafe(coro, self._event_loop)
             else:
-                loop.run_until_complete(self._completion_registry.notify(run_id, result))
+                self.logger.debug(
+                    "No event loop available to notify completion for run %s", run_id
+                )
         except Exception:
             self.logger.debug(
                 "Failed to notify completion registry for run %s", run_id, exc_info=True
