@@ -141,6 +141,15 @@ class TmuxSpawner(TerminalSpawnerBase):
                 error=str(e),
             )
 
+        # Verify session actually exists (guards against post-restart tmux failures)
+        await asyncio.sleep(0.2)
+        if not await self._session_manager.has_session(info.name):
+            return SpawnResult(
+                success=False,
+                message=f"tmux session '{info.name}' created but not found on verification",
+                error="tmux session verification failed",
+            )
+
         result = SpawnResult(
             success=True,
             message=(

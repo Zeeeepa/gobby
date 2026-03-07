@@ -229,6 +229,53 @@ def register_pipeline_tools(
             run_ids.append(merge_output["run_id"])
 
         if not run_ids:
+            # Dead-end safeguard: if no agents were dispatched but orchestration
+            # is not complete, schedule a delayed self-retry to escape the dead-end.
+            orchestration_complete = dispatch_outputs.get("orchestration_complete", False)
+            if not orchestration_complete and _completion_registry and _completion_registry._pipeline_rerun_callback:
+                try:
+                    resolved_sid = None
+                    proj_id = ""
+                    if session_id:
+                        try:
+                            resolved_sid = _resolve_session_ref(session_id, session_manager)
+                        except ValueError:
+                            resolved_sid = session_id
+                        if session_manager and resolved_sid:
+                            try:
+                                sess = session_manager.get(resolved_sid)
+                                if sess:
+                                    proj_id = sess.project_id
+                            except Exception:
+                                pass
+
+                    retry_config = {
+                        "pipeline_name": pipeline_name,
+                        "inputs": inputs,
+                        "session_id": resolved_sid or session_id,
+                        "project_id": proj_id,
+                        "continuation_prompt": continuation_prompt,
+                    }
+                    # Schedule the retry with a small delay
+                    async def _delayed_retry() -> None:
+                        await asyncio.sleep(10)
+                        await _completion_registry._pipeline_rerun_callback(retry_config)
+
+                    asyncio.create_task(_delayed_retry(), name="dead-end-retry")
+                    logger.info(
+                        "Dead-end detected: 0 agents dispatched, orchestration not complete. "
+                        "Scheduled self-retry in 10s for pipeline %s",
+                        pipeline_name,
+                    )
+                    return {
+                        "success": True,
+                        "registered": 0,
+                        "dead_end_retry": True,
+                        "message": "No agents dispatched but orchestration not complete — self-retry scheduled",
+                    }
+                except Exception as e:
+                    logger.warning("Failed to schedule dead-end retry: %s", e)
+
             return {
                 "success": True,
                 "registered": 0,

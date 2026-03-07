@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 # tmux_sender signature: (tmux_session_name: str, message: str) -> None
 TmuxSender = Callable[[str, str], Coroutine[Any, Any, None]]
 
+# tmux_pane_sender signature: (pane_id: str, message: str) -> None
+TmuxPaneSender = Callable[[str, str], Coroutine[Any, Any, None]]
+
 # sdk_resumer signature: (sdk_session_id: str, message: str) -> None
 SdkResumer = Callable[[str, str], Coroutine[Any, Any, None]]
 
@@ -44,12 +47,14 @@ class WakeDispatcher:
         session_manager: LocalSessionManager,
         ism_manager: InterSessionMessageManager,
         tmux_sender: TmuxSender | None = None,
+        tmux_pane_sender: TmuxPaneSender | None = None,
         sdk_resumer: SdkResumer | None = None,
         agent_run_manager: LocalAgentRunManager | None = None,
     ) -> None:
         self._session_manager = session_manager
         self._ism_manager = ism_manager
         self._tmux_sender = tmux_sender
+        self._tmux_pane_sender = tmux_pane_sender
         self._sdk_resumer = sdk_resumer
         self._agent_run_manager = agent_run_manager
 
@@ -73,8 +78,24 @@ class WakeDispatcher:
 
         agent_depth = getattr(session, "agent_depth", 0) or 0
 
-        # Interactive session → always ISM
+        # Interactive session with continuation_prompt → try tmux pane injection
         if agent_depth == 0:
+            continuation_prompt = result.get("continuation_prompt") if result else None
+            if continuation_prompt and self._tmux_pane_sender:
+                terminal_context = getattr(session, "terminal_context", None)
+                if terminal_context:
+                    tmux_pane = self._parse_tmux_pane(terminal_context)
+                    if tmux_pane:
+                        try:
+                            await self._tmux_pane_sender(tmux_pane, continuation_prompt)
+                            return
+                        except Exception:
+                            logger.warning(
+                                "tmux pane wake failed for session %s (pane=%s), falling back to ISM",
+                                session_id,
+                                tmux_pane,
+                                exc_info=True,
+                            )
             self._send_ism(session_id, message)
             return
 
@@ -160,5 +181,14 @@ class WakeDispatcher:
         try:
             ctx = json.loads(terminal_context)
             return cast(str | None, ctx.get("tmux_session"))
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    @staticmethod
+    def _parse_tmux_pane(terminal_context: str) -> str | None:
+        """Extract tmux pane ID from terminal_context JSON."""
+        try:
+            ctx = json.loads(terminal_context)
+            return cast(str | None, ctx.get("tmux_pane"))
         except (json.JSONDecodeError, TypeError):
             return None

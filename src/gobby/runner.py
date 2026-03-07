@@ -444,10 +444,23 @@ class GobbyRunner:
             mgr = get_tmux_session_manager()
             await mgr.send_keys(tmux_session_name, message + "\n")
 
+        # tmux pane sender: sends keys to the invoking CLI's tmux pane
+        # Uses the default tmux socket (not -L gobby) since these are user panes
+        async def _tmux_pane_send(pane_id: str, message: str) -> None:
+            proc = await asyncio.create_subprocess_exec(
+                "tmux", "send-keys", "-t", pane_id, message, "Enter",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"tmux send-keys to {pane_id} failed: {stderr.decode()}")
+
         self.wake_dispatcher = WakeDispatcher(
             session_manager=self.session_manager,
             ism_manager=ism_manager,
             tmux_sender=_tmux_send,
+            tmux_pane_sender=_tmux_pane_send,
             agent_run_manager=agent_run_manager,
         )
 
@@ -513,6 +526,7 @@ class GobbyRunner:
                 agent_registry=get_running_agent_registry(),
                 agent_run_manager=LocalAgentRunManager(self.database),
                 clone_storage=self.clone_storage,
+                completion_registry=self.completion_registry,
             )
         except Exception as e:
             logger.warning(f"Failed to initialize AgentLifecycleMonitor: {e}")
@@ -917,6 +931,34 @@ class GobbyRunner:
                             )
                 except Exception as e:
                     logger.warning(f"Pipeline recovery after restart failed: {e}")
+
+            # Re-trigger stalled orchestrator pipelines after restart
+            if self.pipeline_execution_manager and self.completion_registry:
+                try:
+                    from gobby.workflows.pipeline_state import ExecutionStatus as _ES
+
+                    stale_orchestrations = self.pipeline_execution_manager.list_executions(
+                        status=_ES.INTERRUPTED,
+                        pipeline_name="orchestrator",
+                    )
+                    for exe in stale_orchestrations:
+                        try:
+                            import json as _json
+
+                            inputs = _json.loads(exe.inputs_json) if exe.inputs_json else {}
+                            inputs["_current_iteration"] = inputs.get("_current_iteration", 0) + 1
+                            await self._rerun_pipeline({
+                                "pipeline_name": "orchestrator",
+                                "inputs": inputs,
+                                "session_id": exe.session_id,
+                                "project_id": exe.project_id or self.project_id or "",
+                                "continuation_prompt": exe.continuation_prompt,
+                            })
+                            logger.info(f"Re-triggered stalled orchestration {exe.id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to re-trigger orchestration {exe.id}: {e}")
+                except Exception as e:
+                    logger.warning(f"Orchestration restart recovery failed: {e}")
 
             # Start WebSocket server
             websocket_task = None

@@ -107,6 +107,11 @@ class CompletionEventRegistry:
             logger.debug("notify() called for unregistered ID %s — ignoring", completion_id)
             return
 
+        # Include continuation_prompt in result so wake dispatcher can use it
+        cp = self._continuation_prompts.get(completion_id)
+        if cp and "continuation_prompt" not in result:
+            result["continuation_prompt"] = cp
+
         self._results[completion_id] = result
         event.set()
 

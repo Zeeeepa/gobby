@@ -484,8 +484,11 @@ class TestTmuxSpawner:
         spawner = TmuxSpawner()
         with patch.object(
             spawner._session_manager, "create_session", new_callable=AsyncMock
-        ) as mock_create:
+        ) as mock_create, patch.object(
+            spawner._session_manager, "has_session", new_callable=AsyncMock
+        ) as mock_has:
             mock_create.return_value = TmuxSessionInfo(name="test-session", pane_pid=123)
+            mock_has.return_value = True
             await spawner._async_spawn(
                 command=["echo", "hello"],
                 cwd="/tmp",
@@ -509,8 +512,11 @@ class TestTmuxSpawner:
         spawner = TmuxSpawner()
         with patch.object(
             spawner._session_manager, "create_session", new_callable=AsyncMock
-        ) as mock_create:
+        ) as mock_create, patch.object(
+            spawner._session_manager, "has_session", new_callable=AsyncMock
+        ) as mock_has:
             mock_create.return_value = TmuxSessionInfo(name="test-session", pane_pid=123)
+            mock_has.return_value = True
             await spawner._async_spawn(
                 command=["claude", "--session-id=xxx"],
                 cwd="/tmp",
@@ -530,8 +536,11 @@ class TestTmuxSpawner:
         spawner = TmuxSpawner()
         with patch.object(
             spawner._session_manager, "create_session", new_callable=AsyncMock
-        ) as mock_create:
+        ) as mock_create, patch.object(
+            spawner._session_manager, "has_session", new_callable=AsyncMock
+        ) as mock_has:
             mock_create.return_value = TmuxSessionInfo(name="test-session", pane_pid=456)
+            mock_has.return_value = True
             result = await spawner._async_spawn(
                 command=["echo", "test"],
                 cwd="/tmp",

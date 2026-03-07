@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import signal
 from typing import TYPE_CHECKING
 
 from gobby.agents.registry import RunningAgentRegistry
@@ -18,6 +20,7 @@ from gobby.agents.tmux.session_manager import TmuxSessionManager
 from gobby.storage.agents import LocalAgentRunManager
 
 if TYPE_CHECKING:
+    from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.storage.clones import LocalCloneManager
 
@@ -41,12 +44,14 @@ class AgentLifecycleMonitor:
         session_coordinator: SessionCoordinator | None = None,
         clone_storage: LocalCloneManager | None = None,
         check_interval_seconds: float = 30.0,
+        completion_registry: CompletionEventRegistry | None = None,
     ) -> None:
         self._registry = agent_registry
         self._agent_run_manager = agent_run_manager
         self._session_coordinator = session_coordinator
         self._clone_storage = clone_storage
         self._check_interval = check_interval_seconds
+        self._completion_registry = completion_registry
         self._tmux = TmuxSessionManager()
         self._running = False
         self._task: asyncio.Task[None] | None = None
@@ -120,6 +125,19 @@ class AgentLifecycleMonitor:
                     f"for agent {agent.run_id}"
                 )
 
+                # Kill orphaned process before cleanup
+                if agent.pid:
+                    try:
+                        os.kill(agent.pid, signal.SIGTERM)
+                        logger.info(
+                            f"Sent SIGTERM to orphaned agent process {agent.pid} "
+                            f"(run {agent.run_id})"
+                        )
+                    except ProcessLookupError:
+                        pass  # Already dead
+                    except Exception as e:
+                        logger.warning(f"Failed to kill orphaned process {agent.pid}: {e}")
+
                 # Mark DB record as error if still in active status
                 # These are sync DB calls — run off the event loop to avoid blocking
                 db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
@@ -130,6 +148,17 @@ class AgentLifecycleMonitor:
                         error="tmux session died unexpectedly",
                     )
                     logger.info(f"Marked agent run {agent.run_id} as failed (dead tmux session)")
+
+                # Fire completion event so orchestrator continuations trigger
+                if self._completion_registry:
+                    try:
+                        await self._completion_registry.notify(
+                            agent.run_id,
+                            result={"status": "error", "error": "tmux session died unexpectedly"},
+                            message=f"Agent {agent.run_id} failed (tmux session died)",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
 
                 # Remove from in-memory registry
                 self._registry.remove(agent.run_id, status="failed")
@@ -193,6 +222,22 @@ class AgentLifecycleMonitor:
                             agent.run_id,
                             result="Completed (detected by lifecycle monitor)",
                         )
+
+                # Fire completion event so orchestrator continuations trigger
+                if self._completion_registry:
+                    try:
+                        result_data = (
+                            {"status": "error", "error": error_msg}
+                            if error_msg
+                            else {"status": "completed"}
+                        )
+                        await self._completion_registry.notify(
+                            agent.run_id,
+                            result=result_data,
+                            message=f"Agent {agent.run_id} {'failed' if error_msg else 'completed'}",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
 
                 # Remove from in-memory registry
                 status = "failed" if error_msg else "completed"
@@ -321,6 +366,20 @@ class AgentLifecycleMonitor:
                 run.id,
                 error="Orphaned agent run (daemon restarted while agent was running)",
             )
+
+            # Fire completion event for orphaned run
+            if self._completion_registry:
+                try:
+                    if not self._completion_registry.is_registered(run.id):
+                        self._completion_registry.register(run.id, subscribers=[])
+                    await self._completion_registry.notify(
+                        run.id,
+                        result={"status": "error", "error": "Orphaned (daemon restarted)"},
+                        message=f"Agent {run.id} orphaned after daemon restart",
+                    )
+                except Exception:
+                    pass
+
             logger.info(f"Cleaned up orphaned agent run {run.id}")
             cleaned += 1
 
