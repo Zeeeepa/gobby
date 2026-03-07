@@ -123,6 +123,33 @@ class TmuxSessionManager:
         if not self.is_available():
             raise TmuxNotFoundError(self._config.command)
 
+    async def health_check(self) -> bool:
+        """Verify the tmux socket is responsive. Kill stale server if not.
+
+        Returns True if healthy (or recovered), False if tmux is unavailable.
+        """
+        if not self.is_available():
+            return False
+
+        try:
+            rc, _stdout, stderr = await self._run("list-sessions", timeout=5.0)
+            # rc=1 with "no server running" is fine — server will start on next create
+            if rc == 0 or "no server running" in stderr:
+                return True
+        except TimeoutError:
+            logger.warning("tmux socket unresponsive (timeout). Killing stale server.")
+        except Exception as e:
+            logger.warning("tmux health check failed: %s", e)
+
+        # Attempt to kill the stale server and let it restart on next use
+        try:
+            await self._run("kill-server", timeout=5.0)
+            logger.info("Killed stale tmux server on socket '%s'", self._config.socket_name)
+        except Exception as e:
+            logger.warning("Failed to kill stale tmux server: %s", e)
+
+        return True
+
     async def create_session(
         self,
         name: str,

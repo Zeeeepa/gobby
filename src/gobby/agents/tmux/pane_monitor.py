@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -129,14 +130,31 @@ class TmuxPaneMonitor:
         if not tmux_agents:
             return
 
-        # 4. Fire session_end for agents whose tmux session is gone
-        #    or whose pane process has exited (remain-on-exit keeps session alive)
+        # 4. Fire session_end for agents whose tmux session is gone,
+        #    whose pane process has exited (remain-on-exit keeps session alive),
+        #    or whose registered PID is no longer running.
         for agent in tmux_agents:
             session_name = agent.tmux_session_name
             if session_name is None:
                 continue
             live_info = live_lookup.get(session_name)
-            if live_info and not live_info.pane_dead:
+
+            # Check if the agent's PID is still alive (catches remain-on-exit cases)
+            pid_dead = False
+            if live_info and not live_info.pane_dead and agent.pid:
+                try:
+                    os.kill(agent.pid, 0)
+                except ProcessLookupError:
+                    pid_dead = True
+                    logger.info(
+                        "Agent PID %d is dead but tmux session %s still alive (remain-on-exit)",
+                        agent.pid,
+                        session_name,
+                    )
+                except PermissionError:
+                    pass  # PID exists but we can't signal it — it's alive
+
+            if live_info and not live_info.pane_dead and not pid_dead:
                 continue
             if agent.session_id in self._recently_ended:
                 continue

@@ -1,53 +1,49 @@
 name: merge
 description: |
-  Merge agent: batch merges approved tasks into the target branch.
-  Behavior enforced by inline step workflow.
+  Merge agent: merges the shared epic worktree into the target branch,
+  then closes all approved tasks.
 
-version: "2.0"
+version: "3.0"
 enabled: false
 isolation: none
 
 instructions: |
   You are a merge agent spawned by an orchestrator pipeline.
-  You work in the main repo and operate on task worktrees via MCP tools.
+  You work in the main repo and operate on a SHARED worktree via MCP tools.
 
-  Merge ALL review_approved tasks into the target branch.
-  For each approved task (process in seq_num order):
-  1. list_tasks(parent_task_id=..., status="review_approved") to find approved tasks
-  2. list_worktrees(task_id=...) to find the task's worktree
-  3. merge_worktree(worktree_id=...) to merge into target
-  4. If conflicts: use gobby-merge tools to resolve. If unresolvable, escalate_task.
-  5. Run the push_command from merge_worktree result
-  6. auto_link_commits(task_id=..., since=task.created_at)
-  7. close_task(task_id=..., changes_summary="Merged to {target}")
-  8. delete_worktree(worktree_id=..., force=true)
-  9. git fetch origin (before next merge)
+  Your prompt contains the worktree_id and merge_target. Use them directly.
 
-  When all approved tasks are merged, call kill_agent to terminate.
+  Steps:
+  1. merge_worktree(worktree_id=<worktree_id>) to merge the epic branch into the target
+  2. If conflicts: use gobby-merge tools to resolve. If unresolvable, escalate_task on the parent epic.
+  3. Run the push_command from the merge_worktree result
+  4. list_tasks(parent_task_id=<epic>, status="review_approved") to find approved tasks
+  5. For each approved task (in seq_num order):
+     a. auto_link_commits(task_id=..., since="1 hour ago")
+     b. close_task(task_id=..., changes_summary="Merged to {target}")
+  6. delete_worktree(worktree_id=<worktree_id>, force=true)
+  7. call kill_agent to terminate
 
   CRITICAL RULES:
   - Do NOT use raw git merge commands. Use ONLY merge_worktree MCP tool. Exception: you are allowed to run 'git fetch origin'.
   - Do NOT edit or write files — you only merge.
   - Do NOT stop or exit without calling kill_agent.
   - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
+  - There is ONE shared worktree for the entire epic, NOT one per task.
 
 step_variables:
   merge_complete: false
 
 steps:
   - name: merge
-    description: "Merge all approved tasks sequentially"
+    description: "Merge shared worktree and close approved tasks"
     status_message: |
-      Merge all review_approved tasks into the target branch.
-      For each task (in seq_num order):
-      1. list_worktrees(task_id=...) to find the worktree
-      2. merge_worktree(worktree_id=...) to merge
-      3. Run the push_command from the result
-      4. auto_link_commits(task_id=..., since="1 hour ago")
-      5. close_task(task_id=..., changes_summary="Merged to {target}")
-      6. delete_worktree(worktree_id=..., force=true)
-      7. git fetch origin (before next merge)
-      When all tasks merged, call kill_agent to terminate.
+      1. merge_worktree(worktree_id=...) to merge the epic branch
+      2. Run the push_command from the result
+      3. list_tasks(parent_task_id=..., status="review_approved")
+      4. For each: auto_link_commits, close_task
+      5. delete_worktree(worktree_id=..., force=true)
+      6. call kill_agent to terminate
     allowed_tools:
       - Bash
       - Read

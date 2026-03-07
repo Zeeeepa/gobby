@@ -233,6 +233,24 @@ def register_pipeline_tools(
             # is not complete, schedule a delayed self-retry to escape the dead-end.
             orchestration_complete = dispatch_outputs.get("orchestration_complete", False)
             if not orchestration_complete and _completion_registry and _completion_registry._pipeline_rerun_callback:
+                # Backoff: read retry count from inputs, enforce limit
+                dead_end_retries = inputs.get("_dead_end_retries", 0)
+                max_dead_end_retries = 10
+                if dead_end_retries >= max_dead_end_retries:
+                    logger.error(
+                        "Dead-end retry limit reached (%d/%d) for pipeline %s. "
+                        "Stopping orchestration.",
+                        dead_end_retries,
+                        max_dead_end_retries,
+                        pipeline_name,
+                    )
+                    return {
+                        "success": False,
+                        "registered": 0,
+                        "error": f"Dead-end retry limit reached ({dead_end_retries}/{max_dead_end_retries}). "
+                        "No agents could be dispatched after repeated attempts.",
+                    }
+
                 try:
                     resolved_sid = None
                     proj_id = ""
@@ -249,29 +267,40 @@ def register_pipeline_tools(
                             except Exception:
                                 pass
 
+                    # Increment retry count in inputs for next pass
+                    retry_inputs = dict(inputs)
+                    retry_inputs["_dead_end_retries"] = dead_end_retries + 1
+
                     retry_config = {
                         "pipeline_name": pipeline_name,
-                        "inputs": inputs,
+                        "inputs": retry_inputs,
                         "session_id": resolved_sid or session_id,
                         "project_id": proj_id,
                         "continuation_prompt": continuation_prompt,
                     }
-                    # Schedule the retry with a small delay
+                    # Exponential backoff: 10s, 20s, 40s, ... capped at 300s
+                    delay = min(10 * (2 ** dead_end_retries), 300)
+
                     async def _delayed_retry() -> None:
-                        await asyncio.sleep(10)
+                        await asyncio.sleep(delay)
                         await _completion_registry._pipeline_rerun_callback(retry_config)
 
                     asyncio.create_task(_delayed_retry(), name="dead-end-retry")
                     logger.info(
                         "Dead-end detected: 0 agents dispatched, orchestration not complete. "
-                        "Scheduled self-retry in 10s for pipeline %s",
+                        "Scheduled self-retry %d/%d in %ds for pipeline %s",
+                        dead_end_retries + 1,
+                        max_dead_end_retries,
+                        delay,
                         pipeline_name,
                     )
                     return {
                         "success": True,
                         "registered": 0,
                         "dead_end_retry": True,
-                        "message": "No agents dispatched but orchestration not complete — self-retry scheduled",
+                        "retry_number": dead_end_retries + 1,
+                        "retry_delay": delay,
+                        "message": f"No agents dispatched — self-retry {dead_end_retries + 1}/{max_dead_end_retries} scheduled in {delay}s",
                     }
                 except Exception as e:
                     logger.warning("Failed to schedule dead-end retry: %s", e)
@@ -303,9 +332,13 @@ def register_pipeline_tools(
                         exc_info=True,
                     )
 
+        # Reset dead-end retry counter since agents were dispatched
+        clean_inputs = dict(inputs)
+        clean_inputs.pop("_dead_end_retries", None)
+
         continuation_config = {
             "pipeline_name": pipeline_name,
-            "inputs": inputs,
+            "inputs": clean_inputs,
             "session_id": resolved_session_id or session_id,
             "project_id": project_id,
             "continuation_prompt": continuation_prompt,

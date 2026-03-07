@@ -467,6 +467,7 @@ class GobbyRunner:
         self.completion_registry = CompletionEventRegistry(
             wake_callback=self.wake_dispatcher.wake,
             pipeline_rerun_callback=self._rerun_pipeline,
+            db=self.database,
         )
 
         # Create pipeline executor at startup if we have project context
@@ -527,6 +528,7 @@ class GobbyRunner:
                 agent_run_manager=LocalAgentRunManager(self.database),
                 clone_storage=self.clone_storage,
                 completion_registry=self.completion_registry,
+                task_manager=self.task_manager,
             )
         except Exception as e:
             logger.warning(f"Failed to initialize AgentLifecycleMonitor: {e}")
@@ -815,6 +817,22 @@ class GobbyRunner:
 
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
+
+            # tmux socket health check before any agent operations
+            try:
+                from gobby.agents.tmux.session_manager import TmuxSessionManager
+
+                tmux_mgr = TmuxSessionManager()
+                await tmux_mgr.health_check()
+            except Exception as e:
+                logger.warning(f"tmux health check failed on startup: {e}")
+
+            # Load persisted pipeline continuations BEFORE orphan cleanup
+            # so that orphan completion events can find their continuations
+            try:
+                self.completion_registry.load_persisted_continuations()
+            except Exception as e:
+                logger.warning(f"Failed to load persisted continuations: {e}")
 
             # Start Agent Lifecycle Monitor (detect dead tmux sessions)
             if self.agent_lifecycle_monitor:

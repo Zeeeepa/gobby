@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 144
+BASELINE_VERSION = 145
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -932,6 +932,12 @@ CREATE TABLE session_transcripts (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE pipeline_continuations (
+    run_id TEXT PRIMARY KEY,
+    config_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 # Migrations beyond v133.
@@ -1085,6 +1091,15 @@ CREATE INDEX IF NOT EXISTS idx_cs_parent ON code_symbols(parent_symbol_id)""",
     checksum TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)""",
+    ),
+    (
+        145,
+        "Add pipeline_continuations table for restart recovery",
+        """CREATE TABLE IF NOT EXISTS pipeline_continuations (
+    run_id TEXT PRIMARY KEY,
+    config_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )""",
     ),
 ]

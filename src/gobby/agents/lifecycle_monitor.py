@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class AgentLifecycleMonitor:
         clone_storage: LocalCloneManager | None = None,
         check_interval_seconds: float = 30.0,
         completion_registry: CompletionEventRegistry | None = None,
+        task_manager: LocalTaskManager | None = None,
     ) -> None:
         self._registry = agent_registry
         self._agent_run_manager = agent_run_manager
@@ -52,6 +54,7 @@ class AgentLifecycleMonitor:
         self._clone_storage = clone_storage
         self._check_interval = check_interval_seconds
         self._completion_registry = completion_registry
+        self._task_manager = task_manager
         self._tmux = TmuxSessionManager()
         self._running = False
         self._task: asyncio.Task[None] | None = None
@@ -59,6 +62,26 @@ class AgentLifecycleMonitor:
     def set_session_coordinator(self, coordinator: SessionCoordinator) -> None:
         """Inject session coordinator after construction (avoids circular init ordering)."""
         self._session_coordinator = coordinator
+
+    async def _recover_task_from_failed_agent(self, run_id: str) -> None:
+        """Reset a failed agent's task back to 'open' so the orchestrator can re-dispatch it."""
+        if not self._task_manager:
+            return
+        try:
+            db_run = await asyncio.to_thread(self._agent_run_manager.get, run_id)
+            if not db_run or not db_run.task_id:
+                return
+            task = await asyncio.to_thread(self._task_manager.get_task, db_run.task_id)
+            if task and task.status == "in_progress":
+                await asyncio.to_thread(
+                    self._task_manager.update_task, db_run.task_id, status="open", assignee=None
+                )
+                task_ref = f"#{task.seq_num}" if task.seq_num else db_run.task_id[:8]
+                logger.info(
+                    "Recovered task %s to open after agent %s failed", task_ref, run_id
+                )
+        except Exception as e:
+            logger.warning("Failed to recover task for agent %s: %s", run_id, e)
 
     async def start(self) -> None:
         """Start the monitoring loop."""
@@ -149,6 +172,9 @@ class AgentLifecycleMonitor:
                     )
                     logger.info(f"Marked agent run {agent.run_id} as failed (dead tmux session)")
 
+                # Recover the task so orchestrator can re-dispatch
+                await self._recover_task_from_failed_agent(agent.run_id)
+
                 # Fire completion event so orchestrator continuations trigger
                 if self._completion_registry:
                     try:
@@ -222,6 +248,10 @@ class AgentLifecycleMonitor:
                             agent.run_id,
                             result="Completed (detected by lifecycle monitor)",
                         )
+
+                # Recover the task if the agent failed
+                if error_msg:
+                    await self._recover_task_from_failed_agent(agent.run_id)
 
                 # Fire completion event so orchestrator continuations trigger
                 if self._completion_registry:
@@ -366,6 +396,9 @@ class AgentLifecycleMonitor:
                 run.id,
                 error="Orphaned agent run (daemon restarted while agent was running)",
             )
+
+            # Recover the task so orchestrator can re-dispatch
+            await self._recover_task_from_failed_agent(run.id)
 
             # Fire completion event for orphaned run
             if self._completion_registry:
