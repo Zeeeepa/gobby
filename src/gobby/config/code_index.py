@@ -76,7 +76,7 @@ class CodeIndexConfig(BaseModel):
             "java",
             "php",
             "dart",
-            "c_sharp",
+            "csharp",
             "c",
             "cpp",
             "elixir",

@@ -169,7 +169,7 @@ _DART_SPEC = LanguageSpec(
     symbol_query="""
         (function_signature name: (identifier) @name) @definition.function
         (class_definition name: (identifier) @name) @definition.class
-        (method_signature name: (identifier) @name) @definition.method
+        (method_signature (function_signature (identifier) @name)) @definition.method
         (enum_declaration name: (identifier) @name) @definition.type
     """,
     import_query="""
@@ -276,7 +276,7 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
     "java": _JAVA_SPEC,
     "php": _PHP_SPEC,
     "dart": _DART_SPEC,
-    "c_sharp": _CSHARP_SPEC,
+    "csharp": _CSHARP_SPEC,
     "c": _C_SPEC,
     "cpp": _CPP_SPEC,
     "elixir": _ELIXIR_SPEC,
