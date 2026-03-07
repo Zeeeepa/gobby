@@ -146,7 +146,7 @@ function compareTasks(a: GobbyTask, b: GobbyTask, col: SortColumn, dir: SortDire
       cmp = a.title.localeCompare(b.title)
       break
     case 'type':
-      cmp = a.type.localeCompare(b.type)
+      cmp = a.task_type.localeCompare(b.task_type)
       break
     case 'priority':
       cmp = a.priority - b.priority
@@ -335,7 +335,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
     // Pre-fill parent from selected task (if it's an epic/task)
     if (selectedTaskId) {
       const selected = tasks.find(t => t.id === selectedTaskId)
-      if (selected && (selected.type === 'epic' || selected.type === 'task')) {
+      if (selected && (selected.task_type === 'epic' || selected.task_type === 'task')) {
         defaults.parentTaskId = selectedTaskId
       }
     }
