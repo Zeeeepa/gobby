@@ -1,4 +1,4 @@
-tags: [code-index, gobby]
+tags: [code-index, gobby, default]
 
 rules:
   code-index-compress-reads:

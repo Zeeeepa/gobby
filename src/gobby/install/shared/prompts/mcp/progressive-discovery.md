@@ -24,6 +24,12 @@ Discover skills with progressive discovery too:
 3. `search_skills(query="...")` — Semantic search by topic (independent entry point, like list_skills)
 </skills>
 
+<code_search>
+If the project has a code index, `gobby-code` provides symbol-level search and retrieval.
+Key tools: `search_symbols(query)`, `get_file_outline(file_path)`, `get_symbol(symbol_id)`.
+Use these instead of reading entire files — saves 90%+ tokens on large files.
+</code_search>
+
 <caching>
 Schema fetches are cached per session. Once you call `get_tool_schema(server_name, tool_name)`,
 you can `call_tool` repeatedly WITHOUT re-fetching. Only fetch on first use.
