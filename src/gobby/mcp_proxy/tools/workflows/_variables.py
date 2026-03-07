@@ -75,7 +75,7 @@ def set_variable(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "ok": False,
+            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -83,7 +83,7 @@ def set_variable(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return {"success": False, "error": str(e)}
 
     # Coerce value types
     value = _coerce_value(value)
@@ -97,23 +97,23 @@ def set_variable(
                 f"Failed to resolve session_task value '{value}' for session {resolved_session_id}: {e}"
             )
             return {
-                "ok": False,
+                "success": False,
                 "error": f"Failed to resolve session_task value '{value}': {e}",
             }
 
     # Workflow-scoped: write to workflow_instances.variables
     if workflow:
         if not instance_manager:
-            return {"ok": False, "error": "Workflow-scoped variables require instance_manager"}
+            return {"success": False, "error": "Workflow-scoped variables require instance_manager"}
         instance = instance_manager.get_instance(resolved_session_id, workflow)
         if not instance:
             return {
-                "ok": False,
+                "success": False,
                 "error": f"No workflow instance '{workflow}' found for session",
             }
         instance.variables[name] = value
         instance_manager.save_instance(instance)
-        return {"ok": True, "value": value, "scope": "workflow", "workflow": workflow}
+        return {"success": True, "value": value, "scope": "workflow", "workflow": workflow}
 
     # Session-scoped: write to session_variables table
     if not session_var_manager:
@@ -122,7 +122,7 @@ def set_variable(
         session_var_manager = SessionVariableManager(db)
 
     session_var_manager.set_variable(resolved_session_id, name, value)
-    return {"ok": True, "value": value, "scope": "session"}
+    return {"success": True, "value": value, "scope": "session"}
 
 
 def get_variable(
@@ -155,7 +155,7 @@ def get_variable(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "ok": False,
+            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -163,22 +163,22 @@ def get_variable(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return {"success": False, "error": str(e)}
 
     # Workflow-scoped: read from workflow_instances.variables
     if workflow:
         if not instance_manager:
-            return {"ok": False, "error": "Workflow-scoped variables require instance_manager"}
+            return {"success": False, "error": "Workflow-scoped variables require instance_manager"}
         instance = instance_manager.get_instance(resolved_session_id, workflow)
         if not instance:
             return {
-                "ok": False,
+                "success": False,
                 "error": f"No workflow instance '{workflow}' found for session",
             }
         variables = instance.variables
         if name:
             return {
-                "ok": True,
+                "success": True,
                 "session_id": resolved_session_id,
                 "variable": name,
                 "value": variables.get(name),
@@ -187,7 +187,7 @@ def get_variable(
                 "workflow": workflow,
             }
         return {
-            "ok": True,
+            "success": True,
             "session_id": resolved_session_id,
             "variables": variables,
             "scope": "workflow",
@@ -203,7 +203,7 @@ def get_variable(
     variables = session_var_manager.get_variables(resolved_session_id)
     if name:
         return {
-            "ok": True,
+            "success": True,
             "session_id": resolved_session_id,
             "variable": name,
             "value": variables.get(name),
@@ -211,7 +211,7 @@ def get_variable(
             "scope": "session",
         }
     return {
-        "ok": True,
+        "success": True,
         "session_id": resolved_session_id,
         "variables": variables,
         "scope": "session",
@@ -240,15 +240,15 @@ def set_session_variable(
     """
     if not session_id:
         return {
-            "ok": False,
+            "success": False,
             "error": "session_id is required.",
         }
 
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"ok": False, "error": str(e)}
+        return {"success": False, "error": str(e)}
 
     value = _coerce_value(value)
     session_var_manager.set_variable(resolved_session_id, name, value)
-    return {"ok": True, "value": value, "scope": "session"}
+    return {"success": True, "value": value, "scope": "session"}

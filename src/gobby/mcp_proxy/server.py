@@ -430,7 +430,7 @@ class GobbyDaemonTools:
     ) -> dict[str, Any]:
         """Set a session variable. Used by enforcement gates and agent coordination."""
         if not self._session_manager or not self._session_manager.db:
-            return {"ok": False, "error": "Session manager not available"}
+            return {"success": False, "error": "Session manager not available"}
 
         from gobby.mcp_proxy.tools.workflows._variables import set_variable as _set_var
 
@@ -450,7 +450,7 @@ class GobbyDaemonTools:
     ) -> dict[str, Any]:
         """Get session variable(s). Returns one if name given, all if omitted."""
         if not self._session_manager or not self._session_manager.db:
-            return {"ok": False, "error": "Session manager not available"}
+            return {"success": False, "error": "Session manager not available"}
 
         from gobby.mcp_proxy.tools.workflows._variables import get_variable as _get_var
 

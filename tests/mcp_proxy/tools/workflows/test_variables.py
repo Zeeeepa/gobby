@@ -64,7 +64,7 @@ class TestSetVariableScoped:
             instance_manager=mocks["instance_manager"],
         )
 
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["value"] is True
         # Verify instance_manager was used to save
         mocks["instance_manager"].get_instance.assert_called_once_with("uuid-session-1", "dev")
@@ -88,7 +88,7 @@ class TestSetVariableScoped:
             session_var_manager=mocks["session_var_manager"],
         )
 
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["value"] == 42
         # Should write to session_var_manager
         mocks["session_var_manager"].set_variable.assert_called_once_with(
@@ -111,7 +111,7 @@ class TestSetVariableScoped:
             instance_manager=mocks["instance_manager"],
         )
 
-        assert result["ok"] is False
+        assert result["success"] is False
         assert "unknown" in result["error"]
 
 
@@ -132,7 +132,7 @@ class TestSetSessionVariable:
             session_id="#1",
         )
 
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["value"] is True
         mocks["session_var_manager"].set_variable.assert_called_once_with(
             "uuid-session-1", "shared_flag", True
@@ -166,7 +166,7 @@ class TestGetVariableScoped:
             instance_manager=mocks["instance_manager"],
         )
 
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["value"] is True
         assert result["exists"] is True
         mocks["instance_manager"].get_instance.assert_called_once_with("uuid-session-1", "dev")
@@ -185,7 +185,7 @@ class TestGetVariableScoped:
             session_var_manager=mocks["session_var_manager"],
         )
 
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["value"] == 42
         assert result["exists"] is True
         mocks["session_var_manager"].get_variables.assert_called_once_with("uuid-session-1")
@@ -214,5 +214,5 @@ class TestGetVariableScoped:
             instance_manager=mocks["instance_manager"],
         )
 
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["variables"] == {"a": 1, "b": 2}

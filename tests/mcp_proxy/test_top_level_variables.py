@@ -35,7 +35,7 @@ async def test_set_variable_delegates_correctly() -> None:
 
     with patch(
         "gobby.mcp_proxy.tools.workflows._variables.set_variable",
-        return_value={"ok": True, "value": True, "scope": "session"},
+        return_value={"success": True, "value": True, "scope": "session"},
     ) as mock_set:
         result = await handler.set_variable(
             name="flag", value=True, session_id="#1"
@@ -44,7 +44,7 @@ async def test_set_variable_delegates_correctly() -> None:
     mock_set.assert_called_once_with(
         sm, sm.db, "flag", True, "#1", workflow=None
     )
-    assert result["ok"] is True
+    assert result["success"] is True
 
 
 @pytest.mark.asyncio
@@ -55,14 +55,14 @@ async def test_get_variable_delegates_correctly() -> None:
 
     with patch(
         "gobby.mcp_proxy.tools.workflows._variables.get_variable",
-        return_value={"ok": True, "session_id": "uuid", "variable": "flag", "value": True, "exists": True, "scope": "session"},
+        return_value={"success": True, "session_id": "uuid", "variable": "flag", "value": True, "exists": True, "scope": "session"},
     ) as mock_get:
         result = await handler.get_variable(name="flag", session_id="#1")
 
     mock_get.assert_called_once_with(
         sm, sm.db, "flag", "#1", workflow=None
     )
-    assert result["ok"] is True
+    assert result["success"] is True
     assert result["value"] is True
 
 
@@ -70,7 +70,7 @@ async def test_get_variable_delegates_correctly() -> None:
 async def test_set_variable_no_session_manager() -> None:
     handler = _make_handler(session_manager=None)
     result = await handler.set_variable(name="x", value=1, session_id="#1")
-    assert result["ok"] is False
+    assert result["success"] is False
     assert "Session manager" in result["error"]
 
 
@@ -78,7 +78,7 @@ async def test_set_variable_no_session_manager() -> None:
 async def test_get_variable_no_session_manager() -> None:
     handler = _make_handler(session_manager=None)
     result = await handler.get_variable(name="x", session_id="#1")
-    assert result["ok"] is False
+    assert result["success"] is False
     assert "Session manager" in result["error"]
 
 
