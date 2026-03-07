@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
+import threading
 from pathlib import Path
 from typing import Any
 
 from gobby.mcp_proxy.tools.code._context import CodeRegistryContext
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+
+_logger = logging.getLogger(__name__)
 
 
 def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
@@ -113,16 +118,33 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
         kind: str = "",
         file_path: str = "",
         limit: int = 20,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """Search for symbols using hybrid search."""
         pid = project_id or ctx.project_id or "default"
-        return await ctx.searcher.search(
+        results = await ctx.searcher.search(
             query=query,
             project_id=pid,
             kind=kind or None,
             file_path=file_path or None,
             limit=limit,
         )
+
+        # Check staleness of result files
+        file_paths = {r.get("file_path", "") for r in results if r.get("file_path")}
+        stale = _check_staleness(pid, file_paths)
+
+        response: dict[str, Any] = {"results": results}
+        if stale:
+            response["status"] = "stale"
+            response["stale_files"] = stale
+            response["note"] = (
+                f"{len(stale)} file(s) changed since last index. "
+                "Results may be outdated. Re-indexing in background."
+            )
+            _trigger_async_reindex(pid, stale)
+        else:
+            response["status"] = "current"
+        return response
 
     @registry.tool(description="Full-text search across symbol names and signatures.")
     def search_text(
@@ -139,6 +161,46 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             file_path=file_path or None,
             limit=limit,
         )
+
+    def _trigger_async_reindex(project_id: str, stale_files: list[str]) -> None:
+        """Fire-and-forget incremental re-index of stale files."""
+
+        def _do_reindex() -> None:
+            try:
+                import httpx
+
+                from gobby.config.bootstrap import load_bootstrap
+
+                port = load_bootstrap().daemon_port
+                httpx.post(
+                    f"http://localhost:{port}/api/code-index/incremental",
+                    json={"project_id": project_id, "files": stale_files},
+                    timeout=120,
+                )
+            except Exception as e:
+                _logger.debug(f"Async re-index failed: {e}")
+
+        threading.Thread(target=_do_reindex, daemon=True).start()
+
+    def _check_staleness(project_id: str, file_paths: set[str]) -> list[str]:
+        """Check which result files have changed since indexing."""
+        if not file_paths:
+            return []
+        project = ctx.storage.get_project_stats(project_id)
+        if not project:
+            return []
+        root = Path(project.root_path)
+        current_hashes: dict[str, str] = {}
+        for fp in file_paths:
+            full = root / fp
+            if full.exists():
+                try:
+                    current_hashes[fp] = hashlib.sha256(full.read_bytes()).hexdigest()
+                except OSError:
+                    pass
+        if not current_hashes:
+            return []
+        return ctx.storage.get_stale_files(project_id, current_hashes)
 
     def _read_symbol_source(
         sym: Any, project_id: str | None
