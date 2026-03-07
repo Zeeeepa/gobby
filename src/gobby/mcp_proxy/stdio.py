@@ -371,6 +371,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         server_name: str,
         tool_name: str,
         arguments: dict[str, Any] | None = None,
+        args: str | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Execute a tool on a connected MCP server.
@@ -382,11 +383,27 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             server_name: Name of the MCP server
             tool_name: Name of the specific tool to execute
             arguments: Dictionary of arguments required by the tool (optional)
+            args: Alias for arguments. Accepts dict or JSON string. Use 'arguments' preferred.
 
         Returns:
             Dictionary with success status and tool execution result
         """
-        return await proxy.call_tool(server_name, tool_name, arguments)
+        # Accept 'args' as alias for 'arguments' (agents sometimes use wrong param name)
+        effective_args = arguments
+        if effective_args is None and args is not None:
+            if isinstance(args, dict):
+                effective_args = args
+            elif isinstance(args, str):
+                import json as _json
+
+                try:
+                    effective_args = _json.loads(args)
+                except (ValueError, TypeError):
+                    return {
+                        "success": False,
+                        "error": f"Invalid JSON in 'args' parameter: {args[:200]}",
+                    }
+        return await proxy.call_tool(server_name, tool_name, effective_args)
 
     @mcp.tool()
     async def recommend_tools(
