@@ -16,7 +16,7 @@ class CodeGraph:
     """Code-specific graph operations wrapping Neo4jClient."""
 
     def __init__(self, neo4j_client: Any | None = None) -> None:
-        self._client = neo4j_client
+        self._client: Any = neo4j_client
 
     @property
     def available(self) -> bool:

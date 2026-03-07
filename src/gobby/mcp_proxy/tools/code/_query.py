@@ -157,9 +157,9 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
 
         try:
             data = file_path.read_bytes()
-            return data[sym.byte_start:sym.byte_end].decode(
+            return str(data[sym.byte_start:sym.byte_end].decode(
                 "utf-8", errors="replace"
-            )
+            ))
         except (OSError, IndexError):
             return None
 

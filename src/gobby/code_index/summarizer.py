@@ -87,14 +87,13 @@ class SymbolSummarizer:
             if provider is None:
                 return None
 
-            response = await provider.generate(
+            text = await provider.generate_text(
                 prompt=prompt,
                 model=self._model_name,
                 max_tokens=100,
-                temperature=0.0,
             )
 
-            text = response.get("text", "").strip() if isinstance(response, dict) else str(response).strip()
+            text = text.strip()
             return text if text else None
 
         except Exception as e:

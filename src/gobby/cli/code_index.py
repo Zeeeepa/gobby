@@ -9,13 +9,18 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
+from typing import TYPE_CHECKING
 
 import click
 
 from gobby.config.app import DaemonConfig
 
+if TYPE_CHECKING:
+    from gobby.code_index.indexer import CodeIndexer
+    from gobby.code_index.storage import CodeIndexStorage
 
-def _get_indexer(ctx: click.Context):  # -> CodeIndexer
+
+def _get_indexer(ctx: click.Context) -> CodeIndexer:
     """Construct a CodeIndexer directly (no daemon needed)."""
     from gobby.code_index.indexer import CodeIndexer
     from gobby.code_index.parser import CodeParser
@@ -30,7 +35,7 @@ def _get_indexer(ctx: click.Context):  # -> CodeIndexer
     return CodeIndexer(storage=storage, parser=parser, config=ci_config)
 
 
-def _get_storage():  # -> CodeIndexStorage
+def _get_storage() -> CodeIndexStorage:
     """Construct CodeIndexStorage directly (no daemon needed)."""
     from gobby.code_index.storage import CodeIndexStorage
     from gobby.storage.database import LocalDatabase
@@ -45,7 +50,7 @@ def _auto_project_id() -> str:
 
     ctx = get_project_context()
     if ctx and ctx.get("id"):
-        return ctx["id"]
+        return str(ctx["id"])
     return "default"
 
 

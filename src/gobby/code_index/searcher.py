@@ -110,13 +110,13 @@ class CodeSearcher:
         # Build result list
         results: list[dict[str, Any]] = []
         for sym_id, score in final_scores[:limit]:
-            sym = symbol_cache.get(sym_id)
-            if sym is None:
-                sym = self._storage.get_symbol(sym_id)
-            if sym is None:
+            matched = symbol_cache.get(sym_id)
+            if matched is None:
+                matched = self._storage.get_symbol(sym_id)
+            if matched is None:
                 continue
 
-            result = sym.to_dict()
+            result = matched.to_dict()
             result["_score"] = round(score, 4)
             result["_sources"] = list(score_map.get(sym_id, {}).keys())
             results.append(result)

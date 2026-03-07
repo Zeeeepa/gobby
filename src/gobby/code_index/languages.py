@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -313,7 +313,7 @@ def get_parser_for_language(lang: str) -> Any:
     try:
         from tree_sitter_language_pack import get_parser
 
-        parser = get_parser(lang)
+        parser = get_parser(cast(Any, lang))
         _parser_cache[lang] = parser
         return parser
     except ImportError:
@@ -329,7 +329,7 @@ def get_language_obj(lang: str) -> Any:
     try:
         from tree_sitter_language_pack import get_language
 
-        return get_language(lang)
+        return get_language(cast(Any, lang))
     except ImportError:
         return None
     except Exception as e:

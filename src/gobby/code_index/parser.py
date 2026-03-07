@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 try:
     from tree_sitter import Query, QueryCursor
@@ -135,7 +136,7 @@ class CodeParser:
 
     def _extract_symbols(
         self,
-        tree: object,
+        tree: Any,
         source: bytes,
         spec: object,
         language: str,
@@ -257,7 +258,7 @@ class CodeParser:
                     break
 
     def _extract_docstring(
-        self, node: object, source: bytes, language: str
+        self, node: Any, source: bytes, language: str
     ) -> str | None:
         """Try to extract a docstring from a definition node."""
         if language not in ("python", "javascript", "typescript"):
@@ -315,7 +316,7 @@ class CodeParser:
 
     def _extract_imports(
         self,
-        tree: object,
+        tree: Any,
         source: bytes,
         spec: object,
         rel_path: str,
@@ -364,9 +365,9 @@ class CodeParser:
 
     def _extract_calls(
         self,
-        tree: object,
+        tree: Any,
         source: bytes,
-        spec: object,
+        spec: Any,
         language: str,
         rel_path: str,
         symbols: list[Symbol],
