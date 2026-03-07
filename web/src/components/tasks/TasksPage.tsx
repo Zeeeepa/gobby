@@ -204,7 +204,7 @@ function TaskRow({ task, onSelect, isSelected, onToggleSelect }: {
       </td>
       <td className="tasks-cell tasks-cell--title">{task.title}</td>
       <td className="tasks-cell tasks-cell--type">
-        <TypeBadge type={task.type} />
+        <TypeBadge type={task.task_type} />
       </td>
       <td className="tasks-cell tasks-cell--priority">
         <PriorityBadge priority={task.priority} />
@@ -346,7 +346,7 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
     setCloneDefaults({
       title: `[Clone] ${task.title}`,
       description: task.description || undefined,
-      taskType: task.type,
+      taskType: task.task_type,
       priority: task.priority,
       validationCriteria: task.validation_criteria || undefined,
       labels: task.labels || undefined,
