@@ -489,20 +489,28 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
 
-        # 12a. Auto-claim task if task_id was provided
+        # 12a. Auto-claim task if task_id was provided and task is open
         if resolved_task_id and task_manager:
             try:
-                task_manager.update_task(
-                    resolved_task_id,
-                    status="in_progress",
-                    assignee=spawn_result.child_session_id,
-                )
-                logger.info(
-                    "Auto-claimed task %s for agent %s (session %s)",
-                    f"#{task_seq_num}" if task_seq_num else resolved_task_id,
-                    run_id,
-                    spawn_result.child_session_id,
-                )
+                task_obj = task_manager.get_task(resolved_task_id)
+                if task_obj and task_obj.status == "open":
+                    task_manager.update_task(
+                        resolved_task_id,
+                        status="in_progress",
+                        assignee=spawn_result.child_session_id,
+                    )
+                    logger.info(
+                        "Auto-claimed task %s for agent %s (session %s)",
+                        f"#{task_seq_num}" if task_seq_num else resolved_task_id,
+                        run_id,
+                        spawn_result.child_session_id,
+                    )
+                elif task_obj:
+                    logger.info(
+                        "Skipping auto-claim for task %s (status=%s, not open)",
+                        f"#{task_seq_num}" if task_seq_num else resolved_task_id,
+                        task_obj.status,
+                    )
             except Exception as e:
                 logger.warning(f"Failed to auto-claim task {resolved_task_id}: {e}")
 
