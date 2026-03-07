@@ -608,6 +608,14 @@ class LocalSessionManager:
 
         return _expire(self.db, timeout_hours)
 
+    def expire_orphaned_handoff_sessions(self, timeout_minutes: int = 30) -> int:
+        """Expire orphaned handoff_ready sessions. Delegates to session_lifecycle."""
+        from gobby.storage.session_lifecycle import (
+            expire_orphaned_handoff_sessions as _expire_orphaned,
+        )
+
+        return _expire_orphaned(self.db, timeout_minutes)
+
     def pause_inactive_active_sessions(self, timeout_minutes: int = 30) -> int:
         """Pause active sessions inactive too long. Delegates to session_lifecycle."""
         from gobby.storage.session_lifecycle import pause_inactive_active_sessions as _pause

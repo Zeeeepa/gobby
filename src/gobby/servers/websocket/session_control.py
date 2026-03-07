@@ -799,14 +799,15 @@ class SessionControlMixin:
             await session.stop()
             self._chat_sessions.pop(conversation_id, None)
 
-        # Soft-delete: mark as handoff_ready (preserves messages for handoff context;
+        # Soft-delete: mark as expired (preserves messages;
         # hard delete fails due to FK constraints from agent_runs, tasks, etc.)
+        # Use 'expired' not 'handoff_ready' — no child session will pick these up.
         if db_session_id:
             session_manager = getattr(self, "session_manager", None)
             try:
                 if session_manager:
                     await asyncio.to_thread(
-                        session_manager.update, db_session_id, status="handoff_ready"
+                        session_manager.update, db_session_id, status="expired"
                     )
             except Exception as e:
                 logger.warning(f"Failed to soft-delete session from DB: {e}")

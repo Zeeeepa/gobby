@@ -142,6 +142,13 @@ class SessionLifecycleManager:
             timeout_minutes=self.config.active_session_pause_minutes
         )
 
+        # Expire orphaned handoff_ready sessions (legitimate handoffs complete
+        # within seconds, so 30 min is generous). This catches sessions that
+        # never got picked up by a child session.
+        orphaned = self.session_manager.expire_orphaned_handoff_sessions(
+            timeout_minutes=30
+        )
+
         # Then expire sessions that have been paused/active for too long
         expired = self.session_manager.expire_stale_sessions(
             timeout_hours=self.config.stale_session_timeout_hours
@@ -150,7 +157,7 @@ class SessionLifecycleManager:
         # Clean up stale prompt files (run in thread to avoid blocking)
         await asyncio.to_thread(self._cleanup_prompt_files)
 
-        return paused + expired
+        return paused + orphaned + expired
 
     def _cleanup_prompt_files(self, max_age_seconds: int = 3600) -> int:
         """Delete prompt files older than max_age_seconds.
