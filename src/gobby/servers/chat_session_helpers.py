@@ -147,11 +147,11 @@ def _response_to_pre_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOut
         specific_rewrite = PreToolUseHookSpecificOutput(
             hookEventName="PreToolUse",
         )
-        specific_rewrite["updatedInput"] = resp["modified_input"]  # type: ignore[typeddict-unknown-key]
+        specific_rewrite["updatedInput"] = resp["modified_input"]
         if resp.get("auto_approve"):
             specific_rewrite["permissionDecision"] = "allow"
         if resp.get("context"):
-            specific_rewrite["additionalContext"] = _truncate(resp["context"])  # type: ignore[typeddict-unknown-key]
+            specific_rewrite["additionalContext"] = _truncate(resp["context"])
         output["hookSpecificOutput"] = specific_rewrite
     elif resp.get("context"):
         output["hookSpecificOutput"] = PreToolUseHookSpecificOutput(
@@ -173,7 +173,7 @@ def _response_to_post_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOu
         hook_specific = PostToolUseHookSpecificOutput(
             hookEventName="PostToolUse",
         )
-        hook_specific["updatedMCPToolOutput"] = modified_output  # type: ignore[typeddict-unknown-key]
+        hook_specific["updatedMCPToolOutput"] = modified_output
         context = resp.get("context")
         if context:
             hook_specific["additionalContext"] = _truncate(context)

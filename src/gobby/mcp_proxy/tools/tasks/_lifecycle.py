@@ -98,9 +98,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # Check if this is a parent task with all children closed
         # Parent tasks (epics) are organizational containers — no own commits needed
-        children_for_parent_check = ctx.task_manager.list_tasks(
-            parent_task_id=resolved_id, limit=1
-        )
+        children_for_parent_check = ctx.task_manager.list_tasks(parent_task_id=resolved_id, limit=1)
         is_parent_all_closed = False
         if children_for_parent_check:
             parent_result = validate_parent_task(ctx, resolved_id)
@@ -171,14 +169,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             # Check if task has children (is a parent task)
             parent_result = validate_parent_task(ctx, resolved_id)
             if not parent_result.can_close:
-                response: dict[str, Any] = {
+                err_response: dict[str, Any] = {
                     "success": False,
                     "error": parent_result.error_type,
                     "message": parent_result.message,
                 }
                 if parent_result.extra:
-                    response.update(parent_result.extra)
-                return response
+                    err_response.update(parent_result.extra)
+                return err_response
 
             # Check for leaf task with validation criteria
             children = ctx.task_manager.list_tasks(parent_task_id=resolved_id, limit=1)
