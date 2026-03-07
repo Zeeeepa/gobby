@@ -34,6 +34,13 @@ class IdleDetector:
         re.compile(r"^\s*\$\s*$"),  # Shell prompt (agent exited)
     ]
 
+    # Patterns that indicate agent tried to stop but was blocked by a hook.
+    # Treated as idle — the agent isn't doing useful work, it's stuck.
+    STOP_HOOK_BLOCKED_PATTERNS: list[re.Pattern[str]] = [
+        re.compile(r"Stop hook error", re.IGNORECASE),
+        re.compile(r"Rule enforced by Gobby", re.IGNORECASE),
+    ]
+
     CONTEXT_FULL_PATTERNS: list[re.Pattern[str]] = [
         re.compile(r"context.*window.*full", re.IGNORECASE),
         re.compile(r"would you like to continue", re.IGNORECASE),
@@ -85,6 +92,11 @@ class IdleDetector:
         for pattern in self.CONTEXT_FULL_PATTERNS:
             if pattern.search(full_text):
                 return "context_full"
+
+        # Check all lines for stop-hook-blocked patterns (agent tried to exit)
+        for pattern in self.STOP_HOOK_BLOCKED_PATTERNS:
+            if pattern.search(full_text):
+                return "idle"
 
         # Check lines bottom-up, skipping status bar chrome
         for line in reversed(lines):

@@ -213,3 +213,42 @@ class TestStatusBarFiltering:
             "  ⏵⏵ bypass permissions on\n"
         )
         assert self.detector.detect(output) == "active"
+
+
+class TestStopHookBlocked:
+    """Tests for detecting agents blocked by stop hooks."""
+
+    def setup_method(self) -> None:
+        self.detector = IdleDetector()
+
+    def test_stop_hook_error_detected_as_idle(self) -> None:
+        """Agent tried to stop but hook blocked it — treat as idle."""
+        output = (
+            "⏺ Ran 1 stop hook (ctrl+o to expand)\n"
+            "  ⎿  Stop hook error: [uv run python hooks/hook_dispatcher.py]:\n"
+            "  Rule enforced by Gobby: [tool-failure-recovery]\n"
+            "────────────────────\n"
+            "   Opus 4.6  46.5%  4hr \n"
+            "  ⏵⏵ bypass permissions on\n"
+        )
+        assert self.detector.detect(output) == "idle"
+
+    def test_rule_enforced_detected_as_idle(self) -> None:
+        """Rule enforcement message without stop hook prefix."""
+        output = (
+            "Rule enforced by Gobby: [require-memory-review]\n"
+            "❯ \n"
+            "────────────────────\n"
+            "   Opus 4.6  30%  2hr \n"
+        )
+        assert self.detector.detect(output) == "idle"
+
+    def test_stop_hook_error_takes_priority_over_active(self) -> None:
+        """Stop hook error should be detected even if last line looks active."""
+        output = (
+            "⏺ Bash(uv run ruff check src/)\n"
+            "  ⎿  Error: Exit code 1\n"
+            "⏺ Ran 1 stop hook (ctrl+o to expand)\n"
+            "  ⎿  Stop hook error: [uv run python hooks/hook_dispatcher.py]\n"
+        )
+        assert self.detector.detect(output) == "idle"
