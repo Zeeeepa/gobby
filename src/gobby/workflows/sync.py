@@ -530,6 +530,8 @@ def _sync_single_rule(
         body_dict["group"] = group
     if rule_data.get("agent_scope"):
         body_dict["agent_scope"] = rule_data["agent_scope"]
+    if rule_data.get("tools"):
+        body_dict["tools"] = rule_data["tools"]
 
     # Validate with Pydantic
     try:

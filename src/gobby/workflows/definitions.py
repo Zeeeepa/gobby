@@ -150,6 +150,7 @@ class RuleDefinitionBody(BaseModel):
     event: RuleEvent
     when: str | None = None
     match: dict[str, Any] | None = None
+    tools: list[str] | None = None  # Pre-filter: skip rule if tool doesn't match
     effect: RuleEffect | None = None
     effects: list[RuleEffect] | None = None
     group: str | None = None

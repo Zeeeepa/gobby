@@ -15,15 +15,11 @@ _FALLBACK_INSTRUCTIONS = """<gobby_system>
 <tool_discovery>
 Progressive discovery keeps token usage low — fetch schemas just-in-time, not upfront.
 
-Internal servers (gobby-tasks, gobby-memory, etc.) are pre-discovered at session start.
-For these, skip straight to step 3 or 4:
-3. `get_tool_schema(server_name, tool_name)` — Fetch parameter schema (recommended before first call)
+All servers follow the same discovery chain:
+1. `list_mcp_servers()` — Discover available servers (required once per session)
+2. `list_tools(server_name="...")` — See tool names per server (required once per server, per session)
+3. `get_tool_schema(server_name, tool_name)` — Fetch parameter schema (required before first call)
 4. `call_tool(server_name, tool_name, args)` — Execute the tool
-
-External MCP servers require full discovery:
-1. `list_mcp_servers()` — Discover available servers
-2. `list_tools(server_name="...")` — See tool names per server
-3-4. Same as above
 
 The proxy validates parameters on every call_tool. If params are wrong, the error includes the full schema.
 </tool_discovery>

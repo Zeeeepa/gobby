@@ -2,15 +2,15 @@ tags: [progressive-discovery, enforcement, mcp, gobby, default]
 
 rules:
   require-servers-listed:
-    description: "Block list_tools before list_mcp_servers (internal servers are pre-documented)"
+    description: "Block list_tools before list_mcp_servers"
     event: before_tool
     enabled: false
     priority: 20
-    tools: ["mcp__gobby__list_tools"]
     when: "event.data.get('tool_name') in ('list_tools', 'mcp__gobby__list_tools') and variables.get('enforce_tool_schema_check') and not variables.get('servers_listed')"
     effect:
       type: block
+      tools: ["mcp__gobby__list_tools"]
       reason: |
         You haven't called list_mcp_servers() yet.
-        Internal servers (gobby-tasks, gobby-memory, etc.) are documented in your system instructions — you can proceed directly.
-        For external servers, call list_mcp_servers() first to discover available servers.
+
+        Steps: list_mcp_servers() -> list_tools() -> get_tool_schema() -> call_tool()

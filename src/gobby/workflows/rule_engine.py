@@ -226,6 +226,12 @@ class RuleEngine:
         block_reason: str | None = None
 
         for _row, body in rules:
+            # Pre-filter: skip rule if tools field doesn't match current tool
+            if body.tools:
+                tool_name = event.data.get("tool_name", "")
+                if tool_name not in body.tools:
+                    continue
+
             # Build fresh eval context with current variables
             ctx = self._build_eval_context(event, variables, eval_context)
 
