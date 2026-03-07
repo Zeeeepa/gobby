@@ -498,7 +498,6 @@ def _propagate_to_installed(
 
 
 
-
 def _sync_single_rule(
     manager: LocalWorkflowDefinitionManager,
     rule_name: str,

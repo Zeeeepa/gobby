@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)
@@ -283,22 +284,25 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
 }
 
 
+_EXTENSIONS_MAP: dict[str, str] | None = None
+
+
 def get_extensions_map() -> dict[str, str]:
-    """Build map from file extension to language name."""
-    ext_map: dict[str, str] = {}
-    for lang_name, spec in LANGUAGE_SPECS.items():
-        for ext in spec.extensions:
-            ext_map[ext] = lang_name
-    return ext_map
+    """Return cached map from file extension to language name."""
+    global _EXTENSIONS_MAP
+    if _EXTENSIONS_MAP is None:
+        ext_map: dict[str, str] = {}
+        for lang_name, spec in LANGUAGE_SPECS.items():
+            for ext in spec.extensions:
+                ext_map[ext] = lang_name
+        _EXTENSIONS_MAP = ext_map
+    return _EXTENSIONS_MAP
 
 
 def detect_language(file_path: str) -> str | None:
     """Detect language from file extension."""
-    ext_map = get_extensions_map()
-    from pathlib import Path
-
     suffix = Path(file_path).suffix.lower()
-    return ext_map.get(suffix)
+    return get_extensions_map().get(suffix)
 
 
 def get_parser_for_language(lang: str) -> Any:

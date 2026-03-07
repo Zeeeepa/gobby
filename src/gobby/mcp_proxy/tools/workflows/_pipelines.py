@@ -249,7 +249,11 @@ def register_pipeline_tools(
                     if session:
                         project_id = session.project_id
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Failed to look up session %s for project_id",
+                        resolved_session_id,
+                        exc_info=True,
+                    )
 
         continuation_config = {
             "pipeline_name": pipeline_name,

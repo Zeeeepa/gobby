@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from gobby.compression.primitives import dedup, filter_lines, group_lines, truncate
@@ -284,18 +285,13 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
     ),
 ]
 
-# Compiled regexes (lazy init)
-_COMPILED_PIPELINES: list[tuple[re.Pattern[str], str, PipelineSpec]] | None = None
-
-
+@lru_cache(maxsize=1)
 def _get_pipelines() -> list[tuple[re.Pattern[str], str, PipelineSpec]]:
-    global _COMPILED_PIPELINES
-    if _COMPILED_PIPELINES is None:
-        _COMPILED_PIPELINES = [
-            (re.compile(pattern, re.IGNORECASE), name, pipeline)
-            for pattern, name, pipeline in _COMMAND_PIPELINES
-        ]
-    return _COMPILED_PIPELINES
+    """Compile command pipeline regexes (cached, thread-safe via lru_cache)."""
+    return [
+        (re.compile(pattern, re.IGNORECASE), name, pipeline)
+        for pattern, name, pipeline in _COMMAND_PIPELINES
+    ]
 
 
 class OutputCompressor:

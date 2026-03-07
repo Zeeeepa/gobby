@@ -60,6 +60,9 @@ export function ResumeSessionModal({
       if (response.ok) {
         const data = await response.json();
         setResumableSessions(Array.isArray(data.sessions) ? data.sessions : []);
+      } else {
+        console.error("Failed to fetch resumable sessions:", response.status, response.statusText);
+        setResumableSessions(sessions);
       }
     } catch (e) {
       console.error("Failed to fetch resumable sessions:", e);
@@ -70,10 +73,16 @@ export function ResumeSessionModal({
     }
   }, [isOpen, showSubagents, sessions]);
 
-  // Reset search and fetch when modal opens or subagent toggle changes
+  // Reset search when modal opens
   useEffect(() => {
     if (isOpen) {
       setSearch("");
+    }
+  }, [isOpen]);
+
+  // Fetch resumable sessions when modal opens or subagent toggle changes
+  useEffect(() => {
+    if (isOpen) {
       fetchResumable();
     }
   }, [isOpen, fetchResumable]);
@@ -204,7 +213,7 @@ export function ResumeSessionModal({
                     {" · "}
                     {formatRelativeTime(session.updated_at)}
                     {session.message_count > 0 && ` · ${session.message_count} msgs`}
-                    {session.agent_depth > 0 && (
+                    {(session.agent_depth ?? 0) > 0 && (
                       <span style={{ color: "#f59e0b", marginLeft: "4px" }}>
                         depth {session.agent_depth}
                       </span>

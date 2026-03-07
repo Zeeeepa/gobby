@@ -47,6 +47,9 @@ export function usePipelineExecutions(projectId?: string) {
       if (res.ok) {
         const data = await res.json()
         setExecutions(data.executions || [])
+      } else {
+        console.error('Failed to fetch pipeline executions:', res.status, res.statusText)
+        setExecutions([])
       }
     } catch (e) {
       console.error('Failed to fetch pipeline executions:', e)
@@ -81,8 +84,9 @@ export function usePipelineExecutions(projectId?: string) {
       method: 'POST',
     })
     if (!res.ok) throw new Error(`Failed to approve: ${res.statusText}`)
-    await fetchExecutions()
-    return res.json()
+    const data = await res.json()
+    fetchExecutions()
+    return data
   }, [fetchExecutions])
 
   const rejectPipeline = useCallback(async (token: string) => {
@@ -90,8 +94,9 @@ export function usePipelineExecutions(projectId?: string) {
       method: 'POST',
     })
     if (!res.ok) throw new Error(`Failed to reject: ${res.statusText}`)
-    await fetchExecutions()
-    return res.json()
+    const data = await res.json()
+    fetchExecutions()
+    return data
   }, [fetchExecutions])
 
   return {

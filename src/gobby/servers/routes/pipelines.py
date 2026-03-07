@@ -118,7 +118,6 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
                         "completed_at": step.completed_at,
                         "output_json": step.output_json,
                         "error": step.error,
-                        "approval_token": step.approval_token,
                     }
                     for step in steps
                 ],

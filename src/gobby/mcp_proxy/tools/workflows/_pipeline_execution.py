@@ -321,7 +321,8 @@ async def resume_pipeline(
             }
 
     # Reset the resume point and all subsequent steps to PENDING
-    assert resume_step_id is not None  # Guaranteed by early return above
+    if not resume_step_id:
+        raise ValueError("resume_step_id resolved to None despite early-return guard")
     reset_count = execution_manager.reset_steps_from(execution_id, resume_step_id)
 
     # Parse stored inputs
@@ -330,7 +331,10 @@ async def resume_pipeline(
         try:
             inputs = json.loads(execution.inputs_json)
         except (json.JSONDecodeError, TypeError) as e:
-            logger.warning("Malformed inputs_json for execution %s: %s", execution_id, e)
+            return {
+                "success": False,
+                "error": f"Malformed inputs_json for execution {execution_id}: {e}",
+            }
 
     # Mark as running before spawning background task
     execution_manager.update_execution_status(

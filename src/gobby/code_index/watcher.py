@@ -34,7 +34,7 @@ async def handle_incremental_index(
         Dict with files_indexed and symbols_found counts.
     """
     if not changed_files:
-        return {"files_indexed": 0, "symbols_found": 0}
+        return {"files_indexed": 0, "symbols_found": 0, "files_skipped": 0, "duration_ms": 0}
 
     result = await indexer.index_changed_files(
         project_id=project_id,
@@ -50,6 +50,8 @@ async def handle_incremental_index(
     return {
         "files_indexed": result.files_indexed,
         "symbols_found": result.symbols_found,
+        "files_skipped": getattr(result, "files_skipped", 0),
+        "duration_ms": result.duration_ms,
     }
 
 
@@ -73,7 +75,7 @@ async def handle_session_start_index(
     root = Path(root_path)
     if not root.is_dir():
         logger.warning(f"Session start index: not a directory: {root_path}")
-        return {"files_indexed": 0, "symbols_found": 0}
+        return {"files_indexed": 0, "symbols_found": 0, "files_skipped": 0, "duration_ms": 0}
 
     result = await indexer.index_directory(
         root_path=root_path,

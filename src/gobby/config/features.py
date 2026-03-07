@@ -12,6 +12,8 @@ Contains MCP proxy and tool feature Pydantic config models:
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
 
+import re
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
@@ -408,6 +410,17 @@ class OutputCompressionConfig(BaseModel):
         default_factory=list,
         description="Regex patterns for commands that should never be compressed",
     )
+
+    @field_validator("excluded_commands")
+    @classmethod
+    def _validate_excluded_commands(cls, v: list[str]) -> list[str]:
+        for pattern in v:
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern {pattern!r}: {e}") from e
+        return v
+
     track_savings: bool = Field(
         default=True,
         description="Track token savings via metrics",

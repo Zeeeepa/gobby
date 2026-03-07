@@ -124,10 +124,11 @@ class CompletionEventRegistry:
                     )
 
         # Fire pipeline continuation if registered
-        continuation = self._pipeline_continuations.pop(completion_id, None)
+        continuation = self._pipeline_continuations.get(completion_id)
         if continuation and self._pipeline_rerun_callback:
             try:
                 await self._pipeline_rerun_callback(continuation)
+                self._pipeline_continuations.pop(completion_id, None)
             except Exception:
                 logger.error(
                     "Pipeline continuation failed for %s", completion_id, exc_info=True

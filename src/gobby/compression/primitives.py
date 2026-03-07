@@ -13,6 +13,17 @@ import os
 import re
 from collections import OrderedDict
 
+_PATTERN_CACHE: dict[str, re.Pattern[str]] = {}
+
+
+def _compile_pattern(pattern: str) -> re.Pattern[str]:
+    """Compile and cache a regex pattern."""
+    compiled = _PATTERN_CACHE.get(pattern)
+    if compiled is None:
+        compiled = re.compile(pattern)
+        _PATTERN_CACHE[pattern] = compiled
+    return compiled
+
 
 def filter_lines(lines: list[str], *, patterns: list[str]) -> list[str]:
     """Remove lines matching any of the given regex patterns.
@@ -24,7 +35,7 @@ def filter_lines(lines: list[str], *, patterns: list[str]) -> list[str]:
     Returns:
         Filtered lines.
     """
-    compiled = [re.compile(p) for p in patterns]
+    compiled = [_compile_pattern(p) for p in patterns]
     return [line for line in lines if not any(r.search(line) for r in compiled)]
 
 
@@ -159,11 +170,12 @@ def _truncate_per_section(
     result: list[str] = []
     for section in sections:
         if len(section) > max_lines:
-            half = max_lines // 2
+            top = (max_lines + 1) // 2
+            bottom = max_lines - top
             omitted = len(section) - max_lines
-            result.extend(section[:half])
+            result.extend(section[:top])
             result.append(f"  [... {omitted} lines omitted in section ...]\n")
-            result.extend(section[-half:])
+            result.extend(section[-bottom:] if bottom > 0 else [])
         else:
             result.extend(section)
     return result

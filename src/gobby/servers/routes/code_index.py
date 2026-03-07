@@ -44,6 +44,12 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
                 content={"error": "Code indexer not available"},
             )
 
+        if not body.files:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "No files provided for indexing"},
+            )
+
         project_id = body.project_id or getattr(services, "project_id", "") or ""
         root_path = ""
 

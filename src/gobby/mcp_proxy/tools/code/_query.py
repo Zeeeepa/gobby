@@ -77,11 +77,11 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
     def get_symbol(
         symbol_id: str,
         project_id: str = "",
-    ) -> dict[str, Any] | str:
+    ) -> dict[str, Any]:
         """Retrieve a single symbol with its source code."""
         sym = ctx.storage.get_symbol(symbol_id)
         if sym is None:
-            return f"Symbol not found: {symbol_id}"
+            return {"error": f"Symbol not found: {symbol_id}"}
 
         # Read source from file
         source = _read_symbol_source(sym, project_id or ctx.project_id)

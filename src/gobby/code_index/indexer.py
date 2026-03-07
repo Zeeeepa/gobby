@@ -260,10 +260,7 @@ class CodeIndexer:
     async def invalidate(self, project_id: str) -> None:
         """Clear all index data for a project."""
         self._storage.delete_symbols_for_project(project_id)
-
-        # Clear files
-        for f in self._storage.list_files(project_id):
-            self._storage.delete_file(project_id, f.file_path)
+        self._storage.delete_files_for_project(project_id)
 
         # Clear graph
         if self._graph is not None:

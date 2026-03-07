@@ -368,11 +368,14 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             if server.session_manager is None:
                 raise HTTPException(status_code=503, detail="Session manager not available")
 
+            # Over-fetch when resumability filtering is requested, since
+            # non-resumable sessions will be removed post-query
+            fetch_limit = limit * 3 if include_resumability else limit
             sessions = server.session_manager.list(
                 project_id=project_id,
                 status=status,
                 source=source,
-                limit=limit,
+                limit=fetch_limit,
                 exclude_subagents=exclude_subagents,
             )
 
@@ -406,6 +409,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                     session_data["is_resumable"] = is_resumable
                     session_data["resume_blocked_reason"] = blocked_reason
                 session_list.append(session_data)
+                if include_resumability and len(session_list) >= limit:
+                    break
 
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
