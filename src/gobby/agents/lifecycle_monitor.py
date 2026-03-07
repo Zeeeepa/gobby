@@ -401,8 +401,8 @@ class AgentLifecycleMonitor:
         tmux_name = agent.tmux_session_name
         assert tmux_name is not None
 
-        # Capture last 5 lines from pane
-        pane_output = await self._tmux.capture_pane(tmux_name, lines=5)
+        # Capture last 15 lines from pane (need enough to see past status bar)
+        pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
         if pane_output is None:
             return 0
 

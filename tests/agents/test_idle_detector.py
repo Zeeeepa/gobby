@@ -170,3 +170,46 @@ class TestClearState:
 
     def test_clear_nonexistent_is_noop(self) -> None:
         self.detector.clear_state("no-such-run")  # should not raise
+
+
+class TestStatusBarFiltering:
+    """Tests for idle detection through Claude Code status bar."""
+
+    def setup_method(self) -> None:
+        self.detector = IdleDetector()
+
+    def test_idle_prompt_above_status_bar(self) -> None:
+        """The real-world case: ❯ prompt is above the status bar."""
+        output = (
+            "⏺ All 34 tests pass.\n"
+            "\n"
+            "❯ \n"
+            "────────────────────\n"
+            "   Opus 4.6  34.2%  3hr 22m \n"
+            "   ⎇ epic-9915  𖠰 epic-9915  (+25,-26) \n"
+            "   /private/tmp/gobby-worktrees/gobby/epic-9915 \n"
+            "  ⏵⏵ bypass permissions on (shift+tab to cycle)\n"
+        )
+        assert self.detector.detect(output) == "idle"
+
+    def test_active_output_above_status_bar(self) -> None:
+        """Agent is working — last content line is not a prompt."""
+        output = (
+            "⏺ Bash(uv run pytest tests/ -v)\n"
+            "────────────────────\n"
+            "   Opus 4.6  34.2%  3hr \n"
+            "   ⎇ epic-9915\n"
+            "   /private/tmp/gobby-worktrees/gobby/epic-9915\n"
+            "  ⏵⏵ bypass permissions on\n"
+        )
+        assert self.detector.detect(output) == "active"
+
+    def test_status_bar_only_is_active(self) -> None:
+        """If only status bar lines are captured, treat as active (can't tell)."""
+        output = (
+            "   Opus 4.6  34.2%  3hr \n"
+            "   ⎇ epic-9915\n"
+            "   /private/tmp/worktrees/epic\n"
+            "  ⏵⏵ bypass permissions on\n"
+        )
+        assert self.detector.detect(output) == "active"

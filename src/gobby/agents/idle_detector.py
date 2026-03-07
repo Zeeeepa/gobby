@@ -41,6 +41,15 @@ class IdleDetector:
         re.compile(r"conversation is too long", re.IGNORECASE),
     ]
 
+    # Claude Code status bar lines — skip these when searching for the prompt
+    STATUS_BAR_PATTERNS: list[re.Pattern[str]] = [
+        re.compile(r"Opus|Sonnet|Haiku", re.IGNORECASE),
+        re.compile(r"bypass permissions", re.IGNORECASE),
+        re.compile(r"^\s*[⎇𖠰]"),  # Branch/worktree indicators
+        re.compile(r"^\s*/"),  # Absolute path (cwd line)
+        re.compile(r"^\s*[─━▪▫]+"),  # Separator/divider lines
+    ]
+
     REPROMPT_MESSAGE = (
         "Continue working on your task. If you are done, call close_task and then kill_agent."
     )
@@ -77,15 +86,18 @@ class IdleDetector:
             if pattern.search(full_text):
                 return "context_full"
 
-        # Check last non-empty line for idle prompt
+        # Check lines bottom-up, skipping status bar chrome
         for line in reversed(lines):
             stripped = line.strip()
             if not stripped:
                 continue
+            # Skip Claude Code status bar lines
+            if any(p.search(stripped) for p in self.STATUS_BAR_PATTERNS):
+                continue
             for pattern in self.IDLE_PROMPT_PATTERNS:
-                if pattern.match(line):
+                if pattern.match(stripped):
                     return "idle"
-            # If last non-empty line doesn't match idle, agent is active
+            # First non-empty, non-status-bar line doesn't match idle → active
             break
 
         return "active"
