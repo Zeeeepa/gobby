@@ -152,9 +152,9 @@ def list_ready_tasks(
             JOIN tasks blocker ON d.depends_on = blocker.id
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
-              -- Blocker is unresolved if not closed AND not in review without requiring user review
+              -- Blocker is unresolved if not closed/approved AND not in review without requiring user review
               AND NOT (
-                  blocker.status = 'closed'
+                  blocker.status IN ('closed', 'review_approved')
                   OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
               )
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
@@ -182,9 +182,9 @@ def list_ready_tasks(
             JOIN tasks blocker ON d.depends_on = blocker.id
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
-              -- Blocker is unresolved if not closed AND not in review without requiring user review
+              -- Blocker is unresolved if not closed/approved AND not in review without requiring user review
               AND NOT (
-                  blocker.status = 'closed'
+                  blocker.status IN ('closed', 'review_approved')
                   OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
               )
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
