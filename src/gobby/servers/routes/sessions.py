@@ -6,6 +6,7 @@ Provides session registration, listing, lookup, and update endpoints.
 
 import asyncio
 import logging
+import os
 import re
 import subprocess  # nosec B404 - subprocess needed for git commit counting
 import time
@@ -1156,6 +1157,81 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error clearing stop signal: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    # --- Transcript Blob Endpoints ---
+
+    @router.get("/{session_id}/transcript/status")
+    async def transcript_status(session_id: str) -> dict[str, Any]:
+        """Check if a transcript blob exists and get size stats."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            from gobby.storage.session_transcripts import LocalSessionTranscriptManager
+
+            tm = LocalSessionTranscriptManager(server.session_manager.db)
+            stats = tm.get_stats(session_id)
+            if not stats:
+                return {"exists": False, "session_id": session_id}
+            stats["session_id"] = session_id
+            return stats
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error getting transcript status: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.get("/{session_id}/transcript")
+    async def get_transcript(session_id: str) -> Any:
+        """Download raw transcript content."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            from fastapi.responses import Response
+
+            from gobby.storage.session_transcripts import LocalSessionTranscriptManager
+
+            tm = LocalSessionTranscriptManager(server.session_manager.db)
+            raw = tm.get_transcript(session_id)
+            if raw is None:
+                raise HTTPException(status_code=404, detail="No transcript blob stored")
+            return Response(
+                content=raw,
+                media_type="application/x-ndjson",
+                headers={"Content-Disposition": f'attachment; filename="{session_id}.jsonl"'},
+            )
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error getting transcript: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{session_id}/restore-transcript")
+    async def restore_transcript(session_id: str) -> dict[str, Any]:
+        """Restore a transcript blob to disk for CLI resume."""
+        metrics.inc_counter("http_requests_total")
+        try:
+            from gobby.storage.session_transcripts import LocalSessionTranscriptManager
+
+            tm = LocalSessionTranscriptManager(server.session_manager.db)
+            path = tm.restore_to_disk(session_id)
+            if path is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No transcript blob stored for this session",
+                )
+            size = os.path.getsize(path)
+            return {
+                "status": "restored",
+                "session_id": session_id,
+                "path": path,
+                "size": size,
+            }
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error restoring transcript: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     return router

@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 143
+BASELINE_VERSION = 144
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -922,6 +922,16 @@ CREATE INDEX idx_cs_name ON code_symbols(name);
 CREATE INDEX idx_cs_qualified ON code_symbols(qualified_name);
 CREATE INDEX idx_cs_kind ON code_symbols(kind);
 CREATE INDEX idx_cs_parent ON code_symbols(parent_symbol_id);
+
+CREATE TABLE session_transcripts (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    transcript_blob BLOB NOT NULL,
+    uncompressed_size INTEGER NOT NULL,
+    compressed_size INTEGER NOT NULL,
+    checksum TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 # Migrations beyond v133.
@@ -1063,6 +1073,19 @@ CREATE INDEX IF NOT EXISTS idx_cs_name ON code_symbols(name);
 CREATE INDEX IF NOT EXISTS idx_cs_qualified ON code_symbols(qualified_name);
 CREATE INDEX IF NOT EXISTS idx_cs_kind ON code_symbols(kind);
 CREATE INDEX IF NOT EXISTS idx_cs_parent ON code_symbols(parent_symbol_id)""",
+    ),
+    (
+        144,
+        "Add session_transcripts table for compressed blob storage",
+        """CREATE TABLE IF NOT EXISTS session_transcripts (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    transcript_blob BLOB NOT NULL,
+    uncompressed_size INTEGER NOT NULL,
+    compressed_size INTEGER NOT NULL,
+    checksum TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)""",
     ),
 ]
 

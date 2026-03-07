@@ -136,6 +136,9 @@ def setup_internal_registries(
     # Register if either message_manager or local_session_manager is available
     if message_manager is not None or local_session_manager is not None:
         from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
+        from gobby.storage.session_transcripts import LocalSessionTranscriptManager
+
+        _transcript_manager = LocalSessionTranscriptManager(db) if db else None
 
         session_messages_registry = create_session_messages_registry(
             message_manager=message_manager,
@@ -145,6 +148,7 @@ def setup_internal_registries(
             db=db,
             worktree_manager=worktree_storage,
             inter_session_message_manager=inter_session_message_manager,
+            transcript_manager=_transcript_manager,
         )
         manager.add_registry(session_messages_registry)
         logger.debug("Sessions registry initialized")
