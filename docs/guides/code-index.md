@@ -6,6 +6,20 @@ AST-based symbol indexing for your codebase via the `gobby-code` MCP server. Par
 
 Index a project and search for symbols:
 
+```bash
+# CLI: Index current project
+gobby index
+
+# CLI: Check status
+gobby index status
+
+# CLI: Force full re-index
+gobby index --full
+
+# CLI: Clear index
+gobby index invalidate
+```
+
 ```python
 # MCP: Index status
 call_tool("gobby-code", "list_indexed", {})
