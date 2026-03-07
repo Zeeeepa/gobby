@@ -363,6 +363,15 @@ class OutputCompressor:
         compressed = "".join(lines)
         compressed_chars = len(compressed)
 
+        # If compression produced empty/whitespace-only output, pass through original
+        if not compressed.strip():
+            return CompressionResult(
+                compressed=output,
+                original_chars=original_chars,
+                compressed_chars=original_chars,
+                strategy_name="passthrough",
+            )
+
         # If compression didn't help much, return original
         if compressed_chars >= original_chars * 0.95:
             return CompressionResult(

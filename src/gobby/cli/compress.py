@@ -32,6 +32,9 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
     if result.stderr:
         raw_output += result.stderr
 
+    if not raw_output:
+        sys.exit(result.returncode)
+
     from gobby.compression import OutputCompressor
 
     # Read compression config from daemon (best-effort, fall back to defaults)
