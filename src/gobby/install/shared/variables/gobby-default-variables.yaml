@@ -73,3 +73,9 @@ variables:
   unlocked_tools:
     value: []
     description: Default unlocked_tools to empty list
+  edit_write_pending:
+    value: false
+    description: "True when an Edit/Write tool call is pending (pre-tool fired, post-tool not yet succeeded)"
+  edit_write_stop_blocks:
+    value: 0
+    description: "Circuit breaker counter for edit-write stop gate"

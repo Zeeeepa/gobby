@@ -1486,3 +1486,214 @@ class TestMcpCallTemplateRendering:
         call = mcp_calls[0]
         assert call["arguments"]["status"] == "open"
         assert call["arguments"]["limit"] == 10
+
+
+class TestToolBlockPendingScopeAware:
+    """Tests for scope-aware tool_block_pending clearing."""
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_only_clears_for_matching_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should NOT clear when a different tool succeeds."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {
+            "tool_block_pending": True,
+            "_last_blocked_tool": "Write",
+        }
+        # A different tool (Read) succeeds — should NOT clear the pending flag
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["tool_block_pending"] is True
+        assert variables["_last_blocked_tool"] == "Write"
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_clears_for_matching_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should clear when the same tool succeeds."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {
+            "tool_block_pending": True,
+            "_last_blocked_tool": "Write",
+        }
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Write"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["tool_block_pending"] is False
+        assert variables["_last_blocked_tool"] == ""
+
+    @pytest.mark.asyncio
+    async def test_tool_block_pending_clears_when_no_last_blocked_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """tool_block_pending should clear when _last_blocked_tool is empty (legacy compat)."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {
+            "tool_block_pending": True,
+            "_last_blocked_tool": "",
+        }
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["tool_block_pending"] is False
+
+    @pytest.mark.asyncio
+    async def test_parallel_scenario_edit_fails_read_succeeds(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Parallel calls: Edit pre-tool fires, Edit fails, Read succeeds — edit_write_pending stays True."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+
+        # Edit pre-tool fires → sets edit_write_pending
+        before_event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        await engine.evaluate(before_event, session_id="sess-1", variables=variables)
+        assert variables.get("edit_write_pending") is True
+
+        # Edit fails → sets tool_block_pending
+        fail_event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        fail_event.metadata["is_failure"] = True
+        await engine.evaluate(fail_event, session_id="sess-1", variables=variables)
+        assert variables["tool_block_pending"] is True
+        # edit_write_pending should NOT be cleared by a failed edit
+        assert variables["edit_write_pending"] is True
+
+        # Read succeeds (sibling cancelled call) — edit_write_pending still True
+        success_event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(success_event, session_id="sess-1", variables=variables)
+
+        # edit_write_pending is the safety net — Read doesn't clear it
+        assert variables.get("edit_write_pending") is True
+
+
+class TestEditWritePending:
+    """Tests for edit_write_pending lifecycle tracking."""
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_set_on_before_tool(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """edit_write_pending should be set True when Edit/Write pre-tool fires."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("edit_write_pending") is True
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_set_for_write(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """edit_write_pending should be set for Write tool too."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Write"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("edit_write_pending") is True
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_not_set_for_read(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """edit_write_pending should NOT be set for non-edit tools like Read."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("edit_write_pending") is not True
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_cleared_on_success(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """edit_write_pending should clear on successful Edit/Write post-tool."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"edit_write_pending": True}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["edit_write_pending"] is False
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_not_cleared_on_failure(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """edit_write_pending should NOT clear on failed Edit/Write post-tool."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"edit_write_pending": True}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        event.metadata["is_failure"] = True
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["edit_write_pending"] is True
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_blocks_stop(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Stop should be blocked when edit_write_pending is True."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"edit_write_pending": True}
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "block"
+        assert "edit-write-recovery" in response.reason
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_stop_allowed_after_success(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Stop should be allowed after edit_write_pending is cleared by success."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"edit_write_pending": True}
+
+        # Successful Edit clears the flag
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Edit"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+        assert variables["edit_write_pending"] is False
+
+        # Now stop should be allowed
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, session_id="sess-1", variables=variables)
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_circuit_breaker(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Circuit breaker: after 3 stop blocks, allow stop and clear flag."""
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"edit_write_pending": True, "edit_write_stop_blocks": 0}
+
+        # Blocks 1, 2, 3
+        for i in range(3):
+            event = _make_event(HookEventType.STOP)
+            response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+            assert response.decision == "block", f"Block {i + 1} should block"
+
+        assert variables["edit_write_stop_blocks"] == 3
+
+        # 4th attempt — circuit breaker trips, allow stop
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+        assert response.decision == "allow"
+        assert variables["edit_write_pending"] is False
+        assert variables["edit_write_stop_blocks"] == 0

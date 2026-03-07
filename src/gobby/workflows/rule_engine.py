@@ -13,6 +13,7 @@ from typing import Any
 
 import pydantic
 
+from gobby.hooks.event_handlers._tool import EDIT_TOOLS
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.storage.config_store import ConfigStore
 from gobby.storage.database import DatabaseProtocol
@@ -114,6 +115,12 @@ class RuleEngine:
             else:
                 # Different tool — reset counter, let it through to rule evaluation
                 variables["consecutive_tool_blocks"] = 0
+        # Track edit/write attempts — set pending on pre-tool
+        if rule_event == RuleEvent.BEFORE_TOOL:
+            tool_name_lower = event.data.get("tool_name", "").lower()
+            if tool_name_lower in EDIT_TOOLS:
+                variables["edit_write_pending"] = True
+
         elif rule_event == RuleEvent.BEFORE_AGENT:
             variables["consecutive_tool_blocks"] = 0
             variables["_last_blocked_tool"] = ""
@@ -182,6 +189,22 @@ class RuleEngine:
                 "A tool just failed. Read the error and recover — do not stop."
             )
 
+        # Block stop when edit/write is pending (failed or in-flight)
+        elif rule_event == RuleEvent.STOP and variables.get("edit_write_pending"):
+            edit_stop_blocks = variables.get("edit_write_stop_blocks", 0)
+            if edit_stop_blocks < 3:  # Circuit breaker
+                variables["edit_write_stop_blocks"] = edit_stop_blocks + 1
+                override_decision = "block"
+                override_reason = (
+                    "Rule enforced by Gobby: [edit-write-recovery]\n"
+                    "Your last Edit/Write attempt failed. "
+                    "Read the error and retry — do not stop."
+                )
+            else:
+                # Circuit breaker tripped — clear and allow stop
+                variables["edit_write_pending"] = False
+                variables["edit_write_stop_blocks"] = 0
+
         if not rules:
             # Auto-manage tool_block_pending on after_tool
             # (Symmetric with auto-set on before_tool block at line ~164)
@@ -194,9 +217,18 @@ class RuleEngine:
                     self._check_catastrophic_failure(event, variables)
                 else:
                     if variables.get("tool_block_pending"):
-                        variables["tool_block_pending"] = False
-                        variables["consecutive_tool_blocks"] = 0
-                        variables["_last_blocked_tool"] = ""
+                        # Only clear if THIS tool matches the one that was blocked
+                        failed_tool = variables.get("_last_blocked_tool", "")
+                        current_tool = event.data.get("tool_name", "")
+                        if not failed_tool or current_tool == failed_tool:
+                            variables["tool_block_pending"] = False
+                            variables["consecutive_tool_blocks"] = 0
+                            variables["_last_blocked_tool"] = ""
+                    # Clear edit_write_pending on successful edit/write
+                    tool_name_lower = event.data.get("tool_name", "").lower()
+                    if tool_name_lower in EDIT_TOOLS and not is_failure:
+                        variables["edit_write_pending"] = False
+                        variables["edit_write_stop_blocks"] = 0
             # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
             # even when no declarative rules are installed for this event.
             if override_decision == "block":
@@ -216,9 +248,18 @@ class RuleEngine:
                 self._check_catastrophic_failure(event, variables)
             else:
                 if variables.get("tool_block_pending"):
-                    variables["tool_block_pending"] = False
-                    variables["consecutive_tool_blocks"] = 0
-                    variables["_last_blocked_tool"] = ""
+                    # Only clear if THIS tool matches the one that was blocked
+                    failed_tool = variables.get("_last_blocked_tool", "")
+                    current_tool = event.data.get("tool_name", "")
+                    if not failed_tool or current_tool == failed_tool:
+                        variables["tool_block_pending"] = False
+                        variables["consecutive_tool_blocks"] = 0
+                        variables["_last_blocked_tool"] = ""
+                # Clear edit_write_pending on successful edit/write
+                tool_name_lower = event.data.get("tool_name", "").lower()
+                if tool_name_lower in EDIT_TOOLS and not is_failure:
+                    variables["edit_write_pending"] = False
+                    variables["edit_write_stop_blocks"] = 0
 
         # 5. Evaluate rules in priority order
         context_parts: list[str] = []
