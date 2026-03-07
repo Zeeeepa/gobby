@@ -135,7 +135,10 @@ class PipelineExecutor:
 
             # Build targeted message for orchestration completion
             message = ""
-            if outputs and outputs.get("orchestration_complete"):
+            if outputs and str(outputs.get("orchestration_complete", "")).lower() in (
+                "true",
+                "1",
+            ):
                 session_task = outputs.get("session_task", "unknown")
                 iteration = outputs.get("iteration", "?")
                 message = (

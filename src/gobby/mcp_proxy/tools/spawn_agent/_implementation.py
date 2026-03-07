@@ -489,6 +489,23 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
 
+        # 12a. Auto-claim task if task_id was provided
+        if resolved_task_id and task_manager:
+            try:
+                task_manager.update_task(
+                    resolved_task_id,
+                    status="in_progress",
+                    assignee=spawn_result.child_session_id,
+                )
+                logger.info(
+                    "Auto-claimed task %s for agent %s (session %s)",
+                    f"#{task_seq_num}" if task_seq_num else resolved_task_id,
+                    run_id,
+                    spawn_result.child_session_id,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to auto-claim task {resolved_task_id}: {e}")
+
         # 12b. Create WorkflowInstance for agent step workflow (post-spawn).
         # Must happen AFTER execute_spawn creates the child session record,
         # because workflow_instances.session_id has a FK to sessions(id).
