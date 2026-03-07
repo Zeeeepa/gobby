@@ -17,6 +17,7 @@ from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
     validate_leaf_task_with_llm,
     validate_parent_task,
 )
+from gobby.mcp_proxy.tools.tasks._notifications import notify_parent_on_status_change
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.storage.worktrees import LocalWorktreeManager
@@ -237,6 +238,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 except Exception as e:
                     logger.debug("Best-effort session linking failed: %s", e)
 
+            notify_parent_on_status_change(
+                ctx.task_manager.db, resolved_id, "needs_review", task_ref=f"#{task.seq_num}" if task.seq_num else None
+            )
+
             return {
                 "routed_to_review": True,
                 "message": (
@@ -257,6 +262,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             closed_in_session_id=resolved_session_id,
             closed_commit_sha=current_commit_sha,
             validation_override_reason=override_justification if store_override else None,
+        )
+
+        notify_parent_on_status_change(
+            ctx.task_manager.db, resolved_id, "closed", task_ref=f"#{task.seq_num}" if task.seq_num else None
         )
 
         # Auto-link session if provided
@@ -641,6 +650,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not updated:
             return {"error": f"Failed to claim task {task_id}"}
 
+        notify_parent_on_status_change(
+            ctx.task_manager.db, resolved_id, "in_progress", task_ref=f"#{task.seq_num}" if task.seq_num else None
+        )
+
         # Link task to session (best-effort, don't fail the claim if this fails)
         try:
             ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "claimed")
@@ -723,6 +736,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             status="escalated",
             escalated_at=datetime.now(UTC).isoformat(),
             escalation_reason=reason,
+        )
+
+        notify_parent_on_status_change(
+            ctx.task_manager.db, resolved_id, "escalated", task_ref=f"#{task.seq_num}" if task.seq_num else None
         )
 
         # Link task to session (best-effort)
@@ -821,6 +838,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not updated:
             return {"error": f"Failed to approve task {task_id}"}
 
+        notify_parent_on_status_change(
+            ctx.task_manager.db, resolved_id, "review_approved", task_ref=f"#{task.seq_num}" if task.seq_num else None
+        )
+
         # Link task to session (best-effort)
         try:
             ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "review_approved")
@@ -904,6 +925,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         updated = ctx.task_manager.update_task(resolved_id, **update_kwargs)
         if not updated:
             return {"error": f"Failed to mark task {task_id} for review"}
+
+        notify_parent_on_status_change(
+            ctx.task_manager.db, resolved_id, "needs_review", task_ref=f"#{task.seq_num}" if task.seq_num else None
+        )
 
         # Link task to session (best-effort, don't fail if this fails)
         try:

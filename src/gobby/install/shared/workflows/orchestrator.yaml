@@ -37,6 +37,7 @@ inputs:
   max_iterations: 200
   _current_iteration: 0
   _worktree_id: null
+  _continuation_prompt: null
 
 steps:
   # --- Guard ---
@@ -247,6 +248,7 @@ steps:
           merge: "${{ spawn_merge.output if spawn_merge.output else None }}"
         pipeline_name: "orchestrator"
         session_id: "${{ session_id }}"
+        continuation_prompt: "${{ inputs._continuation_prompt }}"
         inputs:
           _current_iteration: "${{ inputs._current_iteration + 1 }}"
           _worktree_id: "${{ inputs._worktree_id or (create_worktree.output.worktree_id if create_worktree.output else '') }}"
@@ -263,6 +265,7 @@ steps:
           merge_model: "${{ inputs.merge_model }}"
           wait_timeout: "${{ inputs.wait_timeout }}"
           max_iterations: "${{ inputs.max_iterations }}"
+          _continuation_prompt: "${{ inputs._continuation_prompt }}"
 
   # --- RESULT ---
   - id: result

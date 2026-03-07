@@ -132,7 +132,18 @@ class PipelineExecutor:
                 result["outputs"] = outputs
             if error is not None:
                 result["error"] = error
-            await self.completion_registry.notify(execution_id, result)
+
+            # Build targeted message for orchestration completion
+            message = ""
+            if outputs and outputs.get("orchestration_complete"):
+                session_task = outputs.get("session_task", "unknown")
+                iteration = outputs.get("iteration", "?")
+                message = (
+                    f"Orchestration complete for task {session_task}. "
+                    f"All tasks finished after {iteration} iterations."
+                )
+
+            await self.completion_registry.notify(execution_id, result, message=message)
         except Exception:
             logger.warning(
                 "Failed to notify completion registry for %s",

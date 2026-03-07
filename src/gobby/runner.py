@@ -661,10 +661,15 @@ class GobbyRunner:
         inputs = continuation.get("inputs", {})
         session_id = continuation.get("session_id")
         project_id = continuation.get("project_id", self.project_id or "")
+        continuation_prompt = continuation.get("continuation_prompt")
 
         if not pipeline_name:
             logger.error("Pipeline continuation missing pipeline_name: %s", continuation)
             return
+
+        # Inject continuation_prompt into inputs so the YAML can forward it
+        if continuation_prompt and "_continuation_prompt" not in inputs:
+            inputs["_continuation_prompt"] = continuation_prompt
 
         logger.info(
             "Pipeline continuation: re-invoking %s (iteration %s)",
@@ -679,10 +684,26 @@ class GobbyRunner:
             inputs=inputs,
             project_id=project_id,
             session_id=session_id,
+            continuation_prompt=continuation_prompt,
         )
 
         if not result.get("success"):
             logger.error("Pipeline continuation failed for %s: %s", pipeline_name, result)
+            return
+
+        # Auto-subscribe invoking session to continuation pass executions (#9887)
+        execution_id = result.get("execution_id")
+        if result.get("success") and execution_id and session_id and self.completion_registry:
+            from gobby.mcp_proxy.tools.workflows._pipelines import _auto_subscribe_lineage
+
+            _auto_subscribe_lineage(
+                self.completion_registry,
+                execution_id,
+                session_id,
+                self.session_manager,
+                continuation_prompt,
+                self.database,
+            )
 
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""

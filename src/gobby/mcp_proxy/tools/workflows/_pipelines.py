@@ -203,6 +203,7 @@ def register_pipeline_tools(
         pipeline_name: str,
         inputs: dict[str, Any],
         session_id: str | None = None,
+        continuation_prompt: str | None = None,
     ) -> dict[str, Any]:
         if _completion_registry is None:
             return {"success": False, "error": "Completion registry not available"}
@@ -260,6 +261,7 @@ def register_pipeline_tools(
             "inputs": inputs,
             "session_id": resolved_session_id or session_id,
             "project_id": project_id,
+            "continuation_prompt": continuation_prompt,
         }
 
         registered = 0
