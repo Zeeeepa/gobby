@@ -1,0 +1,126 @@
+body {
+    background-color: #faf8ef;
+    color: #776e65;
+    font-family: "Clear Sans", "Helvetica Neue", Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+}
+
+.container {
+    width: 450px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 80px;
+    font-weight: bold;
+    margin: 0;
+}
+
+.score-container {
+    background-color: #bbada0;
+    padding: 10px 25px;
+    border-radius: 3px;
+    color: white;
+    text-align: center;
+}
+
+.score-label {
+    font-size: 13px;
+    font-weight: bold;
+}
+
+#score {
+    font-size: 25px;
+    font-weight: bold;
+}
+
+.game-board {
+    background-color: #bbada0;
+    width: 450px;
+    height: 450px;
+    border-radius: 6px;
+    position: relative;
+    padding: 15px;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 15px;
+}
+
+.tile {
+    width: 100%;
+    height: 100%;
+    background-color: rgba(238, 228, 218, 0.35);
+    border-radius: 3px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 55px;
+    font-weight: bold;
+    transition: transform 0.1s ease-in-out, background-color 0.1s ease-in-out;
+}
+
+/* Tile Colors */
+.tile-2 { background-color: #eee4da; color: #776e65; }
+.tile-4 { background-color: #ede0c8; color: #776e65; }
+.tile-8 { background-color: #f2b179; color: white; }
+.tile-16 { background-color: #f59563; color: white; }
+.tile-32 { background-color: #f67c5f; color: white; }
+.tile-64 { background-color: #f65e3b; color: white; }
+.tile-128 { background-color: #edcf72; color: white; font-size: 45px; }
+.tile-256 { background-color: #edcc61; color: white; font-size: 45px; }
+.tile-512 { background-color: #edc850; color: white; font-size: 45px; }
+.tile-1024 { background-color: #edc53f; color: white; font-size: 35px; }
+.tile-2048 { background-color: #edc22e; color: white; font-size: 35px; }
+
+.game-over {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(238, 228, 218, 0.73);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 6px;
+}
+
+.game-over p {
+    font-size: 60px;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+.game-over button {
+    background-color: #8f7a66;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 3px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.hidden {
+    display: none;
+}
+
+.instructions {
+    margin-top: 30px;
+    line-height: 1.6;
+}
