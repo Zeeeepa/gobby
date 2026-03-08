@@ -22,8 +22,10 @@ def _make_hook_manager_stub(
     stub.tool_proxy_getter = tool_proxy_getter
     stub._loop = loop
     stub.logger = MagicMock()
-    # Bind the real method to our stub
+    # Bind the real methods to our stub
     stub._dispatch_mcp_calls = HookManager._dispatch_mcp_calls.__get__(stub, HookManager)
+    stub._run_coro_blocking = HookManager._run_coro_blocking.__get__(stub, HookManager)
+    stub._proxy_self_call = HookManager._proxy_self_call.__get__(stub, HookManager)
     return stub
 
 

@@ -101,6 +101,8 @@ class RuleEffect(BaseModel):
     tool: str | None = None
     arguments: dict[str, Any] | None = None
     background: bool = False
+    inject_result: bool = False  # Capture result and inject as agent context
+    block_on_failure: bool = False  # Block original tool call if this mcp_call fails
 
     # observe — append structured entry to _observations session variable
     category: str | None = None
@@ -122,13 +124,20 @@ class RuleEffect(BaseModel):
             "block": {"reason", "tools", "mcp_tools", "command_pattern", "command_not_pattern"},
             "set_variable": {"variable", "value"},
             "inject_context": {"template"},
-            "mcp_call": {"server", "tool", "arguments", "background"},
+            "mcp_call": {
+                "server",
+                "tool",
+                "arguments",
+                "background",
+                "inject_result",
+                "block_on_failure",
+            },
             "observe": {"category", "message"},
             "rewrite_input": {"input_updates", "auto_approve"},
             "compress_output": {"strategy", "max_lines"},
         }
         # Fields with non-None defaults that shouldn't trigger warnings
-        _default_skip = {"background", "when", "auto_approve"}
+        _default_skip = {"background", "when", "auto_approve", "inject_result", "block_on_failure"}
         relevant = _fields_by_type.get(self.type, set())
         for field_name, field_set in _fields_by_type.items():
             if field_name == self.type:

@@ -494,6 +494,8 @@ class RuleEngine:
                     "tool": effect.tool,
                     "arguments": rendered_args,
                     "background": effect.background,
+                    "inject_result": effect.inject_result,
+                    "block_on_failure": effect.block_on_failure,
                 }
             )
 

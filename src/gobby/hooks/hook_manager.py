@@ -498,8 +498,32 @@ class HookManager:
                 event.metadata.get("_platform_session_id", "unknown"),
             )
 
-            if mcp_calls:
-                self._dispatch_mcp_calls(mcp_calls, event)
+            dispatch_results = self._dispatch_mcp_calls(mcp_calls, event) if mcp_calls else []
+
+            # Process auto-heal dispatch results: inject context and block on failure
+            extra_context: list[str] = []
+            block_override: HookResponse | None = None
+
+            for dr in dispatch_results:
+                if dr.get("inject_result") and dr.get("result"):
+                    extra_context.append(self._format_discovery_result(dr))
+                if dr.get("block_on_failure") and not dr.get("success"):
+                    result = dr.get("result") or {}
+                    error_msg = (
+                        result.get("error", "unknown") if isinstance(result, dict) else str(result)
+                    )
+                    block_override = HookResponse(
+                        decision="block",
+                        reason=(
+                            f"Auto-heal prerequisite failed: {dr['server']}/{dr['tool']}: "
+                            f"{error_msg}"
+                        ),
+                        context="\n\n".join(extra_context) if extra_context else None,
+                    )
+                    break
+
+            if block_override:
+                return None, block_override
 
             if workflow_response.decision != "allow":
                 self.logger.info(
@@ -507,6 +531,13 @@ class HookManager:
                     workflow_response.decision,
                     event.metadata.get("_platform_session_id", "unknown"),
                 )
+                # Merge any auto-heal context into the block response
+                if extra_context and workflow_response.context:
+                    workflow_response.context = (
+                        workflow_response.context + "\n\n" + "\n\n".join(extra_context)
+                    )
+                elif extra_context:
+                    workflow_response.context = "\n\n".join(extra_context)
                 return None, workflow_response
 
             # Stash rewrite_input / compress_output data on event.metadata
@@ -520,6 +551,12 @@ class HookManager:
 
             # Capture context to merge later
             workflow_context = workflow_response.context if workflow_response.context else None
+            # Merge auto-heal discovery context
+            if extra_context:
+                heal_context = "\n\n".join(extra_context)
+                workflow_context = (
+                    f"{workflow_context}\n\n{heal_context}" if workflow_context else heal_context
+                )
 
             return workflow_context, None
 
@@ -671,20 +708,31 @@ class HookManager:
                 except Exception as e:
                     self.logger.warning(f"Sync hook message storage failed: {e}")
 
-    def _dispatch_mcp_calls(self, mcp_calls: list[dict[str, Any]], event: HookEvent) -> None:
+    def _dispatch_mcp_calls(
+        self, mcp_calls: list[dict[str, Any]], event: HookEvent
+    ) -> list[dict[str, Any]]:
         """Dispatch mcp_call effects from rule engine evaluation.
 
         Injects event context (session_id, prompt_text) into each call's
-        arguments and dispatches via ToolProxyService.
+        arguments and dispatches via ToolProxyService.  For calls with
+        ``inject_result`` or ``block_on_failure``, the result is captured
+        and returned so that ``_evaluate_workflow_rules`` can inject context
+        or block the original tool call.
 
         Args:
             mcp_calls: List of mcp_call dicts from rule engine metadata.
-                Each has: server, tool, arguments, background.
+                Each has: server, tool, arguments, background,
+                inject_result, block_on_failure.
             event: The originating HookEvent (for context injection).
+
+        Returns:
+            List of result dicts for calls that had inject_result or
+            block_on_failure set.  Each dict has keys: server, tool,
+            inject_result, block_on_failure, success, result.
         """
         if not self.tool_proxy_getter:
             self.logger.debug("_dispatch_mcp_calls: no tool_proxy_getter, skipping")
-            return
+            return []
 
         self.logger.info(
             "_dispatch_mcp_calls: dispatching %d calls for %s",
@@ -694,12 +742,16 @@ class HookManager:
 
         # Capture in local so mypy narrows past the None guard for closures
         _get_proxy = self.tool_proxy_getter
+        dispatch_results: list[dict[str, Any]] = []
 
         for call in mcp_calls:
             server = call.get("server")
             tool = call.get("tool")
             arguments = dict(call.get("arguments") or {})
             background = call.get("background", False)
+            inject_result = call.get("inject_result", False)
+            block_on_failure = call.get("block_on_failure", False)
+            needs_capture = inject_result or block_on_failure
 
             if not server or not tool:
                 self.logger.warning("_dispatch_mcp_calls: missing server or tool in %s", call)
@@ -713,13 +765,20 @@ class HookManager:
             if "prompt_text" not in arguments:
                 arguments["prompt_text"] = event.data.get("prompt") if event.data else None
 
-            async def _call(s: str, t: str, args: dict[str, Any]) -> None:
+            async def _call(s: str, t: str, args: dict[str, Any]) -> dict[str, Any] | None:
                 try:
                     proxy = _get_proxy()
                     if not proxy:
                         self.logger.warning("_dispatch_mcp_calls: tool_proxy_getter returned None")
-                        return
-                    result = await proxy.call_tool(s, t, args, strip_unknown=True)
+                        return {"success": False, "error": "tool_proxy_getter returned None"}
+
+                    # Proxy self-routing: _proxy/* calls route to ToolProxyService
+                    # methods directly instead of going through call_tool dispatch
+                    if s == "_proxy":
+                        result = await self._proxy_self_call(proxy, t, args)
+                    else:
+                        result = await proxy.call_tool(s, t, args, strip_unknown=True)
+
                     if isinstance(result, dict) and result.get("success") is False:
                         self.logger.warning(
                             "_dispatch_mcp_calls: %s/%s returned failure: %s",
@@ -727,10 +786,31 @@ class HookManager:
                             t,
                             result.get("error", "unknown"),
                         )
+                    return result
                 except Exception as exc:
                     self.logger.error(
                         "_dispatch_mcp_calls: %s/%s failed: %s", s, t, exc, exc_info=True
                     )
+                    return {"success": False, "error": str(exc)}
+
+            # If we need to capture the result, always run blocking
+            if needs_capture:
+                result = self._run_coro_blocking(_call(server, tool, arguments))
+                success = isinstance(result, dict) and result.get("success", False)
+                dispatch_results.append(
+                    {
+                        "server": server,
+                        "tool": tool,
+                        "inject_result": inject_result,
+                        "block_on_failure": block_on_failure,
+                        "success": success,
+                        "result": result,
+                    }
+                )
+                # If this call failed and block_on_failure is set, stop processing
+                if block_on_failure and not success:
+                    break
+                continue
 
             coro = _call(server, tool, arguments)
 
@@ -762,27 +842,79 @@ class HookManager:
                             )
             else:
                 # Blocking dispatch — must await completion, not fire-and-forget
-                if self._loop and self._loop.is_running():
-                    try:
-                        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-                        future.result(timeout=30)
-                    except Exception as e:
-                        self.logger.error(
-                            "_dispatch_mcp_calls: blocking %s/%s failed: %s",
-                            server,
-                            tool,
-                            e,
-                        )
-                else:
-                    try:
-                        asyncio.run(coro)
-                    except Exception as e:
-                        self.logger.error(
-                            "_dispatch_mcp_calls: blocking %s/%s failed: %s",
-                            server,
-                            tool,
-                            e,
-                        )
+                self._run_coro_blocking(coro)
+
+        return dispatch_results
+
+    def _run_coro_blocking(self, coro: Any) -> Any:
+        """Run a coroutine blocking, using the best available event loop strategy."""
+        if self._loop and self._loop.is_running():
+            try:
+                future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+                return future.result(timeout=30)
+            except Exception as e:
+                self.logger.error("_run_coro_blocking: threadsafe failed: %s", e)
+                return None
+        else:
+            try:
+                return asyncio.run(coro)
+            except Exception as e:
+                self.logger.error("_run_coro_blocking: asyncio.run failed: %s", e)
+                return None
+
+    async def _proxy_self_call(self, proxy: Any, tool: str, args: dict[str, Any]) -> dict[str, Any]:
+        """Route _proxy/* tool calls to ToolProxyService methods directly.
+
+        This enables auto-heal rules to call list_mcp_servers, list_tools,
+        and get_tool_schema without going through the MCP call_tool dispatch
+        (which only routes to sub-servers, not proxy-level tools).
+        """
+        if tool == "list_mcp_servers":
+            return await proxy.list_servers()
+        elif tool == "list_tools":
+            server_name = args.get("server_name", "")
+            return await proxy.list_tools(server_name)
+        elif tool == "get_tool_schema":
+            server_name = args.get("server_name", "")
+            tool_name = args.get("tool_name", "")
+            return await proxy.get_tool_schema(server_name, tool_name)
+        else:
+            return {"success": False, "error": f"Unknown _proxy tool: {tool}"}
+
+    @staticmethod
+    def _format_discovery_result(dr: dict[str, Any]) -> str:
+        """Format a proxy discovery result for context injection."""
+        import json
+
+        tool = dr.get("tool", "")
+        result = dr.get("result") or {}
+
+        if tool == "list_mcp_servers":
+            servers = result.get("servers", [])
+            lines = ["**Available MCP Servers:**"]
+            for s in servers:
+                lines.append(f"- {s.get('name')} ({s.get('state', 'unknown')})")
+            return "\n".join(lines)
+
+        elif tool == "list_tools":
+            tools = result.get("tools", [])
+            server = dr.get("_args", {}).get("server_name", result.get("server_name", ""))
+            lines = [f"**Tools on {server}:**"]
+            for t in tools:
+                name = t.get("name", "unknown")
+                brief = t.get("brief", "")
+                lines.append(f"- {name}: {brief}")
+            return "\n".join(lines)
+
+        elif tool == "get_tool_schema":
+            tool_info = result.get("tool", {})
+            schema = tool_info.get("inputSchema", {})
+            name = tool_info.get("name", "")
+            desc = tool_info.get("description", "")
+            return f"**Schema for {name}:**\n{desc}\n```json\n{json.dumps(schema, indent=2)}\n```"
+
+        else:
+            return f"**{tool} result:**\n```json\n{json.dumps(result, indent=2, default=str)}\n```"
 
     def _resolve_summary_output_path(self, session_id: str) -> str:
         """Resolve session summary output directory from the session's project.

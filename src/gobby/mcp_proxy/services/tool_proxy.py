@@ -506,6 +506,41 @@ class ToolProxyService:
 
         return None
 
+    async def list_servers(self) -> dict[str, Any]:
+        """List all available MCP servers (internal + external).
+
+        Mirrors GobbyDaemonTools.list_mcp_servers() but lives on ToolProxyService
+        so the hook dispatch code can reach it without the full server instance.
+        """
+        server_list: list[dict[str, Any]] = []
+        connected = 0
+        if self._internal_manager:
+            for reg in self._internal_manager.get_all_registries():
+                server_list.append(
+                    {"name": reg.name, "state": "connected", "transport": "internal"}
+                )
+                connected += 1
+        for config in self._mcp_manager.server_configs:
+            health = self._mcp_manager.health.get(config.name)
+            state = health.state.value if health else "unknown"
+            is_conn = config.name in self._mcp_manager.connections
+            if is_conn:
+                connected += 1
+            entry: dict[str, Any] = {
+                "name": config.name,
+                "state": state,
+                "transport": config.transport,
+            }
+            if not config.enabled:
+                entry["enabled"] = False
+            server_list.append(entry)
+        return {
+            "success": True,
+            "servers": server_list,
+            "total": len(server_list),
+            "connected": connected,
+        }
+
     async def call_tool_by_name(
         self,
         tool_name: str,
