@@ -31,6 +31,14 @@ instructions: |
   - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
   - There is ONE shared worktree for the entire epic, NOT one per task.
 
+workflows:
+  rule_selectors:
+    include:
+      - "tag:default"
+      - "tag:worker-safety"
+    exclude:
+      - "tag:sync"
+
 step_variables:
   merge_complete: false
 

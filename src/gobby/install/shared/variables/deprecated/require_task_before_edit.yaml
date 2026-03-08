@@ -1,3 +1,0 @@
-variable: require_task_before_edit
-value: true
-description: Default require_task_before_edit to true

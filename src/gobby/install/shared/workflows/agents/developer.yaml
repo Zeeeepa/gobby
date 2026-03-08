@@ -1,9 +1,40 @@
-name: developer-workflow
-description: "Developer agent step workflow with per-step tool enforcement"
+name: developer
+description: |
+  Developer agent: implements tasks, writes tests, commits, marks for review.
+  Behavior enforced by inline step workflow.
+
 version: "2.0"
 enabled: false
+priority: 20
 
-variables:
+instructions: |
+  You are a developer agent spawned by an orchestrator pipeline.
+  Your task ID is in your session variables as assigned_task_id.
+
+  Your behavior is enforced by a step workflow. Follow the step prompts:
+  1. CLAIM: Call claim_task with your assigned_task_id, then get_task for details
+  2. IMPLEMENT: Read code, write implementation, write tests, run tests, commit
+     git add <files>
+     git commit -m "[gobby-#TASK_ID] description"
+  3. SUBMIT: Call mark_task_needs_review to submit for QA
+  4. TERMINATE: Call kill_agent to shut down
+
+  CRITICAL RULES:
+  - Do NOT call close_task — blocked by workflow. Only mark_task_needs_review.
+  - Do NOT call git push — the merge agent handles pushing.
+  - Do NOT stop or exit without calling kill_agent.
+  - Always use `uv run` for Python commands.
+  - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
+
+workflows:
+  rule_selectors:
+    include:
+      - "tag:default"
+      - "tag:worker-safety"
+    exclude:
+      - "tag:sync"
+
+step_variables:
   task_claimed: false
   review_submitted: false
 
@@ -65,10 +96,3 @@ steps:
       - "gobby-agents:kill_agent"
 
 exit_condition: "current_step == 'terminate'"
-
-rule_definitions:
-  no_push:
-    tools: [Bash]
-    command_pattern: "git\\s+push"
-    reason: "Push is blocked. The merge agent handles pushing."
-    action: block

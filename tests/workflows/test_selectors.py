@@ -292,6 +292,38 @@ def test_resolve_variables_with_include() -> None:
     assert "session-defaults" in result
 
 
+def test_resolve_rules_tag_exclude_sync() -> None:
+    """Agents with exclude: [tag:sync] should exclude sync-tagged rules."""
+    agent = MagicMock()
+    agent.workflows.rules = []
+    agent.workflows.rule_selectors = MagicMock()
+    agent.workflows.rule_selectors.include = ["tag:default", "tag:worker-safety"]
+    agent.workflows.rule_selectors.exclude = ["tag:sync"]
+
+    # A default-tagged rule (should be included)
+    default_rule = MagicMock()
+    default_rule.name = "require-task-before-edit"
+    default_rule.tags = ["default", "gobby"]
+    default_rule.definition_json = None
+
+    # A sync-tagged rule (should be excluded despite also having default)
+    sync_rule = MagicMock()
+    sync_rule.name = "task-sync-import-on-start"
+    sync_rule.tags = ["sync", "default", "gobby"]
+    sync_rule.definition_json = None
+
+    # A worker-safety rule (should be included)
+    safety_rule = MagicMock()
+    safety_rule.name = "block-git-push"
+    safety_rule.tags = ["worker-safety", "gobby"]
+    safety_rule.definition_json = None
+
+    result = resolve_rules_for_agent(agent, [default_rule, sync_rule, safety_rule])
+    assert "require-task-before-edit" in result
+    assert "block-git-push" in result
+    assert "task-sync-import-on-start" not in result
+
+
 def test_resolve_variables_with_exclude() -> None:
     agent = MagicMock()
     agent.workflows.variable_selectors = MagicMock()
