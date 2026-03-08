@@ -377,6 +377,17 @@ export function useChat() {
     onPlanReadyRef.current = fn;
   }, []);
 
+  // Callback when artifact event arrives from backend (show_file)
+  const onArtifactEventRef = useRef<
+    ((type: string, content: string, language?: string, title?: string) => void) | null
+  >(null);
+  const setOnArtifactEvent = useCallback(
+    (fn: (type: string, content: string, language?: string, title?: string) => void) => {
+      onArtifactEventRef.current = fn;
+    },
+    [],
+  );
+
   // Callback when backend confirms a chat deletion
   const onChatDeletedRef = useRef<((conversationId: string) => void) | null>(
     null,
@@ -479,6 +490,7 @@ export function useChat() {
             "tool_status",
             "chat_thinking",
             "canvas_event",
+            "artifact_event",
           ],
         }),
       );
@@ -711,6 +723,16 @@ export function useChat() {
               }
               return next;
             });
+          }
+        } else if (data.type === "artifact_event") {
+          const ev = data as any;
+          if (ev.event === "show_file") {
+            onArtifactEventRef.current?.(
+              ev.artifact_type,
+              ev.content,
+              ev.language,
+              ev.title,
+            );
           }
         } else if (data.type === "attach_to_session_result") {
           const result = data as Record<string, unknown>;
@@ -2155,6 +2177,7 @@ export function useChat() {
     continueSessionInChat,
     setOnModeChanged,
     setOnPlanReady,
+    setOnArtifactEvent,
     addSystemMessage,
     viewSession,
     clearViewingSession,

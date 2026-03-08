@@ -106,6 +106,18 @@ export function ChatPage({
     chat.setOnPlanReady?.(onPlanReady);
   }, [chat.setOnPlanReady, onPlanReady]);
 
+  // Wire artifact events (show_file) to artifact panel
+  const onArtifactEvent = useCallback(
+    (type: string, content: string, language?: string, title?: string) => {
+      createArtifact(type as any, content, language, title);
+    },
+    [createArtifact],
+  );
+
+  useEffect(() => {
+    chat.setOnArtifactEvent?.(onArtifactEvent);
+  }, [chat.setOnArtifactEvent, onArtifactEvent]);
+
   // Wrap approve/reject to also close the artifact panel
   const handleApprovePlan = useCallback(() => {
     chat.onApprovePlan?.();

@@ -520,6 +520,17 @@ class HTTPServer:
             set_broadcaster(_canvas_broadcaster)
             logger.debug("Canvas broadcaster connected to WebSocket server")
 
+            # Initialize artifact broadcaster
+            from gobby.mcp_proxy.tools.canvas import set_artifact_broadcaster
+
+            async def _artifact_broadcaster(**kwargs: Any) -> None:
+                ws = self.services.websocket_server or self.websocket_server
+                if ws and hasattr(ws, "broadcast_artifact_event"):
+                    await ws.broadcast_artifact_event(**kwargs)
+
+            set_artifact_broadcaster(_artifact_broadcaster)
+            logger.debug("Artifact broadcaster connected to WebSocket server")
+
             # Store server instance for dependency injection
             app.state.server = self
 

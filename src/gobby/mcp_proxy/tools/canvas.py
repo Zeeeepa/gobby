@@ -1,12 +1,14 @@
 """
-Internal MCP tools for Gobby Canvas System.
+Internal MCP tools for Gobby Canvas and Artifact systems.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
+import mimetypes
 import shutil
 import time
 import uuid
@@ -63,11 +65,66 @@ _canvases: dict[str, CanvasState] = {}
 _canvas_locks: dict[str, asyncio.Lock] = {}
 _rate_counters: dict[str, list[float]] = {}
 _broadcaster_ref: dict[str, Any] = {"func": None}
+_artifact_broadcaster_ref: dict[str, Any] = {"func": None}
+
+# File size limits for show_file
+MAX_TEXT_FILE_SIZE = 1 * 1024 * 1024  # 1MB
+MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+# Extension → (artifact_type, language)
+EXTENSION_MAP: dict[str, tuple[str, str | None]] = {
+    ".md": ("text", "markdown"),
+    ".txt": ("text", "plaintext"),
+    ".rst": ("text", "plaintext"),
+    ".adoc": ("text", "plaintext"),
+    ".py": ("code", "python"),
+    ".js": ("code", "javascript"),
+    ".ts": ("code", "typescript"),
+    ".tsx": ("code", "tsx"),
+    ".jsx": ("code", "jsx"),
+    ".rs": ("code", "rust"),
+    ".go": ("code", "go"),
+    ".java": ("code", "java"),
+    ".json": ("code", "json"),
+    ".yaml": ("code", "yaml"),
+    ".yml": ("code", "yaml"),
+    ".toml": ("code", "toml"),
+    ".html": ("code", "html"),
+    ".css": ("code", "css"),
+    ".sql": ("code", "sql"),
+    ".sh": ("code", "shell"),
+    ".bash": ("code", "shell"),
+    ".zsh": ("code", "shell"),
+    ".c": ("code", "c"),
+    ".cpp": ("code", "cpp"),
+    ".h": ("code", "c"),
+    ".rb": ("code", "ruby"),
+    ".php": ("code", "php"),
+    ".swift": ("code", "swift"),
+    ".kt": ("code", "kotlin"),
+    ".scala": ("code", "scala"),
+    ".r": ("code", "r"),
+    ".lua": ("code", "lua"),
+    ".xml": ("code", "xml"),
+    ".csv": ("sheet", None),
+    ".tsv": ("sheet", None),
+    ".png": ("image", None),
+    ".jpg": ("image", None),
+    ".jpeg": ("image", None),
+    ".gif": ("image", None),
+    ".webp": ("image", None),
+    ".svg": ("image", None),
+}
 
 
 def set_broadcaster(callback: Callable[..., Awaitable[None]] | None) -> None:
-    """Set the broadcaster after creation (wired in HTTP lifespan)."""
+    """Set the canvas broadcaster after creation (wired in HTTP lifespan)."""
     _broadcaster_ref["func"] = callback
+
+
+def set_artifact_broadcaster(callback: Callable[..., Awaitable[None]] | None) -> None:
+    """Set the artifact broadcaster after creation (wired in HTTP lifespan)."""
+    _artifact_broadcaster_ref["func"] = callback
 
 
 def get_canvas(canvas_id: str) -> CanvasState | None:
@@ -468,5 +525,79 @@ def create_canvas_registry(
             )
 
         return {"success": True, "canvas_id": actual_canvas_id, "url": html_url}
+
+    @registry.tool(
+        name="show_file",
+        description="Show a file in the web chat artifacts panel with syntax highlighting (code) or rendered markdown (text). Supports code, markdown, images, and CSV files.",
+    )
+    async def show_file(
+        file_path: str,
+        title: str | None = None,
+        conversation_id: str | None = None,
+        _context: Any = None,
+    ) -> dict[str, Any]:
+        """Show a file in the artifacts panel."""
+        actual_convo_id = conversation_id
+        if not actual_convo_id and _context:
+            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
+                _context, "session_id", None
+            )
+
+        if not actual_convo_id:
+            return {"success": False, "error": "conversation_id (or session context) is required"}
+
+        source = Path(file_path)
+        if not source.is_absolute():
+            return {"success": False, "error": f"file_path must be absolute: {file_path}"}
+        if not source.is_file():
+            return {"success": False, "error": f"File not found: {file_path}"}
+
+        ext = source.suffix.lower()
+        artifact_type, language = EXTENSION_MAP.get(ext, ("code", ext.lstrip(".") or "text"))
+
+        # Check file size
+        file_size = source.stat().st_size
+        if artifact_type == "image":
+            if file_size > MAX_IMAGE_FILE_SIZE:
+                return {
+                    "success": False,
+                    "error": f"Image file too large: {file_size} bytes (max {MAX_IMAGE_FILE_SIZE})",
+                }
+        elif file_size > MAX_TEXT_FILE_SIZE:
+            return {
+                "success": False,
+                "error": f"File too large: {file_size} bytes (max {MAX_TEXT_FILE_SIZE})",
+            }
+
+        # Read content
+        if artifact_type == "image":
+            raw = source.read_bytes()
+            mime_type = mimetypes.guess_type(str(source))[0] or "application/octet-stream"
+            content = f"data:{mime_type};base64,{base64.b64encode(raw).decode('ascii')}"
+        else:
+            try:
+                content = source.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                return {"success": False, "error": f"File is not valid UTF-8: {file_path}"}
+
+        actual_title = title or source.name
+
+        bc = _artifact_broadcaster_ref["func"]
+        if bc:
+            await bc(
+                event="show_file",
+                conversation_id=actual_convo_id,
+                artifact_type=artifact_type,
+                content=content,
+                language=language,
+                title=actual_title,
+            )
+
+        return {
+            "success": True,
+            "type": artifact_type,
+            "language": language,
+            "title": actual_title,
+        }
 
     return registry
