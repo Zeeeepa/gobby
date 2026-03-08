@@ -9,7 +9,7 @@ description: |
 
   Requires:
     - session_task: epic or task ID (already expanded with subtasks)
-    - worktree_id: pre-created worktree
+    - worktree_id OR clone_id: pre-created isolation resource
     - merge_target: target branch for merging
 
   Do NOT use wait_for_completion — use run_pipeline with
@@ -24,6 +24,7 @@ outputs:
 inputs:
   session_task: null
   worktree_id: null
+  clone_id: null
   merge_target: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
@@ -150,6 +151,7 @@ steps:
         suggestions: "${{ find_next.output.suggestions }}"
         agent: "${{ inputs.developer_agent }}"
         worktree_id: "${{ inputs.worktree_id }}"
+        clone_id: "${{ inputs.clone_id }}"
         provider: "${{ inputs.developer_provider }}"
         model: "${{ inputs.developer_model }}"
         parent_session_id: "${{ session_id }}"
@@ -180,6 +182,7 @@ steps:
         agent: "${{ inputs.qa_agent }}"
         task_id: "${{ scan_needs_review.output.tasks[0].id if scan_needs_review.output and scan_needs_review.output.tasks else get_task_status.output.id }}"
         worktree_id: "${{ inputs.worktree_id }}"
+        clone_id: "${{ inputs.clone_id }}"
         provider: "${{ inputs.qa_provider }}"
         model: "${{ inputs.qa_model }}"
         parent_session_id: "${{ session_id }}"
@@ -201,6 +204,7 @@ steps:
         inputs:
           _current_iteration: "${{ inputs._current_iteration + 1 }}"
           worktree_id: "${{ inputs.worktree_id }}"
+          clone_id: "${{ inputs.clone_id }}"
           session_task: "${{ inputs.session_task }}"
           merge_target: "${{ inputs.merge_target }}"
           developer_agent: "${{ inputs.developer_agent }}"
