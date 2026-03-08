@@ -110,7 +110,7 @@ class TestBundledVariablesSync:
         """Bundled variable definitions should sync to DB without errors."""
         result = sync_bundled_variables(db)
         assert result["errors"] == [], f"Sync errors: {result['errors']}"
-        assert result["synced"] == 19
+        assert result["synced"] == 21
 
     def test_synced_variables_have_correct_type(self, db) -> None:
         """All synced variables should have workflow_type='variable'."""
