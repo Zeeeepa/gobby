@@ -537,6 +537,13 @@ class HTTPServer:
             # Initialize CodexAdapter for session tracking
             app.state.codex_adapter = None
             if self.codex_client and CodexAdapter.is_codex_available():
+                # Start the app-server subprocess
+                try:
+                    await self.codex_client.start()
+                    logger.debug("CodexAppServerClient started")
+                except Exception as e:
+                    logger.warning(f"Failed to start CodexAppServerClient: {e}")
+
                 codex_adapter = CodexAdapter(hook_manager=app.state.hook_manager)
                 codex_adapter.attach_to_client(self.codex_client)
                 app.state.codex_adapter = codex_adapter
@@ -580,10 +587,16 @@ class HTTPServer:
             # Shutdown operations
             logger.debug("Shutting down Gobby HTTP server")
 
-            # Cleanup CodexAdapter
+            # Cleanup CodexAdapter and stop app-server client
             if hasattr(app.state, "codex_adapter") and app.state.codex_adapter:
                 app.state.codex_adapter.detach_from_client()
                 logger.debug("CodexAdapter detached")
+            if self.codex_client:
+                try:
+                    await self.codex_client.stop()
+                    logger.debug("CodexAppServerClient stopped")
+                except Exception as e:
+                    logger.warning(f"Failed to stop CodexAppServerClient: {e}")
 
             # Stop TmuxPaneMonitor
             try:

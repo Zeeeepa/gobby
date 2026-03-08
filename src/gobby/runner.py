@@ -684,10 +684,24 @@ class GobbyRunner:
 
         set_app_context(services)
 
+        # Optionally create CodexAppServerClient for rich event lifecycle
+        codex_client = None
+        if self.config.codex_app_server:
+            from gobby.adapters.codex_impl.adapter import CodexAdapter
+
+            if CodexAdapter.is_codex_available():
+                from gobby.adapters.codex_impl.client import CodexAppServerClient
+
+                codex_client = CodexAppServerClient()
+                logger.info("Codex app-server client created (will start in HTTP lifespan)")
+            else:
+                logger.warning("codex_app_server enabled but codex CLI not found in PATH")
+
         self.http_server: HTTPServer = HTTPServer(
             services=services,
             port=self.config.daemon_port,
             test_mode=self.config.test_mode,
+            codex_client=codex_client,
         )
 
         # Inject server into container for circular ref if needed later

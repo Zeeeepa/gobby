@@ -93,6 +93,7 @@ class CodexAdapter(BaseAdapter):
     EVENT_MAP: dict[str, HookEventType] = {
         "thread/started": HookEventType.SESSION_START,
         "thread/archive": HookEventType.SESSION_END,
+        "thread/closed": HookEventType.SESSION_END,  # Unsubscribe = end
         "turn/started": HookEventType.BEFORE_AGENT,
         "turn/completed": HookEventType.AFTER_AGENT,
         # Approval requests map to BEFORE_TOOL
@@ -130,6 +131,7 @@ class CodexAdapter(BaseAdapter):
     # Events we want to listen for session tracking
     SESSION_TRACKING_EVENTS = [
         "thread/started",
+        "thread/closed",
         "turn/started",
         "turn/completed",
         "item/completed",
@@ -355,7 +357,7 @@ class CodexAdapter(BaseAdapter):
                 },
             )
 
-        if method == "thread/archive":
+        if method in ("thread/archive", "thread/closed"):
             return HookEvent(
                 event_type=HookEventType.SESSION_END,
                 session_id=params.get("threadId", ""),
@@ -745,7 +747,9 @@ class CodexNotifyAdapter(BaseAdapter):
         thread_id = input_data.get("session_id", "")
         event_type = input_data.get("event_type", "unknown")
         input_messages = input_data.get("input_messages", [])
-        cwd = input_data.get("cwd") or os.getcwd()
+        cwd = input_data.get("cwd")
+        if not cwd:
+            logger.warning("Codex notify event missing cwd - project resolution may fail")
 
         if not thread_id:
             logger.warning("Codex notify event missing thread_id")
@@ -775,6 +779,7 @@ class CodexNotifyAdapter(BaseAdapter):
                 "event_type": event_type,
                 "last_message": input_data.get("last_message", ""),
                 "input_messages": input_messages,
+                "turn_id": input_data.get("turn_id", ""),
                 "transcript_path": jsonl_path,
                 "is_first_event": is_first_event,
                 "prompt": first_prompt,  # For title synthesis on first event

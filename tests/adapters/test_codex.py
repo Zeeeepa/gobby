@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import tempfile
 from collections import OrderedDict
 from datetime import UTC, datetime
@@ -895,6 +894,21 @@ class TestCodexAdapterTranslateToHookEvent:
         assert hook_event.event_type == HookEventType.SESSION_END
         assert hook_event.session_id == "thr-456"
 
+    def test_thread_closed(self) -> None:
+        """Translate thread/closed to SESSION_END."""
+        adapter = CodexAdapter()
+
+        native_event = {
+            "method": "thread/closed",
+            "params": {"threadId": "thr-closed-1"},
+        }
+
+        hook_event = adapter.translate_to_hook_event(native_event)
+
+        assert hook_event is not None
+        assert hook_event.event_type == HookEventType.SESSION_END
+        assert hook_event.session_id == "thr-closed-1"
+
     def test_turn_started(self) -> None:
         """Translate turn/started to BEFORE_AGENT."""
         adapter = CodexAdapter()
@@ -1423,8 +1437,8 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
         assert event2.data["is_first_event"] is False
         assert event2.data["prompt"] is None
 
-    def test_translate_uses_cwd_fallback(self) -> None:
-        """Uses current working directory when cwd not provided."""
+    def test_translate_missing_cwd_is_none(self) -> None:
+        """Returns None for cwd when not provided (no daemon fallback)."""
         adapter = CodexNotifyAdapter()
 
         native_event = {
@@ -1438,7 +1452,26 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
 
         hook_event = adapter.translate_to_hook_event(native_event)
 
-        assert hook_event.data["cwd"] == os.getcwd()
+        assert hook_event.data["cwd"] is None
+
+    def test_translate_includes_turn_id(self) -> None:
+        """Turn ID is propagated from input_data."""
+        adapter = CodexNotifyAdapter()
+
+        native_event = {
+            "hook_type": "AgentTurnComplete",
+            "input_data": {
+                "session_id": "thread-789",
+                "event_type": "agent-turn-complete",
+                "cwd": "/project",
+                "turn_id": "turn_42",
+            },
+            "source": "codex",
+        }
+
+        hook_event = adapter.translate_to_hook_event(native_event)
+
+        assert hook_event.data["turn_id"] == "turn_42"
 
 
 class TestCodexNotifyAdapterTranslateFromHookResponse:

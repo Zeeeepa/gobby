@@ -467,6 +467,12 @@ class DaemonConfig(BaseModel):
         default_factory=CodeIndexConfig,
         description="Native AST-based code indexing configuration",
     )
+    codex_app_server: bool = Field(
+        default=False,
+        description="Enable Codex app-server v2 integration (experimental). "
+        "When true, the daemon starts a CodexAppServerClient for rich event "
+        "lifecycle tracking (thread/turn/item events, bidirectional tool approval).",
+    )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""

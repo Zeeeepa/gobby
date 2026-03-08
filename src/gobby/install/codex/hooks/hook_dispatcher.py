@@ -110,6 +110,7 @@ def _normalize_input_data(event: dict[str, Any] | None) -> dict[str, Any]:
         event.get("session_id")
         or event.get("thread_id")
         or event.get("threadId")
+        or event.get("thread-id")  # Codex kebab-case
         or event.get("conversation_id")
         or event.get("conversationId")
     )
@@ -118,10 +119,16 @@ def _normalize_input_data(event: dict[str, Any] | None) -> dict[str, Any]:
     if not thread_id and isinstance(event.get("session"), dict):
         thread_id = event["session"].get("id")
 
-    messages = event.get("input_messages") or event.get("inputMessages") or event.get("messages")
+    messages = (
+        event.get("input_messages")
+        or event.get("inputMessages")
+        or event.get("input-messages")  # Codex kebab-case
+        or event.get("messages")
+    )
     last_message = (
         event.get("last_message")
         or event.get("lastMessage")
+        or event.get("last-assistant-message")  # Codex kebab-case
         or event.get("message")
         or _extract_text_from_messages(messages)
     )
@@ -134,11 +141,20 @@ def _normalize_input_data(event: dict[str, Any] | None) -> dict[str, Any]:
         or "agent-turn-complete"
     )
 
+    turn_id = (
+        event.get("turn_id")
+        or event.get("turnId")
+        or event.get("turn-id")  # Codex kebab-case
+        or ""
+    )
+
     return {
         "session_id": thread_id or "",
         "event_type": event_type,
         "last_message": last_message or "",
         "input_messages": messages if isinstance(messages, list) else [],
+        "cwd": event.get("cwd") or "",
+        "turn_id": turn_id,
     }
 
 
