@@ -98,10 +98,11 @@ class PipelineHeartbeat:
             return 1
 
         # Agents are dead — check for orphaned continuations
-        continuation = self._get_continuation_for_execution(execution.id)
-        if continuation:
+        result = self._get_continuation_for_execution(execution.id)
+        if result:
+            run_id, config = result
             # Lost continuation — fire it now
-            await self._fire_continuation(continuation)
+            await self._fire_continuation(run_id, config)
             logger.warning(
                 "Heartbeat: fired lost continuation for execution %s",
                 execution.id,
@@ -131,45 +132,41 @@ class PipelineHeartbeat:
         agents = self._agent_registry.list_by_parent(execution.session_id)
         return len(agents) > 0
 
-    def _get_continuation_for_execution(self, execution_id: str) -> dict[str, Any] | None:
-        """Look up pipeline_continuations rows for an execution.
+    def _get_continuation_for_execution(
+        self, execution_id: str
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Look up pipeline continuation for an execution.
 
         Checks both the in-memory registry and the DB table.
+        Returns (run_id, config) or None.
         """
         # Check in-memory continuations first
-        for run_id, config in self._completion_registry._pipeline_continuations.items():
-            if config.get("execution_id") == execution_id:
-                return {"run_id": run_id, **config}
+        result = self._completion_registry.find_continuation_by_execution(execution_id)
+        if result is not None:
+            return result
 
-        # Check DB table
+        # Check DB table (may not be loaded into registry yet)
         try:
             rows = self._db.fetchall("SELECT run_id, config_json FROM pipeline_continuations")
             for row in rows:
                 config = json.loads(row["config_json"])
                 if config.get("execution_id") == execution_id:
-                    return {"run_id": row["run_id"], **config}
+                    return (row["run_id"], config)
         except Exception:
             logger.debug("Failed to query pipeline_continuations", exc_info=True)
 
         return None
 
-    async def _fire_continuation(self, continuation: dict[str, Any]) -> None:
-        """Fire a lost pipeline continuation."""
-        run_id = continuation.pop("run_id", None)
+    async def _fire_continuation(self, run_id: str, config: dict[str, Any] | None = None) -> None:
+        """Fire a lost pipeline continuation via the registry's public API.
 
-        if self._completion_registry._pipeline_rerun_callback:
-            await self._completion_registry._pipeline_rerun_callback(continuation)
-
-        # Clean up from in-memory and DB
-        if run_id:
-            self._completion_registry._pipeline_continuations.pop(run_id, None)
-            try:
-                self._db.execute(
-                    "DELETE FROM pipeline_continuations WHERE run_id = ?",
-                    (run_id,),
-                )
-            except Exception:
-                pass
+        If config is provided and the continuation is not already in-memory,
+        registers it first so fire_continuation can find it.
+        """
+        if config is not None:
+            # Ensure the continuation is in-memory (may have been found via DB only)
+            self._completion_registry.register_continuation(run_id, config)
+        await self._completion_registry.fire_continuation(run_id)
 
     async def check_orphaned_continuations(self) -> int:
         """Find continuations whose agent has completed but weren't fired.
@@ -209,7 +206,7 @@ class PipelineHeartbeat:
                     run_id,
                     agent_run.status,
                 )
-                await self._fire_continuation({"run_id": run_id, **config})
+                await self._fire_continuation(run_id, config)
                 fired += 1
 
         return fired

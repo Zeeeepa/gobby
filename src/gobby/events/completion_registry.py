@@ -240,6 +240,29 @@ class CompletionEventRegistry:
         """Get the continuation prompt for a completion event."""
         return self._continuation_prompts.get(completion_id)
 
+    def find_continuation_by_execution(
+        self, execution_id: str
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Find continuation by execution_id. Returns (run_id, config_copy) or None."""
+        for run_id, config in self._pipeline_continuations.items():
+            if config.get("execution_id") == execution_id:
+                return (run_id, dict(config))
+        return None
+
+    async def fire_continuation(self, run_id: str) -> bool:
+        """Fire and clean up a continuation. Returns True if fired."""
+        config = self._pipeline_continuations.pop(run_id, None)
+        if config is None or self._pipeline_rerun_callback is None:
+            return False
+        await self._pipeline_rerun_callback(config)
+        # DB cleanup
+        if self._db:
+            try:
+                self._db.execute("DELETE FROM pipeline_continuations WHERE run_id = ?", (run_id,))
+            except Exception:
+                logger.debug("Failed to delete continuation %s from DB", run_id, exc_info=True)
+        return True
+
     def cleanup(self, completion_id: str) -> None:
         """Remove all state for a completion event."""
         self._events.pop(completion_id, None)
