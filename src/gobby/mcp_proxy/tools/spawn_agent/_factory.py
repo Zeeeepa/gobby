@@ -314,6 +314,10 @@ def create_spawn_agent_registry(
         suggestions: list[dict[str, Any]],
         agent: str = "developer",
         worktree_id: str | None = None,
+        clone_id: str | None = None,
+        isolation: Literal["none", "worktree", "clone"] | None = None,
+        branch_name: str | None = None,
+        base_branch: str | None = None,
         provider: str | None = None,
         model: str | None = None,
         parent_session_id: str | None = None,
@@ -325,6 +329,10 @@ def create_spawn_agent_registry(
             suggestions: Task briefs from suggest_next_tasks output
             agent: Agent definition name (default: "developer")
             worktree_id: Shared worktree ID for all agents
+            clone_id: Existing clone ID for all agents
+            isolation: Isolation mode (none/worktree/clone)
+            branch_name: Git branch name for isolation
+            base_branch: Base branch for worktree/clone
             provider: AI provider override
             model: Model override
             parent_session_id: Parent session reference
@@ -348,6 +356,10 @@ def create_spawn_agent_registry(
                     agent=agent,
                     task_id=task_id,
                     worktree_id=worktree_id,
+                    clone_id=clone_id,
+                    isolation=isolation,
+                    branch_name=branch_name,
+                    base_branch=base_branch,
                     provider=provider,
                     model=model,
                     parent_session_id=parent_session_id,

@@ -1170,3 +1170,136 @@ class TestSpawnAgentStepVariables:
             spawn_request = mock_execute.call_args[0][0]
             assert spawn_request.initial_variables["_agent_type"] == "qa-agent"
             assert spawn_request.initial_variables["_agent_rules"] == ["no-code-writing"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# dispatch_batch isolation parity
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestDispatchBatchIsolationParity:
+    """Tests that dispatch_batch forwards clone/isolation params to spawn_agent."""
+
+    @pytest.fixture
+    def mock_runner(self):
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "Can spawn", 0)
+        runner._child_session_manager = MagicMock()
+        return runner
+
+    @pytest.fixture
+    def agent_body(self):
+        return AgentDefinitionBody(
+            name="developer",
+            provider="claude",
+            mode="terminal",
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_batch_forwards_clone_params(self, mock_runner, agent_body) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        mock_clone_storage = MagicMock()
+        mock_clone = MagicMock()
+        mock_clone.clone_path = "/tmp/clones/feat-9981"
+        mock_clone.branch_name = "feat-9981"
+        mock_clone_storage.get.return_value = mock_clone
+
+        registry = create_spawn_agent_registry(
+            mock_runner,
+            clone_storage=mock_clone_storage,
+            clone_manager=MagicMock(),
+            db=MagicMock(),
+        )
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
+        ):
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+            )
+
+            suggestions = [
+                {"ref": "#9981", "id": "task-uuid-1", "title": "Add clone parity"},
+            ]
+
+            result = await registry.call(
+                "dispatch_batch",
+                {
+                    "suggestions": suggestions,
+                    "agent": "developer",
+                    "clone_id": "clone-abc",
+                    "isolation": "clone",
+                    "branch_name": "feat-9981",
+                    "base_branch": "0.2.28",
+                    "parent_session_id": "parent-789",
+                },
+            )
+
+            assert result["dispatched"] == 1
+            assert result["results"][0]["success"] is True
+
+            # Verify clone_id was forwarded — clone_storage.get was called with it
+            mock_clone_storage.get.assert_called_once_with("clone-abc")
+
+    @pytest.mark.asyncio
+    async def test_dispatch_batch_without_isolation_params(self, mock_runner, agent_body) -> None:
+        """dispatch_batch still works when no isolation params are provided (backwards compat)."""
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
+        ):
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-456",
+                child_session_id="child-789",
+                status="pending",
+            )
+
+            suggestions = [
+                {"ref": "#100", "id": "task-1", "title": "Task one"},
+            ]
+
+            result = await registry.call(
+                "dispatch_batch",
+                {
+                    "suggestions": suggestions,
+                    "agent": "developer",
+                    "parent_session_id": "parent-789",
+                },
+            )
+
+            assert result["dispatched"] == 1
+            assert result["results"][0]["success"] is True
