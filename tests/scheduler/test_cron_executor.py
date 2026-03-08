@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.scheduler.executor import CronExecutor, CronHandler
+from gobby.scheduler.executor import CronExecutor
 from gobby.storage.cron import CronJobStorage
 from gobby.storage.cron_models import CronJob
 
@@ -247,3 +247,83 @@ async def test_execute_handler_error_propagates(
     result = await executor.execute(job, run)
     assert result.status == "failed"
     assert "handler exploded" in (result.error or "")
+
+
+# --- agent_definition resolution tests ---
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_spawn_with_agent_definition(
+    cron_storage: CronJobStorage,
+) -> None:
+    """agent_spawn with agent_definition prepends preamble to prompt."""
+    mock_runner = MagicMock()
+    mock_runner.spawn_headless = AsyncMock(return_value={"output": "Done"})
+    executor = CronExecutor(storage=cron_storage, agent_runner=mock_runner)
+
+    job = _make_job(
+        cron_storage,
+        "agent_spawn",
+        {
+            "prompt": "Fix the bug",
+            "agent_definition": "test-agent",
+        },
+    )
+    run = cron_storage.create_run(job.id)
+
+    # Mock resolve_agent to return an agent with preamble
+    mock_body = MagicMock()
+    mock_body.build_prompt_preamble.return_value = "## Role\nYou are a developer"
+    mock_body.provider = "gemini"
+
+    with __import__("unittest.mock", fromlist=["patch"]).patch(
+        "gobby.workflows.agent_resolver.resolve_agent", return_value=mock_body
+    ):
+        result = await executor.execute(job, run)
+
+    assert result.status == "completed"
+    call_kwargs = mock_runner.spawn_headless.call_args
+    prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt", "")
+    if not prompt:
+        prompt = call_kwargs[0][0] if call_kwargs[0] else ""
+    # Check preamble was prepended
+    assert "## Role" in prompt
+    assert "Fix the bug" in prompt
+    # Provider from agent definition should be used (no explicit provider in config)
+    provider = call_kwargs.kwargs.get("provider") or call_kwargs[1].get("provider", "")
+    if not provider:
+        provider = call_kwargs[0][2] if len(call_kwargs[0]) > 2 else ""
+    assert provider == "gemini"
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_spawn_agent_definition_not_found(
+    cron_storage: CronJobStorage,
+) -> None:
+    """agent_spawn continues without preamble if agent_definition not found."""
+    mock_runner = MagicMock()
+    mock_runner.spawn_headless = AsyncMock(return_value={"output": "Done"})
+    executor = CronExecutor(storage=cron_storage, agent_runner=mock_runner)
+
+    job = _make_job(
+        cron_storage,
+        "agent_spawn",
+        {
+            "prompt": "Do stuff",
+            "agent_definition": "nonexistent-agent",
+        },
+    )
+    run = cron_storage.create_run(job.id)
+
+    with __import__("unittest.mock", fromlist=["patch"]).patch(
+        "gobby.workflows.agent_resolver.resolve_agent", return_value=None
+    ):
+        result = await executor.execute(job, run)
+
+    assert result.status == "completed"
+    # Prompt should be unchanged (no preamble)
+    call_kwargs = mock_runner.spawn_headless.call_args
+    prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt", "")
+    if not prompt:
+        prompt = call_kwargs[0][0] if call_kwargs[0] else ""
+    assert prompt == "Do stuff"

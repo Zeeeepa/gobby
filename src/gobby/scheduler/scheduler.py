@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 from gobby.config.cron import CronConfig
@@ -35,6 +36,7 @@ class CronScheduler:
         self._check_task: asyncio.Task[None] | None = None
         self._cleanup_task: asyncio.Task[None] | None = None
         self._active_tasks: set[asyncio.Task[None]] = set()
+        self.on_run_complete: Callable[[CronJob, CronRun], Awaitable[None]] | None = None
 
     async def start(self) -> None:
         """Start the scheduler loops."""
@@ -151,6 +153,7 @@ class CronScheduler:
         if not run:
             logger.error(f"Cannot execute job {job.id}: valid run record required")
             return
+        result: CronRun | None = None
         try:
             result = await self.executor.execute(job, run)
 
@@ -183,6 +186,13 @@ class CronScheduler:
 
         except Exception as e:
             logger.error(f"Unexpected error executing cron job {job.id}: {e}", exc_info=True)
+
+        # Fire event callback (best-effort, non-blocking)
+        if self.on_run_complete and result:
+            try:
+                await self.on_run_complete(job, result)
+            except Exception as exc:
+                logger.debug("Cron event callback failed: %s", exc)
 
     def _get_backoff_seconds(self, consecutive_failures: int) -> int:
         """Get backoff delay based on number of consecutive failures."""

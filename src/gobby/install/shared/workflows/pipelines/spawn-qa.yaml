@@ -1,0 +1,41 @@
+name: spawn-qa
+description: |
+  Thin dispatch pipeline: spawns a QA reviewer agent for a given task.
+  The conductor can invoke this via run_pipeline for tracked dispatch,
+  or call spawn_agent directly for untracked dispatch.
+
+version: "1.0"
+enabled: false
+
+inputs:
+  task_id:
+    type: string
+    required: true
+    description: "Task ID to review"
+  provider:
+    type: string
+    default: "claude"
+    description: "LLM provider (claude, gemini, etc.)"
+  model:
+    type: string
+    default: ""
+    description: "Model override (empty = provider default)"
+  worktree_id:
+    type: string
+    default: ""
+    description: "Worktree ID for isolation (empty = auto-create)"
+
+steps:
+  - name: spawn
+    type: mcp
+    server: gobby-agents
+    tool: spawn_agent
+    args:
+      prompt: "Review task {{ inputs.task_id }}. Check the implementation, run tests, validate quality, and approve or reject."
+      agent_definition: qa-reviewer
+      provider: "{{ inputs.provider }}"
+      model: "{{ inputs.model }}"
+      worktree_id: "{{ inputs.worktree_id }}"
+      session_variables:
+        assigned_task_id: "{{ inputs.task_id }}"
+    output: spawn_result

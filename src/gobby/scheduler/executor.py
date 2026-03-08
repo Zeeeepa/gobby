@@ -102,6 +102,24 @@ class CronExecutor:
         timeout = config.get("timeout_seconds", 300)
         workflow = config.get("workflow")
 
+        # Resolve agent_definition if specified
+        agent_def_name = config.get("agent_definition")
+        if agent_def_name:
+            from gobby.workflows.agent_resolver import resolve_agent
+
+            agent_body = resolve_agent(
+                agent_def_name,
+                self.storage.db,
+                project_id=job.project_id,
+            )
+            if agent_body:
+                preamble = agent_body.build_prompt_preamble()
+                if preamble:
+                    prompt = f"{preamble}\n\n---\n\n{prompt}"
+                # Use agent definition's provider if no explicit provider in config
+                if "provider" not in config and agent_body.provider != "inherit":
+                    provider = agent_body.provider
+
         # Use the agent runner's spawn method
         result = await self.agent_runner.spawn_headless(
             prompt=prompt,

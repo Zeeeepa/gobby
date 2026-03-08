@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
 from gobby.config.code_index import CodeIndexConfig
+from gobby.config.conductor import ConductorConfig
 from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
@@ -417,6 +418,10 @@ class DaemonConfig(BaseModel):
     cron: CronConfig = Field(
         default_factory=CronConfig,
         description="Cron scheduler configuration",
+    )
+    conductor: ConductorConfig = Field(
+        default_factory=ConductorConfig,
+        description="Persistent conductor agent configuration",
     )
     pipelines: PipelineConfig = Field(
         default_factory=PipelineConfig,

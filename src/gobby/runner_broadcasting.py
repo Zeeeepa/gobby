@@ -1,6 +1,6 @@
 """WebSocket broadcasting setup for GobbyRunner.
 
-Registers callbacks that forward agent lifecycle and pipeline events
+Registers callbacks that forward agent lifecycle, pipeline, and cron events
 to WebSocket clients. Extracted from runner.py to reduce file size.
 """
 
@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from gobby.scheduler.scheduler import CronScheduler
     from gobby.servers.websocket.server import WebSocketServer
     from gobby.workflows.pipeline_executor import PipelineExecutor
 
@@ -178,3 +179,26 @@ def setup_pipeline_event_broadcasting(
     # Set the callback on the pipeline executor
     pipeline_executor.event_callback = broadcast_pipeline_event
     logger.debug("Pipeline event broadcasting enabled")
+
+
+def setup_cron_event_broadcasting(
+    websocket_server: WebSocketServer,
+    cron_scheduler: CronScheduler,
+) -> None:
+    """Set up WebSocket broadcasting for cron run completion events."""
+    from gobby.storage.cron_models import CronJob, CronRun
+
+    async def on_run_complete(job: CronJob, run: CronRun) -> None:
+        """Broadcast cron run completion via WebSocket."""
+        if websocket_server:
+            event = "run_completed" if run.status == "completed" else "run_failed"
+            await websocket_server.broadcast_cron_event(
+                event=event,
+                job_id=job.id,
+                run_id=run.id,
+                job_name=job.name,
+                status=run.status,
+            )
+
+    cron_scheduler.on_run_complete = on_run_complete
+    logger.debug("Cron event broadcasting enabled")

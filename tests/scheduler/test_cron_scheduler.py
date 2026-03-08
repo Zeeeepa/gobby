@@ -261,3 +261,91 @@ async def test_execute_and_update_success(
     assert updated_job is not None
     assert updated_job.consecutive_failures == 0
     assert updated_job.last_status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_on_run_complete_callback_fires(
+    cron_storage: CronJobStorage,
+    mock_executor: CronExecutor,
+    config: CronConfig,
+) -> None:
+    """on_run_complete callback fires after job execution with correct args."""
+    scheduler = CronScheduler(storage=cron_storage, executor=mock_executor, config=config)
+
+    callback = AsyncMock()
+    scheduler.on_run_complete = callback
+
+    job = cron_storage.create_job(
+        project_id=PROJECT_ID,
+        name="Callback Test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
+    )
+
+    run = cron_storage.create_run(job.id)
+    await scheduler._execute_and_update(job, run)
+
+    callback.assert_called_once()
+    call_args = callback.call_args[0]
+    assert call_args[0].id == job.id  # CronJob
+    assert call_args[1].status == "completed"  # CronRun
+
+
+@pytest.mark.asyncio
+async def test_on_run_complete_callback_error_does_not_propagate(
+    cron_storage: CronJobStorage,
+    mock_executor: CronExecutor,
+    config: CronConfig,
+) -> None:
+    """on_run_complete callback errors are swallowed (best-effort)."""
+    scheduler = CronScheduler(storage=cron_storage, executor=mock_executor, config=config)
+
+    callback = AsyncMock(side_effect=RuntimeError("callback exploded"))
+    scheduler.on_run_complete = callback
+
+    job = cron_storage.create_job(
+        project_id=PROJECT_ID,
+        name="Callback Error Test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
+    )
+
+    run = cron_storage.create_run(job.id)
+    # Should not raise despite callback error
+    await scheduler._execute_and_update(job, run)
+
+    callback.assert_called_once()
+    # Job should still be updated correctly
+    updated_job = cron_storage.get_job(job.id)
+    assert updated_job is not None
+    assert updated_job.last_status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_on_run_complete_not_called_without_result(
+    cron_storage: CronJobStorage,
+    config: CronConfig,
+) -> None:
+    """on_run_complete not called when _execute_and_update gets no run."""
+    executor = CronExecutor(storage=cron_storage)
+    scheduler = CronScheduler(storage=cron_storage, executor=executor, config=config)
+
+    callback = AsyncMock()
+    scheduler.on_run_complete = callback
+
+    job = cron_storage.create_job(
+        project_id=PROJECT_ID,
+        name="No Run Test",
+        schedule_type="cron",
+        action_type="shell",
+        action_config={"command": "echo"},
+        cron_expr="0 * * * *",
+    )
+
+    # Pass None run — should bail early without calling callback
+    await scheduler._execute_and_update(job, None)
+    callback.assert_not_called()

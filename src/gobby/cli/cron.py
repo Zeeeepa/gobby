@@ -67,7 +67,7 @@ def list_jobs(
     "--action-type",
     "-t",
     required=True,
-    type=click.Choice(["shell", "agent_spawn", "pipeline"]),
+    type=click.Choice(["shell", "agent_spawn", "pipeline", "handler"]),
     help="Action type",
 )
 @click.option("--action-config", "-c", required=True, help="Action config as JSON string")
@@ -114,7 +114,7 @@ def add_job(
         project_id=project_id,
         name=name,
         schedule_type=cast(Literal["cron", "interval", "once"], schedule_type),
-        action_type=cast(Literal["agent_spawn", "pipeline", "shell"], action_type),
+        action_type=cast(Literal["agent_spawn", "pipeline", "shell", "handler"], action_type),
         action_config=config,
         cron_expr=cron_expr,
         interval_seconds=interval_seconds,

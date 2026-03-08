@@ -552,6 +552,9 @@ class GobbyRunner:
             self.config.memory_extraction if hasattr(self.config, "memory_extraction") else None
         )
 
+        # Conductor manager (persistent tick-based orchestration agent)
+        self.conductor_manager: object | None = None
+
         # Cron Scheduler (background jobs for recurring tasks)
         self.cron_storage: CronJobStorage | None = None
         self.cron_scheduler: CronScheduler | None = None
@@ -599,6 +602,35 @@ class GobbyRunner:
                 logger.debug("PipelineHeartbeat handler registered")
             except Exception as e:
                 logger.error(f"Failed to register pipeline heartbeat: {e}")
+
+            # Register conductor handler (if enabled)
+            if self.config.conductor.enabled:
+                try:
+                    from gobby.conductor.manager import ConductorManager
+
+                    self.conductor_manager = ConductorManager(
+                        project_id=self.project_id,
+                        project_path=str(Path.cwd()),
+                        session_manager=self.session_manager,
+                        config=self.config.conductor,
+                    )
+                    cron_executor.register_handler("conductor_tick", self.conductor_manager)
+                    existing = self.cron_storage.get_job_by_name("gobby:conductor-tick")
+                    if not existing:
+                        self.cron_storage.create_job(
+                            project_id=self.project_id,
+                            name="gobby:conductor-tick",
+                            description="Persistent conductor: checks tasks, dispatches agents",
+                            schedule_type="interval",
+                            interval_seconds=self.config.conductor.tick_interval_seconds,
+                            action_type="handler",
+                            action_config={"handler": "conductor_tick"},
+                            enabled=True,
+                        )
+                        logger.info("Created system cron job: gobby:conductor-tick")
+                    logger.info("Conductor enabled (model=%s)", self.config.conductor.model)
+                except Exception as e:
+                    logger.error("Failed to initialize conductor: %s", e)
 
             self.cron_scheduler = CronScheduler(
                 storage=self.cron_storage,
@@ -695,6 +727,7 @@ class GobbyRunner:
             # Register agent event callback for WebSocket broadcasting
             from gobby.runner_broadcasting import (
                 setup_agent_event_broadcasting,
+                setup_cron_event_broadcasting,
                 setup_pipeline_event_broadcasting,
             )
 
@@ -703,6 +736,10 @@ class GobbyRunner:
             # Register pipeline event callback for WebSocket broadcasting
             if self.pipeline_executor:
                 setup_pipeline_event_broadcasting(self.websocket_server, self.pipeline_executor)
+
+            # Register cron event callback for WebSocket broadcasting
+            if self.cron_scheduler:
+                setup_cron_event_broadcasting(self.websocket_server, self.cron_scheduler)
 
     async def _rerun_pipeline(self, continuation: dict[str, Any]) -> None:
         """Re-invoke a pipeline from a completion continuation.
@@ -1091,6 +1128,17 @@ class GobbyRunner:
                     await asyncio.wait_for(self.agent_lifecycle_monitor.stop(), timeout=2.0)
                 except TimeoutError:
                     logger.warning("Agent lifecycle monitor shutdown timed out")
+
+            if self.conductor_manager:
+                try:
+                    from gobby.conductor.manager import ConductorManager
+
+                    if isinstance(self.conductor_manager, ConductorManager):
+                        await asyncio.wait_for(self.conductor_manager.shutdown(), timeout=5.0)
+                except TimeoutError:
+                    logger.warning("Conductor shutdown timed out")
+                except Exception as e:
+                    logger.debug("Conductor shutdown error: %s", e)
 
             if self.cron_scheduler:
                 try:
