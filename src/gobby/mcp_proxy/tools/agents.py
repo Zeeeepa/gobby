@@ -241,6 +241,7 @@ def create_agents_registry(
         force: bool = False,
         debug: bool = False,
         status: str | None = None,
+        _context: Any = None,
     ) -> dict[str, Any]:
         """
         Kill a running agent process.
@@ -326,6 +327,13 @@ def create_agents_registry(
             # Parent-initiated kill (run_id path) → default cancelled
             # Caller can override with explicit status
             is_self_termination = resolved_session_id is not None
+
+            # Also detect self-termination via run_id path:
+            # Agent calls kill_agent(run_id=...) and _context reveals caller IS the agent
+            if not is_self_termination and _context and agent_session_id:
+                caller_session_id = getattr(_context, "session_id", None)
+                if caller_session_id and caller_session_id == agent_session_id:
+                    is_self_termination = True
             effective_status = status or ("success" if is_self_termination else "cancelled")
             if effective_status == "success":
                 runner.complete_run(run_id)

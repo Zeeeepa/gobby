@@ -580,6 +580,97 @@ class TestKillAgent:
         assert result["success"] is True
 
 
+class TestKillAgentSelfTerminationViaRunId:
+    """Tests for self-termination detection via run_id path using _context."""
+
+    @pytest.mark.asyncio
+    async def test_run_id_self_termination_defaults_to_success(self):
+        """When agent calls kill_agent(run_id=...) and _context matches, default to success."""
+        running_registry = RunningAgentRegistry()
+        running_registry.add(
+            RunningAgent(
+                run_id="run-123",
+                session_id="sess-456",
+                parent_session_id="sess-parent",
+                mode="in_process",
+                task=MagicMock(),
+            )
+        )
+
+        runner = MagicMock()
+        runner.complete_run.return_value = True
+
+        registry = create_agents_registry(runner, running_registry=running_registry)
+        kill_agent = registry._tools["kill_agent"].func
+
+        # Simulate _context with session_id matching the agent's session
+        context = MagicMock()
+        context.session_id = "sess-456"
+
+        result = await kill_agent(run_id="run-123", _context=context)
+
+        assert result["success"] is True
+        # Should call complete_run (success), not cancel_run (cancelled)
+        runner.complete_run.assert_called_once_with("run-123")
+        runner.cancel_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_id_parent_kill_defaults_to_cancelled(self):
+        """When parent kills agent via run_id, _context doesn't match, default to cancelled."""
+        running_registry = RunningAgentRegistry()
+        running_registry.add(
+            RunningAgent(
+                run_id="run-123",
+                session_id="sess-456",
+                parent_session_id="sess-parent",
+                mode="in_process",
+                task=MagicMock(),
+            )
+        )
+
+        runner = MagicMock()
+        runner.cancel_run.return_value = True
+
+        registry = create_agents_registry(runner, running_registry=running_registry)
+        kill_agent = registry._tools["kill_agent"].func
+
+        # Simulate _context with different session_id (parent killing child)
+        context = MagicMock()
+        context.session_id = "sess-parent"
+
+        result = await kill_agent(run_id="run-123", _context=context)
+
+        assert result["success"] is True
+        runner.cancel_run.assert_called_once_with("run-123")
+        runner.complete_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_id_no_context_defaults_to_cancelled(self):
+        """Without _context, run_id path defaults to cancelled (backward compat)."""
+        running_registry = RunningAgentRegistry()
+        running_registry.add(
+            RunningAgent(
+                run_id="run-123",
+                session_id="sess-456",
+                parent_session_id="sess-parent",
+                mode="in_process",
+                task=MagicMock(),
+            )
+        )
+
+        runner = MagicMock()
+        runner.cancel_run.return_value = True
+
+        registry = create_agents_registry(runner, running_registry=running_registry)
+        kill_agent = registry._tools["kill_agent"].func
+
+        result = await kill_agent(run_id="run-123")
+
+        assert result["success"] is True
+        runner.cancel_run.assert_called_once_with("run-123")
+        runner.complete_run.assert_not_called()
+
+
 class TestRunningAgentStats:
     """Tests for running_agent_stats MCP tool."""
 

@@ -327,6 +327,45 @@ class TestPluginConditions:
         assert ev.evaluate("plugin_my_plugin_passes_lint()") is False
 
 
+# --- Lowercase boolean/none constants (YAML/JSON convention) ---
+
+
+class TestLowercaseConstants:
+    """Test that lowercase true/false/none from YAML/JSON are accepted."""
+
+    def test_lowercase_true(self) -> None:
+        ctx: dict[str, Any] = {"x": 1}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate("true") is True
+
+    def test_lowercase_false(self) -> None:
+        ctx: dict[str, Any] = {"x": 1}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate("false") is False
+
+    def test_lowercase_none(self) -> None:
+        ctx: dict[str, Any] = {"x": 1}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate_value("none") is None
+
+    def test_lowercase_in_condition(self) -> None:
+        ctx: dict[str, Any] = {"x": None}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate("x == none") is True
+
+    def test_lowercase_false_in_condition(self) -> None:
+        ctx: dict[str, Any] = {"flag": False}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate("flag == false") is True
+
+    def test_uppercase_still_works(self) -> None:
+        ctx: dict[str, Any] = {}
+        ev = SafeExpressionEvaluator(ctx, {})
+        assert ev.evaluate("True") is True
+        assert ev.evaluate("False") is False
+        assert ev.evaluate_value("None") is None
+
+
 # --- Integration: combined expressions ---
 
 

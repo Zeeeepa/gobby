@@ -35,13 +35,12 @@ async def _notify(
     task_ref: str | None,
 ) -> None:
     try:
-        with db.connection() as conn:
-            row = conn.execute(
-                "SELECT id, parent_session_id FROM agent_runs "
-                "WHERE task_id = ? AND status IN ('pending', 'running') "
-                "ORDER BY created_at DESC LIMIT 1",
-                (task_id,),
-            ).fetchone()
+        row = db.fetchone(
+            "SELECT id, parent_session_id FROM agent_runs "
+            "WHERE task_id = ? AND status IN ('pending', 'running') "
+            "ORDER BY created_at DESC LIMIT 1",
+            (task_id,),
+        )
 
         if not row or not row["parent_session_id"]:
             return

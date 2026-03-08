@@ -760,7 +760,11 @@ class GobbyRunner:
             if self.cron_scheduler:
                 setup_cron_event_broadcasting(self.websocket_server, self.cron_scheduler)
 
-    async def _rerun_pipeline(self, continuation: dict[str, Any]) -> None:
+    async def _rerun_pipeline(
+        self,
+        continuation: dict[str, Any],
+        agent_result: dict[str, Any] | None = None,
+    ) -> None:
         """Re-invoke a pipeline from a completion continuation.
 
         Called by CompletionEventRegistry when an agent completes and a
@@ -771,6 +775,19 @@ class GobbyRunner:
 
         pipeline_name = continuation.get("pipeline_name")
         inputs = continuation.get("inputs", {})
+
+        # Inject agent completion status for pipeline decision-making
+        if agent_result:
+            agent_status = agent_result.get("status", "unknown")
+            inputs["_last_agent_status"] = agent_status
+            if agent_status in ("error", "cancelled", "timeout"):
+                inputs["_consecutive_failures"] = inputs.get("_consecutive_failures", 0) + 1
+            else:
+                inputs["_consecutive_failures"] = 0
+        else:
+            # Heartbeat path — no result available, preserve existing values
+            inputs.setdefault("_last_agent_status", None)
+            inputs.setdefault("_consecutive_failures", 0)
         session_id = continuation.get("session_id")
         project_id = continuation.get("project_id", self.project_id or "")
         continuation_prompt = continuation.get("continuation_prompt")

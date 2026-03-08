@@ -171,12 +171,12 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
     def visit_Name(self, node: ast.Name) -> Any:
         """Handle variable names."""
         name = node.id
-        # Built-in constants
-        if name == "True":
+        # Built-in constants (support both Python and YAML/JSON conventions)
+        if name in ("True", "true"):
             return True
-        if name == "False":
+        if name in ("False", "false"):
             return False
-        if name == "None":
+        if name in ("None", "none"):
             return None
         # Context variables
         if name in self.context:

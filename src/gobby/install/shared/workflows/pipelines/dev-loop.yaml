@@ -36,6 +36,8 @@ inputs:
   _current_iteration: 0
   _continuation_prompt: null
   _dead_end_retries: 0
+  _consecutive_failures: 0
+  _last_agent_status: null
 
 steps:
   # --- Guard ---
@@ -46,6 +48,14 @@ steps:
       tool: fail_pipeline
       arguments:
         message: "Max iterations reached (${{ inputs._current_iteration }}/${{ inputs.max_iterations }})"
+
+  - id: check_failures
+    condition: "${{ inputs._consecutive_failures >= 3 }}"
+    mcp:
+      server: gobby-workflows
+      tool: fail_pipeline
+      arguments:
+        message: "3 consecutive agent failures (last status: ${{ inputs._last_agent_status }}). Escalate manually."
 
   - id: fetch_origin
     exec: "git fetch origin"
@@ -202,6 +212,8 @@ steps:
           max_iterations: "${{ inputs.max_iterations }}"
           _continuation_prompt: "${{ inputs._continuation_prompt }}"
           _dead_end_retries: "${{ inputs._dead_end_retries }}"
+          _consecutive_failures: "${{ inputs._consecutive_failures }}"
+          _last_agent_status: "${{ inputs._last_agent_status }}"
 
   # --- RESULT ---
   - id: result

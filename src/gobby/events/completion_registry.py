@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 # Type for the wake callback: (session_id, message, result) -> None
 WakeCallback = Callable[[str, str, dict[str, Any]], Coroutine[Any, Any, None]]
 
-# Type for pipeline rerun callback: (continuation_config) -> None
-PipelineRerunCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+# Type for pipeline rerun callback: (continuation_config, agent_result_or_None) -> None
+PipelineRerunCallback = Callable[[dict[str, Any], dict[str, Any] | None], Coroutine[Any, Any, None]]
 
 
 class CompletionEventRegistry:
@@ -177,7 +177,7 @@ class CompletionEventRegistry:
         continuation = self._pipeline_continuations.get(completion_id)
         if continuation and self._pipeline_rerun_callback:
             try:
-                await self._pipeline_rerun_callback(continuation)
+                await self._pipeline_rerun_callback(continuation, result)
                 self._pipeline_continuations.pop(completion_id, None)
                 # Remove from DB
                 if self._db is not None:
@@ -254,7 +254,7 @@ class CompletionEventRegistry:
         config = self._pipeline_continuations.pop(run_id, None)
         if config is None or self._pipeline_rerun_callback is None:
             return False
-        await self._pipeline_rerun_callback(config)
+        await self._pipeline_rerun_callback(config, None)
         # DB cleanup
         if self._db:
             try:
