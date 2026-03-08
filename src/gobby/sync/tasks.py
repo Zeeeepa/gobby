@@ -395,7 +395,37 @@ class TaskSyncManager:
                             }
 
                             if not existing_row:
-                                # New task — INSERT with all synced fields
+                                # New task — assign a fresh seq_num to avoid
+                                # collisions with tasks already in this DB
+                                project_id = synced_values.get("project_id")
+                                max_seq_row = conn.execute(
+                                    "SELECT MAX(seq_num) as max_seq FROM tasks WHERE project_id = ?",
+                                    (project_id,),
+                                ).fetchone()
+                                next_seq = (
+                                    (max_seq_row["max_seq"] if max_seq_row else None) or 0
+                                ) + 1
+                                synced_values["seq_num"] = next_seq
+
+                                # Rebuild path_cache from the new seq_num
+                                parent_id = synced_values.get("parent_task_id")
+                                path_parts: list[str] = [str(next_seq)]
+                                current_parent = parent_id
+                                max_depth = 100
+                                depth = 0
+                                while current_parent and depth < max_depth:
+                                    parent_row = conn.execute(
+                                        "SELECT seq_num, parent_task_id FROM tasks WHERE id = ?",
+                                        (current_parent,),
+                                    ).fetchone()
+                                    if not parent_row or parent_row["seq_num"] is None:
+                                        break
+                                    path_parts.insert(0, str(parent_row["seq_num"]))
+                                    current_parent = parent_row["parent_task_id"]
+                                    depth += 1
+                                synced_values["path_cache"] = "/".join(path_parts)
+
+                                # INSERT with all synced fields
                                 columns = ", ".join(["id"] + list(synced_values.keys()))
                                 placeholders = ", ".join(["?"] * (1 + len(synced_values)))
                                 conn.execute(
