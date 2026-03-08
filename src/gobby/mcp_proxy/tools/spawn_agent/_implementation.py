@@ -290,12 +290,21 @@ async def spawn_agent_impl(
             }
 
     # 5. Handle worktree_id/clone_id reuse: skip isolation creation when existing resource provided
+    #    worktree_id acts as a unified isolation resource ID — if not found in
+    #    worktree_storage, fall through to clone_storage before failing.
     isolation_ctx = None
     if worktree_id and worktree_storage:
         existing_worktree = worktree_storage.get(worktree_id)
         if not existing_worktree:
-            return {"success": False, "error": f"Worktree {worktree_id} not found"}
+            if clone_storage:
+                # Unified resource ID: try as clone_id instead
+                clone_id = worktree_id
+                worktree_id = None
+            else:
+                return {"success": False, "error": f"Worktree {worktree_id} not found"}
 
+    if worktree_id and worktree_storage:
+        existing_worktree = worktree_storage.get(worktree_id)
         from gobby.agents.isolation import IsolationContext
 
         isolation_ctx = IsolationContext(
