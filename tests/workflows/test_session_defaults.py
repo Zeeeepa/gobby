@@ -168,11 +168,11 @@ variables:
     def test_variable_idempotent_resync(self, db) -> None:
         """Running sync twice should skip already-synced variables."""
         result1 = sync_bundled_variables(db)
-        assert result1["synced"] == 19
+        assert result1["synced"] == 21
 
         result2 = sync_bundled_variables(db)
         assert result2["synced"] == 0
-        assert result2["skipped"] == 19
+        assert result2["skipped"] == 21
 
     def test_variable_orphan_cleanup(self, db, tmp_path) -> None:
         """Variables removed from disk should be soft-deleted."""

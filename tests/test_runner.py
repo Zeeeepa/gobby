@@ -89,6 +89,7 @@ def create_base_patches(
         patch("gobby.runner.HTTPServer", return_value=mock_http),
         patch("gobby.storage.secrets.SecretStore"),
         patch("gobby.storage.config_store.ConfigStore"),
+        patch("gobby.runner.AgentLifecycleMonitor", return_value=AsyncMock()),
     ]
 
     # Add config patch
