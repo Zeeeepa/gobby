@@ -487,6 +487,14 @@ class AgentLifecycleMonitor:
             except Exception as e:
                 logger.warning(f"Failed to release clone for idle agent {agent.run_id}: {e}")
 
+    async def cleanup_stale_pending_runs(self) -> int:
+        """Clean up agent runs stuck in pending status after daemon restart.
+
+        Returns:
+            Number of stale pending runs cleaned up.
+        """
+        return await asyncio.to_thread(self._agent_run_manager.cleanup_stale_pending_runs)
+
     async def cleanup_orphaned_db_runs(self) -> int:
         """One-shot cleanup for DB records orphaned after daemon restart.
 

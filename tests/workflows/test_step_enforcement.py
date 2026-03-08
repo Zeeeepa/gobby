@@ -530,3 +530,35 @@ class TestStepEnforcementAfterTransition:
 
         response = await engine.evaluate(event, session_id="test-session", variables=variables)
         assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_set_variable_allowed_in_restricted_step(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """set_variable should be allowed even in steps with restricted allowed_tools.
+
+        Infrastructure tools (set_variable, get_variable) must always pass step
+        enforcement so agents can satisfy stop gate conditions.
+        """
+        _setup_step_workflow(db, manager, instance_mgr, current_step="terminate")
+        event = _make_event(
+            data={"tool_name": "mcp__gobby__set_variable"},
+        )
+        variables: dict[str, Any] = {}
+
+        response = await engine.evaluate(event, session_id="test-session", variables=variables)
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_get_variable_allowed_in_restricted_step(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """get_variable should be allowed even in steps with restricted allowed_tools."""
+        _setup_step_workflow(db, manager, instance_mgr, current_step="terminate")
+        event = _make_event(
+            data={"tool_name": "mcp__gobby__get_variable"},
+        )
+        variables: dict[str, Any] = {}
+
+        response = await engine.evaluate(event, session_id="test-session", variables=variables)
+        assert response.decision == "allow"

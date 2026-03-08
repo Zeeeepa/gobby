@@ -843,6 +843,7 @@ class GobbyRunner:
             # Start Agent Lifecycle Monitor (detect dead tmux sessions)
             if self.agent_lifecycle_monitor:
                 await self.agent_lifecycle_monitor.cleanup_orphaned_db_runs()
+                await self.agent_lifecycle_monitor.cleanup_stale_pending_runs()
                 await self.agent_lifecycle_monitor.start()
 
             # Start Cron Scheduler

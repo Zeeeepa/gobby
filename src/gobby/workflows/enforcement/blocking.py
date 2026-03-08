@@ -25,6 +25,12 @@ DISCOVERY_TOOLS = {
 }
 
 
+INFRASTRUCTURE_TOOLS = {
+    "set_variable",
+    "get_variable",
+}
+
+
 MESSAGE_DELIVERY_TOOLS = {"deliver_pending_messages"}
 
 
@@ -41,6 +47,21 @@ def is_message_delivery_tool(tool_name: str | None) -> bool:
         True if this is a message delivery tool
     """
     return tool_name in MESSAGE_DELIVERY_TOOLS if tool_name else False
+
+
+def is_infrastructure_tool(tool_name: str | None) -> bool:
+    """Check if the tool is an infrastructure tool that should always be allowed.
+
+    These tools manage session state and are required for agents to satisfy
+    gate conditions (e.g., stop gates that require set_variable calls).
+
+    Args:
+        tool_name: The MCP tool name (from tool_input.tool_name)
+
+    Returns:
+        True if this is an infrastructure tool
+    """
+    return tool_name in INFRASTRUCTURE_TOOLS if tool_name else False
 
 
 def is_discovery_tool(tool_name: str | None) -> bool:

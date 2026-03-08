@@ -30,6 +30,7 @@ from gobby.workflows.definitions import (
 )
 from gobby.workflows.enforcement.blocking import (
     is_discovery_tool,
+    is_infrastructure_tool,
     is_message_delivery_tool,
     is_plan_file,
     is_server_listed,
@@ -217,13 +218,9 @@ class RuleEngine:
                     self._check_catastrophic_failure(event, variables)
                 else:
                     if variables.get("tool_block_pending"):
-                        # Only clear if THIS tool matches the one that was blocked
-                        failed_tool = variables.get("_last_blocked_tool", "")
-                        current_tool = event.data.get("tool_name", "")
-                        if not failed_tool or current_tool == failed_tool:
-                            variables["tool_block_pending"] = False
-                            variables["consecutive_tool_blocks"] = 0
-                            variables["_last_blocked_tool"] = ""
+                        variables["tool_block_pending"] = False
+                        variables["consecutive_tool_blocks"] = 0
+                        variables["_last_blocked_tool"] = ""
                     # Clear edit_write_pending on successful edit/write
                     tool_name_lower = event.data.get("tool_name", "").lower()
                     if tool_name_lower in EDIT_TOOLS and not is_failure:
@@ -248,13 +245,9 @@ class RuleEngine:
                 self._check_catastrophic_failure(event, variables)
             else:
                 if variables.get("tool_block_pending"):
-                    # Only clear if THIS tool matches the one that was blocked
-                    failed_tool = variables.get("_last_blocked_tool", "")
-                    current_tool = event.data.get("tool_name", "")
-                    if not failed_tool or current_tool == failed_tool:
-                        variables["tool_block_pending"] = False
-                        variables["consecutive_tool_blocks"] = 0
-                        variables["_last_blocked_tool"] = ""
+                    variables["tool_block_pending"] = False
+                    variables["consecutive_tool_blocks"] = 0
+                    variables["_last_blocked_tool"] = ""
                 # Clear edit_write_pending on successful edit/write
                 tool_name_lower = event.data.get("tool_name", "").lower()
                 if tool_name_lower in EDIT_TOOLS and not is_failure:
@@ -830,10 +823,10 @@ class RuleEngine:
         tool_name = event.data.get("tool_name", "")
         wf_name = instance.workflow_name
 
-        # Discovery tools always pass — agents need progressive discovery in every step
+        # Discovery/infrastructure tools always pass — agents need these in every step
         if tool_name.startswith("mcp__gobby__"):
             mcp_suffix = tool_name[len("mcp__gobby__") :]
-            if is_discovery_tool(mcp_suffix):
+            if is_discovery_tool(mcp_suffix) or is_infrastructure_tool(mcp_suffix):
                 return None
 
         # Check native tool allow-list
