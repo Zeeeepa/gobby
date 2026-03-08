@@ -612,6 +612,44 @@ class LocalPipelineExecutionManager:
             result[step.execution_id].append(step)
         return result
 
+    def get_stalled_executions(
+        self, stall_threshold_seconds: int, all_projects: bool = False
+    ) -> list[PipelineExecution]:
+        """Get running executions that haven't been updated within the threshold.
+
+        Args:
+            stall_threshold_seconds: Seconds of inactivity before considering stalled
+            all_projects: If True, query across all projects (for heartbeat)
+
+        Returns:
+            List of stalled PipelineExecution instances
+        """
+        from datetime import timedelta
+
+        cutoff = (datetime.now(UTC) - timedelta(seconds=stall_threshold_seconds)).isoformat()
+
+        if all_projects:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM pipeline_executions
+                WHERE status = ? AND updated_at < ?
+                ORDER BY updated_at ASC
+                """,
+                (ExecutionStatus.RUNNING.value, cutoff),
+            )
+        else:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM pipeline_executions
+                WHERE status = ?
+                  AND project_id = ?
+                  AND updated_at < ?
+                ORDER BY updated_at ASC
+                """,
+                (ExecutionStatus.RUNNING.value, self.project_id, cutoff),
+            )
+        return [PipelineExecution.from_row(row) for row in rows]
+
     def get_steps_for_execution(self, execution_id: str) -> list[StepExecution]:
         """Get all steps for an execution.
 

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.scheduler.executor import CronExecutor
+from gobby.scheduler.executor import CronExecutor, CronHandler
 from gobby.storage.cron import CronJobStorage
 from gobby.storage.cron_models import CronJob
 
@@ -181,3 +181,69 @@ async def test_execute_shell_missing_command(
     result = await executor.execute(job, run)
     assert result.status == "failed"
     assert "command" in (result.error or "").lower()
+
+
+# --- Handler action type tests ---
+
+
+@pytest.mark.asyncio
+async def test_execute_handler_success(
+    cron_storage: CronJobStorage, executor: CronExecutor
+) -> None:
+    """Handler action dispatches to registered callable."""
+
+    async def my_handler(job: CronJob) -> str:
+        return f"handled: {job.name}"
+
+    executor.register_handler("test_handler", my_handler)
+    job = _make_job(cron_storage, "handler", {"handler": "test_handler"})
+    run = cron_storage.create_run(job.id)
+
+    result = await executor.execute(job, run)
+    assert result.status == "completed"
+    assert "handled: Test handler" in (result.output or "")
+
+
+@pytest.mark.asyncio
+async def test_execute_handler_missing_name(
+    cron_storage: CronJobStorage, executor: CronExecutor
+) -> None:
+    """Handler action without handler name in config returns error."""
+    job = _make_job(cron_storage, "handler", {"some_key": "value"})
+    run = cron_storage.create_run(job.id)
+
+    result = await executor.execute(job, run)
+    assert result.status == "failed"
+    assert "handler" in (result.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_execute_handler_unregistered(
+    cron_storage: CronJobStorage, executor: CronExecutor
+) -> None:
+    """Handler action with unregistered handler name returns error."""
+    job = _make_job(cron_storage, "handler", {"handler": "nonexistent"})
+    run = cron_storage.create_run(job.id)
+
+    result = await executor.execute(job, run)
+    assert result.status == "failed"
+    assert "No handler registered" in (result.error or "")
+    assert "nonexistent" in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_execute_handler_error_propagates(
+    cron_storage: CronJobStorage, executor: CronExecutor
+) -> None:
+    """Handler that raises an exception results in failed run."""
+
+    async def failing_handler(job: CronJob) -> str:
+        raise RuntimeError("handler exploded")
+
+    executor.register_handler("boom", failing_handler)
+    job = _make_job(cron_storage, "handler", {"handler": "boom"})
+    run = cron_storage.create_run(job.id)
+
+    result = await executor.execute(job, run)
+    assert result.status == "failed"
+    assert "handler exploded" in (result.error or "")

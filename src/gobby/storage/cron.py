@@ -88,7 +88,7 @@ class CronJobStorage:
         project_id: str,
         name: str,
         schedule_type: Literal["cron", "interval", "once"],
-        action_type: Literal["agent_spawn", "pipeline", "shell"],
+        action_type: Literal["agent_spawn", "pipeline", "shell", "handler"],
         action_config: dict[str, Any],
         description: str | None = None,
         cron_expr: str | None = None,
@@ -161,6 +161,18 @@ class CronJobStorage:
     def get_job(self, job_id: str) -> CronJob | None:
         """Get a cron job by ID."""
         row = self.db.fetchone("SELECT * FROM cron_jobs WHERE id = ?", (job_id,))
+        return CronJob.from_row(row) if row else None
+
+    def get_job_by_name(self, name: str) -> CronJob | None:
+        """Get a cron job by name.
+
+        Args:
+            name: Job name (e.g., "gobby:pipeline-heartbeat")
+
+        Returns:
+            CronJob or None if not found
+        """
+        row = self.db.fetchone("SELECT * FROM cron_jobs WHERE name = ?", (name,))
         return CronJob.from_row(row) if row else None
 
     def list_jobs(

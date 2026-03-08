@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +15,9 @@ if TYPE_CHECKING:
     from gobby.workflows.pipeline_executor import PipelineExecutor
 
 logger = logging.getLogger(__name__)
+
+# Type for registered cron handlers: async callables that receive a CronJob and return output
+CronHandler = Callable[[CronJob], Awaitable[str]]
 
 
 class CronExecutor:
@@ -28,6 +32,16 @@ class CronExecutor:
         self.storage = storage
         self.agent_runner = agent_runner
         self.pipeline_executor = pipeline_executor
+        self._handlers: dict[str, CronHandler] = {}
+
+    def register_handler(self, name: str, handler: CronHandler) -> None:
+        """Register a named handler for the 'handler' action type.
+
+        Args:
+            name: Handler name (referenced in action_config["handler"])
+            handler: Async callable that receives a CronJob and returns output string
+        """
+        self._handlers[name] = handler
 
     async def execute(self, job: CronJob, run: CronRun) -> CronRun:
         """Execute a cron job and update the run record.
@@ -49,6 +63,8 @@ class CronExecutor:
                 output = await self._execute_pipeline(job)
             elif job.action_type == "shell":
                 output = await self._execute_shell(job)
+            elif job.action_type == "handler":
+                output = await self._execute_handler(job)
             else:
                 raise ValueError(f"Unknown action_type: {job.action_type}")
 
@@ -165,3 +181,18 @@ class CronExecutor:
             if process:
                 process.terminate()
             raise RuntimeError(f"Shell command timed out after {timeout}s") from err
+
+    async def _execute_handler(self, job: CronJob) -> str:
+        """Execute a registered handler action.
+
+        The handler name is read from action_config["handler"] and dispatched
+        to a previously registered async callable.
+        """
+        name = job.action_config.get("handler")
+        if not name:
+            raise ValueError("handler action requires 'handler' in action_config")
+        handler = self._handlers.get(name)
+        if not handler:
+            available = list(self._handlers.keys())
+            raise ValueError(f"No handler registered: '{name}'. Available: {available}")
+        return await handler(job)

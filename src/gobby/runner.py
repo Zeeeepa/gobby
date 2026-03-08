@@ -566,6 +566,40 @@ class GobbyRunner:
                 agent_runner=self.agent_runner,
                 pipeline_executor=self.pipeline_executor,
             )
+
+            # Register pipeline heartbeat handler
+            try:
+                from gobby.agents.registry import get_running_agent_registry
+                from gobby.storage.agents import LocalAgentRunManager as _ARM
+                from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
+
+                heartbeat = PipelineHeartbeat(
+                    execution_manager=self.pipeline_execution_manager,
+                    completion_registry=self.completion_registry,
+                    agent_registry=get_running_agent_registry(),
+                    agent_run_manager=_ARM(self.database),
+                    db=self.database,
+                )
+                cron_executor.register_handler("pipeline_heartbeat", heartbeat)
+
+                # Auto-create system cron job if missing
+                existing = self.cron_storage.get_job_by_name("gobby:pipeline-heartbeat")
+                if not existing:
+                    self.cron_storage.create_job(
+                        project_id=self.project_id,
+                        name="gobby:pipeline-heartbeat",
+                        description="Safety net: detects stalled pipelines and fires lost continuations",
+                        schedule_type="interval",
+                        interval_seconds=60,
+                        action_type="handler",
+                        action_config={"handler": "pipeline_heartbeat"},
+                        enabled=True,
+                    )
+                    logger.info("Created system cron job: gobby:pipeline-heartbeat")
+                logger.debug("PipelineHeartbeat handler registered")
+            except Exception as e:
+                logger.error(f"Failed to register pipeline heartbeat: {e}")
+
             self.cron_scheduler = CronScheduler(
                 storage=self.cron_storage,
                 executor=cron_executor,
