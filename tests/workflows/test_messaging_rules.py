@@ -23,6 +23,7 @@ from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect, RuleEvent
 from gobby.workflows.enforcement.blocking import is_message_delivery_tool
 from gobby.workflows.rule_engine import RuleEngine
+from gobby.workflows.sync import get_bundled_rules_path
 
 pytestmark = pytest.mark.unit
 
@@ -404,7 +405,7 @@ class TestCommandMcpToolRestriction:
         """
         import yaml
 
-        yaml_path = "src/gobby/install/shared/rules/messaging/command-tool-restriction.yaml"
+        yaml_path = get_bundled_rules_path() / "messaging" / "command-tool-restriction.yaml"
         with open(yaml_path) as f:
             data = yaml.safe_load(f)
 

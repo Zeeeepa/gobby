@@ -100,15 +100,15 @@ def _run_sync(db: Any, workflow_type: str | None) -> dict[str, Any]:
     """Run the appropriate sync functions for the given workflow type."""
     from gobby.agents.sync import sync_bundled_agents
     from gobby.workflows.sync import (
+        sync_bundled_pipelines,
         sync_bundled_rules,
         sync_bundled_variables,
-        sync_bundled_workflows,
     )
 
     sync_map: dict[str, Any] = {
         "rule": ("rules", sync_bundled_rules),
-        "workflow": ("workflows", sync_bundled_workflows),
-        "pipeline": ("workflows", sync_bundled_workflows),  # pipelines live in workflows/
+        "workflow": ("pipelines", sync_bundled_pipelines),
+        "pipeline": ("pipelines", sync_bundled_pipelines),
         "agent": ("agents", sync_bundled_agents),
         "variable": ("variables", sync_bundled_variables),
     }

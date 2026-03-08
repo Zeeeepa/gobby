@@ -243,7 +243,7 @@ def sync_bundled_content_to_db(
         ("skills", "gobby.skills.sync", "sync_bundled_skills"),
         ("prompts", "gobby.prompts.sync", "sync_bundled_prompts"),
         ("agents", "gobby.agents.sync", "sync_bundled_agents"),
-        ("workflows", "gobby.workflows.sync", "sync_bundled_workflows"),
+        ("pipelines", "gobby.workflows.sync", "sync_bundled_pipelines"),
         ("rules", "gobby.workflows.sync", "sync_bundled_rules"),
         ("variables", "gobby.workflows.sync", "sync_bundled_variables"),
     ]

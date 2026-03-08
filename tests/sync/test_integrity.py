@@ -168,17 +168,17 @@ class TestVerifyBundledIntegrity:
 class TestGetDirtyContentTypes:
     """Tests for get_dirty_content_types."""
 
-    def test_maps_workflow_paths(self, tmp_path: Path) -> None:
-        """Maps workflow file paths to 'workflows' content type."""
+    def test_maps_pipeline_paths(self, tmp_path: Path) -> None:
+        """Maps pipeline file paths to 'pipelines' content type."""
         shared = tmp_path / "shared"
         shared.mkdir()
 
-        dirty = ["shared/workflows/default.yaml"]
+        dirty = ["shared/workflows/pipelines/default.yaml"]
 
         with patch("gobby.sync.integrity.run_git_command", return_value=str(tmp_path)):
             result = get_dirty_content_types(dirty, tmp_path)
 
-        assert "workflows" in result
+        assert "pipelines" in result
 
     def test_maps_multiple_types(self, tmp_path: Path) -> None:
         """Maps files across multiple content type directories."""
@@ -186,15 +186,15 @@ class TestGetDirtyContentTypes:
         shared.mkdir()
 
         dirty = [
-            "shared/workflows/default.yaml",
+            "shared/workflows/pipelines/default.yaml",
             "shared/skills/evil.yaml",
-            "shared/agents/rogue.yaml",
+            "shared/workflows/agents/rogue.yaml",
         ]
 
         with patch("gobby.sync.integrity.run_git_command", return_value=str(tmp_path)):
             result = get_dirty_content_types(dirty, tmp_path)
 
-        assert result == {"workflows", "skills", "agents"}
+        assert result == {"pipelines", "skills", "agents"}
 
     def test_ignores_non_content_dirs(self, tmp_path: Path) -> None:
         """Files in non-content dirs (hooks, plugins) are ignored."""
@@ -217,11 +217,11 @@ class TestGetDirtyContentTypes:
         shared.mkdir()
 
         with patch("gobby.sync.integrity.run_git_command", return_value=None):
-            result = get_dirty_content_types(["shared/workflows/x.yaml"], tmp_path)
+            result = get_dirty_content_types(["shared/workflows/pipelines/x.yaml"], tmp_path)
 
         assert result == set()
 
     def test_content_type_dirs_matches_sync_targets(self) -> None:
         """CONTENT_TYPE_DIRS covers all DB-synced content types."""
-        expected = {"skills", "prompts", "rules", "agents", "workflows"}
+        expected = {"skills", "prompts", "rules", "agents", "variables", "pipelines"}
         assert set(CONTENT_TYPE_DIRS.values()) == expected

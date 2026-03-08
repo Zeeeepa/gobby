@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 CONTENT_TYPE_DIRS: dict[str, str] = {
     "skills": "skills",
     "prompts": "prompts",
-    "rules": "rules",
-    "agents": "agents",
-    "workflows": "workflows",
+    "workflows/rules": "rules",
+    "workflows/agents": "agents",
+    "workflows/variables": "variables",
+    "workflows/pipelines": "pipelines",
 }
 
 
@@ -164,14 +165,17 @@ def get_dirty_content_types(dirty_files: list[str], install_dir: Path) -> set[st
 
     affected: set[str] = set()
     for fpath in dirty_files:
-        # fpath is relative to repo root, e.g. "src/gobby/install/shared/workflows/foo.yaml"
+        # fpath is relative to repo root, e.g. "src/gobby/install/shared/workflows/pipelines/foo.yaml"
         if not fpath.startswith(rel_shared + "/"):
             continue
-        # Strip the shared prefix to get e.g. "workflows/foo.yaml"
+        # Strip the shared prefix to get e.g. "workflows/pipelines/foo.yaml"
         remainder = fpath[len(rel_shared) + 1 :]
-        # First path component is the content-type directory
-        subdir = remainder.split("/", 1)[0]
-        if subdir in CONTENT_TYPE_DIRS:
-            affected.add(CONTENT_TYPE_DIRS[subdir])
+        # Try two-level key first (e.g. "workflows/rules"), then single-level
+        parts = remainder.split("/")
+        key2 = f"{parts[0]}/{parts[1]}" if len(parts) > 1 else None
+        if key2 and key2 in CONTENT_TYPE_DIRS:
+            affected.add(CONTENT_TYPE_DIRS[key2])
+        elif parts[0] in CONTENT_TYPE_DIRS:
+            affected.add(CONTENT_TYPE_DIRS[parts[0]])
 
     return affected

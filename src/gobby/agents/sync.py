@@ -1,7 +1,7 @@
 """Agent definition synchronization for bundled agents.
 
 This module provides sync_bundled_agents() which loads agent definitions from the
-bundled install/shared/agents/ directory and syncs them to workflow_definitions
+bundled install/shared/workflows/agents/ directory and syncs them to workflow_definitions
 with workflow_type='agent'.
 """
 
@@ -24,15 +24,15 @@ def get_bundled_agents_path() -> Path:
     """Get the path to bundled agents directory.
 
     Returns:
-        Path to src/gobby/install/shared/agents/
+        Path to src/gobby/install/shared/workflows/agents/
     """
     from gobby.paths import get_install_dir
 
-    return get_install_dir() / "shared" / "agents"
+    return get_install_dir() / "shared" / "workflows" / "agents"
 
 
 def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
-    """Sync bundled agent definitions from install/shared/agents/ to workflow_definitions.
+    """Sync bundled agent definitions from install/shared/workflows/agents/ to workflow_definitions.
 
     This function:
     1. Walks all .yaml files in the bundled agents directory

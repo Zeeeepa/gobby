@@ -1,7 +1,7 @@
-"""Workflow definition synchronization for bundled workflows.
+"""Workflow definition synchronization for bundled content.
 
-This module provides sync_bundled_workflows() which loads workflow definitions
-from the bundled install/shared/workflows/ directory and syncs them to the database.
+This module provides sync functions for pipelines, rules, and variables from
+the bundled install/shared/workflows/ directory tree.
 """
 
 import json
@@ -18,10 +18,10 @@ from gobby.workflows.definitions import PipelineDefinition, RuleDefinitionBody, 
 
 __all__ = [
     "get_bundled_rules_path",
-    "get_bundled_workflows_path",
+    "get_bundled_pipelines_path",
     "get_bundled_variables_path",
     "sync_bundled_rules",
-    "sync_bundled_workflows",
+    "sync_bundled_pipelines",
     "sync_bundled_variables",
 ]
 
@@ -34,29 +34,29 @@ def get_bundled_rules_path() -> Path:
     """Get the path to bundled rules directory.
 
     Returns:
-        Path to src/gobby/install/shared/rules/
+        Path to src/gobby/install/shared/workflows/rules/
     """
     from gobby.paths import get_install_dir
 
-    return get_install_dir() / "shared" / "rules"
+    return get_install_dir() / "shared" / "workflows" / "rules"
 
 
-def get_bundled_workflows_path() -> Path:
-    """Get the path to bundled workflows directory.
+def get_bundled_pipelines_path() -> Path:
+    """Get the path to bundled pipelines directory.
 
     Returns:
-        Path to src/gobby/install/shared/workflows/
+        Path to src/gobby/install/shared/workflows/pipelines/
     """
     from gobby.paths import get_install_dir
 
-    return get_install_dir() / "shared" / "workflows"
+    return get_install_dir() / "shared" / "workflows" / "pipelines"
 
 
-def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
-    """Sync bundled workflow definitions from install/shared/workflows/ to the database.
+def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
+    """Sync bundled pipeline definitions from install/shared/workflows/pipelines/ to the database.
 
     This function:
-    1. Walks all .yaml files in the bundled workflows directory (skips deprecated/)
+    1. Walks all .yaml files in the bundled pipelines directory
     2. Parses each and validates it has a 'name' field
     3. Creates new records or updates changed content (idempotent)
     4. All records are created with source='template' and project_id=None
@@ -67,7 +67,7 @@ def sync_bundled_workflows(db: DatabaseProtocol) -> dict[str, Any]:
     Returns:
         Dict with success status and counts
     """
-    workflows_path = get_bundled_workflows_path()
+    workflows_path = get_bundled_pipelines_path()
 
     result: dict[str, Any] = {
         "success": True,
@@ -694,15 +694,15 @@ def get_bundled_variables_path() -> Path:
     """Get the path to bundled variables directory.
 
     Returns:
-        Path to src/gobby/install/shared/variables/
+        Path to src/gobby/install/shared/workflows/variables/
     """
     from gobby.paths import get_install_dir
 
-    return get_install_dir() / "shared" / "variables"
+    return get_install_dir() / "shared" / "workflows" / "variables"
 
 
 def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
-    """Sync bundled variable definitions from install/shared/variables/ to the database.
+    """Sync bundled variable definitions from install/shared/workflows/variables/ to the database.
 
     Variable YAML files use a ``variables:`` dict where each key is the variable
     name and the value contains ``value`` and optional ``description``.  File-level
