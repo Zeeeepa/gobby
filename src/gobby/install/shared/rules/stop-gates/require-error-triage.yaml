@@ -6,7 +6,6 @@ rules:
     event: stop
     enabled: false
     priority: 50
-    agent_scope: ["default"]
     when: >
       variables.get('task_has_commits')
       and not variables.get('pre_existing_errors_triaged')

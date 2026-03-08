@@ -252,12 +252,27 @@ class TaskSyncManager:
 
             # Bulk-load existing task metadata in one query to avoid per-task SELECTs
             existing_tasks: dict[str, dict[str, Any]] = {}
-            for row in self.db.fetchall("SELECT id, updated_at, seq_num, path_cache FROM tasks"):
+            for row in self.db.fetchall(
+                "SELECT id, updated_at, seq_num, path_cache, project_id FROM tasks"
+            ):
                 existing_tasks[row["id"]] = {
                     "updated_at": row["updated_at"],
                     "seq_num": row["seq_num"],
                     "path_cache": row["path_cache"],
+                    "project_id": row["project_id"],
                 }
+
+            # Track occupied seq_nums per project to preserve JSONL values
+            # and only assign fresh ones on collision
+            occupied_seq_nums: dict[str | None, set[int]] = {}
+            max_seq_tracker: dict[str | None, int] = {}
+            for task_meta in existing_tasks.values():
+                pid = task_meta["project_id"]
+                sn = task_meta["seq_num"]
+                if sn is not None:
+                    occupied_seq_nums.setdefault(pid, set()).add(sn)
+                    max_seq_tracker[pid] = max(max_seq_tracker.get(pid, 0), sn)
+            batch_claimed: dict[str | None, set[int]] = {}
 
             # Temporarily disable foreign keys to allow inserting child tasks
             # before their parents (JSONL order may not be parent-first)
@@ -395,21 +410,29 @@ class TaskSyncManager:
                             }
 
                             if not existing_row:
-                                # New task — assign a fresh seq_num to avoid
-                                # collisions with tasks already in this DB
-                                project_id = synced_values.get("project_id")
-                                max_seq_row = conn.execute(
-                                    "SELECT MAX(seq_num) as max_seq FROM tasks WHERE project_id = ?",
-                                    (project_id,),
-                                ).fetchone()
-                                next_seq = (
-                                    (max_seq_row["max_seq"] if max_seq_row else None) or 0
-                                ) + 1
-                                synced_values["seq_num"] = next_seq
+                                # New task — preserve JSONL seq_num if available
+                                # and not already occupied; assign fresh only on collision
+                                task_project_id = synced_values.get("project_id")
+                                jsonl_seq = synced_values.get("seq_num")
+                                occupied = occupied_seq_nums.get(
+                                    task_project_id, set()
+                                ) | batch_claimed.get(task_project_id, set())
 
-                                # Rebuild path_cache from the new seq_num
+                                if jsonl_seq is not None and jsonl_seq not in occupied:
+                                    final_seq = jsonl_seq
+                                else:
+                                    current_max = max_seq_tracker.get(task_project_id, 0)
+                                    final_seq = current_max + 1
+
+                                synced_values["seq_num"] = final_seq
+                                batch_claimed.setdefault(task_project_id, set()).add(final_seq)
+                                max_seq_tracker[task_project_id] = max(
+                                    max_seq_tracker.get(task_project_id, 0), final_seq
+                                )
+
+                                # Rebuild path_cache from the final seq_num
                                 parent_id = synced_values.get("parent_task_id")
-                                path_parts: list[str] = [str(next_seq)]
+                                path_parts: list[str] = [str(final_seq)]
                                 current_parent = parent_id
                                 max_depth = 100
                                 depth = 0
