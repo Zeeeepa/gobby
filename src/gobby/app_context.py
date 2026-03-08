@@ -88,7 +88,7 @@ class ServiceContainer:
 
     # Context
     project_id: str | None = None
-    websocket_server: Any | None = None
+    websocket_server: Any | None = None  # GobbyWebSocketServer
 
     # Lazy wiring for per-project executors
     tool_proxy_getter: Any | None = None  # Callable[[], ToolProxyService]
@@ -202,3 +202,20 @@ class ServiceContainer:
         except Exception as e:
             _logger.warning(f"Failed to lazily create PipelineExecutor: {e}")
             return None
+
+
+# ---------------------------------------------------------------------------
+# Module-level singleton accessor
+# ---------------------------------------------------------------------------
+_current_container: ServiceContainer | None = None
+
+
+def set_app_context(container: ServiceContainer) -> None:
+    """Store the global ServiceContainer singleton."""
+    global _current_container  # noqa: PLW0603
+    _current_container = container
+
+
+def get_app_context() -> ServiceContainer | None:
+    """Retrieve the global ServiceContainer, or None if not yet initialised."""
+    return _current_container

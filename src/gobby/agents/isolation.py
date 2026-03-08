@@ -724,7 +724,7 @@ async def _patch_mcp_config_for_isolation(
         try:
 
             def _patch_claude_json() -> None:
-                data: dict = {}
+                data: dict[str, Any] = {}
                 if claude_json_path.exists():
                     data = json.loads(claude_json_path.read_text())
 

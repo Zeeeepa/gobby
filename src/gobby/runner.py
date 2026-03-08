@@ -12,7 +12,7 @@ import uvicorn
 
 from gobby.agents.lifecycle_monitor import AgentLifecycleMonitor
 from gobby.agents.runner import AgentRunner
-from gobby.app_context import ServiceContainer
+from gobby.app_context import ServiceContainer, set_app_context
 from gobby.config.app import load_config
 from gobby.llm import LLMService, create_llm_service
 from gobby.llm.resolver import ExecutorRegistry
@@ -576,6 +576,9 @@ class GobbyRunner:
                 from gobby.storage.agents import LocalAgentRunManager as _ARM
                 from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
 
+                if self.pipeline_execution_manager is None:
+                    raise RuntimeError("pipeline_execution_manager required for heartbeat")
+
                 heartbeat = PipelineHeartbeat(
                     execution_manager=self.pipeline_execution_manager,
                     completion_registry=self.completion_registry,
@@ -587,7 +590,7 @@ class GobbyRunner:
 
                 # Auto-create system cron job if missing
                 existing = self.cron_storage.get_job_by_name("gobby:pipeline-heartbeat")
-                if not existing:
+                if not existing and self.project_id:
                     self.cron_storage.create_job(
                         project_id=self.project_id,
                         name="gobby:pipeline-heartbeat",
@@ -604,7 +607,7 @@ class GobbyRunner:
                 logger.error(f"Failed to register pipeline heartbeat: {e}")
 
             # Register conductor handler (if enabled)
-            if self.config.conductor.enabled:
+            if self.config.conductor.enabled and self.project_id:
                 try:
                     from gobby.conductor.manager import ConductorManager
 
@@ -678,6 +681,8 @@ class GobbyRunner:
             dev_mode=self._dev_mode,
             tool_proxy_getter=lambda: self.http_server.tool_proxy,
         )
+
+        set_app_context(services)
 
         self.http_server: HTTPServer = HTTPServer(
             services=services,

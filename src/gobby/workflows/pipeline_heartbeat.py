@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
 
@@ -131,7 +131,7 @@ class PipelineHeartbeat:
         agents = self._agent_registry.list_by_parent(execution.session_id)
         return len(agents) > 0
 
-    def _get_continuation_for_execution(self, execution_id: str) -> dict | None:
+    def _get_continuation_for_execution(self, execution_id: str) -> dict[str, Any] | None:
         """Look up pipeline_continuations rows for an execution.
 
         Checks both the in-memory registry and the DB table.
@@ -153,7 +153,7 @@ class PipelineHeartbeat:
 
         return None
 
-    async def _fire_continuation(self, continuation: dict) -> None:
+    async def _fire_continuation(self, continuation: dict[str, Any]) -> None:
         """Fire a lost pipeline continuation."""
         run_id = continuation.pop("run_id", None)
 
