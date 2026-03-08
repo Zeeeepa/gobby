@@ -712,9 +712,7 @@ async def _patch_mcp_config_for_isolation(
 
     mcp_json_path = Path(isolated_path) / ".mcp.json"
     try:
-        await asyncio.to_thread(
-            mcp_json_path.write_text, json.dumps(mcp_config, indent=2) + "\n"
-        )
+        await asyncio.to_thread(mcp_json_path.write_text, json.dumps(mcp_config, indent=2) + "\n")
         logger.info(f"Wrote MCP config to {mcp_json_path}")
     except OSError as e:
         logger.warning(f"Failed to write .mcp.json to {isolated_path}: {e}")

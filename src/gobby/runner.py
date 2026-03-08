@@ -448,7 +448,12 @@ class GobbyRunner:
         # Uses the default tmux socket (not -L gobby) since these are user panes
         async def _tmux_pane_send(pane_id: str, message: str) -> None:
             proc = await asyncio.create_subprocess_exec(
-                "tmux", "send-keys", "-t", pane_id, message, "Enter",
+                "tmux",
+                "send-keys",
+                "-t",
+                pane_id,
+                message,
+                "Enter",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -966,13 +971,15 @@ class GobbyRunner:
 
                             inputs = _json.loads(exe.inputs_json) if exe.inputs_json else {}
                             inputs["_current_iteration"] = inputs.get("_current_iteration", 0) + 1
-                            await self._rerun_pipeline({
-                                "pipeline_name": "orchestrator",
-                                "inputs": inputs,
-                                "session_id": exe.session_id,
-                                "project_id": exe.project_id or self.project_id or "",
-                                "continuation_prompt": exe.continuation_prompt,
-                            })
+                            await self._rerun_pipeline(
+                                {
+                                    "pipeline_name": "orchestrator",
+                                    "inputs": inputs,
+                                    "session_id": exe.session_id,
+                                    "project_id": exe.project_id or self.project_id or "",
+                                    "continuation_prompt": exe.continuation_prompt,
+                                }
+                            )
                             logger.info(f"Re-triggered stalled orchestration {exe.id}")
                         except Exception as e:
                             logger.warning(f"Failed to re-trigger orchestration {exe.id}: {e}")

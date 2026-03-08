@@ -235,7 +235,11 @@ def register_pipeline_tools(
             # Dead-end safeguard: if no agents were dispatched but orchestration
             # is not complete, schedule a delayed self-retry to escape the dead-end.
             orchestration_complete = dispatch_outputs.get("orchestration_complete", False)
-            if not orchestration_complete and _completion_registry and _completion_registry._pipeline_rerun_callback:
+            if (
+                not orchestration_complete
+                and _completion_registry
+                and _completion_registry._pipeline_rerun_callback
+            ):
                 # Backoff: read retry count from inputs, enforce limit
                 dead_end_retries = inputs.get("_dead_end_retries", 0)
                 max_dead_end_retries = 10
@@ -288,7 +292,7 @@ def register_pipeline_tools(
                         "continuation_prompt": continuation_prompt,
                     }
                     # Exponential backoff: 10s, 20s, 40s, ... capped at 300s
-                    delay = min(10 * (2 ** dead_end_retries), 300)
+                    delay = min(10 * (2**dead_end_retries), 300)
 
                     # Cancel any existing pending retry for this pipeline+epic (#9939)
                     dedup_key = f"{pipeline_name}:{inputs.get('session_task', '')}"

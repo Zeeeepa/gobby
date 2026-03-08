@@ -239,7 +239,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     logger.debug("Best-effort session linking failed: %s", e)
 
             notify_parent_on_status_change(
-                ctx.task_manager.db, resolved_id, "needs_review", task_ref=f"#{task.seq_num}" if task.seq_num else None
+                ctx.task_manager.db,
+                resolved_id,
+                "needs_review",
+                task_ref=f"#{task.seq_num}" if task.seq_num else None,
             )
 
             return {
@@ -265,7 +268,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         )
 
         notify_parent_on_status_change(
-            ctx.task_manager.db, resolved_id, "closed", task_ref=f"#{task.seq_num}" if task.seq_num else None
+            ctx.task_manager.db,
+            resolved_id,
+            "closed",
+            task_ref=f"#{task.seq_num}" if task.seq_num else None,
         )
 
         # Auto-link session if provided
@@ -651,7 +657,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Failed to claim task {task_id}"}
 
         notify_parent_on_status_change(
-            ctx.task_manager.db, resolved_id, "in_progress", task_ref=f"#{task.seq_num}" if task.seq_num else None
+            ctx.task_manager.db,
+            resolved_id,
+            "in_progress",
+            task_ref=f"#{task.seq_num}" if task.seq_num else None,
         )
 
         # Link task to session (best-effort, don't fail the claim if this fails)
@@ -739,7 +748,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         )
 
         notify_parent_on_status_change(
-            ctx.task_manager.db, resolved_id, "escalated", task_ref=f"#{task.seq_num}" if task.seq_num else None
+            ctx.task_manager.db,
+            resolved_id,
+            "escalated",
+            task_ref=f"#{task.seq_num}" if task.seq_num else None,
         )
 
         # Link task to session (best-effort)
@@ -839,7 +851,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Failed to approve task {task_id}"}
 
         notify_parent_on_status_change(
-            ctx.task_manager.db, resolved_id, "review_approved", task_ref=f"#{task.seq_num}" if task.seq_num else None
+            ctx.task_manager.db,
+            resolved_id,
+            "review_approved",
+            task_ref=f"#{task.seq_num}" if task.seq_num else None,
         )
 
         # Link task to session (best-effort)
@@ -927,7 +942,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Failed to mark task {task_id} for review"}
 
         notify_parent_on_status_change(
-            ctx.task_manager.db, resolved_id, "needs_review", task_ref=f"#{task.seq_num}" if task.seq_num else None
+            ctx.task_manager.db,
+            resolved_id,
+            "needs_review",
+            task_ref=f"#{task.seq_num}" if task.seq_num else None,
         )
 
         # Link task to session (best-effort, don't fail if this fails)

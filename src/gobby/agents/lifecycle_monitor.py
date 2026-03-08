@@ -82,9 +82,7 @@ class AgentLifecycleMonitor:
                     self._task_manager.update_task, db_run.task_id, status="open", assignee=None
                 )
                 task_ref = f"#{task.seq_num}" if task.seq_num else db_run.task_id[:8]
-                logger.info(
-                    "Recovered task %s to open after agent %s failed", task_ref, run_id
-                )
+                logger.info("Recovered task %s to open after agent %s failed", task_ref, run_id)
         except Exception as e:
             logger.warning("Failed to recover task for agent %s: %s", run_id, e)
 
@@ -418,9 +416,7 @@ class AgentLifecycleMonitor:
             return 1
 
         # status == "idle"
-        if self._idle_detector.should_fail(
-            agent.run_id, self._tmux_config.max_reprompt_attempts
-        ):
+        if self._idle_detector.should_fail(agent.run_id, self._tmux_config.max_reprompt_attempts):
             logger.info(
                 f"Agent {agent.run_id} still idle after "
                 f"{self._tmux_config.max_reprompt_attempts} reprompts — failing"
@@ -434,9 +430,7 @@ class AgentLifecycleMonitor:
             self._tmux_config.max_reprompt_attempts,
         ):
             logger.info(f"Reprompting idle agent {agent.run_id}")
-            sent = await self._tmux.send_keys(
-                tmux_name, IdleDetector.REPROMPT_MESSAGE + "\n"
-            )
+            sent = await self._tmux.send_keys(tmux_name, IdleDetector.REPROMPT_MESSAGE + "\n")
             if sent:
                 self._idle_detector.record_reprompt(agent.run_id)
             return 1
