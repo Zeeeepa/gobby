@@ -252,3 +252,4 @@ playwright-report/
 drawbridge/
 node_modules/
 *.tsbuildinfo
+shift_enter_fuckery.md
