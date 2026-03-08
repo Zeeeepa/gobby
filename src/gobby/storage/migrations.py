@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 145
+BASELINE_VERSION = 146
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -719,6 +719,8 @@ CREATE TABLE pipeline_executions (
 CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
 CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
 CREATE INDEX idx_pipeline_executions_resume_token ON pipeline_executions(resume_token);
+CREATE INDEX idx_pe_status_updated ON pipeline_executions(status, updated_at);
+CREATE INDEX idx_pe_status_project_updated ON pipeline_executions(status, project_id, updated_at);
 
 CREATE TABLE step_executions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1101,6 +1103,12 @@ CREATE INDEX IF NOT EXISTS idx_cs_parent ON code_symbols(parent_symbol_id)""",
     config_json TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )""",
+    ),
+    (
+        146,
+        "Add composite indexes on pipeline_executions for heartbeat queries",
+        """CREATE INDEX IF NOT EXISTS idx_pe_status_updated ON pipeline_executions(status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_pe_status_project_updated ON pipeline_executions(status, project_id, updated_at)""",
     ),
 ]
 

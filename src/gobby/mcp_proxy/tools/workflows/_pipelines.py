@@ -38,6 +38,13 @@ logger = logging.getLogger(__name__)
 _pending_dead_end_retries: dict[str, asyncio.Task[None]] = {}
 
 
+def _clear_pending_dead_end_retries() -> None:
+    """Clear all pending dead-end retry tasks. For use in tests only."""
+    for task in _pending_dead_end_retries.values():
+        task.cancel()
+    _pending_dead_end_retries.clear()
+
+
 def _require_pipeline(
     def_manager: LocalWorkflowDefinitionManager,
     name: str | None = None,

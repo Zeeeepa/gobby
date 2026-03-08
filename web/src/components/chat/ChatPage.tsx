@@ -7,6 +7,7 @@ import type {
   VoiceProps,
 } from "../../types/chat";
 import type { AgentDefInfo } from "../../hooks/useAgentDefinitions";
+import type { ArtifactType } from "../../types/artifacts";
 import { ConversationPicker } from "./ConversationPicker";
 import { useArtifacts } from "../../hooks/useArtifacts";
 import { ArtifactContext } from "./artifacts/ArtifactContext";
@@ -107,9 +108,12 @@ export function ChatPage({
   }, [chat.setOnPlanReady, onPlanReady]);
 
   // Wire artifact events (show_file) to artifact panel
+  const validArtifactTypes = new Set<string>(['code', 'text', 'image', 'sheet']);
   const onArtifactEvent = useCallback(
     (type: string, content: string, language?: string, title?: string) => {
-      createArtifact(type as any, content, language, title);
+      if (validArtifactTypes.has(type)) {
+        createArtifact(type as ArtifactType, content, language, title);
+      }
     },
     [createArtifact],
   );
