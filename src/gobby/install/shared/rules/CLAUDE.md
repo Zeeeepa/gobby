@@ -1,6 +1,6 @@
 # Rule Templates Reference
 
-This directory contains 14 bundled rule groups. These are **templates** — they are synced to the `workflow_definitions` DB table on daemon start but have `enabled: false` by default. See `../CLAUDE.md` for the template vs active enforcement distinction.
+This directory contains 15 bundled rule groups. These are **templates** — they are synced to the `workflow_definitions` DB table on daemon start but have `enabled: false` by default. See `../CLAUDE.md` for the template vs active enforcement distinction.
 
 ## Rule Groups
 
@@ -12,8 +12,9 @@ This directory contains 14 bundled rule groups. These are **templates** — they
 | `task-enforcement` | `task-enforcement/` | 6 | Block native task tools, require task before edit, track claims, require commits before close, block validation skip |
 | `stop-gates` | `stop-gates/` | 2 | Require task close before stop, require error triage before stop |
 | `plan-mode` | `plan-mode/` | 3 | Detect enter/exit plan mode, reset on session start |
-| `memory-lifecycle` | `memory-lifecycle/` | 9 | Memory sync, recall, digest, capture, title generation, tracking reset |
-| `context-handoff` | `context-handoff/` | 10 | Session summary injection (clear/compact/resume), error triage, task context, baseline dirty files, task sync import |
+| `memory-lifecycle` | `memory-lifecycle/` | 8 | Memory recall, digest, capture, title generation, tracking reset |
+| `context-handoff` | `context-handoff/` | 9 | Session summary injection (clear/compact/resume), error triage, task context, baseline dirty files |
+| `sync` | `sync/` | 6 | JSONL import/export for tasks and memories (tagged `sync` for agent exclusion) |
 | `auto-task` | `auto-task/` | 3 | Autonomous task execution context, task continuation, notify tree complete |
 | `messaging` | `messaging/` | 4 | P2P messaging: deliver pending, activate commands, tool restrictions, exit conditions |
 | `pipeline-enforcement` | `pipeline-enforcement/` | 1 | Auto-run assigned pipeline on session start |
@@ -65,6 +66,7 @@ Rules in `worker-safety` and `pipeline-enforcement` have `gobby` but NOT `defaul
 | `discovery` | progressive-discovery |
 | `memory` | memory-lifecycle |
 | `context` | context-handoff |
+| `sync` | sync |
 | `messaging` | messaging |
 | `pipeline` | pipeline-enforcement |
 

@@ -2,7 +2,7 @@ tags: [context-handoff, context, handoff, lifecycle, gobby, default]
 
 rules:
   preserve-context-on-end:
-    description: "Extract memories and export data on session end"
+    description: "Extract memories on session end"
     event: session_end
     enabled: false
     priority: 10
@@ -12,9 +12,3 @@ rules:
         tool: extract_from_session
         arguments:
           max_memories: 5
-      - type: mcp_call
-        server: gobby-memory
-        tool: sync_export
-      - type: mcp_call
-        server: gobby-tasks
-        tool: sync_export

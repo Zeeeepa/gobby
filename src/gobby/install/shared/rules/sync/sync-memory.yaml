@@ -1,0 +1,33 @@
+tags: [sync, lifecycle, gobby, default]
+
+rules:
+  memory-sync-import:
+    description: "Import memories from .gobby/memories.jsonl on session start"
+    event: session_start
+    enabled: false
+    priority: 30
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: sync_import
+
+  memory-sync-export-on-end:
+    description: "Export memories to .gobby/memories.jsonl on session end"
+    event: session_end
+    enabled: false
+    priority: 51
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: sync_export
+
+  memory-sync-export-on-compact:
+    description: "Export memories to .gobby/memories.jsonl before compaction"
+    event: pre_compact
+    enabled: false
+    priority: 51
+    when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+    effect:
+      type: mcp_call
+      server: gobby-memory
+      tool: sync_export

@@ -5,12 +5,13 @@ Verifies context handoff rules sync correctly and have proper structure:
 - capture-baseline-dirty-files-on-start: mcp_call on session_start
 - inject-previous-session-summary: inject_context on session_start
 - inject-compact-handoff: inject_context on session_start
-- task-sync-import-on-start: mcp_call on session_start
-- inject-skills-on-start: inject_context on session_start
 - inject-task-context-on-start: inject_context on session_start
 - inject-error-triage-policy: inject_context on session_start
-- preserve-context-on-end: multi-effect mcp_call on session_end
-- preserve-context-on-compact: multi-effect set_variable+mcp_call on pre_compact
+- preserve-context-on-end: mcp_call on session_end (extract memories)
+- preserve-context-on-compact: set_variable+mcp_call on pre_compact (reset + extract)
+
+Note: task-sync-import-on-start moved to sync/ group (see test_sync_rules.py).
+Sync export effects moved from preserve-context-on-end/compact to sync/ group.
 """
 
 from __future__ import annotations
@@ -32,7 +33,6 @@ CONTEXT_HANDOFF_RULES = {
     "capture-baseline-dirty-files-on-start",
     "inject-previous-session-summary",
     "inject-compact-handoff",
-    "task-sync-import-on-start",
     "inject-task-context-on-start",
     "inject-error-triage-policy",
     "preserve-context-on-end",
@@ -199,25 +199,6 @@ class TestInjectCompactHandoff:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# task-sync-import-on-start
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestTaskSyncImportOnStart:
-    """Import tasks from JSONL on session_start."""
-
-    def test_event_and_effect(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("task-sync-import-on-start")
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_start"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-tasks"
-        assert body.effect.tool == "sync_import"
-
-
-# ═══════════════════════════════════════════════════════════════════════
 # inject-task-context-on-start
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -274,7 +255,7 @@ class TestInjectErrorTriagePolicy:
 
 
 class TestPreserveContextOnEnd:
-    """Generate handoff summary and export data on session_end (merged rule)."""
+    """Extract memories on session_end."""
 
     def test_event_is_session_end(self, db, manager) -> None:
         _sync_bundled(db)
@@ -283,36 +264,16 @@ class TestPreserveContextOnEnd:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_end"
 
-    def test_has_three_effects(self, db, manager) -> None:
-        """Should have 3 mcp_call effects (extract + 2 sync_export)."""
+    def test_has_one_effect(self, db, manager) -> None:
+        """Should have 1 mcp_call effect (extract_from_session only)."""
         _sync_bundled(db)
         row = manager.get_by_name("preserve-context-on-end")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         effects = body.resolved_effects
-        assert len(effects) == 3
-        for effect in effects:
-            assert effect.type == "mcp_call"
-
-    def test_includes_task_sync_export(self, db, manager) -> None:
-        """Should include task sync export."""
-        _sync_bundled(db)
-        row = manager.get_by_name("preserve-context-on-end")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        effects = body.resolved_effects
-        task_exports = [e for e in effects if e.server == "gobby-tasks" and e.tool == "sync_export"]
-        assert len(task_exports) == 1
-
-    def test_includes_memory_extract_and_export(self, db, manager) -> None:
-        """Should include memory extraction and sync export."""
-        _sync_bundled(db)
-        row = manager.get_by_name("preserve-context-on-end")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        effects = body.resolved_effects
-        memory_effects = [e for e in effects if e.server == "gobby-memory"]
-        assert len(memory_effects) == 2
-        memory_tools = {e.tool for e in memory_effects}
-        assert "extract_from_session" in memory_tools
-        assert "sync_export" in memory_tools
+        assert len(effects) == 1
+        assert effects[0].type == "mcp_call"
+        assert effects[0].server == "gobby-memory"
+        assert effects[0].tool == "extract_from_session"
 
     def test_no_when_condition(self, db, manager) -> None:
         """Should fire unconditionally on session_end."""
@@ -328,7 +289,7 @@ class TestPreserveContextOnEnd:
 
 
 class TestPreserveContextOnCompact:
-    """Reset tracking, extract context, and export data before compaction (merged rule)."""
+    """Reset tracking and extract context before compaction."""
 
     def test_event_is_pre_compact(self, db, manager) -> None:
         _sync_bundled(db)
@@ -337,17 +298,19 @@ class TestPreserveContextOnCompact:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
 
-    def test_has_six_effects(self, db, manager) -> None:
-        """Should have 6 effects (3 set_variable + 3 mcp_call)."""
+    def test_has_four_effects(self, db, manager) -> None:
+        """Should have 4 effects (3 set_variable + 1 mcp_call extract)."""
         _sync_bundled(db)
         row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         effects = body.resolved_effects
-        assert len(effects) == 6
+        assert len(effects) == 4
         set_var_effects = [e for e in effects if e.type == "set_variable"]
         mcp_effects = [e for e in effects if e.type == "mcp_call"]
         assert len(set_var_effects) == 3
-        assert len(mcp_effects) == 3
+        assert len(mcp_effects) == 1
+        assert mcp_effects[0].server == "gobby-memory"
+        assert mcp_effects[0].tool == "extract_from_session"
 
     def test_has_gemini_filter(self, db, manager) -> None:
         """Should filter out automatic gemini compactions."""
@@ -380,24 +343,3 @@ class TestPreserveContextOnCompact:
         ]
         assert len(reset_flag) == 1
         assert reset_flag[0].value is True
-
-    def test_includes_task_sync_export(self, db, manager) -> None:
-        """Should include task sync export."""
-        _sync_bundled(db)
-        row = manager.get_by_name("preserve-context-on-compact")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        effects = body.resolved_effects
-        task_exports = [e for e in effects if e.server == "gobby-tasks" and e.tool == "sync_export"]
-        assert len(task_exports) == 1
-
-    def test_includes_memory_extract_and_export(self, db, manager) -> None:
-        """Should include memory extraction and sync export."""
-        _sync_bundled(db)
-        row = manager.get_by_name("preserve-context-on-compact")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        effects = body.resolved_effects
-        memory_effects = [e for e in effects if e.server == "gobby-memory"]
-        assert len(memory_effects) == 2
-        memory_tools = {e.tool for e in memory_effects}
-        assert "extract_from_session" in memory_tools
-        assert "sync_export" in memory_tools

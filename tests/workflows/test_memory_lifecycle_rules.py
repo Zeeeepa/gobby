@@ -6,11 +6,12 @@ preserve-context-on-end) are tested there instead.
 
 Active memory-lifecycle rules:
 - reset-memory-tracking-on-start: set_variable on session_start
-- memory-sync-import: mcp_call on session_start
 - memory-recall-on-prompt: mcp_call on before_agent
 - memory-capture-nudge: inject_context on before_agent
 - suggest-memory-after-close: inject_context on after_tool
 - clear-memory-review-on-create: set_variable on before_tool
+
+Note: memory-sync-import moved to sync/ group (see test_sync_rules.py).
 """
 
 from __future__ import annotations
@@ -29,7 +30,6 @@ pytestmark = pytest.mark.unit
 
 MEMORY_RULES = {
     "reset-memory-tracking-on-start",
-    "memory-sync-import",
     "memory-recall-on-prompt",
     "memory-capture-nudge",
     "suggest-memory-after-close",
@@ -120,25 +120,6 @@ class TestResetMemoryTrackingOnStart:
         assert body.when is not None
         assert "clear" in body.when
         assert "compact" in body.when
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# memory-sync-import
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestMemorySyncImport:
-    """Import memories from JSONL on session_start."""
-
-    def test_event_and_effect(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("memory-sync-import", include_templates=True)
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_start"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "sync_import"
 
 
 # ═══════════════════════════════════════════════════════════════════════

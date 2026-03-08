@@ -2,7 +2,7 @@ tags: [context-handoff, context, handoff, lifecycle, gobby, default]
 
 rules:
   preserve-context-on-compact:
-    description: "Reset tracking, extract context, and export data before compaction"
+    description: "Reset tracking and extract context before compaction"
     event: pre_compact
     enabled: false
     priority: 5
@@ -22,9 +22,3 @@ rules:
         tool: extract_from_session
         arguments:
           max_memories: 5
-      - type: mcp_call
-        server: gobby-tasks
-        tool: sync_export
-      - type: mcp_call
-        server: gobby-memory
-        tool: sync_export
