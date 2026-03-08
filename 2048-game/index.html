@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2048 Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #faf8ef;
+            color: #776e65;
+        }
+
+        .container {
+            width: 400px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .score-container {
+            background-color: #bbada0;
+            padding: 10px 20px;
+            border-radius: 3px;
+            color: white;
+            text-align: center;
+        }
+
+        .score-label {
+            font-size: 13px;
+            font-weight: bold;
+            display: block;
+        }
+
+        .score-value {
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        .game-container {
+            position: relative;
+            padding: 15px;
+            background-color: #bbada0;
+            border-radius: 6px;
+            width: 400px;
+            height: 400px;
+            box-sizing: border-box;
+        }
+
+        .grid-container {
+            position: absolute;
+            z-index: 1;
+        }
+
+        .grid-row {
+            display: flex;
+            margin-bottom: 15px;
+        }
+
+        .grid-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .grid-cell {
+            width: 76.25px;
+            height: 76.25px;
+            margin-right: 15px;
+            border-radius: 3px;
+            background-color: rgba(238, 228, 218, 0.35);
+        }
+
+        .grid-cell:last-child {
+            margin-right: 0;
+        }
+
+        .tile-container {
+            position: absolute;
+            z-index: 2;
+        }
+
+        .tile {
+            position: absolute;
+            width: 76.25px;
+            height: 76.25px;
+            line-height: 76.25px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 35px;
+            border-radius: 3px;
+            transition: transform 100ms ease-in-out;
+        }
+
+        /* Tile colors */
+        .tile-2 { background-color: #eee4da; color: #776e65; }
+        .tile-4 { background-color: #ede0c8; color: #776e65; }
+        .tile-8 { background-color: #f2b179; color: white; }
+        .tile-16 { background-color: #f59563; color: white; }
+        .tile-32 { background-color: #f67c5f; color: white; }
+        .tile-64 { background-color: #f65e3b; color: white; }
+        .tile-128 { background-color: #edcf72; color: white; font-size: 30px; }
+        .tile-256 { background-color: #edcc61; color: white; font-size: 30px; }
+        .tile-512 { background-color: #edc850; color: white; font-size: 30px; }
+        .tile-1024 { background-color: #edc53f; color: white; font-size: 25px; }
+        .tile-2048 { background-color: #edc22e; color: white; font-size: 25px; }
+
+        .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(238, 228, 218, 0.73);
+            z-index: 10;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .game-over.active {
+            display: flex;
+        }
+
+        .game-over p {
+            font-size: 60px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .restart-button {
+            background-color: #8f7a66;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .restart-button:hover {
+            background-color: #7f6a56;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>2048</h1>
+            <div class="score-container">
+                <span class="score-label">SCORE</span>
+                <span id="score" class="score-value">0</span>
+            </div>
+        </div>
+        <div class="game-container">
+            <div class="grid-container">
+                <div class="grid-row">
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                </div>
+                <div class="grid-row">
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                </div>
+                <div class="grid-row">
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                </div>
+                <div class="grid-row">
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                    <div class="grid-cell"></div>
+                </div>
+            </div>
+            <div id="tile-container" class="tile-container"></div>
+            <div id="game-over" class="game-over">
+                <p>Game Over!</p>
+                <button class="restart-button" onclick="game.setup()">Try again</button>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
