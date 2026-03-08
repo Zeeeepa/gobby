@@ -145,10 +145,10 @@ class TmuxSessionManager:
         try:
             await self._run("kill-server", timeout=5.0)
             logger.info("Killed stale tmux server on socket '%s'", self._config.socket_name)
+            return True
         except Exception as e:
             logger.warning("Failed to kill stale tmux server: %s", e)
-
-        return True
+            return False
 
     async def create_session(
         self,

@@ -724,16 +724,36 @@ async def _patch_mcp_config_for_isolation(
         try:
 
             def _patch_claude_json() -> None:
+                import os
+                import tempfile
+
                 data: dict[str, Any] = {}
                 if claude_json_path.exists():
-                    data = json.loads(claude_json_path.read_text())
+                    try:
+                        data = json.loads(claude_json_path.read_text())
+                    except json.JSONDecodeError:
+                        logger.warning("Malformed ~/.claude.json, re-initializing")
+                        data = {}
 
                 projects = data.setdefault("projects", {})
                 projects[isolated_path] = {
                     "mcpServers": mcp_config["mcpServers"],
                 }
 
-                claude_json_path.write_text(json.dumps(data, indent=2) + "\n")
+                # Atomic write via tempfile + os.replace to avoid TOCTOU race
+                fd, tmp_path = tempfile.mkstemp(dir=str(claude_json_path.parent), suffix=".tmp")
+                try:
+                    os.write(fd, (json.dumps(data, indent=2) + "\n").encode())
+                    os.close(fd)
+                    os.replace(tmp_path, str(claude_json_path))
+                except BaseException:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                    raise
 
             await asyncio.to_thread(_patch_claude_json)
             logger.info(f"Registered isolated path in ~/.claude.json: {isolated_path}")
