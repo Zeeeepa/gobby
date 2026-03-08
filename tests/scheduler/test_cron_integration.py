@@ -5,6 +5,7 @@ Validates the full cron lifecycle: scheduling, execution, backoff, cleanup.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -82,8 +83,6 @@ async def test_shell_job_run_now(
     assert run.status == "pending"  # Initially pending, runs async
 
     # Wait for completion
-    import asyncio
-
     await asyncio.sleep(0.5)
 
     # Fetch fresh run

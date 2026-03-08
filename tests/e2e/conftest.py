@@ -12,6 +12,7 @@ Provides fixtures for:
 
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -285,8 +286,6 @@ def e2e_project_dir() -> Generator[Path]:
         # Copy shared pipelines and agents for spawn_agent tests
         from gobby.agents.sync import get_bundled_agents_path
         from gobby.workflows.sync import get_bundled_pipelines_path
-
-        import shutil
 
         shared_pipelines = get_bundled_pipelines_path()
         if shared_pipelines.exists():

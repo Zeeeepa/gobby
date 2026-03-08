@@ -29,33 +29,33 @@ class IdleDetector:
     3. **Active** — agent is still working (no action needed)
     """
 
-    IDLE_PROMPT_PATTERNS: list[re.Pattern[str]] = [
+    IDLE_PROMPT_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"^\s*[❯>]\s*$"),  # Claude Code idle prompt
         re.compile(r"^\s*\$\s*$"),  # Shell prompt (agent exited)
-    ]
+    )
 
     # Patterns that indicate agent tried to stop but was blocked by a hook.
     # Treated as idle — the agent isn't doing useful work, it's stuck.
-    STOP_HOOK_BLOCKED_PATTERNS: list[re.Pattern[str]] = [
+    STOP_HOOK_BLOCKED_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"Stop hook error", re.IGNORECASE),
         re.compile(r"Rule enforced by Gobby", re.IGNORECASE),
-    ]
+    )
 
-    CONTEXT_FULL_PATTERNS: list[re.Pattern[str]] = [
+    CONTEXT_FULL_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"context.*window.*full", re.IGNORECASE),
         re.compile(r"would you like to continue", re.IGNORECASE),
         re.compile(r"run out of context", re.IGNORECASE),
         re.compile(r"conversation is too long", re.IGNORECASE),
-    ]
+    )
 
     # Claude Code status bar lines — skip these when searching for the prompt
-    STATUS_BAR_PATTERNS: list[re.Pattern[str]] = [
+    STATUS_BAR_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"Opus|Sonnet|Haiku", re.IGNORECASE),
         re.compile(r"bypass permissions", re.IGNORECASE),
         re.compile(r"^\s*[⎇𖠰]"),  # Branch/worktree indicators
         re.compile(r"^\s*/"),  # Absolute path (cwd line)
         re.compile(r"^\s*[─━▪▫]+"),  # Separator/divider lines
-    ]
+    )
 
     REPROMPT_MESSAGE = (
         "Continue working on your task. If you are done, call close_task and then kill_agent."
