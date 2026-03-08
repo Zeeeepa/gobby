@@ -54,6 +54,12 @@ _EVENT_TYPE_MAP: dict[HookEventType, RuleEvent] = {
 }
 
 
+def _clear_edit_write_state(variables: dict[str, Any]) -> None:
+    """Clear edit/write pending state and stop-block counter."""
+    variables["edit_write_pending"] = False
+    variables["edit_write_stop_blocks"] = 0
+
+
 class RuleEngine:
     """Single-pass rule evaluation engine.
 
@@ -203,8 +209,7 @@ class RuleEngine:
                 )
             else:
                 # Circuit breaker tripped — clear and allow stop
-                variables["edit_write_pending"] = False
-                variables["edit_write_stop_blocks"] = 0
+                _clear_edit_write_state(variables)
 
         if not rules:
             # Auto-manage tool_block_pending on after_tool
@@ -227,8 +232,7 @@ class RuleEngine:
                     # Clear edit_write_pending on successful edit/write
                     tool_name_lower = event.data.get("tool_name", "").lower()
                     if tool_name_lower in EDIT_TOOLS and not is_failure:
-                        variables["edit_write_pending"] = False
-                        variables["edit_write_stop_blocks"] = 0
+                        _clear_edit_write_state(variables)
             # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
             # even when no declarative rules are installed for this event.
             if override_decision == "block":
@@ -257,8 +261,7 @@ class RuleEngine:
                 # Clear edit_write_pending on successful edit/write
                 tool_name_lower = event.data.get("tool_name", "").lower()
                 if tool_name_lower in EDIT_TOOLS and not is_failure:
-                    variables["edit_write_pending"] = False
-                    variables["edit_write_stop_blocks"] = 0
+                    _clear_edit_write_state(variables)
 
         # 5. Evaluate rules in priority order
         context_parts: list[str] = []
