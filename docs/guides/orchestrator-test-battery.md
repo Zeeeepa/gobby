@@ -1,6 +1,8 @@
 # Orchestrator Test Battery
 
-A structured test battery for verifying the orchestrator pipeline end-to-end. Use this as a reference document or invoke it interactively via the `/gobby test-battery` skill.
+A structured test battery for verifying the orchestrator pipeline and its components. Tests can be run individually (Sections 2-3) or as a full integration (Section 4). Invoke interactively via `/gobby test-battery`.
+
+**Reference:** The 2026-03-07 smoke test (`orchestrator-smoke-test.md`) ran the full orchestrator on a 10-task epic. It exposed 6 bugs (all fixed) and drove the regression checks in Section 5.
 
 ---
 
@@ -20,7 +22,6 @@ A structured test battery for verifying the orchestrator pipeline end-to-end. Us
 Create a small test plan with 2-3 code tasks and 1 docs task:
 
 ```bash
-# Create plan file
 cat > .gobby/plans/test-battery.md << 'EOF'
 # Test Battery Feature
 
@@ -55,6 +56,7 @@ call_tool("gobby-tasks", "create_task", {
     "title": "Test Battery Feature",
     "description": "Minimal feature for orchestrator test battery",
     "task_type": "epic",
+    "category": "code",
     "session_id": "<session_id>"
 })
 ```
@@ -66,24 +68,23 @@ call_tool("gobby-tasks", "create_task", {
 
 ---
 
-## Section 2: Expansion
+## Section 2: Expand-Task Pipeline (Standalone)
+
+Tests the expansion pipeline in isolation. This can be run independently of the full orchestrator.
 
 ### 2.1 Run Expansion
 
 ```python
 result = call_tool("gobby-workflows", "run_pipeline", {
     "name": "expand-task",
-    "inputs": {"task_id": "<epic_id>", "session_id": "<session_id>"}
-})
-# Block until expansion completes
-call_tool("gobby-workflows", "wait_for_completion", {
-    "execution_id": result["execution_id"],
-    "timeout": 600
+    "inputs": {"task_id": "<epic_id>", "session_id": "<session_id>"},
+    "wait_for_completion": true
 })
 ```
 
 **Pass criteria:**
 - [ ] Pipeline completes successfully (status: "completed")
+- [ ] Expander agent spawned and completed
 - [ ] Subtasks created under the epic
 
 ### 2.2 Verify Subtasks
@@ -98,19 +99,9 @@ call_tool("gobby-tasks", "list_tasks", {"parent_task_id": "<epic_id>"})
 - [ ] Each has `category` assigned
 - [ ] Dependencies wired (1.2 depends on 1.1)
 
-### 2.3 Verify TDD (if enabled)
-
-If `enforce_tdd = true`:
-
-**Pass criteria:**
-- [ ] Code tasks have TDD sandwich ([TEST] → [IMPL] → [REFACTOR])
-- [ ] Docs task has no TDD wrapper
-- [ ] No duplicate test tasks
-
-### 2.4 Verify File Annotations
+### 2.3 Verify File Annotations
 
 ```python
-# Check affected files for a subtask
 call_tool("gobby-tasks", "get_affected_files", {"task_id": "<subtask_id>"})
 ```
 
@@ -119,56 +110,73 @@ call_tool("gobby-tasks", "get_affected_files", {"task_id": "<subtask_id>"})
 - [ ] File paths are relative to repo root
 - [ ] No overlapping files between parallel-safe tasks
 
+### 2.4 Verify Dependency Analysis
+
+When multiple subtasks exist, the expansion pipeline runs file overlap detection:
+
+**Pass criteria:**
+- [ ] Dependency analysis step ran (check pipeline execution steps)
+- [ ] Tasks sharing files have dependency edges between them
+- [ ] Independent tasks have no spurious dependencies
+
 ---
 
-## Section 3: Orchestrator Run
+## Section 3: Dev-Loop Pipeline (Standalone)
 
-### 3.1 Start Orchestrator
+Tests the dev/QA dispatch loop in isolation. Requires a pre-expanded epic (run Section 2 first or use an existing expanded epic).
+
+### 3.1 Create Worktree Manually
+
+The dev-loop expects a pre-created worktree. Create one:
+
+```python
+wt = call_tool("gobby-worktrees", "create_worktree", {
+    "branch": "test-dev-loop-<epic_num>",
+    "base": "HEAD",
+    "session_id": "<session_id>"
+})
+# Note the worktree_id from the result
+```
+
+**Pass criteria:**
+- [ ] Worktree created successfully
+- [ ] Branch exists and is checked out in worktree
+
+### 3.2 Run Dev-Loop Directly
 
 ```python
 call_tool("gobby-workflows", "run_pipeline", {
-    "name": "orchestrator",
+    "name": "dev-loop",
     "inputs": {
-        "session_task": "<epic_id>",
+        "session_task": "<epic_ref>",
+        "worktree_id": "<wt_id>",
         "merge_target": "<current_branch>",
-        "max_concurrent": 2,
-        "max_iterations": 50
+        "max_concurrent": 1,
+        "max_iterations": 10
     },
-    "continuation_prompt": "Orchestrator completed. Check task states and report results."
+    "continuation_prompt": "Dev-loop pass completed. Check task states."
 })
 ```
 
-The pipeline returns after its first pass. Subsequent passes are event-driven — each agent completion triggers a fresh pass via continuation callbacks. Check `orchestration_complete` in the execution result to know when the overall work is finished.
+The dev-loop is event-driven: each pass dispatches agents then exits. Agent completions trigger the next pass via continuations.
 
 **Pass criteria:**
-- [ ] Pipeline starts (returns `execution_id`)
 - [ ] First pass completes with `orchestration_complete: false`
-
-### 3.2 Verify Worktree Creation
-
-After first pass:
-
-```bash
-gobby worktrees list
-```
-
-**Pass criteria:**
-- [ ] Exactly one worktree created for the epic
-- [ ] Branch name follows `epic-{N}` pattern
-- [ ] Worktree is based on the correct branch
+- [ ] Returns iteration count and task state summary
 
 ### 3.3 Verify Developer Dispatch
 
 ```python
-call_tool("gobby-agents", "list_agents", {"parent_session_id": "<pipeline_session>"})
+call_tool("gobby-agents", "list_agents", {})
 ```
 
 **Pass criteria:**
 - [ ] Developer agent(s) spawned
 - [ ] Agent uses the epic worktree (not a new worktree)
 - [ ] Task claimed by the agent (status: "in_progress")
+- [ ] Only `max_concurrent` agents running simultaneously
 
-### 3.4 Verify Step Workflow
+### 3.4 Verify Agent Step Workflow
 
 Monitor a developer agent's step transitions:
 
@@ -176,33 +184,96 @@ Monitor a developer agent's step transitions:
 - [ ] Agent starts in `claim` step
 - [ ] After `claim_task` succeeds, transitions to `implement`
 - [ ] After `mark_task_needs_review`, transitions to `terminate`
-- [ ] Agent calls `kill_agent` to exit
+- [ ] Agent exits cleanly (no 3-minute idle wait at prompt)
 
-### 3.5 Verify QA Review
+### 3.5 Verify Idle Detection + Reprompt
 
-After a developer completes:
+If an agent stalls at the prompt:
 
 **Pass criteria:**
-- [ ] QA reviewer spawned for `needs_review` tasks
+- [ ] Lifecycle monitor detects idle agent within 60s
+- [ ] Reprompt sent (up to 3 attempts)
+- [ ] After 3 failed reprompts, agent is killed and task recovered to `open`
+- [ ] Idle detector sees through status bar noise (not fooled by cursor updates)
+
+### 3.6 Verify QA Dispatch
+
+After a developer marks a task `needs_review`:
+
+**Pass criteria:**
+- [ ] Next dev-loop pass detects `needs_review` tasks
+- [ ] QA reviewer agent spawned
 - [ ] QA agent can see code changes (same worktree)
-- [ ] Task transitions to `review_approved` or reopened
+- [ ] Task transitions to `review_approved` or reopened with notes
 
-### 3.6 Verify Merge
+### 3.7 Verify Continuation Registration
 
-When all tasks are approved:
+Check that event-driven re-invocation works:
 
 **Pass criteria:**
-- [ ] Merge agent spawned
-- [ ] Merge agent works in main repo (no isolation)
-- [ ] Epic branch merged to target branch
-- [ ] All approved tasks closed after merge
+- [ ] Continuations registered for dispatched agent run IDs
+- [ ] Agent completion fires continuation callback
+- [ ] Continuation triggers a fresh dev-loop pass
+- [ ] No parallel continuation chains (single chain per epic)
 
-### 3.7 Standalone Task Test
+### 3.8 Verify Iteration Control
 
-Run the orchestrator with a single non-epic task to verify standalone support:
+**Pass criteria:**
+- [ ] `_current_iteration` increments across passes
+- [ ] `max_iterations` guard stops the loop when reached
+- [ ] Iteration count visible in pipeline execution results
+
+---
+
+## Section 4: Full Orchestrator (Integration)
+
+Tests the complete flow: expand epic, create worktree, run dev-loop. Run this after verifying components work individually in Sections 2-3.
+
+### 4.1 Start Orchestrator on Fresh Epic
+
+Create a new epic (or reuse from Section 1) that has NOT been expanded yet:
 
 ```python
-# Create a standalone task
+call_tool("gobby-workflows", "run_pipeline", {
+    "name": "orchestrator",
+    "inputs": {
+        "session_task": "<epic_ref>",
+        "merge_target": "<current_branch>",
+        "max_concurrent": 2,
+        "max_iterations": 50
+    },
+    "continuation_prompt": "Orchestrator pass completed. Check task states and report."
+})
+```
+
+**Pass criteria:**
+- [ ] Pipeline starts (returns `execution_id`)
+- [ ] Epic expanded (subtasks created)
+- [ ] Worktree created with `epic-{N}` branch
+- [ ] Dev-loop entered and first developer dispatched
+- [ ] First pass completes with `orchestration_complete: false`
+
+### 4.2 Monitor Through Completion
+
+Use monitoring tools to watch the orchestrator progress:
+
+```bash
+gobby pipelines history orchestrator   # Chain of event-driven passes
+gobby agents ps                        # Running agents
+gobby tasks list --parent <epic_id>    # Task state transitions
+```
+
+**Pass criteria:**
+- [ ] Dev agents complete and QA agents dispatch automatically
+- [ ] All tasks reach `review_approved`
+- [ ] Final pass returns `orchestration_complete: true`
+- [ ] Total pipeline executions < 50 (no retry spiral)
+
+### 4.3 Standalone Task Test
+
+Run the orchestrator with a single non-epic task:
+
+```python
 task = call_tool("gobby-tasks", "create_task", {
     "title": "Standalone test task",
     "task_type": "task",
@@ -211,29 +282,111 @@ task = call_tool("gobby-tasks", "create_task", {
     "session_id": "<session_id>"
 })
 
-# Run orchestrator on standalone task
 call_tool("gobby-workflows", "run_pipeline", {
     "name": "orchestrator",
     "inputs": {
         "session_task": task["ref"],
         "merge_target": "<current_branch>",
         "max_iterations": 20
-    }
+    },
+    "continuation_prompt": "Standalone orchestrator pass completed."
 })
 ```
 
 **Pass criteria:**
-- [ ] Orchestrator detects standalone mode (`is_standalone: true` in result)
-- [ ] Developer dispatched for the task itself (not children)
+- [ ] Orchestrator detects standalone mode (`is_standalone: true`)
+- [ ] Skips expansion (no children to create)
+- [ ] Developer dispatched for the task itself
 - [ ] QA dispatched when task reaches `needs_review`
-- [ ] Merge dispatched when task reaches `review_approved`
 - [ ] Final pass returns `orchestration_complete: true`
 
 ---
 
-## Section 4: Cleanup
+## Section 5: Regression Checks
 
-### 4.1 Verify Completion
+These checks verify fixes for bugs discovered during the 2026-03-07 smoke test. Each references the original bug task.
+
+### 5.1 Dead-End Retry Counter (#9937)
+
+When no agents are dispatched and orchestration isn't complete, the dead-end retry mechanism activates.
+
+**Pass criteria:**
+- [ ] Retry counter increments across retries (2/10, 3/10, etc.)
+- [ ] Counter resets when a real dispatch happens
+- [ ] After max retries (10), pipeline stops
+
+**How to check:** Look at daemon logs for dead-end retry messages. Counter should never stay at "1/10" across multiple retries.
+
+### 5.2 Session Lineage (#9938)
+
+Dead-end retries should reuse the root session, not chain child-of-child sessions.
+
+**Pass criteria:**
+- [ ] No "Lineage exceeded safety limit" warnings in daemon logs
+- [ ] Session depth stays bounded (< 5 levels)
+- [ ] Retry sessions reference the root pipeline session
+
+**How to check:** `tail -f ~/.gobby/logs/gobby.log | grep -i lineage`
+
+### 5.3 No Parallel Retry Chains (#9939)
+
+Multiple agent completions firing simultaneously should not create parallel retry chains.
+
+**Pass criteria:**
+- [ ] Only one retry chain active per epic at a time
+- [ ] Concurrent agent completions don't fork into independent retry loops
+- [ ] Total pipeline executions stay reasonable (< 50 for a 3-task epic)
+
+### 5.4 Agent Clean Exit (#9940)
+
+Agents should exit promptly after completing their step workflow.
+
+**Pass criteria:**
+- [ ] Agent exits within 30s of completing work
+- [ ] No 3-minute idle wait before lifecycle monitor kills the agent
+- [ ] Stop hooks don't trap agent sessions in a loop
+
+### 5.5 Pipeline Execution Efficiency
+
+The smoke test ran 371 executions for 10 tasks (2.7% efficiency). This should be dramatically better.
+
+**Pass criteria:**
+- [ ] Total pipeline executions < 50 for a 3-task epic
+- [ ] No runaway retry loops visible in `gobby pipelines history`
+- [ ] Each pass does useful work (dispatches an agent or detects completion)
+
+### 5.6 Stop Hook Scoping (#9918)
+
+Stop hooks (memory/triage enforcement) should only apply to interactive sessions, not agent sessions.
+
+**Pass criteria:**
+- [ ] Agent sessions skip memory/triage stop gates
+- [ ] Interactive sessions still enforce stop gates normally
+- [ ] No "stop hook error" in agent logs
+
+### 5.7 Idle Detection Accuracy (#9932)
+
+The idle detector should correctly identify agents sitting at the prompt, even with status bar updates.
+
+**Pass criteria:**
+- [ ] Idle detector not fooled by Claude Code status bar output
+- [ ] Correctly identifies true idle (waiting at prompt) vs active (running tools)
+- [ ] Reprompt fires within 60s of agent going idle
+
+### 5.8 Dependency Satisfaction (#9933)
+
+Tasks in `review_approved` status should satisfy dependency requirements for blocked tasks.
+
+**Pass criteria:**
+- [ ] `list_ready_tasks` treats `review_approved` as a satisfied dependency
+- [ ] Blocked tasks become dispatchable when blockers reach `review_approved`
+- [ ] Only `open` and `in_progress` count as unsatisfied
+
+---
+
+## Section 6: Cleanup
+
+### 6.1 Verify Completion
 
 ```python
 call_tool("gobby-tasks", "list_tasks", {
@@ -243,11 +396,10 @@ call_tool("gobby-tasks", "list_tasks", {
 ```
 
 **Pass criteria:**
-- [ ] All subtasks closed
-- [ ] Epic marked as complete
+- [ ] All subtasks reached `review_approved` or `closed`
 - [ ] Final execution result has `orchestration_complete: true`
 
-### 4.2 Clean Up Test Artifacts
+### 6.2 Clean Up Test Artifacts
 
 ```bash
 # Delete test files created by the battery
@@ -256,7 +408,7 @@ rm -f docs/test-battery-greeting.md
 rm -f .gobby/plans/test-battery.md
 
 # Delete the epic worktree
-gobby worktrees list  # find the worktree
+gobby worktrees list
 gobby worktrees delete <worktree_id>
 ```
 
@@ -267,7 +419,7 @@ gobby worktrees delete <worktree_id>
 
 ---
 
-## Section 5: Issue Tracking
+## Section 7: Issue Tracking
 
 ### Discovered Issues
 
@@ -288,15 +440,17 @@ Record any issues found during the test battery:
 
 ---
 
-## Section 6: Results Summary
+## Section 8: Results Summary
 
 | Section | Tests | Pass | Fail | Skip |
 |---------|-------|------|------|------|
 | 1. Setup | 2 | | | |
-| 2. Expansion | 4 | | | |
-| 3. Orchestrator Run | 7 | | | |
-| 4. Cleanup | 2 | | | |
-| **Total** | **15** | | | |
+| 2. Expand-Task | 4 | | | |
+| 3. Dev-Loop | 8 | | | |
+| 4. Full Orchestrator | 3 | | | |
+| 5. Regression | 8 | | | |
+| 6. Cleanup | 2 | | | |
+| **Total** | **27** | | | |
 
 ### Overall Result
 
@@ -307,3 +461,42 @@ Record any issues found during the test battery:
 ### Recommendations
 
 _(Fill in based on results)_
+
+---
+
+## Monitoring Reference
+
+Commands learned from the smoke test for debugging orchestrator issues:
+
+```bash
+# Pipeline pass history (see event-driven chain)
+gobby pipelines history orchestrator
+
+# Specific execution details
+gobby pipelines status <execution_id>
+
+# Running agents and states
+gobby agents ps
+
+# Agent activity logs
+gobby agents logs <run_id>
+
+# Task state overview
+gobby tasks list --parent <epic_id>
+
+# Watch for retry spirals and lineage issues
+tail -f ~/.gobby/logs/gobby.log | grep -E "(dead.end|lineage|retry)"
+
+# Check session depth
+tail -f ~/.gobby/logs/gobby.log | grep -i "session.*depth"
+```
+
+### Red Flags to Watch For
+
+| Signal | Indicates | Reference |
+|--------|-----------|-----------|
+| Retry counter stuck at "1/10" | Dead-end counter not incrementing | Bug #9937 |
+| "Lineage exceeded safety limit" | Session chaining bug | Bug #9938 |
+| Pipeline executions > 50 | Retry spiral or parallel chains | Bug #9939 |
+| Agent idle > 3 minutes | Stop hooks blocking exit | Bug #9940 |
+| "stop hook error" in agent logs | Stop gate scoping issue | Bug #9918 |
