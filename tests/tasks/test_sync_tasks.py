@@ -1115,3 +1115,211 @@ class TestImportFromGitHubIssues:
 
         assert result["success"] is True
         assert result["count"] == 1
+
+
+class TestImportSeqNumPreservation:
+    """Tests for seq_num preservation during JSONL import (#9914)."""
+
+    @pytest.mark.integration
+    def test_import_preserves_seq_num_from_jsonl(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """seq_num 42 into empty DB → gets 42."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        task_data = {
+            "id": "task-preserve-seq",
+            "title": "Preserved Seq Task",
+            "description": "Desc",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "seq_num": 42,
+            "path_cache": "42",
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(task_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-preserve-seq")
+        assert task is not None
+        assert task.seq_num == 42
+        assert task.path_cache == "42"
+
+    @pytest.mark.integration
+    def test_import_assigns_fresh_on_collision(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """DB has seq_num 5, import different task with 5 → gets fresh seq."""
+        # Create existing task with seq_num 5
+        existing = task_manager.create_task(sample_project["id"], "Existing Task")
+        sync_manager.db.execute(
+            "UPDATE tasks SET seq_num = 5, path_cache = '5' WHERE id = ?",
+            (existing.id,),
+        )
+
+        now = "2023-01-02T00:00:00+00:00"
+        task_data = {
+            "id": "task-collision",
+            "title": "Colliding Seq Task",
+            "description": "Desc",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "seq_num": 5,
+            "path_cache": "5",
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(task_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-collision")
+        assert task is not None
+        # Should NOT be 5 since that's taken
+        assert task.seq_num != 5
+        # Should be > 5 (fresh assignment)
+        assert task.seq_num > 5
+
+    @pytest.mark.integration
+    def test_import_batch_dedup(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """Two JSONL tasks with same seq_num → first wins, second gets fresh."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        task1 = {
+            "id": "task-batch-1",
+            "title": "Batch Task 1",
+            "description": "Desc",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "seq_num": 100,
+            "path_cache": "100",
+        }
+        task2 = {
+            "id": "task-batch-2",
+            "title": "Batch Task 2",
+            "description": "Desc",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "seq_num": 100,
+            "path_cache": "100",
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(task1) + "\n")
+            f.write(json.dumps(task2) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        t1 = task_manager.get_task("task-batch-1")
+        t2 = task_manager.get_task("task-batch-2")
+        assert t1 is not None
+        assert t2 is not None
+        # First one should get 100, second should get something else
+        assert t1.seq_num == 100
+        assert t2.seq_num != 100
+        assert t2.seq_num > 100
+
+    @pytest.mark.integration
+    def test_import_no_seq_num_in_jsonl(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """No seq_num field in JSONL → gets fresh assignment."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        task_data = {
+            "id": "task-no-seq",
+            "title": "No Seq Task",
+            "description": "Desc",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            # No seq_num or path_cache
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(task_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-no-seq")
+        assert task is not None
+        assert task.seq_num is not None
+        assert task.seq_num >= 1
+
+    @pytest.mark.integration
+    def test_path_cache_reflects_preserved_seq(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
+        """Parent+child both preserve seq_nums, path_cache is correct."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        parent = {
+            "id": "task-parent-seq",
+            "title": "Parent",
+            "description": "Desc",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "seq_num": 50,
+            "path_cache": "50",
+        }
+        child = {
+            "id": "task-child-seq",
+            "title": "Child",
+            "description": "Desc",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": "task-parent-seq",
+            "deps_on": [],
+            "seq_num": 51,
+            "path_cache": "50/51",
+        }
+
+        # Write parent first so it exists when child's path_cache is built
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(parent) + "\n")
+            f.write(json.dumps(child) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        p = task_manager.get_task("task-parent-seq")
+        c = task_manager.get_task("task-child-seq")
+        assert p is not None
+        assert c is not None
+        assert p.seq_num == 50
+        assert c.seq_num == 51
+        assert p.path_cache == "50"
+        assert c.path_cache == "50/51"
