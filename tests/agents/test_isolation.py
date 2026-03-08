@@ -1054,10 +1054,15 @@ class TestPatchMcpConfigForIsolation:
         assert isolated_path in data["projects"]
 
     @pytest.mark.asyncio
-    async def test_handles_write_failure_gracefully(self, tmp_path: Path) -> None:
+    async def test_handles_write_failure_gracefully(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Should log warning but not raise on write failure."""
         # Non-existent parent dir will cause write failure
         isolated_path = str(tmp_path / "nonexistent" / "deep" / "path")
 
         # Should not raise
         await _patch_mcp_config_for_isolation("/main", isolated_path, "claude")
+
+        # Verify warning was logged
+        assert any("Failed to write" in msg for msg in caplog.messages)

@@ -1272,6 +1272,7 @@ class TestImportSeqNumPreservation:
         assert task is not None
         assert task.seq_num is not None
         assert task.seq_num >= 1
+        assert task.path_cache is not None
 
     @pytest.mark.integration
     def test_path_cache_reflects_preserved_seq(

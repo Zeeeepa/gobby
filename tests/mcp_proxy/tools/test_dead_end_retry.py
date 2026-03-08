@@ -229,7 +229,7 @@ class TestDeadEndRetryDeduplication:
         # Let cancellation propagate
         await asyncio.sleep(0)
         # First task should be cancelled
-        assert first_task.cancelled() or first_task.done()
+        assert first_task.cancelled()
         # Second task should be the current one
         assert "dev-loop:#100" in _pending_dead_end_retries
         second_task = _pending_dead_end_retries["dev-loop:#100"]
