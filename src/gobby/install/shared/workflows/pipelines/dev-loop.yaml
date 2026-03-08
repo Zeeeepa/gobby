@@ -2,9 +2,10 @@ name: dev-loop
 type: pipeline
 version: "3.0"
 description: |
-  Dev/QA/merge loop for pre-expanded epics with pre-created worktrees.
-  Scans task states, dispatches developer/QA/merge agents, registers
+  Dev/QA loop for pre-expanded epics with pre-created worktrees.
+  Scans task states, dispatches developer/QA agents, registers
   continuations for event-driven re-invocation.
+  Merging is manual — the pipeline stops when all tasks are approved.
 
   Requires:
     - session_task: epic or task ID (already expanded with subtasks)
@@ -26,13 +27,10 @@ inputs:
   merge_target: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
-  merge_agent: "merge"
   developer_provider: "claude"
   qa_provider: "claude"
-  merge_provider: "claude"
   developer_model: null
   qa_model: null
-  merge_model: null
   max_concurrent: 5
   max_iterations: 200
   _current_iteration: 0
@@ -104,6 +102,7 @@ steps:
         task_id: "${{ inputs.session_task }}"
 
   # --- Check completion ---
+  # Done when all tasks are approved or closed (merge is manual)
   - id: all_closed
     mcp:
       server: gobby-workflows
@@ -112,13 +111,12 @@ steps:
         data:
           done: >-
             ${{
-              (check_standalone.output.is_standalone and get_task_status.output.status == 'closed')
+              (check_standalone.output.is_standalone and get_task_status.output.status in ('closed', 'review_approved'))
               or
               (not check_standalone.output.is_standalone
                and len(scan_open.output.tasks) == 0
                and len(scan_in_progress.output.tasks) == 0
-               and len(scan_needs_review.output.tasks) == 0
-               and len(scan_approved.output.tasks) == 0)
+               and len(scan_needs_review.output.tasks) == 0)
             }}
 
   # --- Find next dispatchable tasks ---
@@ -131,30 +129,6 @@ steps:
         parent_task_id: "${{ inputs.session_task }}"
         session_id: "${{ session_id }}"
         max_count: "${{ inputs.max_concurrent - len(scan_in_progress.output.tasks) }}"
-
-  # --- MERGE PHASE ---
-  - id: spawn_merge
-    condition: >-
-      ${{
-        (not check_standalone.output.is_standalone
-         and len(scan_approved.output.tasks) > 0
-         and len(scan_open.output.tasks) == 0
-         and len(scan_in_progress.output.tasks) == 0
-         and len(scan_needs_review.output.tasks) == 0)
-        or
-        (check_standalone.output.is_standalone
-         and get_task_status.output.status == 'review_approved')
-      }}
-    mcp:
-      server: gobby-agents
-      tool: spawn_agent
-      arguments:
-        prompt: "Merge worktree ${{ inputs.worktree_id }} into ${{ inputs.merge_target }}, then close all review_approved tasks under ${{ inputs.session_task }}. worktree_id=${{ inputs.worktree_id }} merge_target=${{ inputs.merge_target }} epic=${{ inputs.session_task }}"
-        agent: "${{ inputs.merge_agent }}"
-        provider: "${{ inputs.merge_provider }}"
-        model: "${{ inputs.merge_model }}"
-        parent_session_id: "${{ session_id }}"
-        mode: terminal
 
   # --- DISPATCH DEVELOPERS ---
   - id: spawn_developers
@@ -211,7 +185,6 @@ steps:
         dispatch_outputs:
           developers: "${{ spawn_developers.output if spawn_developers.output else None }}"
           qa: "${{ spawn_qa.output if spawn_qa.output else None }}"
-          merge: "${{ spawn_merge.output if spawn_merge.output else None }}"
         pipeline_name: "dev-loop"
         session_id: "${{ session_id }}"
         continuation_prompt: "${{ inputs._continuation_prompt }}"
@@ -222,13 +195,10 @@ steps:
           merge_target: "${{ inputs.merge_target }}"
           developer_agent: "${{ inputs.developer_agent }}"
           qa_agent: "${{ inputs.qa_agent }}"
-          merge_agent: "${{ inputs.merge_agent }}"
           developer_provider: "${{ inputs.developer_provider }}"
           qa_provider: "${{ inputs.qa_provider }}"
-          merge_provider: "${{ inputs.merge_provider }}"
           developer_model: "${{ inputs.developer_model }}"
           qa_model: "${{ inputs.qa_model }}"
-          merge_model: "${{ inputs.merge_model }}"
           max_iterations: "${{ inputs.max_iterations }}"
           _continuation_prompt: "${{ inputs._continuation_prompt }}"
           _dead_end_retries: "${{ inputs._dead_end_retries }}"

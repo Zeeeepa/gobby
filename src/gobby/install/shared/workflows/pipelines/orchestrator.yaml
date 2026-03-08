@@ -2,9 +2,9 @@ name: orchestrator
 type: pipeline
 version: "4.0"
 description: |
-  Full orchestration pipeline: expand epic → create worktree → dev/QA/merge loop.
+  Full orchestration pipeline: expand epic → create worktree → dev/QA loop.
   Thin wrapper around dev-loop — handles expansion and worktree creation, then
-  delegates the actual dispatch cycle.
+  delegates the actual dispatch cycle. Merging is manual.
 
   If _worktree_id is already set (continuation or manual override), skips
   expansion and worktree creation and goes straight to dev-loop.
@@ -24,13 +24,10 @@ inputs:
   session_task: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
-  merge_agent: "merge"
   developer_provider: "claude"
   qa_provider: "claude"
-  merge_provider: "claude"
   developer_model: null
   qa_model: null
-  merge_model: null
   merge_target: null
   wait_timeout: 600
   max_concurrent: 5
@@ -94,13 +91,10 @@ steps:
         merge_target: "${{ inputs.merge_target }}"
         developer_agent: "${{ inputs.developer_agent }}"
         qa_agent: "${{ inputs.qa_agent }}"
-        merge_agent: "${{ inputs.merge_agent }}"
         developer_provider: "${{ inputs.developer_provider }}"
         qa_provider: "${{ inputs.qa_provider }}"
-        merge_provider: "${{ inputs.merge_provider }}"
         developer_model: "${{ inputs.developer_model }}"
         qa_model: "${{ inputs.qa_model }}"
-        merge_model: "${{ inputs.merge_model }}"
         max_concurrent: "${{ inputs.max_concurrent }}"
         max_iterations: "${{ inputs.max_iterations }}"
         _current_iteration: "${{ inputs._current_iteration }}"
