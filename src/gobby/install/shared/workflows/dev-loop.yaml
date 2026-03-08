@@ -37,6 +37,7 @@ inputs:
   max_iterations: 200
   _current_iteration: 0
   _continuation_prompt: null
+  _dead_end_retries: 0
 
 steps:
   # --- Guard ---
@@ -230,6 +231,7 @@ steps:
           merge_model: "${{ inputs.merge_model }}"
           max_iterations: "${{ inputs.max_iterations }}"
           _continuation_prompt: "${{ inputs._continuation_prompt }}"
+          _dead_end_retries: "${{ inputs._dead_end_retries }}"
 
   # --- RESULT ---
   - id: result

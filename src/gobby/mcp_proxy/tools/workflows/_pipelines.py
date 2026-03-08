@@ -34,6 +34,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Tracks pending dead-end retry tasks by pipeline+epic key to prevent parallel chains (#9939)
+_pending_dead_end_retries: dict[str, asyncio.Task[None]] = {}
+
 
 def _require_pipeline(
     def_manager: LocalWorkflowDefinitionManager,
@@ -264,6 +267,12 @@ def register_pipeline_tools(
                                 sess = session_manager.get(resolved_sid)
                                 if sess:
                                     proj_id = sess.project_id
+                                    # Use parent session to avoid infinite lineage depth (#9938).
+                                    # Each pipeline execution creates a child session; retrying
+                                    # with the child would nest deeper each time. Using the parent
+                                    # makes retries siblings instead of a chain.
+                                    if sess.parent_session_id:
+                                        resolved_sid = sess.parent_session_id
                             except Exception:
                                 pass
 
@@ -281,11 +290,25 @@ def register_pipeline_tools(
                     # Exponential backoff: 10s, 20s, 40s, ... capped at 300s
                     delay = min(10 * (2 ** dead_end_retries), 300)
 
-                    async def _delayed_retry() -> None:
-                        await asyncio.sleep(delay)
-                        await _completion_registry._pipeline_rerun_callback(retry_config)
+                    # Cancel any existing pending retry for this pipeline+epic (#9939)
+                    dedup_key = f"{pipeline_name}:{inputs.get('session_task', '')}"
+                    existing = _pending_dead_end_retries.get(dedup_key)
+                    if existing and not existing.done():
+                        existing.cancel()
+                        logger.info(
+                            "Cancelled existing dead-end retry for %s (superseded)",
+                            dedup_key,
+                        )
 
-                    asyncio.create_task(_delayed_retry(), name="dead-end-retry")
+                    async def _delayed_retry(key: str = dedup_key) -> None:
+                        try:
+                            await asyncio.sleep(delay)
+                            await _completion_registry._pipeline_rerun_callback(retry_config)
+                        finally:
+                            _pending_dead_end_retries.pop(key, None)
+
+                    task = asyncio.create_task(_delayed_retry(), name=f"dead-end-retry:{dedup_key}")
+                    _pending_dead_end_retries[dedup_key] = task
                     logger.info(
                         "Dead-end detected: 0 agents dispatched, orchestration not complete. "
                         "Scheduled self-retry %d/%d in %ds for pipeline %s",
@@ -331,6 +354,13 @@ def register_pipeline_tools(
                         resolved_session_id,
                         exc_info=True,
                     )
+
+        # Cancel any pending dead-end retry since agents were dispatched (#9939)
+        dedup_key = f"{pipeline_name}:{inputs.get('session_task', '')}"
+        existing_retry = _pending_dead_end_retries.pop(dedup_key, None)
+        if existing_retry and not existing_retry.done():
+            existing_retry.cancel()
+            logger.info("Cancelled pending dead-end retry for %s (agents dispatched)", dedup_key)
 
         # Reset dead-end retry counter since agents were dispatched
         clean_inputs = dict(inputs)
