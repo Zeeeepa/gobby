@@ -2,11 +2,17 @@
 # Gobby Task Auto-Sync Hook (pre-commit)
 # Automatically exports tasks to git tracking before commit
 
+# Skip sync for spawned agents — they work in worktrees and should not
+# export JSONL back to avoid merge conflicts and data contamination.
+if [ -n "$GOBBY_AGENT_RUN_ID" ]; then
+    exit 0
+fi
+
 # Check if gobby is installed
 if command -v gobby >/dev/null 2>&1; then
     echo "Running gobby tasks sync --export --auto..."
     gobby tasks sync --export --auto
-    
+
     # If the tasks file was modified by the export, add it to the commit
     # Note: .gobby/tasks.jsonl is the default file
     if git diff --name-only --cached | grep -q ".gobby/tasks.jsonl"; then

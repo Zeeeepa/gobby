@@ -82,7 +82,8 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then
 fi
 
 # Gobby task sync - export tasks before commit
-if command -v gobby >/dev/null 2>&1; then
+# Skip for spawned agents to avoid JSONL contamination in worktrees
+if [ -z "$GOBBY_AGENT_RUN_ID" ] && command -v gobby >/dev/null 2>&1; then
     gobby tasks sync --export --quiet 2>/dev/null || true
     # Stage task file if modified by export
     if git diff --name-only 2>/dev/null | grep -q "\.gobby/tasks.jsonl"; then
@@ -129,14 +130,16 @@ fi
 """,
     "post-merge": """
 # Gobby task sync - import tasks after merge/pull
-if command -v gobby >/dev/null 2>&1; then
+# Skip for spawned agents to avoid JSONL contamination in worktrees
+if [ -z "$GOBBY_AGENT_RUN_ID" ] && command -v gobby >/dev/null 2>&1; then
     gobby tasks sync --import --quiet 2>/dev/null || true
 fi
 """,
     "post-checkout": """
 # Gobby task sync - import tasks on branch switch
 # $3 is 1 if this was a branch checkout (vs file checkout)
-if [ "$3" = "1" ]; then
+# Skip for spawned agents to avoid JSONL contamination in worktrees
+if [ "$3" = "1" ] && [ -z "$GOBBY_AGENT_RUN_ID" ]; then
     if command -v gobby >/dev/null 2>&1; then
         gobby tasks sync --import --quiet 2>/dev/null || true
     fi
@@ -145,7 +148,10 @@ fi
     "post-commit": """
 # Gobby task sync + incremental code indexing after commit
 if command -v gobby >/dev/null 2>&1; then
-    gobby tasks sync --export --quiet 2>/dev/null || true
+    # Skip task sync for spawned agents to avoid JSONL contamination in worktrees
+    if [ -z "$GOBBY_AGENT_RUN_ID" ]; then
+        gobby tasks sync --export --quiet 2>/dev/null || true
+    fi
 
     # Read daemon port from bootstrap config, default to 60887
     GOBBY_PORT=60887
