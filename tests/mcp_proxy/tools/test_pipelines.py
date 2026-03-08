@@ -96,6 +96,38 @@ class TestCreatePipelinesRegistry:
 
         assert registry.name == "gobby-workflows"
 
+    def test_registry_has_list_pipeline_executions_tool(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that list_pipeline_executions tool is registered."""
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+
+        registry = create_workflows_registry(
+            loader=mock_loader,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+        assert "list_pipeline_executions" in tool_names
+
+    def test_registry_has_search_pipeline_executions_tool(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that search_pipeline_executions tool is registered."""
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+
+        registry = create_workflows_registry(
+            loader=mock_loader,
+            executor_getter=lambda: mock_executor,
+            execution_manager_getter=lambda: mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+        assert "search_pipeline_executions" in tool_names
+
 
 class TestListPipelinesTool:
     """Tests for the list_pipelines MCP tool."""

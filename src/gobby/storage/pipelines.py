@@ -155,6 +155,8 @@ class LocalPipelineExecutionManager:
         self,
         status: ExecutionStatus | None = None,
         pipeline_name: str | None = None,
+        session_id: str | None = None,
+        parent_execution_id: str | None = None,
         limit: int = 50,
     ) -> list[PipelineExecution]:
         """List executions for the project.
@@ -162,6 +164,8 @@ class LocalPipelineExecutionManager:
         Args:
             status: Filter by status
             pipeline_name: Filter by pipeline name
+            session_id: Filter by triggering session
+            parent_execution_id: Filter by parent execution (nested pipelines)
             limit: Maximum number of results
 
         Returns:
@@ -182,10 +186,80 @@ class LocalPipelineExecutionManager:
             query += " AND pipeline_name = ?"
             params.append(pipeline_name)
 
+        if session_id is not None:
+            query += " AND session_id = ?"
+            params.append(session_id)
+
+        if parent_execution_id is not None:
+            query += " AND parent_execution_id = ?"
+            params.append(parent_execution_id)
+
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
 
         rows = self.db.fetchall(query, tuple(params))
+        return [PipelineExecution.from_row(row) for row in rows]
+
+    def search_executions(
+        self,
+        query: str,
+        search_errors: bool = True,
+        search_outputs: bool = False,
+        status: ExecutionStatus | None = None,
+        limit: int = 20,
+    ) -> list[PipelineExecution]:
+        """Search executions by text across pipeline_name and optionally step errors/outputs.
+
+        Args:
+            query: Search text (matched with LIKE)
+            search_errors: Also search step_executions.error text
+            search_outputs: Also search step_executions.output_json text
+            status: Filter by status
+            limit: Maximum number of results
+
+        Returns:
+            List of matching PipelineExecution instances
+        """
+        like_pattern = f"%{query}%"
+        params: list[Any] = []
+
+        # Build WHERE conditions
+        project_clause = "pe.project_id IS NULL" if self.project_id is None else "pe.project_id = ?"
+        if self.project_id is not None:
+            params.append(self.project_id)
+
+        # Build LIKE conditions
+        like_conditions = ["pe.pipeline_name LIKE ?"]
+        params.append(like_pattern)
+
+        if search_errors:
+            like_conditions.append("se.error LIKE ?")
+            params.append(like_pattern)
+
+        if search_outputs:
+            like_conditions.append("se.output_json LIKE ?")
+            params.append(like_pattern)
+
+        like_clause = " OR ".join(like_conditions)
+
+        if status is not None:
+            status_clause = " AND pe.status = ?"
+            params.append(status.value)
+        else:
+            status_clause = ""
+
+        params.append(limit)
+
+        sql = f"""
+            SELECT DISTINCT pe.* FROM pipeline_executions pe
+            LEFT JOIN step_executions se ON se.execution_id = pe.id
+            WHERE {project_clause}
+              AND ({like_clause}){status_clause}
+            ORDER BY pe.created_at DESC
+            LIMIT ?
+        """  # nosec B608
+
+        rows = self.db.fetchall(sql, tuple(params))
         return [PipelineExecution.from_row(row) for row in rows]
 
     def get_execution_by_resume_token(self, token: str) -> PipelineExecution | None:

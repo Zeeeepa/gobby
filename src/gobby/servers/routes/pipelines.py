@@ -123,6 +123,63 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
 
         return {"executions": result, "count": len(result)}
 
+    @router.get("/executions/search")
+    async def search_executions(
+        q: str,
+        status: str | None = None,
+        search_errors: bool = True,
+        search_outputs: bool = False,
+        project_id: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """
+        Search pipeline executions by text across pipeline names and step errors.
+
+        Returns:
+            200: Matching executions
+            400: Invalid parameters
+        """
+        from gobby.storage.pipelines import LocalPipelineExecutionManager
+        from gobby.workflows.pipeline_state import ExecutionStatus
+
+        if not q or not q.strip():
+            raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
+
+        execution_manager = LocalPipelineExecutionManager(
+            db=server.services.database, project_id=project_id or ""
+        )
+
+        status_filter = None
+        if status:
+            try:
+                status_filter = ExecutionStatus(status)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from None
+
+        executions = execution_manager.search_executions(
+            query=q.strip(),
+            search_errors=search_errors,
+            search_outputs=search_outputs,
+            status=status_filter,
+            limit=limit,
+        )
+
+        result = []
+        for execution in executions:
+            result.append(
+                {
+                    "id": execution.id,
+                    "pipeline_name": execution.pipeline_name,
+                    "project_id": execution.project_id,
+                    "status": execution.status.value,
+                    "created_at": execution.created_at,
+                    "updated_at": execution.updated_at,
+                    "completed_at": execution.completed_at,
+                }
+            )
+
+        return {"executions": result, "count": len(result), "query": q.strip()}
+
     @router.post("/run", response_model=None)
     async def run_pipeline(request: PipelineRunRequest) -> dict[str, Any] | JSONResponse:
         """

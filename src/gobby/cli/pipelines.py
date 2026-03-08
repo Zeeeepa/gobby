@@ -592,6 +592,183 @@ def history_pipeline(ctx: click.Context, name: str, limit: int, json_format: boo
         click.echo(f"  {status_icon} {ex.id} ({ex.status.value}) - {ex.created_at}")
 
 
+@pipelines.command("executions")
+@click.option(
+    "--status", default=None, help="Filter by status (pending, running, completed, failed, etc.)"
+)
+@click.option("--pipeline", "pipeline_name", default=None, help="Filter by pipeline name")
+@click.option("--limit", default=20, help="Maximum number of executions to show")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def list_executions(
+    ctx: click.Context, status: str | None, pipeline_name: str | None, limit: int, json_format: bool
+) -> None:
+    """List executions across all pipelines.
+
+    Examples:
+
+        gobby pipelines executions
+
+        gobby pipelines executions --status running
+
+        gobby pipelines executions --pipeline deploy --limit 10
+
+        gobby pipelines executions --json
+    """
+    from gobby.workflows.pipeline_state import ExecutionStatus
+
+    execution_manager = get_execution_manager()
+
+    # Validate and convert status
+    status_filter = None
+    if status:
+        try:
+            status_filter = ExecutionStatus(status)
+        except ValueError:
+            valid = [s.value for s in ExecutionStatus]
+            click.echo(f"Invalid status '{status}'. Valid: {', '.join(valid)}", err=True)
+            raise SystemExit(1) from None
+
+    executions = execution_manager.list_executions(
+        status=status_filter, pipeline_name=pipeline_name, limit=limit
+    )
+
+    if json_format:
+        result: dict[str, Any] = {
+            "executions": [
+                {
+                    "id": ex.id,
+                    "pipeline_name": ex.pipeline_name,
+                    "status": ex.status.value,
+                    "created_at": ex.created_at,
+                    "updated_at": ex.updated_at,
+                }
+                for ex in executions
+            ],
+            "count": len(executions),
+            "status_summary": execution_manager.count_by_status(),
+        }
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    if not executions:
+        click.echo("No executions found.")
+        return
+
+    # Show status summary header
+    status_counts = execution_manager.count_by_status()
+    summary_parts = [f"{s}: {c}" for s, c in sorted(status_counts.items())]
+    if summary_parts:
+        click.echo(f"Status: {', '.join(summary_parts)}\n")
+
+    click.echo(f"Showing {len(executions)} execution(s):\n")
+    for ex in executions:
+        status_icon = (
+            "✓"
+            if ex.status.value == "completed"
+            else "✗"
+            if ex.status.value == "failed"
+            else "→"
+            if ex.status.value == "running"
+            else "⏸"
+            if ex.status.value == "waiting_approval"
+            else "○"
+        )
+        click.echo(
+            f"  {status_icon} {ex.id} {ex.pipeline_name} ({ex.status.value}) - {ex.created_at}"
+        )
+
+
+@pipelines.command("search")
+@click.argument("query")
+@click.option("--status", default=None, help="Filter by status")
+@click.option("--no-errors", is_flag=True, help="Skip searching step error text")
+@click.option("--limit", default=20, help="Maximum number of results")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def search_executions(
+    ctx: click.Context,
+    query: str,
+    status: str | None,
+    no_errors: bool,
+    limit: int,
+    json_format: bool,
+) -> None:
+    """Search pipeline executions by text.
+
+    Matches pipeline names and step error messages.
+
+    Examples:
+
+        gobby pipelines search deploy
+
+        gobby pipelines search "timeout error"
+
+        gobby pipelines search deploy --status failed
+
+        gobby pipelines search deploy --no-errors --json
+    """
+    from gobby.workflows.pipeline_state import ExecutionStatus
+
+    execution_manager = get_execution_manager()
+
+    # Validate status
+    status_filter = None
+    if status:
+        try:
+            status_filter = ExecutionStatus(status)
+        except ValueError:
+            valid = [s.value for s in ExecutionStatus]
+            click.echo(f"Invalid status '{status}'. Valid: {', '.join(valid)}", err=True)
+            raise SystemExit(1) from None
+
+    executions = execution_manager.search_executions(
+        query=query,
+        search_errors=not no_errors,
+        status=status_filter,
+        limit=limit,
+    )
+
+    if json_format:
+        result: dict[str, Any] = {
+            "executions": [
+                {
+                    "id": ex.id,
+                    "pipeline_name": ex.pipeline_name,
+                    "status": ex.status.value,
+                    "created_at": ex.created_at,
+                    "updated_at": ex.updated_at,
+                }
+                for ex in executions
+            ],
+            "count": len(executions),
+            "query": query,
+        }
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    if not executions:
+        click.echo(f"No executions found matching '{query}'.")
+        return
+
+    click.echo(f"Found {len(executions)} execution(s) matching '{query}':\n")
+    for ex in executions:
+        status_icon = (
+            "✓"
+            if ex.status.value == "completed"
+            else "✗"
+            if ex.status.value == "failed"
+            else "→"
+            if ex.status.value == "running"
+            else "⏸"
+            if ex.status.value == "waiting_approval"
+            else "○"
+        )
+        click.echo(
+            f"  {status_icon} {ex.id} {ex.pipeline_name} ({ex.status.value}) - {ex.created_at}"
+        )
+
+
 @pipelines.command("import")
 @click.argument("path", type=click.Path(exists=True))
 @click.option(

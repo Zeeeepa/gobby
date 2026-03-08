@@ -192,6 +192,110 @@ class TestListExecutions:
         assert len(executions) == 3
 
 
+class TestListExecutionsExtended:
+    """Tests for new list_executions filter parameters."""
+
+    def test_list_executions_by_session_id(self, manager, db) -> None:
+        """Test filtering executions by session_id."""
+        db.execute(
+            """INSERT INTO sessions (id, external_id, machine_id, source, project_id, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-aaa", "ext-a", "machine-1", "claude_code", "test-project", "active"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, external_id, machine_id, source, project_id, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-bbb", "ext-b", "machine-1", "claude_code", "test-project", "active"),
+        )
+        manager.create_execution(pipeline_name="deploy", session_id="sess-aaa")
+        manager.create_execution(pipeline_name="test", session_id="sess-aaa")
+        manager.create_execution(pipeline_name="deploy", session_id="sess-bbb")
+
+        results = manager.list_executions(session_id="sess-aaa")
+        assert len(results) == 2
+        assert all(ex.session_id == "sess-aaa" for ex in results)
+
+    def test_list_executions_by_parent_execution_id(self, manager) -> None:
+        """Test filtering executions by parent_execution_id."""
+        parent = manager.create_execution(pipeline_name="orchestrator")
+        manager.create_execution(pipeline_name="child-1", parent_execution_id=parent.id)
+        manager.create_execution(pipeline_name="child-2", parent_execution_id=parent.id)
+        manager.create_execution(pipeline_name="unrelated")
+
+        children = manager.list_executions(parent_execution_id=parent.id)
+        assert len(children) == 2
+        assert all(ex.parent_execution_id == parent.id for ex in children)
+
+
+class TestSearchExecutions:
+    """Tests for search_executions method."""
+
+    def test_search_by_pipeline_name(self, manager) -> None:
+        """Test searching by partial pipeline name."""
+        manager.create_execution(pipeline_name="deploy-prod")
+        manager.create_execution(pipeline_name="deploy-staging")
+        manager.create_execution(pipeline_name="test-suite")
+
+        results = manager.search_executions(query="deploy")
+        assert len(results) == 2
+        assert all("deploy" in ex.pipeline_name for ex in results)
+
+    def test_search_by_step_error(self, manager) -> None:
+        """Test searching by step error text."""
+        ex1 = manager.create_execution(pipeline_name="build")
+        step = manager.create_step_execution(execution_id=ex1.id, step_id="compile")
+        manager.update_step_execution(
+            step.id, status=StepStatus.FAILED, error="Connection timeout to registry"
+        )
+
+        ex2 = manager.create_execution(pipeline_name="test")
+        step2 = manager.create_step_execution(execution_id=ex2.id, step_id="run")
+        manager.update_step_execution(step2.id, status=StepStatus.COMPLETED)
+
+        results = manager.search_executions(query="timeout")
+        assert len(results) == 1
+        assert results[0].id == ex1.id
+
+    def test_search_with_status_filter(self, manager) -> None:
+        """Test combining search with status filter."""
+        ex1 = manager.create_execution(pipeline_name="deploy-prod")
+        manager.update_execution_status(ex1.id, ExecutionStatus.COMPLETED)
+        ex2 = manager.create_execution(pipeline_name="deploy-staging")
+        manager.update_execution_status(ex2.id, ExecutionStatus.FAILED)
+
+        results = manager.search_executions(query="deploy", status=ExecutionStatus.FAILED)
+        assert len(results) == 1
+        assert results[0].id == ex2.id
+
+    def test_search_respects_limit(self, manager) -> None:
+        """Test that search respects the limit parameter."""
+        for i in range(5):
+            manager.create_execution(pipeline_name=f"deploy-{i}")
+
+        results = manager.search_executions(query="deploy", limit=3)
+        assert len(results) == 3
+
+    def test_search_no_errors_flag(self, manager) -> None:
+        """Test searching without error text when search_errors=False."""
+        ex1 = manager.create_execution(pipeline_name="build")
+        step = manager.create_step_execution(execution_id=ex1.id, step_id="compile")
+        manager.update_step_execution(step.id, status=StepStatus.FAILED, error="deploy failed")
+
+        # With search_errors=True, error text "deploy" matches
+        results_with = manager.search_executions(query="deploy", search_errors=True)
+        assert len(results_with) == 1
+
+        # With search_errors=False, only pipeline_name is searched — "build" != "deploy"
+        results_without = manager.search_executions(query="deploy", search_errors=False)
+        assert len(results_without) == 0
+
+    def test_search_no_results(self, manager) -> None:
+        """Test search returning empty results."""
+        manager.create_execution(pipeline_name="deploy")
+        results = manager.search_executions(query="nonexistent-xyz")
+        assert results == []
+
+
 class TestStepExecutions:
     """Tests for step execution methods."""
 

@@ -26,6 +26,10 @@ from gobby.mcp_proxy.tools.workflows._pipeline_execution import (
     resume_pipeline,
     run_pipeline,
 )
+from gobby.mcp_proxy.tools.workflows._pipeline_query import (
+    list_pipeline_executions,
+    search_pipeline_executions,
+)
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
@@ -608,6 +612,64 @@ def register_pipeline_tools(
         return get_pipeline_status(
             execution_manager=em,
             execution_id=execution_id,
+        )
+
+    @registry.tool(
+        name="list_pipeline_executions",
+        description=(
+            "List pipeline executions with optional filters. Returns execution summaries "
+            "with status distribution. Use brief=True (default) for compact output."
+        ),
+    )
+    def _list_pipeline_executions(
+        status: str | None = None,
+        pipeline_name: str | None = None,
+        session_id: str | None = None,
+        parent_execution_id: str | None = None,
+        limit: int = 50,
+        brief: bool = True,
+        include_steps: bool = False,
+    ) -> dict[str, Any]:
+        em = _get_execution_manager()
+        if em is None:
+            return {"success": False, "error": "Pipeline execution manager not available"}
+        return list_pipeline_executions(
+            execution_manager=em,
+            status=status,
+            pipeline_name=pipeline_name,
+            session_id=session_id,
+            parent_execution_id=parent_execution_id,
+            limit=limit,
+            brief=brief,
+            include_steps=include_steps,
+        )
+
+    @registry.tool(
+        name="search_pipeline_executions",
+        description=(
+            "Search pipeline executions by text. Matches pipeline names and optionally "
+            "step error messages. Combine with status filter to narrow results."
+        ),
+    )
+    def _search_pipeline_executions(
+        query: str,
+        search_errors: bool = True,
+        search_outputs: bool = False,
+        status: str | None = None,
+        limit: int = 20,
+        include_steps: bool = False,
+    ) -> dict[str, Any]:
+        em = _get_execution_manager()
+        if em is None:
+            return {"success": False, "error": "Pipeline execution manager not available"}
+        return search_pipeline_executions(
+            execution_manager=em,
+            query=query,
+            search_errors=search_errors,
+            search_outputs=search_outputs,
+            status=status,
+            limit=limit,
+            include_steps=include_steps,
         )
 
     @registry.tool(
