@@ -152,9 +152,10 @@ class CompletionEventRegistry:
             return
 
         # Include continuation_prompt in result so wake dispatcher can use it
+        # Enrich a copy to avoid mutating the caller's dict
         cp = self._continuation_prompts.get(completion_id)
         if cp and "continuation_prompt" not in result:
-            result["continuation_prompt"] = cp
+            result = {**result, "continuation_prompt": cp}
 
         self._results[completion_id] = result
         event.set()

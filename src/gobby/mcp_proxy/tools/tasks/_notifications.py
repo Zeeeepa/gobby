@@ -2,13 +2,16 @@
 
 import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
 
 def notify_parent_on_status_change(
-    db: Any,
+    db: "DatabaseProtocol",
     task_id: str,
     new_status: str,
     task_ref: str | None = None,
@@ -19,15 +22,14 @@ def notify_parent_on_status_change(
     broadcasts a task_progress event.
     """
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(_notify(db, task_id, new_status, task_ref))
+        loop = asyncio.get_running_loop()
+        loop.create_task(_notify(db, task_id, new_status, task_ref))
     except RuntimeError:
         pass
 
 
 async def _notify(
-    db: Any,
+    db: "DatabaseProtocol",
     task_id: str,
     new_status: str,
     task_ref: str | None,
