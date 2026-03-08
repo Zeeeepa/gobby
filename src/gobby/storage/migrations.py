@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 146
+BASELINE_VERSION = 147
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -196,7 +196,12 @@ CREATE TABLE agent_runs (
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     sdk_session_id TEXT,
     continuation_prompt TEXT,
-    task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL
+    task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+    pid INTEGER,
+    tmux_session_name TEXT,
+    mode TEXT DEFAULT 'terminal',
+    worktree_id TEXT,
+    clone_id TEXT
 );
 CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
 CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
@@ -1109,6 +1114,15 @@ CREATE INDEX IF NOT EXISTS idx_cs_parent ON code_symbols(parent_symbol_id)""",
         "Add composite indexes on pipeline_executions for heartbeat queries",
         """CREATE INDEX IF NOT EXISTS idx_pe_status_updated ON pipeline_executions(status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_pe_status_project_updated ON pipeline_executions(status, project_id, updated_at)""",
+    ),
+    (
+        147,
+        "Add runtime columns to agent_runs for daemon restart recovery",
+        """ALTER TABLE agent_runs ADD COLUMN pid INTEGER;
+ALTER TABLE agent_runs ADD COLUMN tmux_session_name TEXT;
+ALTER TABLE agent_runs ADD COLUMN mode TEXT DEFAULT 'terminal';
+ALTER TABLE agent_runs ADD COLUMN worktree_id TEXT;
+ALTER TABLE agent_runs ADD COLUMN clone_id TEXT""",
     ),
 ]
 

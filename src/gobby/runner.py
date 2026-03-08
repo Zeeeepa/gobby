@@ -850,7 +850,6 @@ class GobbyRunner:
     async def run(self) -> None:
         from gobby.runner_maintenance import (
             cleanup_pid_file,
-            cleanup_stale_tmux_sessions,
             cleanup_zombie_messages_loop,
             expire_approval_timeouts_loop,
             metrics_cleanup_loop,
@@ -868,9 +867,6 @@ class GobbyRunner:
                 logger.warning("MCP connection timed out")
             except Exception as e:
                 logger.error(f"MCP connection failed: {e}")
-
-            # Clean up stale tmux sessions from previous runs
-            await cleanup_stale_tmux_sessions()
 
             # Neo4j health check: disable KG features if unreachable
             if (
@@ -947,10 +943,17 @@ class GobbyRunner:
             except Exception as e:
                 logger.warning(f"Failed to load persisted continuations: {e}")
 
-            # Start Agent Lifecycle Monitor (detect dead tmux sessions)
+            # Recover or clean up agents from previous daemon session
             if self.agent_lifecycle_monitor:
-                await self.agent_lifecycle_monitor.cleanup_orphaned_db_runs()
-                await self.agent_lifecycle_monitor.cleanup_stale_pending_runs()
+                recovered, cleaned = await self.agent_lifecycle_monitor.recover_or_cleanup_agents()
+                if recovered:
+                    logger.info(
+                        f"Recovered {recovered} running agent(s) from previous daemon session"
+                    )
+                if cleaned:
+                    logger.info(
+                        f"Cleaned up {cleaned} orphaned agent(s) from previous daemon session"
+                    )
                 await self.agent_lifecycle_monitor.start()
 
             # Start Cron Scheduler

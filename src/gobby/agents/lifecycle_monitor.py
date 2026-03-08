@@ -495,54 +495,104 @@ class AgentLifecycleMonitor:
         """
         return await asyncio.to_thread(self._agent_run_manager.cleanup_stale_pending_runs)
 
-    async def cleanup_orphaned_db_runs(self) -> int:
-        """One-shot cleanup for DB records orphaned after daemon restart.
+    async def recover_or_cleanup_agents(self) -> tuple[int, int]:
+        """Recover alive agents or clean up dead ones after daemon restart.
 
-        Checks agent_runs still in 'running' status that have no
-        corresponding entry in the in-memory registry (meaning the daemon
-        restarted and lost track of them). Marks them as failed.
+        Checks agent_runs still in 'running' or 'pending' (with PID) status.
+        If the process and tmux session are still alive, re-registers the agent
+        in the in-memory registry. Otherwise, marks the run as failed and
+        recovers the task.
 
         Returns:
-            Number of orphaned runs cleaned up.
+            Tuple of (recovered_count, cleaned_count).
         """
-        # Sync DB calls — run off the event loop to avoid blocking
         running_runs = await asyncio.to_thread(self._agent_run_manager.list_running)
-        if not running_runs:
-            return 0
+        pending_runs = await asyncio.to_thread(self._agent_run_manager.list_pending_with_pid)
 
+        recovered = 0
         cleaned = 0
-        for run in running_runs:
-            # If the run is tracked in the registry, it's being monitored normally
+
+        for run in running_runs + pending_runs:
+            # Skip runs already tracked in registry (shouldn't happen on restart, but safe)
             if self._registry.get(run.id):
                 continue
 
-            # Not in registry - this is an orphan from before daemon restart
-            await asyncio.to_thread(
-                self._agent_run_manager.fail,
-                run.id,
-                error="Orphaned agent run (daemon restarted while agent was running)",
-            )
-
-            # Recover the task so orchestrator can re-dispatch
-            await self._recover_task_from_failed_agent(run.id)
-
-            # Fire completion event for orphaned run
-            if self._completion_registry:
+            # Check 1: Is the process still alive?
+            pid_alive = False
+            if run.pid:
                 try:
-                    if not self._completion_registry.is_registered(run.id):
-                        self._completion_registry.register(run.id, subscribers=[])
-                    await self._completion_registry.notify(
-                        run.id,
-                        result={"status": "error", "error": "Orphaned (daemon restarted)"},
-                        message=f"Agent {run.id} orphaned after daemon restart",
-                    )
-                except Exception:
+                    os.kill(run.pid, 0)
+                    pid_alive = True
+                except (ProcessLookupError, PermissionError):
                     pass
 
-            logger.info(f"Cleaned up orphaned agent run {run.id}")
-            cleaned += 1
+            # Check 2: Does the tmux session still exist?
+            tmux_alive = False
+            if run.tmux_session_name:
+                tmux_alive = await self._tmux.has_session(run.tmux_session_name)
 
-        if cleaned > 0:
-            logger.info(f"Cleaned up {cleaned} orphaned agent run(s) from previous daemon session")
+            if pid_alive and tmux_alive:
+                # Agent is alive — re-register in memory
+                self._registry.add(
+                    RunningAgent(
+                        run_id=run.id,
+                        session_id=run.child_session_id or run.parent_session_id,
+                        parent_session_id=run.parent_session_id,
+                        mode=run.mode or "terminal",
+                        pid=run.pid,
+                        tmux_session_name=run.tmux_session_name,
+                        provider=run.provider,
+                        worktree_id=run.worktree_id,
+                        clone_id=run.clone_id,
+                    )
+                )
+                logger.info(
+                    "Recovered agent %s (pid=%s, tmux=%s)",
+                    run.id,
+                    run.pid,
+                    run.tmux_session_name,
+                )
+                recovered += 1
+            elif pid_alive and not tmux_alive:
+                # Process alive but tmux dead — kill the orphan, mark failed
+                try:
+                    if run.pid:
+                        os.kill(run.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                await asyncio.to_thread(
+                    self._agent_run_manager.fail,
+                    run.id,
+                    error="tmux session lost after daemon restart",
+                )
+                await self._recover_task_from_failed_agent(run.id)
+                await self._fire_orphan_completion(run.id)
+                cleaned += 1
+            else:
+                # Both dead — mark failed
+                await asyncio.to_thread(
+                    self._agent_run_manager.fail,
+                    run.id,
+                    error="Orphaned after daemon restart",
+                )
+                await self._recover_task_from_failed_agent(run.id)
+                await self._fire_orphan_completion(run.id)
+                logger.info("Cleaned up orphaned agent run %s", run.id)
+                cleaned += 1
 
-        return cleaned
+        return recovered, cleaned
+
+    async def _fire_orphan_completion(self, run_id: str) -> None:
+        """Fire a completion event for an orphaned agent run."""
+        if not self._completion_registry:
+            return
+        try:
+            if not self._completion_registry.is_registered(run_id):
+                self._completion_registry.register(run_id, subscribers=[])
+            await self._completion_registry.notify(
+                run_id,
+                result={"status": "error", "error": "Orphaned (daemon restarted)"},
+                message=f"Agent {run_id} orphaned after daemon restart",
+            )
+        except Exception:
+            pass

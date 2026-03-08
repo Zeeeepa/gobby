@@ -513,17 +513,17 @@ class TestCheckDeadAutonomousAgents:
         mock_clone_storage.release.assert_called_once_with("clone-123")
 
 
-class TestCleanupOrphanedDbRuns:
-    """Tests for cleanup_orphaned_db_runs (post-restart cleanup)."""
+class TestRecoverOrCleanupAgents:
+    """Tests for recover_or_cleanup_agents (post-restart recovery)."""
 
     @pytest.mark.asyncio
-    async def test_marks_orphaned_runs_as_failed(
+    async def test_cleans_dead_agents(
         self,
         monitor: AgentLifecycleMonitor,
         agent_run_manager: LocalAgentRunManager,
         sample_session: dict,
     ) -> None:
-        """Running DB records with no registry entry are marked as failed."""
+        """Running DB records with no live process/tmux are marked as failed."""
         run = agent_run_manager.create(
             parent_session_id=sample_session["id"],
             provider="claude",
@@ -531,10 +531,11 @@ class TestCleanupOrphanedDbRuns:
             run_id="run-orphan",
         )
         agent_run_manager.start(run.id)
+        # No PID or tmux_session_name set — both checks will be false
 
-        # Registry is empty (simulates daemon restart)
-        cleaned = await monitor.cleanup_orphaned_db_runs()
+        recovered, cleaned = await monitor.recover_or_cleanup_agents()
 
+        assert recovered == 0
         assert cleaned == 1
         updated = agent_run_manager.get(run.id)
         assert updated is not None
@@ -542,37 +543,51 @@ class TestCleanupOrphanedDbRuns:
         assert "Orphaned" in (updated.error or "")
 
     @pytest.mark.asyncio
-    async def test_skips_tracked_runs(
+    async def test_recovers_alive_agents(
         self,
         monitor: AgentLifecycleMonitor,
         registry: RunningAgentRegistry,
         agent_run_manager: LocalAgentRunManager,
         sample_session: dict,
     ) -> None:
-        """Running DB records that ARE in the registry are left alone."""
+        """Running DB records with live process+tmux are recovered to registry."""
+        import os
+
         run = agent_run_manager.create(
             parent_session_id=sample_session["id"],
             provider="claude",
             prompt="test",
-            run_id="run-tracked",
+            run_id="run-alive",
         )
         agent_run_manager.start(run.id)
-        _make_terminal_agent(registry, run_id=run.id)
+        # Set runtime state: use current process PID (guaranteed alive)
+        agent_run_manager.update_runtime(
+            run.id,
+            pid=os.getpid(),
+            tmux_session_name="gobby-alive-test",
+            mode="terminal",
+        )
 
-        cleaned = await monitor.cleanup_orphaned_db_runs()
+        # Mock tmux has_session to return True
+        monitor._tmux.has_session = AsyncMock(return_value=True)  # type: ignore[assignment]
 
+        recovered, cleaned = await monitor.recover_or_cleanup_agents()
+
+        assert recovered == 1
         assert cleaned == 0
-        updated = agent_run_manager.get(run.id)
-        assert updated is not None
-        assert updated.status == "running"
+        # Agent should be in the in-memory registry
+        agent = registry.get(run.id)
+        assert agent is not None
+        assert agent.pid == os.getpid()
 
     @pytest.mark.asyncio
-    async def test_no_running_runs_returns_zero(
+    async def test_no_running_runs_returns_zeros(
         self,
         monitor: AgentLifecycleMonitor,
     ) -> None:
-        """Returns 0 when there are no running DB records."""
-        cleaned = await monitor.cleanup_orphaned_db_runs()
+        """Returns (0, 0) when there are no running DB records."""
+        recovered, cleaned = await monitor.recover_or_cleanup_agents()
+        assert recovered == 0
         assert cleaned == 0
 
 
@@ -627,7 +642,9 @@ class TestCheckIdleAgents:
     ) -> AgentLifecycleMonitor:
         from gobby.config.tmux import TmuxConfig
 
-        config = TmuxConfig(idle_check_enabled=True, idle_timeout_seconds=10, max_reprompt_attempts=2)
+        config = TmuxConfig(
+            idle_check_enabled=True, idle_timeout_seconds=10, max_reprompt_attempts=2
+        )
         return AgentLifecycleMonitor(
             agent_registry=registry,
             agent_run_manager=agent_run_manager,
@@ -645,7 +662,10 @@ class TestCheckIdleAgents:
         _make_terminal_agent(registry, run_id="run-active", tmux_session_name="gobby-active")
 
         with patch.object(
-            idle_monitor._tmux, "capture_pane", new_callable=AsyncMock, return_value="Running tests...\n"
+            idle_monitor._tmux,
+            "capture_pane",
+            new_callable=AsyncMock,
+            return_value="Running tests...\n",
         ):
             handled = await idle_monitor.check_idle_agents()
 

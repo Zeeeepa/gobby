@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
+import signal
 import time
 from dataclasses import dataclass, field
 
@@ -335,13 +337,52 @@ class TmuxSessionManager:
         return rc == 0
 
     async def kill_session(self, name: str) -> bool:
-        """Kill a tmux session by name. Returns True if killed."""
+        """Kill a tmux session and all processes in it.
+
+        Collects pane PIDs before destroying the session, then sends SIGTERM
+        to the process groups so that child processes (the actual agent CLI)
+        are also killed. Stragglers get SIGKILL after a brief grace period.
+        """
+        # Collect pane PIDs before killing the session
+        pids = await self._get_session_pids(name)
+
+        # Kill the tmux session
         rc, _stdout, stderr = await self._run("kill-session", "-t", name)
         if rc != 0:
             logger.warning(f"Failed to kill tmux session '{name}': {stderr.strip()}")
             return False
-        logger.info(f"Killed tmux session '{name}'")
+
+        # Kill process groups rooted at each pane shell
+        for pid in pids:
+            try:
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+
+        # Brief grace period, then SIGKILL stragglers
+        if pids:
+            await asyncio.sleep(0.5)
+            for pid in pids:
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+
+        logger.info(f"Killed tmux session '{name}' (pids: {pids})")
         return True
+
+    async def _get_session_pids(self, name: str) -> list[int]:
+        """Get all pane PIDs in a tmux session."""
+        rc, stdout, _ = await self._run("list-panes", "-t", name, "-F", "#{pane_pid}")
+        if rc != 0:
+            return []
+        pids: list[int] = []
+        for line in stdout.strip().splitlines():
+            try:
+                pids.append(int(line.strip()))
+            except ValueError:
+                pass
+        return pids
 
     async def get_pane_pid(self, session_name: str) -> int | None:
         """Get the PID of the process running in the first pane."""

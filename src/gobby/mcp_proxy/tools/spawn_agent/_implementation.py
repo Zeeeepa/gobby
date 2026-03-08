@@ -489,6 +489,19 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to update child_session_id for {run_id}: {e}")
 
+        # Persist runtime state for daemon restart recovery
+        try:
+            runner.run_storage.update_runtime(
+                run_id,
+                pid=spawn_result.pid,
+                tmux_session_name=spawn_result.tmux_session_name,
+                mode=effective_mode,
+                worktree_id=isolation_ctx.worktree_id,
+                clone_id=isolation_ctx.clone_id,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to persist runtime state for {run_id}: {e}")
+
         # 12a. Auto-claim task if task_id was provided and task is open
         if resolved_task_id and task_manager:
             try:

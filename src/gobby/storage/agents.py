@@ -39,6 +39,11 @@ class AgentRun:
     sdk_session_id: str | None = None
     continuation_prompt: str | None = None
     task_id: str | None = None
+    pid: int | None = None
+    tmux_session_name: str | None = None
+    mode: str = "terminal"
+    worktree_id: str | None = None
+    clone_id: str | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> AgentRun:
@@ -65,6 +70,13 @@ class AgentRun:
             if "continuation_prompt" in row.keys()
             else None,
             task_id=row["task_id"] if "task_id" in row.keys() else None,
+            pid=row["pid"] if "pid" in row.keys() else None,
+            tmux_session_name=row["tmux_session_name"]
+            if "tmux_session_name" in row.keys()
+            else None,
+            mode=row["mode"] if "mode" in row.keys() and row["mode"] else "terminal",
+            worktree_id=row["worktree_id"] if "worktree_id" in row.keys() else None,
+            clone_id=row["clone_id"] if "clone_id" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,6 +101,11 @@ class AgentRun:
             "sdk_session_id": self.sdk_session_id,
             "continuation_prompt": self.continuation_prompt,
             "task_id": self.task_id,
+            "pid": self.pid,
+            "tmux_session_name": self.tmux_session_name,
+            "mode": self.mode,
+            "worktree_id": self.worktree_id,
+            "clone_id": self.clone_id,
         }
 
 
@@ -321,6 +338,65 @@ class LocalAgentRunManager:
             (session_id,),
         )
         return row["sdk_session_id"] if row else None
+
+    def update_runtime(
+        self,
+        run_id: str,
+        *,
+        pid: int | None = None,
+        tmux_session_name: str | None = None,
+        mode: str | None = None,
+        worktree_id: str | None = None,
+        clone_id: str | None = None,
+    ) -> None:
+        """Persist runtime state for an agent run (pid, tmux session, mode, isolation).
+
+        Only updates fields that are provided (non-None).
+        """
+        updates: list[str] = []
+        params: list[Any] = []
+
+        if pid is not None:
+            updates.append("pid = ?")
+            params.append(pid)
+        if tmux_session_name is not None:
+            updates.append("tmux_session_name = ?")
+            params.append(tmux_session_name)
+        if mode is not None:
+            updates.append("mode = ?")
+            params.append(mode)
+        if worktree_id is not None:
+            updates.append("worktree_id = ?")
+            params.append(worktree_id)
+        if clone_id is not None:
+            updates.append("clone_id = ?")
+            params.append(clone_id)
+
+        if not updates:
+            return
+
+        now = datetime.now(UTC).isoformat()
+        updates.append("updated_at = ?")
+        params.append(now)
+        params.append(run_id)
+
+        self.db.execute(
+            f"UPDATE agent_runs SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
+        )
+
+    def list_pending_with_pid(self, limit: int = 100) -> list[AgentRun]:
+        """List pending agent runs that have a PID (spawned but not yet marked running)."""
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM agent_runs
+            WHERE status = 'pending' AND pid IS NOT NULL
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [AgentRun.from_row(row) for row in rows]
 
     def update_child_session(self, run_id: str, child_session_id: str) -> AgentRun | None:
         """Update the child session ID for an agent run."""

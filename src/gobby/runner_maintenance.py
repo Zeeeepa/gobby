@@ -1,6 +1,6 @@
 """Background maintenance tasks for GobbyRunner.
 
-Standalone utilities for tmux cleanup, metrics, vector store rebuild,
+Standalone utilities for metrics, vector store rebuild,
 signal handling, and PID file management. Extracted from runner.py.
 """
 
@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import signal
-import subprocess
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -23,31 +22,6 @@ if TYPE_CHECKING:
     from gobby.memory.vectorstore import VectorStore
 
 logger = logging.getLogger(__name__)
-
-
-async def cleanup_stale_tmux_sessions() -> None:
-    """Kill tmux sessions on the gobby socket not backed by a registered agent."""
-    try:
-        from gobby.agents.registry import get_running_agent_registry
-        from gobby.agents.tmux.session_manager import TmuxSessionManager
-
-        mgr = TmuxSessionManager()
-        if not mgr.is_available():
-            return
-
-        sessions = await mgr.list_sessions()
-        if not sessions:
-            return
-
-        registry = get_running_agent_registry()
-        registered_names = {a.tmux_session_name for a in registry.list_all() if a.tmux_session_name}
-
-        for session in sessions:
-            if session.name not in registered_names:
-                logger.info(f"Cleaning up stale tmux session: {session.name}")
-                await mgr.kill_session(session.name)
-    except (OSError, subprocess.SubprocessError) as e:
-        logger.warning(f"Stale tmux session cleanup failed: {e}")
 
 
 async def metrics_cleanup_loop(
