@@ -119,7 +119,7 @@ class TestTmuxSessionManager:
     def test_base_args_default(self) -> None:
         mgr = TmuxSessionManager()
         args = mgr._base_args()
-        assert args == ["tmux", "-L", "gobby"]
+        assert args == ["tmux", "-L", "gobby", "-f", "/dev/null"]
 
     def test_base_args_with_config_file(self) -> None:
         config = TmuxConfig(config_file="/tmp/my.conf", socket_name="test")
@@ -132,7 +132,7 @@ class TestTmuxSessionManager:
         config = TmuxConfig(socket_name="")
         mgr = TmuxSessionManager(config)
         args = mgr._base_args()
-        assert args == ["tmux"]
+        assert args == ["tmux", "-f", "/dev/null"]
 
     def test_base_args_empty_socket_with_config(self) -> None:
         config = TmuxConfig(socket_name="", config_file="/tmp/my.conf")

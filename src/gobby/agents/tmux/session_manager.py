@@ -68,8 +68,12 @@ class TmuxSessionManager:
         args.append(self._config.command)
         if self._config.socket_name:
             args.extend(["-L", self._config.socket_name])
+        # Always use explicit config to prevent user's ~/.tmux.conf from
+        # interfering (e.g. 'destroy-unattached on' kills detached sessions).
         if self._config.config_file:
             args.extend(["-f", self._config.config_file])
+        else:
+            args.extend(["-f", "/dev/null"])
         return args
 
     async def _run(
