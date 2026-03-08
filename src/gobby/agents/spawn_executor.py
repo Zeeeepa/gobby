@@ -16,6 +16,7 @@ from gobby.agents.sandbox import (
     SandboxConfig,
     compute_sandbox_paths,
 )
+from gobby.agents.trust import pre_approve_directory
 
 if TYPE_CHECKING:
     from gobby.agents.session import ChildSessionManager
@@ -197,6 +198,9 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
     if request.machine_id:
         env["GOBBY_MACHINE_ID"] = request.machine_id
 
+    # Pre-approve workspace trust so the CLI doesn't show an interactive prompt
+    pre_approve_directory("claude", request.cwd)
+
     # Spawn in terminal with env vars
     terminal_spawner = TmuxSpawner()
     terminal_result = terminal_spawner.spawn(
@@ -297,6 +301,9 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     # Pass machine_id as env var for sandboxed agents that can't read ~/.gobby/machine_id
     if request.machine_id:
         env["GOBBY_MACHINE_ID"] = request.machine_id
+
+    # Pre-approve workspace trust so the CLI doesn't show an interactive prompt
+    pre_approve_directory("gemini", request.cwd)
 
     # Spawn in terminal with env vars
     terminal_spawner = TmuxSpawner()
