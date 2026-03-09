@@ -434,9 +434,26 @@ class MCPClientManager:
 
             updates: dict[str, Any] = {}
             if config.headers:
-                updates["headers"] = store.resolve_dict(config.headers)
+                resolved = store.resolve_dict(config.headers)
+                # Strip entries with unresolved $secret: refs
+                unresolved = [k for k, v in resolved.items() if SECRET_REF_PATTERN.search(v)]
+                if unresolved:
+                    logger.warning(
+                        f"Stripping unresolved secret refs from {config.name} headers: "
+                        f"{', '.join(unresolved)}"
+                    )
+                    resolved = {k: v for k, v in resolved.items() if k not in unresolved}
+                updates["headers"] = resolved
             if config.env:
-                updates["env"] = store.resolve_dict(config.env)
+                resolved = store.resolve_dict(config.env)
+                unresolved = [k for k, v in resolved.items() if SECRET_REF_PATTERN.search(v)]
+                if unresolved:
+                    logger.warning(
+                        f"Stripping unresolved secret refs from {config.name} env: "
+                        f"{', '.join(unresolved)}"
+                    )
+                    resolved = {k: v for k, v in resolved.items() if k not in unresolved}
+                updates["env"] = resolved
             return dataclasses.replace(config, **updates)
         except Exception as e:
             logger.debug(f"Secret resolution skipped for {config.name}: {e}")

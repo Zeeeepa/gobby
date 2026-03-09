@@ -7,7 +7,6 @@ Handles configuring/removing MCP server entries in JSON and TOML config files.
 
 import json
 import logging
-import os
 import time
 from pathlib import Path
 from shutil import copy2
@@ -475,7 +474,7 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "transport": "stdio",
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-github"],
-        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"},  # nosec B105
+        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "$secret:github_personal_access_token"},
         "description": "GitHub API integration for issues, PRs, repos, and code search",
     },
     {
@@ -483,7 +482,7 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "transport": "stdio",
         "command": "npx",
         "args": ["-y", "mcp-linear"],
-        "env": {"LINEAR_API_KEY": "${LINEAR_API_KEY}"},  # nosec B105
+        "env": {"LINEAR_API_KEY": "$secret:linear_api_key"},
         "description": "Linear issue tracking integration",
     },
     {
@@ -491,9 +490,8 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "transport": "stdio",
         "command": "npx",
         "args": ["-y", "@upstash/context7-mcp"],
-        # API key args added dynamically if CONTEXT7_API_KEY is set
-        "optional_env_args": {"CONTEXT7_API_KEY": ["--api-key", "${CONTEXT7_API_KEY}"]},  # nosec B105
-        "description": "Context7 library documentation lookup (set CONTEXT7_API_KEY for private repos)",
+        "optional_secret_args": {"context7_api_key": ["--api-key"]},
+        "description": "Context7 library documentation lookup (set context7_api_key secret for private repos)",
     },
     {
         "name": "playwright",
@@ -544,7 +542,7 @@ def install_default_mcp_servers() -> dict[str, Any]:
     # Get existing server names
     existing_names = {s.get("name") for s in existing_config["servers"]}
 
-    # Repair misconfigured servers: reconcile transport/command/args with defaults
+    # Repair misconfigured servers: reconcile transport/command/args/env with defaults
     servers_repaired: list[str] = []
     default_by_name = {s["name"]: s for s in DEFAULT_MCP_SERVERS}
     for existing_server in existing_config["servers"]:
@@ -552,26 +550,46 @@ def install_default_mcp_servers() -> dict[str, Any]:
         default = default_by_name.get(name) if name else None
         if not default:
             continue
+        repaired = False
         # Check if transport diverged from the canonical default
         if existing_server.get("transport") != default["transport"]:
             existing_server["transport"] = default["transport"]
             existing_server["command"] = default.get("command")
             existing_server["args"] = list(default.get("args") or [])
             existing_server.pop("url", None)
+            repaired = True
+        # Overwrite env with canonical $secret: references
+        if "env" in default and existing_server.get("env") != default["env"]:
+            existing_server["env"] = dict(default["env"])
+            repaired = True
+        if repaired:
             servers_repaired.append(name)
     result["servers_repaired"] = servers_repaired
+
+    # Resolve optional_secret_args via secret store (lazy init)
+    secret_store = None
 
     # Add default servers if not already present
     for server in DEFAULT_MCP_SERVERS:
         if server["name"] in existing_names:
             result["servers_skipped"].append(server["name"])
         else:
-            # Build args list, adding optional env-dependent args
+            # Build args list, adding optional secret-dependent args
             args = list(server.get("args") or [])
-            optional_env_args = server.get("optional_env_args", {})
-            for env_var, extra_args in optional_env_args.items():
-                if os.environ.get(env_var):
-                    args.extend(extra_args)
+            optional_secret_args = server.get("optional_secret_args", {})
+            for secret_name, extra_args in optional_secret_args.items():
+                if secret_store is None:
+                    try:
+                        from gobby.storage.database import LocalDatabase
+                        from gobby.storage.secrets import SecretStore
+
+                        secret_store = SecretStore(LocalDatabase())
+                    except Exception:
+                        secret_store = False  # type: ignore[assignment]
+                if secret_store and secret_store.exists(secret_name):
+                    secret_value = secret_store.get(secret_name)
+                    if secret_value:
+                        args.extend(extra_args + [secret_value])
 
             existing_config["servers"].append(
                 {
