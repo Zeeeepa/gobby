@@ -37,7 +37,7 @@ def set_secret(name: str, category: str, description: str | None) -> None:
     NAME is the secret identifier (e.g. anthropic_api_key). Reference it
     elsewhere as $secret:NAME.
     """
-    value = click.prompt("Secret value", hide_input=True, confirmation_prompt=True)
+    value = click.prompt("Secret value", hide_input=True)
     if not value.strip():
         click.echo("Error: Secret value cannot be empty.", err=True)
         raise SystemExit(1)
