@@ -469,7 +469,6 @@ async def _spawn_codex_autonomous(request: SpawnRequest) -> SpawnResult:
         max_turns=request.max_turns,
         agent_run_manager=request.agent_run_manager,
         seq_num=seq_num,
-        resume_session_id=request.clone_id,  # Reuse clone_id for thread resume
     )
 
     # Launch as background task for lifecycle monitoring
