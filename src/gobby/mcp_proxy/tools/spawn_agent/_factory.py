@@ -368,11 +368,14 @@ def create_spawn_agent_registry(
                     parent_session_id=parent_session_id,
                     mode=mode,
                 )
-                return {
+                out: dict[str, Any] = {
                     "task_ref": task_ref,
                     "run_id": result.get("run_id", ""),
                     "success": result.get("success", False),
                 }
+                if not out["success"] and result.get("error"):
+                    out["error"] = result["error"]
+                return out
             except Exception as e:
                 logger.error(f"Failed to spawn agent for {task_ref}: {e}")
                 return {

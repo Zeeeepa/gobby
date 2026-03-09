@@ -184,6 +184,7 @@ steps:
         provider: "${{ inputs.developer_provider }}"
         model: "${{ inputs.developer_model }}"
         timeout: "${{ inputs.agent_timeout }}"
+        parent_session_id: "${{ session_id }}"
         mode: "terminal"
 
   # --- DISPATCH QA (for needs_review tasks) ---
@@ -208,6 +209,7 @@ steps:
         provider: "${{ inputs.qa_provider }}"
         model: "${{ inputs.qa_model }}"
         timeout: "${{ inputs.agent_timeout }}"
+        parent_session_id: "${{ session_id }}"
         mode: "terminal"
 
   # --- MERGE (when all done) ---
