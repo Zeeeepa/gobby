@@ -21,9 +21,9 @@ export function ArtifactTextView({ content, artifactId, isEditing = false, showS
             onChange={onChange}
           />
         ) : showSource && !onChange ? (
-          <pre className="text-sm font-mono text-foreground whitespace-pre-wrap p-4">{content}</pre>
+          <pre className="message-content font-mono text-foreground whitespace-pre-wrap p-4">{content}</pre>
         ) : (
-          <div className="prose dark:prose-invert max-w-none p-4 text-sm leading-relaxed prose-p:text-sm prose-p:leading-relaxed prose-headings:text-base prose-li:text-sm prose-code:text-xs">
+          <div className="message-content prose dark:prose-invert max-w-none p-4 leading-relaxed prose-p:leading-relaxed">
             <Markdown content={content} id={`artifact-text-${artifactId}`} />
           </div>
         )}
