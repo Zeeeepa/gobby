@@ -20,6 +20,7 @@ class PromptDetector:
 
     TRUST_PROMPT_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"Do you trust the files", re.IGNORECASE),
+        re.compile(r"Is this a project you created or one you trust", re.IGNORECASE),
         re.compile(r"Trust.*Folder", re.IGNORECASE),
     )
 

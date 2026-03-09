@@ -30,6 +30,12 @@ class TestDetectTrustPrompt:
         )
         assert detector.detect_trust_prompt(output) is True
 
+    def test_detects_new_claude_workspace_prompt(self) -> None:
+        """Claude Code's newer 'Is this a project...' prompt is detected."""
+        detector = PromptDetector()
+        output = "Is this a project you created or one you trust?\n"
+        assert detector.detect_trust_prompt(output) is True
+
     def test_detects_case_insensitive(self) -> None:
         """Detection is case-insensitive."""
         detector = PromptDetector()
