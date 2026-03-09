@@ -18,7 +18,8 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
         tracker = _get_tracker(server)
         if tracker is None:
             return {"error": "Savings tracker not available", "days": days}
-        return tracker.get_summary(days=days, project_id=project_id)
+        result: dict[str, Any] = tracker.get_summary(days=days, project_id=project_id)
+        return result
 
     @router.get("/savings/cumulative")
     async def get_cumulative_savings(
@@ -28,7 +29,8 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
         tracker = _get_tracker(server)
         if tracker is None:
             return {"error": "Savings tracker not available", "days": days}
-        return tracker.get_cumulative(days=days, project_id=project_id)
+        result: dict[str, Any] = tracker.get_cumulative(days=days, project_id=project_id)
+        return result
 
     @router.post("/savings/record")
     async def record_savings(body: dict[str, Any]) -> dict[str, Any]:

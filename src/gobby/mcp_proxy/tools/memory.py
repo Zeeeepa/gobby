@@ -203,7 +203,7 @@ def create_memory_registry(
                 try:
                     from gobby.savings.record import record_savings
 
-                    recalled_chars = sum(len(m["content"]) for m in result_memories)
+                    recalled_chars = sum(len(str(m["content"])) for m in result_memories)
                     record_savings(
                         category="memory",
                         original_chars=29600,  # ~8K tokens * 3.7 chars/token

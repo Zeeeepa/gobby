@@ -55,7 +55,7 @@ def register_transcript_tools(
         except Exception:
             return {"error": f"Could not resolve session: {session_id}"}
 
-        session = session_manager.get_session(resolved_id)
+        session = session_manager.get(resolved_id)
         if not session or not session.external_id:
             return {"error": "Session not found or missing external_id", "session_id": resolved_id}
 
@@ -102,7 +102,7 @@ def register_transcript_tools(
         except Exception:
             return {"error": f"Could not resolve session: {session_id}"}
 
-        session = session_manager.get_session(resolved_id)
+        session = session_manager.get(resolved_id)
         if not session or not session.external_id:
             return {"exists": False, "session_id": resolved_id}
 

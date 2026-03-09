@@ -722,7 +722,7 @@ def restore_transcript(
         else:
             assert session_ref is not None
             resolved_id = resolve_session_id(session_ref)
-            session = sm.get_session(resolved_id)
+            session = sm.get(resolved_id)
             if not session or not session.external_id:
                 click.echo("Session not found or missing external_id.", err=True)
                 raise SystemExit(1)

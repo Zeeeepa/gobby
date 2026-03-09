@@ -58,7 +58,7 @@ def _get_tool_identity(event_data: dict[str, Any]) -> str:
             tool = tool_input.get("tool_name", "")
             if server and tool:
                 return f"{server}:{tool}"
-    return tool_name
+    return str(tool_name)
 
 
 # Map HookEventType to RuleEvent

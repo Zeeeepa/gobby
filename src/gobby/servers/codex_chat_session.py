@@ -267,7 +267,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                     # Fire post-tool callback
                     if self._on_post_tool:
                         loop = asyncio.get_running_loop()
-                        t = loop.create_task(
+                        t: asyncio.Task[None] = loop.create_task(
                             self._on_post_tool(  # type: ignore[arg-type]
                                 {
                                     "tool_name": tool_name,
