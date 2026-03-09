@@ -495,7 +495,10 @@ class GobbyRunner:
 
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
-        self.executor_registry = ExecutorRegistry(config=self.config)
+        self.executor_registry = ExecutorRegistry(
+            config=self.config,
+            secret_resolver=self.secret_store.get,
+        )
         self.agent_runner: AgentRunner | None = None
         try:
             # Pre-initialize common executors

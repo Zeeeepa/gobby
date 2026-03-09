@@ -122,7 +122,11 @@ class AutonomousRunner:
         """
         cli_path = _find_cli_path()
         if not cli_path:
-            error = "Claude CLI not found in PATH"
+            error = (
+                "Claude CLI not found in PATH. "
+                "Install Claude Code for subscription mode, or set "
+                "auth_mode to 'api_key' in llm_providers config."
+            )
             logger.error(f"AutonomousRunner: {error}")
             if self.agent_run_manager:
                 self.agent_run_manager.fail(self.run_id, error=error)

@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Literal, cast
 from gobby.llm.executor import AgentExecutor
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from gobby.config.app import DaemonConfig
     from gobby.config.llm_providers import LLMProvidersConfig
     from gobby.workflows.definitions import WorkflowDefinition
@@ -256,6 +258,7 @@ def create_executor(
     provider: str,
     config: "DaemonConfig | None" = None,
     model: str | None = None,
+    secret_resolver: "Callable[[str], str | None] | None" = None,
 ) -> AgentExecutor:
     """
     Create an AgentExecutor for the given provider.
@@ -301,7 +304,9 @@ def create_executor(
         # - litellm (any) -> LiteLLMExecutor (fallback only)
 
         if provider == "claude" and auth_mode in ("subscription", "api_key"):
-            return _create_claude_executor(provider_config, config, model, auth_mode)
+            return _create_claude_executor(
+                provider_config, config, model, auth_mode, secret_resolver
+            )
 
         elif provider == "gemini" and auth_mode in ("api_key", "adc"):
             return _create_gemini_executor(provider_config, config, model, auth_mode)
@@ -332,6 +337,7 @@ def _create_claude_executor(
     config: "DaemonConfig | None",
     model: str | None,
     auth_mode: str = "subscription",
+    secret_resolver: "Callable[[str], str | None] | None" = None,
 ) -> AgentExecutor:
     """Create ClaudeExecutor for subscription or api_key mode."""
     from gobby.llm.claude_executor import ClaudeAuthMode, ClaudeExecutor
@@ -346,9 +352,14 @@ def _create_claude_executor(
             if models:
                 default_model = models[0]
 
-    if auth_mode == "api_key" and config and config.llm_providers:
-        api_keys = config.llm_providers.api_keys or {}
-        api_key = api_keys.get("ANTHROPIC_API_KEY")
+    if auth_mode == "api_key":
+        # 1. Config store (existing — $secret: refs already resolved)
+        if config and config.llm_providers:
+            api_keys = config.llm_providers.api_keys or {}
+            api_key = api_keys.get("ANTHROPIC_API_KEY")
+        # 2. SecretStore direct lookup (well-known name)
+        if not api_key and secret_resolver:
+            api_key = secret_resolver("anthropic_api_key")
 
     return ClaudeExecutor(
         auth_mode=cast("ClaudeAuthMode", auth_mode),
@@ -504,14 +515,20 @@ class ExecutorRegistry:
     Provides lazy initialization and caching of executors per provider.
     """
 
-    def __init__(self, config: "DaemonConfig | None" = None):
+    def __init__(
+        self,
+        config: "DaemonConfig | None" = None,
+        secret_resolver: "Callable[[str], str | None] | None" = None,
+    ):
         """
         Initialize ExecutorRegistry.
 
         Args:
             config: Optional daemon config for provider settings.
+            secret_resolver: Optional callable to resolve secrets by name.
         """
         self._config = config
+        self._secret_resolver = secret_resolver
         self._executors: dict[str, AgentExecutor] = {}
 
     def get(
@@ -552,6 +569,7 @@ class ExecutorRegistry:
             provider=resolved.provider,
             config=self._config,
             model=model or resolved.model,
+            secret_resolver=self._secret_resolver,
         )
 
         # Cache and return

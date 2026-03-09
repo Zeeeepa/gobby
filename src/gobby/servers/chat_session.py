@@ -150,7 +150,11 @@ class ChatSession(ChatSessionPermissionsMixin):
         """Connect the ClaudeSDKClient with configured options."""
         cli_path = _find_cli_path()
         if not cli_path:
-            raise RuntimeError("Claude CLI not found in PATH")
+            raise RuntimeError(
+                "Claude CLI not found in PATH. "
+                "Install Claude Code for subscription mode, or set "
+                "auth_mode to 'api_key' in llm_providers config."
+            )
 
         mcp_config = _find_mcp_config()
         self._model = model
