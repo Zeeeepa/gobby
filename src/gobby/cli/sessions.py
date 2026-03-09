@@ -667,7 +667,7 @@ def create_handoff(
 
 @sessions.command("restore")
 @click.argument("session_ref", required=False)
-@click.option("--all", "restore_all", is_flag=True, help="Restore all sessions with stored blobs")
+@click.option("--all", "restore_all", is_flag=True, help="Restore all sessions with archives")
 @click.option("--path", "-p", "target_path", help="Override target path for restore")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def restore_transcript(
@@ -676,57 +676,81 @@ def restore_transcript(
     target_path: str | None,
     json_format: bool,
 ) -> None:
-    """Restore session transcript(s) from stored blobs to disk.
+    """Restore session transcript(s) from gzip archives to disk.
 
     Useful when the CLI has purged the original transcript file
     but you want to resume the session.
     """
-    from gobby.storage.session_transcripts import LocalSessionTranscriptManager
+    from gobby.sessions.transcript_archive import get_archive_dir
+    from gobby.sessions.transcript_archive import restore_transcript as _restore
+    from gobby.storage.sessions import LocalSessionManager
 
     if not session_ref and not restore_all:
         raise click.UsageError("Provide a session reference or use --all")
 
     with LocalDatabase() as db:
-        tm = LocalSessionTranscriptManager(db)
-
+        sm = LocalSessionManager(db)
         results: list[dict[str, Any]] = []
 
         if restore_all:
-            # Find all sessions that have blobs stored
-            rows = db.fetchall(
-                """SELECT st.session_id, s.jsonl_path
-                   FROM session_transcripts st
-                   JOIN sessions s ON s.id = st.session_id""",
-                (),
-            )
-            for row in rows:
-                sid = row["session_id"]
-                path = tm.restore_to_disk(sid)
-                if path:
-                    results.append({"session_id": sid, "path": path, "status": "restored"})
+            archive_dir = get_archive_dir()
+            for archive_file in archive_dir.glob("*.jsonl.gz"):
+                external_id = archive_file.stem.replace(".jsonl", "")
+                # Look up session by external_id
+                row = db.fetchone(
+                    "SELECT id, jsonl_path FROM sessions WHERE external_id = ?",
+                    (external_id,),
+                )
+                if not row or not row["jsonl_path"]:
+                    results.append(
+                        {
+                            "external_id": external_id,
+                            "status": "skipped",
+                            "reason": "no session/path",
+                        }
+                    )
+                    continue
+                restored = _restore(external_id, row["jsonl_path"])
+                if restored:
+                    results.append(
+                        {"session_id": row["id"], "path": row["jsonl_path"], "status": "restored"}
+                    )
                 else:
-                    results.append({"session_id": sid, "status": "skipped", "reason": "no path"})
+                    results.append(
+                        {"session_id": row["id"], "status": "skipped", "reason": "original exists"}
+                    )
         else:
             assert session_ref is not None
             resolved_id = resolve_session_id(session_ref)
-            path = tm.restore_to_disk(resolved_id, target_path)
-            if path:
-                results.append({"session_id": resolved_id, "path": path, "status": "restored"})
+            session = sm.get_session(resolved_id)
+            if not session or not session.external_id:
+                click.echo("Session not found or missing external_id.", err=True)
+                raise SystemExit(1)
+            restore_path = target_path or session.jsonl_path
+            if not restore_path:
+                click.echo("No jsonl_path for session.", err=True)
+                raise SystemExit(1)
+            restored = _restore(session.external_id, restore_path)
+            if restored:
+                results.append(
+                    {"session_id": resolved_id, "path": restore_path, "status": "restored"}
+                )
             else:
-                click.echo("No transcript blob stored for this session.", err=True)
+                click.echo("No archive found or original file still exists.", err=True)
                 raise SystemExit(1)
 
     if json_format:
         click.echo(json.dumps(results, indent=2, default=str))
         return
 
-    restored = [r for r in results if r["status"] == "restored"]
+    restored_list = [r for r in results if r["status"] == "restored"]
     skipped = [r for r in results if r["status"] == "skipped"]
 
-    for r in restored:
-        click.echo(f"Restored {r['session_id'][:12]} -> {r['path']}")
+    for r in restored_list:
+        sid = r.get("session_id", r.get("external_id", "?"))
+        click.echo(f"Restored {sid[:12]} -> {r['path']}")
 
     if skipped:
-        click.echo(f"\nSkipped {len(skipped)} session(s) (no target path)")
+        click.echo(f"\nSkipped {len(skipped)} session(s)")
 
-    click.echo(f"\nRestored {len(restored)} transcript(s)")
+    click.echo(f"\nRestored {len(restored_list)} transcript(s)")

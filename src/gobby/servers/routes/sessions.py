@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from gobby.servers.models import SessionRegisterRequest
-from gobby.storage.session_transcripts import LocalSessionTranscriptManager
+from gobby.sessions.transcript_archive import get_archive_dir, restore_transcript
 from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
@@ -248,15 +248,11 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
     """
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
     metrics = get_metrics_collector()
-    transcript_manager: LocalSessionTranscriptManager | None = None
 
-    def _get_transcript_manager() -> LocalSessionTranscriptManager:
-        nonlocal transcript_manager
-        if transcript_manager is None:
-            if server.session_manager is None:
-                raise HTTPException(status_code=503, detail="Session manager not available")
-            transcript_manager = LocalSessionTranscriptManager(server.session_manager.db)
-        return transcript_manager
+    def _get_session_manager() -> Any:
+        if server.session_manager is None:
+            raise HTTPException(status_code=503, detail="Session manager not available")
+        return server.session_manager
 
     async def _broadcast_session(event: str, session_id: str, **kwargs: Any) -> None:
         """Broadcast a session event via WebSocket if available."""
@@ -1174,18 +1170,25 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Error clearing stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    # --- Transcript Blob Endpoints ---
+    # --- Transcript Archive Endpoints ---
 
     @router.get("/{session_id}/transcript/status")
     async def transcript_status(session_id: str) -> dict[str, Any]:
-        """Check if a transcript blob exists and get size stats."""
+        """Check if a transcript archive exists for this session."""
         metrics.inc_counter("http_requests_total")
         try:
-            stats = _get_transcript_manager().get_stats(session_id)
-            if not stats:
+            sm = _get_session_manager()
+            session = sm.get_session(session_id)
+            if not session or not session.external_id:
                 return {"exists": False, "session_id": session_id}
-            stats["session_id"] = session_id
-            return stats
+            archive_dir = get_archive_dir()
+            archive_path = archive_dir / f"{session.external_id}.jsonl.gz"
+            exists = archive_path.is_file()
+            result: dict[str, Any] = {"exists": exists, "session_id": session_id}
+            if exists:
+                result["compressed_size"] = archive_path.stat().st_size
+                result["archive_path"] = str(archive_path)
+            return result
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error getting transcript status: {e}", exc_info=True)
@@ -1193,19 +1196,41 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
     @router.get("/{session_id}/transcript")
     async def get_transcript(session_id: str) -> Any:
-        """Download raw transcript content."""
+        """Download raw transcript content from filesystem."""
         metrics.inc_counter("http_requests_total")
         try:
+            import gzip
+
             from fastapi.responses import Response
 
-            raw = _get_transcript_manager().get_transcript(session_id)
-            if raw is None:
-                raise HTTPException(status_code=404, detail="No transcript blob stored")
-            return Response(
-                content=raw,
-                media_type="application/x-ndjson",
-                headers={"Content-Disposition": f'attachment; filename="{session_id}.jsonl"'},
-            )
+            sm = _get_session_manager()
+            session = sm.get_session(session_id)
+
+            # Try original JSONL path first
+            if session and session.jsonl_path and os.path.isfile(session.jsonl_path):
+                with open(session.jsonl_path, "rb") as f:
+                    raw = f.read()
+                return Response(
+                    content=raw,
+                    media_type="application/x-ndjson",
+                    headers={"Content-Disposition": f'attachment; filename="{session_id}.jsonl"'},
+                )
+
+            # Fall back to gzip archive
+            if session and session.external_id:
+                archive_path = get_archive_dir() / f"{session.external_id}.jsonl.gz"
+                if archive_path.is_file():
+                    with gzip.open(archive_path, "rb") as f:
+                        raw = f.read()
+                    return Response(
+                        content=raw,
+                        media_type="application/x-ndjson",
+                        headers={
+                            "Content-Disposition": f'attachment; filename="{session_id}.jsonl"'
+                        },
+                    )
+
+            raise HTTPException(status_code=404, detail="No transcript found")
         except HTTPException:
             metrics.inc_counter("http_requests_errors_total")
             raise
@@ -1215,21 +1240,28 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{session_id}/restore-transcript")
-    async def restore_transcript(session_id: str) -> dict[str, Any]:
-        """Restore a transcript blob to disk for CLI resume."""
+    async def restore_transcript_endpoint(session_id: str) -> dict[str, Any]:
+        """Restore a transcript from archive to disk for CLI resume."""
         metrics.inc_counter("http_requests_total")
         try:
-            path = _get_transcript_manager().restore_to_disk(session_id)
-            if path is None:
+            sm = _get_session_manager()
+            session = sm.get_session(session_id)
+            if not session or not session.external_id or not session.jsonl_path:
                 raise HTTPException(
                     status_code=404,
-                    detail="No transcript blob stored for this session",
+                    detail="Session not found or missing external_id/jsonl_path",
                 )
-            size = os.path.getsize(path)
+            restored = restore_transcript(session.external_id, session.jsonl_path)
+            if not restored:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No transcript archive found or original still exists",
+                )
+            size = os.path.getsize(session.jsonl_path)
             return {
                 "status": "restored",
                 "session_id": session_id,
-                "path": path,
+                "path": session.jsonl_path,
                 "size": size,
             }
         except HTTPException:

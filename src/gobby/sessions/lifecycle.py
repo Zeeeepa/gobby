@@ -21,7 +21,6 @@ from gobby.sessions.transcripts.codex import CodexTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.session_messages import LocalSessionMessageManager
-from gobby.storage.session_transcripts import LocalSessionTranscriptManager
 from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -48,7 +47,6 @@ class SessionLifecycleManager:
         self.config = config
         self.session_manager = LocalSessionManager(db)
         self.message_manager = LocalSessionMessageManager(db)
-        self.transcript_manager = LocalSessionTranscriptManager(db)
         self.memory_manager = memory_manager
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
@@ -209,16 +207,6 @@ class SessionLifecycleManager:
         processed = 0
         for session in sessions:
             try:
-                # Snapshot raw transcript blob before processing
-                if session.jsonl_path and os.path.exists(session.jsonl_path):
-                    try:
-                        with open(session.jsonl_path, "rb") as f:
-                            raw = f.read()
-                        if raw:
-                            self.transcript_manager.store_transcript(session.id, raw)
-                    except Exception as e:
-                        logger.warning(f"Transcript blob snapshot failed for {session.id}: {e}")
-
                 await self._process_session_transcript(session.id, session.jsonl_path)
                 self.session_manager.mark_transcript_processed(session.id)
                 processed += 1

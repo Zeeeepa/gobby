@@ -70,19 +70,6 @@ async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProc
     )
     mock_db.execute(
         """
-        CREATE TABLE IF NOT EXISTS session_transcripts (
-            session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-            transcript_blob BLOB NOT NULL,
-            uncompressed_size INTEGER NOT NULL,
-            compressed_size INTEGER NOT NULL,
-            checksum TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-    """
-    )
-    mock_db.execute(
-        """
         CREATE TABLE IF NOT EXISTS session_message_state (
             session_id TEXT PRIMARY KEY,
             last_byte_offset INTEGER DEFAULT 0,
