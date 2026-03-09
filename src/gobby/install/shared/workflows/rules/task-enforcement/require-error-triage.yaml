@@ -1,0 +1,70 @@
+tags: [task-enforcement, enforcement, lifecycle, gobby, default]
+
+rules:
+  require-error-triage-before-close:
+    description: "Gate task close until agent confirms lint/tests pass on touched files"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: >
+      event.data.get('mcp_tool') == 'close_task'
+      and not variables.get('plan_mode')
+      and not variables.get('pre_existing_errors_triaged')
+      and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')
+    effects:
+      - type: block
+        reason: |
+          Confirm that you ran lint and tests on files you touched this session.
+
+          If you already verified and everything passed clean, confirm now:
+          set_variable(name="pre_existing_errors_triaged", value=true)
+
+          If you haven't verified yet, run lint and tests first.
+
+          If you discovered errors or test failures:
+          1. Check: is the failing code related to YOUR changes?
+             - Run `git diff --name-only` to see uncommitted changes.
+             - If the failure is in code YOU changed: fix it, commit, then stop.
+             - If the failure is pre-existing or in code you didn't touch:
+               create a bug task (do NOT claim it), then clear the gate.
+             - If another agent has uncommitted changes in the failing file:
+               create a bug task and move on.
+          2. Every error you discover must be either fixed or tasked before stopping.
+
+  require-error-triage-before-needs-review:
+    description: "Gate mark_task_needs_review until agent confirms lint/tests pass"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: >
+      event.data.get('mcp_tool') == 'mark_task_needs_review'
+      and not variables.get('plan_mode')
+      and not variables.get('pre_existing_errors_triaged')
+    effects:
+      - type: block
+        reason: |
+          Confirm that you ran lint and tests on files you touched this session.
+
+          If you already verified and everything passed clean, confirm now:
+          set_variable(name="pre_existing_errors_triaged", value=true)
+
+          If you haven't verified yet, run lint and tests first.
+
+  require-error-triage-before-approve:
+    description: "Gate mark_task_review_approved until agent confirms lint/tests pass"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: >
+      event.data.get('mcp_tool') == 'mark_task_review_approved'
+      and not variables.get('plan_mode')
+      and not variables.get('pre_existing_errors_triaged')
+    effects:
+      - type: block
+        reason: |
+          Confirm that you ran lint and tests on files you touched before approving.
+
+          If you already verified and everything passed clean, confirm now:
+          set_variable(name="pre_existing_errors_triaged", value=true)
+
+          If you haven't verified yet, run lint and tests first.
