@@ -413,7 +413,7 @@ class TaskSyncManager:
                                     path_parts.insert(0, str(parent_row["seq_num"]))
                                     current_parent = parent_row["parent_task_id"]
                                     depth += 1
-                                synced_values["path_cache"] = "/".join(path_parts)
+                                synced_values["path_cache"] = ".".join(path_parts)
 
                                 # INSERT with all synced fields
                                 columns = ", ".join(["id"] + list(synced_values.keys()))

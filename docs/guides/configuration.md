@@ -352,11 +352,6 @@ gobby-tasks:
     criteria_system_prompt: "You are a QA engineer..."
     prompt_path: null
     criteria_prompt_path: null
-    external_system_prompt_path: null
-    external_spawn_prompt_path: null
-    external_agent_prompt_path: null
-    external_llm_prompt_path: null
-
     # Validation loop control
     max_iterations: 10
     max_consecutive_errors: 3
@@ -366,11 +361,6 @@ gobby-tasks:
     # Build verification
     run_build_first: true
     build_command: null          # Auto-detected if null
-
-    # External validator
-    use_external_validator: false
-    external_validator_model: null
-    external_validator_mode: llm  # llm, agent, spawn
 
     # Escalation
     escalation_enabled: true
