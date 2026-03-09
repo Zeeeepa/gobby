@@ -186,9 +186,12 @@ def show_messages(
         click.echo(f"Session not found: {session_id}", err=True)
         return
 
-    # Fetch messages
+    # Fetch messages (DB first, gzip archive fallback)
+    from gobby.sessions.transcript_reader import TranscriptReader
+
+    reader = TranscriptReader(message_manager, session_manager)
     messages = asyncio.run(
-        message_manager.get_messages(
+        reader.get_messages(
             session_id=session.id,
             limit=limit,
             offset=offset,
@@ -204,7 +207,7 @@ def show_messages(
         click.echo("No messages found.")
         return
 
-    total = asyncio.run(message_manager.count_messages(session.id))
+    total = asyncio.run(reader.count_messages(session.id))
     click.echo(f"Messages for session {session.id[:12]} ({len(messages)}/{total}):\n")
 
     for msg in messages:

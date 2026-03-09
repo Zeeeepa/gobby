@@ -213,14 +213,27 @@ class SessionLifecycleManager:
                 logger.debug(f"Processed transcript for session {session.id}")
 
                 # Best-effort backup of the transcript archive
+                # On success, purge DB messages (gzip is now the source of truth)
                 if session.jsonl_path and session.external_id:
                     try:
-                        await asyncio.to_thread(
+                        archive_path = await asyncio.to_thread(
                             backup_transcript,
                             session.external_id,
                             session.jsonl_path,
                             archive_dir,
                         )
+                        if archive_path:
+                            await self.message_manager.delete(session.id)
+                            await self.message_manager.delete_state(session.id)
+                            logger.debug(
+                                f"Purged DB messages for session {session.id} "
+                                f"(archived to {archive_path})"
+                            )
+                        else:
+                            logger.warning(
+                                f"Transcript backup returned None for {session.id}, "
+                                f"retaining DB messages"
+                            )
                     except Exception as e:
                         logger.warning(f"Transcript backup failed for {session.id}: {e}")
             except Exception as e:

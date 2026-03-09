@@ -123,6 +123,20 @@ class HTTPServer:
                 )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
+            # Create TranscriptReader for DB + gzip fallback reads
+            transcript_reader = None
+            if services.message_manager and services.session_manager:
+                from gobby.sessions.transcript_reader import TranscriptReader
+
+                archive_dir = None
+                if services.config and hasattr(services.config, "sessions"):
+                    archive_dir = getattr(services.config.sessions, "transcript_archive_dir", None)
+                transcript_reader = TranscriptReader(
+                    message_manager=services.message_manager,
+                    session_manager=services.session_manager,
+                    archive_dir=archive_dir,
+                )
+
             # Setup internal registries (gobby-tasks, gobby-memory, gobby-workflows, etc.)
             self._internal_manager = setup_internal_registries(
                 _config=services.config,
@@ -154,6 +168,7 @@ class HTTPServer:
                 memory_sync_manager=services.memory_sync_manager,
                 completion_registry=services.completion_registry,
                 cron_scheduler=services.cron_scheduler,
+                transcript_reader=transcript_reader,
             )
             # Wire code index registry if code_indexer is available
             code_indexer = getattr(services, "code_indexer", None)
