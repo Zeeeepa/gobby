@@ -170,9 +170,26 @@ class CronExecutor:
                 logger.warning("Failed to create session for cron pipeline", exc_info=True)
 
         # Set project context so MCP tools can resolve task refs like #9916
+        # Must include project_path — spawn_agent_impl requires it.
         from gobby.utils.project_context import reset_project_context, set_project_context
 
-        token = set_project_context({"id": job.project_id} if job.project_id else None)
+        project_ctx: dict[str, Any] | None = None
+        if job.project_id:
+            project_ctx = {"id": job.project_id}
+            # Look up repo_path from projects table
+            try:
+                row = self.storage.db.execute(
+                    "SELECT repo_path FROM projects WHERE id = ?",
+                    (job.project_id,),
+                ).fetchone()
+                if row and row[0]:
+                    project_ctx["project_path"] = row[0]
+            except Exception:
+                logger.debug(
+                    "Failed to resolve repo_path for project %s", job.project_id, exc_info=True
+                )
+
+        token = set_project_context(project_ctx)
         try:
             execution = await self.pipeline_executor.execute(
                 pipeline=pipeline,
