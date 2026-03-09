@@ -128,6 +128,7 @@ export interface ChatState {
   onApprovePlan: () => void;
   onRequestPlanChanges: (feedback: string) => void;
   setOnPlanReady?: (fn: (content: string | null) => void) => void;
+  setOnArtifactEvent?: (fn: (type: string, content: string, language?: string, title?: string) => void) => void;
   viewingSessionId?: string | null;
   viewingSessionMeta?: SessionObservationMeta | null;
   attachedSessionId?: string | null;
