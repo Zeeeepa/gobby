@@ -142,6 +142,17 @@ def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:
             if inner_tool and "mcp_tool" not in data:
                 data["mcp_tool"] = inner_tool
 
+        # Coerce string arguments to dict (agents often stringify JSON)
+        inner_arguments = tool_input.get("arguments")
+        if isinstance(inner_arguments, str):
+            try:
+                parsed = _json.loads(inner_arguments)
+                if isinstance(parsed, dict):
+                    tool_input["arguments"] = parsed
+                    data["_input_coerced"] = True
+            except (ValueError, TypeError):
+                pass  # Leave as-is; server-side defense will catch it
+
     # 2. Normalize tool_result → tool_output (CLI path)
     if "tool_result" in data and "tool_output" not in data:
         data["tool_output"] = data["tool_result"]

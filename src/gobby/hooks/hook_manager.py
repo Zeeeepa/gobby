@@ -384,6 +384,11 @@ class HookManager:
 
         # --- Common post-processing ---
 
+        # Auto-coerce stringified arguments in call_tool (universal fix, not rule-gated)
+        if event.data.pop("_input_coerced", False):
+            event.metadata.setdefault("_modified_input", event.data.get("tool_input", {}))
+            event.metadata.setdefault("_auto_approve", True)
+
         # Propagate rewrite_input from rule evaluation to response (PreToolUse)
         if "_modified_input" in event.metadata:
             response.modified_input = event.metadata.pop("_modified_input")
