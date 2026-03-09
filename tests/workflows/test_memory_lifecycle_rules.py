@@ -9,6 +9,8 @@ Active memory-lifecycle rules:
 - memory-recall-on-prompt: mcp_call on before_agent
 - memory-capture-nudge: inject_context on before_agent
 - require-memory-review-before-close: block on before_tool (close_task)
+- require-memory-review-before-needs-review: block on before_tool (mark_task_needs_review)
+- require-memory-review-before-approve: block on before_tool (mark_task_review_approved)
 - clear-memory-review-on-create: set_variable on before_tool
 
 Note: memory-sync-import moved to sync/ group (see test_sync_rules.py).
@@ -33,6 +35,8 @@ MEMORY_RULES = {
     "memory-recall-on-prompt",
     "memory-capture-nudge",
     "require-memory-review-before-close",
+    "require-memory-review-before-needs-review",
+    "require-memory-review-before-approve",
     "clear-memory-review-on-create",
 }
 
@@ -203,6 +207,70 @@ class TestRequireMemoryReviewBeforeClose:
         assert "close_task" in body.when
         assert "pending_memory_review" in body.when
         assert "commit_sha" in body.when
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# require-memory-review-before-needs-review
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRequireMemoryReviewBeforeNeedsReview:
+    """Gate mark_task_needs_review until agent reviews memories."""
+
+    def test_event_and_effect(self, db, manager) -> None:
+        _sync_bundled(db)
+        row = manager.get_by_name(
+            "require-memory-review-before-needs-review", include_templates=True
+        )
+        assert row is not None
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.event.value == "before_tool"
+        assert body.effects[0].type == "block"
+        assert body.effects[0].reason is not None
+
+    def test_has_when_condition(self, db, manager) -> None:
+        """Only block mark_task_needs_review when pending_memory_review is set."""
+        _sync_bundled(db)
+        row = manager.get_by_name(
+            "require-memory-review-before-needs-review", include_templates=True
+        )
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.when is not None
+        assert "mark_task_needs_review" in body.when
+        assert "pending_memory_review" in body.when
+        assert "commit_sha" not in body.when
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# require-memory-review-before-approve
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRequireMemoryReviewBeforeApprove:
+    """Gate mark_task_review_approved until agent reviews memories."""
+
+    def test_event_and_effect(self, db, manager) -> None:
+        _sync_bundled(db)
+        row = manager.get_by_name(
+            "require-memory-review-before-approve", include_templates=True
+        )
+        assert row is not None
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.event.value == "before_tool"
+        assert body.effects[0].type == "block"
+        assert body.effects[0].reason is not None
+
+    def test_has_when_condition(self, db, manager) -> None:
+        """Only block mark_task_review_approved when pending_memory_review is set."""
+        _sync_bundled(db)
+        row = manager.get_by_name(
+            "require-memory-review-before-approve", include_templates=True
+        )
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.when is not None
+        assert "mark_task_review_approved" in body.when
+        assert "pending_memory_review" in body.when
+        assert "commit_sha" not in body.when
 
 
 # ═══════════════════════════════════════════════════════════════════════

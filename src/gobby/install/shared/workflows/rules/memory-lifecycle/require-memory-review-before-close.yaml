@@ -20,3 +20,41 @@ rules:
 
           Do NOT create memories for bugs, errors, or issues you encounter.
           Create tasks instead so they get fixed.
+
+  require-memory-review-before-needs-review:
+    description: "Gate mark_task_needs_review until agent reviews memories (when edits were made)"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: >
+      event.data.get('mcp_tool') == 'mark_task_needs_review'
+      and not variables.get('plan_mode')
+      and variables.get('pending_memory_review')
+    effects:
+      - type: block
+        reason: |
+          Consider saving any valuable memories from this task before submitting for review.
+          Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+          If nothing new was learned, clear the gate:
+          `set_variable(name="pending_memory_review", value=false, session_id="...")`
+
+          Do NOT create memories for bugs or errors — create tasks instead.
+
+  require-memory-review-before-approve:
+    description: "Gate mark_task_review_approved until agent reviews memories (when edits were made)"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: >
+      event.data.get('mcp_tool') == 'mark_task_review_approved'
+      and not variables.get('plan_mode')
+      and variables.get('pending_memory_review')
+    effects:
+      - type: block
+        reason: |
+          Consider saving any valuable memories from this review before approving.
+          Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+          If nothing new was learned, clear the gate:
+          `set_variable(name="pending_memory_review", value=false, session_id="...")`
+
+          Do NOT create memories for bugs or errors — create tasks instead.
