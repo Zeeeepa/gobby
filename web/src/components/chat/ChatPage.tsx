@@ -204,6 +204,7 @@ export function ChatPage({
             {/* Chat column — hidden on mobile when artifact/canvas panel is open */}
             <div
               className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}
+              style={!isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? { minWidth: 400 } : undefined}
             >
               <div className="hidden md:block">
                 <SessionStatusBar

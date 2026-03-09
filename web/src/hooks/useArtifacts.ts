@@ -8,7 +8,7 @@ function loadPanelWidth(): number {
     const stored = localStorage.getItem(PANEL_WIDTH_KEY)
     if (stored) {
       const parsed = parseInt(stored, 10)
-      if (!Number.isNaN(parsed)) return Math.max(300, Math.min(800, parsed))
+      if (!Number.isNaN(parsed)) return Math.max(300, Math.min(1400, parsed))
     }
   } catch (e) {
     if (process.env.NODE_ENV === 'development') console.warn(`Failed to load ${PANEL_WIDTH_KEY}:`, e)

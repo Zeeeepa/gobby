@@ -8,7 +8,7 @@ interface ResizeHandleProps {
   maxWidth?: number
 }
 
-export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 800 }: ResizeHandleProps) {
+export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 1400 }: ResizeHandleProps) {
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
