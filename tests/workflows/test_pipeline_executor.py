@@ -2243,3 +2243,122 @@ class TestRendererParentSessionId:
 
         result = renderer.should_run_step(step, context)
         assert result is False
+
+
+class TestBuildOutputs:
+    """Tests for _build_outputs pipeline output rendering."""
+
+    def test_build_outputs_pure_expression_with_len(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ):
+        """Pipeline outputs with len() in pure ${{ }} expressions should evaluate correctly.
+
+        Regression test: _build_outputs was routing all ${{ }} expressions through
+        Jinja2 (which lacks len), instead of SafeExpressionEvaluator (which has it).
+        """
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.templates import TemplateEngine
+
+        pipeline = PipelineDefinition(
+            name="test-outputs",
+            steps=[PipelineStep(id="scan", exec="echo test")],
+            outputs={
+                "task_count": "${{ len(scan.output.tasks) }}",
+                "has_tasks": "${{ len(scan.output.tasks) > 0 }}",
+            },
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            template_engine=TemplateEngine(),
+        )
+
+        context = {
+            "inputs": {},
+            "steps": {
+                "scan": {
+                    "status": "completed",
+                    "output": {"tasks": ["t1", "t2", "t3"]},
+                },
+            },
+        }
+
+        outputs = executor._build_outputs(pipeline, context)
+        assert outputs["task_count"] == 3
+        assert outputs["has_tasks"] is True
+
+    def test_build_outputs_mixed_string_uses_jinja2(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ):
+        """Mixed strings (not pure ${{ }}) should still use Jinja2 rendering."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.templates import TemplateEngine
+
+        pipeline = PipelineDefinition(
+            name="test-outputs",
+            steps=[PipelineStep(id="step1", exec="echo test")],
+            outputs={
+                "message": "Result: ${{ step1.output.value }}",
+            },
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            template_engine=TemplateEngine(),
+        )
+
+        context = {
+            "inputs": {},
+            "steps": {
+                "step1": {
+                    "status": "completed",
+                    "output": {"value": "hello"},
+                },
+            },
+        }
+
+        outputs = executor._build_outputs(pipeline, context)
+        assert outputs["message"] == "Result: hello"
+
+    def test_build_outputs_conditional_expression_with_len(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ):
+        """Conditional expressions with len() should work in pipeline outputs.
+
+        This matches the orchestrator pattern:
+          open_count: "${{ len(scan.output.tasks) if scan.output else 0 }}"
+        """
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.templates import TemplateEngine
+
+        pipeline = PipelineDefinition(
+            name="test-outputs",
+            steps=[PipelineStep(id="scan", exec="echo test")],
+            outputs={
+                "count": "${{ len(scan.output.tasks) if scan.output else 0 }}",
+            },
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            template_engine=TemplateEngine(),
+        )
+
+        context = {
+            "inputs": {},
+            "steps": {
+                "scan": {
+                    "status": "completed",
+                    "output": {"tasks": ["a", "b"]},
+                },
+            },
+        }
+
+        outputs = executor._build_outputs(pipeline, context)
+        assert outputs["count"] == 2

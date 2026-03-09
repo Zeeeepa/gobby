@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any, cast
 
 from gobby.workflows.pipeline.gatekeeper import ApprovalManager
@@ -803,9 +804,17 @@ class PipelineExecutor:
 
         for name, expr in pipeline.outputs.items():
             if isinstance(expr, str) and "${{" in expr:
-                # Render Jinja2 template expression
-                rendered = self.renderer.render_string(expr, render_ctx)
-                outputs[name] = _coerce_rendered_value(rendered)
+                # Pure expression: use SafeExpressionEvaluator (has len, bool, etc.)
+                m = re.fullmatch(r"\$\{\{\s*(.*?)\s*\}\}", expr.strip(), re.DOTALL)
+                if m:
+                    resolved = self.renderer._resolve_expression(m.group(1), render_ctx)
+                    outputs[name] = (
+                        _coerce_rendered_value(resolved) if isinstance(resolved, str) else resolved
+                    )
+                else:
+                    # Mixed string with embedded ${{ }}: use Jinja2
+                    rendered = self.renderer.render_string(expr, render_ctx)
+                    outputs[name] = _coerce_rendered_value(rendered)
             elif isinstance(expr, str) and expr.startswith("$"):
                 # Resolve $step.output reference
                 value = self._resolve_reference(expr, context)
