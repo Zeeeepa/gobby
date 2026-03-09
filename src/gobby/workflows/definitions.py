@@ -164,16 +164,6 @@ class RuleDefinitionBody(BaseModel):
     group: str | None = None
     agent_scope: list[str] | None = None  # Only active for these agent types
 
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_effect_to_effects(cls, data: Any) -> Any:
-        """Convert singular 'effect' key to 'effects' list for backward compat."""
-        if isinstance(data, dict) and "effect" in data:
-            effect = data.pop("effect")
-            if effect is not None and "effects" not in data:
-                data["effects"] = [effect]
-        return data
-
     @model_validator(mode="after")
     def _validate_effects(self) -> RuleDefinitionBody:
         if not self.effects or len(self.effects) == 0:

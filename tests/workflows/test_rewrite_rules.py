@@ -75,11 +75,11 @@ class TestMCPRewriteNesting:
             "strip-flag",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="rewrite_input",
                     input_updates={"skip_validation": False},
                     auto_approve=True,
-                ),
+                )],
             ),
         )
 
@@ -116,11 +116,11 @@ class TestMCPRewriteNesting:
             "rewrite-command",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="rewrite_input",
                     input_updates={"command": "uv run python script.py"},
                     auto_approve=True,
-                ),
+                )],
             ),
         )
 
@@ -149,11 +149,11 @@ class TestMCPRewriteNesting:
             "strip-flag",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="rewrite_input",
                     input_updates={"skip_validation": False},
                     auto_approve=True,
-                ),
+                )],
             ),
         )
 

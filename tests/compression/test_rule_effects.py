@@ -22,11 +22,11 @@ class TestRewriteInputEffect:
     def test_rewrite_input_in_rule_body(self) -> None:
         body = RuleDefinitionBody(
             event="before_tool",
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="rewrite_input",
                 input_updates={"command": "gobby compress -- git status"},
                 auto_approve=True,
-            ),
+            )],
         )
         effects = body.resolved_effects
         assert len(effects) == 1
@@ -47,9 +47,9 @@ class TestCompressOutputEffect:
     def test_compress_output_in_rule_body(self) -> None:
         body = RuleDefinitionBody(
             event="after_tool",
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="compress_output",
-            ),
+            )],
         )
         effects = body.resolved_effects
         assert len(effects) == 1

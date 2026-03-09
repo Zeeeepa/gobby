@@ -96,7 +96,7 @@ class TestRuleEngineLoadRules:
             "before-tool-rule",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="blocked"),
+                effects=[RuleEffect(type="block", reason="blocked")],
             ),
         )
         _insert_rule(
@@ -104,7 +104,7 @@ class TestRuleEngineLoadRules:
             "after-tool-rule",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(type="set_variable", variable="x", value=True),
+                effects=[RuleEffect(type="set_variable", variable="x", value=True)],
             ),
         )
 
@@ -122,7 +122,7 @@ class TestRuleEngineLoadRules:
             "disabled-rule",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="should not fire"),
+                effects=[RuleEffect(type="block", reason="should not fire")],
             ),
             enabled=False,
         )
@@ -143,7 +143,7 @@ class TestBlockEffect:
             "block-edit",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="No editing allowed", tools=["Edit"]),
+                effects=[RuleEffect(type="block", reason="No editing allowed", tools=["Edit"])],
             ),
         )
 
@@ -161,7 +161,7 @@ class TestBlockEffect:
             "block-edit-only",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="No editing", tools=["Edit"]),
+                effects=[RuleEffect(type="block", reason="No editing", tools=["Edit"])],
             ),
         )
 
@@ -179,7 +179,7 @@ class TestBlockEffect:
             "high-priority-block",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="First block"),
+                effects=[RuleEffect(type="block", reason="First block")],
             ),
             priority=10,
         )
@@ -188,7 +188,7 @@ class TestBlockEffect:
             "low-priority-block",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="Second block"),
+                effects=[RuleEffect(type="block", reason="Second block")],
             ),
             priority=20,
         )
@@ -209,7 +209,7 @@ class TestSetVariableEffect:
             "set-claimed",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(type="set_variable", variable="task_claimed", value=True),
+                effects=[RuleEffect(type="set_variable", variable="task_claimed", value=True)],
             ),
         )
 
@@ -230,11 +230,11 @@ class TestSetVariableEffect:
             "increment-counter",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="set_variable",
                     variable="custom_counter",
                     value="variables.get('custom_counter', 0) + 1",
-                ),
+                )],
             ),
         )
 
@@ -256,11 +256,11 @@ class TestSetVariableEffect:
             "increment-via-jinja",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="set_variable",
                     variable="error_triage_blocks",
                     value="{{ variables.get('error_triage_blocks', 0) + 1 }}",
-                ),
+                )],
             ),
         )
 
@@ -284,10 +284,10 @@ class TestInjectContextEffect:
             "inject-task-context",
             RuleDefinitionBody(
                 event=RuleEvent.SESSION_START,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="inject_context",
                     template="You are working on an important task.",
-                ),
+                )],
             ),
         )
 
@@ -307,7 +307,7 @@ class TestInjectContextEffect:
             "inject-a",
             RuleDefinitionBody(
                 event=RuleEvent.SESSION_START,
-                effect=RuleEffect(type="inject_context", template="Context A."),
+                effects=[RuleEffect(type="inject_context", template="Context A.")],
             ),
             priority=10,
         )
@@ -316,7 +316,7 @@ class TestInjectContextEffect:
             "inject-b",
             RuleDefinitionBody(
                 event=RuleEvent.SESSION_START,
-                effect=RuleEffect(type="inject_context", template="Context B."),
+                effects=[RuleEffect(type="inject_context", template="Context B.")],
             ),
             priority=20,
         )
@@ -341,7 +341,7 @@ class TestWhenConditions:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 when="variables.get('require_uv')",
-                effect=RuleEffect(type="block", reason="Use uv"),
+                effects=[RuleEffect(type="block", reason="Use uv")],
             ),
         )
 
@@ -360,7 +360,7 @@ class TestWhenConditions:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 when="variables.get('require_uv')",
-                effect=RuleEffect(type="block", reason="Use uv"),
+                effects=[RuleEffect(type="block", reason="Use uv")],
             ),
         )
 
@@ -378,7 +378,7 @@ class TestWhenConditions:
             "unconditional-set",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(type="set_variable", variable="stop_attempts", value=0),
+                effects=[RuleEffect(type="set_variable", variable="stop_attempts", value=0)],
             ),
         )
 
@@ -404,7 +404,7 @@ class TestPriorityOrdering:
             "set-x-to-1",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(type="set_variable", variable="x", value=1),
+                effects=[RuleEffect(type="set_variable", variable="x", value=1)],
             ),
             priority=20,
         )
@@ -413,7 +413,7 @@ class TestPriorityOrdering:
             "set-x-to-2",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(type="set_variable", variable="x", value=2),
+                effects=[RuleEffect(type="set_variable", variable="x", value=2)],
             ),
             priority=10,
         )
@@ -439,7 +439,7 @@ class TestSessionOverrides:
             "block-rule",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="Blocked!"),
+                effects=[RuleEffect(type="block", reason="Blocked!")],
             ),
         )
 
@@ -467,7 +467,7 @@ class TestSessionOverrides:
             "block-rule",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="Blocked!"),
+                effects=[RuleEffect(type="block", reason="Blocked!")],
             ),
         )
 
@@ -497,11 +497,11 @@ class TestObserveEffect:
             "observe-tool-use",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="observe",
                     category="tool_use",
                     message="Tool was used",
-                ),
+                )],
             ),
         )
 
@@ -527,7 +527,7 @@ class TestObserveEffect:
             "observe-a",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(type="observe", category="a", message="first"),
+                effects=[RuleEffect(type="observe", category="a", message="first")],
             ),
             priority=10,
         )
@@ -536,7 +536,7 @@ class TestObserveEffect:
             "observe-b",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(type="observe", category="b", message="second"),
+                effects=[RuleEffect(type="observe", category="b", message="second")],
             ),
             priority=20,
         )
@@ -561,7 +561,7 @@ class TestObserveEffect:
             "observe-no-cat",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(type="observe", message="no category"),
+                effects=[RuleEffect(type="observe", message="no category")],
             ),
         )
 
@@ -583,11 +583,11 @@ class TestObserveEffect:
             "observe-template",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="observe",
                     category="tool_use",
                     message="Used {{ event.data.get('tool_name', 'unknown') }}",
-                ),
+                )],
             ),
         )
 
@@ -611,12 +611,12 @@ class TestMcpCallEffect:
             "memory-recall",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_AGENT,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="mcp_call",
                     server="gobby-memory",
                     tool="recall_with_synthesis",
                     arguments={"limit": 5},
-                ),
+                )],
             ),
         )
 
@@ -642,7 +642,7 @@ class TestVariableRebuild:
             "set-flag",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(type="set_variable", variable="flag", value=True),
+                effects=[RuleEffect(type="set_variable", variable="flag", value=True)],
             ),
             priority=10,
         )
@@ -653,7 +653,7 @@ class TestVariableRebuild:
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
                 when="variables.get('flag')",
-                effect=RuleEffect(type="block", reason="Flag was set"),
+                effects=[RuleEffect(type="block", reason="Flag was set")],
             ),
             priority=20,
         )
@@ -765,11 +765,11 @@ class TestMcpCallToolUnwrapping:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 when="not tool_input.get('commit_sha')",
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="block",
                     reason="Must provide commit_sha when closing a task",
                     tools=["call_tool"],
-                ),
+                )],
             ),
         )
 
@@ -818,7 +818,7 @@ class TestToggleRuleRejectsTemplate:
             name="template-only-rule",
             definition_json=RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(type="block", reason="template"),
+                effects=[RuleEffect(type="block", reason="template")],
             ).model_dump_json(),
             workflow_type="rule",
             source="template",
@@ -838,7 +838,7 @@ class TestToggleRuleRejectsTemplate:
             name="installed-rule",
             definition_json=RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(type="block", reason="installed"),
+                effects=[RuleEffect(type="block", reason="installed")],
             ).model_dump_json(),
             workflow_type="rule",
             source="installed",
@@ -978,22 +978,11 @@ class TestMultipleEffects:
         assert variables.get("always_set") is True
         assert variables.get("conditionally_set") is True
 
-    def test_validation_both_effect_and_effects_error(self) -> None:
-        """Specifying both effect and effects should raise ValidationError."""
+    def test_validation_no_effects_error(self) -> None:
+        """Omitting effects should raise ValidationError."""
         import pydantic
 
-        with pytest.raises(pydantic.ValidationError, match="not both"):
-            RuleDefinitionBody(
-                event=RuleEvent.STOP,
-                effect=RuleEffect(type="set_variable", variable="x", value=1),
-                effects=[RuleEffect(type="set_variable", variable="y", value=2)],
-            )
-
-    def test_validation_neither_effect_nor_effects_error(self) -> None:
-        """Specifying neither effect nor effects should raise ValidationError."""
-        import pydantic
-
-        with pytest.raises(pydantic.ValidationError, match="either"):
+        with pytest.raises(pydantic.ValidationError, match="required and must be non-empty"):
             RuleDefinitionBody(event=RuleEvent.STOP)
 
     def test_validation_multiple_block_effects_error(self) -> None:
@@ -1008,28 +997,6 @@ class TestMultipleEffects:
                     RuleEffect(type="block", reason="second"),
                 ],
             )
-
-    @pytest.mark.asyncio
-    async def test_backward_compat_single_effect(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        """Existing single-effect rules should continue to work unchanged."""
-
-        _insert_rule(
-            manager,
-            "legacy-block",
-            RuleDefinitionBody(
-                event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="Legacy block"),
-            ),
-        )
-
-        engine = RuleEngine(db)
-        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
-        response = await engine.evaluate(event, session_id="sess-1", variables={})
-
-        assert response.decision == "block"
-        assert "Legacy block" in (response.reason or "")
 
     @pytest.mark.asyncio
     async def test_multiple_mcp_calls(
@@ -1074,7 +1041,7 @@ class TestToolBlockPending:
             "block-edit",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="No editing", tools=["Edit"]),
+                effects=[RuleEffect(type="block", reason="No editing", tools=["Edit"])],
             ),
         )
 
@@ -1096,7 +1063,7 @@ class TestToolBlockPending:
             "block-stop",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(type="block", reason="Cannot stop yet"),
+                effects=[RuleEffect(type="block", reason="Cannot stop yet")],
             ),
         )
 
@@ -1175,7 +1142,7 @@ class TestConsecutiveToolBlocks:
             "block-edit",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="No editing", tools=["Edit"]),
+                effects=[RuleEffect(type="block", reason="No editing", tools=["Edit"])],
             ),
         )
 
@@ -1256,7 +1223,7 @@ class TestConsecutiveToolBlocks:
             "block-edit",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effect=RuleEffect(type="block", reason="No editing", tools=["Edit"]),
+                effects=[RuleEffect(type="block", reason="No editing", tools=["Edit"])],
             ),
         )
 
@@ -1309,13 +1276,13 @@ class TestOverrideCollectsMcpCalls:
             "digest-on-response",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="mcp_call",
                     server="gobby-memory",
                     tool="build_turn_and_digest",
                     arguments={"session_id": "test"},
                     background=True,
-                ),
+                )],
             ),
             priority=11,
         )
@@ -1345,13 +1312,13 @@ class TestOverrideCollectsMcpCalls:
             "digest-on-response",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(
+                effects=[RuleEffect(
                     type="mcp_call",
                     server="gobby-memory",
                     tool="build_turn_and_digest",
                     arguments={"session_id": "test"},
                     background=True,
-                ),
+                )],
             ),
             priority=11,
         )
@@ -1379,7 +1346,7 @@ class TestOverrideCollectsMcpCalls:
             "harmless-rule",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(type="set_variable", variable="ran", value=True),
+                effects=[RuleEffect(type="set_variable", variable="ran", value=True)],
             ),
         )
 
@@ -1402,7 +1369,7 @@ class TestOverrideCollectsMcpCalls:
             "block-stop",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effect=RuleEffect(type="block", reason="Cannot stop yet"),
+                effects=[RuleEffect(type="block", reason="Cannot stop yet")],
             ),
         )
 

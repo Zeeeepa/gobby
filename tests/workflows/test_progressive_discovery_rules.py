@@ -329,7 +329,7 @@ class TestRuleDefinitionBodyToolsField:
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
             tools=["mcp__gobby__list_tools"],
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
         )
         assert body.tools == ["mcp__gobby__list_tools"]
 
@@ -339,7 +339,7 @@ class TestRuleDefinitionBodyToolsField:
 
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
         )
         assert body.tools is None
 
