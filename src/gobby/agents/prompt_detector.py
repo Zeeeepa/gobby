@@ -23,9 +23,11 @@ class PromptDetector:
         re.compile(r"Trust.*Folder", re.IGNORECASE),
     )
 
-    # Key sequence to send: "2" selects "Trust parent Folder" in
-    # Claude Code's trust dialog, followed by Enter to confirm.
-    TRUST_DISMISS_KEYS = "2\n"
+    # Key sequence to send: Enter to accept "Trust Folder" (option 1).
+    # Do NOT use "2\n" (Trust parent Folder) — that would trust the
+    # parent directory, granting access to sibling clone directories
+    # when multiple dev pipelines run in parallel.
+    TRUST_DISMISS_KEYS = "\n"
 
     def __init__(self) -> None:
         self._dismissed: set[str] = set()

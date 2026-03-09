@@ -155,7 +155,7 @@ class AgentLifecycleMonitor:
     async def check_trust_prompts(self) -> int:
         """Check for folder trust prompts and auto-dismiss them.
 
-        Sends key "2" (Trust parent Folder) + Enter to dismiss the prompt.
+        Sends Enter to accept "Trust Folder" and dismiss the prompt.
         Only fires once per agent to avoid repeated key-sends.
 
         Returns:

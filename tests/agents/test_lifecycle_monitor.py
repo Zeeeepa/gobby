@@ -832,7 +832,7 @@ class TestCheckTrustPrompts:
         monitor: AgentLifecycleMonitor,
         registry: RunningAgentRegistry,
     ) -> None:
-        """Trust prompt detected -> sends '2\\n' to dismiss."""
+        """Trust prompt detected -> sends Enter to dismiss."""
         _make_terminal_agent(registry, run_id="run-trust", tmux_session_name="gobby-trust")
 
         trust_output = (
@@ -856,7 +856,7 @@ class TestCheckTrustPrompts:
             handled = await monitor.check_trust_prompts()
 
         assert handled == 1
-        mock_send.assert_called_once_with("gobby-trust", "2\n")
+        mock_send.assert_called_once_with("gobby-trust", "\n")
 
     @pytest.mark.asyncio
     async def test_no_action_on_normal_output(
