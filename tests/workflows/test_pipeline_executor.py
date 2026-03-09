@@ -631,10 +631,10 @@ class TestExecuteNestedPipeline:
         assert result["pipeline"] == "child-pipeline", f"Unexpected result: {result}"
         assert result["execution_id"] == "pe-child-456"
         assert result["status"] == "completed"
-        # Child outputs surfaced
-        assert result["orchestration_complete"] is True
-        assert result["iteration"] == 3
-        assert result["session_task"] == "#42"
+        # Child outputs namespaced under "output"
+        assert result["output"]["orchestration_complete"] is True
+        assert result["output"]["iteration"] == 3
+        assert result["output"]["session_task"] == "#42"
 
     @pytest.mark.asyncio
     async def test_nested_pipeline_handles_not_found(

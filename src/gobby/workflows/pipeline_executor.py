@@ -773,7 +773,7 @@ class PipelineExecutor:
             if result.outputs_json:
                 try:
                     child_outputs = json.loads(result.outputs_json)
-                    step_output.update(child_outputs)
+                    step_output["output"] = child_outputs
                 except (json.JSONDecodeError, TypeError):
                     pass
             return step_output

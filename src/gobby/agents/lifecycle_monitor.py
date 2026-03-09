@@ -638,4 +638,4 @@ class AgentLifecycleMonitor:
                 message=f"Agent {run_id} orphaned after daemon restart",
             )
         except Exception:
-            pass
+            logger.exception("Failed to fire orphan completion for run %s", run_id)

@@ -220,7 +220,8 @@ class LocalPipelineExecutionManager:
         Returns:
             List of matching PipelineExecution instances
         """
-        like_pattern = f"%{query}%"
+        escaped_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        like_pattern = f"%{escaped_query}%"
         params: list[Any] = []
 
         # Build WHERE conditions
@@ -229,15 +230,15 @@ class LocalPipelineExecutionManager:
             params.append(self.project_id)
 
         # Build LIKE conditions
-        like_conditions = ["pe.pipeline_name LIKE ?"]
+        like_conditions = ["pe.pipeline_name LIKE ? ESCAPE '\\'"]
         params.append(like_pattern)
 
         if search_errors:
-            like_conditions.append("se.error LIKE ?")
+            like_conditions.append("se.error LIKE ? ESCAPE '\\'")
             params.append(like_pattern)
 
         if search_outputs:
-            like_conditions.append("se.output_json LIKE ?")
+            like_conditions.append("se.output_json LIKE ? ESCAPE '\\'")
             params.append(like_pattern)
 
         like_clause = " OR ".join(like_conditions)

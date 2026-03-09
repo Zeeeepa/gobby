@@ -472,18 +472,19 @@ def create_clones_registry(
         clone_storage.record_sync(clone_id)
 
         # Step 2: Merge the fetched ref into target branch
-        merge_result = git_manager.merge_branch(
-            source_branch=temp_ref,
-            target_branch=target_branch,
-            source_is_local=True,
-        )
-
-        # Clean up temp ref regardless of merge outcome
-        git_manager._run_git(
-            ["branch", "-D", temp_ref],
-            cwd=git_manager.repo_path,
-            timeout=10,
-        )
+        try:
+            merge_result = git_manager.merge_branch(
+                source_branch=temp_ref,
+                target_branch=target_branch,
+                source_is_local=True,
+            )
+        finally:
+            # Clean up temp ref regardless of merge outcome
+            git_manager._run_git(
+                ["branch", "-D", temp_ref],
+                cwd=git_manager.repo_path,
+                timeout=10,
+            )
 
         if not merge_result.success:
             # Check for conflicts

@@ -942,6 +942,23 @@ CREATE TABLE session_transcripts (
 
 """
 
+
+def _migrate_v147_add_agent_run_columns(db: LocalDatabase) -> None:
+    """Add runtime columns to agent_runs, idempotently."""
+    rows = db.fetchall("PRAGMA table_info(agent_runs)")
+    existing = {row["name"] for row in rows}
+    columns = [
+        ("pid", "INTEGER"),
+        ("tmux_session_name", "TEXT"),
+        ("mode", "TEXT DEFAULT 'terminal'"),
+        ("worktree_id", "TEXT"),
+        ("clone_id", "TEXT"),
+    ]
+    for col_name, col_type in columns:
+        if col_name not in existing:
+            db.execute(f"ALTER TABLE agent_runs ADD COLUMN {col_name} {col_type}")
+
+
 # Migrations beyond v133.
 # Add new migrations here. Do not modify the baseline schema above.
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
@@ -1113,11 +1130,7 @@ CREATE INDEX IF NOT EXISTS idx_pe_status_project_updated ON pipeline_executions(
     (
         147,
         "Add runtime columns to agent_runs for daemon restart recovery",
-        """ALTER TABLE agent_runs ADD COLUMN pid INTEGER;
-ALTER TABLE agent_runs ADD COLUMN tmux_session_name TEXT;
-ALTER TABLE agent_runs ADD COLUMN mode TEXT DEFAULT 'terminal';
-ALTER TABLE agent_runs ADD COLUMN worktree_id TEXT;
-ALTER TABLE agent_runs ADD COLUMN clone_id TEXT""",
+        _migrate_v147_add_agent_run_columns,
     ),
     (
         148,
