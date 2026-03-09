@@ -1,5 +1,5 @@
 import "./styles.css";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import type {
   ChatState,
@@ -69,6 +69,19 @@ export function ChatPage({
 
   const isMobile = useIsMobile();
   const canvas = useCanvasPanel();
+
+  // Track container width for dynamic artifact panel max
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [contentWidth, setContentWidth] = useState(0)
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => setContentWidth(entry.contentRect.width))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  const MIN_CHAT_WIDTH = 320
+  const maxPanelWidth = contentWidth > 0 ? contentWidth - MIN_CHAT_WIDTH : 800
 
   useEffect(() => {
     if (chat.canvasPanel) {
@@ -200,35 +213,75 @@ export function ChatPage({
           agentHasProject={agentHasProject}
         />
         <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
-          <div className="flex flex-1 min-h-0">
-            {/* Chat column — hidden on mobile when artifact/canvas panel is open */}
-            <div
-              className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}
-              style={!isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? { minWidth: 400 } : undefined}
-            >
-              <div className="hidden md:block">
-                <SessionStatusBar
-                  sessionRef={effectiveSessionRef}
-                  title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
-                  viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
-                  isAttached={!!chat.attachedSessionId}
-                  onAttach={chat.onAttachToViewed}
-                  onDetach={chat.onDetachFromSession}
+          <div className="flex flex-col flex-1 min-h-0">
+            {/* Status bar */}
+            <div className={`hidden md:block${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " !hidden" : ""}`}>
+              <SessionStatusBar
+                sessionRef={effectiveSessionRef}
+                title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
+                viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
+                isAttached={!!chat.attachedSessionId}
+                onAttach={chat.onAttachToViewed}
+                onDetach={chat.onDetachFromSession}
+              />
+            </div>
+
+            {/* Messages + Panel row */}
+            <div ref={contentRef} className="flex flex-1 min-h-0">
+              {/* Messages column — hidden on mobile when panel is open */}
+              <div
+                className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}
+                style={!isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? { minWidth: MIN_CHAT_WIDTH } : undefined}
+              >
+                <MessageList
+                  messages={chat.messages}
+                  isStreaming={chat.isStreaming}
+                  isThinking={chat.isThinking}
+                  isLoadingMessages={chat.isLoadingMessages}
+                  onRespondToQuestion={chat.onRespondToQuestion}
+                  onRespondToApproval={chat.onRespondToApproval}
+                  planPendingApproval={!isPanelOpen && chat.planPendingApproval}
+                  onApprovePlan={handleApprovePlan}
+                  onRequestPlanChanges={handleRequestPlanChanges}
+                  canvasSurfaces={chat.canvasSurfaces}
+                  onCanvasInteraction={chat.onCanvasInteraction}
                 />
               </div>
-              <MessageList
-                messages={chat.messages}
-                isStreaming={chat.isStreaming}
-                isThinking={chat.isThinking}
-                isLoadingMessages={chat.isLoadingMessages}
-                onRespondToQuestion={chat.onRespondToQuestion}
-                onRespondToApproval={chat.onRespondToApproval}
-                planPendingApproval={!isPanelOpen && chat.planPendingApproval}
-                onApprovePlan={handleApprovePlan}
-                onRequestPlanChanges={handleRequestPlanChanges}
-                canvasSurfaces={chat.canvasSurfaces}
-                onCanvasInteraction={chat.onCanvasInteraction}
-              />
+
+              {/* Artifact or Canvas panel */}
+              {canvas.isPanelOpen && canvas.activeCanvas ? (
+                <CanvasPanel
+                  state={canvas.activeCanvas}
+                  panelWidth={canvas.panelWidth}
+                  onResize={canvas.setPanelWidth}
+                  onClose={canvas.closeCanvas}
+                  isMobile={isMobile}
+                />
+              ) : isPanelOpen && activeArtifact ? (
+                <>
+                  {!isMobile && (
+                    <ResizeHandle
+                      onResize={setPanelWidth}
+                      panelWidth={panelWidth}
+                      maxWidth={maxPanelWidth}
+                    />
+                  )}
+                  <ArtifactPanel
+                    artifact={activeArtifact}
+                    width={isMobile ? undefined : panelWidth}
+                    onClose={closePanel}
+                    onUpdateContent={updateArtifact}
+                    onSetVersion={setVersion}
+                    planPendingApproval={chat.planPendingApproval}
+                    onApprovePlan={handleApprovePlan}
+                    onRequestPlanChanges={handleRequestPlanChanges}
+                  />
+                </>
+              ) : null}
+            </div>
+
+            {/* Chat input — full width below messages + panel, hidden on mobile when panel is open */}
+            <div className={isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? "hidden" : ""}>
               <ChatInput
                 onSend={chat.onSend}
                 onStop={chat.onStop}
@@ -263,36 +316,6 @@ export function ChatPage({
                 isMobile={isMobile}
               />
             </div>
-
-            {/* Artifact or Canvas panel */}
-            {canvas.isPanelOpen && canvas.activeCanvas ? (
-              <CanvasPanel
-                state={canvas.activeCanvas}
-                panelWidth={canvas.panelWidth}
-                onResize={canvas.setPanelWidth}
-                onClose={canvas.closeCanvas}
-                isMobile={isMobile}
-              />
-            ) : isPanelOpen && activeArtifact ? (
-              <>
-                {!isMobile && (
-                  <ResizeHandle
-                    onResize={setPanelWidth}
-                    panelWidth={panelWidth}
-                  />
-                )}
-                <ArtifactPanel
-                  artifact={activeArtifact}
-                  width={isMobile ? undefined : panelWidth}
-                  onClose={closePanel}
-                  onUpdateContent={updateArtifact}
-                  onSetVersion={setVersion}
-                  planPendingApproval={chat.planPendingApproval}
-                  onApprovePlan={handleApprovePlan}
-                  onRequestPlanChanges={handleRequestPlanChanges}
-                />
-              </>
-            ) : null}
           </div>
         </ArtifactContext.Provider>
       </div>
