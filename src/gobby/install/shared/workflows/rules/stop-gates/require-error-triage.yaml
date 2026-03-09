@@ -7,7 +7,8 @@ rules:
     enabled: false
     priority: 50
     when: >
-      variables.get('task_has_commits')
+      not variables.get('plan_mode')
+      and variables.get('task_has_commits')
       and not variables.get('pre_existing_errors_triaged')
       and variables.get('error_triage_blocks', 0) < 3
     effects:
