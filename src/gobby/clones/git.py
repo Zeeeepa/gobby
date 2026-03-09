@@ -171,7 +171,7 @@ class CloneGitManager:
         Returns:
             GitOperationResult with success status and message
         """
-        clone_path = Path(clone_path)
+        clone_path = Path(clone_path).expanduser()
 
         # Check if path already exists
         if clone_path.exists():
@@ -259,7 +259,7 @@ class CloneGitManager:
         Returns:
             GitOperationResult with success status and message
         """
-        clone_path = Path(clone_path)
+        clone_path = Path(clone_path).expanduser()
 
         # Check if path already exists
         if clone_path.exists():

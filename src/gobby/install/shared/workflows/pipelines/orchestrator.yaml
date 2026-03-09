@@ -138,7 +138,7 @@ steps:
       tool: create_clone
       arguments:
         branch_name: "${{ 'epic-' + str(get_task_info.output.seq_num) if get_task_info.output.task_type == 'epic' else 'task-' + str(get_task_info.output.seq_num) }}"
-        clone_path: "${{ '/tmp/gobby-clones/epic-' + str(get_task_info.output.seq_num) }}"
+        clone_path: "${{ '~/.gobby/clones/epic-' + str(get_task_info.output.seq_num) }}"
         base_branch: "${{ inputs.merge_target }}"
         task_id: "${{ inputs.task_id }}"
         use_local: true

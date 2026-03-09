@@ -41,8 +41,9 @@ class TestCloneGitManagerFullClone:
 
         assert result.success is True
 
-        call_args = mock_run.call_args
-        cmd = call_args[0][0]
+        # First call is the clone, subsequent calls may be git config
+        clone_call = mock_run.call_args_list[0]
+        cmd = clone_call[0][0]
         assert "clone" in cmd
         assert "--depth" not in cmd
         assert "--single-branch" not in cmd
