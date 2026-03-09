@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useRef, forwardRef } from 'react'
 import type { ChatMessage } from '../../types/chat'
 import { ScrollArea } from './ui/ScrollArea'
 import { MessageItem } from './MessageItem'
@@ -20,9 +20,21 @@ interface MessageListProps {
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
 
-export function MessageList({ messages, isStreaming, isThinking, isLoadingMessages, onRespondToQuestion, onRespondToApproval, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }: MessageListProps) {
+export interface MessageListHandle {
+  scrollToBottom: () => void
+}
+
+export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({ messages, isStreaming, isThinking, isLoadingMessages, onRespondToQuestion, onRespondToApproval, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
+
+  useImperativeHandle(ref, () => ({
+    scrollToBottom() {
+      userScrolledUpRef.current = false
+      const el = scrollRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    },
+  }))
 
   // Compute a fingerprint that changes when messages are added OR mutated
   // (e.g. tool_status updates that modify toolCalls on existing messages)
@@ -97,7 +109,7 @@ export function MessageList({ messages, isStreaming, isThinking, isLoadingMessag
       )}
     </ScrollArea>
   )
-}
+})
 
 function ThinkingIndicator() {
   return (

@@ -41,6 +41,7 @@ interface ChatInputProps {
   agentHasGlobal?: boolean
   agentHasProject?: boolean
   isMobile?: boolean
+  onScrollToBottom?: () => void
 }
 
 export function ChatInput({
@@ -75,6 +76,7 @@ export function ChatInput({
   agentHasGlobal = false,
   agentHasProject = false,
   isMobile = false,
+  onScrollToBottom,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -101,6 +103,8 @@ export function ChatInput({
     if (textarea) {
       textarea.style.height = '0'
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+      // Keep cursor visible when content exceeds max height
+      textarea.scrollTop = textarea.scrollHeight
     }
   }, [input])
 
@@ -121,8 +125,9 @@ export function ChatInput({
       onSend(trimmed, hasFiles ? queuedFiles : undefined)
       setInput('')
       setQueuedFiles([])
+      onScrollToBottom?.()
     }
-  }, [input, disabled, onSend, queuedFiles])
+  }, [input, disabled, onSend, queuedFiles, onScrollToBottom])
 
   const handleChange = useCallback((value: string) => {
     setInput(value)
@@ -374,6 +379,7 @@ export function ChatInput({
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
+            inputMode="text"
             spellCheck={false}
             data-form-type="other"
             data-lpignore="true"
