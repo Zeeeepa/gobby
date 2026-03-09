@@ -179,9 +179,9 @@ class TestRequireSchemaBeforeCall:
         assert mcp_effects[0].tool == "list_mcp_servers"
         assert mcp_effects[1].tool == "list_tools"
         assert mcp_effects[2].tool == "get_tool_schema"
-        # Last two should block on failure
+        # list_tools blocks on failure; get_tool_schema injects error as context
         assert mcp_effects[1].block_on_failure is True
-        assert mcp_effects[2].block_on_failure is True
+        assert mcp_effects[2].block_on_failure is False
 
     def test_when_checks_tool_unlocked(self, db, manager) -> None:
         """Should check is_tool_unlocked, is_discovery_tool, and call_tool."""

@@ -36,7 +36,6 @@ rules:
           server_name: "{{ tool_input.get('server_name', '') }}"
           tool_name: "{{ tool_input.get('tool_name', '') }}"
         inject_result: true
-        block_on_failure: true
       - type: set_variable
         variable: unlocked_tools
         value: "variables.get('unlocked_tools', []) + [tool_input.get('server_name', '') + ':' + tool_input.get('tool_name', '')]"
