@@ -69,12 +69,32 @@ class TestCloneGitManagerShallowClone:
 
         assert result.success is True
         assert "created" in result.message.lower() or "cloned" in result.message.lower()
-        # Verify git clone was called with --depth 1
-        call_args = mock_run.call_args
-        cmd = call_args[0][0]
+        # Verify git clone was called with --depth 1 (first call, before config)
+        clone_call = mock_run.call_args_list[0]
+        cmd = clone_call[0][0]
         assert "clone" in cmd
         assert "--depth" in cmd
         assert "1" in cmd
+
+    def test_shallow_clone_sets_pull_rebase(self, manager, mock_run, tmp_path: Path) -> None:
+        """Shallow clone sets pull.rebase=true after successful clone."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="Cloning into...", stderr="")
+        clone_path = tmp_path / "test_clone"
+
+        result = manager.shallow_clone(
+            remote_url="https://github.com/user/repo.git",
+            clone_path=clone_path,
+            branch="main",
+        )
+
+        assert result.success is True
+        # Second call should be git config pull.rebase true
+        assert mock_run.call_count >= 2
+        config_call = mock_run.call_args_list[1]
+        config_cmd = config_call[0][0]
+        assert "config" in config_cmd
+        assert "pull.rebase" in config_cmd
+        assert "true" in config_cmd
 
     def test_shallow_clone_with_custom_depth(self, manager, mock_run, tmp_path: Path) -> None:
         """Shallow clone respects custom depth parameter."""
@@ -88,8 +108,8 @@ class TestCloneGitManagerShallowClone:
             depth=10,
         )
 
-        call_args = mock_run.call_args
-        cmd = call_args[0][0]
+        clone_call = mock_run.call_args_list[0]
+        cmd = clone_call[0][0]
         assert "--depth" in cmd
         depth_idx = cmd.index("--depth")
         assert cmd[depth_idx + 1] == "10"
@@ -105,8 +125,8 @@ class TestCloneGitManagerShallowClone:
             branch="develop",
         )
 
-        call_args = mock_run.call_args
-        cmd = call_args[0][0]
+        clone_call = mock_run.call_args_list[0]
+        cmd = clone_call[0][0]
         assert "-b" in cmd or "--branch" in cmd
         # Find branch arg
         if "-b" in cmd:
@@ -170,8 +190,8 @@ class TestCloneGitManagerShallowClone:
             branch="main",
         )
 
-        call_args = mock_run.call_args
-        cmd = call_args[0][0]
+        clone_call = mock_run.call_args_list[0]
+        cmd = clone_call[0][0]
         assert "--single-branch" in cmd
 
 
@@ -203,6 +223,19 @@ class TestCloneGitManagerSyncClone:
         call_args = mock_run.call_args
         cmd = call_args[0][0]
         assert "pull" in cmd
+
+    def test_sync_clone_pull_uses_rebase(self, manager, mock_run, tmp_path: Path) -> None:
+        """Sync clone pull uses --rebase to handle divergent branches."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        mock_run.return_value = MagicMock(returncode=0, stdout="Already up to date.", stderr="")
+
+        result = manager.sync_clone(clone_path, direction="pull")
+
+        assert result.success is True
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        assert "--rebase" in cmd
 
     def test_sync_clone_push_success(self, manager, mock_run, tmp_path: Path) -> None:
         """Sync clone pushes changes successfully."""

@@ -451,27 +451,37 @@ def create_clones_registry(
         if not clone:
             return {"success": False, "error": f"Clone not found: {clone_id}"}
 
-        # Step 1: Push clone changes to remote
+        # Step 1: Fetch clone's branch directly from clone path into main repo.
+        # This avoids pushing to origin (which fails on divergent branches).
         clone_storage.mark_syncing(clone_id)
-        sync_result = git_manager.sync_clone(
-            clone_path=clone.clone_path,
-            direction="push",
+        temp_ref = f"clone-merge/{clone.branch_name}"
+        fetch_result = git_manager._run_git(
+            ["fetch", str(clone.clone_path), f"{clone.branch_name}:refs/heads/{temp_ref}"],
+            cwd=git_manager.repo_path,
+            timeout=120,
         )
 
-        if not sync_result.success:
+        if fetch_result.returncode != 0:
             clone_storage.update(clone_id, status="active")
             return {
                 "success": False,
-                "error": f"Sync failed: {sync_result.error or sync_result.message}",
-                "step": "sync",
+                "error": f"Fetch from clone failed: {fetch_result.stderr}",
+                "step": "fetch",
             }
 
         clone_storage.record_sync(clone_id)
 
-        # Step 2: Merge in main repo
+        # Step 2: Merge the fetched ref into target branch
         merge_result = git_manager.merge_branch(
-            source_branch=clone.branch_name,
+            source_branch=temp_ref,
             target_branch=target_branch,
+        )
+
+        # Clean up temp ref regardless of merge outcome
+        git_manager._run_git(
+            ["branch", "-D", temp_ref],
+            cwd=git_manager.repo_path,
+            timeout=10,
         )
 
         if not merge_result.success:

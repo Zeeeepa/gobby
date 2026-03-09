@@ -467,8 +467,8 @@ class TestMergeCloneToTarget:
         )
         mock_clone_storage.update.return_value = MagicMock()
 
-        # Mock sync (push)
-        mock_git_manager.sync_clone.return_value = MagicMock(success=True)
+        # Mock fetch from clone path (returncode=0 = success)
+        mock_git_manager._run_git.return_value = MagicMock(returncode=0, stderr="")
         # Mock merge operation
         mock_git_manager.merge_branch.return_value = MagicMock(
             success=True,
@@ -481,8 +481,10 @@ class TestMergeCloneToTarget:
         )
 
         assert result["success"] is True
-        # Should have synced first
-        mock_git_manager.sync_clone.assert_called_once()
+        # Should have fetched from clone path (not pushed to origin)
+        fetch_call = mock_git_manager._run_git.call_args_list[0]
+        assert "fetch" in fetch_call[0][0]
+        assert "/tmp/clones/test" in fetch_call[0][0]
         # Should have set cleanup_after on success
         mock_clone_storage.update.assert_called()
 
@@ -500,8 +502,8 @@ class TestMergeCloneToTarget:
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_merge_clone_sync_failure(self, registry, mock_clone_storage, mock_git_manager):
-        """Merge fails when sync fails."""
+    async def test_merge_clone_fetch_failure(self, registry, mock_clone_storage, mock_git_manager):
+        """Merge fails when fetch from clone path fails."""
         mock_clone_storage.get.return_value = Clone(
             id="clone-123",
             project_id="proj-1",
@@ -518,10 +520,10 @@ class TestMergeCloneToTarget:
             updated_at="now",
         )
 
-        # Sync fails
-        mock_git_manager.sync_clone.return_value = MagicMock(
-            success=False,
-            error="Push rejected",
+        # Fetch from clone path fails
+        mock_git_manager._run_git.return_value = MagicMock(
+            returncode=1,
+            stderr="fatal: not a git repository",
         )
 
         result = await registry.call(
@@ -530,7 +532,7 @@ class TestMergeCloneToTarget:
         )
 
         assert result["success"] is False
-        assert "sync" in result["error"].lower() or "push" in result["error"].lower()
+        assert "fetch" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_merge_clone_with_conflicts(self, registry, mock_clone_storage, mock_git_manager):
@@ -553,7 +555,8 @@ class TestMergeCloneToTarget:
             updated_at="now",
         )
 
-        mock_git_manager.sync_clone.return_value = MagicMock(success=True)
+        # Fetch succeeds
+        mock_git_manager._run_git.return_value = MagicMock(returncode=0, stderr="")
         # Merge has conflicts - error="merge_conflict" signals conflict
         mock_git_manager.merge_branch.return_value = MagicMock(
             success=False,
@@ -595,7 +598,8 @@ class TestMergeCloneToTarget:
         )
         mock_clone_storage.update.return_value = MagicMock()
 
-        mock_git_manager.sync_clone.return_value = MagicMock(success=True)
+        # Fetch succeeds
+        mock_git_manager._run_git.return_value = MagicMock(returncode=0, stderr="")
         mock_git_manager.merge_branch.return_value = MagicMock(
             success=True,
             has_conflicts=False,

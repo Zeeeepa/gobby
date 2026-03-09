@@ -202,6 +202,8 @@ class CloneGitManager:
             )
 
             if result.returncode == 0:
+                # Set pull.rebase so divergent branches are handled cleanly
+                self._run_git(["config", "pull.rebase", "true"], cwd=clone_path)
                 return GitOperationResult(
                     success=True,
                     message=f"Successfully cloned to {clone_path}",
@@ -285,6 +287,8 @@ class CloneGitManager:
             )
 
             if result.returncode == 0:
+                # Set pull.rebase so divergent branches are handled cleanly
+                self._run_git(["config", "pull.rebase", "true"], cwd=clone_path)
                 return GitOperationResult(
                     success=True,
                     message=f"Successfully cloned to {clone_path}",
@@ -342,9 +346,9 @@ class CloneGitManager:
 
         try:
             if direction in ("pull", "both"):
-                # Pull changes
+                # Pull with rebase to handle divergent branches cleanly
                 pull_result = self._run_git(
-                    ["pull", remote],
+                    ["pull", "--rebase", remote],
                     cwd=clone_path,
                     timeout=120,
                 )
