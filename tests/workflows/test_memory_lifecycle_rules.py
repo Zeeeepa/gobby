@@ -111,8 +111,8 @@ class TestResetMemoryTrackingOnStart:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "injected_memory_ids"
+        assert body.effects[0].type == "set_variable"
+        assert body.effects[0].variable == "injected_memory_ids"
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
@@ -137,16 +137,16 @@ class TestMemoryRecallOnPrompt:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "search_memories"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-memory"
+        assert body.effects[0].tool == "search_memories"
 
     def test_not_background(self, db, manager) -> None:
         """Recall must block to inject context."""
         _sync_bundled(db)
         row = manager.get_by_name("memory-recall-on-prompt", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.effect.background is False
+        assert body.effects[0].background is False
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -163,9 +163,9 @@ class TestMemoryCaptureNudge:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
-        assert "create_memory" in body.effect.template
+        assert body.effects[0].type == "inject_context"
+        assert body.effects[0].template is not None
+        assert "create_memory" in body.effects[0].template
 
     def test_has_when_condition(self, db, manager) -> None:
         """Only nudge on substantial prompts (not slash commands)."""
@@ -190,9 +190,9 @@ class TestRequireMemoryReviewBeforeClose:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
-        assert body.effect.type == "block"
-        assert body.effect.reason is not None
-        assert "create_memory" in body.effect.reason
+        assert body.effects[0].type == "block"
+        assert body.effects[0].reason is not None
+        assert "create_memory" in body.effects[0].reason
 
     def test_has_when_condition(self, db, manager) -> None:
         """Only block close_task with commit_sha when pending_memory_review is set."""
@@ -219,9 +219,9 @@ class TestClearMemoryReviewOnCreate:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "pending_memory_review"
-        assert body.effect.value is False
+        assert body.effects[0].type == "set_variable"
+        assert body.effects[0].variable == "pending_memory_review"
+        assert body.effects[0].value is False
 
     def test_has_when_condition(self, db, manager) -> None:
         """Must match create_memory on gobby-memory server."""

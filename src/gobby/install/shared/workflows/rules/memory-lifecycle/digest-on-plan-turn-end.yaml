@@ -7,8 +7,8 @@ rules:
     enabled: false
     priority: 11
     when: "event.data.get('tool_name') in ('ExitPlanMode', 'AskUserQuestion')"
-    effect:
-      type: mcp_call
-      server: gobby-memory
-      tool: build_turn_and_digest
-      background: true
+    effects:
+      - type: mcp_call
+        server: gobby-memory
+        tool: build_turn_and_digest
+        background: true

@@ -6,8 +6,8 @@ rules:
     event: stop
     enabled: false
     priority: 11
-    effect:
-      type: mcp_call
-      server: gobby-memory
-      tool: build_turn_and_digest
-      background: true
+    effects:
+      - type: mcp_call
+        server: gobby-memory
+        tool: build_turn_and_digest
+        background: true

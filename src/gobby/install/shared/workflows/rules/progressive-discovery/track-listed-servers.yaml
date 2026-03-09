@@ -7,7 +7,7 @@ rules:
     enabled: false
     priority: 22
     when: "tool_input.get('server_name') and (event.data.get('mcp_tool') == 'list_tools' or event.data.get('tool_name') in ('list_tools', 'mcp__gobby__list_tools'))"
-    effect:
-      type: set_variable
-      variable: listed_servers
-      value: "variables.get('listed_servers', []) + [tool_input.get('server_name', '')]"
+    effects:
+      - type: set_variable
+        variable: listed_servers
+        value: "variables.get('listed_servers', []) + [tool_input.get('server_name', '')]"

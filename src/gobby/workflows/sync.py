@@ -514,11 +514,11 @@ def _sync_single_rule(
     body_dict: dict[str, Any] = {
         "event": rule_data.get("event"),
     }
-    # Support both singular 'effect' and plural 'effects'
+    # Support both singular 'effect' and plural 'effects' in YAML
     if "effects" in rule_data:
         body_dict["effects"] = rule_data["effects"]
-    else:
-        body_dict["effect"] = rule_data.get("effect")
+    elif "effect" in rule_data:
+        body_dict["effects"] = [rule_data["effect"]]
     if rule_data.get("when"):
         body_dict["when"] = rule_data["when"]
     if rule_data.get("match"):

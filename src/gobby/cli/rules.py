@@ -67,7 +67,7 @@ def _rule_detail(row: Any) -> dict[str, Any]:
         "group": body.get("group"),
         "when": body.get("when"),
         "match": body.get("match"),
-        "effect": body.get("effect"),
+        "effects": body.get("effects") or ([body["effect"]] if body.get("effect") else None),
         "enabled": row.enabled,
         "priority": row.priority,
         "source": row.source,
@@ -158,8 +158,8 @@ def show_rule(name: str, json_output: bool) -> None:
         click.echo(f"Tags: {', '.join(detail['tags'])}")
     if detail.get("match"):
         click.echo(f"Match: {json.dumps(detail['match'], indent=2)}")
-    if detail.get("effect"):
-        click.echo(f"Effect: {json.dumps(detail['effect'], indent=2)}")
+    if detail.get("effects"):
+        click.echo(f"Effects: {json.dumps(detail['effects'], indent=2)}")
 
 
 @rules.command("enable")
@@ -258,8 +258,10 @@ def export_rules(group: str | None) -> None:
             rule_entry["when"] = body["when"]
         if body.get("match"):
             rule_entry["match"] = body["match"]
-        if body.get("effect"):
-            rule_entry["effect"] = body["effect"]
+        if body.get("effects"):
+            rule_entry["effects"] = body["effects"]
+        elif body.get("effect"):
+            rule_entry["effects"] = [body["effect"]]
         groups[rule_group][row.name] = rule_entry
 
     # Output each group as a YAML document

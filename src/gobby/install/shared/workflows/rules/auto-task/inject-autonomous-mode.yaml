@@ -7,13 +7,13 @@ rules:
     enabled: false
     priority: 60
     when: "variables.get('auto_task_ref')"
-    effect:
-      type: inject_context
-      template: |
-        You are in autonomous task execution mode.
+    effects:
+      - type: inject_context
+        template: |
+          You are in autonomous task execution mode.
 
-        Auto-task: {{ variables.auto_task_ref or '(unknown)' }}
+          Auto-task: {{ variables.auto_task_ref or '(unknown)' }}
 
-        Work on this task and its subtasks until completion.
-        Use suggest_next_task() to find available work.
-        When {{ variables.auto_task_ref or '(unknown)' }} is completed, you may stop.
+          Work on this task and its subtasks until completion.
+          Use suggest_next_task() to find available work.
+          When {{ variables.auto_task_ref or '(unknown)' }} is completed, you may stop.

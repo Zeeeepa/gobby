@@ -304,7 +304,8 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
                 "id": updated.id,
                 "name": updated.name,
                 "event": body.get("event"),
-                "effect": body.get("effect"),
+                "effects": body.get("effects")
+                or ([body["effect"]] if body.get("effect") else None),
                 "group": body.get("group"),
                 "when": body.get("when"),
                 "match": body.get("match"),

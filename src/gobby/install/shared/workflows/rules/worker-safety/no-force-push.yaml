@@ -6,8 +6,8 @@ rules:
     event: before_tool
     enabled: false
     when: "variables.get('is_spawned_agent')"
-    effect:
-      type: block
-      tools: [Bash]
-      command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
-      reason: "Force pushing is never allowed."
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
+        reason: "Force pushing is never allowed."

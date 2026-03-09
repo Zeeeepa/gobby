@@ -7,7 +7,7 @@ rules:
     enabled: false
     priority: 5
     when: "variables.get('pending_context_reset')"
-    effect:
-      type: set_variable
-      variable: pending_context_reset
-      value: false
+    effects:
+      - type: set_variable
+        variable: pending_context_reset
+        value: false

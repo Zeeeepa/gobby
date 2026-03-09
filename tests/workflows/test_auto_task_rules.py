@@ -81,7 +81,7 @@ class TestAutoTaskSync:
         for row in rules:
             if row.name in AUTO_TASK_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type in {
+                assert body.effects[0].type in {
                     "block",
                     "inject_context",
                 }
@@ -101,10 +101,10 @@ class TestInjectAutoTaskContext:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
+        assert body.effects[0].type == "inject_context"
+        assert body.effects[0].template is not None
         assert (
-            "autonomous" in body.effect.template.lower() or "auto_task_ref" in body.effect.template
+            "autonomous" in body.effects[0].template.lower() or "auto_task_ref" in body.effects[0].template
         )
 
     def test_has_auto_task_ref_condition(self, db, manager) -> None:
@@ -120,7 +120,7 @@ class TestInjectAutoTaskContext:
         _sync_bundled(db)
         row = manager.get_by_name("inject-auto-task-context")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert "suggest_next_task" in body.effect.template
+        assert "suggest_next_task" in body.effects[0].template
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -137,8 +137,8 @@ class TestGuideTaskContinuation:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "stop"
-        assert body.effect.type == "block"
-        assert body.effect.reason is not None
+        assert body.effects[0].type == "block"
+        assert body.effects[0].reason is not None
 
     def test_has_task_tree_condition(self, db, manager) -> None:
         """Should check task_tree_complete and auto_task_ref."""
@@ -162,7 +162,7 @@ class TestGuideTaskContinuation:
         _sync_bundled(db)
         row = manager.get_by_name("guide-task-continuation")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert "suggest_next_task" in body.effect.reason
+        assert "suggest_next_task" in body.effects[0].reason
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -179,8 +179,8 @@ class TestNotifyTaskTreeComplete:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "stop"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
+        assert body.effects[0].type == "inject_context"
+        assert body.effects[0].template is not None
 
     def test_has_completion_condition(self, db, manager) -> None:
         """Should check both auto_task_ref set and task_tree_complete."""
@@ -196,4 +196,4 @@ class TestNotifyTaskTreeComplete:
         _sync_bundled(db)
         row = manager.get_by_name("notify-task-tree-complete")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert "complete" in body.effect.template.lower()
+        assert "complete" in body.effects[0].template.lower()

@@ -97,7 +97,7 @@ class TestSyncRulesSync:
         for row in rules:
             if row.name in SYNC_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
-                assert body.effect.type == "mcp_call", f"{row.name} wrong effect type"
+                assert body.effects[0].type == "mcp_call", f"{row.name} wrong effect type"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -114,9 +114,9 @@ class TestTaskSyncImportOnStart:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-tasks"
-        assert body.effect.tool == "sync_import"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-tasks"
+        assert body.effects[0].tool == "sync_import"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -133,9 +133,9 @@ class TestTaskSyncExportOnEnd:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_end"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-tasks"
-        assert body.effect.tool == "sync_export"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-tasks"
+        assert body.effects[0].tool == "sync_export"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -152,9 +152,9 @@ class TestTaskSyncExportOnCompact:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-tasks"
-        assert body.effect.tool == "sync_export"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-tasks"
+        assert body.effects[0].tool == "sync_export"
 
     def test_has_gemini_filter(self, db, manager) -> None:
         """Should filter out automatic gemini compactions."""
@@ -179,9 +179,9 @@ class TestMemorySyncImport:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "sync_import"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-memory"
+        assert body.effects[0].tool == "sync_import"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -198,9 +198,9 @@ class TestMemorySyncExportOnEnd:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_end"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "sync_export"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-memory"
+        assert body.effects[0].tool == "sync_export"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -217,9 +217,9 @@ class TestMemorySyncExportOnCompact:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-memory"
-        assert body.effect.tool == "sync_export"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-memory"
+        assert body.effects[0].tool == "sync_export"
 
     def test_has_gemini_filter(self, db, manager) -> None:
         """Should filter out automatic gemini compactions."""

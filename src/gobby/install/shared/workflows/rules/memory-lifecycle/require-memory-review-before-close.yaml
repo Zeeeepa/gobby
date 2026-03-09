@@ -11,12 +11,12 @@ rules:
       and not variables.get('plan_mode')
       and variables.get('pending_memory_review')
       and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')
-    effect:
-      type: block
-      reason: |
-        Consider saving any valuable memories from this task before closing.
-        Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
-        If nothing new was learned, no action needed.
+    effects:
+      - type: block
+        reason: |
+          Consider saving any valuable memories from this task before closing.
+          Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+          If nothing new was learned, no action needed.
 
-        Do NOT create memories for bugs, errors, or issues you encounter.
-        Create tasks instead so they get fixed.
+          Do NOT create memories for bugs, errors, or issues you encounter.
+          Create tasks instead so they get fixed.

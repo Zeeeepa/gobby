@@ -157,8 +157,8 @@ class TestResetPlanModeOnSessionStart:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.variable == "plan_mode"
-        assert body.effect.value is False
+        assert body.effects[0].variable == "plan_mode"
+        assert body.effects[0].value is False
 
     def test_when_condition_covers_clear_compact_startup(self, db, manager) -> None:
         """Should fire on clear, compact, and startup sources."""

@@ -128,7 +128,7 @@ class TestTrackPendingMemoryReview:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.effect.type == "set_variable"
+        assert body.effects[0].type == "set_variable"
 
     def test_sets_pending_memory_review_variable(self, db, manager) -> None:
         """Should set the pending_memory_review variable to true."""
@@ -137,8 +137,8 @@ class TestTrackPendingMemoryReview:
         row = manager.get_by_name("track-pending-memory-review", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
-        assert body.effect.variable == "pending_memory_review"
-        assert body.effect.value is True
+        assert body.effects[0].variable == "pending_memory_review"
+        assert body.effects[0].value is True
 
     def test_has_when_condition_for_edit_tools(self, db, manager) -> None:
         """Should fire on Edit, Write, NotebookEdit, or close_task."""

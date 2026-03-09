@@ -208,8 +208,8 @@ class TestTrackSchemaLookup:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "unlocked_tools"
+        assert body.effects[0].type == "set_variable"
+        assert body.effects[0].variable == "unlocked_tools"
 
     def test_when_matches_get_tool_schema(self, db, manager) -> None:
         """Should fire on get_tool_schema calls."""
@@ -234,9 +234,9 @@ class TestTrackServersListed:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "servers_listed"
-        assert body.effect.value is True
+        assert body.effects[0].type == "set_variable"
+        assert body.effects[0].variable == "servers_listed"
+        assert body.effects[0].value is True
 
     def test_when_matches_list_mcp_servers(self, db, manager) -> None:
         """Should fire on list_mcp_servers calls."""
@@ -261,8 +261,8 @@ class TestTrackListedServers:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "listed_servers"
+        assert body.effects[0].type == "set_variable"
+        assert body.effects[0].variable == "listed_servers"
 
     def test_when_matches_list_tools(self, db, manager) -> None:
         """Should fire on list_tools calls."""

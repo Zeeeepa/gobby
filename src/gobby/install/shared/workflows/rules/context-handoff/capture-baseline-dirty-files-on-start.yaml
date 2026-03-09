@@ -6,7 +6,7 @@ rules:
     event: session_start
     enabled: false
     priority: 8
-    effect:
-      type: mcp_call
-      server: gobby-sessions
-      tool: capture_baseline_dirty_files
+    effects:
+      - type: mcp_call
+        server: gobby-sessions
+        tool: capture_baseline_dirty_files

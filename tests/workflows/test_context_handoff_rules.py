@@ -116,8 +116,8 @@ class TestClearPendingContextResetOnStart:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "pending_context_reset"
+        assert body.effects[0].type == "set_variable"
+        assert body.effects[0].variable == "pending_context_reset"
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
@@ -141,9 +141,9 @@ class TestCaptureBaselineDirtyFilesOnStart:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "mcp_call"
-        assert body.effect.server == "gobby-sessions"
-        assert body.effect.tool == "capture_baseline_dirty_files"
+        assert body.effects[0].type == "mcp_call"
+        assert body.effects[0].server == "gobby-sessions"
+        assert body.effects[0].tool == "capture_baseline_dirty_files"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -160,9 +160,9 @@ class TestInjectPreviousSessionSummary:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
-        assert "Previous Session Context" in body.effect.template
+        assert body.effects[0].type == "inject_context"
+        assert body.effects[0].template is not None
+        assert "Previous Session Context" in body.effects[0].template
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
@@ -186,9 +186,9 @@ class TestInjectCompactHandoff:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
-        assert "Continuation Context" in body.effect.template
+        assert body.effects[0].type == "inject_context"
+        assert body.effects[0].template is not None
+        assert "Continuation Context" in body.effects[0].template
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
@@ -212,8 +212,8 @@ class TestInjectTaskContextOnStart:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
+        assert body.effects[0].type == "inject_context"
+        assert body.effects[0].template is not None
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
@@ -237,9 +237,9 @@ class TestInjectErrorTriagePolicy:
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
-        assert "Pre-Existing" in body.effect.template
+        assert body.effects[0].type == "inject_context"
+        assert body.effects[0].template is not None
+        assert "Pre-Existing" in body.effects[0].template
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)

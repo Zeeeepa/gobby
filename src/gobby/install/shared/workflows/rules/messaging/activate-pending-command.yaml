@@ -7,7 +7,7 @@ rules:
     enabled: false
     priority: 15
     when: "variables.get('is_spawned_agent') and variables.get('has_pending_command')"
-    effect:
-      type: mcp_call
-      server: gobby-agents
-      tool: activate_command
+    effects:
+      - type: mcp_call
+        server: gobby-agents
+        tool: activate_command

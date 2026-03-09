@@ -6,10 +6,10 @@ rules:
     event: before_agent
     enabled: false
     priority: 10
-    effect:
-      type: mcp_call
-      server: gobby-memory
-      tool: search_memories
-      arguments:
-        limit: 5
-      background: false
+    effects:
+      - type: mcp_call
+        server: gobby-memory
+        tool: search_memories
+        arguments:
+          limit: 5
+        background: false

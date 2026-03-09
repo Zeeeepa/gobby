@@ -7,7 +7,7 @@ rules:
     enabled: false
     priority: 85
     when: "event.data.get('mcp_tool') == 'create_memory' and event.data.get('mcp_server') == 'gobby-memory'"
-    effect:
-      type: set_variable
-      variable: pending_memory_review
-      value: false
+    effects:
+      - type: set_variable
+        variable: pending_memory_review
+        value: false

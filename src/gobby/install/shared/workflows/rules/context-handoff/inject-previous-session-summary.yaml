@@ -7,10 +7,10 @@ rules:
     enabled: false
     priority: 10
     when: "event.data.get('source') == 'clear'"
-    effect:
-      type: inject_context
-      template: |
-        ## Previous Session Context
-        *Injected by Gobby session handoff*
+    effects:
+      - type: inject_context
+        template: |
+          ## Previous Session Context
+          *Injected by Gobby session handoff*
 
-        {{ full_session_summary or '' }}
+          {{ full_session_summary or '' }}

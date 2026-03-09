@@ -7,7 +7,7 @@ rules:
     enabled: false
     priority: 90
     when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit']"
-    effect:
-      type: set_variable
-      variable: pending_memory_review
-      value: true
+    effects:
+      - type: set_variable
+        variable: pending_memory_review
+        value: true

@@ -204,7 +204,7 @@ class TestRequireTaskClose:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "stop"
-        assert body.effect.type == "block"
+        assert body.effects[0].type == "block"
 
     def test_when_checks_mode_level_and_task(self, db, manager) -> None:
         """Should check mode_level and task_claimed."""

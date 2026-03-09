@@ -257,9 +257,9 @@ class TestEnforceTddTrackTestsStructure:
         row = manager.get_by_name("enforce-tdd-track-tests")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
-        assert body.effect.type == "set_variable"
-        assert body.effect.variable == "tdd_tests_written"
-        assert "tdd_tests_written" in body.effect.value
+        assert body.effects[0].type == "set_variable"
+        assert body.effects[0].variable == "tdd_tests_written"
+        assert "tdd_tests_written" in body.effects[0].value
 
     def test_when_checks_enforce_tdd_and_tool(self, db, manager) -> None:
         _sync_bundled(db)

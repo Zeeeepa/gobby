@@ -6,20 +6,20 @@ rules:
     event: session_start
     enabled: false
     priority: 20
-    effect:
-      type: mcp_call
-      server: gobby-tasks
-      tool: sync_import
+    effects:
+      - type: mcp_call
+        server: gobby-tasks
+        tool: sync_import
 
   task-sync-export-on-end:
     description: "Export tasks to .gobby/tasks.jsonl on session end"
     event: session_end
     enabled: false
     priority: 50
-    effect:
-      type: mcp_call
-      server: gobby-tasks
-      tool: sync_export
+    effects:
+      - type: mcp_call
+        server: gobby-tasks
+        tool: sync_export
 
   task-sync-export-on-compact:
     description: "Export tasks to .gobby/tasks.jsonl before compaction"
@@ -27,7 +27,7 @@ rules:
     enabled: false
     priority: 50
     when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
-    effect:
-      type: mcp_call
-      server: gobby-tasks
-      tool: sync_export
+    effects:
+      - type: mcp_call
+        server: gobby-tasks
+        tool: sync_export

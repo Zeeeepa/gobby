@@ -7,5 +7,5 @@ rules:
     enabled: false
     priority: 30
     when: "event.data.get('mcp_tool') in ['claim_task', 'create_task'] and not event.data.get('error')"
-    effect:
-      type: observe
+    effects:
+      - type: observe

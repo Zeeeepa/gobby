@@ -10,9 +10,9 @@ rules:
       variables.get('is_spawned_agent')
       and variables.get('command_id')
       and variables.get('exit_condition_met')
-    effect:
-      type: mcp_call
-      server: gobby-agents
-      tool: complete_command
-      arguments:
-        command_id: "${{ variables.command_id }}"
+    effects:
+      - type: mcp_call
+        server: gobby-agents
+        tool: complete_command
+        arguments:
+          command_id: "${{ variables.command_id }}"

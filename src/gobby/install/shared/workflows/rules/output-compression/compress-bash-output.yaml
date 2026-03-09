@@ -18,8 +18,8 @@ rules:
                         'docker ', 'kubectl ', 'pip ', 'uv ',
                         'make ', 'gradle ', 'mvn ',
                         'turbo ', 'nx ', 'webpack', 'vite '])
-    effect:
-      type: rewrite_input
-      input_updates:
-        command: "gobby compress -- {{ event.data.tool_input.command | shlex_quote }}"
-      auto_approve: true
+    effects:
+      - type: rewrite_input
+        input_updates:
+          command: "gobby compress -- {{ event.data.tool_input.command | shlex_quote }}"
+        auto_approve: true

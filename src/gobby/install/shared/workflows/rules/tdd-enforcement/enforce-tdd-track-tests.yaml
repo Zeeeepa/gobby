@@ -13,7 +13,7 @@ rules:
       and (tool_input.get('file_path', '').split('/')[-1].startswith('test_')
       or '/tests/' in tool_input.get('file_path', '')
       or tool_input.get('file_path', '').endswith('_test.py'))
-    effect:
-      type: set_variable
-      variable: tdd_tests_written
-      value: "variables.get('tdd_tests_written', []) + [tool_input.get('file_path', '')]"
+    effects:
+      - type: set_variable
+        variable: tdd_tests_written
+        value: "variables.get('tdd_tests_written', []) + [tool_input.get('file_path', '')]"

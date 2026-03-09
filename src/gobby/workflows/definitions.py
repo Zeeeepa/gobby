@@ -160,33 +160,33 @@ class RuleDefinitionBody(BaseModel):
     when: str | None = None
     match: dict[str, Any] | None = None
     tools: list[str] | None = None  # Pre-filter: skip rule if tool doesn't match
-    effect: RuleEffect | None = None
     effects: list[RuleEffect] | None = None
     group: str | None = None
     agent_scope: list[str] | None = None  # Only active for these agent types
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_effect_to_effects(cls, data: Any) -> Any:
+        """Convert singular 'effect' key to 'effects' list for backward compat."""
+        if isinstance(data, dict) and "effect" in data:
+            effect = data.pop("effect")
+            if effect is not None and "effects" not in data:
+                data["effects"] = [effect]
+        return data
+
     @model_validator(mode="after")
     def _validate_effects(self) -> RuleDefinitionBody:
-        has_effect = self.effect is not None
-        has_effects = self.effects is not None and len(self.effects) > 0
-        if has_effect and has_effects:
-            raise ValueError("Specify either 'effect' or 'effects', not both")
-        if not has_effect and not has_effects:
-            raise ValueError("Specify either 'effect' or 'effects'")
-        if has_effects:
-            block_count = sum(e.type == "block" for e in self.effects)  # type: ignore[union-attr]
-            if block_count > 1:
-                raise ValueError("At most one 'block' effect is allowed per rule")
+        if not self.effects or len(self.effects) == 0:
+            raise ValueError("'effects' is required and must be non-empty")
+        block_count = sum(e.type == "block" for e in self.effects)
+        if block_count > 1:
+            raise ValueError("At most one 'block' effect is allowed per rule")
         return self
 
     @property
     def resolved_effects(self) -> list[RuleEffect]:
-        """Return the canonical list of effects (works for both singular and plural)."""
-        if self.effects:
-            return self.effects
-        if self.effect:
-            return [self.effect]
-        return []
+        """Return the canonical list of effects."""
+        return self.effects or []
 
 
 class VariableDefinitionBody(BaseModel):

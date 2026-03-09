@@ -84,7 +84,7 @@ class TestWorkerSafetySync:
             if row.name in {"no-push", "no-force-push", "no-destructive-git"}:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
                 assert body.event.value == "before_tool"
-                assert body.effect.type == "block"
+                assert body.effects[0].type == "block"
 
 
 class TestNoPushRule:
@@ -98,9 +98,9 @@ class TestNoPushRule:
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.effect.tools == ["Bash"]
-        assert body.effect.command_pattern is not None
-        assert "push" in body.effect.command_pattern
+        assert body.effects[0].tools == ["Bash"]
+        assert body.effects[0].command_pattern is not None
+        assert "push" in body.effects[0].command_pattern
 
 
 class TestNoForcePushRule:
@@ -114,9 +114,9 @@ class TestNoForcePushRule:
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.effect.tools == ["Bash"]
-        assert body.effect.command_pattern is not None
-        assert "--force" in body.effect.command_pattern
+        assert body.effects[0].tools == ["Bash"]
+        assert body.effects[0].command_pattern is not None
+        assert "--force" in body.effects[0].command_pattern
 
 
 class TestNoDestructiveGitRule:
@@ -130,6 +130,6 @@ class TestNoDestructiveGitRule:
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.effect.tools == ["Bash"]
-        assert body.effect.command_pattern is not None
-        assert "reset" in body.effect.command_pattern
+        assert body.effects[0].tools == ["Bash"]
+        assert body.effects[0].command_pattern is not None
+        assert "reset" in body.effects[0].command_pattern

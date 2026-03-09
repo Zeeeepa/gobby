@@ -6,9 +6,9 @@ rules:
     event: before_tool
     enabled: false
     priority: 32
-    effect:
-      type: block
-      mcp_tools: ["gobby-tasks:mark_task_needs_review"]
-      reason: |
-        Interactive sessions should use close_task directly — the user is already present.
-        mark_task_needs_review is for spawned/pipeline agents where a separate QA step reviews.
+    effects:
+      - type: block
+        mcp_tools: ["gobby-tasks:mark_task_needs_review"]
+        reason: |
+          Interactive sessions should use close_task directly — the user is already present.
+          mark_task_needs_review is for spawned/pipeline agents where a separate QA step reviews.

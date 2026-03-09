@@ -7,12 +7,12 @@ rules:
     enabled: false
     priority: 61
     when: "variables.get('auto_task_ref') and task_tree_complete(variables.get('auto_task_ref'))"
-    effect:
-      type: inject_context
-      template: |
-        Task {{ variables.auto_task_ref or '(unknown)' }} complete! All subtasks have been closed.
-        This is a good opportunity to do a quick code review of the task tree.
-        Any errors or warnings should be addressed before closing.
-        You may now close the task using close_task().
+    effects:
+      - type: inject_context
+        template: |
+          Task {{ variables.auto_task_ref or '(unknown)' }} complete! All subtasks have been closed.
+          This is a good opportunity to do a quick code review of the task tree.
+          Any errors or warnings should be addressed before closing.
+          You may now close the task using close_task().
 
-        
+          

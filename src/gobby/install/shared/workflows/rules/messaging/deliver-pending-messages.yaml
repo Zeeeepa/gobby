@@ -7,7 +7,7 @@ rules:
     enabled: false
     when: "variables.get('is_spawned_agent')"
     priority: 10
-    effect:
-      type: mcp_call
-      server: gobby-agents
-      tool: deliver_pending_messages
+    effects:
+      - type: mcp_call
+        server: gobby-agents
+        tool: deliver_pending_messages

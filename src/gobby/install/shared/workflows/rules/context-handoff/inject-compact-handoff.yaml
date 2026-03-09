@@ -7,10 +7,10 @@ rules:
     enabled: false
     priority: 11
     when: "event.data.get('source') == 'compact'"
-    effect:
-      type: inject_context
-      template: |
-        ## Continuation Context
-        *Injected by Gobby compact handoff*
+    effects:
+      - type: inject_context
+        template: |
+          ## Continuation Context
+          *Injected by Gobby compact handoff*
 
-        {{ compact_session_summary }}
+          {{ compact_session_summary }}

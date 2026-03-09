@@ -236,10 +236,10 @@ class TestRuleDefinitionBody:
 
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="Not allowed", tools=["Edit"]),
+            effects=[RuleEffect(type="block", reason="Not allowed", tools=["Edit"])],
         )
         assert body.event == RuleEvent.BEFORE_TOOL
-        assert body.effect.type == "block"
+        assert body.effects[0].type == "block"
         assert body.when is None
         assert body.match is None
         assert body.group is None
@@ -251,17 +251,17 @@ class TestRuleDefinitionBody:
             event=RuleEvent.BEFORE_TOOL,
             when="variables.get('require_task_before_edit') and not task_claimed",
             match={"tool": "Edit"},
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="block",
                 reason="Claim a task first",
                 tools=["Edit", "Write", "NotebookEdit"],
-            ),
+            )],
             group="task-enforcement",
         )
         assert body.event == RuleEvent.BEFORE_TOOL
         assert body.when is not None
         assert body.match == {"tool": "Edit"}
-        assert body.effect.reason == "Claim a task first"
+        assert body.effects[0].reason == "Claim a task first"
         assert body.group == "task-enforcement"
 
     def test_set_variable_rule(self) -> None:
@@ -270,11 +270,11 @@ class TestRuleDefinitionBody:
         body = RuleDefinitionBody(
             event=RuleEvent.AFTER_TOOL,
             when="event.data.get('mcp_tool') == 'claim_task'",
-            effect=RuleEffect(type="set_variable", variable="task_claimed", value=True),
+            effects=[RuleEffect(type="set_variable", variable="task_claimed", value=True)],
             group="task-enforcement",
         )
         assert body.event == RuleEvent.AFTER_TOOL
-        assert body.effect.variable == "task_claimed"
+        assert body.effects[0].variable == "task_claimed"
 
     def test_inject_context_rule(self) -> None:
         from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect, RuleEvent
@@ -282,29 +282,29 @@ class TestRuleDefinitionBody:
         body = RuleDefinitionBody(
             event=RuleEvent.SESSION_START,
             when="variables.get('session_task')",
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="inject_context",
                 template="You are working on task {{ variables.session_task }}.",
-            ),
+            )],
             group="auto-task",
         )
         assert body.event == RuleEvent.SESSION_START
-        assert body.effect.template is not None
+        assert body.effects[0].template is not None
 
     def test_mcp_call_rule(self) -> None:
         from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect, RuleEvent
 
         body = RuleDefinitionBody(
             event=RuleEvent.SESSION_START,
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="mcp_call",
                 server="gobby-memory",
                 tool="sync_import",
-            ),
+            )],
             group="memory-lifecycle",
         )
         assert body.event == RuleEvent.SESSION_START
-        assert body.effect.server == "gobby-memory"
+        assert body.effects[0].server == "gobby-memory"
 
     def test_stop_event_rule(self) -> None:
         from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect, RuleEvent
@@ -312,10 +312,10 @@ class TestRuleDefinitionBody:
         body = RuleDefinitionBody(
             event=RuleEvent.STOP,
             when="variables.get('_tool_block_pending')",
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="block",
                 reason="A tool was blocked - follow the instructions.",
-            ),
+            )],
             group="stop-gates",
         )
         assert body.event == RuleEvent.STOP
@@ -325,11 +325,11 @@ class TestRuleDefinitionBody:
 
         body = RuleDefinitionBody(
             event=RuleEvent.PRE_COMPACT,
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="mcp_call",
                 server="gobby-sessions",
                 tool="set_handoff_context",
-            ),
+            )],
             group="context-handoff",
         )
         assert body.event == RuleEvent.PRE_COMPACT
@@ -340,7 +340,7 @@ class TestRuleDefinitionBody:
 
         body = RuleDefinitionBody(
             event="before_tool",
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
         )
         assert body.event == RuleEvent.BEFORE_TOOL
 
@@ -352,11 +352,11 @@ class TestRuleDefinitionBody:
             event=RuleEvent.BEFORE_TOOL,
             when="not task_claimed",
             match={"tool": "Edit"},
-            effect=RuleEffect(
+            effects=[RuleEffect(
                 type="block",
                 reason="Claim a task",
                 tools=["Edit", "Write"],
-            ),
+            )],
             group="task-enforcement",
         )
 
@@ -370,9 +370,9 @@ class TestRuleDefinitionBody:
         assert restored.event == body.event
         assert restored.when == body.when
         assert restored.match == body.match
-        assert restored.effect.type == body.effect.type
-        assert restored.effect.reason == body.effect.reason
-        assert restored.effect.tools == body.effect.tools
+        assert restored.effects[0].type == body.effects[0].type
+        assert restored.effects[0].reason == body.effects[0].reason
+        assert restored.effects[0].tools == body.effects[0].tools
         assert restored.group == body.group
 
     def test_model_dump_mode_json(self) -> None:
@@ -381,18 +381,18 @@ class TestRuleDefinitionBody:
 
         body = RuleDefinitionBody(
             event=RuleEvent.STOP,
-            effect=RuleEffect(type="set_variable", variable="stop_attempts", value=0),
+            effects=[RuleEffect(type="set_variable", variable="stop_attempts", value=0)],
         )
         data = body.model_dump(mode="json")
 
         # Event should serialize as string value
         assert data["event"] == "stop"
-        assert data["effect"]["type"] == "set_variable"
-        assert data["effect"]["variable"] == "stop_attempts"
-        assert data["effect"]["value"] == 0
+        assert data["effects"][0]["type"] == "set_variable"
+        assert data["effects"][0]["variable"] == "stop_attempts"
+        assert data["effects"][0]["value"] == 0
 
     def test_required_fields(self) -> None:
-        """event and effect are required."""
+        """event and effects are required."""
         from gobby.workflows.definitions import RuleDefinitionBody
 
         with pytest.raises(ValidationError):
@@ -402,9 +402,9 @@ class TestRuleDefinitionBody:
         from gobby.workflows.definitions import RuleDefinitionBody, RuleEffect
 
         with pytest.raises(ValidationError):
-            RuleDefinitionBody(effect=RuleEffect(type="block"))
+            RuleDefinitionBody(effects=[RuleEffect(type="block")])
 
-    def test_effect_required(self) -> None:
+    def test_effects_required(self) -> None:
         from gobby.workflows.definitions import RuleDefinitionBody, RuleEvent
 
         with pytest.raises(ValidationError):

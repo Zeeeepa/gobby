@@ -209,7 +209,7 @@ class TestAgentScopeOnRuleDefinitionBody:
         """agent_scope defaults to None (global rule)."""
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
         )
         assert body.agent_scope is None
 
@@ -217,7 +217,7 @@ class TestAgentScopeOnRuleDefinitionBody:
         """agent_scope can be set to a single agent name."""
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
             agent_scope=["developer"],
         )
         assert body.agent_scope == ["developer"]
@@ -226,7 +226,7 @@ class TestAgentScopeOnRuleDefinitionBody:
         """agent_scope can include multiple agent names."""
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
             agent_scope=["developer", "qa"],
         )
         assert body.agent_scope == ["developer", "qa"]
@@ -236,7 +236,7 @@ class TestAgentScopeOnRuleDefinitionBody:
         """agent_scope survives JSON serialization."""
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
             agent_scope=["coordinator"],
             group="coordinator-agent",
         )
@@ -249,7 +249,7 @@ class TestAgentScopeOnRuleDefinitionBody:
         """When agent_scope is None, it's excluded from JSON output (or set to null)."""
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="test"),
+            effects=[RuleEffect(type="block", reason="test")],
         )
         data = body.model_dump()
         # agent_scope should exist in the model but be None
@@ -394,7 +394,7 @@ class TestAgentScopeStorage:
         """Rule with agent_scope stores and retrieves correctly."""
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", tools=["Edit", "Write"], reason="QA no code"),
+            effects=[RuleEffect(type="block", tools=["Edit", "Write"], reason="QA no code")],
             agent_scope=["qa"],
             group="qa-agent",
         )
@@ -409,7 +409,7 @@ class TestAgentScopeStorage:
         restored = RuleDefinitionBody.model_validate_json(fetched.definition_json)
         assert restored.agent_scope == ["qa"]
         assert restored.group == "qa-agent"
-        assert restored.effect.type == "block"
+        assert restored.effects[0].type == "block"
 
     def test_rule_without_agent_scope_storage(
         self, manager: LocalWorkflowDefinitionManager
@@ -417,7 +417,7 @@ class TestAgentScopeStorage:
         """Rule without agent_scope (global) stores and retrieves correctly."""
         body = RuleDefinitionBody(
             event=RuleEvent.BEFORE_TOOL,
-            effect=RuleEffect(type="block", reason="Global rule"),
+            effects=[RuleEffect(type="block", reason="Global rule")],
         )
 
         row = manager.create(

@@ -101,10 +101,10 @@ class TestBlockNativeTaskTools:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
-        assert body.effect.type == "block"
+        assert body.effects[0].type == "block"
 
         expected_tools = {"TaskCreate", "TaskUpdate", "TaskGet", "TaskList", "TodoWrite"}
-        assert set(body.effect.tools) == expected_tools
+        assert set(body.effects[0].tools) == expected_tools
 
     def test_no_when_condition(self, db, manager) -> None:
         """Should always fire (no when condition)."""
@@ -128,8 +128,8 @@ class TestRequireTaskBeforeEdit:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
-        assert body.effect.type == "block"
-        assert set(body.effect.tools) == {"Edit", "Write", "NotebookEdit"}
+        assert body.effects[0].type == "block"
+        assert set(body.effects[0].tools) == {"Edit", "Write", "NotebookEdit"}
 
     def test_when_checks_task_claimed_and_plan_file_and_plan_mode(self, db, manager) -> None:
         """Should check task_claimed, is_plan_file, and plan_mode."""
@@ -305,8 +305,8 @@ class TestRequireCommitBeforeClose:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
-        assert body.effect.type == "block"
-        assert "gobby-tasks:close_task" in body.effect.mcp_tools
+        assert body.effects[0].type == "block"
+        assert "gobby-tasks:close_task" in body.effects[0].mcp_tools
 
     def test_when_checks_commits_and_reasons(self, db, manager) -> None:
         """Should check task_has_commits and special close reasons."""
@@ -359,8 +359,8 @@ class TestBlockAskDuringStopCompliance:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
-        assert body.effect.type == "block"
-        assert "AskUserQuestion" in body.effect.tools
+        assert body.effects[0].type == "block"
+        assert "AskUserQuestion" in body.effects[0].tools
 
     def test_when_checks_stop_attempts_and_task(self, db, manager) -> None:
         """Should check stop_attempts and task_claimed."""
@@ -386,7 +386,7 @@ class TestTrackTaskClaim:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
-        assert body.effect.type == "observe"
+        assert body.effects[0].type == "observe"
 
     def test_when_matches_claim_and_create(self, db, manager) -> None:
         """Should fire on claim_task and create_task."""

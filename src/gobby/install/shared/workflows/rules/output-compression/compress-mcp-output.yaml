@@ -9,5 +9,5 @@ rules:
     when: >
       event.data.get('tool_name') in ('call_tool', 'mcp__gobby__call_tool')
       and len(str(event.data.get('tool_output', ''))) > 2000
-    effect:
-      type: compress_output
+    effects:
+      - type: compress_output
