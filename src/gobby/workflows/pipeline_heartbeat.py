@@ -109,7 +109,5 @@ class PipelineHeartbeat:
             agents = self._agent_registry.list_by_parent(execution.session_id)
             return len(agents) > 0
         except Exception:
-            logger.exception(
-                "Failed to check alive agents for execution %s", execution.id
-            )
+            logger.exception("Failed to check alive agents for execution %s", execution.id)
             return False
