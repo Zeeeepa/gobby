@@ -230,11 +230,13 @@ class TestSetVariableEffect:
             "increment-counter",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effects=[RuleEffect(
-                    type="set_variable",
-                    variable="custom_counter",
-                    value="variables.get('custom_counter', 0) + 1",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="set_variable",
+                        variable="custom_counter",
+                        value="variables.get('custom_counter', 0) + 1",
+                    )
+                ],
             ),
         )
 
@@ -256,11 +258,13 @@ class TestSetVariableEffect:
             "increment-via-jinja",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effects=[RuleEffect(
-                    type="set_variable",
-                    variable="error_triage_blocks",
-                    value="{{ variables.get('error_triage_blocks', 0) + 1 }}",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="set_variable",
+                        variable="error_triage_blocks",
+                        value="{{ variables.get('error_triage_blocks', 0) + 1 }}",
+                    )
+                ],
             ),
         )
 
@@ -284,10 +288,12 @@ class TestInjectContextEffect:
             "inject-task-context",
             RuleDefinitionBody(
                 event=RuleEvent.SESSION_START,
-                effects=[RuleEffect(
-                    type="inject_context",
-                    template="You are working on an important task.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="inject_context",
+                        template="You are working on an important task.",
+                    )
+                ],
             ),
         )
 
@@ -497,11 +503,13 @@ class TestObserveEffect:
             "observe-tool-use",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effects=[RuleEffect(
-                    type="observe",
-                    category="tool_use",
-                    message="Tool was used",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="observe",
+                        category="tool_use",
+                        message="Tool was used",
+                    )
+                ],
             ),
         )
 
@@ -583,11 +591,13 @@ class TestObserveEffect:
             "observe-template",
             RuleDefinitionBody(
                 event=RuleEvent.AFTER_TOOL,
-                effects=[RuleEffect(
-                    type="observe",
-                    category="tool_use",
-                    message="Used {{ event.data.get('tool_name', 'unknown') }}",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="observe",
+                        category="tool_use",
+                        message="Used {{ event.data.get('tool_name', 'unknown') }}",
+                    )
+                ],
             ),
         )
 
@@ -611,12 +621,14 @@ class TestMcpCallEffect:
             "memory-recall",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_AGENT,
-                effects=[RuleEffect(
-                    type="mcp_call",
-                    server="gobby-memory",
-                    tool="recall_with_synthesis",
-                    arguments={"limit": 5},
-                )],
+                effects=[
+                    RuleEffect(
+                        type="mcp_call",
+                        server="gobby-memory",
+                        tool="recall_with_synthesis",
+                        arguments={"limit": 5},
+                    )
+                ],
             ),
         )
 
@@ -765,11 +777,13 @@ class TestMcpCallToolUnwrapping:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 when="not tool_input.get('commit_sha')",
-                effects=[RuleEffect(
-                    type="block",
-                    reason="Must provide commit_sha when closing a task",
-                    tools=["call_tool"],
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        reason="Must provide commit_sha when closing a task",
+                        tools=["call_tool"],
+                    )
+                ],
             ),
         )
 
@@ -1276,13 +1290,15 @@ class TestOverrideCollectsMcpCalls:
             "digest-on-response",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effects=[RuleEffect(
-                    type="mcp_call",
-                    server="gobby-memory",
-                    tool="build_turn_and_digest",
-                    arguments={"session_id": "test"},
-                    background=True,
-                )],
+                effects=[
+                    RuleEffect(
+                        type="mcp_call",
+                        server="gobby-memory",
+                        tool="build_turn_and_digest",
+                        arguments={"session_id": "test"},
+                        background=True,
+                    )
+                ],
             ),
             priority=11,
         )
@@ -1312,13 +1328,15 @@ class TestOverrideCollectsMcpCalls:
             "digest-on-response",
             RuleDefinitionBody(
                 event=RuleEvent.STOP,
-                effects=[RuleEffect(
-                    type="mcp_call",
-                    server="gobby-memory",
-                    tool="build_turn_and_digest",
-                    arguments={"session_id": "test"},
-                    background=True,
-                )],
+                effects=[
+                    RuleEffect(
+                        type="mcp_call",
+                        server="gobby-memory",
+                        tool="build_turn_and_digest",
+                        arguments={"session_id": "test"},
+                        background=True,
+                    )
+                ],
             ),
             priority=11,
         )

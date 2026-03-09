@@ -34,22 +34,13 @@ def create_task(
     assignee: str | None = None,
     labels: list[str] | None = None,
     category: str | None = None,
-    complexity_score: int | None = None,
-    estimated_subtasks: int | None = None,
     expansion_context: str | None = None,
     validation_criteria: str | None = None,
-    use_external_validator: bool = False,
-    workflow_name: str | None = None,
-    verification: str | None = None,
-    sequence_order: int | None = None,
     github_issue_number: int | None = None,
     github_pr_number: int | None = None,
     github_repo: str | None = None,
     linear_issue_id: str | None = None,
     linear_team_id: str | None = None,
-    agent_name: str | None = None,
-    reference_doc: str | None = None,
-    requires_user_review: bool = False,
 ) -> str:
     """Create a new task with collision handling.
 
@@ -83,14 +74,11 @@ def create_task(
                         id, project_id, title, description, parent_task_id,
                         created_in_session_id, priority, task_type, assignee,
                         labels, status, created_at, updated_at,
-                        validation_status, category, complexity_score,
-                        estimated_subtasks, expansion_context,
-                        validation_criteria, use_external_validator, validation_fail_count,
-                        workflow_name, verification, sequence_order,
+                        validation_status, category, expansion_context,
+                        validation_criteria, validation_fail_count,
                         github_issue_number, github_pr_number, github_repo,
-                        linear_issue_id, linear_team_id, seq_num, agent_name, reference_doc,
-                        requires_user_review
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        linear_issue_id, linear_team_id, seq_num
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         task_id,
@@ -107,23 +95,14 @@ def create_task(
                         now,
                         validation_status,
                         category,
-                        complexity_score,
-                        estimated_subtasks,
                         expansion_context,
                         validation_criteria,
-                        use_external_validator,
-                        workflow_name,
-                        verification,
-                        sequence_order,
                         github_issue_number,
                         github_pr_number,
                         github_repo,
                         linear_issue_id,
                         linear_team_id,
                         next_seq_num,
-                        agent_name,
-                        reference_doc,
-                        requires_user_review,
                     ),
                 )
 
@@ -240,15 +219,9 @@ def update_task(
     validation_status: Any = UNSET,
     validation_feedback: Any = UNSET,
     category: Any = UNSET,
-    complexity_score: Any = UNSET,
-    estimated_subtasks: Any = UNSET,
     expansion_context: Any = UNSET,
     validation_criteria: Any = UNSET,
-    use_external_validator: Any = UNSET,
     validation_fail_count: Any = UNSET,
-    workflow_name: Any = UNSET,
-    verification: Any = UNSET,
-    sequence_order: Any = UNSET,
     escalated_at: Any = UNSET,
     escalation_reason: Any = UNSET,
     github_issue_number: Any = UNSET,
@@ -256,12 +229,8 @@ def update_task(
     github_repo: Any = UNSET,
     linear_issue_id: Any = UNSET,
     linear_team_id: Any = UNSET,
-    agent_name: Any = UNSET,
-    reference_doc: Any = UNSET,
-    is_expanded: Any = UNSET,
     expansion_status: Any = UNSET,
     validation_override_reason: Any = UNSET,
-    requires_user_review: Any = UNSET,
 ) -> bool:
     """Update task fields.
 
@@ -306,33 +275,15 @@ def update_task(
     if category is not UNSET:
         updates.append("category = ?")
         params.append(category)
-    if complexity_score is not UNSET:
-        updates.append("complexity_score = ?")
-        params.append(complexity_score)
-    if estimated_subtasks is not UNSET:
-        updates.append("estimated_subtasks = ?")
-        params.append(estimated_subtasks)
     if expansion_context is not UNSET:
         updates.append("expansion_context = ?")
         params.append(expansion_context)
     if validation_criteria is not UNSET:
         updates.append("validation_criteria = ?")
         params.append(validation_criteria)
-    if use_external_validator is not UNSET:
-        updates.append("use_external_validator = ?")
-        params.append(use_external_validator)
     if validation_fail_count is not UNSET:
         updates.append("validation_fail_count = ?")
         params.append(validation_fail_count)
-    if workflow_name is not UNSET:
-        updates.append("workflow_name = ?")
-        params.append(workflow_name)
-    if verification is not UNSET:
-        updates.append("verification = ?")
-        params.append(verification)
-    if sequence_order is not UNSET:
-        updates.append("sequence_order = ?")
-        params.append(sequence_order)
     if escalated_at is not UNSET:
         updates.append("escalated_at = ?")
         params.append(escalated_at)
@@ -354,32 +305,16 @@ def update_task(
     if linear_team_id is not UNSET:
         updates.append("linear_team_id = ?")
         params.append(linear_team_id)
-    if agent_name is not UNSET:
-        updates.append("agent_name = ?")
-        params.append(agent_name)
-    if reference_doc is not UNSET:
-        updates.append("reference_doc = ?")
-        params.append(reference_doc)
-    if is_expanded is not UNSET:
-        updates.append("is_expanded = ?")
-        params.append(1 if is_expanded else 0)
     if expansion_status is not UNSET:
         updates.append("expansion_status = ?")
         params.append(expansion_status)
     if validation_override_reason is not UNSET:
         updates.append("validation_override_reason = ?")
         params.append(validation_override_reason)
-    if requires_user_review is not UNSET:
-        updates.append("requires_user_review = ?")
-        params.append(1 if requires_user_review else 0)
-
-    # Auto-reset accepted_by_user and closed metadata when transitioning from 'closed' to any other status
+    # Auto-reset closed metadata when transitioning from 'closed' to any other status
     if status is not UNSET and status != "closed":
         current_task = get_task(db, task_id)
         if current_task and current_task.status == "closed":
-            updates.append("accepted_by_user = ?")
-            params.append(0)
-
             # Wipe closed metadata
             updates.append("closed_reason = ?")
             params.append(None)

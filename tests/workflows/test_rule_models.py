@@ -251,11 +251,13 @@ class TestRuleDefinitionBody:
             event=RuleEvent.BEFORE_TOOL,
             when="variables.get('require_task_before_edit') and not task_claimed",
             match={"tool": "Edit"},
-            effects=[RuleEffect(
-                type="block",
-                reason="Claim a task first",
-                tools=["Edit", "Write", "NotebookEdit"],
-            )],
+            effects=[
+                RuleEffect(
+                    type="block",
+                    reason="Claim a task first",
+                    tools=["Edit", "Write", "NotebookEdit"],
+                )
+            ],
             group="task-enforcement",
         )
         assert body.event == RuleEvent.BEFORE_TOOL
@@ -282,10 +284,12 @@ class TestRuleDefinitionBody:
         body = RuleDefinitionBody(
             event=RuleEvent.SESSION_START,
             when="variables.get('session_task')",
-            effects=[RuleEffect(
-                type="inject_context",
-                template="You are working on task {{ variables.session_task }}.",
-            )],
+            effects=[
+                RuleEffect(
+                    type="inject_context",
+                    template="You are working on task {{ variables.session_task }}.",
+                )
+            ],
             group="auto-task",
         )
         assert body.event == RuleEvent.SESSION_START
@@ -296,11 +300,13 @@ class TestRuleDefinitionBody:
 
         body = RuleDefinitionBody(
             event=RuleEvent.SESSION_START,
-            effects=[RuleEffect(
-                type="mcp_call",
-                server="gobby-memory",
-                tool="sync_import",
-            )],
+            effects=[
+                RuleEffect(
+                    type="mcp_call",
+                    server="gobby-memory",
+                    tool="sync_import",
+                )
+            ],
             group="memory-lifecycle",
         )
         assert body.event == RuleEvent.SESSION_START
@@ -312,10 +318,12 @@ class TestRuleDefinitionBody:
         body = RuleDefinitionBody(
             event=RuleEvent.STOP,
             when="variables.get('_tool_block_pending')",
-            effects=[RuleEffect(
-                type="block",
-                reason="A tool was blocked - follow the instructions.",
-            )],
+            effects=[
+                RuleEffect(
+                    type="block",
+                    reason="A tool was blocked - follow the instructions.",
+                )
+            ],
             group="stop-gates",
         )
         assert body.event == RuleEvent.STOP
@@ -325,11 +333,13 @@ class TestRuleDefinitionBody:
 
         body = RuleDefinitionBody(
             event=RuleEvent.PRE_COMPACT,
-            effects=[RuleEffect(
-                type="mcp_call",
-                server="gobby-sessions",
-                tool="set_handoff_context",
-            )],
+            effects=[
+                RuleEffect(
+                    type="mcp_call",
+                    server="gobby-sessions",
+                    tool="set_handoff_context",
+                )
+            ],
             group="context-handoff",
         )
         assert body.event == RuleEvent.PRE_COMPACT
@@ -352,11 +362,13 @@ class TestRuleDefinitionBody:
             event=RuleEvent.BEFORE_TOOL,
             when="not task_claimed",
             match={"tool": "Edit"},
-            effects=[RuleEffect(
-                type="block",
-                reason="Claim a task",
-                tools=["Edit", "Write"],
-            )],
+            effects=[
+                RuleEffect(
+                    type="block",
+                    reason="Claim a task",
+                    tools=["Edit", "Write"],
+                )
+            ],
             group="task-enforcement",
         )
 

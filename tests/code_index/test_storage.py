@@ -61,9 +61,7 @@ def test_get_symbol_not_found(code_storage: CodeIndexStorage) -> None:
     assert code_storage.get_symbol("nonexistent-id") is None
 
 
-def test_get_symbols_for_file(
-    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
-) -> None:
+def test_get_symbols_for_file(code_storage: CodeIndexStorage, sample_symbols: list[Symbol]) -> None:
     """Retrieve all symbols for a specific file."""
     code_storage.upsert_symbols(sample_symbols)
 
@@ -97,9 +95,7 @@ def test_search_symbols_by_name_with_kind_filter(
     code_storage.upsert_symbols(sample_symbols)
 
     # Search for all names, but only classes
-    results = code_storage.search_symbols_by_name(
-        "Calc", "proj-1", kind="class"
-    )
+    results = code_storage.search_symbols_by_name("Calc", "proj-1", kind="class")
     assert len(results) == 1
     assert results[0].kind == "class"
 
@@ -308,9 +304,7 @@ def test_get_symbols_without_summaries_limit(
 # ── Counts ──────────────────────────────────────────────────────────────
 
 
-def test_count_symbols(
-    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
-) -> None:
+def test_count_symbols(code_storage: CodeIndexStorage, sample_symbols: list[Symbol]) -> None:
     """Count symbols for a project."""
     code_storage.upsert_symbols(sample_symbols)
     assert code_storage.count_symbols("proj-1") == 3

@@ -63,9 +63,9 @@ class TestTaskEnforcementSync:
         rules = manager.list_all(workflow_type="rule")
         rule_names = {r.name for r in rules}
 
-        assert TASK_ENFORCEMENT_RULES.issubset(
-            rule_names
-        ), f"Missing: {TASK_ENFORCEMENT_RULES - rule_names}"
+        assert TASK_ENFORCEMENT_RULES.issubset(rule_names), (
+            f"Missing: {TASK_ENFORCEMENT_RULES - rule_names}"
+        )
 
     def test_all_rules_have_group(self, db, manager) -> None:
         """All rules should have group='task-enforcement'."""
@@ -86,7 +86,13 @@ class TestTaskEnforcementSync:
             if row.name in TASK_ENFORCEMENT_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
                 effect_types = {e.type for e in body.resolved_effects}
-                assert effect_types <= {"block", "set_variable", "observe", "inject_context", "rewrite_input"}
+                assert effect_types <= {
+                    "block",
+                    "set_variable",
+                    "observe",
+                    "inject_context",
+                    "rewrite_input",
+                }
 
 
 class TestBlockNativeTaskTools:

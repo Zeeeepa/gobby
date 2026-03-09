@@ -222,7 +222,6 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Update parent task status
         ctx.task_manager.update_task(
             resolved_id,
-            is_expanded=True,
             expansion_status="completed",
             validation_criteria="All subtasks must be completed (status: closed).",
         )

@@ -407,11 +407,8 @@ class TestLocalTaskManager:
             assignee="me",
             labels=["l1"],
             category="strat",
-            complexity_score=10,
-            estimated_subtasks=5,
             expansion_context="ctx",
             validation_criteria="crit",
-            use_external_validator=True,
             validation_fail_count=2,
             validation_status="valid",
             validation_feedback="good",
@@ -423,11 +420,8 @@ class TestLocalTaskManager:
         assert updated.assignee == "me"
         assert updated.labels == ["l1"]
         assert updated.category == "strat"
-        assert updated.complexity_score == 10
-        assert updated.estimated_subtasks == 5
         assert updated.expansion_context == "ctx"
         assert updated.validation_criteria == "crit"
-        assert updated.use_external_validator is True
         assert updated.validation_fail_count == 2
         assert updated.validation_status == "valid"
         assert updated.validation_feedback == "good"
@@ -689,21 +683,6 @@ class TestLocalTaskManager:
     # Update Task Additional Tests
     # =========================================================================
 
-    def test_update_task_workflow_fields(self, task_manager, project_id) -> None:
-        """Test updating workflow-related fields."""
-        task = task_manager.create_task(project_id, "Task")
-
-        updated = task_manager.update_task(
-            task.id,
-            workflow_name="test-workflow",
-            verification="Test passes",
-            sequence_order=5,
-        )
-
-        assert updated.workflow_name == "test-workflow"
-        assert updated.verification == "Test passes"
-        assert updated.sequence_order == 5
-
     def test_update_task_escalation_fields(self, task_manager, project_id) -> None:
         """Test updating escalation-related fields."""
         task = task_manager.create_task(project_id, "Task")
@@ -906,48 +885,6 @@ class TestLocalTaskManager:
         assert len(blocked) == 2
 
     # =========================================================================
-    # Workflow Tasks Tests
-    # =========================================================================
-
-    def test_list_workflow_tasks(self, task_manager, project_id) -> None:
-        """Test listing tasks by workflow name."""
-        task_manager.create_task(
-            project_id, "Task 1", workflow_name="test-workflow", sequence_order=1
-        )
-        task_manager.create_task(
-            project_id, "Task 2", workflow_name="test-workflow", sequence_order=0
-        )
-        task_manager.create_task(
-            project_id, "Task 3", workflow_name="other-workflow", sequence_order=0
-        )
-
-        tasks = task_manager.list_workflow_tasks("test-workflow", project_id=project_id)
-
-        assert len(tasks) == 2
-        # Should be ordered by sequence_order
-        assert tasks[0].sequence_order == 0
-        assert tasks[1].sequence_order == 1
-
-    def test_list_workflow_tasks_with_status_filter(self, task_manager, project_id) -> None:
-        """Test filtering workflow tasks by status."""
-        task_manager.create_task(project_id, "Open", workflow_name="wf")
-        t2 = task_manager.create_task(project_id, "Closed", workflow_name="wf")
-        task_manager.close_task(t2.id)
-
-        tasks = task_manager.list_workflow_tasks("wf", project_id=project_id, status="open")
-
-        assert len(tasks) == 1
-        assert tasks[0].status == "open"
-
-    def test_list_workflow_tasks_without_project_filter(self, task_manager, project_id) -> None:
-        """Test listing workflow tasks without project filter."""
-        task_manager.create_task(project_id, "Task", workflow_name="global-wf")
-
-        tasks = task_manager.list_workflow_tasks("global-wf")
-
-        assert len(tasks) == 1
-
-    # =========================================================================
     # Count Tasks Tests
     # =========================================================================
 
@@ -1129,14 +1066,8 @@ class TestLocalTaskManager:
             assignee="developer",
             labels=["important"],
             category="Unit tests",
-            complexity_score=5,
-            estimated_subtasks=3,
             expansion_context="More context",
             validation_criteria="All tests pass",
-            use_external_validator=True,
-            workflow_name="dev-workflow",
-            verification="npm test passes",
-            sequence_order=1,
         )
 
         assert task.title == "Complete Task"
@@ -1147,14 +1078,8 @@ class TestLocalTaskManager:
         assert task.assignee == "developer"
         assert task.labels == ["important"]
         assert task.category == "Unit tests"
-        assert task.complexity_score == 5
-        assert task.estimated_subtasks == 3
         assert task.expansion_context == "More context"
         assert task.validation_criteria == "All tests pass"
-        assert task.use_external_validator is True
-        assert task.workflow_name == "dev-workflow"
-        assert task.verification == "npm test passes"
-        assert task.sequence_order == 1
         # Validation status should be pending when criteria is set
         assert task.validation_status == "pending"
 

@@ -177,23 +177,9 @@ class TaskSyncManager:
                         else None
                     ),
                     # Expansion fields
-                    "is_expanded": task.is_expanded,
                     "expansion_status": task.expansion_status,
                     "category": task.category,
-                    "complexity_score": task.complexity_score,
-                    "estimated_subtasks": task.estimated_subtasks,
                     "expansion_context": task.expansion_context,
-                    "use_external_validator": task.use_external_validator,
-                    # Review status
-                    "accepted_by_user": task.accepted_by_user,
-                    "requires_user_review": task.requires_user_review,
-                    # Agent/workflow fields
-                    "agent_name": task.agent_name,
-                    "workflow_name": task.workflow_name,
-                    "verification": task.verification,
-                    "sequence_order": task.sequence_order,
-                    # Spec traceability
-                    "reference_doc": task.reference_doc,
                     # External integrations
                     "github_issue_number": task.github_issue_number,
                     "github_pr_number": task.github_pr_number,
@@ -372,24 +358,9 @@ class TaskSyncManager:
                                 "validation_fail_count": validation_fail_count,
                                 "validation_criteria": validation_criteria,
                                 "validation_override_reason": validation_override_reason,
-                                "is_expanded": int(data.get("is_expanded", False)),
                                 "expansion_status": data.get("expansion_status", "none"),
                                 "category": data.get("category"),
-                                "complexity_score": data.get("complexity_score"),
-                                "estimated_subtasks": data.get("estimated_subtasks"),
                                 "expansion_context": data.get("expansion_context"),
-                                "use_external_validator": int(
-                                    data.get("use_external_validator", False)
-                                ),
-                                "accepted_by_user": int(data.get("accepted_by_user", False)),
-                                "requires_user_review": int(
-                                    data.get("requires_user_review", False)
-                                ),
-                                "agent_name": data.get("agent_name"),
-                                "workflow_name": data.get("workflow_name"),
-                                "verification": data.get("verification"),
-                                "sequence_order": data.get("sequence_order"),
-                                "reference_doc": data.get("reference_doc"),
                                 "github_issue_number": data.get("github_issue_number"),
                                 "github_pr_number": data.get("github_pr_number"),
                                 "github_repo": data.get("github_repo"),

@@ -1049,7 +1049,9 @@ async def test_merge_worktree_push_success(
     assert len(push_calls) == 1
     push_args = push_calls[0][0][0]
     assert push_args == ["push", "--no-verify", "origin", "feature/test:main"]
-    assert push_calls[0].kwargs.get("cwd") == "/tmp/wt1" or push_calls[0][1].get("cwd") == "/tmp/wt1"
+    assert (
+        push_calls[0].kwargs.get("cwd") == "/tmp/wt1" or push_calls[0][1].get("cwd") == "/tmp/wt1"
+    )
 
 
 @pytest.mark.asyncio

@@ -30,11 +30,10 @@ def mock_stop_registry() -> MagicMock:
     return reg
 
 
-def _make_task(status: str = "open", requires_user_review: bool = False) -> MagicMock:
+def _make_task(status: str = "open") -> MagicMock:
     """Create a mock task with given status."""
     task = MagicMock()
     task.status = status
-    task.requires_user_review = requires_user_review
     return task
 
 
@@ -102,37 +101,6 @@ class TestTaskTreeComplete:
         ev = _build_evaluator(ctx, task_manager=None)
         # Without task_manager, should return True (no-op, matches ConditionEvaluator behavior)
         assert ev.evaluate("task_tree_complete('task-123')") is True
-
-
-# --- task_needs_user_review tests ---
-
-
-class TestTaskNeedsUserReview:
-    def test_returns_true_when_needs_review(self, mock_task_manager: MagicMock) -> None:
-        task = _make_task(status="needs_review", requires_user_review=True)
-        mock_task_manager.get_task.return_value = task
-
-        ctx: dict[str, Any] = {"variables": {}}
-        ev = _build_evaluator(ctx, task_manager=mock_task_manager)
-        assert ev.evaluate("task_needs_user_review('task-123')") is True
-
-    def test_returns_false_when_not_needs_review(self, mock_task_manager: MagicMock) -> None:
-        task = _make_task(status="open")
-        mock_task_manager.get_task.return_value = task
-
-        ctx: dict[str, Any] = {"variables": {}}
-        ev = _build_evaluator(ctx, task_manager=mock_task_manager)
-        assert ev.evaluate("task_needs_user_review('task-123')") is False
-
-    def test_returns_false_when_none(self, mock_task_manager: MagicMock) -> None:
-        ctx: dict[str, Any] = {"variables": {}}
-        ev = _build_evaluator(ctx, task_manager=mock_task_manager)
-        assert ev.evaluate("task_needs_user_review(None)") is False
-
-    def test_no_task_manager_returns_false(self) -> None:
-        ctx: dict[str, Any] = {"variables": {}}
-        ev = _build_evaluator(ctx, task_manager=None)
-        assert ev.evaluate("task_needs_user_review('task-123')") is False
 
 
 # --- has_stop_signal tests ---
@@ -540,17 +508,13 @@ class TestComprehensions:
     def test_any_with_generator(self) -> None:
         """Test any() with a generator expression — the compress rule pattern."""
         ctx: dict[str, Any] = {"command": "uv run pytest tests/ -v"}
-        ev = SafeExpressionEvaluator(
-            ctx, {"any": any, "str": str}
-        )
+        ev = SafeExpressionEvaluator(ctx, {"any": any, "str": str})
         expr = "any(p in command for p in ['git ', 'pytest', 'ruff '])"
         assert ev.evaluate(expr) is True
 
     def test_any_with_generator_no_match(self) -> None:
         ctx: dict[str, Any] = {"command": "echo hello"}
-        ev = SafeExpressionEvaluator(
-            ctx, {"any": any, "str": str}
-        )
+        ev = SafeExpressionEvaluator(ctx, {"any": any, "str": str})
         expr = "any(p in command for p in ['git ', 'pytest', 'ruff '])"
         assert ev.evaluate(expr) is False
 

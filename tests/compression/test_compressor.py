@@ -95,9 +95,7 @@ class TestOutputCompressor:
         assert r.strategy_name in ("passthrough", "git-status")
 
     def test_ruff_lint_strategy(self) -> None:
-        ruff_output = "".join(
-            f"src/file{i % 5}.py:{i}:1: E501 Line too long\n" for i in range(100)
-        )
+        ruff_output = "".join(f"src/file{i % 5}.py:{i}:1: E501 Line too long\n" for i in range(100))
         ruff_output += "Found 100 errors.\n"
         c = OutputCompressor(min_length=100)
         r = c.compress("ruff check src/", ruff_output)

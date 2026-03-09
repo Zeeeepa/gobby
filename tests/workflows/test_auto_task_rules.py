@@ -104,7 +104,8 @@ class TestInjectAutoTaskContext:
         assert body.effects[0].type == "inject_context"
         assert body.effects[0].template is not None
         assert (
-            "autonomous" in body.effects[0].template.lower() or "auto_task_ref" in body.effects[0].template
+            "autonomous" in body.effects[0].template.lower()
+            or "auto_task_ref" in body.effects[0].template
         )
 
     def test_has_auto_task_ref_condition(self, db, manager) -> None:

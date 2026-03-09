@@ -356,12 +356,8 @@ class TestSessionStartAndHelpers:
         with (
             patch.object(handler, "_derive_transcript_path", return_value="/tmp/t.json"),
             patch.object(handler, "_activate_default_agent", return_value=None),
-            patch(
-                "gobby.code_index.storage.CodeIndexStorage"
-            ) as mock_cis_cls,
-            patch(
-                "gobby.workflows.state_manager.SessionVariableManager"
-            ) as mock_sv_cls,
+            patch("gobby.code_index.storage.CodeIndexStorage") as mock_cis_cls,
+            patch("gobby.workflows.state_manager.SessionVariableManager") as mock_sv_cls,
         ):
             handler._session_manager.register_session.return_value = "new-sess-1"
             mock_cis_cls.return_value.get_project_stats.return_value = mock_stats
@@ -370,9 +366,7 @@ class TestSessionStartAndHelpers:
             handler.handle_session_start(event)
 
             mock_cis_cls.return_value.get_project_stats.assert_called_once_with("proj-1")
-            mock_sv_mgr.set_variable.assert_any_call(
-                "new-sess-1", "code_index_available", True
-            )
+            mock_sv_mgr.set_variable.assert_any_call("new-sess-1", "code_index_available", True)
 
     def test_handle_session_start_no_index_skips_variable(self) -> None:
         """When project has no indexed symbols, code_index_available is NOT set."""
@@ -386,12 +380,8 @@ class TestSessionStartAndHelpers:
         with (
             patch.object(handler, "_derive_transcript_path", return_value="/tmp/t.json"),
             patch.object(handler, "_activate_default_agent", return_value=None),
-            patch(
-                "gobby.code_index.storage.CodeIndexStorage"
-            ) as mock_cis_cls,
-            patch(
-                "gobby.workflows.state_manager.SessionVariableManager"
-            ) as mock_sv_cls,
+            patch("gobby.code_index.storage.CodeIndexStorage") as mock_cis_cls,
+            patch("gobby.workflows.state_manager.SessionVariableManager") as mock_sv_cls,
         ):
             handler._session_manager.register_session.return_value = "new-sess-1"
             mock_cis_cls.return_value.get_project_stats.return_value = None

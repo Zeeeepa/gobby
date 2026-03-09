@@ -469,26 +469,15 @@ class TestClosedStateRoundTrip:
                 closed_commit_sha = 'abc123def456',
                 labels = '["bug", "p0"]',
                 category = 'code',
-                agent_name = 'fix-agent',
-                accepted_by_user = 1,
-                requires_user_review = 1,
-                is_expanded = 1,
                 expansion_status = 'completed',
-                complexity_score = 3,
-                estimated_subtasks = 5,
                 expansion_context = 'expanded from epic',
-                use_external_validator = 1,
-                reference_doc = 'docs/spec.md',
                 github_issue_number = 42,
                 github_pr_number = 99,
                 github_repo = 'owner/repo',
                 linear_issue_id = 'LIN-123',
                 linear_team_id = 'TEAM-1',
                 start_date = '2026-01-10',
-                due_date = '2026-01-20',
-                workflow_name = 'tdd',
-                verification = 'tests pass',
-                sequence_order = 3
+                due_date = '2026-01-20'
             WHERE id = ?""",
             (task.id,),
         )
@@ -505,10 +494,6 @@ class TestClosedStateRoundTrip:
         assert data["closed_commit_sha"] == "abc123def456"
         assert data["labels"] == ["bug", "p0"]
         assert data["category"] == "code"
-        assert data["agent_name"] == "fix-agent"
-        assert data["accepted_by_user"] is True
-        assert data["requires_user_review"] is True
-        assert data["is_expanded"] is True
         assert data["expansion_status"] == "completed"
         assert data["github_issue_number"] == 42
         assert data["github_pr_number"] == 99
@@ -517,12 +502,6 @@ class TestClosedStateRoundTrip:
         assert data["linear_team_id"] == "TEAM-1"
         assert data["start_date"] == "2026-01-10"
         assert data["due_date"] == "2026-01-20"
-        assert data["workflow_name"] == "tdd"
-        assert data["verification"] == "tests pass"
-        assert data["sequence_order"] == 3
-        assert data["reference_doc"] == "docs/spec.md"
-        assert data["complexity_score"] == 3
-        assert data["estimated_subtasks"] == 5
 
         # Delete task from DB to simulate fresh import
         sync_manager.db.execute("PRAGMA foreign_keys = OFF")
@@ -544,10 +523,6 @@ class TestClosedStateRoundTrip:
         assert reimported.closed_commit_sha == "abc123def456"
         assert reimported.labels == ["bug", "p0"]
         assert reimported.category == "code"
-        assert reimported.agent_name == "fix-agent"
-        assert reimported.accepted_by_user is True
-        assert reimported.requires_user_review is True
-        assert reimported.is_expanded is True
         assert reimported.expansion_status == "completed"
         assert reimported.github_issue_number == 42
         assert reimported.github_pr_number == 99
@@ -556,12 +531,6 @@ class TestClosedStateRoundTrip:
         assert reimported.linear_team_id == "TEAM-1"
         assert reimported.start_date == "2026-01-10"
         assert reimported.due_date == "2026-01-20"
-        assert reimported.workflow_name == "tdd"
-        assert reimported.verification == "tests pass"
-        assert reimported.sequence_order == 3
-        assert reimported.reference_doc == "docs/spec.md"
-        assert reimported.complexity_score == 3
-        assert reimported.estimated_subtasks == 5
 
     @pytest.mark.integration
     def test_update_path_preserves_session_local_fields(
@@ -579,7 +548,6 @@ class TestClosedStateRoundTrip:
                 created_in_session_id = 'session-aaa',
                 closed_in_session_id = 'session-bbb',
                 compacted_at = '2026-01-10T00:00:00+00:00',
-                summary = 'Compaction summary text',
                 updated_at = '2020-01-01T00:00:00+00:00'
             WHERE id = ?""",
             (task.id,),
@@ -619,14 +587,13 @@ class TestClosedStateRoundTrip:
         # Verify session-local fields were PRESERVED (not wiped to NULL)
         row = sync_manager.db.fetchone(
             "SELECT assignee, created_in_session_id, closed_in_session_id, "
-            "compacted_at, summary FROM tasks WHERE id = ?",
+            "compacted_at FROM tasks WHERE id = ?",
             (task.id,),
         )
         assert row["assignee"] == "session-uuid-123"
         assert row["created_in_session_id"] == "session-aaa"
         assert row["closed_in_session_id"] == "session-bbb"
         assert row["compacted_at"] == "2026-01-10T00:00:00+00:00"
-        assert row["summary"] == "Compaction summary text"
 
     @pytest.mark.integration
     def test_export_includes_priority_and_task_type(
@@ -1193,9 +1160,7 @@ class TestImportSeqNumPreservation:
         assert task.seq_num > 5
 
     @pytest.mark.integration
-    def test_import_batch_dedup(
-        self, sync_manager, task_manager, sample_project
-    ) -> None:
+    def test_import_batch_dedup(self, sync_manager, task_manager, sample_project) -> None:
         """Two JSONL tasks with same seq_num → first wins, second gets fresh."""
         now = "2023-01-02T00:00:00+00:00"
 
@@ -1243,9 +1208,7 @@ class TestImportSeqNumPreservation:
         assert t2.seq_num > 100
 
     @pytest.mark.integration
-    def test_import_no_seq_num_in_jsonl(
-        self, sync_manager, task_manager, sample_project
-    ) -> None:
+    def test_import_no_seq_num_in_jsonl(self, sync_manager, task_manager, sample_project) -> None:
         """No seq_num field in JSONL → gets fresh assignment."""
         now = "2023-01-02T00:00:00+00:00"
 

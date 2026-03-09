@@ -247,14 +247,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
             return {
                 "routed_to_review": True,
-                "message": (
-                    "Task routed to review status. "
-                    + (
-                        "Reason: requires user review before closing."
-                        if task.requires_user_review
-                        else "Reason: validation was overridden, human review recommended."
-                    )
-                ),
+                "message": "Task routed to review status. Reason: validation was overridden, human review recommended.",
                 "task_id": resolved_id,
             }
 

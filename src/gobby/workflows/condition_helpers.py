@@ -4,7 +4,6 @@ These functions are registered as allowed_funcs in SafeExpressionEvaluator
 so they can be called from rule ``when`` conditions, e.g.:
 
     when: "task_tree_complete(variables.session_task)"
-    when: "task_needs_user_review(variables.session_task)"
 """
 
 import logging
@@ -18,30 +17,9 @@ def is_task_complete(task: Any) -> bool:
 
     A task is complete if:
     - status is 'closed', OR
-    - status is 'needs_review' AND requires_user_review is False
+    - status is 'needs_review' (review submitted, pending human action)
     """
-    if task.status == "closed":
-        return True
-    requires_user_review = getattr(task, "requires_user_review", False)
-    if task.status == "needs_review" and not requires_user_review:
-        return True
-    return False
-
-
-def task_needs_user_review(task_manager: Any, task_id: str | int | None) -> bool:
-    """Check if a task is awaiting user review (in review + HITL flag).
-
-    Used in rule conditions like:
-        when: "task_needs_user_review(variables.session_task)"
-    """
-    if not task_id or not task_manager:
-        return False
-
-    task = task_manager.get_task(_normalize_task_id(task_id))
-    if not task:
-        return False
-
-    return bool(task.status == "needs_review" and getattr(task, "requires_user_review", False))
+    return task.status in ("closed", "needs_review")
 
 
 def _normalize_task_id(task_id: Any) -> str:

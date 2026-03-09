@@ -309,9 +309,7 @@ class TestDangerousBash:
             session.provide_approval("approve")
 
         task = asyncio.create_task(_auto_approve())
-        result = await session._check_tool_permission(
-            "Bash", {"command": "sudo rm -rf /"}
-        )
+        result = await session._check_tool_permission("Bash", {"command": "sudo rm -rf /"})
         # Should have gone through approval flow (accepted)
         assert result["decision"] == "accept"
         await task

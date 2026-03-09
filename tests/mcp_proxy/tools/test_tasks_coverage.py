@@ -61,7 +61,6 @@ def mock_config():
     validation_config = MagicMock()
     validation_config.auto_generate_on_create = False
     validation_config.auto_generate_on_expand = False
-    validation_config.use_external_validator = False
     tasks_config.validation = validation_config
     config.get_gobby_tasks_config.return_value = tasks_config
     return config

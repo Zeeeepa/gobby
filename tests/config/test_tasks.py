@@ -269,9 +269,6 @@ class TestTaskValidationConfigDefaults:
         assert config.issue_similarity_threshold == 0.8
         assert config.run_build_first is True
         assert config.build_command is None
-        assert config.use_external_validator is False
-        assert config.external_validator_model is None
-        assert config.external_validator_mode == "llm"
         assert config.escalation_enabled is True
         assert config.escalation_notify == "none"
         assert config.auto_generate_on_create is True
@@ -294,51 +291,6 @@ class TestTaskValidationConfigCustom:
 
         config = TaskValidationConfig(build_command="uv run pytest")
         assert config.build_command == "uv run pytest"
-
-    def test_external_validator(self) -> None:
-        """Test enabling external validator."""
-        from gobby.config.tasks import TaskValidationConfig
-
-        config = TaskValidationConfig(
-            use_external_validator=True,
-            external_validator_model="claude-opus-4-5",
-        )
-        assert config.use_external_validator is True
-        assert config.external_validator_model == "claude-opus-4-5"
-
-    def test_external_validator_mode_llm(self) -> None:
-        """Test external validator mode set to llm (default)."""
-        from gobby.config.tasks import TaskValidationConfig
-
-        config = TaskValidationConfig(external_validator_mode="llm")
-        assert config.external_validator_mode == "llm"
-
-    def test_external_validator_mode_agent(self) -> None:
-        """Test external validator mode set to agent."""
-        from gobby.config.tasks import TaskValidationConfig
-
-        config = TaskValidationConfig(external_validator_mode="agent")
-        assert config.external_validator_mode == "agent"
-
-    def test_external_validator_mode_spawn(self) -> None:
-        """Test external validator mode set to spawn."""
-        from gobby.config.tasks import TaskValidationConfig
-
-        config = TaskValidationConfig(external_validator_mode="spawn")
-        assert config.external_validator_mode == "spawn"
-
-    def test_external_validator_full_config(self) -> None:
-        """Test external validator with all options configured."""
-        from gobby.config.tasks import TaskValidationConfig
-
-        config = TaskValidationConfig(
-            use_external_validator=True,
-            external_validator_model="claude-sonnet-4-5",
-            external_validator_mode="spawn",
-        )
-        assert config.use_external_validator is True
-        assert config.external_validator_model == "claude-sonnet-4-5"
-        assert config.external_validator_mode == "spawn"
 
     def test_escalation_webhook(self) -> None:
         """Test escalation with webhook."""
@@ -413,13 +365,6 @@ class TestTaskValidationConfigValidation:
 
         with pytest.raises(ValidationError):
             TaskValidationConfig(escalation_notify="invalid")  # type: ignore
-
-    def test_invalid_external_validator_mode(self) -> None:
-        """Test that invalid external_validator_mode raises ValidationError."""
-        from gobby.config.tasks import TaskValidationConfig
-
-        with pytest.raises(ValidationError):
-            TaskValidationConfig(external_validator_mode="invalid")  # type: ignore
 
 
 # =============================================================================

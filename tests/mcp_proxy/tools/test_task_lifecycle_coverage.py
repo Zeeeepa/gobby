@@ -32,7 +32,6 @@ def _make_task(
     labels: list[str] | None = None,
     validation_criteria: str | None = None,
     commits: list[str] | None = None,
-    requires_user_review: bool = False,
     seq_num: int | None = 42,
     description: str | None = "Test desc",
 ) -> Task:
@@ -49,7 +48,6 @@ def _make_task(
         labels=labels or [],
         validation_criteria=validation_criteria,
         commits=commits,
-        requires_user_review=requires_user_review,
         seq_num=seq_num,
         description=description,
     )
@@ -135,9 +133,7 @@ class TestCloseTask:
         mock_task_manager.close_task.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_close_epic_open_children_blocked(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_close_epic_open_children_blocked(self, mock_task_manager, mock_sync_manager):
         """Closing a parent task with open children is blocked."""
         parent = _make_task(task_type="epic", commits=None)
         open_child = _make_task(

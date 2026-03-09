@@ -95,7 +95,9 @@ def parser(config: CodeIndexConfig) -> CodeParser:
 
 
 @pytest.fixture
-def indexer(code_storage: CodeIndexStorage, parser: CodeParser, config: CodeIndexConfig) -> CodeIndexer:
+def indexer(
+    code_storage: CodeIndexStorage, parser: CodeParser, config: CodeIndexConfig
+) -> CodeIndexer:
     return CodeIndexer(storage=code_storage, parser=parser, config=config)
 
 
@@ -223,18 +225,14 @@ async def test_call_get_file_tree(registry) -> None:
 @pytest.mark.asyncio
 async def test_call_get_summary_not_found(registry) -> None:
     """get_summary for non-existent symbol returns error."""
-    result = await registry.call(
-        "get_summary", {"symbol_id": "nonexistent"}
-    )
+    result = await registry.call("get_summary", {"symbol_id": "nonexistent"})
     assert "error" in result
 
 
 @pytest.mark.asyncio
 async def test_call_find_callers_without_graph(registry) -> None:
     """find_callers without Neo4j returns graph unavailable error."""
-    result = await registry.call(
-        "find_callers", {"symbol_name": "foo"}
-    )
+    result = await registry.call("find_callers", {"symbol_name": "foo"})
     assert isinstance(result, list)
     assert len(result) == 1
     assert "error" in result[0]

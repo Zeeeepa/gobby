@@ -251,9 +251,7 @@ class TestRequireMemoryReviewBeforeApprove:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name(
-            "require-memory-review-before-approve", include_templates=True
-        )
+        row = manager.get_by_name("require-memory-review-before-approve", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
@@ -263,9 +261,7 @@ class TestRequireMemoryReviewBeforeApprove:
     def test_has_when_condition(self, db, manager) -> None:
         """Only block mark_task_review_approved when pending_memory_review is set."""
         _sync_bundled(db)
-        row = manager.get_by_name(
-            "require-memory-review-before-approve", include_templates=True
-        )
+        row = manager.get_by_name("require-memory-review-before-approve", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "mark_task_review_approved" in body.when

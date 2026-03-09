@@ -191,8 +191,6 @@ def test_search_text_with_file_filter(
     """search_text with file_path filter."""
     code_storage.upsert_symbols(sample_symbols)
 
-    results = searcher.search_text(
-        "greet", "proj-1", file_path="src/app.py"
-    )
+    results = searcher.search_text("greet", "proj-1", file_path="src/app.py")
     assert len(results) >= 1
     assert all(r["file_path"] == "src/app.py" for r in results)

@@ -85,9 +85,7 @@ def _simulate_turn(client: AsyncMock, text: str = "Done!") -> None:
         result = await original_start_turn(*args, **kwargs)
         # Simulate delta events
         if "item/agentMessage/delta" in handlers:
-            handlers["item/agentMessage/delta"](
-                "item/agentMessage/delta", {"delta": text}
-            )
+            handlers["item/agentMessage/delta"]("item/agentMessage/delta", {"delta": text})
         # Simulate turn completion
         if "turn/completed" in handlers:
             handlers["turn/completed"]("turn/completed", {})
@@ -228,9 +226,7 @@ class TestAgentRunManager:
         ):
             await runner.run()
 
-        manager.update_sdk_session_id.assert_called_once_with(
-            "test-run-456", "thread-for-resume"
-        )
+        manager.update_sdk_session_id.assert_called_once_with("test-run-456", "thread-for-resume")
 
     @pytest.mark.asyncio
     async def test_fail_called_on_error(self) -> None:

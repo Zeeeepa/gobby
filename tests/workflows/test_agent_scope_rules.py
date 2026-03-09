@@ -240,11 +240,13 @@ class TestDeveloperAgentRules:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 agent_scope=["developer"],
-                effects=[RuleEffect(
-                    type="block",
-                    mcp_tools=["coderabbit:*"],
-                    reason="Developers don't review their own code.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        mcp_tools=["coderabbit:*"],
+                        reason="Developers don't review their own code.",
+                    )
+                ],
             ),
             priority=50,
         )
@@ -275,11 +277,13 @@ class TestDeveloperAgentRules:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 agent_scope=["developer"],
-                effects=[RuleEffect(
-                    type="block",
-                    mcp_tools=["coderabbit:*"],
-                    reason="Developers don't review their own code.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        mcp_tools=["coderabbit:*"],
+                        reason="Developers don't review their own code.",
+                    )
+                ],
             ),
             priority=50,
         )
@@ -309,12 +313,14 @@ class TestDeveloperAgentRules:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 agent_scope=["developer"],
-                effects=[RuleEffect(
-                    type="block",
-                    tools=["Bash"],
-                    command_pattern=r"git\s+commit",
-                    reason="Run tests before committing.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        tools=["Bash"],
+                        command_pattern=r"git\s+commit",
+                        reason="Run tests before committing.",
+                    )
+                ],
             ),
             priority=50,
         )
@@ -349,11 +355,13 @@ class TestQAAgentRules:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 agent_scope=["qa"],
-                effects=[RuleEffect(
-                    type="block",
-                    tools=["Edit", "Write"],
-                    reason="QA agents can only edit test files.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        tools=["Edit", "Write"],
+                        reason="QA agents can only edit test files.",
+                    )
+                ],
             ),
             priority=50,
         )
@@ -376,11 +384,13 @@ class TestQAAgentRules:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 agent_scope=["qa"],
-                effects=[RuleEffect(
-                    type="block",
-                    tools=["Edit", "Write"],
-                    reason="QA agents can only edit test files.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        tools=["Edit", "Write"],
+                        reason="QA agents can only edit test files.",
+                    )
+                ],
             ),
             priority=50,
         )
@@ -412,11 +422,13 @@ class TestCoordinatorAgentRules:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 agent_scope=["coordinator"],
-                effects=[RuleEffect(
-                    type="block",
-                    tools=["Edit", "Write", "NotebookEdit"],
-                    reason="Coordinators orchestrate, don't write code.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        tools=["Edit", "Write", "NotebookEdit"],
+                        reason="Coordinators orchestrate, don't write code.",
+                    )
+                ],
             ),
             priority=50,
         )
@@ -439,11 +451,13 @@ class TestCoordinatorAgentRules:
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
                 agent_scope=["coordinator"],
-                effects=[RuleEffect(
-                    type="block",
-                    tools=["Edit", "Write", "NotebookEdit"],
-                    reason="Coordinators orchestrate, don't write code.",
-                )],
+                effects=[
+                    RuleEffect(
+                        type="block",
+                        tools=["Edit", "Write", "NotebookEdit"],
+                        reason="Coordinators orchestrate, don't write code.",
+                    )
+                ],
             ),
             priority=50,
         )
