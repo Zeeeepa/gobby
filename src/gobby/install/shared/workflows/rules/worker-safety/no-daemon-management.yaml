@@ -1,0 +1,14 @@
+tags: [worker-safety, enforcement, gobby]
+
+rules:
+  no-daemon-management:
+    description: "Block spawned agents from starting/stopping/restarting the gobby daemon"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "gobby\\s+(start|stop|restart)"
+        reason: "Spawned agents cannot manage the daemon. This would restart the production daemon or start a new instance in the clone."

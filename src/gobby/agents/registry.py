@@ -90,6 +90,9 @@ class RunningAgent:
     clone_id: str | None = None
     """Associated clone, if any."""
 
+    task_id: str | None = None
+    """Task ID this agent is working on, if any."""
+
     timeout_seconds: float | None = None
     """Timeout in seconds — lifecycle monitor kills agent when exceeded. 0 or None = no timeout."""
 
@@ -116,6 +119,7 @@ class RunningAgent:
             "workflow_name": self.workflow_name,
             "worktree_id": self.worktree_id,
             "clone_id": self.clone_id,
+            "task_id": self.task_id,
             "timeout_seconds": self.timeout_seconds,
             "has_task": self.task is not None,
         }

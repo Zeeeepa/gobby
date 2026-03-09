@@ -454,6 +454,7 @@ async def spawn_agent_impl(
             workflow_name=effective_workflow,
             worktree_id=isolation_ctx.worktree_id,
             clone_id=isolation_ctx.clone_id,
+            task_id=resolved_task_id,
             timeout_seconds=effective_timeout,
         )
     )
@@ -480,6 +481,7 @@ async def spawn_agent_impl(
                 workflow_name=effective_workflow,
                 worktree_id=isolation_ctx.worktree_id,
                 clone_id=isolation_ctx.clone_id,
+                task_id=resolved_task_id,
                 timeout_seconds=effective_timeout,
                 task=spawn_result.process,  # asyncio.Task for autonomous mode
             )

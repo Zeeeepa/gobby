@@ -42,6 +42,25 @@ from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
 
+
+def _get_tool_identity(event_data: dict[str, Any]) -> str:
+    """Return effective tool identity for consecutive-block tracking.
+
+    For MCP calls (mcp__gobby__call_tool / call_tool), returns 'server:tool'
+    so different MCP tools are tracked independently. This prevents one failing
+    MCP tool from blocking all other MCP tools.
+    """
+    tool_name = event_data.get("tool_name", "")
+    if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+        tool_input = event_data.get("tool_input") or {}
+        if isinstance(tool_input, dict):
+            server = tool_input.get("server_name", "")
+            tool = tool_input.get("tool_name", "")
+            if server and tool:
+                return f"{server}:{tool}"
+    return tool_name
+
+
 # Map HookEventType to RuleEvent
 _EVENT_TYPE_MAP: dict[HookEventType, RuleEvent] = {
     HookEventType.BEFORE_TOOL: RuleEvent.BEFORE_TOOL,
@@ -103,7 +122,7 @@ class RuleEngine:
         # Only escalate when the SAME tool is retried — different tools reset the counter
         # so the agent can recover by using other tools (Read, Bash, etc.).
         if rule_event == RuleEvent.BEFORE_TOOL and variables.get("tool_block_pending"):
-            tool_name = event.data.get("tool_name", "")
+            tool_name = _get_tool_identity(event.data)
             last_blocked = variables.get("_last_blocked_tool", "")
             if tool_name == last_blocked:
                 count = variables.get("consecutive_tool_blocks", 0) + 1
@@ -169,7 +188,7 @@ class RuleEngine:
             step_block = self._check_step_tool_enforcement(event, session_id)
             if step_block is not None:
                 variables["tool_block_pending"] = True
-                variables["_last_blocked_tool"] = event.data.get("tool_name", "")
+                variables["_last_blocked_tool"] = _get_tool_identity(event.data)
                 return step_block
 
         # 4c. Step workflow transition processing (after successful MCP tool calls)
@@ -311,7 +330,7 @@ class RuleEngine:
                     # Auto-set tool_block_pending on before_tool blocks
                     if rule_event == RuleEvent.BEFORE_TOOL:
                         variables["tool_block_pending"] = True
-                        variables["_last_blocked_tool"] = event.data.get("tool_name", "")
+                        variables["_last_blocked_tool"] = _get_tool_identity(event.data)
                     # First block wins — stop evaluating
                     break
 
@@ -988,6 +1007,12 @@ class RuleEngine:
                 instance.step_action_count = 0
                 instance.step_entered_at = datetime.now(UTC)
                 instance_mgr.save_instance(instance)
+
+                # Reset consecutive-tool-block counters so failures from the
+                # previous step don't bleed into the new one
+                variables["consecutive_tool_blocks"] = 0
+                variables["_last_blocked_tool"] = ""
+                variables["tool_block_pending"] = False
 
                 logger.info(
                     "Step transition: %s -> %s (workflow=%s, session=%s)",

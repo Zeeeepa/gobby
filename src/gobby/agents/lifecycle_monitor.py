@@ -76,14 +76,36 @@ class AgentLifecycleMonitor:
             return
         try:
             db_run = await asyncio.to_thread(self._agent_run_manager.get, run_id)
-            if not db_run or not db_run.task_id:
+            if not db_run:
                 return
-            task = await asyncio.to_thread(self._task_manager.get_task, db_run.task_id)
+
+            task_id = db_run.task_id
+
+            # Fallback 1: check in-memory registry for task_id
+            if not task_id:
+                registry_agent = self._registry.get(run_id)
+                if registry_agent and registry_agent.task_id:
+                    task_id = registry_agent.task_id
+
+            # Fallback 2: find task by assignee matching the agent's session
+            if not task_id and db_run.child_session_id:
+                tasks = await asyncio.to_thread(
+                    self._task_manager.list_tasks,
+                    status="in_progress",
+                    assignee=db_run.child_session_id,
+                )
+                if tasks:
+                    task_id = tasks[0].id
+
+            if not task_id:
+                return
+
+            task = await asyncio.to_thread(self._task_manager.get_task, task_id)
             if task and task.status == "in_progress":
                 await asyncio.to_thread(
-                    self._task_manager.update_task, db_run.task_id, status="open", assignee=None
+                    self._task_manager.update_task, task_id, status="open", assignee=None
                 )
-                task_ref = f"#{task.seq_num}" if task.seq_num else db_run.task_id[:8]
+                task_ref = f"#{task.seq_num}" if task.seq_num else task_id[:8]
                 logger.info("Recovered task %s to open after agent %s failed", task_ref, run_id)
         except Exception as e:
             logger.warning("Failed to recover task for agent %s: %s", run_id, e)
@@ -587,6 +609,7 @@ class AgentLifecycleMonitor:
                         provider=run.provider,
                         worktree_id=run.worktree_id,
                         clone_id=run.clone_id,
+                        task_id=run.task_id,
                     )
                 )
                 logger.info(
