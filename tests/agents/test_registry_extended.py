@@ -137,6 +137,63 @@ class TestRunningAgentRegistryKill:
         assert result["pid"] == 99999
         mock_os_kill.assert_any_call(99999, signal.SIGTERM)
 
+    @pytest.mark.asyncio
+    async def test_kill_uses_registered_pid_skips_pgrep(
+        self, registry, mock_os_kill, mock_subprocess
+    ):
+        """When agent.pid is set, kill uses it directly without pgrep/terminal_context."""
+        agent = RunningAgent(
+            run_id="ar-has-pid",
+            session_id="sess-has-pid",
+            parent_session_id="parent",
+            mode="terminal",
+            pid=54321,
+        )
+        registry.add(agent)
+
+        # Simulate: alive -> signal -> dead
+        mock_os_kill.side_effect = [None, None, ProcessLookupError()]
+
+        result = await registry.kill("ar-has-pid")
+
+        assert result["success"] is True
+        # Should use the registered PID directly
+        mock_os_kill.assert_any_call(54321, signal.SIGTERM)
+        # pgrep should NOT have been called
+        mock_subprocess.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_kill_pgrep_disambiguates_highest_pid(
+        self, registry, mock_os_kill, mock_subprocess
+    ):
+        """When pgrep returns multiple PIDs, pick the highest (child process)."""
+        agent = RunningAgent(
+            run_id="ar-multi",
+            session_id="sess-multi",
+            parent_session_id="parent",
+            mode="terminal",
+            pid=None,
+            provider="claude",
+        )
+        registry.add(agent)
+
+        # pgrep returns two PIDs (parent shell + child CLI)
+        mock_subprocess.side_effect = [
+            (0, "10000\n10050\n", ""),  # pgrep returns two PIDs
+            (0, f"claude --session-id sess-multi", ""),  # ps for PID 10000
+            (0, f"claude --session-id sess-multi", ""),  # ps for PID 10050
+        ]
+
+        # Simulate: alive -> signal -> dead
+        mock_os_kill.side_effect = [None, None, ProcessLookupError()]
+
+        result = await registry.kill("ar-multi")
+
+        assert result["success"] is True
+        # Should pick the highest PID (10050, the child)
+        assert result["pid"] == 10050
+        mock_os_kill.assert_any_call(10050, signal.SIGTERM)
+
 
 class TestRunningAgentRegistryCloseTerminal:
     """Tests for _close_terminal_window methods."""

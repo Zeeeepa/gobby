@@ -472,8 +472,9 @@ class RunningAgentRegistry:
         target_pid = agent.pid
         found_via = "registry"
 
-        if agent.mode == "terminal" and agent.session_id:
+        if agent.mode == "terminal" and agent.session_id and not target_pid:
             # Strategy 1: Check session's terminal_context (Claude hooks)
+            # Only used when agent.pid is not set (e.g., daemon restart lost PID)
             try:
                 from gobby.storage.database import LocalDatabase
                 from gobby.storage.sessions import LocalSessionManager
@@ -491,7 +492,7 @@ class RunningAgentRegistry:
                 self._logger.debug(f"terminal_context lookup failed: {e}")
 
             # Strategy 2: pgrep fallback (for Codex/Gemini without hooks)
-            if found_via == "registry" or not target_pid:
+            if not target_pid:
                 # Validate session_id format (UUID or safe identifier) to prevent injection
                 session_id_pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
                 if not session_id_pattern.match(agent.session_id):
@@ -552,15 +553,17 @@ class RunningAgentRegistry:
                                                 and is_matched
                                             ):
                                                 if matched_pid is not None:
-                                                    # Multiple matches - ambiguous
-                                                    self._logger.error(
-                                                        f"Ambiguous PID match: both {matched_pid} "
-                                                        f"and {candidate_pid} match session "
-                                                        f"{agent.session_id}"
+                                                    # Multiple matches — pick highest PID.
+                                                    # Child process is spawned after parent shell,
+                                                    # so it gets a higher PID on Linux/macOS.
+                                                    self._logger.info(
+                                                        f"Multiple PID matches ({matched_pid}, "
+                                                        f"{candidate_pid}) for session "
+                                                        f"{agent.session_id} — picking highest"
                                                     )
-                                                    matched_pid = None
-                                                    break
-                                                matched_pid = candidate_pid
+                                                    matched_pid = max(matched_pid, candidate_pid)
+                                                else:
+                                                    matched_pid = candidate_pid
                                     except (ValueError, TimeoutError):
                                         continue
                                 if matched_pid is not None:
