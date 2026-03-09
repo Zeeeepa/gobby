@@ -511,16 +511,26 @@ async def main() -> int:
 
     # Check if gobby daemon is running before processing hooks
     if not await check_daemon_running():
-        if hook_type in config.critical_hooks:
-            # Block the hook - forces user to start daemon before critical lifecycle events
+        # Spawned agents must stop immediately — without the daemon, hook
+        # enforcement is unavailable and the agent is off-rails.
+        if os.environ.get("GOBBY_AGENT_RUN_ID"):
             print(
-                f"\nGobby daemon is not running. Start with 'gobby start' before continuing. "
+                "\nGobby daemon is not running. "
+                "Spawned agent tools are blocked — stop immediately.",
+                file=sys.stderr,
+            )
+            return 2
+
+        if hook_type in config.critical_hooks:
+            # Block the hook for interactive sessions on critical lifecycle events
+            print(
+                f"\nGobby daemon is not running. "
                 f"({hook_type} requires daemon for session state management)",
                 file=sys.stderr,
             )
             return 2
         else:
-            # Non-critical hooks can proceed without daemon
+            # Non-critical hooks can proceed without daemon for interactive sessions
             print(
                 json.dumps(
                     {"status": "daemon_not_running", "message": "gobby daemon is not running"}
