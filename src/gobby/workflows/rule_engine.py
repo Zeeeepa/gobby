@@ -223,12 +223,9 @@ class RuleEngine:
                     self._check_catastrophic_failure(event, variables)
                 else:
                     if variables.get("tool_block_pending"):
-                        failed_tool = variables.get("_last_blocked_tool", "")
-                        current_tool = event.data.get("tool_name", "")
-                        if not failed_tool or current_tool == failed_tool:
-                            variables["tool_block_pending"] = False
-                            variables["consecutive_tool_blocks"] = 0
-                            variables["_last_blocked_tool"] = ""
+                        variables["tool_block_pending"] = False
+                        variables["consecutive_tool_blocks"] = 0
+                        variables["_last_blocked_tool"] = ""
                     # Clear edit_write_pending on successful edit/write
                     tool_name_lower = event.data.get("tool_name", "").lower()
                     if tool_name_lower in EDIT_TOOLS and not is_failure:
@@ -252,12 +249,9 @@ class RuleEngine:
                 self._check_catastrophic_failure(event, variables)
             else:
                 if variables.get("tool_block_pending"):
-                    failed_tool = variables.get("_last_blocked_tool", "")
-                    current_tool = event.data.get("tool_name", "")
-                    if not failed_tool or current_tool == failed_tool:
-                        variables["tool_block_pending"] = False
-                        variables["consecutive_tool_blocks"] = 0
-                        variables["_last_blocked_tool"] = ""
+                    variables["tool_block_pending"] = False
+                    variables["consecutive_tool_blocks"] = 0
+                    variables["_last_blocked_tool"] = ""
                 # Clear edit_write_pending on successful edit/write
                 tool_name_lower = event.data.get("tool_name", "").lower()
                 if tool_name_lower in EDIT_TOOLS and not is_failure:
