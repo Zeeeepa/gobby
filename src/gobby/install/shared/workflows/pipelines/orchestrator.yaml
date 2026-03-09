@@ -124,7 +124,7 @@ steps:
         task_id: "${{ inputs.task_id }}"
 
   - id: get_task_info
-    condition: "${{ not done_check.output.orchestration_complete and not get_clone.output }}"
+    condition: "${{ not done_check.output.orchestration_complete and not get_clone.output.clone }}"
     mcp:
       server: gobby-tasks
       tool: get_task
@@ -132,7 +132,7 @@ steps:
         task_id: "${{ inputs.task_id }}"
 
   - id: create_clone
-    condition: "${{ not done_check.output.orchestration_complete and not get_clone.output }}"
+    condition: "${{ not done_check.output.orchestration_complete and not get_clone.output.clone }}"
     mcp:
       server: gobby-clones
       tool: create_clone
@@ -150,7 +150,7 @@ steps:
       tool: pipeline_eval
       arguments:
         data:
-          clone_id: "${{ get_clone.output.clone_id if get_clone.output else (create_clone.output.clone_id if create_clone.output else '') }}"
+          clone_id: "${{ get_clone.output.clone.id if get_clone.output.clone else (create_clone.output.clone.id if create_clone.output else '') }}"
 
   # --- DISPATCH DEVS ---
   - id: count_active

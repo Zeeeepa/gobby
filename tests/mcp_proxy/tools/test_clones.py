@@ -784,13 +784,13 @@ class TestGetCloneByTask:
 
     @pytest.mark.asyncio
     async def test_get_clone_by_task_not_found(self, registry, mock_clone_storage):
-        """Get clone returns error when no clone linked to task."""
+        """Get clone returns success with null clone when no clone linked to task."""
         mock_clone_storage.get_by_task.return_value = None
 
         result = await registry.call("get_clone_by_task", {"task_id": "task-999"})
 
-        assert result["success"] is False
-        assert "task-999" in result["error"]
+        assert result["success"] is True
+        assert result["clone"] is None
 
 
 class TestLinkTaskToClone:

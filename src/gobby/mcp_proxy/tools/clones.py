@@ -640,7 +640,7 @@ def create_clones_registry(
         """
         clone = clone_storage.get_by_task(task_id)
         if not clone:
-            return {"success": False, "error": f"No clone linked to task '{task_id}'"}
+            return {"success": True, "clone": None}
 
         return {"success": True, "clone": clone.to_dict()}
 

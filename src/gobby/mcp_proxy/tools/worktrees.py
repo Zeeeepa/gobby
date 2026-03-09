@@ -923,7 +923,7 @@ def create_worktrees_registry(
         resolved_task_id = _resolve_task_id(task_id)
         worktree = worktree_storage.get_by_task(resolved_task_id)
         if not worktree:
-            return {"success": False, "error": f"No worktree linked to task '{task_id}'"}
+            return {"success": True, "worktree": None}
 
         return {"success": True, "worktree": worktree.to_dict()}
 
