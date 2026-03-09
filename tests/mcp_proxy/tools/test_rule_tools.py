@@ -47,7 +47,7 @@ def _create_test_rule(
     body = {
         "event": event,
         "group": group,
-        "effect": {"type": "block", "reason": "test"},
+        "effects": [{"type": "block", "reason": "test"}],
     }
     row = def_manager.create(
         name=name,
@@ -232,7 +232,7 @@ class TestCreateRule:
         body = {
             "event": "before_tool",
             "group": "my-group",
-            "effect": {"type": "block", "reason": "testing"},
+            "effects": [{"type": "block", "reason": "testing"}],
         }
         result = rule_tools["create_rule"](
             name="new-rule",
@@ -261,7 +261,7 @@ class TestCreateRule:
             name="existing-rule",
             definition={
                 "event": "stop",
-                "effect": {"type": "block", "reason": "dup"},
+                "effects": [{"type": "block", "reason": "dup"}],
             },
         )
         assert result["success"] is False
