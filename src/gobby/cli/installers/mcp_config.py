@@ -493,20 +493,13 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "optional_secret_args": {"context7_api_key": ["--api-key"]},
         "description": "Context7 library documentation lookup (set context7_api_key secret for private repos)",
     },
-    {
-        "name": "playwright",
-        "transport": "stdio",
-        "command": "npx",
-        "args": ["-y", "@playwright/mcp@latest"],
-        "description": "Playwright browser automation for testing",
-    },
 ]
 
 
 def install_default_mcp_servers() -> dict[str, Any]:
     """Install default external MCP servers to ~/.gobby/.mcp.json.
 
-    Adds default MCP servers (GitHub, Linear, context7, playwright) if not
+    Adds default MCP servers (GitHub, Linear, context7) if not
     already configured. Also syncs to the database so the daemon proxy can
     serve them. These servers pull API keys from environment variables.
 
