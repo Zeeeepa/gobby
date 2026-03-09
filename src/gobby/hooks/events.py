@@ -237,7 +237,7 @@ EVENT_TYPE_CLI_SUPPORT: dict[HookEventType, dict[str, str | None]] = {
     HookEventType.PRE_COMPACT: {
         "claude": "PreCompact",
         "gemini": "PreCompress",
-        "codex": None,
+        "codex": "contextCompaction",
         "cursor": "PreCompact",
         "windsurf": "PreCompact",
         "copilot": "PreCompact",

@@ -400,6 +400,21 @@ class CodexAdapter(BaseAdapter):
             item = params.get("item", {})
             item_type = item.get("type", "")
 
+            # contextCompaction items map to PRE_COMPACT (not AFTER_TOOL)
+            if item_type == "contextCompaction":
+                return HookEvent(
+                    event_type=HookEventType.PRE_COMPACT,
+                    session_id=params.get("threadId", ""),
+                    source=self.source,
+                    timestamp=datetime.now(UTC),
+                    machine_id=self._get_machine_id(),
+                    data={
+                        "trigger": "auto",
+                        "item_id": item.get("id", ""),
+                        "item_type": item_type,
+                    },
+                )
+
             # Only translate tool-related items
             if item_type in self.TOOL_ITEM_TYPES:
                 from gobby.hooks.normalization import normalize_tool_fields
@@ -441,9 +456,23 @@ class CodexAdapter(BaseAdapter):
         Returns:
             Dict with decision and optional context field.
         """
-        result: dict[str, Any] = {
-            "decision": "accept" if response.decision != "deny" else "decline",
-        }
+        # Map HookResponse decision to Codex rich approval format
+        if response.decision == "deny":
+            decision = "decline"
+        elif response.decision == "block":
+            decision = "cancel"
+        elif response.auto_approve:
+            decision = "acceptForSession"
+        elif response.metadata.get("exec_policy_amendment"):
+            decision = "acceptWithExecpolicyAmendment"
+        else:
+            decision = "accept"
+
+        result: dict[str, Any] = {"decision": decision}
+
+        # Include amendment payload for policy updates
+        if decision == "acceptWithExecpolicyAmendment":
+            result["execPolicyAmendment"] = response.metadata["exec_policy_amendment"]
 
         # Build context parts from workflow context and session metadata
         context_parts: list[str] = []

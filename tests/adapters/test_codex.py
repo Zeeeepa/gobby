@@ -998,6 +998,31 @@ class TestCodexAdapterTranslateToHookEvent:
 
         assert hook_event is None
 
+    def test_item_completed_context_compaction(self) -> None:
+        """item/completed with contextCompaction routes to PRE_COMPACT."""
+        adapter = CodexAdapter()
+
+        native_event = {
+            "method": "item/completed",
+            "params": {
+                "threadId": "thr-compact",
+                "item": {
+                    "id": "item-compact-1",
+                    "type": "contextCompaction",
+                    "status": "completed",
+                },
+            },
+        }
+
+        hook_event = adapter.translate_to_hook_event(native_event)
+
+        assert hook_event is not None
+        assert hook_event.event_type == HookEventType.PRE_COMPACT
+        assert hook_event.session_id == "thr-compact"
+        assert hook_event.data["trigger"] == "auto"
+        assert hook_event.data["item_id"] == "item-compact-1"
+        assert hook_event.data["item_type"] == "contextCompaction"
+
     def test_unknown_event(self) -> None:
         """Unknown event types return None."""
         adapter = CodexAdapter()
@@ -1090,19 +1115,39 @@ class TestCodexAdapterTranslateFromHookResponse:
         assert result["decision"] == "decline"
 
     def test_block_response(self) -> None:
-        """Block response maps to accept (only 'deny' maps to decline)."""
+        """Block response maps to cancel."""
         adapter = CodexAdapter()
 
-        # Note: The Codex adapter only maps "deny" to "decline"
-        # All other decisions (including "block") map to "accept"
         response = HookResponse(decision="block")
         result = adapter.translate_from_hook_response(response)
 
-        # This is the actual behavior - block maps to accept
-        assert result["decision"] == "accept"
+        assert result["decision"] == "cancel"
+
+    def test_auto_approve_response(self) -> None:
+        """Auto-approve maps to acceptForSession."""
+        adapter = CodexAdapter()
+
+        response = HookResponse(decision="allow", auto_approve=True)
+        result = adapter.translate_from_hook_response(response)
+
+        assert result["decision"] == "acceptForSession"
+
+    def test_exec_policy_amendment_response(self) -> None:
+        """Exec policy amendment maps to acceptWithExecpolicyAmendment."""
+        adapter = CodexAdapter()
+
+        amendment = {"allow": ["npm test"]}
+        response = HookResponse(
+            decision="allow",
+            metadata={"exec_policy_amendment": amendment},
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        assert result["decision"] == "acceptWithExecpolicyAmendment"
+        assert result["execPolicyAmendment"] == amendment
 
     def test_other_decisions_map_to_accept(self) -> None:
-        """Non-deny decisions map to accept."""
+        """Non-deny/block decisions map to accept."""
         adapter = CodexAdapter()
 
         for decision in ["allow", "ask", "modify"]:
