@@ -81,10 +81,10 @@ class ConductorManager:
                 f"Conductor tick at {datetime.now(UTC).isoformat()}. "
                 "Check tasks, pipelines, and budget. Dispatch agents if needed."
             )
+            from gobby.llm.claude_models import DoneEvent, TextChunk
+
             parts: list[str] = []
             async for event in session.send_message(tick_msg):
-                from gobby.llm.claude_models import DoneEvent, TextChunk
-
                 if isinstance(event, TextChunk):
                     parts.append(event.content)
                 elif isinstance(event, DoneEvent):

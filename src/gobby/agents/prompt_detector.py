@@ -20,7 +20,7 @@ class PromptDetector:
 
     TRUST_PROMPT_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"Do you trust the files", re.IGNORECASE),
-        re.compile(r"Trust.*Folder|trust.*folder"),
+        re.compile(r"Trust.*Folder", re.IGNORECASE),
     )
 
     # Key sequence to send: "2" selects "Trust parent Folder" in

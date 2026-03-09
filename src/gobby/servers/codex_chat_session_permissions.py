@@ -181,7 +181,7 @@ class CodexChatSessionPermissionsMixin:
             self._plan_approved = False
             self._plan_feedback = None
             self._plan_file_path = None
-        elif mode != "plan":
+        else:
             self._plan_approved = False
             self._plan_feedback = None
         if self._on_mode_persist:

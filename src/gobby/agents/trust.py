@@ -95,7 +95,9 @@ def _pre_approve_gemini(directory: str) -> None:
             gemini_home.mkdir(parents=True, exist_ok=True)
             data = {"projects": {}}
 
-        projects = data.get("projects", {})
+        projects = data.get("projects") or {}
+        if not isinstance(projects, dict):
+            projects = {}
         if directory in projects:
             return
 

@@ -13,9 +13,9 @@ class ConductorConfig(BaseModel):
     enabled: bool = Field(default=False, description="Enable the persistent conductor agent")
     model: str = Field(default="haiku", description="LLM model for the conductor session")
     tick_interval_seconds: int = Field(
-        default=120, description="Interval between conductor ticks (seconds)"
+        default=120, gt=0, description="Interval between conductor ticks (seconds)"
     )
     idle_timeout_seconds: int = Field(
-        default=300, description="Tear down conductor session after this many idle seconds"
+        default=300, gt=0, description="Tear down conductor session after this many idle seconds"
     )
     skip_if_busy: bool = Field(default=True, description="Skip tick if conductor is mid-response")
