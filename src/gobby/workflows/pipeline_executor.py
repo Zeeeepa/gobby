@@ -307,11 +307,34 @@ class PipelineExecutor:
         # Inject parent_session_id into inputs so ${{ inputs.parent_session_id }} resolves
         if parent_session_id and not inputs.get("parent_session_id"):
             merged_inputs["parent_session_id"] = parent_session_id
+        # Resolve project context for template expressions
+        project_path: str | None = None
+        current_branch: str | None = None
+        try:
+            from gobby.utils.project_context import get_project_context
+
+            pctx = get_project_context()
+            if pctx:
+                project_path = pctx.get("project_path")
+        except Exception:
+            pass
+
+        if project_path:
+            try:
+                from gobby.worktrees.git import WorktreeGitManager
+
+                current_branch = WorktreeGitManager(project_path).get_current_branch()
+            except Exception:
+                pass
+
         context: dict[str, Any] = {
             "inputs": merged_inputs,
             "steps": {},  # Will hold step outputs as they complete
             "session_id": pipeline_session_id,
             "parent_session_id": parent_session_id,
+            "project_id": project_id,
+            "project_path": project_path,
+            "current_branch": current_branch or "main",
             "_depth": _depth,
             "_pipeline_stack": _pipeline_stack,
         }
