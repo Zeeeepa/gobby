@@ -130,3 +130,113 @@ class TestPipelineResume:
         step2_calls = [c for c in calls if c.kwargs.get("step_id") == "step2"]
 
         assert len(step2_calls) > 0, "Pipeline execution did not resume to step2 after approval"
+
+    @pytest.mark.asyncio
+    async def test_cancelled_execution_rejects_resume(
+        self, mock_db, mock_execution_manager, mock_llm_service, mock_loader
+    ) -> None:
+        """Cancelled executions are terminal and cannot be resumed."""
+        pipeline = PipelineDefinition(
+            name="spawn-pipeline",
+            steps=[PipelineStep(id="spawn_agent", exec="echo spawn")],
+        )
+
+        execution = MagicMock()
+        execution.id = "pe-cancelled-123"
+        execution.status = ExecutionStatus.CANCELLED
+
+        mock_execution_manager.get_execution.return_value = execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            loader=mock_loader,
+        )
+
+        with pytest.raises(ValueError, match="terminal"):
+            await executor.execute(
+                pipeline=pipeline,
+                inputs={},
+                project_id="test-project",
+                execution_id="pe-cancelled-123",
+            )
+
+    @pytest.mark.asyncio
+    async def test_completed_execution_rejects_resume(
+        self, mock_db, mock_execution_manager, mock_llm_service, mock_loader
+    ) -> None:
+        """Completed executions are terminal and cannot be resumed."""
+        pipeline = PipelineDefinition(
+            name="spawn-pipeline",
+            steps=[PipelineStep(id="spawn_agent", exec="echo spawn")],
+        )
+
+        execution = MagicMock()
+        execution.id = "pe-completed-123"
+        execution.status = ExecutionStatus.COMPLETED
+
+        mock_execution_manager.get_execution.return_value = execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            loader=mock_loader,
+        )
+
+        with pytest.raises(ValueError, match="terminal"):
+            await executor.execute(
+                pipeline=pipeline,
+                inputs={},
+                project_id="test-project",
+                execution_id="pe-completed-123",
+            )
+
+    @pytest.mark.asyncio
+    async def test_failed_execution_reexecutes_all_steps(
+        self, mock_db, mock_execution_manager, mock_llm_service, mock_loader
+    ) -> None:
+        """Failed executions can be resumed but re-execute all steps (no stale caching)."""
+        pipeline = PipelineDefinition(
+            name="spawn-pipeline",
+            steps=[PipelineStep(id="spawn_agent", exec="echo spawn")],
+        )
+
+        execution = MagicMock()
+        execution.id = "pe-failed-123"
+        execution.pipeline_name = "spawn-pipeline"
+        execution.status = ExecutionStatus.FAILED
+        execution.inputs_json = "{}"
+        execution.project_id = None
+
+        mock_execution_manager.get_execution.return_value = execution
+        mock_execution_manager.update_execution_status.return_value = execution
+        mock_execution_manager.get_failed_steps.return_value = []
+
+        stale_step = MagicMock()
+        stale_step.id = 301
+        stale_step.step_id = "spawn_agent"
+        stale_step.status = StepStatus.COMPLETED
+        stale_step.output_json = json.dumps({"session_id": "stale"})
+        mock_execution_manager.get_steps_for_execution.return_value = [stale_step]
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            loader=mock_loader,
+        )
+
+        await executor.execute(
+            pipeline=pipeline,
+            inputs={},
+            project_id="test-project",
+            execution_id="pe-failed-123",
+        )
+
+        create_calls = mock_execution_manager.create_step_execution.call_args_list
+        spawn_calls = [c for c in create_calls if c.kwargs.get("step_id") == "spawn_agent"]
+        assert len(spawn_calls) > 0, (
+            "Failed execution should re-execute completed steps, not skip them"
+        )

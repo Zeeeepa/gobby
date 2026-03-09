@@ -236,10 +236,19 @@ class PipelineExecutor:
         _pipeline_stack = _pipeline_stack | {pipeline.name}
 
         # 1. Create or load execution record
+        _terminal_statuses = {ExecutionStatus.CANCELLED, ExecutionStatus.COMPLETED}
+        prior_status: ExecutionStatus | None = None
         if execution_id:
             execution = self.execution_manager.get_execution(execution_id)
             if not execution:
                 raise ValueError(f"Execution {execution_id} not found")
+            prior_status = execution.status
+            if prior_status in _terminal_statuses:
+                raise ValueError(
+                    f"Cannot resume execution {execution_id}: "
+                    f"status is {prior_status.value} (terminal). "
+                    f"Start a new execution instead."
+                )
         else:
             execution = self.execution_manager.create_execution(
                 pipeline_name=pipeline.name,
@@ -306,9 +315,11 @@ class PipelineExecutor:
             "_pipeline_stack": _pipeline_stack,
         }
 
-        # Fetch existing steps if resuming
-        existing_steps = {}
-        if execution_id:
+        # Fetch existing steps if resuming a non-failed execution.
+        # Failed executions re-execute all steps since completed steps
+        # may reference stale agent sessions or other invalidated state.
+        existing_steps: dict[str, StepExecution] = {}
+        if execution_id and prior_status != ExecutionStatus.FAILED:
             steps = self.execution_manager.get_steps_for_execution(execution_id)
             existing_steps = {s.step_id: s for s in steps}
 
