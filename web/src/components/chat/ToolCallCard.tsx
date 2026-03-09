@@ -2,11 +2,13 @@ import React, { memo, useCallback, useMemo, useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { ToolCall } from '../../types/chat'
+import type { ArtifactType } from '../../types/artifacts'
 import { cn } from '../../lib/utils'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import type { A2UISurfaceState, UserAction } from '../canvas'
 import { A2UIRenderer } from '../canvas'
+import { useArtifactContext } from './artifacts/ArtifactContext'
 
 interface ToolCallCardProps {
   toolCalls: ToolCall[]
@@ -405,6 +407,27 @@ function ToolArgumentsContent({ args }: { args: Record<string, unknown> }) {
   )
 }
 
+function PanelIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <line x1="12" y1="3" x2="12" y2="21" />
+    </svg>
+  )
+}
+
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'])
+const SHEET_EXTENSIONS = new Set(['csv', 'tsv'])
+
+function getArtifactTypeForFile(filePath: string): { type: ArtifactType; language: string } {
+  const ext = filePath.split('.').pop()?.toLowerCase() || ''
+  if (IMAGE_EXTENSIONS.has(ext)) return { type: 'image', language: ext }
+  if (SHEET_EXTENSIONS.has(ext)) return { type: 'sheet', language: ext }
+  const language = getLanguageFromPath(filePath)
+  if (language === 'markdown') return { type: 'text', language: 'markdown' }
+  return { type: 'code', language }
+}
+
 const DATA_URI_RE = /^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,/
 
 /** Extract a renderable image src from a tool result, or null. */
@@ -437,6 +460,7 @@ export function extractBase64Image(result: unknown): string | null {
 }
 
 function ToolResultContent({ call }: { call: ToolCall }) {
+  const { openFileAsArtifact } = useArtifactContext()
   const imageSrc = useMemo(() => extractBase64Image(call.result), [call.result])
 
   const resultStr = useMemo(() => {
@@ -472,29 +496,43 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     const parsed = parseReadOutput(resultStr)
     if (parsed) {
       const language = getLanguageFromPath(filePath)
+      const artifactInfo = getArtifactTypeForFile(filePath)
+      const fileName = pathBasename(filePath)
       return (
-        <SyntaxHighlighter
-          style={highlighterTheme}
-          language={language}
-          PreTag="div"
-          showLineNumbers
-          startingLineNumber={parsed.startLine}
-          lineNumberStyle={{
-            minWidth: '2.5em',
-            paddingRight: '1em',
-            textAlign: 'right',
-            userSelect: 'none',
-            color: '#555',
-          }}
-          customStyle={{
-            margin: 0,
-            borderRadius: '0.25rem',
-            maxHeight: '24rem',
-            overflow: 'auto',
-          }}
-        >
-          {parsed.content}
-        </SyntaxHighlighter>
+        <div className="rounded overflow-hidden">
+          <div className="flex items-center justify-between bg-muted/50 px-3 py-1 text-xs">
+            <span className="text-muted-foreground font-mono truncate">{fileName}</span>
+            <button
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              onClick={() => openFileAsArtifact(artifactInfo.type, artifactInfo.language, parsed.content, fileName)}
+              title="Open in artifacts panel"
+            >
+              <PanelIcon />
+            </button>
+          </div>
+          <SyntaxHighlighter
+            style={highlighterTheme}
+            language={language}
+            PreTag="div"
+            showLineNumbers
+            startingLineNumber={parsed.startLine}
+            lineNumberStyle={{
+              minWidth: '2.5em',
+              paddingRight: '1em',
+              textAlign: 'right',
+              userSelect: 'none',
+              color: '#555',
+            }}
+            customStyle={{
+              margin: 0,
+              borderRadius: 0,
+              maxHeight: '24rem',
+              overflow: 'auto',
+            }}
+          >
+            {parsed.content}
+          </SyntaxHighlighter>
+        </div>
       )
     }
   }

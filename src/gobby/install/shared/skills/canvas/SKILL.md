@@ -32,6 +32,12 @@ The canvas tools are available through the `gobby-canvas` (or internal MCP) serv
 3. `wait_for_interaction`: Pauses execution until the user interacts with the canvas (e.g., clicking a submit button). Returns the action name and the updated data model.
 4. `close_canvas`: Manually closes/completes the canvas when interaction is done.
 5. `canvas_present`: Present a local HTML file in the Canvas panel sandbox (iframe).
+6. `show_file`: Show a file in the artifacts panel (not the canvas). Supports code (syntax-highlighted), markdown (rendered), images, and CSV. Use this instead of `canvas_present` when you want to display file content for reading/review.
+
+### When to use `show_file` vs `canvas_present`
+
+- **`show_file`** → Opens in the **artifacts panel**. Best for viewing file content: markdown docs, source code, images, CSV data. Content is displayed natively (rendered markdown, syntax-highlighted code, etc.).
+- **`canvas_present`** → Opens in the **canvas panel** as a sandboxed iframe. Best for interactive HTML pages, dashboards, or anything that needs to run JavaScript.
 
 ## A2UI Component System
 

@@ -87,6 +87,13 @@ export function ChatPage({
     [createArtifact],
   );
 
+  const openFileAsArtifact = useCallback(
+    (type: ArtifactType, language: string, content: string, title?: string) => {
+      createArtifact(type, content, language, title);
+    },
+    [createArtifact],
+  );
+
   // Wire plan content to artifact panel when ExitPlanMode fires
   const onPlanReady = useCallback(
     (content: string | null) => {
@@ -192,7 +199,7 @@ export function ChatPage({
           agentHasGlobal={agentHasGlobal}
           agentHasProject={agentHasProject}
         />
-        <ArtifactContext.Provider value={{ openCodeAsArtifact }}>
+        <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
           <div className="flex flex-1 min-h-0">
             {/* Chat column — hidden on mobile when artifact/canvas panel is open */}
             <div
