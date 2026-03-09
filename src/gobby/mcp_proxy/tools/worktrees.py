@@ -334,9 +334,11 @@ def create_worktrees_registry(
 
         # Generate default worktree path if not provided
         if worktree_path is None:
-            # Use temp directory (e.g., /tmp/gobby-worktrees/project-name/branch-name)
             project_name = Path(resolved_git_mgr.repo_path).name
             worktree_path = _generate_worktree_path(branch_name, project_name)
+        else:
+            # Expand ~ before any filesystem operations (subprocess.run doesn't expand tildes)
+            worktree_path = str(Path(worktree_path).expanduser())
 
         # Auto-detect use_local when not explicitly set
         resolved_use_local = use_local

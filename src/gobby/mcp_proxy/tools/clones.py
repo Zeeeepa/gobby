@@ -13,6 +13,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -83,6 +84,9 @@ def create_clones_registry(
         Returns:
             Dict with clone info or error
         """
+        # Expand ~ before any filesystem operations (subprocess.run doesn't expand tildes)
+        clone_path = str(Path(clone_path).expanduser())
+
         if git_manager is None:
             return {
                 "success": False,
@@ -208,8 +212,6 @@ def create_clones_registry(
         Returns:
             Dict with clone info or error
         """
-        from pathlib import Path
-
         clone = clone_storage.get(clone_id)
         if not clone:
             return {"success": False, "error": f"Clone not found: {clone_id}"}
