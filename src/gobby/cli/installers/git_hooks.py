@@ -120,7 +120,7 @@ fi
 # Gobby verification runner for pre-merge-commit
 # Runs configured verification commands (code_review, integration tests, etc.)
 if command -v gobby >/dev/null 2>&1; then
-    gobby hooks run pre-merge-commit 2>/dev/null
+    gobby hooks run pre-merge 2>/dev/null
     GOBBY_EXIT=$?
     if [ $GOBBY_EXIT -ne 0 ]; then
         echo "Gobby pre-merge-commit verification failed"

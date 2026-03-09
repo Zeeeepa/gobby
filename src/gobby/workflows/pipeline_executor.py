@@ -34,6 +34,32 @@ logger = logging.getLogger(__name__)
 PipelineEventCallback = Any  # Callable[[str, str, dict], Awaitable[None]]
 
 
+def _coerce_rendered_value(value: Any) -> Any:
+    """Coerce Jinja2-rendered string values back to native Python types.
+
+    Jinja2 renders everything as strings, so boolean False becomes "False"
+    which is truthy. This coerces known literals back to their native types.
+    """
+    if not isinstance(value, str):
+        return value
+    lower = value.strip().lower()
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    if lower == "none":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    return value
+
+
 class PipelineExecutor:
     """Executor for pipeline workflows with typed data flow between steps.
 
@@ -768,7 +794,7 @@ class PipelineExecutor:
             if isinstance(expr, str) and "${{" in expr:
                 # Render Jinja2 template expression
                 rendered = self.renderer.render_string(expr, render_ctx)
-                outputs[name] = rendered
+                outputs[name] = _coerce_rendered_value(rendered)
             elif isinstance(expr, str) and expr.startswith("$"):
                 # Resolve $step.output reference
                 value = self._resolve_reference(expr, context)
