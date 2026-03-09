@@ -1008,9 +1008,87 @@ async def test_merge_worktree_success(registry, mock_worktree_storage, mock_git_
     )
     # Verify push_command is returned for the agent to execute
     assert result["push_command"] == "git push --no-verify origin feature/test:main"
+    assert result["pushed"] is False
     # Verify NO push was executed by the tool (agent handles push)
     push_calls = [c for c in calls if c[0][0][:1] == ["push"]]
     assert len(push_calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_push_success(
+    registry, mock_worktree_storage, mock_git_manager
+) -> None:
+    """Merge worktree with push=True executes git push after merge."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+    mock_git_manager._run_git.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    mock_worktree_storage.mark_merged.return_value = True
+
+    result = await registry.call(
+        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main", "push": True}
+    )
+
+    assert result["success"] is True
+    assert result["pushed"] is True
+    assert "push_command" not in result
+    # Verify push was executed in the worktree
+    calls = mock_git_manager._run_git.call_args_list
+    push_calls = [c for c in calls if c[0][0][:1] == ["push"]]
+    assert len(push_calls) == 1
+    push_args = push_calls[0][0][0]
+    assert push_args == ["push", "--no-verify", "origin", "feature/test:main"]
+    assert push_calls[0].kwargs.get("cwd") == "/tmp/wt1" or push_calls[0][1].get("cwd") == "/tmp/wt1"
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_push_failure(
+    registry, mock_worktree_storage, mock_git_manager
+) -> None:
+    """Merge worktree with push=True returns merge_succeeded when push fails."""
+    wt = Worktree(
+        id="wt-1",
+        project_id="proj-1",
+        branch_name="feature/test",
+        worktree_path="/tmp/wt1",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.get.return_value = wt
+
+    # Fetch succeeds, merge succeeds, push fails
+    mock_git_manager._run_git.side_effect = [
+        MagicMock(returncode=0, stdout="", stderr=""),  # fetch
+        MagicMock(returncode=0, stdout="", stderr=""),  # merge
+        MagicMock(returncode=1, stdout="", stderr="rejected: non-fast-forward"),  # push
+    ]
+    mock_worktree_storage.mark_merged.return_value = True
+
+    result = await registry.call(
+        "merge_worktree", {"worktree_id": "wt-1", "target_branch": "main", "push": True}
+    )
+
+    assert result["success"] is False
+    assert result["merge_succeeded"] is True
+    assert "Push failed" in result["error"]
+    assert result["source_branch"] == "feature/test"
+    assert result["target_branch"] == "main"
 
 
 @pytest.mark.asyncio

@@ -964,14 +964,15 @@ def create_worktrees_registry(
         worktree_id: str,
         source_branch: str | None = None,
         target_branch: str | None = None,
+        push: bool = False,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Merge and push from worktree — fully isolated, never touches main repo.
+        Merge and optionally push from worktree — fully isolated, never touches main repo.
 
         1. Fetch latest in the worktree
         2. Merge target INTO source branch (in worktree — conflicts resolved here)
-        3. Push source to origin as target (git push origin source:target)
+        3. (Optional) Push source to origin as target (git push origin source:target)
 
         The main repo is never touched. All operations use cwd=worktree_path.
 
@@ -979,6 +980,7 @@ def create_worktrees_registry(
             worktree_id: The worktree ID to merge.
             source_branch: Agent's working branch (defaults to worktree's branch_name).
             target_branch: Branch to merge into (defaults to worktree's base_branch).
+            push: If True, push source branch to origin as target after merge.
             project_path: Path to project directory (pass cwd from CLI).
 
         Returns:
@@ -1041,15 +1043,33 @@ def create_worktrees_registry(
         # Mark as merged in storage
         worktree_storage.mark_merged(worktree_id)
 
+        # Step 3 (optional): Push source branch to origin as target
+        if push:
+            push_result = resolved_git_mgr._run_git(
+                ["push", "--no-verify", "origin", f"{effective_source}:{merge_target}"],
+                cwd=wt_path,
+                timeout=60,
+            )
+            if push_result.returncode != 0:
+                return {
+                    "success": False,
+                    "error": f"Push failed: {push_result.stderr.strip()}",
+                    "merge_succeeded": True,
+                    "source_branch": effective_source,
+                    "target_branch": merge_target,
+                }
+
         return {
             "success": True,
-            "message": (
-                f"Merged origin/{merge_target} into {effective_source} in worktree. "
-                f"Run: git push --no-verify origin {effective_source}:{merge_target}"
-            ),
+            "message": f"Merged and {'pushed' if push else 'ready to push'}",
             "source_branch": effective_source,
             "target_branch": merge_target,
-            "push_command": f"git push --no-verify origin {effective_source}:{merge_target}",
+            "pushed": push,
+            **(
+                {"push_command": f"git push --no-verify origin {effective_source}:{merge_target}"}
+                if not push
+                else {}
+            ),
         }
 
     return registry

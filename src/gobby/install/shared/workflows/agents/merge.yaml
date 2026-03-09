@@ -1,0 +1,90 @@
+name: merge
+description: |
+  Merge agent: merges isolated work (worktree or clone) back to target branch.
+  Detects isolation type from session variables and calls the appropriate merge tool.
+
+version: "2.0"
+enabled: false
+priority: 20
+
+instructions: |
+  You are a merge agent spawned to merge work from an isolation environment
+  back to a target branch.
+
+  Your behavior is enforced by a step workflow. Follow the step prompts:
+  1. MERGE: Call the appropriate merge tool based on your session variables
+  2. TERMINATE: Call kill_agent to shut down
+
+  DETECTING YOUR ISOLATION TYPE:
+  - Check your session variables (set during spawn)
+  - If you have worktree_id: call merge_worktree with push=true
+  - If you have clone_id: call merge_clone with the target branch
+
+  CRITICAL RULES:
+  - Do NOT call close_task — the coordinator handles task lifecycle.
+  - Do NOT spawn other agents.
+  - Do NOT use Bash for git commands — the merge tools handle everything.
+  - If merge reports conflicts (has_conflicts: true), proceed to terminate.
+  - Do NOT stop or exit without calling kill_agent.
+  - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
+
+workflows:
+  rule_selectors:
+    include:
+      - "tag:default"
+    exclude:
+      - "tag:sync"
+
+step_variables:
+  merge_complete: false
+
+steps:
+  - name: merge
+    description: "Execute the merge operation"
+    status_message: |
+      Merge your isolation environment back to the target branch:
+
+      1. Use progressive discovery to find the merge tools
+      2. Check your session variables for worktree_id or clone_id
+      3. WORKTREE: call merge_worktree with worktree_id and push=true
+         CLONE: call merge_clone with clone_id and target_branch
+      4. If has_conflicts: proceed to terminate (do not attempt resolution)
+
+      The target branch is in your spawn prompt. Defaults:
+      merge_worktree uses the worktree's base_branch, merge_clone uses "main".
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+    allowed_mcp_tools:
+      - "gobby-worktrees:merge_worktree"
+      - "gobby-clones:merge_clone"
+      - "gobby-agents:kill_agent"
+    on_mcp_success:
+      - server: gobby-worktrees
+        tool: merge_worktree
+        action: set_variable
+        variable: merge_complete
+        value: true
+      - server: gobby-clones
+        tool: merge_clone
+        action: set_variable
+        variable: merge_complete
+        value: true
+    transitions:
+      - to: terminate
+        when: "vars.merge_complete"
+
+  - name: terminate
+    description: "Self-terminate by calling kill_agent"
+    status_message: "Call kill_agent to terminate."
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+    allowed_mcp_tools:
+      - "gobby-agents:kill_agent"
+
+exit_condition: "current_step == 'terminate'"
