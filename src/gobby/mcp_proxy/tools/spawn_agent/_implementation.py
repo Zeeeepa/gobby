@@ -296,6 +296,14 @@ async def spawn_agent_impl(
         if not existing_worktree:
             return {"success": False, "error": f"Worktree {worktree_id} not found"}
 
+        # Verify worktree directory still exists on disk
+        if not Path(existing_worktree.worktree_path).is_dir():
+            worktree_storage.delete(worktree_id)
+            return {
+                "success": False,
+                "error": f"Worktree directory missing: {existing_worktree.worktree_path} (stale record cleaned up)",
+            }
+
         from gobby.agents.isolation import IsolationContext
 
         isolation_ctx = IsolationContext(
@@ -310,6 +318,14 @@ async def spawn_agent_impl(
         existing_clone = clone_storage.get(clone_id)
         if not existing_clone:
             return {"success": False, "error": f"Clone {clone_id} not found"}
+
+        # Verify clone directory still exists on disk
+        if not Path(existing_clone.clone_path).is_dir():
+            clone_storage.delete(clone_id)
+            return {
+                "success": False,
+                "error": f"Clone directory missing: {existing_clone.clone_path} (stale record cleaned up)",
+            }
 
         from gobby.agents.isolation import IsolationContext
 

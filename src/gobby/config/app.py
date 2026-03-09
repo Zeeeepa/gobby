@@ -467,6 +467,14 @@ class DaemonConfig(BaseModel):
         default_factory=CodeIndexConfig,
         description="Native AST-based code indexing configuration",
     )
+    clones_dir: str = Field(
+        default="~/.gobby/clones",
+        description="Base directory for git clones (survives reboots, unlike /tmp).",
+    )
+    worktrees_dir: str = Field(
+        default="~/.gobby/worktrees",
+        description="Base directory for git worktrees (survives reboots, unlike /tmp).",
+    )
     codex_app_server: bool = Field(
         default=False,
         description="Enable Codex app-server v2 integration (experimental). "

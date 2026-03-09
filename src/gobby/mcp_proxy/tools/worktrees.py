@@ -16,8 +16,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import platform
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -40,21 +38,12 @@ def _get_worktree_base_dir() -> Path:
     """
     Get the base directory for worktrees.
 
-    Uses the system temp directory:
-    - macOS/Linux: /tmp/gobby-worktrees/
-    - Windows: %TEMP%/gobby-worktrees/
+    Uses ~/.gobby/worktrees/ so worktrees survive reboots.
 
     Returns:
         Path to worktree base directory (creates if needed)
     """
-    if platform.system() == "Windows":
-        # Windows: use %TEMP% (typically C:\\Users\\<user>\\AppData\\Local\\Temp)
-        base = Path(tempfile.gettempdir()) / "gobby-worktrees"
-    else:
-        # macOS/Linux: use /tmp for better isolation (tmpfs, cleared on reboot)
-        # Resolve symlink on macOS (/tmp -> /private/tmp) for consistent paths
-        base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
-
+    base = Path.home() / ".gobby" / "worktrees"
     base.mkdir(parents=True, exist_ok=True)
     return base
 

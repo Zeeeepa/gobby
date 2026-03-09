@@ -188,14 +188,28 @@ class WorktreeIsolationHandler(IsolationHandler):
         # Check if worktree already exists for this branch
         existing = self._worktree_storage.get_by_branch(config.project_id, branch_name)
         if existing:
-            # Use existing worktree
-            return IsolationContext(
-                cwd=existing.worktree_path,
-                branch_name=existing.branch_name,
-                worktree_id=existing.id,
-                isolation_type="worktree",
-                extra={"main_repo_path": self._git_manager.repo_path},
-            )
+            from pathlib import Path
+
+            if Path(existing.worktree_path).is_dir():
+                # Use existing worktree
+                return IsolationContext(
+                    cwd=existing.worktree_path,
+                    branch_name=existing.branch_name,
+                    worktree_id=existing.id,
+                    isolation_type="worktree",
+                    extra={"main_repo_path": self._git_manager.repo_path},
+                )
+            else:
+                # Stale record — directory gone, clean up and fall through to create new
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "Worktree directory missing: %s (cleaning up stale record %s)",
+                    existing.worktree_path,
+                    existing.id,
+                )
+                self._worktree_storage.delete(existing.id)
 
         # Determine base branch - use parent's current branch if default "main" was passed
         base_branch = config.base_branch
@@ -330,13 +344,12 @@ Commit your changes to the worktree branch when done.
         return warning + original_prompt
 
     def _generate_worktree_path(self, branch_name: str, project_name: str) -> str:
-        """Generate a unique worktree path in temp directory."""
-        import tempfile
+        """Generate a unique worktree path in ~/.gobby/worktrees/."""
+        from pathlib import Path
 
         # Sanitize branch name for use in path
         safe_branch = branch_name.replace("/", "-").replace("\\", "-")
-        worktree_dir = tempfile.gettempdir()
-        return f"{worktree_dir}/gobby-worktrees/{project_name}/{safe_branch}"
+        return str(Path.home() / ".gobby" / "worktrees" / project_name / safe_branch)
 
     async def _copy_cli_hooks(
         self,
@@ -449,14 +462,28 @@ class CloneIsolationHandler(IsolationHandler):
         # Check if clone already exists for this branch
         existing = self._clone_storage.get_by_branch(config.project_id, branch_name)
         if existing:
-            # Use existing clone
-            return IsolationContext(
-                cwd=existing.clone_path,
-                branch_name=existing.branch_name,
-                clone_id=existing.id,
-                isolation_type="clone",
-                extra={"source_repo": config.project_path},
-            )
+            from pathlib import Path
+
+            if Path(existing.clone_path).is_dir():
+                # Use existing clone
+                return IsolationContext(
+                    cwd=existing.clone_path,
+                    branch_name=existing.branch_name,
+                    clone_id=existing.id,
+                    isolation_type="clone",
+                    extra={"source_repo": config.project_path},
+                )
+            else:
+                # Stale record — directory gone, clean up and fall through to create new
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "Clone directory missing: %s (cleaning up stale record %s)",
+                    existing.clone_path,
+                    existing.id,
+                )
+                self._clone_storage.delete(existing.id)
 
         # Determine base branch - use parent's current branch if default "main" was passed
         base_branch = config.base_branch
@@ -602,13 +629,12 @@ Push your changes when ready to share with the original.
         return warning + original_prompt
 
     def _generate_clone_path(self, branch_name: str, project_name: str) -> str:
-        """Generate a unique clone path in temp directory."""
-        import tempfile
+        """Generate a unique clone path in ~/.gobby/clones/."""
+        from pathlib import Path
 
         # Sanitize branch name for use in path
         safe_branch = branch_name.replace("/", "-").replace("\\", "-")
-        clone_dir = tempfile.gettempdir()
-        return f"{clone_dir}/gobby-clones/{project_name}/{safe_branch}"
+        return str(Path.home() / ".gobby" / "clones" / project_name / safe_branch)
 
     async def _copy_cli_hooks(
         self,

@@ -208,11 +208,15 @@ def create_clones_registry(
         Returns:
             Dict with clone info or error
         """
+        from pathlib import Path
+
         clone = clone_storage.get(clone_id)
         if not clone:
             return {"success": False, "error": f"Clone not found: {clone_id}"}
 
-        return {"success": True, "clone": clone.to_dict()}
+        clone_dict = clone.to_dict()
+        clone_dict["disk_exists"] = Path(clone.clone_path).is_dir()
+        return {"success": True, "clone": clone_dict}
 
     registry.register(
         name="get_clone",
