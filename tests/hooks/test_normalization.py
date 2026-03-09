@@ -480,3 +480,97 @@ class TestEndToEndRuleMatch:
 
         assert data.get("mcp_tool") == "create_memory"
         assert data.get("mcp_server") == "gobby-memory"
+
+
+class TestStringArgumentCoercion:
+    """Tests for auto-coercing stringified arguments in call_tool."""
+
+    def test_string_arguments_coerced_to_dict(self) -> None:
+        """call_tool with JSON string arguments → parsed to dict + flag set."""
+        data = {
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": '{"title": "Test task", "session_id": "#1"}',
+            },
+        }
+        normalize_mcp_fields(data)
+        assert data["tool_input"]["arguments"] == {"title": "Test task", "session_id": "#1"}
+        assert data["_input_coerced"] is True
+
+    def test_dict_arguments_unchanged(self) -> None:
+        """call_tool with dict arguments → no coercion, no flag."""
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "Test task"},
+            },
+        }
+        normalize_mcp_fields(data)
+        assert data["tool_input"]["arguments"] == {"title": "Test task"}
+        assert "_input_coerced" not in data
+
+    def test_invalid_json_string_left_as_is(self) -> None:
+        """Unparseable string arguments → left unchanged, no flag."""
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": {
+                "server_name": "s",
+                "tool_name": "t",
+                "arguments": "not valid json{",
+            },
+        }
+        normalize_mcp_fields(data)
+        assert data["tool_input"]["arguments"] == "not valid json{"
+        assert "_input_coerced" not in data
+
+    def test_json_array_string_not_coerced(self) -> None:
+        """JSON string that parses to a list (not dict) → left as-is."""
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": {
+                "server_name": "s",
+                "tool_name": "t",
+                "arguments": "[1, 2, 3]",
+            },
+        }
+        normalize_mcp_fields(data)
+        assert data["tool_input"]["arguments"] == "[1, 2, 3]"
+        assert "_input_coerced" not in data
+
+    def test_no_arguments_key_no_flag(self) -> None:
+        """call_tool without arguments key → no coercion."""
+        data = {
+            "tool_name": "call_tool",
+            "tool_input": {
+                "server_name": "s",
+                "tool_name": "t",
+            },
+        }
+        normalize_mcp_fields(data)
+        assert "_input_coerced" not in data
+
+    def test_non_call_tool_unaffected(self) -> None:
+        """Non-call_tool with string arguments → no coercion attempted."""
+        data = {
+            "tool_name": "Read",
+            "tool_input": {"arguments": '{"key": "val"}'},
+        }
+        normalize_mcp_fields(data)
+        assert data["tool_input"]["arguments"] == '{"key": "val"}'
+        assert "_input_coerced" not in data
+
+    def test_coercion_through_normalize_tool_fields(self) -> None:
+        """Full pipeline: Copilot-style stringified args through normalize_tool_fields."""
+        data = {
+            "toolName": "mcp__gobby__call_tool",
+            "toolArgs": '{"server_name": "gobby-tasks", "tool_name": "create_task", "arguments": "{\\"title\\": \\"Test\\"}"}',
+        }
+        normalize_tool_fields(data)
+        assert data["tool_input"]["arguments"] == {"title": "Test"}
+        assert data["_input_coerced"] is True
+        assert data["mcp_server"] == "gobby-tasks"
+        assert data["mcp_tool"] == "create_task"
