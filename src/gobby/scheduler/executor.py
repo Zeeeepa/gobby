@@ -151,6 +151,24 @@ class CronExecutor:
         if not pipeline:
             raise ValueError(f"Pipeline '{pipeline_name}' not found")
 
+        # Create a session for the cron-triggered pipeline so spawned agents
+        # have a valid parent_session_id (required by spawn_agent).
+        session_id: str | None = None
+        sm = self.pipeline_executor.session_manager
+        if sm:
+            try:
+                cron_session = sm.register(
+                    external_id=f"cron-{job.id}-{pipeline_name}",
+                    machine_id="cron",
+                    source="cron",
+                    project_id=job.project_id,
+                    title=f"cron:{job.name}",
+                    agent_depth=0,
+                )
+                session_id = cron_session.id
+            except Exception:
+                logger.warning("Failed to create session for cron pipeline", exc_info=True)
+
         # Set project context so MCP tools can resolve task refs like #9916
         from gobby.utils.project_context import reset_project_context, set_project_context
 
@@ -160,6 +178,7 @@ class CronExecutor:
                 pipeline=pipeline,
                 inputs=inputs,
                 project_id=job.project_id,
+                session_id=session_id,
             )
         finally:
             reset_project_context(token)
