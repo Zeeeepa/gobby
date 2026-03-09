@@ -821,3 +821,146 @@ class TestCheckIdleAgents:
             handled = await idle_monitor.check_idle_agents()
 
         assert handled == 0
+
+
+class TestCheckTrustPrompts:
+    """Tests for trust prompt detection and auto-dismissal."""
+
+    @pytest.mark.asyncio
+    async def test_sends_dismiss_key_on_trust_prompt(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Trust prompt detected -> sends '2\\n' to dismiss."""
+        _make_terminal_agent(registry, run_id="run-trust", tmux_session_name="gobby-trust")
+
+        trust_output = (
+            "Do you trust the files in this folder?\n"
+            "1. Trust Folder\n"
+            "2. Trust parent Folder\n"
+            "3. Don't Trust\n"
+        )
+
+        with (
+            patch.object(
+                monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value=trust_output,
+            ),
+            patch.object(
+                monitor._tmux, "send_keys", new_callable=AsyncMock, return_value=True
+            ) as mock_send,
+        ):
+            handled = await monitor.check_trust_prompts()
+
+        assert handled == 1
+        mock_send.assert_called_once_with("gobby-trust", "2\n")
+
+    @pytest.mark.asyncio
+    async def test_no_action_on_normal_output(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Normal agent output does not trigger trust dismissal."""
+        _make_terminal_agent(registry, run_id="run-normal", tmux_session_name="gobby-normal")
+
+        with (
+            patch.object(
+                monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value="Running tests...\n",
+            ),
+            patch.object(monitor._tmux, "send_keys", new_callable=AsyncMock) as mock_send,
+        ):
+            handled = await monitor.check_trust_prompts()
+
+        assert handled == 0
+        mock_send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_dismiss_twice(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """After dismissal, the same agent is not dismissed again."""
+        _make_terminal_agent(registry, run_id="run-once", tmux_session_name="gobby-once")
+
+        trust_output = "Do you trust the files in this folder?\n"
+
+        with (
+            patch.object(
+                monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value=trust_output,
+            ),
+            patch.object(
+                monitor._tmux, "send_keys", new_callable=AsyncMock, return_value=True
+            ) as mock_send,
+        ):
+            # First call should dismiss
+            handled1 = await monitor.check_trust_prompts()
+            # Second call should skip (already dismissed)
+            handled2 = await monitor.check_trust_prompts()
+
+        assert handled1 == 1
+        assert handled2 == 0
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_non_terminal_agents(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Non-terminal agents are not checked for trust prompts."""
+        _make_autonomous_agent(registry, run_id="run-auto-trust")
+
+        handled = await monitor.check_trust_prompts()
+        assert handled == 0
+
+    @pytest.mark.asyncio
+    async def test_skips_when_capture_pane_fails(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Agent is skipped if capture_pane returns None."""
+        _make_terminal_agent(registry, run_id="run-nocap", tmux_session_name="gobby-nocap")
+
+        with patch.object(monitor._tmux, "capture_pane", new_callable=AsyncMock, return_value=None):
+            handled = await monitor.check_trust_prompts()
+
+        assert handled == 0
+
+    @pytest.mark.asyncio
+    async def test_cleared_on_dead_agent_cleanup(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Prompt detector state is cleared when a dead agent is cleaned up."""
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-cleanup",
+        )
+        agent_run_manager.start(run.id)
+        _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-cleanup")
+
+        # Pre-mark as dismissed
+        monitor._prompt_detector.mark_dismissed(run.id)
+
+        with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False):
+            await monitor.check_dead_agents()
+
+        # State should be cleared after cleanup
+        assert monitor._prompt_detector.was_dismissed(run.id) is False

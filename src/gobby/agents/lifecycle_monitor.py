@@ -16,6 +16,7 @@ import signal
 from typing import TYPE_CHECKING
 
 from gobby.agents.idle_detector import IdleDetector
+from gobby.agents.prompt_detector import PromptDetector
 from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.agents.tmux.session_manager import TmuxSessionManager
 from gobby.config.tmux import TmuxConfig
@@ -61,6 +62,7 @@ class AgentLifecycleMonitor:
         self._tmux_config = tmux_config or TmuxConfig()
         self._tmux = TmuxSessionManager(config=self._tmux_config)
         self._idle_detector = IdleDetector()
+        self._prompt_detector = PromptDetector()
         self._running = False
         self._task: asyncio.Task[None] | None = None
 
@@ -116,6 +118,7 @@ class AgentLifecycleMonitor:
 
         while self._running:
             try:
+                await self.check_trust_prompts()  # Fast unblock before other checks
                 await self.check_dead_agents()
                 await self.check_expired_agents()
                 await self.check_idle_agents()
@@ -126,6 +129,42 @@ class AgentLifecycleMonitor:
                 await asyncio.sleep(self._check_interval)
             except asyncio.CancelledError:
                 break
+
+    async def check_trust_prompts(self) -> int:
+        """Check for folder trust prompts and auto-dismiss them.
+
+        Sends key "2" (Trust parent Folder) + Enter to dismiss the prompt.
+        Only fires once per agent to avoid repeated key-sends.
+
+        Returns:
+            Number of trust prompts dismissed.
+        """
+        agents = self._registry.list_all()
+        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+
+        handled = 0
+        for agent in tmux_agents:
+            if self._prompt_detector.was_dismissed(agent.run_id):
+                continue
+
+            tmux_name = agent.tmux_session_name
+            assert tmux_name is not None  # guaranteed by filter above
+
+            try:
+                pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
+                if pane_output and self._prompt_detector.detect_trust_prompt(pane_output):
+                    sent = await self._tmux.send_keys(tmux_name, PromptDetector.TRUST_DISMISS_KEYS)
+                    if sent:
+                        self._prompt_detector.mark_dismissed(agent.run_id)
+                        logger.info(
+                            "Auto-dismissed trust prompt for agent %s (trust parent folder)",
+                            agent.run_id,
+                        )
+                        handled += 1
+            except Exception as e:
+                logger.warning("Error checking trust prompt for agent %s: %s", agent.run_id, e)
+
+        return handled
 
     async def check_dead_agents(self) -> int:
         """Check for dead agents (tmux and autonomous) and clean up.
@@ -192,6 +231,9 @@ class AgentLifecycleMonitor:
 
                 # Remove from in-memory registry
                 self._registry.remove(agent.run_id, status="failed")
+
+                # Clean up detector state
+                self._prompt_detector.clear(agent.run_id)
 
                 # Release worktrees
                 if self._session_coordinator:
@@ -467,8 +509,9 @@ class AgentLifecycleMonitor:
         if tmux_name:
             await self._tmux.kill_session(tmux_name)
 
-        # Clean up idle detector state
+        # Clean up detector state
         self._idle_detector.clear_state(agent.run_id)
+        self._prompt_detector.clear(agent.run_id)
 
         # Remove from registry
         self._registry.remove(agent.run_id, status="failed")
