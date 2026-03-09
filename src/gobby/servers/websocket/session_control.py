@@ -19,7 +19,7 @@ from uuid import uuid4
 
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
-from gobby.servers.chat_session import ChatSession
+from gobby.servers.chat_session_base import ChatSessionProtocol
 from gobby.servers.websocket.models import (
     CLEANUP_INTERVAL_SECONDS,
     IDLE_TIMEOUT_SECONDS,
@@ -113,7 +113,7 @@ class SessionControlMixin:
     """
 
     clients: dict[Any, dict[str, Any]]
-    _chat_sessions: dict[str, ChatSession]
+    _chat_sessions: dict[str, ChatSessionProtocol]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
@@ -140,7 +140,7 @@ class SessionControlMixin:
             model: str | None = None,
             project_id: str | None = None,
             resume_session_id: str | None = None,
-        ) -> ChatSession: ...
+        ) -> ChatSessionProtocol: ...
 
     async def _handle_stop_chat(self, websocket: Any, data: dict[str, Any] | None = None) -> None:
         """

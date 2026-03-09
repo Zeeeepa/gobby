@@ -11,6 +11,7 @@ from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 from gobby.hooks.events import HookEvent, HookEventType
 from gobby.servers.chat_session import ChatSession
+from gobby.servers.chat_session_base import ChatSessionProtocol
 from gobby.servers.websocket.chat._lifecycle import _inject_agent_skills
 from gobby.storage.projects import PERSONAL_PROJECT_ID
 from gobby.utils.machine_id import get_machine_id
@@ -64,7 +65,7 @@ class ChatSessionMixin:
     """Session management methods for ChatMixin."""
 
     clients: dict[Any, dict[str, Any]]
-    _chat_sessions: dict[str, ChatSession]
+    _chat_sessions: dict[str, ChatSessionProtocol]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
@@ -146,9 +147,42 @@ class ChatSessionMixin:
         model: str | None = None,
         project_id: str | None = None,
         resume_session_id: str | None = None,
-    ) -> ChatSession:
+    ) -> ChatSessionProtocol:
         """Create and bootstrap a new ChatSession with lifecycle hooks wired."""
-        session = ChatSession(conversation_id=conversation_id)
+        # Early agent resolution to determine provider (Codex vs Claude SDK)
+        pending_agents = getattr(self, "_pending_agents", {})
+        pending_agent = pending_agents.pop(conversation_id, None)
+        agent_name = pending_agent or "default-web-chat"
+        agent_body = None
+        session_manager = getattr(self, "session_manager", None)
+        use_codex = False
+
+        if session_manager:
+            try:
+                from gobby.workflows.agent_resolver import resolve_agent
+
+                agent_body = await asyncio.to_thread(
+                    resolve_agent,
+                    agent_name,
+                    session_manager.db,
+                    cli_source="claude_sdk_web_chat",
+                    project_id=project_id or PERSONAL_PROJECT_ID,
+                )
+                if agent_body:
+                    use_codex = getattr(agent_body, "provider", None) == "codex" or (
+                        getattr(agent_body, "sources", None)
+                        and "codex_web_chat" in agent_body.sources
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to resolve agent '{agent_name}' for provider check: {e}")
+
+        # Create the right session type
+        if use_codex:
+            from gobby.servers.codex_chat_session import CodexChatSession
+
+            session: ChatSessionProtocol = CodexChatSession(conversation_id=conversation_id)
+        else:
+            session = ChatSession(conversation_id=conversation_id)
         if resume_session_id:
             session.resume_session_id = resume_session_id
 
@@ -241,7 +275,7 @@ class ChatSessionMixin:
                     session_manager.register,
                     external_id=conversation_id,
                     machine_id=get_machine_id(),
-                    source="claude_sdk_web_chat",
+                    source="codex_web_chat" if use_codex else "claude_sdk_web_chat",
                     project_id=project_id or PERSONAL_PROJECT_ID,
                 )
                 session.db_session_id = db_session.id
@@ -309,52 +343,40 @@ class ChatSessionMixin:
         if wt_override:
             session.project_path = wt_override
 
-        # Pop pending agent override (from set_agent WS message) BEFORE start()
-        # so we can resolve agent preamble and use it as the system prompt.
-        pending_agents = getattr(self, "_pending_agents", {})
-        pending_agent = pending_agents.pop(conversation_id, None)
+        # Agent was already resolved at the top of the method for provider detection.
+        # Use the cached agent_body to build the system prompt.
         if pending_agent:
             session._pending_agent_name = pending_agent
 
-        # Resolve agent + skills as system prompt (agent definition is single source of truth)
-        # Always resolve an agent — pending_agent if user selected one, otherwise default-web-chat
-        agent_name = pending_agent or "default-web-chat"
-        if session_manager:
+        if agent_body and session_manager:
             try:
-                from gobby.workflows.agent_resolver import resolve_agent
-
-                agent_body = await asyncio.to_thread(
-                    resolve_agent,
-                    agent_name,
+                cli_source = "codex_web_chat" if use_codex else "claude_sdk_web_chat"
+                context_parts: list[str] = []
+                preamble = agent_body.build_prompt_preamble()
+                if preamble:
+                    context_parts.append(preamble)
+                # Audience-aware skill injection (canvas, etc.)
+                skills_text = await asyncio.to_thread(
+                    _inject_agent_skills,
+                    agent_body,
                     session_manager.db,
-                    cli_source="claude_sdk_web_chat",
-                    project_id=project_id or PERSONAL_PROJECT_ID,
+                    project_id or PERSONAL_PROJECT_ID,
+                    cli_source,
                 )
-                if agent_body:
-                    context_parts: list[str] = []
-                    preamble = agent_body.build_prompt_preamble()
-                    if preamble:
-                        context_parts.append(preamble)
-                    # Audience-aware skill injection (canvas, etc.)
-                    skills_text = await asyncio.to_thread(
-                        _inject_agent_skills,
-                        agent_body,
-                        session_manager.db,
-                        project_id or PERSONAL_PROJECT_ID,
-                    )
-                    if skills_text:
-                        context_parts.append(skills_text)
-                    if context_parts:
-                        session.system_prompt_override = "\n\n".join(context_parts)
+                if skills_text:
+                    context_parts.append(skills_text)
+                if context_parts:
+                    session.system_prompt_override = "\n\n".join(context_parts)
             except Exception as e:
-                logger.warning(f"Failed to resolve agent '{agent_name}': {e}")
+                logger.warning(f"Failed to build agent system prompt for '{agent_name}': {e}")
 
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 
-        # Detect returning sessions and set up history injection
+        # Detect returning sessions and set up history injection (ChatSession only —
+        # CodexChatSession injects history via context_prefix, not SDK hooks)
         message_manager = getattr(self, "message_manager", None)
-        if message_manager and session.db_session_id:
+        if message_manager and session.db_session_id and isinstance(session, ChatSession):
             try:
                 max_idx = await message_manager.get_max_message_index(session.db_session_id)
                 if max_idx >= 0:

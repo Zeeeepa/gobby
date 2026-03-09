@@ -114,6 +114,8 @@ async def execute_spawn(request: SpawnRequest) -> SpawnResult:
             return await _spawn_codex_terminal(request)
         return await _spawn_claude_terminal(request)
     elif request.mode == "autonomous":
+        if request.provider == "codex":
+            return await _spawn_codex_autonomous(request)
         return await _spawn_autonomous(request)
     else:
         return SpawnResult(
@@ -416,6 +418,73 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
         pid=terminal_result.pid,
         codex_session_id=codex_session_id,
         message=f"Codex agent spawned in terminal with session {gobby_session_id}",
+    )
+
+
+async def _spawn_codex_autonomous(request: SpawnRequest) -> SpawnResult:
+    """
+    Spawn Codex agent using in-process CodexAutonomousRunner.
+
+    Creates a child session via prepare_terminal_spawn, then launches
+    a CodexAutonomousRunner as an asyncio.Task.
+    """
+    from gobby.agents.spawners.codex_autonomous import CodexAutonomousRunner
+
+    if request.session_manager is None:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=None,
+            status="failed",
+            error="session_manager is required for Codex autonomous spawn",
+        )
+
+    # Create child session (same as terminal — reuses session/run infrastructure)
+    spawn_context = prepare_terminal_spawn(
+        session_manager=cast("ChildSessionManager", request.session_manager),
+        parent_session_id=request.parent_session_id,
+        project_id=request.project_id,
+        machine_id=request.machine_id or "unknown",
+        source="codex",
+        workflow_name=request.workflow,
+        initial_variables=request.initial_variables,
+        prompt=request.prompt,
+        max_agent_depth=request.max_agent_depth,
+        git_branch=request.branch_name,
+        agent_run_id=request.agent_run_id,
+        task_id=request.task_id,
+    )
+
+    gobby_session_id = spawn_context.session_id
+    _seq_num = spawn_context.seq_num
+
+    runner = CodexAutonomousRunner(
+        session_id=gobby_session_id,
+        run_id=spawn_context.agent_run_id,
+        project_id=request.project_id,
+        cwd=request.cwd,
+        prompt=request.prompt,
+        model=request.model,
+        system_prompt=request.system_prompt,
+        max_turns=request.max_turns,
+        agent_run_manager=request.agent_run_manager,
+        seq_num=_seq_num,
+        resume_session_id=request.clone_id,  # Reuse clone_id for thread resume
+    )
+
+    # Launch as background task for lifecycle monitoring
+    task = asyncio.create_task(
+        runner.run(),
+        name=f"codex-autonomous-{spawn_context.agent_run_id}",
+    )
+
+    return SpawnResult(
+        success=True,
+        run_id=spawn_context.agent_run_id,
+        child_session_id=gobby_session_id,
+        status="running",
+        process=task,
+        message=f"Codex autonomous agent spawned with session {gobby_session_id}",
     )
 
 

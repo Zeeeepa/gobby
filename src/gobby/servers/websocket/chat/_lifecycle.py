@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
-from gobby.servers.chat_session import ChatSession
+from gobby.servers.chat_session_base import ChatSessionProtocol
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
@@ -40,7 +40,7 @@ class ChatLifecycleMixin:
     """Lifecycle hook triggers for ChatMixin."""
 
     clients: dict[Any, dict[str, Any]]
-    _chat_sessions: dict[str, ChatSession]
+    _chat_sessions: dict[str, ChatSessionProtocol]
     _active_chat_tasks: dict[str, asyncio.Task[None]]
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
@@ -107,10 +107,18 @@ class ChatLifecycleMixin:
 
             data = normalize_tool_fields(data)
 
+        # Detect session type for source
+        from gobby.servers.codex_chat_session import CodexChatSession
+
+        if isinstance(session, CodexChatSession):
+            source = SessionSource.CODEX_WEB_CHAT
+        else:
+            source = SessionSource.CLAUDE_SDK_WEB_CHAT
+
         event = HookEvent(
             event_type=event_type,
             session_id=db_session_id,
-            source=SessionSource.CLAUDE_SDK_WEB_CHAT,
+            source=source,
             timestamp=datetime.now(UTC),
             data=data,
             metadata={"_platform_session_id": db_session_id},

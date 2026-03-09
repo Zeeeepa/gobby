@@ -19,7 +19,7 @@ from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 from gobby.mcp_proxy.manager import MCPClientManager
-from gobby.servers.chat_session import ChatSession
+from gobby.servers.chat_session_base import ChatSessionProtocol
 from gobby.servers.websocket.auth import AuthMixin
 from gobby.servers.websocket.broadcast import BroadcastMixin
 from gobby.servers.websocket.chat import ChatMixin
@@ -108,7 +108,7 @@ class WebSocketServer(
         self.clients: dict[Any, dict[str, Any]] = {}
 
         # Persistent chat sessions keyed by conversation_id (survive disconnects)
-        self._chat_sessions: dict[str, ChatSession] = {}
+        self._chat_sessions: dict[str, ChatSessionProtocol] = {}
 
         # Active chat streaming tasks per conversation_id (for cancellation)
         self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
