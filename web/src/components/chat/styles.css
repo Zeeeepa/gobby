@@ -238,6 +238,17 @@
   font-size: var(--font-size-base);
 }
 
+/* Scale text sizes within the chat area to respect the font size setting.
+   Tailwind's text-sm/text-xs use rem (absolute), so we override them
+   to scale proportionally with --font-size-base. */
+.chat-scaled .text-sm {
+  font-size: calc(var(--font-size-base) * 0.875);
+}
+
+.chat-scaled .text-xs {
+  font-size: calc(var(--font-size-base) * 0.75);
+}
+
 /* Markdown styling */
 .message-content p {
   margin-bottom: 0.75rem;

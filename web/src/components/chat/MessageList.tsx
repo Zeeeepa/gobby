@@ -58,7 +58,7 @@ export function MessageList({ messages, isStreaming, isThinking, isLoadingMessag
   }, [messageFingerprint, isThinking, isStreaming])
 
   return (
-    <ScrollArea ref={scrollRef} className="flex-1 min-h-0 overflow-x-hidden">
+    <ScrollArea ref={scrollRef} className="chat-scaled flex-1 min-h-0 overflow-x-hidden">
       {messages.length === 0 && !isThinking ? (
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-muted-foreground">
