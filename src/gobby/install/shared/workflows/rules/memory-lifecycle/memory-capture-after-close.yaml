@@ -1,16 +1,20 @@
-tags: [memory-lifecycle, memory, lifecycle, gobby, default]
+tags: [memory-lifecycle, enforcement, gobby, default]
 
 rules:
-  suggest-memory-after-close:
-    description: "Suggest memory extraction after closing a task with a commit"
-    event: after_tool
+  require-memory-review-before-close:
+    description: "Gate task close until agent reviews memories (when edits were made)"
+    event: before_tool
     enabled: false
     priority: 50
-    when: "event.data.get('mcp_tool') == 'close_task' and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')"
+    when: >
+      event.data.get('mcp_tool') == 'close_task'
+      and not variables.get('plan_mode')
+      and variables.get('pending_memory_review')
+      and ((event.data.get('tool_input') or {}).get('arguments') or {}).get('commit_sha')
     effect:
-      type: inject_context
-      template: |
-        Consider saving any valuable memories from this task before stopping.
+      type: block
+      reason: |
+        Consider saving any valuable memories from this task before closing.
         Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
         If nothing new was learned, no action needed.
 

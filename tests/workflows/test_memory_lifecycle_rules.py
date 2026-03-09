@@ -8,7 +8,7 @@ Active memory-lifecycle rules:
 - reset-memory-tracking-on-start: set_variable on session_start
 - memory-recall-on-prompt: mcp_call on before_agent
 - memory-capture-nudge: inject_context on before_agent
-- suggest-memory-after-close: inject_context on after_tool
+- require-memory-review-before-close: block on before_tool (close_task)
 - clear-memory-review-on-create: set_variable on before_tool
 
 Note: memory-sync-import moved to sync/ group (see test_sync_rules.py).
@@ -32,7 +32,7 @@ MEMORY_RULES = {
     "reset-memory-tracking-on-start",
     "memory-recall-on-prompt",
     "memory-capture-nudge",
-    "suggest-memory-after-close",
+    "require-memory-review-before-close",
     "clear-memory-review-on-create",
 }
 
@@ -93,6 +93,7 @@ class TestMemoryLifecycleSync:
                         "set_variable",
                         "inject_context",
                         "mcp_call",
+                        "block",
                     }
 
 
@@ -176,30 +177,32 @@ class TestMemoryCaptureNudge:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# suggest-memory-after-close
+# require-memory-review-before-close
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestSuggestMemoryAfterClose:
-    """Suggest memory extraction after task close with commit."""
+class TestRequireMemoryReviewBeforeClose:
+    """Gate task close until agent reviews memories."""
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("suggest-memory-after-close", include_templates=True)
+        row = manager.get_by_name("require-memory-review-before-close", include_templates=True)
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "after_tool"
-        assert body.effect.type == "inject_context"
-        assert body.effect.template is not None
-        assert "create_memory" in body.effect.template
+        assert body.event.value == "before_tool"
+        assert body.effect.type == "block"
+        assert body.effect.reason is not None
+        assert "create_memory" in body.effect.reason
 
     def test_has_when_condition(self, db, manager) -> None:
-        """Only suggest after close_task with commit_sha."""
+        """Only block close_task with commit_sha when pending_memory_review is set."""
         _sync_bundled(db)
-        row = manager.get_by_name("suggest-memory-after-close", include_templates=True)
+        row = manager.get_by_name("require-memory-review-before-close", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "close_task" in body.when
+        assert "pending_memory_review" in body.when
+        assert "commit_sha" in body.when
 
 
 # ═══════════════════════════════════════════════════════════════════════
