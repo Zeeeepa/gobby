@@ -489,6 +489,219 @@ class TestStepTransitions:
         assert instance.current_step == "implement"  # No change
 
 
+# Workflow with on_mcp_error handlers for testing app-level failure routing
+_MERGE_WORKFLOW = {
+    "name": "merge-workflow",
+    "version": "1.0",
+    "enabled": False,
+    "variables": {"merge_complete": False, "has_conflicts": False},
+    "steps": [
+        {
+            "name": "merge",
+            "allowed_tools": "all",
+            "on_mcp_success": [
+                {
+                    "server": "gobby-worktrees",
+                    "tool": "merge_worktree",
+                    "action": "set_variable",
+                    "variable": "merge_complete",
+                    "value": True,
+                }
+            ],
+            "on_mcp_error": [
+                {
+                    "server": "gobby-worktrees",
+                    "tool": "merge_worktree",
+                    "action": "set_variable",
+                    "variable": "has_conflicts",
+                    "value": True,
+                }
+            ],
+            "transitions": [
+                {"to": "resolve_conflicts", "when": "vars.has_conflicts"},
+                {"to": "done", "when": "vars.merge_complete"},
+            ],
+        },
+        {"name": "resolve_conflicts", "allowed_tools": "all"},
+        {"name": "done", "allowed_tools": "all"},
+    ],
+}
+
+
+@pytest.mark.unit
+class TestToolOutputRouting:
+    """Test that on_mcp_success vs on_mcp_error routes based on tool_output.success."""
+
+    @pytest.mark.asyncio
+    async def test_on_mcp_success_skipped_on_tool_failure(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """Tool output with success:false should NOT fire on_mcp_success handlers."""
+        _setup_step_workflow(
+            db, manager, instance_mgr, current_step="merge", workflow_data=_MERGE_WORKFLOW
+        )
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-worktrees",
+                    "tool_name": "merge_worktree",
+                },
+                "tool_output": {"success": False, "has_conflicts": True},
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        await engine.evaluate(event, session_id="test-session", variables=variables)
+
+        instance = instance_mgr.get_instance("test-session", "merge-workflow")
+        assert instance is not None
+        # merge_complete should NOT be set (on_mcp_success was skipped)
+        assert instance.variables.get("merge_complete") is False
+
+    @pytest.mark.asyncio
+    async def test_on_mcp_error_fires_on_tool_failure(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """Tool output with success:false should fire on_mcp_error handlers."""
+        _setup_step_workflow(
+            db, manager, instance_mgr, current_step="merge", workflow_data=_MERGE_WORKFLOW
+        )
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-worktrees",
+                    "tool_name": "merge_worktree",
+                },
+                "tool_output": {"success": False, "has_conflicts": True},
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        await engine.evaluate(event, session_id="test-session", variables=variables)
+
+        instance = instance_mgr.get_instance("test-session", "merge-workflow")
+        assert instance is not None
+        assert instance.variables.get("has_conflicts") is True
+        # Transition to resolve_conflicts should fire
+        assert instance.current_step == "resolve_conflicts"
+
+    @pytest.mark.asyncio
+    async def test_on_mcp_success_fires_on_tool_success(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """Tool output with success:true should fire on_mcp_success (no regression)."""
+        _setup_step_workflow(
+            db, manager, instance_mgr, current_step="merge", workflow_data=_MERGE_WORKFLOW
+        )
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-worktrees",
+                    "tool_name": "merge_worktree",
+                },
+                "tool_output": {"success": True, "message": "Merged successfully"},
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        await engine.evaluate(event, session_id="test-session", variables=variables)
+
+        instance = instance_mgr.get_instance("test-session", "merge-workflow")
+        assert instance is not None
+        assert instance.variables.get("merge_complete") is True
+        assert instance.variables.get("has_conflicts") is False
+        assert instance.current_step == "done"
+
+    @pytest.mark.asyncio
+    async def test_on_mcp_error_with_nested_result(self, db, manager, engine, instance_mgr) -> None:
+        """Proxy-wrapped response {success:true, result:{success:false}} should route to on_mcp_error."""
+        _setup_step_workflow(
+            db, manager, instance_mgr, current_step="merge", workflow_data=_MERGE_WORKFLOW
+        )
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-worktrees",
+                    "tool_name": "merge_worktree",
+                },
+                "tool_output": {
+                    "success": True,
+                    "result": {"success": False, "has_conflicts": True},
+                },
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        await engine.evaluate(event, session_id="test-session", variables=variables)
+
+        instance = instance_mgr.get_instance("test-session", "merge-workflow")
+        assert instance is not None
+        assert instance.variables.get("has_conflicts") is True
+        assert instance.current_step == "resolve_conflicts"
+
+    @pytest.mark.asyncio
+    async def test_no_tool_output_uses_on_mcp_success(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """When tool_output is absent, should default to on_mcp_success (backward compat)."""
+        _setup_step_workflow(
+            db, manager, instance_mgr, current_step="merge", workflow_data=_MERGE_WORKFLOW
+        )
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-worktrees",
+                    "tool_name": "merge_worktree",
+                },
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        await engine.evaluate(event, session_id="test-session", variables=variables)
+
+        instance = instance_mgr.get_instance("test-session", "merge-workflow")
+        assert instance is not None
+        # Without tool_output, should fall through to on_mcp_success
+        assert instance.variables.get("merge_complete") is True
+        assert instance.current_step == "done"
+
+    @pytest.mark.asyncio
+    async def test_string_tool_output_parsed(self, db, manager, engine, instance_mgr) -> None:
+        """JSON string tool_output should be parsed and routed correctly."""
+        _setup_step_workflow(
+            db, manager, instance_mgr, current_step="merge", workflow_data=_MERGE_WORKFLOW
+        )
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-worktrees",
+                    "tool_name": "merge_worktree",
+                },
+                "tool_output": '{"success": false, "has_conflicts": true}',
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        await engine.evaluate(event, session_id="test-session", variables=variables)
+
+        instance = instance_mgr.get_instance("test-session", "merge-workflow")
+        assert instance is not None
+        assert instance.variables.get("has_conflicts") is True
+        assert instance.current_step == "resolve_conflicts"
+
+
 @pytest.mark.unit
 class TestStepEnforcementAfterTransition:
     """Test that tool restrictions update after a step transition."""

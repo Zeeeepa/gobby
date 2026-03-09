@@ -935,11 +935,35 @@ class RuleEngine:
         if not mcp_server or not mcp_tool_name:
             return
 
+        # Check application-level failure in tool output
+        # Transport failures are caught above (is_failure/is_error), but a tool can
+        # return {success: false} in its response body while transport succeeded.
+        tool_output = event.data.get("tool_output")
+        if isinstance(tool_output, str):
+            try:
+                tool_output = json.loads(tool_output)
+            except (json.JSONDecodeError, TypeError):
+                tool_output = None
+
+        is_app_failure = False
+        if isinstance(tool_output, dict):
+            # Direct: tool returned {success: false, ...}
+            if tool_output.get("success") is False:
+                is_app_failure = True
+            # Nested: proxy returned {success: true, result: {success: false, ...}}
+            elif (
+                isinstance(tool_output.get("result"), dict)
+                and tool_output["result"].get("success") is False
+            ):
+                is_app_failure = True
+
+        handlers = step.on_mcp_error if is_app_failure else step.on_mcp_success
+
         instance_mgr = WorkflowInstanceManager(self.db)
         vars_changed = False
 
-        # Execute on_mcp_success handlers
-        for handler in step.on_mcp_success:
+        # Execute handlers (on_mcp_success or on_mcp_error based on tool output)
+        for handler in handlers:
             if handler.get("server") == mcp_server and handler.get("tool") == mcp_tool_name:
                 if handler.get("action") == "set_variable":
                     var_name = handler.get("variable")
