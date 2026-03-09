@@ -1492,22 +1492,22 @@ class TestToolBlockPendingScopeAware:
     """Tests for scope-aware tool_block_pending clearing."""
 
     @pytest.mark.asyncio
-    async def test_tool_block_pending_only_clears_for_matching_tool(
+    async def test_tool_block_pending_clears_for_any_successful_tool(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:
-        """tool_block_pending should NOT clear when a different tool succeeds."""
+        """tool_block_pending SHOULD clear when any tool succeeds (scope-agnostic)."""
 
         engine = RuleEngine(db)
         variables: dict[str, Any] = {
             "tool_block_pending": True,
             "_last_blocked_tool": "Write",
         }
-        # A different tool (Read) succeeds — should NOT clear the pending flag
+        # A different tool (Read) succeeds — should still clear the pending flag
         event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Read"})
         await engine.evaluate(event, session_id="sess-1", variables=variables)
 
-        assert variables["tool_block_pending"] is True
-        assert variables["_last_blocked_tool"] == "Write"
+        assert variables["tool_block_pending"] is False
+        assert variables["_last_blocked_tool"] == ""
 
     @pytest.mark.asyncio
     async def test_tool_block_pending_clears_for_matching_tool(

@@ -68,6 +68,7 @@ def setup_internal_registries(
     config_setter: Callable[[DaemonConfig], None] | None = None,
     memory_sync_manager: Any | None = None,
     completion_registry: CompletionEventRegistry | None = None,
+    cron_scheduler: Any | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -395,7 +396,9 @@ def setup_internal_registries(
             from gobby.storage.cron import CronJobStorage
 
             cron_storage = CronJobStorage(db)
-            cron_registry = create_cron_registry(cron_storage=cron_storage)
+            cron_registry = create_cron_registry(
+                cron_storage=cron_storage, cron_scheduler=cron_scheduler
+            )
             manager.add_registry(cron_registry)
             logger.debug("Cron registry initialized")
         except (ImportError, RuntimeError, OSError) as e:

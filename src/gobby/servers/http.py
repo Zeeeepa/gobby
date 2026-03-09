@@ -153,6 +153,7 @@ class HTTPServer:
                 config_setter=lambda c: setattr(services, "config", c),
                 memory_sync_manager=services.memory_sync_manager,
                 completion_registry=services.completion_registry,
+                cron_scheduler=services.cron_scheduler,
             )
             # Wire code index registry if code_indexer is available
             code_indexer = getattr(services, "code_indexer", None)
