@@ -329,9 +329,6 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Initial task sync export failed: {e}")
 
-        # Wire up change listener for automatic export (after import to avoid race)
-        self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
-
         # Initialize Memory Sync Manager (Phase 7) & Wire up listeners
         self.memory_sync_manager: MemorySyncManager | None = None
         if hasattr(self.config, "memory_sync") and self.config.memory_sync.enabled:
@@ -1138,6 +1135,13 @@ class GobbyRunner:
                     logger.warning("VectorStore close timed out")
                 except Exception as e:
                     logger.warning(f"VectorStore close failed: {e}")
+
+            # Export tasks to JSONL on shutdown (final sync for clean state)
+            try:
+                self.task_sync_manager.export_to_jsonl()
+                logger.info("Shutdown task export completed")
+            except Exception as e:
+                logger.warning(f"Task export on shutdown failed: {e}")
 
             # Export memories to JSONL backup on shutdown
             if self.memory_sync_manager:

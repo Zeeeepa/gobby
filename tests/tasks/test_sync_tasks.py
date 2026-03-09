@@ -1,4 +1,3 @@
-import asyncio
 import json
 from unittest.mock import MagicMock, patch
 
@@ -16,7 +15,6 @@ def sync_manager(temp_db, tmp_path):
     task_manager = LocalTaskManager(temp_db)
     manager = TaskSyncManager(task_manager, str(export_path))
     yield manager
-    manager.stop()
 
 
 @pytest.fixture
@@ -59,59 +57,6 @@ class TestTaskSyncManager:
         task2_data = next(d for d in data if d["id"] == t2.id)
         assert task2_data["title"] == "Task 2"
         assert task2_data["deps_on"] == [t1.id]
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_trigger_export_debounced(self, sync_manager):
-        """Test that multiple rapid trigger_export calls result in single debounced export."""
-        # Reduce interval for test
-        sync_manager._debounce_interval = 0.1
-
-        with patch.object(sync_manager, "export_to_jsonl") as mock_export:
-            # Trigger multiple times in quick succession
-            sync_manager.trigger_export()
-            sync_manager.trigger_export()
-            sync_manager.trigger_export()
-
-            # With async debounce, the task should be pending
-            assert sync_manager._export_task is not None
-
-            # Wait for debounce + execution
-            await asyncio.sleep(0.3)
-
-            # Should have been called exactly once (debounced)
-            assert mock_export.call_count == 1
-
-    @pytest.mark.integration
-    def test_mutation_triggers_export(self, task_manager, tmp_path, sample_project) -> None:
-        """Test that task mutations trigger export."""
-        export_path = tmp_path / "tasks.jsonl"
-        sync_manager = TaskSyncManager(task_manager, str(export_path))
-
-        try:
-            # Mock trigger_export to verify call
-            sync_manager.trigger_export = MagicMock()
-
-            # Wire up listener
-            task_manager.add_change_listener(sync_manager.trigger_export)
-
-            # Create task -> should trigger
-            task = task_manager.create_task(sample_project["id"], "Task 1")
-            assert sync_manager.trigger_export.call_count == 1
-
-            # Update task -> should trigger
-            task_manager.update_task(task.id, title="Updated Task 1")
-            assert sync_manager.trigger_export.call_count == 2
-
-            # Close task -> should trigger
-            task_manager.close_task(task.id)
-            assert sync_manager.trigger_export.call_count == 3
-
-            # Delete task -> should trigger
-            task_manager.delete_task(task.id)
-            assert sync_manager.trigger_export.call_count == 4
-        finally:
-            sync_manager.stop()
 
     @pytest.mark.integration
     def test_import_from_jsonl(self, sync_manager, task_manager, sample_project) -> None:
@@ -710,54 +655,6 @@ class TestExportEdgeCases:
         assert sync_manager.export_path.exists()
         content = sync_manager.export_path.read_text()
         assert content == ""
-
-
-class TestStopMethod:
-    """Tests for the stop method."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_stop_cancels_export_task(self, sync_manager):
-        """Test stop cancels pending export task."""
-        sync_manager._debounce_interval = 10  # Long interval
-
-        with patch.object(sync_manager, "export_to_jsonl") as mock_export:
-            sync_manager.trigger_export()
-            assert sync_manager._export_task is not None
-
-            sync_manager.stop()
-
-            # Wait a bit to ensure task would have fired if not cancelled
-            await asyncio.sleep(0.1)
-
-            # Export should not have been called because task was cancelled
-            assert mock_export.call_count == 0
-            assert sync_manager._shutdown_requested is True
-
-    @pytest.mark.integration
-    def test_stop_without_export_task(self, sync_manager) -> None:
-        """Test stop when no export task is running."""
-        assert sync_manager._export_task is None
-
-        # Should not raise
-        sync_manager.stop()
-        assert sync_manager._shutdown_requested is True
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_shutdown_graceful(self, sync_manager):
-        """Test graceful async shutdown."""
-        sync_manager._debounce_interval = 0.05
-
-        with patch.object(sync_manager, "export_to_jsonl") as mock_export:
-            sync_manager.trigger_export()
-
-            # Graceful shutdown waits for task completion
-            await sync_manager.shutdown()
-
-            # Task should complete and export called
-            assert sync_manager._export_task is None
-            assert mock_export.call_count == 1
 
 
 class TestImportFromGitHubIssues:

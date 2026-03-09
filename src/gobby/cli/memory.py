@@ -425,8 +425,9 @@ def fix_null_project(ctx: click.Context, dry_run: bool) -> None:
     type=click.Path(),
     help="Output file path (default: .gobby/memories.jsonl)",
 )
+@click.option("--quiet", "-q", is_flag=True, help="Suppress output")
 @click.pass_context
-def backup_memories(ctx: click.Context, output_path: str | None) -> None:
+def backup_memories(ctx: click.Context, output_path: str | None, quiet: bool) -> None:
     """Backup memories to JSONL file.
 
     Exports all memories to a JSONL file for backup/disaster recovery.
@@ -459,10 +460,11 @@ def backup_memories(ctx: click.Context, output_path: str | None) -> None:
     )
 
     count = backup_mgr.backup_sync()
-    if count > 0:
-        click.echo(f"Backed up {count} memories to {export_path}")
-    else:
-        click.echo("No memories to backup.")
+    if not quiet:
+        if count > 0:
+            click.echo(f"Backed up {count} memories to {export_path}")
+        else:
+            click.echo("No memories to backup.")
 
 
 @memory.command("reindex-embeddings")

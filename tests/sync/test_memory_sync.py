@@ -1,7 +1,6 @@
-import asyncio
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -109,128 +108,6 @@ async def test_import_from_files(sync_manager, tmp_path):
     assert call_args["content"] == "imported memory"
     assert call_args["memory_type"] == "fact"
     assert count == 1
-
-
-@pytest.mark.asyncio
-async def test_trigger_export_debounce(sync_manager):
-    sync_manager.export_to_files = AsyncMock(return_value=1)
-
-    sync_manager.trigger_export()
-    sync_manager.trigger_export()
-    sync_manager.trigger_export()
-
-    # Should be one task running.
-    # Wait for debounce
-    await asyncio.sleep(0.2)
-
-    assert sync_manager.export_to_files.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_trigger_export_disabled(mock_db, mock_memory_manager):
-    """Test that trigger_export does nothing when disabled."""
-    config = MemoryBackupConfig(enabled=False)
-    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
-
-    sync_manager.trigger_export()
-
-    # Should not create any task
-    assert sync_manager._export_task is None
-
-
-def test_trigger_export_no_event_loop(mock_db, mock_memory_manager, tmp_path) -> None:
-    """Test trigger_export runs synchronously when no event loop."""
-    config = MemoryBackupConfig(enabled=True)
-    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
-    sync_manager.export_path = tmp_path / "memories.jsonl"
-
-    # When no event loop is running, should run sync
-    sync_manager.trigger_export()
-
-    # Should have created the file synchronously
-    assert (tmp_path / "memories.jsonl").exists()
-
-
-def test_trigger_export_sync_error(mock_db, mock_memory_manager, tmp_path, caplog) -> None:
-    """Test trigger_export handles sync export errors."""
-    config = MemoryBackupConfig(enabled=True)
-    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
-    sync_manager.export_path = tmp_path / "memories.jsonl"
-
-    # Make list_memories raise an error
-    mock_memory_manager.list_memories.side_effect = Exception("Export failed")
-
-    # Should not raise, just log error
-    sync_manager.trigger_export()
-    assert "Failed to export memories" in caplog.text
-
-
-@pytest.mark.asyncio
-async def test_shutdown(sync_manager):
-    """Test graceful shutdown."""
-    sync_manager.export_to_files = AsyncMock(return_value=1)
-
-    # Trigger an export
-    sync_manager.trigger_export()
-
-    # Shutdown should wait for the task
-    await sync_manager.shutdown()
-
-    assert sync_manager._shutdown_requested is True
-    assert sync_manager._export_task is None
-
-
-@pytest.mark.asyncio
-async def test_shutdown_no_task(sync_manager):
-    """Test shutdown when no task is running."""
-    await sync_manager.shutdown()
-
-    assert sync_manager._shutdown_requested is True
-
-
-@pytest.mark.asyncio
-async def test_shutdown_with_cancelled_task(sync_manager):
-    """Test shutdown handles cancelled task."""
-
-    # Create a task that will be cancelled
-    async def slow_export():
-        await asyncio.sleep(10)
-        return 1
-
-    sync_manager._export_task = asyncio.create_task(slow_export())
-
-    # Cancel it
-    sync_manager._export_task.cancel()
-
-    # Shutdown should handle CancelledError
-    await sync_manager.shutdown()
-
-    assert sync_manager._shutdown_requested is True
-
-
-@pytest.mark.asyncio
-async def test_process_export_queue_disabled(mock_db, mock_memory_manager):
-    """Test _process_export_queue returns early when disabled."""
-    config = MemoryBackupConfig(enabled=False)
-    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
-
-    # Should return immediately
-    await sync_manager._process_export_queue()
-
-
-@pytest.mark.asyncio
-async def test_process_export_queue_error(sync_manager, caplog):
-    """Test _process_export_queue handles export errors."""
-    sync_manager._last_change_time = 0  # Force immediate export
-    sync_manager.config.export_debounce = 0
-
-    # Make export raise an error
-    with patch.object(sync_manager, "export_to_files", new_callable=AsyncMock) as mock_export:
-        mock_export.side_effect = Exception("Export failed")
-
-        await sync_manager._process_export_queue()
-
-    assert "Error during memory sync export" in caplog.text
 
 
 @pytest.mark.asyncio

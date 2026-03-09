@@ -1,7 +1,5 @@
-import asyncio
 import json
 import logging
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +7,10 @@ from typing import Any
 from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
+
+# Removed in 0.2.28: continuous sync machinery (trigger_export, _process_export_queue,
+# stop, shutdown, debounce state). The DB is the source of truth; JSONL export now
+# happens on-demand via pre-commit hook, daemon shutdown, and MCP tools.
 
 
 def _parse_timestamp(ts: str) -> datetime:
@@ -81,12 +83,6 @@ class TaskSyncManager:
         self.task_manager = task_manager
         self.db = task_manager.db
         self.export_path = Path(export_path)
-        # Async debounce state (replaces threading.Timer to avoid blocking event loop)
-        self._export_task: asyncio.Task[None] | None = None
-        self._last_change_time: float = 0
-        self._debounce_interval = 5.0  # seconds
-        self._shutdown_requested = False
-        self._pending_project_id: str | None = None
 
     def _get_export_path(self, project_id: str | None) -> Path:
         """
@@ -491,63 +487,6 @@ class TaskSyncManager:
 
         return {"status": "available", "synced": True}
 
-    def trigger_export(self, project_id: str | None = None) -> None:
-        """
-        Trigger a debounced export.
-
-        Uses async debounce pattern to avoid blocking the event loop during export.
-        When running outside an event loop (e.g., CLI usage), runs synchronously.
-
-        Args:
-            project_id: Optional project to export
-        """
-        self._last_change_time = time.time()
-
-        if self._export_task is None or self._export_task.done():
-            try:
-                loop = asyncio.get_running_loop()
-                # Capture project_id at task creation to avoid race condition
-                self._export_task = loop.create_task(self._process_export_queue(project_id))
-            except RuntimeError:
-                # No running event loop (e.g. CLI usage) - run sync immediately
-                # Skip debounce and export directly
-                try:
-                    self.export_to_jsonl(project_id)
-                except Exception as e:
-                    logger.warning(f"Failed to sync task export: {e}")
-
-    async def _process_export_queue(self, project_id: str | None = None) -> None:
-        """
-        Process export task with debounce.
-
-        Waits for debounce interval, then runs export in executor to avoid
-        blocking the event loop during file I/O and hash computation.
-
-        During graceful shutdown, flushes any pending export immediately rather
-        than abandoning it.
-
-        Args:
-            project_id: Project ID captured at task creation time to avoid race conditions.
-        """
-        while True:
-            # Check if debounce time has passed
-            now = time.time()
-            elapsed = now - self._last_change_time
-
-            # Export if debounce time passed OR shutdown requested (flush pending)
-            if elapsed >= self._debounce_interval or self._shutdown_requested:
-                try:
-                    # Run the blocking export in a thread pool to avoid blocking event loop
-                    loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(None, self.export_to_jsonl, project_id)
-                except Exception as e:
-                    logger.error(f"Error during task sync export: {e}")
-                return
-
-            # Wait for remaining debounce time
-            wait_time = max(0.1, self._debounce_interval - elapsed)
-            await asyncio.sleep(wait_time)
-
     async def import_from_github_issues(
         self, repo_url: str, project_id: str | None = None, limit: int = 50
     ) -> dict[str, Any]:
@@ -698,27 +637,3 @@ class TaskSyncManager:
         except Exception as e:
             logger.error(f"Failed to import from GitHub: {e}")
             return {"success": False, "error": str(e)}
-
-    def stop(self) -> None:
-        """Stop any pending export tasks."""
-        self._shutdown_requested = True
-        if self._export_task and not self._export_task.done():
-            self._export_task.cancel()
-
-    async def shutdown(self) -> None:
-        """Gracefully shutdown the export task.
-
-        Sets the shutdown flag first so the exporter loop can observe it and
-        exit early, then waits for any pending export to complete.
-        """
-        # Set flag BEFORE awaiting so _process_export_queue can see it
-        self._shutdown_requested = True
-
-        if self._export_task:
-            if not self._export_task.done():
-                try:
-                    # Wait for export to complete naturally
-                    await self._export_task
-                except asyncio.CancelledError:
-                    pass
-            self._export_task = None
