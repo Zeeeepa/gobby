@@ -532,9 +532,13 @@ function TerminalView({
       return true
     })
 
-    // Send input to backend only when interactive
+    // Send input to backend only when interactive,
+    // but always forward mouse events (scroll wheel, clicks) so VIEW mode can scroll.
+    // SGR mouse: \x1b[< ...  X10 mouse: \x1b[M ...
     const inputDisposable = terminal.onData((data) => {
       if (isInteractiveRef.current) {
+        sendInput(data)
+      } else if (data.startsWith('\x1b[<') || data.startsWith('\x1b[M')) {
         sendInput(data)
       }
     })

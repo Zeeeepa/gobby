@@ -240,6 +240,15 @@ class TmuxMixin:
                 )
                 await asyncio.wait_for(proc.wait(), timeout=5.0)
 
+                # Enable mouse mode so scroll wheel works in the web UI
+                mouse_args = args + ["set-option", "-t", session_name, "mouse", "on"]
+                proc_mouse = await asyncio.create_subprocess_exec(
+                    *mouse_args,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await asyncio.wait_for(proc_mouse.wait(), timeout=5.0)
+
                 # Force redraw clients attached to this session
                 refresh_args = args + ["refresh-client", "-t", session_name]
                 proc2 = await asyncio.create_subprocess_exec(
