@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from gobby.agents.registry import RunningAgent, RunningAgentRegistry
-from gobby.events.completion_registry import CompletionEventRegistry
-from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.pipelines import LocalPipelineExecutionManager
 from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
 from gobby.workflows.pipeline_state import ExecutionStatus
@@ -52,33 +49,13 @@ def agent_registry() -> RunningAgentRegistry:
 
 
 @pytest.fixture
-def agent_run_manager(temp_db: LocalDatabase) -> LocalAgentRunManager:
-    _seed_db(temp_db)
-    return LocalAgentRunManager(temp_db)
-
-
-@pytest.fixture
-def completion_registry(temp_db: LocalDatabase) -> CompletionEventRegistry:
-    return CompletionEventRegistry(
-        pipeline_rerun_callback=AsyncMock(),
-        db=temp_db,
-    )
-
-
-@pytest.fixture
 def heartbeat(
     exec_manager: LocalPipelineExecutionManager,
-    completion_registry: CompletionEventRegistry,
     agent_registry: RunningAgentRegistry,
-    agent_run_manager: LocalAgentRunManager,
-    temp_db: LocalDatabase,
 ) -> PipelineHeartbeat:
     return PipelineHeartbeat(
         execution_manager=exec_manager,
-        completion_registry=completion_registry,
         agent_registry=agent_registry,
-        agent_run_manager=agent_run_manager,
-        db=temp_db,
         stall_threshold_seconds=60,
     )
 
@@ -122,12 +99,12 @@ def _add_alive_agent(
 
 
 @pytest.mark.asyncio
-async def test_stalled_no_agents_no_continuations_marks_failed(
+async def test_stalled_no_agents_marks_failed(
     heartbeat: PipelineHeartbeat,
     exec_manager: LocalPipelineExecutionManager,
     temp_db: LocalDatabase,
 ) -> None:
-    """Stalled execution with no alive agents and no continuations → FAILED."""
+    """Stalled execution with no alive agents → FAILED."""
     exe_id = _create_stalled_execution(exec_manager, temp_db)
 
     count = await heartbeat.check_stalled_executions()
@@ -164,42 +141,6 @@ async def test_stalled_with_alive_agents_touches_updated_at(
 
 
 @pytest.mark.asyncio
-async def test_stalled_dead_agents_with_continuation_fires_it(
-    heartbeat: PipelineHeartbeat,
-    exec_manager: LocalPipelineExecutionManager,
-    completion_registry: CompletionEventRegistry,
-    temp_db: LocalDatabase,
-) -> None:
-    """Stalled execution + dead agents + orphaned continuation → continuation fired."""
-    exe_id = _create_stalled_execution(exec_manager, temp_db)
-
-    # Register a continuation in DB for this execution
-    continuation_config = {
-        "execution_id": exe_id,
-        "pipeline_name": "test-pipeline",
-        "inputs": {},
-    }
-    temp_db.execute(
-        "INSERT OR REPLACE INTO pipeline_continuations (run_id, config_json) VALUES (?, ?)",
-        ("run-dead-001", json.dumps(continuation_config)),
-    )
-
-    count = await heartbeat.check_stalled_executions()
-    assert count == 1
-
-    # Verify continuation callback was invoked
-    assert completion_registry._pipeline_rerun_callback is not None
-    completion_registry._pipeline_rerun_callback.assert_called_once()
-
-    # Verify continuation was cleaned up from DB
-    row = temp_db.fetchone(
-        "SELECT * FROM pipeline_continuations WHERE run_id = ?",
-        ("run-dead-001",),
-    )
-    assert row is None
-
-
-@pytest.mark.asyncio
 async def test_non_stalled_execution_untouched(
     heartbeat: PipelineHeartbeat,
     exec_manager: LocalPipelineExecutionManager,
@@ -218,73 +159,6 @@ async def test_non_stalled_execution_untouched(
     refreshed = exec_manager.get_execution(exe.id)
     assert refreshed is not None
     assert refreshed.status == ExecutionStatus.RUNNING
-
-
-@pytest.mark.asyncio
-async def test_orphaned_continuation_for_completed_agent_fired(
-    heartbeat: PipelineHeartbeat,
-    completion_registry: CompletionEventRegistry,
-    agent_run_manager: LocalAgentRunManager,
-    temp_db: LocalDatabase,
-) -> None:
-    """Orphaned continuation for a completed agent run → fired and cleaned up."""
-    # Create an agent run that completed
-    agent_run = agent_run_manager.create(
-        parent_session_id=SESSION_ID,
-        provider="claude",
-        prompt="do something",
-    )
-    # Mark it as success
-    agent_run_manager.complete(agent_run.id, result="done")
-
-    # Add a continuation that should have been fired
-    continuation_config = {
-        "pipeline_name": "test-pipeline",
-        "inputs": {},
-    }
-    temp_db.execute(
-        "INSERT OR REPLACE INTO pipeline_continuations (run_id, config_json) VALUES (?, ?)",
-        (agent_run.id, json.dumps(continuation_config)),
-    )
-
-    count = await heartbeat.check_orphaned_continuations()
-    assert count == 1
-
-    # Verify callback was invoked
-    completion_registry._pipeline_rerun_callback.assert_called_once()
-
-    # Verify cleanup
-    row = temp_db.fetchone(
-        "SELECT * FROM pipeline_continuations WHERE run_id = ?",
-        (agent_run.id,),
-    )
-    assert row is None
-
-
-@pytest.mark.asyncio
-async def test_orphaned_continuation_for_running_agent_skipped(
-    heartbeat: PipelineHeartbeat,
-    completion_registry: CompletionEventRegistry,
-    agent_registry: RunningAgentRegistry,
-    temp_db: LocalDatabase,
-) -> None:
-    """Continuation for still-running agent → not fired."""
-    run_id = "run-still-going"
-    _add_alive_agent(agent_registry, run_id=run_id)
-
-    continuation_config = {
-        "pipeline_name": "test-pipeline",
-        "inputs": {},
-    }
-    temp_db.execute(
-        "INSERT OR REPLACE INTO pipeline_continuations (run_id, config_json) VALUES (?, ?)",
-        (run_id, json.dumps(continuation_config)),
-    )
-
-    count = await heartbeat.check_orphaned_continuations()
-    assert count == 0
-
-    completion_registry._pipeline_rerun_callback.assert_not_called()
 
 
 @pytest.mark.asyncio

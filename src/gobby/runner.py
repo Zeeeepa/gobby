@@ -471,8 +471,6 @@ class GobbyRunner:
 
         self.completion_registry = CompletionEventRegistry(
             wake_callback=self.wake_dispatcher.wake,
-            pipeline_rerun_callback=self._rerun_pipeline,
-            db=self.database,
         )
 
         # Create pipeline executor at startup if we have project context
@@ -573,7 +571,6 @@ class GobbyRunner:
             # Register pipeline heartbeat handler
             try:
                 from gobby.agents.registry import get_running_agent_registry
-                from gobby.storage.agents import LocalAgentRunManager as _ARM
                 from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
 
                 if self.pipeline_execution_manager is None:
@@ -581,10 +578,7 @@ class GobbyRunner:
 
                 heartbeat = PipelineHeartbeat(
                     execution_manager=self.pipeline_execution_manager,
-                    completion_registry=self.completion_registry,
                     agent_registry=get_running_agent_registry(),
-                    agent_run_manager=_ARM(self.database),
-                    db=self.database,
                 )
                 cron_executor.register_handler("pipeline_heartbeat", heartbeat)
 
@@ -594,7 +588,7 @@ class GobbyRunner:
                     self.cron_storage.create_job(
                         project_id=self.project_id,
                         name="gobby:pipeline-heartbeat",
-                        description="Safety net: detects stalled pipelines and fires lost continuations",
+                        description="Safety net: detects stalled pipelines and marks dead executions as failed",
                         schedule_type="interval",
                         interval_seconds=60,
                         action_type="handler",
@@ -760,80 +754,6 @@ class GobbyRunner:
             if self.cron_scheduler:
                 setup_cron_event_broadcasting(self.websocket_server, self.cron_scheduler)
 
-    async def _rerun_pipeline(
-        self,
-        continuation: dict[str, Any],
-        agent_result: dict[str, Any] | None = None,
-    ) -> None:
-        """Re-invoke a pipeline from a completion continuation.
-
-        Called by CompletionEventRegistry when an agent completes and a
-        pipeline continuation was registered. Runs the pipeline as a new
-        background execution.
-        """
-        from gobby.mcp_proxy.tools.workflows._pipeline_execution import run_pipeline
-
-        pipeline_name = continuation.get("pipeline_name")
-        inputs = continuation.get("inputs", {})
-
-        # Inject agent completion status for pipeline decision-making
-        if agent_result:
-            agent_status = agent_result.get("status", "unknown")
-            inputs["_last_agent_status"] = agent_status
-            if agent_status in ("error", "cancelled", "timeout"):
-                inputs["_consecutive_failures"] = inputs.get("_consecutive_failures", 0) + 1
-            else:
-                inputs["_consecutive_failures"] = 0
-        else:
-            # Heartbeat path — no result available, preserve existing values
-            inputs.setdefault("_last_agent_status", None)
-            inputs.setdefault("_consecutive_failures", 0)
-        session_id = continuation.get("session_id")
-        project_id = continuation.get("project_id", self.project_id or "")
-        continuation_prompt = continuation.get("continuation_prompt")
-
-        if not pipeline_name:
-            logger.error("Pipeline continuation missing pipeline_name: %s", continuation)
-            return
-
-        # Inject continuation_prompt into inputs so the YAML can forward it
-        if continuation_prompt and "_continuation_prompt" not in inputs:
-            inputs["_continuation_prompt"] = continuation_prompt
-
-        logger.info(
-            "Pipeline continuation: re-invoking %s (iteration %s)",
-            pipeline_name,
-            inputs.get("_current_iteration", "?"),
-        )
-
-        result = await run_pipeline(
-            loader=self.workflow_loader,
-            executor=self.pipeline_executor,
-            name=pipeline_name,
-            inputs=inputs,
-            project_id=project_id,
-            session_id=session_id,
-            continuation_prompt=continuation_prompt,
-        )
-
-        if not result.get("success"):
-            logger.error("Pipeline continuation failed for %s: %s", pipeline_name, result)
-            return
-
-        # Auto-subscribe invoking session to continuation pass executions (#9887)
-        execution_id = result.get("execution_id")
-        if result.get("success") and execution_id and session_id and self.completion_registry:
-            from gobby.mcp_proxy.tools.workflows._pipelines import _auto_subscribe_lineage
-
-            _auto_subscribe_lineage(
-                self.completion_registry,
-                execution_id,
-                session_id,
-                self.session_manager,
-                continuation_prompt,
-                self.database,
-            )
-
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""
         hub_db_path = Path(self.config.database_path).expanduser()
@@ -935,13 +855,6 @@ class GobbyRunner:
                 await tmux_mgr.health_check()
             except Exception as e:
                 logger.warning(f"tmux health check failed on startup: {e}")
-
-            # Load persisted pipeline continuations BEFORE orphan cleanup
-            # so that orphan completion events can find their continuations
-            try:
-                self.completion_registry.load_persisted_continuations()
-            except Exception as e:
-                logger.warning(f"Failed to load persisted continuations: {e}")
 
             # Recover or clean up agents from previous daemon session
             if self.agent_lifecycle_monitor:
@@ -1066,36 +979,6 @@ class GobbyRunner:
                             )
                 except Exception as e:
                     logger.warning(f"Pipeline recovery after restart failed: {e}")
-
-            # Re-trigger stalled orchestrator pipelines after restart
-            if self.pipeline_execution_manager and self.completion_registry:
-                try:
-                    from gobby.workflows.pipeline_state import ExecutionStatus as _ES
-
-                    stale_orchestrations = self.pipeline_execution_manager.list_executions(
-                        status=_ES.INTERRUPTED,
-                        pipeline_name="orchestrator",
-                    )
-                    for exe in stale_orchestrations:
-                        try:
-                            import json as _json
-
-                            inputs = _json.loads(exe.inputs_json) if exe.inputs_json else {}
-                            inputs["_current_iteration"] = inputs.get("_current_iteration", 0) + 1
-                            await self._rerun_pipeline(
-                                {
-                                    "pipeline_name": "orchestrator",
-                                    "inputs": inputs,
-                                    "session_id": exe.session_id,
-                                    "project_id": exe.project_id or self.project_id or "",
-                                    "continuation_prompt": exe.continuation_prompt,
-                                }
-                            )
-                            logger.info(f"Re-triggered stalled orchestration {exe.id}")
-                        except Exception as e:
-                            logger.warning(f"Failed to re-trigger orchestration {exe.id}: {e}")
-                except Exception as e:
-                    logger.warning(f"Orchestration restart recovery failed: {e}")
 
             # Start WebSocket server
             websocket_task = None

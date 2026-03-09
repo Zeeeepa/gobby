@@ -84,6 +84,12 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
     _tool_approval_callback: Any | None = field(default=None, repr=False)
     _pending_agent_name: str | None = field(default=None, repr=False)
     _session_manager_ref: Any | None = field(default=None, repr=False)
+    _plan_approval_completed: bool = field(default=False, repr=False)
+    _accumulated_output_tokens: int = field(default=0, repr=False)
+    _accumulated_cost_usd: float = field(default=0.0, repr=False)
+    _message_manager_source_session_id: str | None = field(default=None, repr=False)
+    _needs_history_injection: bool = field(default=False, repr=False)
+    _message_manager: Any | None = field(default=None, repr=False)
     _is_first_turn: bool = field(default=True, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge hooks to workflow engine
@@ -232,7 +238,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                         ToolCallEvent(
                             tool_call_id=item.get("id", ""),
                             tool_name=tool_name,
-                            server_name=None,
+                            server_name="",
                             arguments=item.get("metadata", {}),
                         )
                     )
@@ -258,7 +264,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                     if self._on_post_tool:
                         loop = asyncio.get_running_loop()
                         loop.create_task(
-                            self._on_post_tool(
+                            self._on_post_tool(  # type: ignore[arg-type]
                                 {
                                     "tool_name": tool_name,
                                     "tool_input": item.get("metadata", {}),
@@ -301,7 +307,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                         yield event
 
                 # Emit DoneEvent
-                usage = {}
+                usage: dict[str, Any] = {}
                 yield DoneEvent(
                     tool_calls_count=tool_calls_count,
                     sdk_session_id=self.sdk_session_id,

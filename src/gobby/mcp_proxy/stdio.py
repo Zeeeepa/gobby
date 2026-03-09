@@ -397,7 +397,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             except (ValueError, TypeError):
                 return {
                     "success": False,
-                    "error": f"Invalid JSON in 'arguments' parameter: {arguments[:200]}",
+                    "error": f"Invalid JSON in 'arguments' parameter: {str(arguments)[:200]}",
                 }
 
         # Accept 'args' as alias for 'arguments' (agents sometimes use wrong param name)
@@ -415,7 +415,10 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
                         "success": False,
                         "error": f"Invalid JSON in 'args' parameter: {args[:200]}",
                     }
-        return await proxy.call_tool(server_name, tool_name, effective_args)
+        final_args: dict[str, Any] | None = (
+            effective_args if isinstance(effective_args, dict) else None
+        )
+        return await proxy.call_tool(server_name, tool_name, final_args)
 
     @mcp.tool()
     async def recommend_tools(

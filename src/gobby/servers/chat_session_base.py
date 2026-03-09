@@ -9,6 +9,7 @@ without isinstance checks in most code paths.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
 from gobby.llm.claude_models import ChatEvent
@@ -28,6 +29,7 @@ class ChatSessionProtocol(Protocol):
     chat_mode: str
     system_prompt_override: str | None
     resume_session_id: str | None
+    last_activity: datetime
 
     # Lifecycle callbacks
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None
@@ -37,6 +39,19 @@ class ChatSessionProtocol(Protocol):
     _on_stop: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None
     _on_mode_changed: Callable[[str, str], Awaitable[None]] | None
     _on_plan_ready: Callable[[str | None, dict[str, Any]], Awaitable[None]] | None
+
+    # Optional attrs set dynamically by WebSocket session control
+    _tool_approval_config: Any
+    _tool_approval_callback: Callable[..., Any] | None
+    _session_manager_ref: Any
+    _on_mode_persist: Callable[[str], None] | None
+    _pending_agent_name: str | None
+    _plan_approval_completed: bool
+    _accumulated_output_tokens: int
+    _accumulated_cost_usd: float
+    _message_manager_source_session_id: str | None
+    _needs_history_injection: bool
+    _message_manager: Any
 
     @property
     def is_connected(self) -> bool: ...
@@ -55,9 +70,7 @@ class ChatSessionProtocol(Protocol):
 
     async def start(self, model: str | None = None) -> None: ...
 
-    async def send_message(
-        self, content: str | list[dict[str, Any]]
-    ) -> AsyncIterator[ChatEvent]: ...
+    def send_message(self, content: str | list[dict[str, Any]]) -> AsyncIterator[ChatEvent]: ...
 
     async def interrupt(self) -> None: ...
 
@@ -74,3 +87,7 @@ class ChatSessionProtocol(Protocol):
     def provide_plan_decision(self, decision: str) -> None: ...
 
     def set_chat_mode(self, mode: str) -> None: ...
+
+    def approve_plan(self) -> None: ...
+
+    def set_plan_feedback(self, feedback: str) -> None: ...

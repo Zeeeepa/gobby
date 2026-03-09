@@ -874,15 +874,19 @@ class HookManager:
         and get_tool_schema without going through the MCP call_tool dispatch
         (which only routes to sub-servers, not proxy-level tools).
         """
+        result: dict[str, Any]
         if tool == "list_mcp_servers":
-            return await proxy.list_servers()
+            result = await proxy.list_servers()
+            return result
         elif tool == "list_tools":
             server_name = args.get("server_name", "")
-            return await proxy.list_tools(server_name)
+            result = await proxy.list_tools(server_name)
+            return result
         elif tool == "get_tool_schema":
             server_name = args.get("server_name", "")
             tool_name = args.get("tool_name", "")
-            return await proxy.get_tool_schema(server_name, tool_name)
+            result = await proxy.get_tool_schema(server_name, tool_name)
+            return result
         else:
             return {"success": False, "error": f"Unknown _proxy tool: {tool}"}
 

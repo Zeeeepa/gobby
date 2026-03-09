@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 147
+BASELINE_VERSION = 148
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -940,11 +940,6 @@ CREATE TABLE session_transcripts (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE pipeline_continuations (
-    run_id TEXT PRIMARY KEY,
-    config_json TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
 """
 
 # Migrations beyond v133.
@@ -1123,6 +1118,11 @@ ALTER TABLE agent_runs ADD COLUMN tmux_session_name TEXT;
 ALTER TABLE agent_runs ADD COLUMN mode TEXT DEFAULT 'terminal';
 ALTER TABLE agent_runs ADD COLUMN worktree_id TEXT;
 ALTER TABLE agent_runs ADD COLUMN clone_id TEXT""",
+    ),
+    (
+        148,
+        "Drop pipeline_continuations table (continuation machinery removed)",
+        "DROP TABLE IF EXISTS pipeline_continuations",
     ),
 ]
 

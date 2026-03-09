@@ -939,7 +939,26 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         from gobby.workflows.state_manager import SessionVariableManager
 
-        SessionVariableManager(self._session_storage.db).merge_variables(session_id, changes)
+        sv_mgr = SessionVariableManager(self._session_storage.db)
+
+        # Don't overwrite existing session variables with defaults on compact/restart.
+        # Internal keys reflect current agent config and are always re-applied.
+        # User-facing variables (pre_existing_errors_triaged, stop_attempts, etc.)
+        # are only set if not already present — preserving agent-set values.
+        existing = sv_mgr.get_variables(session_id)
+        if existing:
+            _ALWAYS_REAPPLY = {
+                "_agent_type",
+                "_active_rule_names",
+                "_active_skill_names",
+                "_skill_format",
+                "is_spawned_agent",
+            }
+            changes = {
+                k: v for k, v in changes.items() if k in _ALWAYS_REAPPLY or k not in existing
+            }
+
+        sv_mgr.merge_variables(session_id, changes)
 
         # Build injection context
         context_parts: list[str] = []

@@ -169,9 +169,9 @@ class ChatSessionMixin:
                     project_id=project_id or PERSONAL_PROJECT_ID,
                 )
                 if agent_body:
+                    sources: list[str] | None = getattr(agent_body, "sources", None)
                     use_codex = getattr(agent_body, "provider", None) == "codex" or (
-                        getattr(agent_body, "sources", None)
-                        and "codex_web_chat" in agent_body.sources
+                        sources is not None and "codex_web_chat" in sources
                     )
             except Exception as e:
                 logger.warning(f"Failed to resolve agent '{agent_name}' for provider check: {e}")

@@ -3,27 +3,19 @@
 In-memory event bus that:
 1. Lets pipeline executor block on completion events (wait step type)
 2. Triggers wake callbacks to notify subscribing sessions when operations complete
-3. Fires pipeline continuation callbacks for event-driven re-invocation
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Callable, Coroutine
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from gobby.storage.database import DatabaseProtocol
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Type for the wake callback: (session_id, message, result) -> None
 WakeCallback = Callable[[str, str, dict[str, Any]], Coroutine[Any, Any, None]]
-
-# Type for pipeline rerun callback: (continuation_config, agent_result_or_None) -> None
-PipelineRerunCallback = Callable[[dict[str, Any], dict[str, Any] | None], Coroutine[Any, Any, None]]
 
 
 class CompletionEventRegistry:
@@ -32,23 +24,17 @@ class CompletionEventRegistry:
     Used by:
     - PipelineExecutor: `wait` step type blocks via registry.wait()
     - Daemon: registry.notify() fires wake callbacks for subscribed sessions
-    - Orchestrator: pipeline continuations trigger re-invocation on agent completion
     """
 
     def __init__(
         self,
         wake_callback: WakeCallback | None = None,
-        pipeline_rerun_callback: PipelineRerunCallback | None = None,
-        db: DatabaseProtocol | None = None,
     ) -> None:
         self._events: dict[str, asyncio.Event] = {}
         self._results: dict[str, dict[str, Any]] = {}
         self._subscribers: dict[str, list[str]] = {}
         self._continuation_prompts: dict[str, str] = {}
-        self._pipeline_continuations: dict[str, dict[str, Any]] = {}
         self._wake_callback = wake_callback
-        self._pipeline_rerun_callback = pipeline_rerun_callback
-        self._db = db
 
     def register(
         self,
@@ -73,65 +59,6 @@ class CompletionEventRegistry:
     def is_registered(self, completion_id: str) -> bool:
         """Check if a completion event is registered."""
         return completion_id in self._events
-
-    def register_continuation(
-        self,
-        completion_id: str,
-        continuation_config: dict[str, Any],
-    ) -> None:
-        """Register a pipeline continuation for a completion event.
-
-        When the completion event fires, the pipeline_rerun_callback will be
-        invoked with the continuation_config, triggering a new pipeline pass.
-        Also persists to DB for daemon restart recovery.
-
-        Args:
-            completion_id: The completion event ID (typically a run_id)
-            continuation_config: Dict with pipeline_name, inputs, session_id, project_id
-        """
-        self._pipeline_continuations[completion_id] = continuation_config
-
-        # Persist to DB for restart recovery
-        if self._db is not None:
-            try:
-                self._db.execute(
-                    "INSERT OR REPLACE INTO pipeline_continuations (run_id, config_json) VALUES (?, ?)",
-                    (completion_id, json.dumps(continuation_config)),
-                )
-            except Exception:
-                logger.debug("Failed to persist continuation for %s", completion_id, exc_info=True)
-
-        logger.debug(
-            "Registered pipeline continuation for %s: pipeline=%s",
-            completion_id,
-            continuation_config.get("pipeline_name", "?"),
-        )
-
-    def load_persisted_continuations(self) -> int:
-        """Load continuations from DB into memory. Called on daemon startup.
-
-        Returns number of continuations loaded.
-        """
-        if self._db is None:
-            return 0
-        try:
-            rows = self._db.fetchall("SELECT run_id, config_json FROM pipeline_continuations")
-            loaded = 0
-            for row in rows:
-                run_id = row["run_id"]
-                config = json.loads(row["config_json"])
-                self._pipeline_continuations[run_id] = config
-                # Ensure there's an event registered so notify() works
-                if run_id not in self._events:
-                    self._events[run_id] = asyncio.Event()
-                    self._subscribers[run_id] = []
-                loaded += 1
-            if loaded > 0:
-                logger.info("Loaded %d persisted pipeline continuation(s) from DB", loaded)
-            return loaded
-        except Exception:
-            logger.warning("Failed to load persisted continuations", exc_info=True)
-            return 0
 
     async def notify(
         self,
@@ -172,24 +99,6 @@ class CompletionEventRegistry:
                         completion_id,
                         exc_info=True,
                     )
-
-        # Fire pipeline continuation if registered
-        continuation = self._pipeline_continuations.get(completion_id)
-        if continuation and self._pipeline_rerun_callback:
-            try:
-                await self._pipeline_rerun_callback(continuation, result)
-                self._pipeline_continuations.pop(completion_id, None)
-                # Remove from DB
-                if self._db is not None:
-                    try:
-                        self._db.execute(
-                            "DELETE FROM pipeline_continuations WHERE run_id = ?",
-                            (completion_id,),
-                        )
-                    except Exception:
-                        pass
-            except Exception:
-                logger.error("Pipeline continuation failed for %s", completion_id, exc_info=True)
 
     async def wait(self, completion_id: str, timeout: float | None = None) -> dict[str, Any]:
         """Block until a completion event fires.
@@ -240,41 +149,9 @@ class CompletionEventRegistry:
         """Get the continuation prompt for a completion event."""
         return self._continuation_prompts.get(completion_id)
 
-    def find_continuation_by_execution(
-        self, execution_id: str
-    ) -> tuple[str, dict[str, Any]] | None:
-        """Find continuation by execution_id. Returns (run_id, config_copy) or None."""
-        for run_id, config in self._pipeline_continuations.items():
-            if config.get("execution_id") == execution_id:
-                return (run_id, dict(config))
-        return None
-
-    async def fire_continuation(self, run_id: str) -> bool:
-        """Fire and clean up a continuation. Returns True if fired."""
-        config = self._pipeline_continuations.pop(run_id, None)
-        if config is None or self._pipeline_rerun_callback is None:
-            return False
-        await self._pipeline_rerun_callback(config, None)
-        # DB cleanup
-        if self._db:
-            try:
-                self._db.execute("DELETE FROM pipeline_continuations WHERE run_id = ?", (run_id,))
-            except Exception:
-                logger.debug("Failed to delete continuation %s from DB", run_id, exc_info=True)
-        return True
-
     def cleanup(self, completion_id: str) -> None:
         """Remove all state for a completion event."""
         self._events.pop(completion_id, None)
         self._results.pop(completion_id, None)
         self._subscribers.pop(completion_id, None)
         self._continuation_prompts.pop(completion_id, None)
-        self._pipeline_continuations.pop(completion_id, None)
-        if self._db is not None:
-            try:
-                self._db.execute(
-                    "DELETE FROM pipeline_continuations WHERE run_id = ?",
-                    (completion_id,),
-                )
-            except Exception:
-                pass

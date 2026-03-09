@@ -195,15 +195,20 @@ class GobbyDaemonTools:
                     content=[
                         TextContent(
                             type="text",
-                            text=f"Error: 'arguments' must be a JSON object, got invalid string: {arguments[:200]}",
+                            text=f"Error: 'arguments' must be a JSON object, got invalid string: {str(arguments)[:200]}",
                         )
                     ],
                     isError=True,
                 )
 
+        # At this point arguments is dict or None (str case handled above)
+        effective_arguments: dict[str, Any] | None = (
+            arguments if isinstance(arguments, dict) else None
+        )
+
         try:
             result = await self.tool_proxy.call_tool(
-                server_name, tool_name, arguments, session_id, call_context=call_context
+                server_name, tool_name, effective_arguments, session_id, call_context=call_context
             )
         finally:
             if token is not None:
