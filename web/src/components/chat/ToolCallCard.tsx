@@ -460,7 +460,6 @@ export function extractBase64Image(result: unknown): string | null {
 }
 
 function ToolResultContent({ call }: { call: ToolCall }) {
-  const { openFileAsArtifact } = useArtifactContext()
   const imageSrc = useMemo(() => extractBase64Image(call.result), [call.result])
 
   const resultStr = useMemo(() => {
@@ -496,19 +495,11 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     const parsed = parseReadOutput(resultStr)
     if (parsed) {
       const language = getLanguageFromPath(filePath)
-      const artifactInfo = getArtifactTypeForFile(filePath)
       const fileName = pathBasename(filePath)
       return (
         <div className="rounded overflow-hidden">
           <div className="flex items-center justify-between bg-muted/50 px-3 py-1 text-xs">
             <span className="text-muted-foreground font-mono truncate">{fileName}</span>
-            <button
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              onClick={() => openFileAsArtifact(artifactInfo.type, artifactInfo.language, parsed.content, fileName)}
-              title="Open in artifacts panel"
-            >
-              <PanelIcon />
-            </button>
           </div>
           <SyntaxHighlighter
             style={highlighterTheme}
@@ -619,6 +610,20 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
   }
 
   const hasDetails = call.arguments || call.result || call.error
+  const { openFileAsArtifact } = useArtifactContext()
+
+  // Compute artifact info for Read tools to show button in toolbar
+  const artifactButton = useMemo(() => {
+    if (displayName !== 'Read' || call.status !== 'completed' || !call.result) return null
+    const filePath = call.arguments?.file_path as string | undefined
+    if (!filePath) return null
+    const resultStr = typeof call.result === 'string' ? call.result : String(call.result)
+    const parsed = parseReadOutput(resultStr)
+    if (!parsed) return null
+    const artifactInfo = getArtifactTypeForFile(filePath)
+    const fileName = pathBasename(filePath)
+    return { artifactInfo, parsed, fileName }
+  }, [displayName, call.status, call.result, call.arguments])
 
   return (
     <div className={cn(
@@ -642,6 +647,18 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
           <span className="text-muted-foreground text-xs truncate max-w-[12rem] sm:max-w-[24rem]">{summary}</span>
         ) : null}
         <div className="flex-1" />
+        {artifactButton && (
+          <button
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              openFileAsArtifact(artifactButton.artifactInfo.type, artifactButton.artifactInfo.language, artifactButton.parsed.content, artifactButton.fileName)
+            }}
+            title="Open in artifacts panel"
+          >
+            <PanelIcon />
+          </button>
+        )}
         {hasDetails && (
           <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
         )}
