@@ -112,11 +112,24 @@ class TestPreApproveGemini:
         assert clone_dir in data["projects"]
         assert data["projects"][clone_dir] == "test-task"
 
+    def test_creates_trusted_folders_json(self, tmp_path: Path) -> None:
+        clone_dir = "/private/tmp/gobby-clones/test-task"
+
+        with patch("gobby.agents.trust.Path.home", return_value=tmp_path):
+            pre_approve_directory("gemini", clone_dir)
+
+        trust_file = tmp_path / ".gemini" / "trustedFolders.json"
+        assert trust_file.exists()
+        data = json.loads(trust_file.read_text())
+        assert data[clone_dir] == "TRUST_PARENT"
+
     def test_preserves_existing_entries(self, tmp_path: Path) -> None:
         gemini_dir = tmp_path / ".gemini"
         gemini_dir.mkdir()
         projects_file = gemini_dir / "projects.json"
         projects_file.write_text(json.dumps({"projects": {"/existing/path": "existing"}}))
+        trust_file = gemini_dir / "trustedFolders.json"
+        trust_file.write_text(json.dumps({"/existing/path": "TRUST_FOLDER"}))
 
         clone_dir = "/private/tmp/gobby-clones/test-task"
 
@@ -126,6 +139,10 @@ class TestPreApproveGemini:
         data = json.loads(projects_file.read_text())
         assert "/existing/path" in data["projects"]
         assert clone_dir in data["projects"]
+
+        trusted = json.loads(trust_file.read_text())
+        assert trusted["/existing/path"] == "TRUST_FOLDER"
+        assert trusted[clone_dir] == "TRUST_PARENT"
 
     def test_idempotent(self, tmp_path: Path) -> None:
         clone_dir = "/private/tmp/gobby-clones/test-task"
@@ -137,6 +154,10 @@ class TestPreApproveGemini:
         projects_file = tmp_path / ".gemini" / "projects.json"
         data = json.loads(projects_file.read_text())
         assert data["projects"][clone_dir] == "test-task"
+
+        trust_file = tmp_path / ".gemini" / "trustedFolders.json"
+        trusted = json.loads(trust_file.read_text())
+        assert trusted[clone_dir] == "TRUST_PARENT"
 
 
 class TestCodexNoop:

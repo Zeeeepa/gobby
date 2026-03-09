@@ -6,7 +6,7 @@ This module pre-approves directories so those prompts never appear.
 
 Each CLI has a different trust mechanism:
 - Claude Code (+ Cursor, Windsurf, Copilot): ~/.claude/projects/<encoded-path>/
-- Gemini CLI: ~/.gemini/projects.json
+- Gemini CLI: ~/.gemini/trustedFolders.json + ~/.gemini/projects.json
 - Codex CLI: sandboxed via --full-auto, no trust needed
 """
 
@@ -82,31 +82,49 @@ def _pre_approve_claude(directory: str) -> None:
 def _pre_approve_gemini(directory: str) -> None:
     """Pre-approve a directory for Gemini CLI.
 
-    Adds the directory to ~/.gemini/projects.json which Gemini uses
-    to track known workspaces.
+    Writes to both:
+    - ~/.gemini/projects.json — workspace registry
+    - ~/.gemini/trustedFolders.json — actual folder trust (TRUST_PARENT)
+
+    Without the trustedFolders entry, Gemini shows an interactive trust
+    prompt that blocks headless agent execution.
     """
     gemini_home = Path.home() / ".gemini"
-    projects_file = gemini_home / "projects.json"
+    gemini_home.mkdir(parents=True, exist_ok=True)
 
+    # 1. Register in projects.json
+    projects_file = gemini_home / "projects.json"
     try:
         if projects_file.exists():
             data = json.loads(projects_file.read_text())
         else:
-            gemini_home.mkdir(parents=True, exist_ok=True)
             data = {"projects": {}}
 
         projects = data.get("projects") or {}
         if not isinstance(projects, dict):
             projects = {}
-        if directory in projects:
-            return
 
-        # Use the directory basename as the project name
-        project_name = Path(directory).name
-        projects[directory] = project_name
-        data["projects"] = projects
-
-        projects_file.write_text(json.dumps(data, indent=2) + "\n")
-        logger.info("Pre-approved Gemini workspace trust for %s", directory)
+        if directory not in projects:
+            project_name = Path(directory).name
+            projects[directory] = project_name
+            data["projects"] = projects
+            projects_file.write_text(json.dumps(data, indent=2) + "\n")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to pre-approve Gemini trust for %s: %s", directory, e)
+        logger.warning("Failed to update Gemini projects.json for %s: %s", directory, e)
+
+    # 2. Pre-trust in trustedFolders.json (the actual trust gate)
+    trust_file = gemini_home / "trustedFolders.json"
+    try:
+        if trust_file.exists():
+            trusted: dict[str, str] = json.loads(trust_file.read_text())
+        else:
+            trusted = {}
+
+        if trusted.get(directory) == "TRUST_PARENT":
+            return  # Already fully trusted
+
+        trusted[directory] = "TRUST_PARENT"
+        trust_file.write_text(json.dumps(trusted, indent=2) + "\n")
+        logger.info("Pre-approved Gemini folder trust for %s", directory)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Failed to update Gemini trustedFolders.json for %s: %s", directory, e)
