@@ -14,3 +14,7 @@ rules:
         A commit is required before closing this task.
         1. git commit -m "[{{ project.name }}-#N] description"
         2. close_task(task_id="#N", commit_sha="<sha>")
+
+        No code changes? Pass a reason to skip the commit requirement:
+        close_task(task_id="#N", reason="obsolete")
+        Valid reasons: obsolete, duplicate, wont_fix, already_implemented, out_of_repo
