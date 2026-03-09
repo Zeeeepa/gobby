@@ -726,11 +726,20 @@ class PipelineExecutor:
                 _parent_session_id=context.get("parent_session_id"),
             )
 
-            return {
+            # Surface child pipeline outputs so parent steps can reference them
+            # e.g. ${{ dev_loop.output.orchestration_complete }}
+            step_output: dict[str, Any] = {
                 "pipeline": pipeline_name,
                 "execution_id": result.id,
                 "status": result.status.value,
             }
+            if result.outputs_json:
+                try:
+                    child_outputs = json.loads(result.outputs_json)
+                    step_output.update(child_outputs)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return step_output
 
         except Exception as e:
             logger.error(f"Nested pipeline execution failed: {e}", exc_info=True)

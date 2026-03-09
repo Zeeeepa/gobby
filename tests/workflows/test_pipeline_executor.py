@@ -593,6 +593,50 @@ class TestExecuteNestedPipeline:
         assert isinstance(result, dict)
 
     @pytest.mark.asyncio
+    async def test_nested_pipeline_surfaces_child_outputs(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that nested pipeline surfaces child outputs to parent step output."""
+        import json
+
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        # Set up async loader returning a simple pipeline
+        async_loader = AsyncMock()
+        nested_pipeline = PipelineDefinition(
+            name="child-pipeline",
+            steps=[PipelineStep(id="step1", exec="echo done")],
+        )
+        async_loader.load_pipeline.return_value = nested_pipeline
+
+        # Set up the mock execution to return outputs_json with child outputs
+        child_outputs = {"orchestration_complete": True, "iteration": 3, "session_task": "#42"}
+        completed_execution = MagicMock()
+        completed_execution.id = "pe-child-456"
+        completed_execution.status = ExecutionStatus.COMPLETED
+        completed_execution.outputs_json = json.dumps(child_outputs)
+        mock_execution_manager.update_execution_status.return_value = completed_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        executor.loader = async_loader
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_nested_pipeline("child-pipeline", context, "proj-123")
+
+        # Wrapper fields present
+        assert result["pipeline"] == "child-pipeline", f"Unexpected result: {result}"
+        assert result["execution_id"] == "pe-child-456"
+        assert result["status"] == "completed"
+        # Child outputs surfaced
+        assert result["orchestration_complete"] is True
+        assert result["iteration"] == 3
+        assert result["session_task"] == "#42"
+
+    @pytest.mark.asyncio
     async def test_nested_pipeline_handles_not_found(
         self, mock_db, mock_execution_manager, mock_llm_service, mock_loader
     ) -> None:
