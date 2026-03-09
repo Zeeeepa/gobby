@@ -475,6 +475,7 @@ def create_clones_registry(
         merge_result = git_manager.merge_branch(
             source_branch=temp_ref,
             target_branch=target_branch,
+            source_is_local=True,
         )
 
         # Clean up temp ref regardless of merge outcome

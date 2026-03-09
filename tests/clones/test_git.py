@@ -478,3 +478,46 @@ class TestCloneGitManagerGetCloneStatus:
         status = manager.get_clone_status(clone_path)
 
         assert status is None
+
+
+class TestMergeBranch:
+    """Tests for CloneGitManager.merge_branch."""
+
+    @pytest.fixture
+    def manager(self, tmp_path: Path):
+        from gobby.clones.git import CloneGitManager
+
+        return CloneGitManager(repo_path=tmp_path)
+
+    @pytest.fixture
+    def mock_run(self):
+        with patch("gobby.clones.git.CloneGitManager._run_git") as mock:
+            yield mock
+
+    def test_merge_branch_uses_origin_prefix_by_default(
+        self, manager, mock_run, tmp_path: Path
+    ) -> None:
+        """merge_branch prefixes source with origin/ by default."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        manager.merge_branch(source_branch="feature", target_branch="main")
+
+        # Find the merge call (4th: rev-parse, fetch, checkout, pull, merge)
+        merge_call = mock_run.call_args_list[4]
+        assert merge_call[0][0] == ["merge", "origin/feature", "--no-edit"]
+
+    def test_merge_branch_source_is_local_skips_origin_prefix(
+        self, manager, mock_run, tmp_path: Path
+    ) -> None:
+        """merge_branch with source_is_local=True uses branch name directly."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        manager.merge_branch(
+            source_branch="clone-merge/0.2.28",
+            target_branch="main",
+            source_is_local=True,
+        )
+
+        # Find the merge call
+        merge_call = mock_run.call_args_list[4]
+        assert merge_call[0][0] == ["merge", "clone-merge/0.2.28", "--no-edit"]

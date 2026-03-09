@@ -622,6 +622,7 @@ class CloneGitManager:
         source_branch: str,
         target_branch: str = "main",
         working_dir: str | Path | None = None,
+        source_is_local: bool = False,
     ) -> GitOperationResult:
         """
         Merge source branch into target branch.
@@ -702,8 +703,9 @@ class CloneGitManager:
                 )
 
             # Attempt merge
+            source_ref = source_branch if source_is_local else f"origin/{source_branch}"
             merge_result = self._run_git(
-                ["merge", f"origin/{source_branch}", "--no-edit"],
+                ["merge", source_ref, "--no-edit"],
                 cwd=cwd,
                 timeout=60,
             )
