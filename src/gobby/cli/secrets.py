@@ -42,6 +42,7 @@ def set_secret(name: str, category: str, description: str | None) -> None:
         click.echo("Error: Secret value cannot be empty.", err=True)
         raise SystemExit(1)
 
+    click.echo(f"Received {len(value)} characters.")
     store = _get_secret_store()
     info = store.set(name, value, category=category, description=description)
     click.echo(f"Stored secret '{info.name}' (category={info.category}).")
