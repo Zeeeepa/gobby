@@ -46,7 +46,7 @@ steps:
 
   # --- Get task info (first iteration only, for branch naming) ---
   - id: get_epic
-    condition: "${{ not inputs._worktree_id }}"
+    condition: "${{ not inputs._worktree_id and not inputs._clone_id }}"
     mcp:
       server: gobby-tasks
       tool: get_task
@@ -55,17 +55,17 @@ steps:
 
   # --- Expand epic if not yet expanded (first iteration only, epics only) ---
   - id: expand_epic
-    condition: "${{ (not inputs._worktree_id) and (get_epic.output.is_expanded == false) and (get_epic.output.task_type == 'epic') }}"
+    condition: "${{ (not inputs._worktree_id and not inputs._clone_id) and (get_epic.output.is_expanded == false) and (get_epic.output.task_type == 'epic') }}"
     invoke_pipeline:
       name: expand-task
       arguments:
         task_id: "${{ inputs.session_task }}"
         session_id: "${{ session_id }}"
 
-  # --- CREATE WORKTREE (first iteration only) ---
+  # --- CREATE WORKTREE (first iteration only, skip if clone provided) ---
   # Quick scan to see if there are tasks to work on before creating worktree
   - id: scan_open_for_worktree
-    condition: "${{ not inputs._worktree_id }}"
+    condition: "${{ not inputs._worktree_id and not inputs._clone_id }}"
     mcp:
       server: gobby-tasks
       tool: list_tasks
@@ -74,7 +74,7 @@ steps:
         status: "open"
 
   - id: create_worktree
-    condition: "${{ (not inputs._worktree_id) and (len(scan_open_for_worktree.output.tasks) > 0 if scan_open_for_worktree.output else false) }}"
+    condition: "${{ (not inputs._worktree_id and not inputs._clone_id) and (len(scan_open_for_worktree.output.tasks) > 0 if scan_open_for_worktree.output else false) }}"
     mcp:
       server: gobby-worktrees
       tool: create_worktree
