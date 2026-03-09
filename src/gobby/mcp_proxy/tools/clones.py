@@ -80,12 +80,23 @@ def create_clones_registry(
         try:
             if use_local:
                 # Clone from local repo path — always full clone
+                # Clone base_branch first, then create branch_name as new branch
                 source = str(git_manager.repo_path)
                 result = git_manager.full_clone(
                     remote_url=source,
                     clone_path=clone_path,
-                    branch=branch_name,
+                    branch=base_branch,
                 )
+                if result.success and branch_name != base_branch:
+                    import subprocess
+
+                    subprocess.run(  # nosec B603 B607
+                        ["git", "checkout", "-b", branch_name],
+                        cwd=clone_path,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
                 if not remote_url:
                     remote_url = git_manager.get_remote_url() or source
             else:
