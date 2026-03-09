@@ -28,7 +28,7 @@ inputs:
   qa_provider: "claude"
   developer_model: null
   qa_model: null
-  merge_target: null
+  merge_target: "main"
   merge_agent: "merge"
   merge_provider: "claude"
   merge_model: null
