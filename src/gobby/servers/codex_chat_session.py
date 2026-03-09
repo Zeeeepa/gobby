@@ -218,6 +218,10 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
             turn_completed = asyncio.Event()
             event_queue: asyncio.Queue[ChatEvent | None] = asyncio.Queue()
 
+            def _on_fire_and_forget_error(task: asyncio.Task[Any]) -> None:
+                if not task.cancelled() and task.exception():
+                    logger.error("Fire-and-forget task failed: %s", task.exception())
+
             def _on_delta(method: str, params: dict[str, Any]) -> None:
                 nonlocal accumulated_text
                 delta = params.get("delta", "")
@@ -263,7 +267,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                     # Fire post-tool callback
                     if self._on_post_tool:
                         loop = asyncio.get_running_loop()
-                        loop.create_task(
+                        t = loop.create_task(
                             self._on_post_tool(  # type: ignore[arg-type]
                                 {
                                     "tool_name": tool_name,
@@ -271,6 +275,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                                 }
                             )
                         )
+                        t.add_done_callback(_on_fire_and_forget_error)
 
             def _on_turn_completed(method: str, params: dict[str, Any]) -> None:
                 turn_completed.set()

@@ -1002,7 +1002,9 @@ def create_worktrees_registry(
         wt_path = worktree.worktree_path
 
         # Step 1: Fetch latest in the worktree
-        fetch_result = resolved_git_mgr._run_git(["fetch", "origin"], cwd=wt_path, timeout=60)
+        fetch_result = await asyncio.to_thread(
+            resolved_git_mgr._run_git, ["fetch", "origin"], cwd=wt_path, timeout=60
+        )
         if fetch_result.returncode != 0:
             logger.warning(f"Fetch failed in worktree (non-fatal): {fetch_result.stderr.strip()}")
 
@@ -1011,7 +1013,8 @@ def create_worktrees_registry(
         merge_ref = (
             f"origin/{merge_target}" if not merge_target.startswith("origin/") else merge_target
         )
-        merge_result = resolved_git_mgr._run_git(
+        merge_result = await asyncio.to_thread(
+            resolved_git_mgr._run_git,
             ["merge", merge_ref, "--no-edit"],
             cwd=wt_path,
             timeout=60,
@@ -1020,7 +1023,9 @@ def create_worktrees_registry(
         if merge_result.returncode != 0:
             merge_output = merge_result.stdout + merge_result.stderr
             if "CONFLICT" in merge_output:
-                resolved_git_mgr._run_git(["merge", "--abort"], cwd=wt_path, timeout=10)
+                await asyncio.to_thread(
+                    resolved_git_mgr._run_git, ["merge", "--abort"], cwd=wt_path, timeout=10
+                )
                 conflict_lines = [
                     line.strip() for line in merge_output.split("\n") if "CONFLICT" in line
                 ]
@@ -1045,7 +1050,8 @@ def create_worktrees_registry(
 
         # Step 3 (optional): Push source branch to origin as target
         if push:
-            push_result = resolved_git_mgr._run_git(
+            push_result = await asyncio.to_thread(
+                resolved_git_mgr._run_git,
                 ["push", "--no-verify", "origin", f"{effective_source}:{merge_target}"],
                 cwd=wt_path,
                 timeout=60,

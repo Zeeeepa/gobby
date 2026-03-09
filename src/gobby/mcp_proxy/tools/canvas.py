@@ -569,14 +569,14 @@ def create_canvas_registry(
                 "error": f"File too large: {file_size} bytes (max {MAX_TEXT_FILE_SIZE})",
             }
 
-        # Read content
+        # Read content (use to_thread to avoid blocking the event loop)
         if artifact_type == "image":
-            raw = source.read_bytes()
+            raw = await asyncio.to_thread(source.read_bytes)
             mime_type = mimetypes.guess_type(str(source))[0] or "application/octet-stream"
             content = f"data:{mime_type};base64,{base64.b64encode(raw).decode('ascii')}"
         else:
             try:
-                content = source.read_text(encoding="utf-8")
+                content = await asyncio.to_thread(source.read_text, encoding="utf-8")
             except UnicodeDecodeError:
                 return {"success": False, "error": f"File is not valid UTF-8: {file_path}"}
 

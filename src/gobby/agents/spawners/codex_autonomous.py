@@ -94,7 +94,7 @@ class CodexAutonomousRunner:
             error = "Codex CLI not found in PATH"
             logger.error("CodexAutonomousRunner: %s", error)
             if self.agent_run_manager:
-                self.agent_run_manager.fail(self.run_id, error=error)
+                await asyncio.to_thread(self.agent_run_manager.fail, self.run_id, error=error)
             raise RuntimeError(error)
 
         session_ref = f"#{self.seq_num}" if self.seq_num else self.session_id
@@ -178,8 +178,13 @@ class CodexAutonomousRunner:
             # Wrap async post-tool handler for sync notification API
             _loop = asyncio.get_running_loop()
 
+            def _on_fire_and_forget_error(task: asyncio.Task[Any]) -> None:
+                if not task.cancelled() and task.exception():
+                    logger.error("Fire-and-forget task failed: %s", task.exception())
+
             def _on_item_completed_sync(method: str, params: dict[str, Any]) -> None:
-                _loop.create_task(_on_item_completed(method, params))
+                t = _loop.create_task(_on_item_completed(method, params))
+                t.add_done_callback(_on_fire_and_forget_error)
 
             self._client.add_notification_handler("item/completed", _on_item_completed_sync)
 
