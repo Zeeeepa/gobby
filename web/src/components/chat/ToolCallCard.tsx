@@ -1,4 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { ToolCall } from '../../types/chat'
@@ -560,14 +562,25 @@ function ToolResultContent({ call }: { call: ToolCall }) {
         </div>
       )
     }
+    // files_with_matches / count mode — render as a clean file list
+    const fileLines = resultStr.trim().split('\n').filter(l => l.trim())
+    if (fileLines.length > 0) {
+      return (
+        <div className="font-mono text-xs space-y-0.5 py-1">
+          {fileLines.map((f, i) => (
+            <div key={i} className="text-muted-foreground">{f}</div>
+          ))}
+        </div>
+      )
+    }
   }
 
-  // Agent/Task results: plaintext
+  // Agent/Task results: render as markdown
   if (toolName === 'Agent' || toolName === 'Task') {
     return (
-      <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground max-h-96 overflow-y-auto font-mono text-xs whitespace-pre-wrap">
-        {resultStr}
-      </pre>
+      <div className="max-h-96 overflow-y-auto text-xs p-2">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{resultStr}</ReactMarkdown>
+      </div>
     )
   }
 
@@ -668,7 +681,7 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
           {call.arguments && Object.keys(call.arguments).length > 0 && !isCompact && (
             <ToolArgumentsContent args={call.arguments} />
           )}
-          {call.status === 'completed' && call.result !== undefined && formatToolName(call.tool_name) !== 'Edit' && (
+          {call.status === 'completed' && call.result !== undefined && !['Edit', 'Write'].includes(formatToolName(call.tool_name)) && (
             <div>
               <div className="text-muted-foreground mb-1 font-medium">Result</div>
               <ToolResultContent call={call} />

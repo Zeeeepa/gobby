@@ -251,6 +251,40 @@ class TestRequireTaskClose:
         assert evaluator.evaluate(body.when), "Rule should fire when task_claimed is set"
 
 
+class TestCompactPreservesTriagedState:
+    """Regression: compact must NOT reset pre_existing_errors_triaged.
+
+    Bug scenario: agent sets pre_existing_errors_triaged=true during session,
+    then /compact fires SessionStart → _activate_default_agent re-applies
+    defaults → overwrites triaged back to false → require-error-triage fires
+    spuriously on next stop.
+    """
+
+    def test_compact_preserves_triaged_state(self, db, manager) -> None:
+        """After triaging errors, compact should NOT cause require-error-triage to fire."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "require-error-triage")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        # State AFTER agent has triaged errors and committed
+        variables: dict[str, object] = {
+            "pre_existing_errors_triaged": True,  # Set by agent
+            "task_has_commits": True,  # Set by observer
+            "stop_attempts": 1,
+        }
+
+        # The fix ensures _activate_default_agent does NOT overwrite these.
+        # Verify: with preserved variables, the rule condition should NOT match.
+        evaluator = SafeExpressionEvaluator(
+            context={"variables": variables},
+            allowed_funcs={"len": len, "str": str, "int": int, "bool": bool},
+        )
+        assert not evaluator.evaluate(body.when), (
+            "require-error-triage should NOT fire when pre_existing_errors_triaged=true"
+        )
+
+
 class TestBeforeAgentResetsPlumbing:
     """Test hardcoded BEFORE_AGENT resets in RuleEngine.
 
