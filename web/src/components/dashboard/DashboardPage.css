@@ -321,6 +321,32 @@
   margin-top: 2px;
 }
 
+/* Category breakdown list */
+.dash-breakdown {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dash-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.dash-breakdown-label {
+  color: var(--text-secondary);
+}
+
+.dash-breakdown-value {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
 /* Loading / error */
 .dash-loading {
   display: flex;

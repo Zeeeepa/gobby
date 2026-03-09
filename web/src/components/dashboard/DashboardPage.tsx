@@ -5,6 +5,7 @@ import { SessionsCard } from './SessionsCard'
 import { PipelinesCard } from './PipelinesCard'
 import { McpHealthCard } from './McpHealthCard'
 import { MemorySkillsCard } from './MemorySkillsCard'
+import { SavingsCard } from './SavingsCard'
 import './DashboardPage.css'
 
 function formatTime(date: Date | null): string {
@@ -43,6 +44,7 @@ export function DashboardPage() {
             <SessionsCard sessions={data.sessions} />
             <McpHealthCard mcpServers={data.mcp_servers} />
             <MemorySkillsCard memory={data.memory} skills={data.skills} />
+            <SavingsCard savings={data.savings} />
           </div>
         ) : null}
       </div>

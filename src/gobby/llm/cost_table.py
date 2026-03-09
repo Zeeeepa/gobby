@@ -45,7 +45,7 @@ def init(db: DatabaseProtocol) -> None:
     store = ModelCostStore(db)
     raw = store.get_all()
     _costs.clear()
-    _costs.update({model: ModelCost(inp, out) for model, (inp, out) in raw.items()})
+    _costs.update({model: ModelCost(mc.input, mc.output) for model, mc in raw.items()})
     logger.info(f"Loaded {len(_costs)} model costs into memory")
 
 

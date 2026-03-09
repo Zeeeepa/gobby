@@ -67,19 +67,20 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
             err=True,
         )
 
-    # Track savings via gobby-metrics (best-effort, non-blocking)
+    # Track savings via savings ledger (best-effort, non-blocking)
     if compressed.strategy_name not in ("passthrough", "excluded"):
         try:
             from gobby.utils.daemon_client import DaemonClient
 
             client = DaemonClient()
             client.call_http_api(
-                "/api/metrics/counter",
+                "/api/admin/savings/record",
                 method="POST",
                 json_data={
-                    "name": "compression_chars_saved",
-                    "value": compressed.original_chars - compressed.compressed_chars,
-                    "labels": {"strategy": compressed.strategy_name},
+                    "category": "compression",
+                    "original_chars": compressed.original_chars,
+                    "actual_chars": compressed.compressed_chars,
+                    "metadata": {"strategy": compressed.strategy_name},
                 },
                 timeout=1.0,
             )

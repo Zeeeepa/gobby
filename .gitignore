@@ -216,6 +216,8 @@ __marimo__/
 .antigravity/
 .copilot/
 .windsurf/
+.agents/
+.cursor/
 .bmad/
 bmad-custom-modules-src/
 bmad-custom-src/

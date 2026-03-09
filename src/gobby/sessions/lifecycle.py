@@ -378,8 +378,11 @@ class SessionLifecycleManager:
         cache_creation_tokens = 0
         cache_read_tokens = 0
         total_cost_usd = 0.0
+        last_model: str | None = None
 
         for msg in messages:
+            if msg.model:
+                last_model = msg.model
             if msg.usage:
                 input_tokens += msg.usage.input_tokens
                 output_tokens += msg.usage.output_tokens
@@ -388,10 +391,26 @@ class SessionLifecycleManager:
                 if msg.usage.total_cost_usd:
                     total_cost_usd += msg.usage.total_cost_usd
 
+        # Calculate cost from tokens when transcript provides no cost
+        if total_cost_usd == 0.0 and input_tokens > 0 and last_model:
+            try:
+                from gobby.sessions.cost_calculator import CostCalculator
+                from gobby.storage.model_costs import ModelCostStore
+
+                calculator = CostCalculator(ModelCostStore(self.db))
+                calculated = calculator.calculate(
+                    model=last_model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cache_creation_tokens=cache_creation_tokens,
+                    cache_read_tokens=cache_read_tokens,
+                )
+                if calculated is not None:
+                    total_cost_usd = calculated
+            except Exception as e:
+                logger.warning(f"Failed to calculate cost for session {session_id}: {e}")
+
         # Update session with aggregated usage
-        # We only update if we found some usage, to avoid overwriting with zeros if re-processing
-        # (though re-processing from scratch IS the source of truth, so zeros might be correct if no usage found)
-        # Actually, let's always update to ensure consistency with the file
         self.session_manager.update_usage(
             session_id=session_id,
             input_tokens=input_tokens,
@@ -399,6 +418,7 @@ class SessionLifecycleManager:
             cache_creation_tokens=cache_creation_tokens,
             cache_read_tokens=cache_read_tokens,
             total_cost_usd=total_cost_usd,
+            model=last_model,
         )
 
         # Update processing state

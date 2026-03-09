@@ -217,6 +217,30 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
                 if config.tools:
                     downstream_tools_count += len(config.tools)
 
+        # Get savings summary
+        savings_stats: dict[str, Any] = {
+            "total_tokens_saved": 0,
+            "total_cost_saved_usd": 0.0,
+            "total_events": 0,
+            "categories": {},
+        }
+        try:
+            from gobby.servers.routes.admin._savings import _get_tracker
+
+            tracker = _get_tracker(server)
+            if tracker:
+                today = tracker.get_summary(days=1)
+                cumulative = tracker.get_cumulative(days=30)
+                savings_stats = {
+                    "today_tokens_saved": today.get("total_tokens_saved", 0),
+                    "today_cost_saved_usd": today.get("total_cost_saved_usd", 0.0),
+                    "today_events": today.get("total_events", 0),
+                    "cumulative_cost_saved_usd": cumulative.get("total_cost_saved_usd", 0.0),
+                    "categories": today.get("categories", {}),
+                }
+        except Exception as e:
+            logger.warning(f"Failed to get savings stats: {e}")
+
         # Calculate response time
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -240,6 +264,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             "memory": memory_stats,
             "skills": skills_stats,
             "pipelines": pipeline_stats,
+            "savings": savings_stats,
             "response_time_ms": response_time_ms,
         }
 

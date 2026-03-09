@@ -186,19 +186,36 @@ def create_memory_registry(
                 tags_any=tags_any,
                 tags_none=tags_none,
             )
+            result_memories = [
+                {
+                    "id": m.id,
+                    "content": m.content,
+                    "type": m.memory_type,
+                    "created_at": m.created_at,
+                    "tags": m.tags,
+                    "similarity": getattr(m, "similarity", None),
+                }
+                for m in memories
+            ]
+
+            # Record savings: memory recall avoids re-discovery (~8K tokens)
+            if result_memories:
+                try:
+                    from gobby.savings.record import record_savings
+
+                    recalled_chars = sum(len(m["content"]) for m in result_memories)
+                    record_savings(
+                        category="memory",
+                        original_chars=29600,  # ~8K tokens * 3.7 chars/token
+                        actual_chars=recalled_chars,
+                        project_id=get_current_project_id(),
+                    )
+                except Exception:
+                    pass  # Best-effort
+
             return {
                 "success": True,
-                "memories": [
-                    {
-                        "id": m.id,
-                        "content": m.content,
-                        "type": m.memory_type,
-                        "created_at": m.created_at,
-                        "tags": m.tags,
-                        "similarity": getattr(m, "similarity", None),  # Might be added by search
-                    }
-                    for m in memories
-                ],
+                "memories": result_memories,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

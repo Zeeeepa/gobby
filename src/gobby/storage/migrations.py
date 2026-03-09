@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 148
+BASELINE_VERSION = 149
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -856,8 +856,39 @@ CREATE TABLE model_costs (
     provider TEXT,
     input_cost_per_token REAL NOT NULL,
     output_cost_per_token REAL NOT NULL,
+    cache_read_cost_per_token REAL,
+    cache_creation_cost_per_token REAL,
     source TEXT NOT NULL DEFAULT 'litellm',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE savings_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    project_id TEXT,
+    category TEXT NOT NULL,
+    original_tokens INTEGER NOT NULL,
+    actual_tokens INTEGER NOT NULL,
+    tokens_saved INTEGER NOT NULL,
+    cost_saved_usd REAL,
+    model TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_savings_ledger_created ON savings_ledger(created_at);
+CREATE INDEX idx_savings_ledger_project_cat ON savings_ledger(project_id, category);
+
+CREATE TABLE savings_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id TEXT,
+    category TEXT NOT NULL,
+    date TEXT NOT NULL,
+    event_count INTEGER NOT NULL DEFAULT 0,
+    total_original_tokens INTEGER NOT NULL DEFAULT 0,
+    total_actual_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens_saved INTEGER NOT NULL DEFAULT 0,
+    total_cost_saved_usd REAL NOT NULL DEFAULT 0.0,
+    UNIQUE(project_id, category, date)
 );
 
 CREATE TABLE task_affected_files (
@@ -1136,6 +1167,41 @@ CREATE INDEX IF NOT EXISTS idx_pe_status_project_updated ON pipeline_executions(
         148,
         "Drop pipeline_continuations table (continuation machinery removed)",
         "DROP TABLE IF EXISTS pipeline_continuations",
+    ),
+    (
+        149,
+        "Add cache pricing to model_costs + savings tracking tables",
+        """ALTER TABLE model_costs ADD COLUMN cache_read_cost_per_token REAL;
+ALTER TABLE model_costs ADD COLUMN cache_creation_cost_per_token REAL;
+
+CREATE TABLE IF NOT EXISTS savings_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    project_id TEXT,
+    category TEXT NOT NULL,
+    original_tokens INTEGER NOT NULL,
+    actual_tokens INTEGER NOT NULL,
+    tokens_saved INTEGER NOT NULL,
+    cost_saved_usd REAL,
+    model TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_savings_ledger_created ON savings_ledger(created_at);
+CREATE INDEX IF NOT EXISTS idx_savings_ledger_project_cat ON savings_ledger(project_id, category);
+
+CREATE TABLE IF NOT EXISTS savings_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id TEXT,
+    category TEXT NOT NULL,
+    date TEXT NOT NULL,
+    event_count INTEGER NOT NULL DEFAULT 0,
+    total_original_tokens INTEGER NOT NULL DEFAULT 0,
+    total_actual_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens_saved INTEGER NOT NULL DEFAULT 0,
+    total_cost_saved_usd REAL NOT NULL DEFAULT 0.0,
+    UNIQUE(project_id, category, date)
+)""",
     ),
 ]
 

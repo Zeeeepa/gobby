@@ -1,0 +1,136 @@
+"""Tests for SavingsTracker."""
+
+import pytest
+
+from gobby.savings.tracker import CHARS_PER_TOKEN, SavingsTracker
+from gobby.storage.database import LocalDatabase
+
+
+@pytest.fixture
+def db(tmp_path) -> LocalDatabase:
+    """Create a temporary database with savings tables."""
+    db_path = str(tmp_path / "test.db")
+    db = LocalDatabase(db_path)
+    db.execute("""CREATE TABLE savings_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        project_id TEXT,
+        category TEXT NOT NULL,
+        original_tokens INTEGER NOT NULL,
+        actual_tokens INTEGER NOT NULL,
+        tokens_saved INTEGER NOT NULL,
+        cost_saved_usd REAL,
+        model TEXT,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )""")
+    db.execute("CREATE INDEX idx_savings_ledger_created ON savings_ledger(created_at)")
+    db.execute(
+        "CREATE INDEX idx_savings_ledger_project_cat ON savings_ledger(project_id, category)"
+    )
+    db.execute("""CREATE TABLE savings_daily (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id TEXT,
+        category TEXT NOT NULL,
+        date TEXT NOT NULL,
+        event_count INTEGER NOT NULL DEFAULT 0,
+        total_original_tokens INTEGER NOT NULL DEFAULT 0,
+        total_actual_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens_saved INTEGER NOT NULL DEFAULT 0,
+        total_cost_saved_usd REAL NOT NULL DEFAULT 0.0,
+        UNIQUE(project_id, category, date)
+    )""")
+    return db
+
+
+@pytest.fixture
+def tracker(db: LocalDatabase) -> SavingsTracker:
+    return SavingsTracker(db=db)
+
+
+class TestSavingsTracker:
+    def test_record_chars(self, tracker: SavingsTracker) -> None:
+        tracker.record(category="compression", original_chars=10000, actual_chars=2000)
+        summary = tracker.get_summary(days=1)
+        assert summary["total_tokens_saved"] > 0
+        assert summary["categories"]["compression"]["event_count"] == 1
+
+    def test_record_tokens(self, tracker: SavingsTracker) -> None:
+        tracker.record_tokens(
+            category="code_index",
+            original_tokens=5000,
+            actual_tokens=500,
+        )
+        summary = tracker.get_summary(days=1)
+        assert summary["total_tokens_saved"] == 4500
+        assert summary["categories"]["code_index"]["tokens_saved"] == 4500
+
+    def test_record_with_session_and_project(self, tracker: SavingsTracker) -> None:
+        tracker.record_tokens(
+            category="handoff",
+            original_tokens=15000,
+            actual_tokens=3000,
+            session_id="sess-1",
+            project_id="proj-1",
+        )
+        # Filter by project
+        summary = tracker.get_summary(days=1, project_id="proj-1")
+        assert summary["total_tokens_saved"] == 12000
+
+        # Different project should be empty
+        summary2 = tracker.get_summary(days=1, project_id="proj-other")
+        assert summary2["total_tokens_saved"] == 0
+
+    def test_multiple_categories(self, tracker: SavingsTracker) -> None:
+        tracker.record_tokens(category="compression", original_tokens=1000, actual_tokens=200)
+        tracker.record_tokens(category="code_index", original_tokens=5000, actual_tokens=500)
+        tracker.record_tokens(category="memory", original_tokens=8000, actual_tokens=1000)
+
+        summary = tracker.get_summary(days=1)
+        assert len(summary["categories"]) == 3
+        assert summary["total_tokens_saved"] == (800 + 4500 + 7000)
+        assert summary["total_events"] == 3
+
+    def test_chars_to_tokens_conversion(self, tracker: SavingsTracker) -> None:
+        tracker.record(category="compression", original_chars=3700, actual_chars=370)
+        summary = tracker.get_summary(days=1)
+        cat = summary["categories"]["compression"]
+        assert cat["original_tokens"] == int(3700 / CHARS_PER_TOKEN)
+        assert cat["actual_tokens"] == int(370 / CHARS_PER_TOKEN)
+
+    def test_empty_summary(self, tracker: SavingsTracker) -> None:
+        summary = tracker.get_summary(days=1)
+        assert summary["total_tokens_saved"] == 0
+        assert summary["total_cost_saved_usd"] == 0.0
+        assert summary["total_events"] == 0
+        assert summary["categories"] == {}
+
+    def test_rollup_daily(self, tracker: SavingsTracker, db: LocalDatabase) -> None:
+        # Insert an old entry
+        db.execute(
+            "INSERT INTO savings_ledger "
+            "(category, original_tokens, actual_tokens, tokens_saved, created_at) "
+            "VALUES (?, ?, ?, ?, datetime('now', '-10 days'))",
+            ("compression", 1000, 200, 800),
+        )
+        # Insert a recent entry
+        tracker.record_tokens(category="compression", original_tokens=500, actual_tokens=100)
+
+        # Rollup with 7-day retention
+        rolled = tracker.rollup_daily(retention_days=7)
+        assert rolled == 1  # Only the old entry
+
+        # Recent entry should still be in ledger
+        rows = db.fetchall("SELECT * FROM savings_ledger")
+        assert len(rows) == 1
+
+        # Daily should have the rolled-up data
+        daily = db.fetchall("SELECT * FROM savings_daily")
+        assert len(daily) == 1
+        assert daily[0]["total_tokens_saved"] == 800
+
+    def test_negative_savings_clamped(self, tracker: SavingsTracker) -> None:
+        """If actual > original, tokens_saved should be 0."""
+        tracker.record_tokens(category="compression", original_tokens=100, actual_tokens=200)
+        summary = tracker.get_summary(days=1)
+        assert summary["categories"]["compression"]["tokens_saved"] == 0

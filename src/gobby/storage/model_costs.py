@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
+
+
+class ModelCost(NamedTuple):
+    """Per-token costs for a model (USD per token)."""
+
+    input: float
+    output: float
+    cache_read: float | None = None
+    cache_creation: float | None = None
 
 
 class ModelCostStore:
@@ -29,7 +38,7 @@ class ModelCostStore:
             logger.warning("litellm not installed — skipping model cost population")
             return 0
 
-        rows: list[tuple[str, str | None, float, float, str]] = []
+        rows: list[tuple[str, str | None, float, float, float | None, float | None, str]] = []
         for model, info in litellm.model_cost.items():
             input_cost = info.get("input_cost_per_token")
             output_cost = info.get("output_cost_per_token")
@@ -39,25 +48,44 @@ class ModelCostStore:
             if input_cost == 0 and output_cost == 0:
                 continue
             provider = info.get("litellm_provider")
-            rows.append((model, provider, float(input_cost), float(output_cost), "litellm"))
+            cache_read = info.get("cache_read_input_token_cost")
+            cache_creation = info.get("cache_creation_input_token_cost")
+            rows.append(
+                (
+                    model,
+                    provider,
+                    float(input_cost),
+                    float(output_cost),
+                    float(cache_read) if cache_read is not None else None,
+                    float(cache_creation) if cache_creation is not None else None,
+                    "litellm",
+                )
+            )
 
         with self.db.transaction() as conn:
             conn.execute("DELETE FROM model_costs")
             conn.executemany(
                 "INSERT INTO model_costs (model, provider, input_cost_per_token, "
-                "output_cost_per_token, source) VALUES (?, ?, ?, ?, ?)",
+                "output_cost_per_token, cache_read_cost_per_token, "
+                "cache_creation_cost_per_token, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
 
         logger.info(f"Populated model_costs table with {len(rows)} models from LiteLLM")
         return len(rows)
 
-    def get_all(self) -> dict[str, tuple[float, float]]:
-        """Return all cached costs as {model: (input_cost, output_cost)}."""
+    def get_all(self) -> dict[str, ModelCost]:
+        """Return all cached costs as {model: ModelCost}."""
         rows = self.db.fetchall(
-            "SELECT model, input_cost_per_token, output_cost_per_token FROM model_costs"
+            "SELECT model, input_cost_per_token, output_cost_per_token, "
+            "cache_read_cost_per_token, cache_creation_cost_per_token FROM model_costs"
         )
         return {
-            row["model"]: (row["input_cost_per_token"], row["output_cost_per_token"])
+            row["model"]: ModelCost(
+                input=row["input_cost_per_token"],
+                output=row["output_cost_per_token"],
+                cache_read=row["cache_read_cost_per_token"],
+                cache_creation=row["cache_creation_cost_per_token"],
+            )
             for row in rows
         }

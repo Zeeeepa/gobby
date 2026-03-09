@@ -774,6 +774,7 @@ class GobbyRunner:
             expire_approval_timeouts_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
+            savings_rollup_loop,
             setup_signal_handlers,
         )
 
@@ -901,6 +902,12 @@ class GobbyRunner:
                     ),
                     name="code-index-maintenance",
                 )
+
+            # Start periodic savings rollup (every 24 hours)
+            self._savings_rollup_task = asyncio.create_task(
+                savings_rollup_loop(self.database, lambda: self._shutdown_requested),
+                name="savings-rollup",
+            )
 
             # Start periodic approval timeout expiry (every 60s)
             self._approval_timeout_task: asyncio.Task[None] | None = None

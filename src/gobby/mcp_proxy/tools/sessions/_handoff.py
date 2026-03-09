@@ -128,6 +128,20 @@ def register_handoff_tools(
             if set_handoff_ready:
                 session_manager.update_status(session.id, "handoff_ready")
 
+            # Record savings: handoff avoids re-exploration (~15K tokens)
+            try:
+                from gobby.savings.record import record_savings
+
+                record_savings(
+                    category="handoff",
+                    original_chars=55500,  # ~15K tokens * 3.7 chars/token
+                    actual_chars=len(content),
+                    session_id=session.id,
+                    project_id=getattr(session, "project_id", None),
+                )
+            except Exception:
+                pass  # Best-effort
+
             result: dict[str, Any] = {
                 "success": True,
                 "session_id": session.id,

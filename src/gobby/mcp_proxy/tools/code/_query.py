@@ -97,6 +97,28 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
         result = sym.to_dict()
         if source:
             result["source"] = source
+
+            # Record savings: symbol bytes vs full file bytes
+            try:
+                from gobby.savings.record import record_savings
+
+                symbol_bytes = sym.byte_end - sym.byte_start
+                file_bytes = getattr(sym, "file_byte_size", None)
+                if file_bytes is None:
+                    # Look up file size from storage
+                    f = ctx.storage.get_file(sym.project_id, sym.file_path)
+                    file_bytes = f.byte_size if f else symbol_bytes
+                if file_bytes > symbol_bytes:
+                    record_savings(
+                        category="code_index",
+                        original_chars=file_bytes,
+                        actual_chars=symbol_bytes,
+                        project_id=sym.project_id,
+                        metadata={"symbol": sym.qualified_name, "file": sym.file_path},
+                    )
+            except Exception:
+                pass  # Best-effort
+
         return result
 
     @registry.tool(description="Batch-retrieve multiple symbols by ID.")
