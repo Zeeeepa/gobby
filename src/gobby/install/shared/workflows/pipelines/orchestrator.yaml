@@ -1,123 +1,237 @@
 name: orchestrator
 type: pipeline
-version: "4.0"
+version: "5.0"
 description: |
-  Full orchestration pipeline: expand epic → create worktree → dev/QA loop → merge.
-  Thin wrapper around dev-loop — handles expansion and worktree creation, then
-  delegates the actual dispatch cycle. Auto-merges on completion.
+  Tick-based orchestration pipeline. Each cron tick does one pass:
+  scan task state, dispatch agents, exit. The cron schedule IS the loop.
+  Idempotent — safe to fire repeatedly.
 
-  If _worktree_id is already set (continuation or manual override), skips
-  expansion and worktree creation and goes straight to dev-loop.
-
-  Supports both epics (tasks with children) and standalone tasks.
-
-  Do NOT use wait_for_completion — use run_pipeline with
-  continuation_prompt instead.
+  No sub-pipeline invocation. No continuations. Cron is the loop.
 
 outputs:
-  iteration: "${{ dev_loop.output.iteration }}"
-  orchestration_complete: "${{ dev_loop.output.orchestration_complete }}"
-  session_task: "${{ dev_loop.output.session_task }}"
-  is_standalone: "${{ dev_loop.output.is_standalone }}"
+  orchestration_complete: "${{ done_check.output.orchestration_complete if done_check.output else false }}"
+  is_standalone: "${{ standalone_check.output.is_standalone if standalone_check.output else false }}"
+  open_count: "${{ len(scan_open.output.tasks) if scan_open.output else 0 }}"
+  in_progress_count: "${{ len(scan_in_progress.output.tasks) if scan_in_progress.output else 0 }}"
+  needs_review_count: "${{ len(scan_needs_review.output.tasks) if scan_needs_review.output else 0 }}"
 
 inputs:
-  session_task: null
+  task_id: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
-  developer_provider: "claude"
+  developer_provider: "gemini"
   qa_provider: "claude"
   developer_model: null
-  qa_model: null
-  merge_target: "main"
-  merge_agent: "merge"
-  merge_provider: "claude"
-  merge_model: null
-  wait_timeout: 600
+  qa_model: "opus"
+  agent_timeout: 1200
   max_concurrent: 5
-  max_iterations: 200
-  _current_iteration: 0
-  _worktree_id: null
-  _clone_id: null
-  _continuation_prompt: null
+  merge_target: "main"
 
 steps:
+  # --- RE-ENTRANCY GUARD ---
+  # If another orchestrator execution is already running, exit early.
+  - id: reentry_check
+    mcp:
+      server: gobby-workflows
+      tool: list_pipeline_executions
+      arguments:
+        pipeline_name: "orchestrator"
+        status: "running"
+
+  - id: reentry_gate
+    condition: "${{ len(reentry_check.output.executions) > 1 }}"
+    mcp:
+      server: gobby-workflows
+      tool: fail_pipeline
+      arguments:
+        message: "Skipped: another orchestrator execution is already running"
+
+  # --- FETCH ORIGIN ---
   - id: fetch_origin
     exec: "git fetch origin"
 
-  # --- Get task info (first iteration only, for branch naming) ---
-  - id: get_epic
-    condition: "${{ not inputs._worktree_id and not inputs._clone_id }}"
-    mcp:
-      server: gobby-tasks
-      tool: get_task
-      arguments:
-        task_id: "${{ inputs.session_task }}"
-
-  # --- Expand epic if not yet expanded (first iteration only, epics only) ---
-  - id: expand_epic
-    condition: "${{ (not inputs._worktree_id and not inputs._clone_id) and (get_epic.output.is_expanded == false) and (get_epic.output.task_type == 'epic') }}"
-    invoke_pipeline:
-      name: expand-task
-      arguments:
-        task_id: "${{ inputs.session_task }}"
-        session_id: "${{ session_id }}"
-
-  # --- CREATE WORKTREE (first iteration only, skip if clone provided) ---
-  # Quick scan to see if there are tasks to work on before creating worktree
-  - id: scan_open_for_worktree
-    condition: "${{ not inputs._worktree_id and not inputs._clone_id }}"
+  # --- SCAN CHILD TASKS ---
+  - id: scan_open
     mcp:
       server: gobby-tasks
       tool: list_tasks
       arguments:
-        parent_task_id: "${{ inputs.session_task }}"
+        parent_task_id: "${{ inputs.task_id }}"
         status: "open"
 
+  - id: scan_in_progress
+    mcp:
+      server: gobby-tasks
+      tool: list_tasks
+      arguments:
+        parent_task_id: "${{ inputs.task_id }}"
+        status: "in_progress"
+
+  - id: scan_needs_review
+    mcp:
+      server: gobby-tasks
+      tool: list_tasks
+      arguments:
+        parent_task_id: "${{ inputs.task_id }}"
+        status: "needs_review"
+
+  - id: scan_review_approved
+    mcp:
+      server: gobby-tasks
+      tool: list_tasks
+      arguments:
+        parent_task_id: "${{ inputs.task_id }}"
+        status: "review_approved"
+
+  # --- DETECT STANDALONE vs EPIC ---
+  - id: standalone_check
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        data:
+          is_standalone: "${{ len(scan_open.output.tasks) == 0 and len(scan_in_progress.output.tasks) == 0 and len(scan_needs_review.output.tasks) == 0 and len(scan_review_approved.output.tasks) == 0 }}"
+
+  # For standalone tasks, fetch the task itself to check status
+  - id: get_standalone_task
+    condition: "${{ standalone_check.output.is_standalone }}"
+    mcp:
+      server: gobby-tasks
+      tool: get_task
+      arguments:
+        task_id: "${{ inputs.task_id }}"
+
+  # --- CHECK COMPLETION ---
+  - id: done_check
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        data:
+          orchestration_complete: >-
+            ${{
+              (standalone_check.output.is_standalone and get_standalone_task.output and get_standalone_task.output.status in ('closed', 'review_approved'))
+              or
+              (not standalone_check.output.is_standalone and len(scan_open.output.tasks) == 0 and len(scan_in_progress.output.tasks) == 0 and len(scan_needs_review.output.tasks) == 0)
+            }}
+
+  # --- WORKTREE (first tick creates, subsequent ticks reuse) ---
+  - id: get_worktree
+    condition: "${{ not done_check.output.orchestration_complete }}"
+    mcp:
+      server: gobby-worktrees
+      tool: get_worktree_by_task
+      arguments:
+        task_id: "${{ inputs.task_id }}"
+
+  - id: get_task_info
+    condition: "${{ not done_check.output.orchestration_complete and not get_worktree.output }}"
+    mcp:
+      server: gobby-tasks
+      tool: get_task
+      arguments:
+        task_id: "${{ inputs.task_id }}"
+
   - id: create_worktree
-    condition: "${{ (not inputs._worktree_id and not inputs._clone_id) and (len(scan_open_for_worktree.output.tasks) > 0 if scan_open_for_worktree.output else false) }}"
+    condition: "${{ not done_check.output.orchestration_complete and not get_worktree.output }}"
     mcp:
       server: gobby-worktrees
       tool: create_worktree
       arguments:
-        branch_name: "${{ 'task-' + str(get_epic.output.seq_num) if get_epic.output.task_type != 'epic' else 'epic-' + str(get_epic.output.seq_num) }}"
+        branch_name: "${{ 'epic-' + str(get_task_info.output.seq_num) if get_task_info.output.task_type == 'epic' else 'task-' + str(get_task_info.output.seq_num) }}"
         base_branch: "${{ inputs.merge_target }}"
-        task_id: "${{ inputs.session_task }}"
+        task_id: "${{ inputs.task_id }}"
         use_local: true
-        provider: "${{ inputs.developer_provider }}"
 
-  # --- DELEGATE TO DEV-LOOP ---
-  - id: dev_loop
-    invoke_pipeline:
-      name: dev-loop
+  - id: resolve_worktree_id
+    condition: "${{ not done_check.output.orchestration_complete }}"
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
       arguments:
-        session_task: "${{ inputs.session_task }}"
-        worktree_id: "${{ inputs._worktree_id or (create_worktree.output.worktree_id if create_worktree.output else '') }}"
-        clone_id: "${{ inputs._clone_id }}"
-        merge_target: "${{ inputs.merge_target }}"
-        developer_agent: "${{ inputs.developer_agent }}"
-        qa_agent: "${{ inputs.qa_agent }}"
-        developer_provider: "${{ inputs.developer_provider }}"
-        qa_provider: "${{ inputs.qa_provider }}"
-        developer_model: "${{ inputs.developer_model }}"
-        qa_model: "${{ inputs.qa_model }}"
-        max_concurrent: "${{ inputs.max_concurrent }}"
-        max_iterations: "${{ inputs.max_iterations }}"
-        _current_iteration: "${{ inputs._current_iteration }}"
-        _continuation_prompt: "${{ inputs._continuation_prompt }}"
+        data:
+          worktree_id: "${{ get_worktree.output.worktree_id if get_worktree.output else (create_worktree.output.worktree_id if create_worktree.output else '') }}"
 
-  # --- MERGE (after dev-loop completes) ---
-  - id: spawn_merge
-    condition: "${{ dev_loop.output.orchestration_complete and (inputs._worktree_id or (create_worktree.output.worktree_id if create_worktree.output else '') or inputs._clone_id) }}"
+  # --- DISPATCH DEVS (if open tasks and not at max_concurrent) ---
+  - id: count_active
+    condition: "${{ not done_check.output.orchestration_complete }}"
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        data:
+          active: "${{ len(scan_in_progress.output.tasks) }}"
+          available_slots: "${{ inputs.max_concurrent - len(scan_in_progress.output.tasks) }}"
+
+  - id: suggest_tasks
+    condition: "${{ not done_check.output.orchestration_complete and count_active.output.available_slots > 0 and len(scan_open.output.tasks) > 0 }}"
+    mcp:
+      server: gobby-tasks
+      tool: suggest_next_tasks
+      arguments:
+        parent_task_id: "${{ inputs.task_id }}"
+        max_count: "${{ count_active.output.available_slots }}"
+
+  - id: dispatch_devs
+    condition: "${{ suggest_tasks.output and len(suggest_tasks.output.suggestions) > 0 }}"
+    mcp:
+      server: gobby-agents
+      tool: dispatch_batch
+      arguments:
+        suggestions: "${{ suggest_tasks.output.suggestions }}"
+        agent: "${{ inputs.developer_agent }}"
+        worktree_id: "${{ resolve_worktree_id.output.worktree_id }}"
+        provider: "${{ inputs.developer_provider }}"
+        model: "${{ inputs.developer_model }}"
+        timeout: "${{ inputs.agent_timeout }}"
+        mode: "terminal"
+
+  # --- DISPATCH QA (for needs_review tasks) ---
+  - id: dispatch_qa
+    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 }}"
     mcp:
       server: gobby-agents
       tool: spawn_agent
       arguments:
-        prompt: "Merge into ${{ inputs.merge_target }}. Use merge_worktree with push=true or merge_clone depending on your isolation type."
-        agent: "${{ inputs.merge_agent }}"
-        worktree_id: "${{ inputs._worktree_id or (create_worktree.output.worktree_id if create_worktree.output else '') }}"
-        clone_id: "${{ inputs._clone_id }}"
-        provider: "${{ inputs.merge_provider }}"
-        model: "${{ inputs.merge_model }}"
-        parent_session_id: "${{ session_id }}"
-        mode: terminal
+        prompt: "${{ 'Review task ' + scan_needs_review.output.tasks[0].ref + ': ' + scan_needs_review.output.tasks[0].title }}"
+        agent: "${{ inputs.qa_agent }}"
+        task_id: "${{ scan_needs_review.output.tasks[0].id }}"
+        worktree_id: "${{ resolve_worktree_id.output.worktree_id }}"
+        provider: "${{ inputs.qa_provider }}"
+        model: "${{ inputs.qa_model }}"
+        timeout: "${{ inputs.agent_timeout }}"
+        mode: "terminal"
 
+  # --- MERGE (only when orchestration is complete and worktree exists) ---
+  - id: merge_worktree
+    condition: "${{ done_check.output.orchestration_complete and resolve_worktree_id.output and resolve_worktree_id.output.worktree_id }}"
+    mcp:
+      server: gobby-merge
+      tool: merge_worktree
+      arguments:
+        worktree_id: "${{ resolve_worktree_id.output.worktree_id }}"
+        target_branch: "${{ inputs.merge_target }}"
+        push: true
+
+  - id: close_epic
+    condition: "${{ done_check.output.orchestration_complete }}"
+    mcp:
+      server: gobby-tasks
+      tool: close_task
+      arguments:
+        task_id: "${{ inputs.task_id }}"
+
+  # --- RESULT ---
+  - id: tick_result
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        data:
+          tick_complete: true
+          orchestration_complete: "${{ done_check.output.orchestration_complete if done_check.output else false }}"
+          is_standalone: "${{ standalone_check.output.is_standalone }}"
+          open: "${{ len(scan_open.output.tasks) if scan_open.output else 0 }}"
+          in_progress: "${{ len(scan_in_progress.output.tasks) if scan_in_progress.output else 0 }}"
+          needs_review: "${{ len(scan_needs_review.output.tasks) if scan_needs_review.output else 0 }}"
+          dispatched: "${{ dispatch_devs.output.dispatched if dispatch_devs.output else 0 }}"

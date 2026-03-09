@@ -322,6 +322,7 @@ def create_spawn_agent_registry(
         model: str | None = None,
         parent_session_id: str | None = None,
         mode: str = "terminal",
+        timeout: float | None = None,
     ) -> dict[str, Any]:
         """Dispatch multiple agents for non-conflicting tasks.
 
@@ -337,6 +338,7 @@ def create_spawn_agent_registry(
             model: Model override
             parent_session_id: Parent session reference
             mode: Execution mode (default: "terminal")
+            timeout: Timeout in seconds for each agent
 
         Returns:
             Dict with dispatched count and per-task results
@@ -362,6 +364,7 @@ def create_spawn_agent_registry(
                     base_branch=base_branch,
                     provider=provider,
                     model=model,
+                    timeout=timeout,
                     parent_session_id=parent_session_id,
                     mode=mode,
                 )

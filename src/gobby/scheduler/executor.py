@@ -143,19 +143,26 @@ class CronExecutor:
 
         inputs = config.get("inputs", {})
 
-        # Load and execute pipeline
-        from gobby.workflows.loader import WorkflowLoader
-
-        loader = WorkflowLoader()
+        # Use pipeline_executor's loader (has DB context) instead of bare WorkflowLoader()
+        loader = self.pipeline_executor.loader
+        if not loader:
+            raise RuntimeError("pipeline_executor has no loader configured")
         pipeline = await loader.load_pipeline(pipeline_name)
         if not pipeline:
             raise ValueError(f"Pipeline '{pipeline_name}' not found")
 
-        execution = await self.pipeline_executor.execute(
-            pipeline=pipeline,
-            inputs=inputs,
-            project_id=job.project_id,
-        )
+        # Set project context so MCP tools can resolve task refs like #9916
+        from gobby.utils.project_context import reset_project_context, set_project_context
+
+        token = set_project_context({"id": job.project_id} if job.project_id else None)
+        try:
+            execution = await self.pipeline_executor.execute(
+                pipeline=pipeline,
+                inputs=inputs,
+                project_id=job.project_id,
+            )
+        finally:
+            reset_project_context(token)
 
         return f"Pipeline completed with status: {execution.status}"
 
