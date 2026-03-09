@@ -370,7 +370,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
     async def call_tool(
         server_name: str,
         tool_name: str,
-        arguments: dict[str, Any] | None = None,
+        arguments: str | dict[str, Any] | None = None,
         args: str | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
@@ -388,6 +388,18 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         Returns:
             Dictionary with success status and tool execution result
         """
+        # Coerce string arguments to dict (agents often stringify JSON)
+        if isinstance(arguments, str):
+            import json as _json
+
+            try:
+                arguments = _json.loads(arguments)
+            except (ValueError, TypeError):
+                return {
+                    "success": False,
+                    "error": f"Invalid JSON in 'arguments' parameter: {arguments[:200]}",
+                }
+
         # Accept 'args' as alias for 'arguments' (agents sometimes use wrong param name)
         effective_args = arguments
         if effective_args is None and args is not None:

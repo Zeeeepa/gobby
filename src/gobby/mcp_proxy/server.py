@@ -159,7 +159,7 @@ class GobbyDaemonTools:
         self,
         server_name: str,
         tool_name: str,
-        arguments: dict[str, Any] | None = None,
+        arguments: str | dict[str, Any] | None = None,
         session_id: str | None = None,
     ) -> Any:
         """Call a tool.
@@ -186,6 +186,21 @@ class GobbyDaemonTools:
                         "session_id": session_id,
                         "conversation_id": session.external_id,
                     }
+        # Coerce string arguments to dict (agents often stringify JSON)
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (json.JSONDecodeError, TypeError):
+                return CallToolResult(
+                    content=[
+                        TextContent(
+                            type="text",
+                            text=f"Error: 'arguments' must be a JSON object, got invalid string: {arguments[:200]}",
+                        )
+                    ],
+                    isError=True,
+                )
+
         try:
             result = await self.tool_proxy.call_tool(
                 server_name, tool_name, arguments, session_id, call_context=call_context
