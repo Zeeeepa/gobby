@@ -14,3 +14,5 @@ rules:
       type: mcp_call
       server: gobby-agents
       tool: complete_command
+      arguments:
+        command_id: "${{ variables.command_id }}"

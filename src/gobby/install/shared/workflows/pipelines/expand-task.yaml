@@ -12,8 +12,14 @@ description: |
   compose with it.
 
 inputs:
-  task_id: null
-  session_id: null
+  task_id:
+    type: string
+    required: true
+    description: "Task ID to expand"
+  session_id:
+    type: string
+    required: true
+    description: "Session ID for tracking"
   agent: "expander"
   provider: "claude"
   model: null
@@ -36,7 +42,7 @@ steps:
         task_id: "${{ inputs.task_id }}"
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
-        parent_session_id: "${{ session_id }}"
+        parent_session_id: "${{ inputs.session_id }}"
         mode: terminal
 
   # --- 2. Wait for researcher to complete ---

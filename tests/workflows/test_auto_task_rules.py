@@ -1,7 +1,7 @@
 """Tests for auto-task rules.
 
 Verifies auto-task rules sync correctly and have proper structure:
-- block-in-auto-task-mode: inject_context on before_agent (when auto_task_ref set)
+- inject-auto-task-context: inject_context on before_agent (when auto_task_ref set)
 - guide-task-continuation: block on stop (when task tree incomplete)
 - notify-task-tree-complete: inject_context on stop (when task tree complete)
 """
@@ -21,7 +21,7 @@ from gobby.workflows.sync import sync_bundled_rules
 pytestmark = pytest.mark.unit
 
 AUTO_TASK_RULES = {
-    "block-in-auto-task-mode",
+    "inject-auto-task-context",
     "guide-task-continuation",
     "notify-task-tree-complete",
 }
@@ -88,16 +88,16 @@ class TestAutoTaskSync:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# block-in-auto-task-mode
+# inject-auto-task-context
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestBlockInAutoTaskMode:
+class TestInjectAutoTaskContext:
     """Inject autonomous mode context when auto_task_ref is set."""
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("block-in-auto-task-mode")
+        row = manager.get_by_name("inject-auto-task-context")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
@@ -110,7 +110,7 @@ class TestBlockInAutoTaskMode:
     def test_has_auto_task_ref_condition(self, db, manager) -> None:
         """Only inject when auto_task_ref is set."""
         _sync_bundled(db)
-        row = manager.get_by_name("block-in-auto-task-mode")
+        row = manager.get_by_name("inject-auto-task-context")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "auto_task_ref" in body.when
@@ -118,7 +118,7 @@ class TestBlockInAutoTaskMode:
     def test_template_mentions_suggest_next_task(self, db, manager) -> None:
         """Template should guide agent to use suggest_next_task."""
         _sync_bundled(db)
-        row = manager.get_by_name("block-in-auto-task-mode")
+        row = manager.get_by_name("inject-auto-task-context")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert "suggest_next_task" in body.effect.template
 

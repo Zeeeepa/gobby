@@ -1,7 +1,7 @@
 tags: [auto-task, task, autonomous, lifecycle, gobby, default]
 
 rules:
-  block-in-auto-task-mode:
+  inject-auto-task-context:
     description: "Inject autonomous task execution context when auto_task_ref is set"
     event: before_agent
     enabled: false

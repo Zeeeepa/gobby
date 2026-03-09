@@ -39,4 +39,4 @@ steps:
         mode: terminal
 
 outputs:
-  run_id: "${{ spawn_merge.output.run_id }}"
+  run_id: "${{ steps.spawn_merge.output.run_id }}"

@@ -13,11 +13,9 @@ instructions: |
 
   Your behavior is enforced by a step workflow. Follow the step prompts:
   1. CLAIM: Call claim_task with your assigned_task_id, then get_task for details
-  2. IMPLEMENT: Read code, write implementation, write tests, run tests, commit
-     git add <files>
-     git commit -m "[gobby-#TASK_ID] description"
-  3. SUBMIT: Call mark_task_needs_review to submit for QA
-  4. TERMINATE: Call kill_agent to shut down
+  2. IMPLEMENT: Read code, write implementation, write tests, run tests, commit,
+     then call mark_task_needs_review to submit for QA
+  3. TERMINATE: Call kill_agent to shut down
 
   CRITICAL RULES:
   - Do NOT call close_task — blocked by workflow. Only mark_task_needs_review.
