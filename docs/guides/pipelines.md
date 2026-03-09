@@ -423,7 +423,7 @@ stateDiagram-v2
 
 When run via MCP tools (`run_pipeline`), pipelines execute as background `asyncio` tasks:
 
-`run_pipeline` always returns immediately with an `execution_id`. Use `get_pipeline_status` to poll, `wait_for_completion` to block, `continuation_prompt` to get notified when done, or `register_pipeline_continuation` for event-driven re-invocation (used by the orchestrator).
+`run_pipeline` always returns immediately with an `execution_id`. Use `get_pipeline_status` to poll, `wait_for_completion` to block, or `continuation_prompt` to get notified when done.
 
 ### Resume After Approval
 
@@ -437,13 +437,13 @@ When execution pauses at an approval gate, the full state is persisted to the da
 
 ### Orchestrator Pipeline
 
-The orchestrator is an event-driven pipeline that coordinates an entire epic or standalone task: expansion, parallel developer dispatch, QA review, and merge. Each pass scans state, dispatches agents, registers continuations, and exits. Agent completions trigger the next pass.
+The orchestrator pipeline coordinates an entire epic or standalone task: expansion, parallel developer dispatch, QA review, and merge. Each pass scans state and dispatches agents. The conductor (a cron-ticked LLM agent) drives re-invocation between passes.
 
 ```yaml
 name: orchestrator
 type: pipeline
 version: "3.0"
-description: Event-driven orchestration with parallel dispatch
+description: Orchestration with parallel dispatch
 
 inputs:
   session_task: null         # Task ID (epic or standalone)
@@ -474,29 +474,12 @@ steps:
   - id: spawn_merge
     mcp: { server: gobby-agents, tool: spawn_agent, arguments: { agent: "${{ inputs.merge_agent }}", ... } }
 
-  # Register continuations — any agent completing triggers next pass
-  - id: register_continuations
-    condition: "${{ not all_closed.output.done }}"
-    mcp:
-      server: gobby-workflows
-      tool: register_pipeline_continuation
-      arguments:
-        dispatch_outputs:
-          developers: "${{ spawn_developers.output }}"
-          qa: "${{ spawn_qa.output }}"
-          merge: "${{ spawn_merge.output }}"
-        pipeline_name: "orchestrator"
-        inputs:
-          _current_iteration: "${{ inputs._current_iteration + 1 }}"
-          _worktree_id: "${{ inputs._worktree_id or create_worktree.output.worktree_id }}"
-          ...
-
   # Each pass returns completion status
   - id: result
     mcp: { server: gobby-workflows, tool: pipeline_eval, arguments: { data: { orchestration_complete: "${{ all_closed.output.done }}" } } }
 ```
 
-**Key patterns**: continuation callbacks for event-driven re-invocation, conditions for branching, `_` prefix for internal state. Each pass is a separate pipeline execution.
+**Key patterns**: conditions for branching, `_` prefix for internal state. Each pass is a separate pipeline execution. The conductor manages re-invocation.
 
 See [Orchestrator Guide](./orchestrator.md) for the full conceptual walkthrough.
 

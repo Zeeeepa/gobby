@@ -1,6 +1,6 @@
 # Orchestrator Pattern
 
-The orchestrator is an event-driven pipeline that coordinates an entire epic (or standalone task): expand tasks, dispatch developers in parallel, run QA review, merge approved branches, and exit. Each agent completion triggers a fresh pass via continuation callbacks. It's the canonical example of how pipelines, agents, and rules compose.
+The orchestrator is a pipeline that coordinates an entire epic (or standalone task): expand tasks, dispatch developers in parallel, run QA review, merge approved branches, and exit. The conductor (a cron-ticked LLM agent) drives re-invocation between passes. It's the canonical example of how pipelines, agents, and rules compose.
 
 The orchestrator doesn't think — it dispatches. When it needs intelligence (coding, reviewing, merging), it spawns an agent. When it needs mechanical work (scanning tasks, creating worktrees), it calls MCP tools directly.
 
@@ -110,19 +110,18 @@ The worktree branch name reflects the task type: `epic-{seq_num}` for epics, `ta
       use_local: true
 ```
 
-The `_worktree_id` is carried through each continuation, ensuring all passes reuse the same worktree.
+The `_worktree_id` is carried through each pass, ensuring all passes reuse the same worktree.
 
-### Event-Driven Re-invocation
+### Re-invocation via Conductor
 
-Instead of polling with `sleep`, the orchestrator uses **continuation callbacks**:
+The conductor (a cron-ticked LLM agent) drives orchestrator re-invocation:
 
 1. Each pass dispatches agents (developers, QA, merge) as fire-and-forget
-2. A `register_pipeline_continuation` step registers callbacks for all dispatched agent run_ids
-3. The pipeline exits
-4. When any agent completes, `CompletionEventRegistry.notify()` fires the continuation callback
-5. The callback re-invokes the orchestrator pipeline with incremented `_current_iteration` and carried state
+2. The pipeline exits
+3. The conductor periodically checks for completed agents and stalled orchestrations
+4. When it detects work to do, it re-invokes the orchestrator pipeline with incremented `_current_iteration`
 
-This is safe for concurrent triggers — multiple agents completing near-simultaneously may trigger multiple passes, but:
+This is safe for concurrent triggers — multiple passes may overlap, but:
 - Scans are read-only
 - `suggest_next_tasks` uses file annotations for conflict detection
 - `dispatch_batch` checks task status to avoid double-dispatch (task must be `open`)

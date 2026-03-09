@@ -28,21 +28,19 @@ Data already exists in the database — needs web UI components:
 - **Cron run history**: Dashboard showing job execution history, success/failure rates,
   and timing. Data source: `cron_jobs` + `cron_runs` tables.
 
-## Pipeline Tool Cleanup (Phase 6)
+## Pipeline Tool Cleanup (Phase 6) — DONE
 
-Once the conductor is proven stable, ~600 lines of event-driven continuation
-machinery become dead code:
+Continuation machinery removed in b3ef5415 (migration v148):
 
-- `register_pipeline_continuation` — Pipeline completion continuation registration
-- `_pending_dead_end_retries` — Dead-end retry logic for stalled continuations
-- `_auto_subscribe_lineage` — Automatic lineage subscription for event routing
-- `pipeline_continuations` table — DB table for continuation state
-- Related code in `runner.py` (`_rerun_pipeline`), `pipeline_executor.py`
-  (continuation hooks), and `completion_registry.py`
+- ~~`register_pipeline_continuation`~~ — Removed
+- ~~`_pending_dead_end_retries`~~ — Removed
+- ~~`pipeline_continuations` table~~ — Dropped
+- ~~`_rerun_pipeline` in runner.py~~ — Removed
+- ~~Continuation methods in `completion_registry.py`~~ — Removed
 
-**Strategy**: Strangler fig pattern. The conductor runs in parallel with the existing
-event-driven system. Once conductor handles all dispatch scenarios reliably, disable
-continuations and remove the dead code.
+`_auto_subscribe_lineage` retained — still used by `run_pipeline`/`resume_pipeline`.
+
+**Next**: Wire conductor to orchestrator pipeline invocation. Rewrite orchestrator as one-shot (no continuation self-loops).
 
 ## Multi-Project Conductor
 
