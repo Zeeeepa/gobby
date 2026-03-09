@@ -289,6 +289,7 @@ def setup_internal_registries(
             clone_storage=clone_storage,
             git_manager=clone_git_manager,  # may be None; tools guard at call time
             project_id=project_id or "",
+            task_manager=task_manager,
         )
         manager.add_registry(clones_registry)
         logger.debug("Clones registry initialized")

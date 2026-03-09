@@ -20,6 +20,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 if TYPE_CHECKING:
     from gobby.clones.git import CloneGitManager
     from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ def create_clones_registry(
     clone_storage: LocalCloneManager,
     git_manager: CloneGitManager | None,
     project_id: str,
+    task_manager: LocalTaskManager | None = None,
 ) -> InternalToolRegistry:
     """
     Create the gobby-clones MCP server registry.
@@ -36,10 +38,20 @@ def create_clones_registry(
         clone_storage: Clone storage manager for CRUD operations
         git_manager: Git manager for clone operations (None when no git repo detected)
         project_id: Default project ID for new clones
+        task_manager: Task manager for resolving task references (#N -> UUID)
 
     Returns:
         InternalToolRegistry with clone management tools
     """
+
+    def _resolve_task_id(ref: str) -> str:
+        """Resolve task reference (#N, N, UUID) to UUID."""
+        if task_manager is None:
+            return ref
+        from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+
+        return resolve_task_id_for_mcp(task_manager, ref)
+
     registry = InternalToolRegistry(
         name="gobby-clones",
         description="Git clone management for isolated development",
@@ -88,13 +100,9 @@ def create_clones_registry(
                     branch=base_branch,
                 )
                 if result.success and branch_name != base_branch:
-                    import subprocess
-
-                    subprocess.run(  # nosec B603 B607
-                        ["git", "checkout", "-b", branch_name],
+                    git_manager._run_git(
+                        ["checkout", "-b", branch_name],
                         cwd=clone_path,
-                        capture_output=True,
-                        text=True,
                         check=True,
                     )
                 if not remote_url:
@@ -123,13 +131,16 @@ def create_clones_registry(
                     "error": f"Clone failed: {result.error or result.message}",
                 }
 
+            # Resolve task_id (#N -> UUID) before DB insert
+            resolved_task_id = _resolve_task_id(task_id) if task_id else None
+
             # Store clone record
             clone = clone_storage.create(
                 project_id=project_id,
                 branch_name=branch_name,
                 clone_path=clone_path,
                 base_branch=base_branch,
-                task_id=task_id,
+                task_id=resolved_task_id,
                 remote_url=remote_url,
             )
 
@@ -650,7 +661,8 @@ def create_clones_registry(
         Returns:
             Dict with clone details or not found
         """
-        clone = clone_storage.get_by_task(task_id)
+        resolved_task_id = _resolve_task_id(task_id)
+        clone = clone_storage.get_by_task(resolved_task_id)
         if not clone:
             return {"success": True, "clone": None}
 
@@ -691,7 +703,8 @@ def create_clones_registry(
         if not clone:
             return {"success": False, "error": f"Clone not found: {clone_id}"}
 
-        updated = clone_storage.update(clone_id, task_id=task_id)
+        resolved_task_id = _resolve_task_id(task_id)
+        updated = clone_storage.update(clone_id, task_id=resolved_task_id)
         if not updated:
             return {"success": False, "error": "Failed to link task to clone"}
 

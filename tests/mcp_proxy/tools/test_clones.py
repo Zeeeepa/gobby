@@ -139,8 +139,9 @@ class TestCreateClone:
 
     @pytest.mark.asyncio
     async def test_create_clone_use_local(self, registry, mock_clone_storage, mock_git_manager):
-        """Create clone with use_local clones from local repo path."""
+        """Create clone with use_local clones base_branch then creates new branch."""
         mock_git_manager.full_clone.return_value = MagicMock(success=True)
+        mock_git_manager._run_git.return_value = MagicMock(returncode=0)
         mock_git_manager.get_remote_url.return_value = "https://github.com/user/repo.git"
         mock_clone_storage.create.return_value = Clone(
             id="clone-local",
@@ -169,12 +170,19 @@ class TestCreateClone:
 
         assert result["success"] is True
         assert result["clone"]["id"] == "clone-local"
-        # Should use full_clone (not shallow_clone) when use_local=True
+        # Should use full_clone with base_branch (not branch_name) when use_local=True
         mock_git_manager.full_clone.assert_called_once()
         mock_git_manager.shallow_clone.assert_not_called()
-        # Source should be the local repo path
+        # Source should be the local repo path, branch should be base_branch
         call_args = mock_git_manager.full_clone.call_args
         assert call_args.kwargs["remote_url"] == str(mock_git_manager.repo_path)
+        assert call_args.kwargs["branch"] == "main"
+        # Should create new branch in the clone since branch_name != base_branch
+        mock_git_manager._run_git.assert_called_once_with(
+            ["checkout", "-b", "feature"],
+            cwd="/tmp/clones/local",
+            check=True,
+        )
 
 
 class TestGetClone:
