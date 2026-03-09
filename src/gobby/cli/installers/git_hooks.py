@@ -118,6 +118,10 @@ fi
 """,
     "pre-merge-commit": """
 # Gobby verification runner for pre-merge-commit
+# Skip when Gobby itself is performing a merge (e.g. merge_clone)
+if [ "$GOBBY_MERGE" = "1" ]; then
+    exit 0
+fi
 # Runs configured verification commands (code_review, integration tests, etc.)
 if command -v gobby >/dev/null 2>&1; then
     gobby hooks run pre-merge 2>/dev/null

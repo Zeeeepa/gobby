@@ -6,6 +6,7 @@ Provides operations for managing full git clones, distinct from worktrees.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess  # nosec B404 - subprocess needed for git clone operations
 from dataclasses import dataclass
@@ -86,6 +87,7 @@ class CloneGitManager:
         cwd: str | Path | None = None,
         timeout: int = 60,
         check: bool = False,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """
         Run a git command.
@@ -95,6 +97,7 @@ class CloneGitManager:
             cwd: Working directory (defaults to repo_path)
             timeout: Command timeout in seconds
             check: Raise exception on non-zero exit
+            env: Extra environment variables to set (merged with os.environ)
 
         Returns:
             CompletedProcess with stdout/stderr
@@ -105,6 +108,10 @@ class CloneGitManager:
         cmd = ["git"] + args
         logger.debug(f"Running: {' '.join(cmd)} in {cwd}")
 
+        run_env = None
+        if env:
+            run_env = {**os.environ, **env}
+
         try:
             result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
                 cmd,
@@ -113,6 +120,7 @@ class CloneGitManager:
                 text=True,
                 timeout=timeout,
                 check=check,
+                env=run_env,
             )
             return result
         except subprocess.TimeoutExpired:
@@ -702,12 +710,13 @@ class CloneGitManager:
                     error=pull_result.stderr,
                 )
 
-            # Attempt merge
+            # Attempt merge (set GOBBY_MERGE=1 so pre-merge-commit hook skips)
             source_ref = source_branch if source_is_local else f"origin/{source_branch}"
             merge_result = self._run_git(
                 ["merge", source_ref, "--no-edit"],
                 cwd=cwd,
                 timeout=60,
+                env={"GOBBY_MERGE": "1"},
             )
 
             if merge_result.returncode != 0:
