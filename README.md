@@ -266,10 +266,12 @@ args = ["mcp-server"]
 | :--- | :--- | :--- |
 | **Claude Code** | ✅ Full support | Native adapter, 12 hook types |
 | **Gemini CLI** | ✅ Full support | Native adapter, all hook types |
-| **Codex CLI** | ✅ Full support | Native adapter with approval handling + context injection |
+| **Codex CLI** | ⚠️ Partial | Notify hooks only (fire-and-forget) — no blocking or context injection for interactive sessions* |
 | **Cursor** | ✅ Full support | Native adapter, 17 hook types |
 | **Windsurf** | ✅ Full support | Native adapter, 11 hook types |
 | **Copilot** | ✅ Full support | Native adapter, 6 hook types |
+
+\* **Codex hook limitation:** Codex CLI only supports fire-and-forget notify hooks for interactive terminal sessions. Bidirectional hook enforcement (tool blocking, context injection, workflow enforcement) is not possible because Codex lacks a blocking hook protocol — see [openai/codex#2109](https://github.com/openai/codex/issues/2109). Gobby includes a Codex app-server adapter that provides full bidirectional control via JSON-RPC, but this runs Codex as a daemon-controlled subprocess rather than an interactive terminal session. Codex agents spawned via pipelines (`--full-auto`) work fully but bypass hook enforcement. All CLIs connect via MCP for tool access regardless of hook support.
 
 ### Hook Installation
 
