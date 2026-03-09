@@ -57,7 +57,18 @@ def _filter_env(
     }
 
 
-_RESERVED_CONTEXT_KEYS = frozenset({"inputs", "steps", "env", "session_id", "parent_session_id"})
+_RESERVED_CONTEXT_KEYS = frozenset(
+    {
+        "inputs",
+        "steps",
+        "env",
+        "session_id",
+        "parent_session_id",
+        "project_id",
+        "project_path",
+        "current_branch",
+    }
+)
 
 
 class StepRenderer:
@@ -87,6 +98,9 @@ class StepRenderer:
             "env": _filter_env(os.environ, self.allowed_env_keys),
             "session_id": context.get("session_id"),
             "parent_session_id": context.get("parent_session_id"),
+            "project_id": context.get("project_id"),
+            "project_path": context.get("project_path"),
+            "current_branch": context.get("current_branch", "main"),
         }
         # Flatten step outputs as top-level names for direct template access
         for step_id, step_data in steps.items():
