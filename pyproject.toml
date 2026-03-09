@@ -130,7 +130,8 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-exclude = [".archive", ".gobby"]
+exclude = [".archive", ".gobby", "*.yaml", "*.yml"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = [
