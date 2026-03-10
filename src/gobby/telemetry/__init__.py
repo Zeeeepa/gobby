@@ -13,11 +13,19 @@ from typing import TYPE_CHECKING
 from opentelemetry import metrics, trace
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 
+from gobby.telemetry.context import extract_from_env, inject_into_env
 from gobby.telemetry.providers import (
     get_logger_provider,
     get_meter_provider,
     get_tracer_provider,
     shutdown_providers,
+)
+from gobby.telemetry.tracing import (
+    add_span_attributes,
+    create_span,
+    current_span,
+    record_exception,
+    traced,
 )
 
 if TYPE_CHECKING:
