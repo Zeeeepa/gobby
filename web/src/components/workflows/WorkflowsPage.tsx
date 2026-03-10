@@ -102,7 +102,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
 
   // Bulk actions
   const handleInstallAll = useCallback(async () => {
-    const typeMap: Record<string, string> = { pipelines: 'pipeline', agents: 'agent', rules: 'rule' }
+    const typeMap: Record<ActiveTab, string> = { pipelines: 'pipeline', agents: 'agent', rules: 'rule' }
     try {
       const res = await fetch(`/api/workflows/install-all-templates?workflow_type=${typeMap[activeTab]}`, {
         method: 'POST',

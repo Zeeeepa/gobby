@@ -36,8 +36,10 @@ export interface AgentRunDetail extends AgentRunRecord {
   commands?: Array<{
     id: string
     from_session: string
-    command_type: string
-    payload: string | null
+    command_text: string
+    allowed_tools: string | null
+    allowed_mcp_tools: string | null
+    exit_condition: string | null
     status: string
     created_at: string
   }>
@@ -52,14 +54,19 @@ export function useAgentRuns() {
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>({})
   const refetchTimerRef = useRef<number | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const fetchRuns = useCallback(async () => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     const params = new URLSearchParams()
     if (filters.status) params.set('status', filters.status)
     params.set('limit', '100')
 
     try {
-      const res = await fetch(`/api/agents/runs?${params}`)
+      const res = await fetch(`/api/agents/runs?${params}`, { signal: controller.signal })
       if (res.ok) {
         const data = await res.json()
         setRuns(data.runs || [])
@@ -68,6 +75,7 @@ export function useAgentRuns() {
         setRuns([])
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       console.error('Failed to fetch agent runs:', e)
     } finally {
       setIsLoading(false)
@@ -88,10 +96,11 @@ export function useAgentRuns() {
     }, 500)
   }, [fetchRuns]))
 
-  // Clean up debounce timer on unmount
+  // Clean up on unmount
   useEffect(() => {
     return () => {
       if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
+      abortRef.current?.abort()
     }
   }, [])
 
@@ -101,7 +110,7 @@ export function useAgentRuns() {
     })
     if (!res.ok) throw new Error(`Failed to cancel: ${res.statusText}`)
     const data = await res.json()
-    fetchRuns()
+    await fetchRuns()
     return data
   }, [fetchRuns])
 

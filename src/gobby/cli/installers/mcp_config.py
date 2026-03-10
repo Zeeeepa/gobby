@@ -577,7 +577,7 @@ def install_default_mcp_servers() -> dict[str, Any]:
                         from gobby.storage.secrets import SecretStore
 
                         secret_store = SecretStore(LocalDatabase())
-                    except Exception:
+                    except (ImportError, OSError):
                         secret_store = False  # type: ignore[assignment]
                 if secret_store and secret_store.exists(secret_name):
                     secret_value = secret_store.get(secret_name)

@@ -259,4 +259,4 @@ class TestTranscriptReaderGzipFallback:
         reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
         result = await reader.get_messages("sess-1", limit=3, offset=2)
 
-        assert len(result) <= 3
+        assert len(result) == 3

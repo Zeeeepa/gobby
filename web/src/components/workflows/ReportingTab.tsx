@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { usePipelineExecutions } from '../../hooks/usePipelineExecutions'
 import type { PipelineExecutionRecord } from '../../hooks/usePipelineExecutions'
 import { useAgentRuns } from '../../hooks/useAgentRuns'
@@ -67,7 +67,7 @@ function CronIcon() {
   )
 }
 
-export function ReportingTab({ searchText, projectId, refreshKey }: ReportingTabProps) {
+export function ReportingTab({ searchText, projectId, refreshKey: _refreshKey }: ReportingTabProps) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -87,10 +87,6 @@ export function ReportingTab({ searchText, projectId, refreshKey }: ReportingTab
     cancelRun,
     fetchRunDetail,
   } = useAgentRuns()
-
-  useEffect(() => {
-    // hooks auto-refetch via WebSocket, refreshKey is manual signal
-  }, [refreshKey])
 
   // Compute counts for stat chips
   const counts = useMemo(() => {
@@ -150,36 +146,36 @@ export function ReportingTab({ searchText, projectId, refreshKey }: ReportingTab
     return entries.sort((a, b) => b.created_at.localeCompare(a.created_at))
   }, [pipelineExecutions, agentRuns, typeFilter, statusFilter, searchText])
 
-  const toggleExpanded = useCallback(async (id: string, kind: 'pipeline' | 'agent') => {
+  const toggleExpanded = useCallback((id: string, kind: 'pipeline' | 'agent') => {
     setExpanded(prev => {
       const next = new Set(prev)
       if (next.has(id)) {
         next.delete(id)
       } else {
         next.add(id)
-        if (kind === 'agent' && !agentDetails[id]) {
-          fetchRunDetail(id).then(detail => {
-            if (detail) setAgentDetails(prev => ({ ...prev, [id]: detail }))
-          })
-        }
       }
       return next
     })
+    if (kind === 'agent' && !agentDetails[id]) {
+      fetchRunDetail(id).then(detail => {
+        if (detail) setAgentDetails(prev => ({ ...prev, [id]: detail }))
+      })
+    }
   }, [agentDetails, fetchRunDetail])
 
   const handleApprove = async (token: string) => {
     setActionLoading(token)
-    try { await approvePipeline(token) } finally { setActionLoading(null) }
+    try { await approvePipeline(token) } catch (e) { console.error('Approve failed:', e) } finally { setActionLoading(null) }
   }
 
   const handleReject = async (token: string) => {
     setActionLoading(token)
-    try { await rejectPipeline(token) } finally { setActionLoading(null) }
+    try { await rejectPipeline(token) } catch (e) { console.error('Reject failed:', e) } finally { setActionLoading(null) }
   }
 
   const handleCancel = async (runId: string) => {
     setActionLoading(runId)
-    try { await cancelRun(runId) } finally { setActionLoading(null) }
+    try { await cancelRun(runId) } catch (e) { console.error('Cancel failed:', e) } finally { setActionLoading(null) }
   }
 
   const isLoading = pipelinesLoading || agentsLoading
@@ -442,7 +438,7 @@ function PipelineDrillDown({
               </div>
             )
           }
-        } catch { /* ignore */ }
+        } catch (e) { console.warn('Failed to parse outputs_json:', e) }
         return null
       })()}
 
@@ -615,9 +611,9 @@ function AgentDrillDown({
           <div className="reporting-commands-list">
             {detail.commands.map(cmd => (
               <div key={cmd.id} className="reporting-command-entry">
-                <span className="reporting-command-type">{cmd.command_type}</span>
+                <span className="reporting-command-type">{cmd.command_text}</span>
                 <span className="reporting-command-time">{formatTime(cmd.created_at)}</span>
-                {cmd.payload && <span className="reporting-command-payload">{cmd.payload.slice(0, 80)}</span>}
+                {cmd.command_text && <span className="reporting-command-payload">{cmd.command_text.slice(0, 80)}</span>}
               </div>
             ))}
           </div>

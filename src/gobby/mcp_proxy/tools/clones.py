@@ -217,7 +217,7 @@ def create_clones_registry(
             return {"success": False, "error": f"Clone not found: {clone_id}"}
 
         clone_dict = clone.to_dict()
-        clone_dict["disk_exists"] = Path(clone.clone_path).is_dir()
+        clone_dict["disk_exists"] = Path(clone.clone_path).expanduser().is_dir()
         return {"success": True, "clone": clone_dict}
 
     registry.register(

@@ -7,8 +7,27 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.secrets import VALID_CATEGORIES, SecretStore
 
 
+class _SecretStoreContext:
+    """Context manager that ensures the DB is closed after use."""
+
+    def __enter__(self) -> SecretStore:
+        db_path = get_gobby_home() / "gobby-hub.db"
+        if not db_path.exists():
+            click.echo("Error: Gobby database not found. Run 'gobby start' first.", err=True)
+            raise SystemExit(1)
+        self._db = LocalDatabase(str(db_path))
+        return SecretStore(self._db)
+
+    def __exit__(self, *args: object) -> None:
+        self._db.close()
+
+
 def _get_secret_store() -> SecretStore:
-    """Open the DB and return a SecretStore (no daemon required)."""
+    """Open the DB and return a SecretStore (no daemon required).
+
+    NOTE: For proper cleanup, prefer using _SecretStoreContext() as a context manager.
+    Kept for backward compatibility with existing callers.
+    """
     db_path = get_gobby_home() / "gobby-hub.db"
     if not db_path.exists():
         click.echo("Error: Gobby database not found. Run 'gobby start' first.", err=True)

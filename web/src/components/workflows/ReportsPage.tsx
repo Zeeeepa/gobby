@@ -112,6 +112,12 @@ function useResizablePanel(initialWidth: number, minWidth: number, maxWidth: num
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  // Clean up any active listeners on unmount
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -128,9 +134,14 @@ function useResizablePanel(initialWidth: number, minWidth: number, maxWidth: num
       isDragging.current = false
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      cleanupRef.current = null
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
+    cleanupRef.current = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
   }, [width, minWidth, maxWidth])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -149,9 +160,14 @@ function useResizablePanel(initialWidth: number, minWidth: number, maxWidth: num
       isDragging.current = false
       document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', onEnd)
+      cleanupRef.current = null
     }
     document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd)
+    cleanupRef.current = () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+    }
   }, [width, minWidth, maxWidth])
 
   return { width, handleMouseDown, handleTouchStart }
@@ -337,17 +353,17 @@ export function ReportsPage({
 
   const handleApprove = async (token: string) => {
     setActionLoading(token)
-    try { await approvePipeline(token) } finally { setActionLoading(null) }
+    try { await approvePipeline(token) } catch (e) { console.error('Approve failed:', e) } finally { setActionLoading(null) }
   }
 
   const handleReject = async (token: string) => {
     setActionLoading(token)
-    try { await rejectPipeline(token) } finally { setActionLoading(null) }
+    try { await rejectPipeline(token) } catch (e) { console.error('Reject failed:', e) } finally { setActionLoading(null) }
   }
 
   const handleCancel = async (runId: string) => {
     setActionLoading(runId)
-    try { await cancelRun(runId) } finally { setActionLoading(null) }
+    try { await cancelRun(runId) } catch (e) { console.error('Cancel failed:', e) } finally { setActionLoading(null) }
   }
 
   const isLoading = subTab === 'pipelines' ? pipelinesLoading : agentsLoading
@@ -633,8 +649,6 @@ function PipelineDetail({
   const [showConfig, setShowConfig] = useState(false)
   const [showInputs, setShowInputs] = useState(false)
   const [showOutputs, setShowOutputs] = useState(false)
-  const ext = execution as any
-
   return (
     <>
       <div className="reports-detail-header">
@@ -646,9 +660,9 @@ function PipelineDetail({
         <div className="reports-detail-status">
           <StatusDot status={execution.status} />
           <span className="reports-cell--status-text">{normalizeStatus(execution.status)}</span>
-          {ext.cron_job_name && (
+          {execution.cron_job_name && (
             <span className="reports-detail-trigger">
-              <CronIcon /> {ext.cron_job_name}
+              <CronIcon /> {execution.cron_job_name}
             </span>
           )}
         </div>
@@ -747,19 +761,19 @@ function PipelineDetail({
           </div>
         )}
 
-        {ext.definition_json && (
+        {execution.definition_json && (
           <div className="reports-detail-section">
             <button type="button" className="reports-detail-toggle" onClick={() => setShowConfig(!showConfig)}>
               <ChevronIcon expanded={showConfig} /> Pipeline Config
             </button>
-            {showConfig && <div className="reports-detail-code">{formatJson(ext.definition_json)}</div>}
+            {showConfig && <div className="reports-detail-code">{formatJson(execution.definition_json)}</div>}
           </div>
         )}
 
-        {ext.parent_execution_id && (
+        {execution.parent_execution_id && (
           <div className="reports-detail-section">
             <span className="reports-detail-label">Parent</span>
-            <span className="reports-detail-value reports-detail-mono">{ext.parent_execution_id}</span>
+            <span className="reports-detail-value reports-detail-mono">{execution.parent_execution_id}</span>
           </div>
         )}
       </div>
@@ -853,9 +867,9 @@ function AgentDetail({
             <div className="reports-detail-commands">
               {detail.commands.map(cmd => (
                 <div key={cmd.id} className="reports-detail-command">
-                  <span className="reports-detail-command-type">{cmd.command_type}</span>
+                  <span className="reports-detail-command-type">{cmd.command_text}</span>
                   <span className="reports-detail-command-time">{formatTime(cmd.created_at)}</span>
-                  {cmd.payload && <span className="reports-detail-command-payload">{cmd.payload.slice(0, 80)}</span>}
+                  {cmd.command_text && <span className="reports-detail-command-payload">{cmd.command_text.slice(0, 80)}</span>}
                 </div>
               ))}
             </div>

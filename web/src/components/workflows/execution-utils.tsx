@@ -94,7 +94,9 @@ export function StepStatusIcon({ status }: { status: string }) {
 // ── Formatting Utilities ──
 
 export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 export function formatDuration(startIso: string, endIso: string): string {

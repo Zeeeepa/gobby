@@ -36,9 +36,9 @@ def manager(db: LocalDatabase) -> LocalWorkflowDefinitionManager:
     return LocalWorkflowDefinitionManager(db)
 
 
-def _sync_bundled(db):
+def _sync_bundled(db: LocalDatabase) -> None:
     """Sync bundled rules from the real rules directory."""
-    return sync_bundled_rules(db, get_bundled_rules_path())
+    sync_bundled_rules(db, get_bundled_rules_path())
 
 
 def _get_rule(manager, name) -> RuleDefinitionBody:

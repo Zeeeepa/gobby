@@ -34,7 +34,7 @@ rules:
     effects:
       - type: block
         tools: [Bash]
-        command_pattern: "(?:^|&&|;|\\|\\|)\\s*truncate\\b|>\\s*['\"]?/(?!dev/null)"
+        command_pattern: "(?:^|&&|;|\\|\\|)\\s*truncate\\b|(?:^|&&|;|\\|\\|)\\s*>\\s*['\"]?/(?!dev/null)"
         reason: "File truncation is not allowed. Ask the user for permission to disable this rule if you need to proceed."
 
   no-force-kill-interactive:

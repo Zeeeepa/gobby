@@ -574,7 +574,8 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 try:
                     commands = server.services.database.fetchall(
                         """
-                        SELECT id, from_session, command_type, payload, status, created_at
+                        SELECT id, from_session, command_text, allowed_tools,
+                               allowed_mcp_tools, exit_condition, status, created_at
                         FROM agent_commands
                         WHERE to_session = ?
                         ORDER BY created_at ASC

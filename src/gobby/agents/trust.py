@@ -100,6 +100,7 @@ def _pre_approve_copilot(directory: str) -> None:
         if config_file.exists():
             data = json.loads(config_file.read_text())
             if not isinstance(data, dict):
+                logger.warning("Copilot config.json root is not a dict, resetting: %s", config_file)
                 data = {}
         else:
             copilot_home.mkdir(parents=True, exist_ok=True)
@@ -140,6 +141,9 @@ def _pre_approve_gemini(directory: str) -> None:
         if projects_file.exists():
             data = json.loads(projects_file.read_text())
             if not isinstance(data, dict):
+                logger.warning(
+                    "Gemini projects.json root is not a dict, resetting: %s", projects_file
+                )
                 data = {"projects": {}}
         else:
             data = {"projects": {}}
@@ -161,6 +165,10 @@ def _pre_approve_gemini(directory: str) -> None:
     try:
         if trust_file.exists():
             raw = json.loads(trust_file.read_text())
+            if not isinstance(raw, dict):
+                logger.warning(
+                    "Gemini trustedFolders.json root is not a dict, resetting: %s", trust_file
+                )
             trusted: dict[str, str] = raw if isinstance(raw, dict) else {}
         else:
             trusted = {}

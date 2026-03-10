@@ -24,6 +24,9 @@ export interface PipelineExecutionRecord {
   outputs_json: string | null
   trace_id?: string
   steps: PipelineStepExecution[]
+  cron_job_name?: string | null
+  definition_json?: string | null
+  parent_execution_id?: string | null
 }
 
 interface Filters {
