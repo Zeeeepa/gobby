@@ -131,3 +131,81 @@ def test_setup_otel_logging_rotation(telemetry_config):
 
     # Check if rotated file exists
     assert Path(f"{telemetry_config.log_file}.1").exists()
+
+
+def test_setup_otel_logging_verbose_sets_debug(telemetry_config):
+    telemetry_config.log_level = "info"
+    setup_otel_logging(telemetry_config, verbose=True)
+
+    root_logger = logging.getLogger("gobby")
+    assert root_logger.level == logging.DEBUG
+
+
+def test_setup_otel_logging_json_format(telemetry_config):
+    telemetry_config.log_format = "json"
+    setup_otel_logging(telemetry_config)
+
+    root_logger = logging.getLogger("gobby")
+    handler = [h for h in root_logger.handlers if isinstance(h, logging.handlers.RotatingFileHandler)][0]
+    assert isinstance(handler.formatter, JsonOTelFormatter)
+
+
+def test_setup_otel_logging_sub_loggers(telemetry_config):
+    setup_otel_logging(telemetry_config)
+
+    for name in ["gobby.hooks", "gobby.mcp.server", "gobby.mcp.client", "gobby.watchdog"]:
+        logger = logging.getLogger(name)
+        assert not logger.propagate
+        assert len(logger.handlers) >= 1
+        assert any(isinstance(h, logging.handlers.RotatingFileHandler) for h in logger.handlers)
+
+
+def test_setup_otel_logging_attaches_otel_handler(telemetry_config):
+    from opentelemetry.sdk._logs import LoggingHandler
+
+    setup_otel_logging(telemetry_config)
+
+    root_logger = logging.getLogger("gobby")
+    assert any(isinstance(h, LoggingHandler) for h in root_logger.handlers)
+
+
+def test_init_telemetry_sets_providers(telemetry_config):
+    from opentelemetry import metrics, trace
+    from gobby.telemetry.logging import init_telemetry
+
+    # Clear providers if possible or just check they are set
+    init_telemetry(telemetry_config)
+
+    assert trace.get_tracer_provider() is not None
+    assert metrics.get_meter_provider() is not None
+
+
+def test_setup_otel_logging_clears_old_handlers(telemetry_config):
+    root_logger = logging.getLogger("gobby")
+    mock_handler = logging.NullHandler()
+    root_logger.addHandler(mock_handler)
+    assert mock_handler in root_logger.handlers
+
+    setup_otel_logging(telemetry_config)
+    assert mock_handler not in root_logger.handlers
+
+
+def test_otel_trace_formatter_short_name():
+    formatter = OTelTraceFormatter("%(short_name)s")
+
+    # gobby.test -> test
+    record1 = logging.LogRecord("gobby.test", logging.INFO, "", 0, "msg", (), None)
+    assert formatter.format(record1) == "test"
+
+    # other.test -> other.test
+    record2 = logging.LogRecord("other.test", logging.INFO, "", 0, "msg", (), None)
+    assert formatter.format(record2) == "other.test"
+
+
+def test_otel_trace_formatter_extra_fields():
+    formatter = OTelTraceFormatter("%(message)s")
+    record = logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None)
+    record.custom_field = "value"
+
+    formatted = formatter.format(record)
+    assert "msg | custom_field=value" in formatted

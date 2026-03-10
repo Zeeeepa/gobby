@@ -56,6 +56,7 @@ class OTelTraceFormatter(logging.Formatter):
         "trace_id",
         "span_id",
         "short_name",
+        "taskName",
     }
 
     def format(self, record: logging.LogRecord) -> str:
