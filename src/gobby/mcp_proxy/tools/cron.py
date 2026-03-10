@@ -118,7 +118,8 @@ def create_cron_registry(
             return {"success": True, "job": job.to_dict()}
         except Exception as e:
             logger.exception(
-                "Failed to create cron job", extra={"name": name, "project_id": project_id}
+                "Failed to create cron job",
+                extra={"job_name": name, "project_id": project_id},
             )
             return {"success": False, "error": str(e)}
 
