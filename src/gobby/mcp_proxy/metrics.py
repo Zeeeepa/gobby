@@ -219,9 +219,7 @@ class ToolMetricsManager:
                     "failure_count": row["failure_count"],
                     "total_latency_ms": row["total_latency_ms"],
                     "avg_latency_ms": row["avg_latency_ms"],
-                    "success_rate": (
-                        row["success_count"] / call_count if call_count > 0 else None
-                    ),
+                    "success_rate": (row["success_count"] / call_count if call_count > 0 else None),
                 }
             )
 

@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from gobby.agents.idle_detector import IdleDetector, IdleState
+from gobby.agents.idle_detector import IdleDetector
 
 pytestmark = pytest.mark.unit
 

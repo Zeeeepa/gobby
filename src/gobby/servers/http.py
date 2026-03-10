@@ -23,7 +23,7 @@ from gobby.llm import create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.semantic_search import SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
-from gobby.telemetry.instruments import get_telemetry_metrics
+from gobby.telemetry.instruments import inc_counter
 from gobby.utils.version import get_version
 
 if TYPE_CHECKING:
@@ -247,7 +247,6 @@ class HTTPServer:
         self.app = self._create_app()
         self._running = False
         self._background_tasks: set[asyncio.Task[Any]] = set()
-        self._metrics = get_telemetry_metrics()
         self._daemon: Any = None  # Set externally by daemon
 
     # Property accessors for services (delegate to container)
@@ -971,7 +970,7 @@ class HTTPServer:
                     logger.warning(f"Error disconnecting MCP servers: {e}")
 
             duration_seconds = time.perf_counter() - start_time
-            self._metrics.inc_counter("shutdown_succeeded_total")
+            inc_counter("shutdown_succeeded_total")
 
             logger.debug(
                 "Shutdown processed",
@@ -980,7 +979,7 @@ class HTTPServer:
 
         except Exception as e:
             duration_seconds = time.perf_counter() - start_time
-            self._metrics.inc_counter("shutdown_failed_total")
+            inc_counter("shutdown_failed_total")
 
             logger.error(
                 "Shutdown processing failed: %s",

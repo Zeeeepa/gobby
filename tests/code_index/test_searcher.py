@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from gobby.code_index.models import Symbol
-from gobby.code_index.searcher import CodeSearcher, RRF_K, _rrf_score
+from gobby.code_index.searcher import RRF_K, CodeSearcher, _rrf_score
 from gobby.code_index.storage import CodeIndexStorage
 
 pytestmark = pytest.mark.unit

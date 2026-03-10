@@ -34,6 +34,7 @@ class TestRequestIDFunctions:
         """Test clearing request ID."""
         # Note: set_request_id was removed, so we'll test with the contextvar directly
         from gobby.utils.logging import request_id_var
+
         request_id_var.set("test-id")
         assert get_request_id() == "test-id"
 

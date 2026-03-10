@@ -338,3 +338,38 @@ def get_telemetry_metrics() -> TelemetryMetrics:
         meter = metrics.get_meter("gobby")
         _telemetry_metrics = TelemetryMetrics(meter)
     return _telemetry_metrics
+
+
+def inc_counter(name: str, amount: int = 1, attributes: dict[str, Any] | None = None) -> None:
+    """Increment global counter by amount."""
+    get_telemetry_metrics().inc_counter(name, amount, attributes)
+
+
+def set_gauge(name: str, value: float, attributes: dict[str, Any] | None = None) -> None:
+    """Set global gauge to value."""
+    get_telemetry_metrics().set_gauge(name, value, attributes)
+
+
+def inc_gauge(name: str, amount: float = 1.0, attributes: dict[str, Any] | None = None) -> None:
+    """Increment global gauge by amount."""
+    get_telemetry_metrics().inc_gauge(name, amount, attributes)
+
+
+def dec_gauge(name: str, amount: float = 1.0, attributes: dict[str, Any] | None = None) -> None:
+    """Decrement global gauge by amount."""
+    get_telemetry_metrics().dec_gauge(name, amount, attributes)
+
+
+def observe_histogram(name: str, value: float, attributes: dict[str, Any] | None = None) -> None:
+    """Record observation in global histogram."""
+    get_telemetry_metrics().observe_histogram(name, value, attributes)
+
+
+def get_all_metrics() -> dict[str, Any]:
+    """Get all metrics for backward compatibility with /admin/status."""
+    return get_telemetry_metrics().get_all_metrics()
+
+
+def update_daemon_metrics(pid: int | None = None) -> None:
+    """Update daemon health metrics (uptime, memory, CPU)."""
+    get_telemetry_metrics().update_daemon_metrics(pid)

@@ -14,7 +14,14 @@ from opentelemetry import metrics, trace
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 
 from gobby.telemetry.context import extract_from_env, inject_into_env
-from gobby.telemetry.instruments import get_telemetry_metrics
+from gobby.telemetry.instruments import (
+    dec_gauge,
+    get_telemetry_metrics,
+    inc_counter,
+    inc_gauge,
+    observe_histogram,
+    set_gauge,
+)
 from gobby.telemetry.providers import (
     get_logger_provider,
     get_meter_provider,

@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from gobby.servers.models import SessionRegisterRequest
 from gobby.sessions.transcript_archive import get_archive_dir, restore_transcript
-from gobby.telemetry.instruments import get_telemetry_metrics
+from gobby.telemetry.instruments import inc_counter
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -247,7 +247,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with session endpoints
     """
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
-    metrics = get_telemetry_metrics()
 
     def _get_session_manager() -> Any:
         if server.session_manager is None:
@@ -276,7 +275,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Registration confirmation with session ID
         """
-        metrics.inc_counter("session_registrations_total")
+        inc_counter("session_registrations_total")
 
         try:
             if server.session_manager is None:

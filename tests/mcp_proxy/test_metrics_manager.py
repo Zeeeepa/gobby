@@ -125,7 +125,9 @@ class TestToolMetrics:
 class TestRecordCall:
     """Tests for record_call method."""
 
-    def test_record_first_call_success(self, metrics_manager: ToolMetricsManager, mock_telemetry) -> None:
+    def test_record_first_call_success(
+        self, metrics_manager: ToolMetricsManager, mock_telemetry
+    ) -> None:
         """Test recording first successful call creates new record."""
         metrics_manager.record_call(
             server_name="test-server",
@@ -170,7 +172,9 @@ class TestRecordCall:
             },
         )
 
-    def test_record_first_call_failure(self, metrics_manager: ToolMetricsManager, mock_telemetry) -> None:
+    def test_record_first_call_failure(
+        self, metrics_manager: ToolMetricsManager, mock_telemetry
+    ) -> None:
         """Test recording first failed call creates new record."""
         metrics_manager.record_call(
             server_name="test-server",
@@ -204,6 +208,7 @@ class TestRecordCall:
                 "project_id": "proj-1",
             },
         )
+
     def test_record_multiple_calls_increments(self, metrics_manager: ToolMetricsManager) -> None:
         """Test multiple calls increment counters correctly."""
         # Record 3 successes and 2 failures

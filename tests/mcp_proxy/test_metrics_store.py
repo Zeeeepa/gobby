@@ -111,7 +111,9 @@ class TestToolMetricsStore:
         assert deleted == 1
         assert len(metrics_store.get_metrics()) == 0
 
-    def test_cleanup_and_aggregate(self, metrics_store: ToolMetricsStore, temp_db: "LocalDatabase") -> None:
+    def test_cleanup_and_aggregate(
+        self, metrics_store: ToolMetricsStore, temp_db: "LocalDatabase"
+    ) -> None:
         """Test aggregation to daily and cleanup."""
         old_time = (datetime.now(UTC) - timedelta(days=10)).isoformat()
         temp_db.execute(

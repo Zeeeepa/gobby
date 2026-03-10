@@ -98,11 +98,12 @@ class TestAdminRoutes:
         assert "test-server" in data["mcp_servers"]
         assert data["mcp_servers"]["test-server"]["connected"] is True
 
-    @patch("gobby.servers.routes.admin._health.get_telemetry_metrics")
+    @patch("gobby.servers.routes.admin._health.get_all_metrics")
     @patch("gobby.servers.routes.admin._health.generate_latest")
     @patch("gobby.servers.routes.admin._health.psutil")
-    def test_metrics_endpoint(self, mock_psutil, mock_generate, mock_get_metrics, client) -> None:
+    def test_metrics_endpoint(self, mock_psutil, mock_generate, mock_get_all, client) -> None:
         mock_generate.return_value = b"metric_name 1.0\n"
+        mock_get_all.return_value = {"counters": {}, "gauges": {}, "histograms": {}}
 
         # Mock psutil for daemon metrics
         mock_process = MagicMock()

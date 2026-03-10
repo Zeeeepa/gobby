@@ -45,7 +45,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         start_time = time.perf_counter()
 
-
         try:
             # Use server's session manager database to avoid creating separate connections
             if server.session_manager is None:
@@ -123,7 +122,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         start_time = time.perf_counter()
 
-
         try:
             registry = get_running_agent_registry()
 
@@ -169,7 +167,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             )
 
         start_time = time.perf_counter()
-
 
         try:
             registry = get_running_agent_registry()
@@ -226,7 +223,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             )
 
         start_time = time.perf_counter()
-
 
         try:
             if server.session_manager is None:

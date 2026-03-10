@@ -14,16 +14,12 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_metrics_manager, get_server
-from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
-
-# Module-level metrics collector (shared across all requests)
-_metrics = get_telemetry_metrics()
 
 # Set to keep background tasks alive (prevent garbage collection)
 _background_tasks: set[asyncio.Task[Any]] = set()

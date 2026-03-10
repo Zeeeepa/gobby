@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 
-from gobby.telemetry.instruments import get_telemetry_metrics
+from gobby.telemetry.instruments import inc_counter
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -37,9 +37,7 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
             Shutdown confirmation
         """
         start_time = time.perf_counter()
-        metrics = get_telemetry_metrics()
-
-        metrics.inc_counter("shutdown_requests_total")
+        inc_counter("shutdown_requests_total")
 
         try:
             logger.debug("Shutdown requested via HTTP endpoint")

@@ -120,9 +120,7 @@ class TestTranscriptReaderGzipFallback:
         session_manager = MagicMock()
         session_manager.get.return_value = session
 
-        reader = TranscriptReader(
-            message_manager, session_manager, archive_dir=str(archive_dir)
-        )
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
         result = await reader.get_messages("sess-1", limit=50)
 
         assert len(result) > 0
@@ -155,9 +153,7 @@ class TestTranscriptReaderGzipFallback:
         session_manager = MagicMock()
         session_manager.get.return_value = session
 
-        reader = TranscriptReader(
-            message_manager, session_manager, archive_dir=str(archive_dir)
-        )
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
         count = await reader.count_messages("sess-1")
 
         assert count > 0
@@ -178,9 +174,7 @@ class TestTranscriptReaderGzipFallback:
         session_manager = MagicMock()
         session_manager.get.return_value = session
 
-        reader = TranscriptReader(
-            message_manager, session_manager, archive_dir=str(archive_dir)
-        )
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
         result = await reader.get_messages("sess-1")
         assert result == []
 
@@ -235,9 +229,7 @@ class TestTranscriptReaderGzipFallback:
         session_manager = MagicMock()
         session_manager.get.return_value = session
 
-        reader = TranscriptReader(
-            message_manager, session_manager, archive_dir=str(archive_dir)
-        )
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
         result = await reader.get_messages("sess-1", role="user")
 
         for msg in result:
@@ -250,8 +242,7 @@ class TestTranscriptReaderGzipFallback:
 
         # Write multiple lines
         lines = [
-            {"type": "user", "message": {"role": "user", "content": f"msg {i}"}}
-            for i in range(10)
+            {"type": "user", "message": {"role": "user", "content": f"msg {i}"}} for i in range(10)
         ]
         _write_gzip_archive(archive_dir, external_id, lines)
 
@@ -265,9 +256,7 @@ class TestTranscriptReaderGzipFallback:
         session_manager = MagicMock()
         session_manager.get.return_value = session
 
-        reader = TranscriptReader(
-            message_manager, session_manager, archive_dir=str(archive_dir)
-        )
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
         result = await reader.get_messages("sess-1", limit=3, offset=2)
 
         assert len(result) <= 3

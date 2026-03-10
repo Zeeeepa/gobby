@@ -7,8 +7,6 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from gobby.agents.trust import (
     _encode_claude_project_path,
     pre_approve_directory,
@@ -178,7 +176,9 @@ class TestPreApproveCopilot:
         copilot_dir = tmp_path / ".copilot"
         copilot_dir.mkdir()
         config_file = copilot_dir / "config.json"
-        config_file.write_text(json.dumps({"trusted_folders": ["/existing/path"], "other": "value"}))
+        config_file.write_text(
+            json.dumps({"trusted_folders": ["/existing/path"], "other": "value"})
+        )
 
         clone_dir = "/Users/josh/.gobby/clones/test-task"
 

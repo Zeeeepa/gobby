@@ -1100,7 +1100,7 @@ export default function App() {
           ) : activeTab === "cron" ? (
             <CronJobsPage />
           ) : activeTab === "traces" ? (
-            <TracesPage projectId={effectiveProjectId} initialTraceId={initialTraceId} />
+            <TracesPage initialTraceId={initialTraceId} />
           ) : activeTab === "skills" ? (
             <SkillsPage />
           ) : activeTab === "workflows" ? (

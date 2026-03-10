@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from gobby.mcp_proxy.tools.canvas import (
-    EXTENSION_MAP,
     MAX_IMAGE_FILE_SIZE,
     MAX_TEXT_FILE_SIZE,
     create_canvas_registry,

@@ -24,7 +24,7 @@ PROJECT_ID = "test-project"
 SESSION_ID = "sess-test-001"
 
 
-def _seed_db(db: "LocalDatabase") -> None:
+def _seed_db(db: LocalDatabase) -> None:
     """Insert project + session rows to satisfy FK constraints."""
     db.execute(
         """INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
@@ -178,12 +178,12 @@ async def test_callable_cron_handler_interface(
 
 
 @pytest.fixture
-def task_manager(temp_db: "LocalDatabase") -> LocalTaskManager:
+def task_manager(temp_db: LocalDatabase) -> LocalTaskManager:
     return LocalTaskManager(temp_db)
 
 
 @pytest.fixture
-def agent_run_manager(temp_db: "LocalDatabase") -> LocalAgentRunManager:
+def agent_run_manager(temp_db: LocalDatabase) -> LocalAgentRunManager:
     return LocalAgentRunManager(temp_db)
 
 
@@ -222,7 +222,7 @@ async def test_stale_task_with_terminal_agent_run_recovered(
     heartbeat_with_tasks: PipelineHeartbeat,
     task_manager: LocalTaskManager,
     agent_run_manager: LocalAgentRunManager,
-    temp_db: "LocalDatabase",
+    temp_db: LocalDatabase,
 ) -> None:
     """in_progress task with terminal agent run and no live agent → reset to open."""
     _seed_db(temp_db)
@@ -255,7 +255,7 @@ async def test_task_with_active_agent_run_not_recovered(
     heartbeat_with_tasks: PipelineHeartbeat,
     task_manager: LocalTaskManager,
     agent_run_manager: LocalAgentRunManager,
-    temp_db: "LocalDatabase",
+    temp_db: LocalDatabase,
 ) -> None:
     """in_progress task with active (running) agent run → not touched."""
     _seed_db(temp_db)

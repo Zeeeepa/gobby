@@ -3,15 +3,15 @@ Tests for telemetry providers.
 """
 
 import pytest
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.trace import TracerProvider
 
 from gobby.telemetry.config import TelemetrySettings
 from gobby.telemetry.providers import (
-    get_tracer_provider,
-    get_meter_provider,
     get_logger_provider,
+    get_meter_provider,
+    get_tracer_provider,
     shutdown_providers,
 )
 

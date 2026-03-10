@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from gobby.storage.task_dependencies import TaskDependencyManager
-from gobby.telemetry.instruments import get_telemetry_metrics
+from gobby.telemetry.instruments import inc_counter
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -162,7 +162,6 @@ def _get_config_store(server: HTTPServer) -> Any:
 def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
     """Create agent spawn router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/agents", tags=["agent-spawn"])
-    metrics = get_telemetry_metrics()
 
     async def _get_or_create_launcher_session(project_id: str) -> str:
         """Get or create a persistent web_launcher session for HTTP-initiated spawns."""
@@ -381,7 +380,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
     @router.post("/spawn")
     async def spawn_agent(request: AgentSpawnRequest) -> dict[str, Any]:
         """Spawn an agent to work on a task."""
-        metrics.inc_counter("agent_spawns_total")
+        inc_counter("agent_spawns_total")
 
         try:
             # Resolve project context

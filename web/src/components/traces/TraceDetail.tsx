@@ -1,48 +1,81 @@
 import type { Span } from '../../hooks/useTraces'
-import { formatDuration } from '../../utils/formatTime'
 
 interface TraceDetailProps {
   span: Span | null
+  onClose: () => void
 }
 
-export function TraceDetail({ span }: TraceDetailProps) {
+export function TraceDetail({ span, onClose }: TraceDetailProps) {
   if (!span) {
-    return null
+    return (
+      <div className="trace-detail">
+        <div className="trace-detail-header">
+          <div className="trace-detail-title">Span Details</div>
+          <button className="trace-detail-close" onClick={onClose}>&times;</button>
+        </div>
+        <div className="trace-detail-content">
+          <p>Select a span to view details.</p>
+        </div>
+      </div>
+    )
   }
 
-  const durationNs = (span.end_time_ns || span.start_time_ns) - span.start_time_ns
-  const durationMs = durationNs / 1_000_000
+  const formatDuration = (ns: number) => {
+    const ms = ns / 1_000_000
+    if (ms < 1) return `${(ns / 1000).toFixed(2)}µs`
+    if (ms < 1000) return `${ms.toFixed(2)}ms`
+    return `${(ms / 1000).toFixed(2)}s`
+  }
+
+  const formatTime = (ns: number) => {
+    return new Date(ns / 1_000_000).toLocaleTimeString()
+  }
 
   return (
-    <div className="trace-detail-body">
-      <div className="trace-detail-section">
-        <span className="trace-detail-section-title">Overview</span>
-        <table className="trace-detail-attributes">
-          <tbody>
-            <tr>
-              <th>Span ID</th>
-              <td>{span.span_id}</td>
-            </tr>
-            <tr>
-              <th>Kind</th>
-              <td>{span.kind || 'Internal'}</td>
-            </tr>
-            <tr>
-              <th>Duration</th>
-              <td>{formatDuration(durationMs)}</td>
-            </tr>
-            <tr>
-              <th>Start Time</th>
-              <td>{new Date(span.start_time_ns / 1_000_000).toLocaleString()}</td>
-            </tr>
-          </tbody>
-        </table>
+    <div className="trace-detail">
+      <div className="trace-detail-header">
+        <div>
+          <div className="trace-detail-title">{span.name}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+            Span ID: {span.span_id}
+          </div>
+        </div>
+        <button className="trace-detail-close" onClick={onClose}>&times;</button>
       </div>
 
-      {Object.keys(span.attributes).length > 0 && (
-        <div className="trace-detail-section">
-          <span className="trace-detail-section-title">Attributes</span>
-          <table className="trace-detail-attributes">
+      <div className="trace-detail-content">
+        <section className="trace-detail-attributes">
+          <div className="trace-detail-section-title">Overview</div>
+          <table className="trace-detail-table">
+            <tbody>
+              <tr>
+                <th>Status</th>
+                <td>
+                  <span className={`trace-badge trace-badge--${(span.status || 'UNSET').toLowerCase()}`}>
+                    {span.status}
+                  </span>
+                  {span.status_message && <div style={{ marginTop: '4px', fontSize: '11px' }}>{span.status_message}</div>}
+                </td>
+              </tr>
+              <tr>
+                <th>Kind</th>
+                <td>{span.kind}</td>
+              </tr>
+              <tr>
+                <th>Duration</th>
+                <td>{formatDuration((span.end_time_ns || span.start_time_ns) - span.start_time_ns)}</td>
+              </tr>
+              <tr>
+                <th>Start Time</th>
+                <td>{formatTime(span.start_time_ns)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section className="trace-detail-attributes">
+          <div className="trace-detail-section-title">Attributes</div>
+          <table className="trace-detail-table">
             <tbody>
               {Object.entries(span.attributes).map(([key, value]) => (
                 <tr key={key}>
@@ -52,41 +85,34 @@ export function TraceDetail({ span }: TraceDetailProps) {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        </section>
 
-      {span.events && span.events.length > 0 && (
-        <div className="trace-detail-section">
-          <span className="trace-detail-section-title">Events</span>
-          <div className="trace-detail-events-list">
+        {span.events && span.events.length > 0 && (
+          <section className="trace-detail-events">
+            <div className="trace-detail-section-title">Events</div>
             {span.events.map((event, i) => (
-              <div key={i} className="trace-detail-event-item">
+              <div key={i} className="trace-detail-event">
                 <div className="trace-detail-event-header">
                   <span className="trace-detail-event-name">{event.name}</span>
-                  <span className="trace-detail-event-time">
-                    +{formatDuration((event.timestamp_ns - span.start_time_ns) / 1_000_000)}
-                  </span>
+                  <span className="trace-detail-event-time">{formatTime(event.timestamp_ns)}</span>
                 </div>
                 {event.attributes && Object.keys(event.attributes).length > 0 && (
-                  <pre className="trace-detail-event-attributes">
-                    {JSON.stringify(event.attributes, null, 2)}
-                  </pre>
+                  <table className="trace-detail-table">
+                    <tbody>
+                      {Object.entries(event.attributes).map(([key, value]) => (
+                        <tr key={key}>
+                          <th style={{ fontSize: '11px', width: '100px' }}>{key}</th>
+                          <td style={{ fontSize: '11px' }}>{String(value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {span.status === 'ERROR' && span.status_message && (
-        <div className="trace-detail-section">
-          <span className="trace-detail-section-title">Error Message</span>
-          <div className="trace-detail-error">
-            {span.status_message}
-          </div>
-        </div>
-      )}
+          </section>
+        )}
+      </div>
     </div>
   )
 }
-

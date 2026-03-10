@@ -1,16 +1,10 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import type { Span } from '../../hooks/useTraces'
-import { formatDuration } from '../../utils/formatTime'
 
 interface TraceWaterfallProps {
   spans: Span[]
   selectedSpanId: string | null
   onSelectSpan: (id: string) => void
-}
-
-interface SpanNode extends Span {
-  depth: number
-  children: SpanNode[]
 }
 
 const ROW_HEIGHT = 32
@@ -19,146 +13,148 @@ const HEADER_HEIGHT = 40
 
 export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWaterfallProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [svgWidth, setSvgWidth] = useState(1200)
 
-  useEffect(() => {
-    if (!containerRef.current) return
-    const obs = new ResizeObserver((entries) => {
-      const width = entries[0].contentRect.width
-      if (width > 0) {
-        setSvgWidth(width)
-      }
-    })
-    obs.observe(containerRef.current)
-    return () => obs.disconnect()
-  }, [])
+  // Sort and build hierarchy
+  const processedSpans = useMemo(() => {
+    if (spans.length === 0) return []
 
-  // 1. Build tree to calculate depths
-  const tree = useMemo(() => {
-    const spanMap = new Map<string, SpanNode>()
-    const roots: SpanNode[] = []
+    // 1. Build child map
+    const childrenByParent = new Map<string, Span[]>()
+    let root: Span | null = null
 
-    // Initialize nodes
-    spans.forEach(s => {
-      spanMap.set(s.span_id, { ...s, depth: 0, children: [] })
-    })
-
-    // Link parents/children
-    spans.forEach(s => {
-      const node = spanMap.get(s.span_id)!
-      if (s.parent_span_id && spanMap.has(s.parent_span_id)) {
-        spanMap.get(s.parent_span_id)!.children.push(node)
+    for (const span of spans) {
+      if (!span.parent_span_id) {
+        root = span
       } else {
-        roots.push(node)
+        const children = childrenByParent.get(span.parent_span_id) || []
+        children.push(span)
+        childrenByParent.set(span.parent_span_id, children)
       }
-    })
-
-    // DFS to set depths and flatten in order
-    const flattened: SpanNode[] = []
-    const walk = (node: SpanNode, depth: number) => {
-      node.depth = depth
-      flattened.push(node)
-      // Sort children by start time
-      node.children.sort((a, b) => a.start_time_ns - b.start_time_ns)
-      node.children.forEach(child => walk(child, depth + 1))
     }
 
-    roots.sort((a, b) => a.start_time_ns - b.start_time_ns)
-    roots.forEach(r => walk(r, 0))
+    if (!root && spans.length > 0) root = spans[0]
+    if (!root) return []
 
+    // 2. Flatten into depth-first order
+    const flattened: { span: Span; depth: number }[] = []
+    function walk(span: Span, depth: number) {
+      flattened.push({ span, depth })
+      const children = childrenByParent.get(span.span_id) || []
+      // Sort children by start time
+      children.sort((a, b) => a.start_time_ns - b.start_time_ns)
+      for (const child of children) {
+        walk(child, depth + 1)
+      }
+    }
+
+    walk(root, 0)
     return flattened
   }, [spans])
 
-  // 2. Calculate time range
-  const { minTime, maxTime, totalDuration } = useMemo(() => {
-    if (spans.length === 0) return { minTime: 0, maxTime: 0, totalDuration: 0 }
-    const startTimes = spans.map(s => s.start_time_ns)
-    const endTimes = spans.map(s => s.end_time_ns || s.start_time_ns)
-    const min = Math.min(...startTimes)
-    const max = Math.max(...endTimes)
-    return { minTime: min, maxTime: max, totalDuration: max - min }
+  // Compute timeline
+  const { timelineStart, duration } = useMemo(() => {
+    if (spans.length === 0) return { timelineStart: 0, duration: 0 }
+    
+    let start = spans[0].start_time_ns
+    let end = spans[0].end_time_ns || spans[0].start_time_ns
+
+    for (const s of spans) {
+      if (s.start_time_ns < start) start = s.start_time_ns
+      const sEnd = s.end_time_ns || s.start_time_ns
+      if (sEnd > end) end = sEnd
+    }
+
+    return { timelineStart: start, duration: Math.max(end - start, 1) }
   }, [spans])
 
-  const timelineWidth = Math.max(svgWidth - LABEL_WIDTH - 40, 0)
-  const svgHeight = HEADER_HEIGHT + tree.length * ROW_HEIGHT + 20
+  const svgWidth = Math.max(800, 1200) // Could be responsive
+  const svgHeight = HEADER_HEIGHT + processedSpans.length * ROW_HEIGHT + 20
 
-  const timeToX = (ns: number) => {
-    if (totalDuration === 0) return LABEL_WIDTH
-    const offset = ns - minTime
-    return LABEL_WIDTH + (offset / totalDuration) * timelineWidth
+  const timeToX = (time: number) => {
+    const fraction = (time - timelineStart) / duration
+    return LABEL_WIDTH + fraction * (svgWidth - LABEL_WIDTH - 20)
   }
 
-  // 3. Grid lines (e.g., 4 intervals)
-  const gridLines = useMemo(() => {
-    const lines = []
-    for (let i = 0; i <= 4; i++) {
-      const t = minTime + (totalDuration * i) / 4
-      lines.push({ x: timeToX(t), label: formatDuration((totalDuration * i) / 4 / 1_000_000) })
-    }
-    return lines
-  }, [minTime, totalDuration, timelineWidth, svgWidth]) // dependency on svgWidth added through timeToX
+  const formatDuration = (ns: number) => {
+    const ms = ns / 1_000_000
+    if (ms < 1) return `${(ns / 1000).toFixed(2)}µs`
+    if (ms < 1000) return `${ms.toFixed(2)}ms`
+    return `${(ms / 1000).toFixed(2)}s`
+  }
 
   return (
-    <div className="trace-waterfall-container" ref={containerRef}>
-      <svg width={svgWidth} height={svgHeight} className="trace-waterfall-svg">
-        <rect x={0} y={0} width={svgWidth} height={HEADER_HEIGHT} className="trace-waterfall-header-bg" />
-        
-        {/* Grid lines */}
-        {gridLines.map((line, i) => (
-          <g key={i}>
-            <line x1={line.x} y1={HEADER_HEIGHT} x2={line.x} y2={svgHeight} className="trace-waterfall-grid-line" />
-            <text x={line.x} y={HEADER_HEIGHT - 10} textAnchor="middle" className="trace-waterfall-header-text">
-              {line.label}
-            </text>
-          </g>
-        ))}
+    <div className="trace-waterfall">
+      <div className="trace-waterfall-header">
+        <span className="trace-waterfall-duration">
+          Total Duration: {formatDuration(duration)}
+        </span>
+        <span className="trace-waterfall-span-count">
+          {spans.length} spans
+        </span>
+      </div>
 
-        {/* Rows */}
-        {tree.map((node, i) => {
-          const y = HEADER_HEIGHT + i * ROW_HEIGHT
-          const x = timeToX(node.start_time_ns)
-          const endX = timeToX(node.end_time_ns || node.start_time_ns)
-          const w = Math.max(endX - x, 2)
-          const isSelected = node.span_id === selectedSpanId
-          const statusClass = `trace-waterfall-bar--${(node.status || 'unset').toLowerCase()}`
+      <div className="trace-waterfall-scroll" ref={containerRef}>
+        <svg
+          width={svgWidth}
+          height={svgHeight}
+          className="trace-waterfall-svg"
+        >
+          {/* Header background */}
+          <rect x={0} y={0} width={svgWidth} height={HEADER_HEIGHT} fill="var(--bg-secondary)" />
+          
+          {/* Time markers */}
+          {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
+            const time = timelineStart + duration * pct
+            const x = timeToX(time)
+            return (
+              <g key={pct}>
+                <line x1={x} y1={0} x2={x} y2={svgHeight} className="trace-waterfall-grid" />
+                <text x={x} y={HEADER_HEIGHT - 10} className="trace-waterfall-time" textAnchor="middle">
+                  {formatDuration(time - timelineStart)}
+                </text>
+              </g>
+            )
+          })}
 
-          return (
-            <g key={node.span_id} onClick={() => onSelectSpan(node.span_id)}>
-              {i % 2 === 0 && (
-                <rect x={0} y={y} width={svgWidth} height={ROW_HEIGHT} className="trace-waterfall-row-stripe" />
-              )}
-              
-              {/* Span label with indentation */}
-              <text x={10 + node.depth * 12} y={y + ROW_HEIGHT / 2 + 5} className="trace-waterfall-row-label">
-                {node.name.length > 25 ? node.name.slice(0, 25) + '...' : node.name}
-              </text>
+          {processedSpans.map(({ span, depth }, i) => {
+            const y = HEADER_HEIGHT + i * ROW_HEIGHT
+            const x = timeToX(span.start_time_ns)
+            const w = Math.max(timeToX(span.end_time_ns || span.start_time_ns) - x, 2)
+            const isSelected = span.span_id === selectedSpanId
+            const statusClass = `trace-waterfall-bar--${(span.status || 'UNSET').toLowerCase()}`
 
-              {/* Span bar */}
-              <rect
-                x={x}
-                y={y + 8}
-                width={w}
-                height={ROW_HEIGHT - 16}
-                rx={2}
-                className={`trace-waterfall-bar ${statusClass} ${isSelected ? 'selected' : ''}`}
-              />
-              {isSelected && (
+            return (
+              <g key={span.span_id} onClick={() => onSelectSpan(span.span_id)}>
+                {/* Row stripe */}
+                {i % 2 === 0 && (
+                  <rect x={0} y={y} width={svgWidth} height={ROW_HEIGHT} fill="var(--bg-secondary)" opacity="0.3" />
+                )}
+                
+                {/* Span label */}
+                <text
+                  x={10 + depth * 12}
+                  y={y + ROW_HEIGHT / 2 + 5}
+                  className="trace-waterfall-label"
+                >
+                  {span.name}
+                </text>
+
+                {/* Duration bar */}
                 <rect
-                  x={x - 2}
-                  y={y + 6}
-                  width={w + 4}
-                  height={ROW_HEIGHT - 12}
-                  rx={3}
-                  fill="none"
-                  stroke="var(--accent)"
-                  strokeWidth={2}
+                  x={x}
+                  y={y + 8}
+                  width={w}
+                  height={ROW_HEIGHT - 16}
+                  rx={2}
+                  className={`trace-waterfall-bar ${statusClass} ${isSelected ? 'trace-waterfall-bar--selected' : ''}`}
                 />
-              )}
-            </g>
-          )
-        })}
-      </svg>
+                
+                <title>{span.name} ({formatDuration((span.end_time_ns || span.start_time_ns) - span.start_time_ns)})</title>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
     </div>
   )
 }
-

@@ -1,7 +1,6 @@
 """Tests for fibonacci utility."""
 
 import pytest
-
 from gobby.utils.fibonacci import fibonacci
 
 pytestmark = pytest.mark.unit

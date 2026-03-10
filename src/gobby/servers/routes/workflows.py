@@ -11,8 +11,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from gobby.telemetry.instruments import get_telemetry_metrics
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
     from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -81,7 +79,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with workflow definition endpoints
     """
     router = APIRouter(prefix="/api/workflows", tags=["workflows"])
-    get_telemetry_metrics()
 
     def _get_manager() -> "LocalWorkflowDefinitionManager":
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager

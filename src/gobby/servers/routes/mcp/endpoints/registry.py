@@ -12,15 +12,11 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, Request
 
 from gobby.servers.routes.dependencies import get_server
-from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
-
-# Module-level metrics collector (shared across all requests)
-_metrics = get_telemetry_metrics()
 
 
 async def embed_mcp_tools(
