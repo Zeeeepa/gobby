@@ -33,7 +33,6 @@ import os
 import sqlite3
 import threading
 import time
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -127,8 +126,8 @@ class HookManager:
         except RuntimeError:
             self._loop = None
 
-        # Setup logging first
-        self.logger = self._setup_logging()
+        # Setup logging
+        self.logger = logging.getLogger("gobby.hooks")
 
         # Store LLM service
         self._llm_service = llm_service
@@ -223,43 +222,6 @@ class HookManager:
         self._reregister_active_sessions()
 
         self.logger.debug("HookManager initialized")
-
-    def _setup_logging(self) -> logging.Logger:
-        """
-        Setup structured logging with rotation.
-
-        Returns:
-            Configured logger instance
-        """
-        # Create logger
-        logger = logging.getLogger("gobby.hooks")
-        logger.setLevel(logging.DEBUG)
-
-        # Avoid duplicate handlers if logger already configured
-        if logger.handlers:
-            return logger
-
-        # File handler with rotation - use full path from config
-        # Expand ~ to home directory before creating directories
-        log_file_path = Path(self.log_file).expanduser()
-        log_file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = RotatingFileHandler(
-            log_file_path,
-            maxBytes=self.log_max_bytes,
-            backupCount=self.log_backup_count,
-        )
-        file_handler.setLevel(logging.DEBUG)
-
-        # Formatter with context
-        formatter = logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-        file_handler.setFormatter(formatter)
-
-        logger.addHandler(file_handler)
-
-        return logger
 
     def _reregister_active_sessions(self) -> None:
         """

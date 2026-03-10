@@ -37,7 +37,7 @@ from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.memories import MemorySyncManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
-from gobby.utils.logging import setup_file_logging
+from gobby.telemetry.logging import init_telemetry
 from gobby.utils.machine_id import get_machine_id
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -68,8 +68,6 @@ class GobbyRunner:
     """Runner for Gobby daemon."""
 
     def __init__(self, config_path: Path | None = None, verbose: bool = False):
-        setup_file_logging(verbose=verbose)
-
         if config_path is not None and not config_path.exists():
             raise FileNotFoundError(
                 f"Config file not found: {config_path}. "
@@ -79,6 +77,10 @@ class GobbyRunner:
         self._config_file = str(config_path) if config_path else None
         self.config = load_config(self._config_file)
         self.verbose = verbose
+
+        # Initialize telemetry (logging, tracing, metrics)
+        init_telemetry(self.config.telemetry, verbose=verbose)
+
         self.machine_id = get_machine_id()
 
         # Check tmux availability (agent spawning requires it)
