@@ -43,6 +43,30 @@ async def metrics_cleanup_loop(
             logger.error(f"Error in metrics cleanup loop: {e}")
 
 
+async def span_cleanup_loop(
+    db: Any,
+    is_shutdown_requested: Callable[[], bool],
+    retention_days: int = 7,
+) -> None:
+    """Background loop for periodic span cleanup (every 24 hours)."""
+    interval_seconds = 24 * 60 * 60  # 24 hours
+
+    from gobby.storage.spans import SpanStorage
+
+    storage = SpanStorage(db)
+
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+            deleted = storage.delete_old_spans(retention_days=retention_days)
+            if deleted > 0:
+                logger.info(f"Periodic span cleanup: removed {deleted} old spans")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in span cleanup loop: {e}")
+
+
 async def rebuild_vector_store(
     vector_store: VectorStore,
     memory_dicts: list[dict[str, str]],

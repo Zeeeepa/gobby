@@ -6,7 +6,8 @@ Creates and caches TracerProvider, MeterProvider, and LoggerProvider.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk.metrics import MeterProvider
@@ -17,6 +18,7 @@ from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from gobby.telemetry.exporters import create_exporters
 
 if TYPE_CHECKING:
+    from gobby.storage.spans import SpanStorage
     from gobby.telemetry.config import TelemetrySettings
 
 # Globals for lazy caching
@@ -30,9 +32,7 @@ def get_tracer_provider(config: TelemetrySettings) -> TracerProvider:
     global _TRACER_PROVIDER
     if _TRACER_PROVIDER is None:
         resource = Resource.create({SERVICE_NAME: config.service_name})
-        sampler = ParentBased(
-            root=TraceIdRatioBased(config.trace_sample_rate)
-        )
+        sampler = ParentBased(root=TraceIdRatioBased(config.trace_sample_rate))
 
         span_exporters, _, _ = create_exporters(config)
         _TRACER_PROVIDER = TracerProvider(resource=resource, sampler=sampler)
@@ -44,6 +44,21 @@ def get_tracer_provider(config: TelemetrySettings) -> TracerProvider:
             _TRACER_PROVIDER.add_span_processor(BatchSpanProcessor(exporter))
 
     return _TRACER_PROVIDER
+
+
+def add_span_storage_exporter(
+    storage: SpanStorage,
+    broadcast_callback: Callable[[dict[str, Any]], Any] | None = None,
+) -> None:
+    """Add GobbySpanExporter to the global TracerProvider."""
+    global _TRACER_PROVIDER
+    if _TRACER_PROVIDER is not None:
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        from gobby.telemetry.span_store import GobbySpanExporter
+
+        exporter = GobbySpanExporter(storage, broadcast_callback=broadcast_callback)
+        _TRACER_PROVIDER.add_span_processor(BatchSpanProcessor(exporter))
 
 
 def get_meter_provider(config: TelemetrySettings) -> MeterProvider:

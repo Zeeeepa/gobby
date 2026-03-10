@@ -94,6 +94,10 @@ class TelemetrySettings(BaseModel):
         default=1.0,
         description="Trace sampling rate (0.0 to 1.0)",
     )
+    trace_retention_days: int = Field(
+        default=7,
+        description="Retention period for local trace spans (days)",
+    )
 
     # Metrics settings
     metrics_enabled: bool = Field(

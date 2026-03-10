@@ -56,6 +56,7 @@ class BroadcastMixin:
             "workflow_event",
             "project_event",
             "cron_event",
+            "trace_event",
         }
 
         # Non-event messages pass through for any subscribed client
@@ -215,6 +216,16 @@ class BroadcastMixin:
             "job_id": job_id,
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
+        }
+        await self.broadcast(message)
+
+    async def broadcast_trace_event(self, span: dict[str, Any]) -> None:
+        """Broadcast an OpenTelemetry span as a trace event."""
+        message = {
+            "type": "trace_event",
+            "span": span,
+            "trace_id": span["trace_id"],
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         await self.broadcast(message)
 
