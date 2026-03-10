@@ -193,6 +193,7 @@ steps:
       tool: update_observed_files
       arguments:
         task_id: "${{ scan_needs_review.output.tasks[0].id }}"
+        require_commits: true
 
   - id: dispatch_qa
     condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 }}"

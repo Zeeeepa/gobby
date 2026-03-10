@@ -128,6 +128,17 @@ class WorkflowHookHandler:
                 except Exception as e:
                     logger.debug(f"Could not load session variables for rules: {e}")
 
+            from gobby.workflows.git_utils import get_dirty_files
+            from gobby.workflows.safe_evaluator import LazyBool
+
+            project_path = getattr(event, "project_path", None)
+            if project_path is None and hasattr(event, "metadata"):
+                project_path = event.metadata.get("project_path")
+
+            eval_context = {
+                "has_dirty_files": LazyBool(lambda: bool(get_dirty_files(project_path)))
+            }
+
             # Snapshot BEFORE observers to capture both observer and rule changes in the diff
             pre_eval = deepcopy(variables)
 
@@ -138,6 +149,7 @@ class WorkflowHookHandler:
                 event=event,
                 session_id=session_id,
                 variables=variables,
+                eval_context=eval_context,
             )
 
             # Persist all variables changed by observers OR rule effects
