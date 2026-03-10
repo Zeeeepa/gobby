@@ -9,5 +9,5 @@ rules:
     effects:
       - type: block
         tools: [Bash]
-        command_pattern: "(curl|wget)\\s+.*\\|\\s*(ba)?sh"
+        command_pattern: "(curl|wget)\\s+.*\\|\\s*(ba)?sh|\\$\\(\\s*(curl|wget)|<\\(\\s*(curl|wget)"
         reason: "Piping remote scripts to shell is never allowed."
