@@ -177,6 +177,9 @@ class LocalPipelineExecutionManager:
         params: list[Any] = []
         if self.project_id is None:
             query = "SELECT * FROM pipeline_executions WHERE project_id IS NULL"
+        elif self.project_id == "":
+            # Empty string = cross-project query (no project filter)
+            query = "SELECT * FROM pipeline_executions WHERE 1=1"
         else:
             query = "SELECT * FROM pipeline_executions WHERE project_id = ?"
             params.append(self.project_id)
@@ -228,8 +231,12 @@ class LocalPipelineExecutionManager:
         params: list[Any] = []
 
         # Build WHERE conditions
-        project_clause = "pe.project_id IS NULL" if self.project_id is None else "pe.project_id = ?"
-        if self.project_id is not None:
+        if self.project_id is None:
+            project_clause = "pe.project_id IS NULL"
+        elif self.project_id == "":
+            project_clause = "1=1"
+        else:
+            project_clause = "pe.project_id = ?"
             params.append(self.project_id)
 
         # Build LIKE conditions
