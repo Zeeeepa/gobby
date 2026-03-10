@@ -69,8 +69,11 @@ def create_base_patches(
         mock_http.app = MagicMock()
         mock_http.port = 60887
 
+    mock_agent_monitor = AsyncMock()
+    mock_agent_monitor.recover_or_cleanup_agents.return_value = (0, 0)
+
     patches = [
-        patch("gobby.runner.setup_file_logging"),
+        patch("gobby.runner.init_telemetry"),
         patch("gobby.runner.get_machine_id", return_value="test-machine"),
         patch("gobby.runner.LocalDatabase"),
         patch("gobby.runner.run_migrations"),
@@ -89,7 +92,7 @@ def create_base_patches(
         patch("gobby.runner.HTTPServer", return_value=mock_http),
         patch("gobby.storage.secrets.SecretStore"),
         patch("gobby.storage.config_store.ConfigStore"),
-        patch("gobby.runner.AgentLifecycleMonitor", return_value=AsyncMock()),
+        patch("gobby.runner.AgentLifecycleMonitor", return_value=mock_agent_monitor),
     ]
 
     # Add config patch

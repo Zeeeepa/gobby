@@ -30,7 +30,6 @@ from gobby.config.features import (
     ToolSummarizerConfig,
 )
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
-from gobby.config.logging import LoggingSettings
 from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
@@ -47,6 +46,7 @@ from gobby.config.tasks import (
     TaskValidationConfig,
     WorkflowConfig,
 )
+from gobby.telemetry.config import TelemetrySettings
 
 pytestmark = pytest.mark.unit
 
@@ -240,34 +240,6 @@ class TestWebSocketSettings:
         """Test ping_interval must be positive."""
         with pytest.raises(ValidationError):
             WebSocketSettings(ping_interval=0)
-
-
-class TestLoggingSettings:
-    """Tests for LoggingSettings configuration."""
-
-    def test_default_values(self) -> None:
-        """Test default logging settings."""
-        settings = LoggingSettings()
-        assert settings.level == "info"
-        assert settings.format == "text"
-        assert settings.max_size_mb == 10
-        assert settings.backup_count == 5
-
-    def test_valid_levels(self) -> None:
-        """Test valid log levels."""
-        for level in ["debug", "info", "warning", "error"]:
-            settings = LoggingSettings(level=level)
-            assert settings.level == level
-
-    def test_invalid_level(self) -> None:
-        """Test invalid log level raises error."""
-        with pytest.raises(ValidationError):
-            LoggingSettings(level="invalid")
-
-    def test_max_size_must_be_positive(self) -> None:
-        """Test max_size_mb must be positive."""
-        with pytest.raises(ValidationError):
-            LoggingSettings(max_size_mb=0)
 
 
 class TestSessionSummaryConfig:
@@ -1087,7 +1059,7 @@ class TestDaemonConfigComposition:
 
         # Network/server
         assert isinstance(config.websocket, WebSocketSettings)
-        assert isinstance(config.logging, LoggingSettings)
+        assert isinstance(config.telemetry, TelemetrySettings)
 
         # Session
         assert isinstance(config.compact_handoff, CompactHandoffConfig)
@@ -1141,7 +1113,7 @@ class TestDaemonConfigComposition:
         """Test config survives YAML export and reimport."""
         config = DaemonConfig(
             daemon_port=9000,
-            logging=LoggingSettings(level="debug"),
+            telemetry=TelemetrySettings(log_level="debug"),
             memory=MemoryConfig(crossref_threshold=0.8),
         )
 
@@ -1152,13 +1124,13 @@ class TestDaemonConfigComposition:
         # Verify YAML content is valid and preserves values
         raw = yaml.safe_load(config_file.read_text())
         assert raw["daemon_port"] == 9000
-        assert raw["logging"]["level"] == "debug"
+        assert raw["telemetry"]["log_level"] == "debug"
         assert raw["memory"]["crossref_threshold"] == 0.8
 
         # Verify it can be loaded back into DaemonConfig
         loaded = DaemonConfig(**raw)
         assert loaded.daemon_port == 9000
-        assert loaded.logging.level == "debug"
+        assert loaded.telemetry.log_level == "debug"
         assert loaded.memory.crossref_threshold == 0.8
 
 
@@ -1170,7 +1142,7 @@ class TestAllConfigClassesInstantiate:
         # This test ensures the baseline works before extraction
         configs = [
             WebSocketSettings(),
-            LoggingSettings(),
+            TelemetrySettings(),
             CompactHandoffConfig(),
             ContextInjectionConfig(),
             SessionSummaryConfig(),

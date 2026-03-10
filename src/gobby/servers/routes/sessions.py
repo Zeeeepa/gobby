@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from gobby.servers.models import SessionRegisterRequest
 from gobby.sessions.transcript_archive import get_archive_dir, restore_transcript
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import inc_counter
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -247,7 +247,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with session endpoints
     """
     router = APIRouter(prefix="/api/sessions", tags=["sessions"])
-    metrics = get_metrics_collector()
 
     def _get_session_manager() -> Any:
         if server.session_manager is None:
@@ -276,8 +275,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Registration confirmation with session ID
         """
-        metrics.inc_counter("http_requests_total")
-        metrics.inc_counter("session_registrations_total")
+        inc_counter("session_registrations_total")
 
         try:
             if server.session_manager is None:
@@ -328,16 +326,14 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
 
         except ValueError as e:
             # ValueError from _resolve_project_id when project not initialized
-            metrics.inc_counter("http_requests_errors_total")
+
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error registering session: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500, detail="Internal server error while registering session"
@@ -375,7 +371,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             List of session objects with message counts
         """
-        metrics.inc_counter("http_requests_total")
         start_time = time.perf_counter()
 
         try:
@@ -433,10 +428,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error listing sessions: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -450,7 +443,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Count of moved sessions
         """
-        metrics.inc_counter("http_requests_total")
 
         try:
             if server.session_manager is None:
@@ -510,10 +502,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Bulk move sessions error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -529,7 +519,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             Session data
         """
         start_time = time.perf_counter()
-        metrics.inc_counter("http_requests_total")
 
         try:
             if server.session_manager is None:
@@ -592,7 +581,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             List of messages and total count key
         """
         start_time = time.perf_counter()
-        metrics.inc_counter("http_requests_total")
 
         try:
             if server.message_manager is None:
@@ -801,7 +789,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             Synthesized title
         """
         start_time = time.perf_counter()
-        metrics.inc_counter("http_requests_total")
 
         try:
             if server.session_manager is None:
@@ -891,10 +878,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Synthesize title error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to synthesize title") from e
 
@@ -910,7 +895,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Updated title
         """
-        metrics.inc_counter("http_requests_total")
 
         try:
             if server.session_manager is None:
@@ -936,10 +920,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             return {"status": "success", "title": title}
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Rename session error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -958,7 +940,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             Generated summary markdown and metadata
         """
         start_time = time.perf_counter()
-        metrics.inc_counter("http_requests_total")
 
         try:
             if server.session_manager is None:
@@ -1002,7 +983,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         except HTTPException:
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Generate summary error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1021,7 +1001,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Stop signal confirmation
         """
-        metrics.inc_counter("http_requests_total")
 
         try:
             # Get HookManager from app state
@@ -1065,10 +1044,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error sending stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1083,7 +1060,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Stop signal status and details if present
         """
-        metrics.inc_counter("http_requests_total")
 
         try:
             # Get HookManager from app state
@@ -1118,10 +1094,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error checking stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1138,7 +1112,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Confirmation of signal cleared
         """
-        metrics.inc_counter("http_requests_total")
 
         try:
             # Get HookManager from app state
@@ -1163,10 +1136,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error clearing stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1175,7 +1146,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{session_id}/transcript/status")
     async def transcript_status(session_id: str) -> dict[str, Any]:
         """Check if a transcript archive exists for this session."""
-        metrics.inc_counter("http_requests_total")
         try:
             sm = _get_session_manager()
             session = sm.get_session(session_id)
@@ -1190,14 +1160,12 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 result["archive_path"] = str(archive_path)
             return result
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error getting transcript status: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/{session_id}/transcript")
     async def get_transcript(session_id: str) -> Any:
         """Download raw transcript content from filesystem."""
-        metrics.inc_counter("http_requests_total")
         try:
             import gzip
 
@@ -1232,17 +1200,14 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
             raise HTTPException(status_code=404, detail="No transcript found")
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error getting transcript: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{session_id}/restore-transcript")
     async def restore_transcript_endpoint(session_id: str) -> dict[str, Any]:
         """Restore a transcript from archive to disk for CLI resume."""
-        metrics.inc_counter("http_requests_total")
         try:
             sm = _get_session_manager()
             session = sm.get_session(session_id)
@@ -1265,10 +1230,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 "size": size,
             }
         except HTTPException:
-            metrics.inc_counter("http_requests_errors_total")
             raise
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error restoring transcript: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 

@@ -7,7 +7,6 @@ Configuration classes are organized into submodules by functionality:
 Module structure:
 - app.py: Main DaemonConfig aggregator and utility functions
 - bootstrap.py: Pre-DB bootstrap settings (5 fields from bootstrap.yaml)
-- logging.py: LoggingSettings
 - servers.py: WebSocket and MCP proxy configs
 - llm_providers.py: LLM provider configurations
 - persistence.py: Memory storage configs

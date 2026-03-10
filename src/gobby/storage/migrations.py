@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 152
+BASELINE_VERSION = 153
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -946,6 +946,22 @@ CREATE INDEX idx_cs_qualified ON code_symbols(qualified_name);
 CREATE INDEX idx_cs_kind ON code_symbols(kind);
 CREATE INDEX idx_cs_parent ON code_symbols(parent_symbol_id);
 
+CREATE TABLE spans (
+    span_id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    parent_span_id TEXT,
+    name TEXT NOT NULL,
+    kind TEXT,
+    start_time_ns INTEGER NOT NULL,
+    end_time_ns INTEGER,
+    status TEXT,
+    status_message TEXT,
+    attributes_json TEXT,
+    events_json TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_spans_trace_id ON spans(trace_id);
+CREATE INDEX idx_spans_start_time ON spans(start_time_ns);
 """
 
 
@@ -1209,6 +1225,28 @@ CREATE TABLE IF NOT EXISTS savings_daily (
         152,
         "Add definition_json column to pipeline_executions for config snapshots",
         "ALTER TABLE pipeline_executions ADD COLUMN definition_json TEXT",
+    ),
+    (
+        153,
+        "Add spans table for local tracing",
+        """
+        CREATE TABLE IF NOT EXISTS spans (
+            span_id TEXT PRIMARY KEY,
+            trace_id TEXT NOT NULL,
+            parent_span_id TEXT,
+            name TEXT NOT NULL,
+            kind TEXT,
+            start_time_ns INTEGER NOT NULL,
+            end_time_ns INTEGER,
+            status TEXT,
+            status_message TEXT,
+            attributes_json TEXT,
+            events_json TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON spans(trace_id);
+        CREATE INDEX IF NOT EXISTS idx_spans_start_time ON spans(start_time_ns);
+        """,
     ),
 ]
 

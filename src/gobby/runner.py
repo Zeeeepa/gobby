@@ -37,7 +37,7 @@ from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.memories import MemorySyncManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
-from gobby.utils.logging import setup_file_logging
+from gobby.telemetry.logging import init_telemetry
 from gobby.utils.machine_id import get_machine_id
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -68,8 +68,6 @@ class GobbyRunner:
     """Runner for Gobby daemon."""
 
     def __init__(self, config_path: Path | None = None, verbose: bool = False):
-        setup_file_logging(verbose=verbose)
-
         if config_path is not None and not config_path.exists():
             raise FileNotFoundError(
                 f"Config file not found: {config_path}. "
@@ -79,6 +77,10 @@ class GobbyRunner:
         self._config_file = str(config_path) if config_path else None
         self.config = load_config(self._config_file)
         self.verbose = verbose
+
+        # Initialize telemetry (logging, tracing, metrics)
+        init_telemetry(self.config.telemetry, verbose=verbose)
+
         self.machine_id = get_machine_id()
 
         # Check tmux availability (agent spawning requires it)
@@ -101,6 +103,7 @@ class GobbyRunner:
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
         self._vector_rebuild_task: asyncio.Task[None] | None = None
         self._zombie_messages_task: asyncio.Task[None] | None = None
+        self._span_cleanup_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
@@ -140,6 +143,27 @@ class GobbyRunner:
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
+
+        # Initialize Span Storage and wire OTel exporter
+        from gobby.storage.spans import SpanStorage
+
+        self.span_storage = SpanStorage(self.database)
+
+        if self.config.telemetry and self.config.telemetry.traces_enabled:
+            from gobby.telemetry.providers import add_span_storage_exporter
+
+            def _broadcast_proxy(span: dict[str, Any]) -> None:
+                """Proxy for trace event broadcasting via WebSocket."""
+                if hasattr(self, "websocket_server") and self.websocket_server:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(self.websocket_server.broadcast_trace_event(span))
+                    except RuntimeError:
+                        # No running loop (likely shutdown or too early)
+                        pass
+
+            add_span_storage_exporter(self.span_storage, broadcast_callback=_broadcast_proxy)
+            logger.debug("Local span storage exporter wired to OTel")
 
         from gobby.utils.dev import is_dev_mode
 
@@ -663,6 +687,7 @@ class GobbyRunner:
             database=self.database,
             session_manager=self.session_manager,
             task_manager=self.task_manager,
+            span_storage=self.span_storage,
             task_sync_manager=self.task_sync_manager,
             memory_sync_manager=self.memory_sync_manager,
             memory_manager=self.memory_manager,
@@ -820,6 +845,7 @@ class GobbyRunner:
             rebuild_vector_store,
             savings_rollup_loop,
             setup_signal_handlers,
+            span_cleanup_loop,
         )
 
         try:
@@ -922,6 +948,20 @@ class GobbyRunner:
             self._metrics_cleanup_task = asyncio.create_task(
                 metrics_cleanup_loop(self.metrics_manager, lambda: self._shutdown_requested),
                 name="metrics-cleanup",
+            )
+
+            # Start periodic span cleanup (every 24 hours, 7-day retention)
+            retention_days = 7
+            if self.config.telemetry and hasattr(self.config.telemetry, "trace_retention_days"):
+                retention_days = self.config.telemetry.trace_retention_days
+
+            self._span_cleanup_task = asyncio.create_task(
+                span_cleanup_loop(
+                    self.database,
+                    lambda: self._shutdown_requested,
+                    retention_days=retention_days,
+                ),
+                name="span-cleanup",
             )
 
             # Start periodic zombie message cleanup (every 6 hours)
@@ -1042,7 +1082,7 @@ class GobbyRunner:
 
                 web_dir = find_web_dir(self.config)
                 if web_dir:
-                    ui_log = Path(self.config.logging.client).expanduser().parent / "ui.log"
+                    ui_log = Path(self.config.telemetry.log_file).expanduser().parent / "ui.log"
                     # Inherit bind_host so the Vite dev server is reachable
                     # over the network (e.g. Tailscale) when bind_host != localhost
                     ui_host = self.config.ui.host
@@ -1149,6 +1189,14 @@ class GobbyRunner:
                 self._metrics_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel span cleanup task
+            if self._span_cleanup_task and not self._span_cleanup_task.done():
+                self._span_cleanup_task.cancel()
+                try:
+                    await asyncio.wait_for(self._span_cleanup_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gobby.code_index.compressor import CodeIndexCompressor, _MIN_OUTPUT_LENGTH
+from gobby.code_index.compressor import _MIN_OUTPUT_LENGTH, CodeIndexCompressor
 from gobby.code_index.models import Symbol
 from gobby.code_index.storage import CodeIndexStorage
 

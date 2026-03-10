@@ -12,6 +12,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any, cast
 
 from mcp import ClientSession
+from opentelemetry.trace import Status, StatusCode
 
 from gobby.mcp_proxy.lazy import (
     CircuitBreakerOpen,
@@ -27,6 +28,7 @@ from gobby.mcp_proxy.models import (
 )
 from gobby.mcp_proxy.transports.base import BaseTransportConnection
 from gobby.mcp_proxy.transports.factory import create_transport_connection
+from gobby.telemetry.tracing import create_span
 
 # Alias for backward compatibility with tests
 _create_transport_connection = create_transport_connection
@@ -660,40 +662,54 @@ class MCPClientManager:
         """Call a tool on a specific server."""
         start_time = time.perf_counter()
         success = False
-        try:
-            session = await self.get_client_session(server_name)
-            if timeout:
-                result = await asyncio.wait_for(
-                    session.call_tool(tool_name, arguments or {}), timeout=timeout
-                )
-            else:
-                result = await session.call_tool(tool_name, arguments or {})
-            self.health[server_name].record_success()
-            success = True
-            return result
-        except Exception as e:
-            if server_name in self.health:
-                self.health[server_name].record_failure(str(e))
-            raise
-        finally:
-            # Record metrics if manager is configured
-            if self.metrics_manager:
+        with create_span(
+            "mcp.call_tool", attributes={"server_name": server_name, "tool_name": tool_name}
+        ) as span:
+            try:
+                session = await self.get_client_session(server_name)
+                if timeout:
+                    result = await asyncio.wait_for(
+                        session.call_tool(tool_name, arguments or {}), timeout=timeout
+                    )
+                else:
+                    result = await session.call_tool(tool_name, arguments or {})
+                self.health[server_name].record_success()
+                success = True
+                if span.is_recording():
+                    span.set_attribute("success", True)
+                return result
+            except Exception as e:
+                if server_name in self.health:
+                    self.health[server_name].record_failure(str(e))
+                if span.is_recording():
+                    span.set_attribute("success", False)
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+                raise
+            finally:
+                # Record metrics if manager is configured
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                # Get project_id from server config (servers are project-scoped)
-                server_config = self._configs.get(server_name)
-                metrics_project_id = server_config.project_id if server_config else self.project_id
-                if metrics_project_id:
-                    try:
-                        self.metrics_manager.record_call(
-                            server_name=server_name,
-                            tool_name=tool_name,
-                            project_id=metrics_project_id,
-                            latency_ms=latency_ms,
-                            success=success,
-                        )
-                    except Exception:
-                        # Don't let metrics recording failures affect tool calls
-                        logger.debug(f"Failed to record metrics for {server_name}.{tool_name}")
+                if span.is_recording():
+                    span.set_attribute("latency_ms", latency_ms)
+
+                if self.metrics_manager:
+                    # Get project_id from server config (servers are project-scoped)
+                    server_config = self._configs.get(server_name)
+                    metrics_project_id = (
+                        server_config.project_id if server_config else self.project_id
+                    )
+                    if metrics_project_id:
+                        try:
+                            self.metrics_manager.record_call(
+                                server_name=server_name,
+                                tool_name=tool_name,
+                                project_id=metrics_project_id,
+                                latency_ms=latency_ms,
+                                success=success,
+                            )
+                        except Exception:
+                            # Don't let metrics recording failures affect tool calls
+                            logger.debug(f"Failed to record metrics for {server_name}.{tool_name}")
 
     async def read_resource(self, server_name: str, uri: str) -> Any:
         """Read a resource from a specific server."""

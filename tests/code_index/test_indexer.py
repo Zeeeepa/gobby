@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from gobby.code_index.indexer import CodeIndexer
-from gobby.code_index.models import IndexedFile
 from gobby.code_index.parser import CodeParser
 from gobby.code_index.storage import CodeIndexStorage
 from gobby.config.code_index import CodeIndexConfig

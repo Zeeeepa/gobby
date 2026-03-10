@@ -23,7 +23,7 @@ from gobby.llm import create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.semantic_search import SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import inc_counter
 from gobby.utils.version import get_version
 
 if TYPE_CHECKING:
@@ -247,7 +247,6 @@ class HTTPServer:
         self.app = self._create_app()
         self._running = False
         self._background_tasks: set[asyncio.Task[Any]] = set()
-        self._metrics = get_metrics_collector()
         self._daemon: Any = None  # Set externally by daemon
 
     # Property accessors for services (delegate to container)
@@ -427,11 +426,15 @@ class HTTPServer:
             }
             if self.services.config:
                 # Pass full log file path from config
-                hook_manager_kwargs["log_file"] = self.services.config.logging.hook_manager
-                hook_manager_kwargs["log_max_bytes"] = (
-                    self.services.config.logging.max_size_mb * 1024 * 1024
+                hook_manager_kwargs["log_file"] = (
+                    self.services.config.telemetry.log_file_hook_manager
                 )
-                hook_manager_kwargs["log_backup_count"] = self.services.config.logging.backup_count
+                hook_manager_kwargs["log_max_bytes"] = (
+                    self.services.config.telemetry.max_size_mb * 1024 * 1024
+                )
+                hook_manager_kwargs["log_backup_count"] = (
+                    self.services.config.telemetry.backup_count
+                )
 
                 app.state.hook_manager = HookManager(**hook_manager_kwargs)
                 self._hook_manager = app.state.hook_manager
@@ -651,6 +654,11 @@ class HTTPServer:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+        # Add telemetry middleware (automatic request tracking)
+        from gobby.telemetry.middleware import TelemetryMiddleware
+
+        app.add_middleware(TelemetryMiddleware)
 
         # Add auth middleware (checks after CORS, before routes)
         from gobby.servers.middleware.auth import AuthMiddleware
@@ -879,6 +887,7 @@ class HTTPServer:
             create_skills_router,
             create_source_control_router,
             create_tasks_router,
+            create_traces_router,
             create_voice_router,
             create_webhooks_router,
             create_workflows_router,
@@ -907,6 +916,7 @@ class HTTPServer:
         app.include_router(create_workflows_router(self))
         app.include_router(create_rules_router(self))
         app.include_router(create_source_control_router(self))
+        app.include_router(create_traces_router(self))
 
     async def _process_shutdown(self) -> None:
         """
@@ -964,7 +974,7 @@ class HTTPServer:
                     logger.warning(f"Error disconnecting MCP servers: {e}")
 
             duration_seconds = time.perf_counter() - start_time
-            self._metrics.inc_counter("shutdown_succeeded_total")
+            inc_counter("shutdown_succeeded_total")
 
             logger.debug(
                 "Shutdown processed",
@@ -973,7 +983,7 @@ class HTTPServer:
 
         except Exception as e:
             duration_seconds = time.perf_counter() - start_time
-            self._metrics.inc_counter("shutdown_failed_total")
+            inc_counter("shutdown_failed_total")
 
             logger.error(
                 "Shutdown processing failed: %s",

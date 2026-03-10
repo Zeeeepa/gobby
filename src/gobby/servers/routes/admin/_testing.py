@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from gobby.utils.metrics import get_metrics_collector
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
@@ -46,8 +44,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             )
 
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
-        metrics.inc_counter("http_requests_total")
 
         try:
             # Use server's session manager database to avoid creating separate connections
@@ -90,7 +86,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error("Error registering test project: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -126,8 +121,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             )
 
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
-        metrics.inc_counter("http_requests_total")
 
         try:
             registry = get_running_agent_registry()
@@ -151,7 +144,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error("Error registering test agent: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -175,8 +167,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             )
 
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
-        metrics.inc_counter("http_requests_total")
 
         try:
             registry = get_running_agent_registry()
@@ -198,7 +188,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
                 }
 
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error("Error unregistering test agent: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -234,8 +223,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             )
 
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
-        metrics.inc_counter("http_requests_total")
 
         try:
             if server.session_manager is None:
@@ -273,6 +260,5 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
                 }
 
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error("Error setting test session usage: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

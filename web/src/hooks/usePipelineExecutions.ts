@@ -22,6 +22,7 @@ export interface PipelineExecutionRecord {
   completed_at: string | null
   inputs_json: string | null
   outputs_json: string | null
+  trace_id?: string
   steps: PipelineStepExecution[]
 }
 

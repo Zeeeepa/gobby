@@ -34,6 +34,7 @@ class ServiceContainer:
     # Core Managers
     session_manager: LocalSessionManager
     task_manager: LocalTaskManager
+    span_storage: Any | None = None  # SpanStorage
 
     # Sync Managers
     task_sync_manager: TaskSyncManager | None = None

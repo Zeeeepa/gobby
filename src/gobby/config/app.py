@@ -41,7 +41,6 @@ from gobby.config.features import (
     ToolSummarizerConfig,
 )
 from gobby.config.llm_providers import LLMProvidersConfig
-from gobby.config.logging import LoggingSettings
 from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
 from gobby.config.pipelines import PipelineConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
@@ -60,6 +59,7 @@ from gobby.config.tmux import TmuxConfig
 from gobby.config.voice import VoiceConfig
 from gobby.config.watchdog import WatchdogConfig
 from gobby.search.models import SearchConfig
+from gobby.telemetry.config import TelemetrySettings
 
 
 class ToolApprovalPolicy(BaseModel):
@@ -260,7 +260,7 @@ class DaemonConfig(BaseModel):
     Note: machine_id is stored separately in ~/.gobby/machine_id
     """
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "extra": "forbid"}
 
     # Daemon settings
     daemon_port: int = Field(
@@ -291,9 +291,9 @@ class DaemonConfig(BaseModel):
         default_factory=WebSocketSettings,
         description="WebSocket server configuration",
     )
-    logging: LoggingSettings = Field(
-        default_factory=LoggingSettings,
-        description="Logging configuration",
+    telemetry: TelemetrySettings = Field(
+        default_factory=TelemetrySettings,
+        description="Unified telemetry and logging configuration",
     )
     session_summary: SessionSummaryConfig = Field(
         default_factory=SessionSummaryConfig,
@@ -744,16 +744,16 @@ def load_config(
         if safe_db := os.environ.get("GOBBY_DATABASE_PATH"):
             config_dict["database_path"] = safe_db
 
-        # Override logging paths
-        logging_config = config_dict.setdefault("logging", {})
+        # Override telemetry logging paths
+        telemetry_config = config_dict.setdefault("telemetry", {})
         if safe_client := os.environ.get("GOBBY_LOGGING_CLIENT"):
-            logging_config["client"] = safe_client
+            telemetry_config["log_file"] = safe_client
         if safe_error := os.environ.get("GOBBY_LOGGING_CLIENT_ERROR"):
-            logging_config["client_error"] = safe_error
+            telemetry_config["log_file_error"] = safe_error
         if safe_mcp_server := os.environ.get("GOBBY_LOGGING_MCP_SERVER"):
-            logging_config["mcp_server"] = safe_mcp_server
+            telemetry_config["log_file_mcp_server"] = safe_mcp_server
         if safe_mcp_client := os.environ.get("GOBBY_LOGGING_MCP_CLIENT"):
-            logging_config["mcp_client"] = safe_mcp_client
+            telemetry_config["log_file_mcp_client"] = safe_mcp_client
 
     # Validate and create config object
     try:

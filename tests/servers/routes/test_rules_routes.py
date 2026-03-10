@@ -155,7 +155,7 @@ class TestCreateRule:
             "definition": {
                 "event": "before_tool",
                 "group": "test",
-                "effect": {"type": "block", "reason": "testing"},
+                "effects": [{"type": "block", "reason": "testing"}],
             },
         }
         resp = client.post("/api/rules", json=body)
@@ -179,7 +179,7 @@ class TestCreateRule:
             "name": "existing-rule",
             "definition": {
                 "event": "stop",
-                "effect": {"type": "block", "reason": "dup"},
+                "effects": [{"type": "block", "reason": "dup"}],
             },
         }
         resp = client.post("/api/rules", json=body)

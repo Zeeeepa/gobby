@@ -9,8 +9,9 @@ from typing import TYPE_CHECKING, Any
 import psutil
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_all_metrics, set_gauge, update_daemon_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -66,8 +67,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             process_metrics = None
 
         # Get background task status
-        metrics = get_metrics_collector()
-        all_metrics = metrics.get_all_metrics()
+        all_metrics = get_all_metrics()
         counters = all_metrics.get("counters", {})
         background_tasks = {
             "active": len(server._background_tasks),
@@ -278,33 +278,15 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
         - Background task metrics
         - Daemon health metrics
         """
-        metrics = get_metrics_collector()
         try:
-            # Update daemon health metrics if available
-            if server._daemon is not None:
-                try:
-                    uptime = server._daemon.uptime
-                    if uptime is not None:
-                        metrics.set_gauge("daemon_uptime_seconds", uptime)
-
-                    # Get process info for daemon
-                    process = psutil.Process(os.getpid())
-                    memory_info = process.memory_info()
-                    metrics.set_gauge("daemon_memory_usage_bytes", float(memory_info.rss))
-
-                    cpu_percent = process.cpu_percent(interval=0)
-                    metrics.set_gauge("daemon_cpu_percent", cpu_percent)
-                except Exception as e:
-                    logger.warning(f"Failed to update daemon metrics: {e}")
+            # Update daemon health metrics
+            update_daemon_metrics()
 
             # Update background task gauge
-            metrics.set_gauge("background_tasks_active", float(len(server._background_tasks)))
+            set_gauge("background_tasks_active", float(len(server._background_tasks)))
 
-            # Export in Prometheus format
-            prometheus_output = metrics.export_prometheus()
-            return PlainTextResponse(
-                content=prometheus_output, media_type="text/plain; version=0.0.4"
-            )
+            # Export in Prometheus format using prometheus_client integration
+            return PlainTextResponse(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
         except Exception as e:
             logger.error(f"Failed to export metrics: {e}", exc_info=True)

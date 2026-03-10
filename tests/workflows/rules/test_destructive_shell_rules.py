@@ -57,11 +57,7 @@ def _effect_matches(effect, command: str) -> bool:
 
 def _any_rule_matches(rules: list[RuleDefinitionBody], command: str) -> bool:
     """Check if any rule's effect matches the command."""
-    return any(
-        _effect_matches(e, command)
-        for body in rules
-        for e in body.effects
-    )
+    return any(_effect_matches(e, command) for body in rules for e in body.effects)
 
 
 # Rule name sets for each YAML file
@@ -97,9 +93,7 @@ class TestDestructiveShellSync:
         _sync_bundled(db)
         rules = manager.list_all(workflow_type="rule")
         rule_names = {r.name for r in rules}
-        assert ALL_NEW_RULES.issubset(rule_names), (
-            f"Missing: {ALL_NEW_RULES - rule_names}"
-        )
+        assert ALL_NEW_RULES.issubset(rule_names), f"Missing: {ALL_NEW_RULES - rule_names}"
 
     def test_all_rules_have_worker_safety_group(self, db, manager) -> None:
         _sync_bundled(db)
@@ -109,10 +103,11 @@ class TestDestructiveShellSync:
 
     def test_interactive_rules_have_default_tag(self, db, manager) -> None:
         _sync_bundled(db)
-        interactive_rules = (
-            INTERACTIVE_SHELL_RULES
-            | {"no-remote-exec", "no-destructive-git-interactive", "no-force-push-interactive"}
-        )
+        interactive_rules = INTERACTIVE_SHELL_RULES | {
+            "no-remote-exec",
+            "no-destructive-git-interactive",
+            "no-force-push-interactive",
+        }
         for name in interactive_rules:
             row = manager.get_by_name(name, include_templates=True)
             assert row is not None, f"{name} not found"

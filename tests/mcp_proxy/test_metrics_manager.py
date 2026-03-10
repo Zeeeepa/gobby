@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,7 +15,16 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def metrics_manager(temp_db: "LocalDatabase") -> ToolMetricsManager:
+def mock_telemetry():
+    """Mock telemetry metrics."""
+    with patch("gobby.mcp_proxy.metrics.get_telemetry_metrics") as mock_get:
+        mock_metrics = MagicMock()
+        mock_get.return_value = mock_metrics
+        yield mock_metrics
+
+
+@pytest.fixture
+def metrics_manager(temp_db: "LocalDatabase", mock_telemetry) -> ToolMetricsManager:
     """Create a metrics manager with temp database."""
     # Create test projects for foreign key constraints
     temp_db.execute(
@@ -115,7 +125,9 @@ class TestToolMetrics:
 class TestRecordCall:
     """Tests for record_call method."""
 
-    def test_record_first_call_success(self, metrics_manager: ToolMetricsManager) -> None:
+    def test_record_first_call_success(
+        self, metrics_manager: ToolMetricsManager, mock_telemetry
+    ) -> None:
         """Test recording first successful call creates new record."""
         metrics_manager.record_call(
             server_name="test-server",
@@ -130,7 +142,39 @@ class TestRecordCall:
         assert result["summary"]["total_success"] == 1
         assert result["summary"]["total_failure"] == 0
 
-    def test_record_first_call_failure(self, metrics_manager: ToolMetricsManager) -> None:
+        # Verify OTel calls
+        mock_telemetry.inc_counter.assert_any_call(
+            "mcp_tool_calls_total",
+            attributes={
+                "server_name": "test-server",
+                "tool_name": "test_tool",
+                "success": "true",
+                "project_id": "proj-1",
+            },
+        )
+        mock_telemetry.inc_counter.assert_any_call(
+            "mcp_tool_calls_succeeded_total",
+            attributes={
+                "server_name": "test-server",
+                "tool_name": "test_tool",
+                "success": "true",
+                "project_id": "proj-1",
+            },
+        )
+        mock_telemetry.observe_histogram.assert_called_once_with(
+            "mcp_tool_call_duration_seconds",
+            0.1,  # 100ms = 0.1s
+            attributes={
+                "server_name": "test-server",
+                "tool_name": "test_tool",
+                "success": "true",
+                "project_id": "proj-1",
+            },
+        )
+
+    def test_record_first_call_failure(
+        self, metrics_manager: ToolMetricsManager, mock_telemetry
+    ) -> None:
         """Test recording first failed call creates new record."""
         metrics_manager.record_call(
             server_name="test-server",
@@ -144,6 +188,26 @@ class TestRecordCall:
         assert result["summary"]["total_calls"] == 1
         assert result["summary"]["total_success"] == 0
         assert result["summary"]["total_failure"] == 1
+
+        # Verify OTel calls
+        mock_telemetry.inc_counter.assert_any_call(
+            "mcp_tool_calls_total",
+            attributes={
+                "server_name": "test-server",
+                "tool_name": "test_tool",
+                "success": "false",
+                "project_id": "proj-1",
+            },
+        )
+        mock_telemetry.inc_counter.assert_any_call(
+            "mcp_tool_calls_failed_total",
+            attributes={
+                "server_name": "test-server",
+                "tool_name": "test_tool",
+                "success": "false",
+                "project_id": "proj-1",
+            },
+        )
 
     def test_record_multiple_calls_increments(self, metrics_manager: ToolMetricsManager) -> None:
         """Test multiple calls increment counters correctly."""

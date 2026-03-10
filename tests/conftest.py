@@ -140,14 +140,14 @@ def mock_llm_service() -> MagicMock:
 def mock_daemon_config() -> "MagicMock":
     """Create a mock daemon configuration for CLI tests.
 
-    Provides daemon_port, websocket.port, logging paths,
+    Provides daemon_port, websocket.port, telemetry log paths,
     and disables watchdog and UI.
     """
     config = MagicMock()
     config.daemon_port = 60887
     config.websocket.port = 60888
-    config.logging.client = "~/.gobby/logs/client.log"
-    config.logging.client_error = "~/.gobby/logs/client_error.log"
+    config.telemetry.log_file = "~/.gobby/logs/client.log"
+    config.telemetry.log_file_error = "~/.gobby/logs/client_error.log"
     config.watchdog.enabled = False
     config.ui.enabled = False
     config.memory.neo4j_url = None
@@ -240,11 +240,11 @@ def protect_production_resources(
             # But simpler is to just return a safe config object
             config = DaemonConfig(
                 database_path=str(safe_db_path),
-                logging={
-                    "client": str(safe_log_client),
-                    "client_error": str(safe_log_error),
-                    "mcp_server": str(safe_log_mcp_server),
-                    "mcp_client": str(safe_log_mcp_client),
+                telemetry={
+                    "log_file": str(safe_log_client),
+                    "log_file_error": str(safe_log_error),
+                    "log_file_mcp_server": str(safe_log_mcp_server),
+                    "log_file_mcp_client": str(safe_log_mcp_client),
                 },
             )
             # Apply overrides if present (logic from real load_config)

@@ -33,12 +33,12 @@ import os
 import sqlite3
 import threading
 import time
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.factory import HookManagerFactory
+from gobby.telemetry.tracing import create_span
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
@@ -127,8 +127,8 @@ class HookManager:
         except RuntimeError:
             self._loop = None
 
-        # Setup logging first
-        self.logger = self._setup_logging()
+        # Setup logging
+        self.logger = logging.getLogger("gobby.hooks")
 
         # Store LLM service
         self._llm_service = llm_service
@@ -224,43 +224,6 @@ class HookManager:
 
         self.logger.debug("HookManager initialized")
 
-    def _setup_logging(self) -> logging.Logger:
-        """
-        Setup structured logging with rotation.
-
-        Returns:
-            Configured logger instance
-        """
-        # Create logger
-        logger = logging.getLogger("gobby.hooks")
-        logger.setLevel(logging.DEBUG)
-
-        # Avoid duplicate handlers if logger already configured
-        if logger.handlers:
-            return logger
-
-        # File handler with rotation - use full path from config
-        # Expand ~ to home directory before creating directories
-        log_file_path = Path(self.log_file).expanduser()
-        log_file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = RotatingFileHandler(
-            log_file_path,
-            maxBytes=self.log_max_bytes,
-            backupCount=self.log_backup_count,
-        )
-        file_handler.setLevel(logging.DEBUG)
-
-        # Formatter with context
-        formatter = logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-        file_handler.setFormatter(formatter)
-
-        logger.addHandler(file_handler)
-
-        return logger
-
     def _reregister_active_sessions(self) -> None:
         """
         Re-register active sessions with the message processor.
@@ -299,6 +262,25 @@ class HookManager:
         Raises:
             ValueError: If event_type has no registered handler.
         """
+        with create_span(
+            "hook.handle",
+            attributes={
+                "event_type": str(event.event_type),
+                "source": str(event.source),
+            },
+        ) as span:
+            try:
+                response = self._handle_internal(event)
+                if span.is_recording():
+                    span.set_attribute("decision", response.decision)
+                return response
+            except Exception as e:
+                if span.is_recording():
+                    span.record_exception(e)
+                raise
+
+    def _handle_internal(self, event: HookEvent) -> HookResponse:
+        """Internal handle logic wrapped by span."""
         # Check daemon status (cached)
         is_ready, _, daemon_status, error_reason = self._get_cached_daemon_status()
 
