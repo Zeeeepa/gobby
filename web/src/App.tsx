@@ -78,6 +78,9 @@ const WorkflowsPage = lazy(() =>
 const GitHubPage = lazy(() =>
   import("./components/source-control/GitHubPage").then((m) => ({ default: m.GitHubPage })),
 );
+const ReportsPage = lazy(() =>
+  import("./components/workflows/ReportsPage").then((m) => ({ default: m.ReportsPage })),
+);
 const DashboardPage = lazy(() =>
   import("./components/dashboard/DashboardPage").then((m) => ({
     default: m.DashboardPage,
@@ -872,6 +875,7 @@ export default function App() {
     },
     { id: "tasks", label: "Tasks", icon: <TasksIcon /> },
     { id: "workflows", label: "Workflows", icon: <WorkflowsIcon /> },
+    { id: "reports", label: "Reports", icon: <ReportsIcon /> },
     { id: "source-control", label: "GitHub", icon: <GitHubIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
     { id: "memory", label: "Memory", icon: <MemoryIcon /> },
@@ -1081,6 +1085,8 @@ export default function App() {
             <WorkflowsPage projectId={effectiveProjectId} />
           ) : activeTab === "mcp" ? (
             <McpPage />
+          ) : activeTab === "reports" ? (
+            <ReportsPage projectId={effectiveProjectId} />
           ) : activeTab === "source-control" ? (
             <GitHubPage projectId={effectiveProjectId} />
           ) : activeTab === "configuration" ? (
@@ -1258,6 +1264,29 @@ function ProjectsIcon() {
       <rect x="14" y="3" width="7" height="7" />
       <rect x="3" y="14" width="7" height="7" />
       <rect x="14" y="14" width="7" height="7" />
+    </svg>
+  );
+}
+
+function ReportsIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 19h16" />
+      <path d="M4 15h16" />
+      <path d="M4 11h16" />
+      <rect x="6" y="3" width="4" height="18" rx="1" opacity="0.3" />
+      <rect x="6" y="7" width="4" height="14" rx="1" />
+      <rect x="14" y="3" width="4" height="18" rx="1" opacity="0.3" />
+      <rect x="14" y="11" width="4" height="10" rx="1" />
     </svg>
   );
 }

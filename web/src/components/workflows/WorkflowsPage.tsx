@@ -3,19 +3,17 @@ import { TabBar } from '../shared/TabBar'
 import { RulesTab } from './RulesTab'
 import { AgentsTab } from './AgentsTab'
 import { PipelinesTab } from './PipelinesTab'
-import { ReportingTab } from './ReportingTab'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import './WorkflowsPage.css'
 
-type ActiveTab = 'pipelines' | 'agents' | 'rules' | 'reporting'
+type ActiveTab = 'pipelines' | 'agents' | 'rules'
 type SourceFilter = 'installed' | 'project' | 'templates' | 'deleted'
 
 const TABS = [
   { id: 'pipelines', label: 'Pipelines' },
   { id: 'agents', label: 'Agents' },
   { id: 'rules', label: 'Rules' },
-  { id: 'reporting', label: 'Reporting' },
 ]
 
 const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
@@ -155,7 +153,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
           />
-          {activeTab !== 'reporting' && <div className="workflows-filter-wrapper" ref={filterRef}>
+          <div className="workflows-filter-wrapper" ref={filterRef}>
             <button
               type="button"
               className={`workflows-filter-icon-btn ${activeFilterCount > 0 ? 'workflows-filter-icon-btn--active' : ''}`}
@@ -192,7 +190,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
                 onPriorityFilterChange={setPriorityFilter}
               />
             )}
-          </div>}
+          </div>
           <button
             type="button"
             className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
@@ -201,7 +199,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           >
             &#x21bb;
           </button>
-          {activeTab !== 'reporting' && sourceFilter === 'templates' && (
+          {sourceFilter === 'templates' && (
             <button
               type="button"
               className="workflows-toolbar-btn"
@@ -305,13 +303,6 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
         />
       )}
 
-      {activeTab === 'reporting' && (
-        <ReportingTab
-          searchText={searchText}
-          projectId={projectId}
-          refreshKey={refreshKey}
-        />
-      )}
     </main>
   )
 }
