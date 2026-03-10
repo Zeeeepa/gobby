@@ -134,7 +134,7 @@ def current_span() -> Span | None:
     Returns None if no span is active or if the active span is invalid.
     """
     span = trace.get_current_span()
-    if span == trace.INVALID_SPAN:
+    if span is trace.INVALID_SPAN:
         return None
     return span
 

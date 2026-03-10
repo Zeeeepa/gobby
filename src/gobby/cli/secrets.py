@@ -62,16 +62,16 @@ def set_secret(name: str, category: str, description: str | None) -> None:
         raise SystemExit(1)
 
     click.echo(f"Received {len(value)} characters.")
-    store = _get_secret_store()
-    info = store.set(name, value, category=category, description=description)
+    with _SecretStoreContext() as store:
+        info = store.set(name, value, category=category, description=description)
     click.echo(f"Stored secret '{info.name}' (category={info.category}).")
 
 
 @secrets.command("list")
 def list_secrets() -> None:
     """List stored secrets (metadata only, never values)."""
-    store = _get_secret_store()
-    items = store.list()
+    with _SecretStoreContext() as store:
+        items = store.list()
     if not items:
         click.echo("No secrets stored.")
         return
@@ -91,15 +91,15 @@ def list_secrets() -> None:
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt.")
 def delete_secret(name: str, yes: bool) -> None:
     """Delete a secret by NAME."""
-    store = _get_secret_store()
-    if not store.exists(name):
-        click.echo(f"Secret '{name}' not found.", err=True)
-        raise SystemExit(1)
+    with _SecretStoreContext() as store:
+        if not store.exists(name):
+            click.echo(f"Secret '{name}' not found.", err=True)
+            raise SystemExit(1)
 
-    if not yes:
-        click.confirm(f"Delete secret '{name}'?", abort=True)
+        if not yes:
+            click.confirm(f"Delete secret '{name}'?", abort=True)
 
-    store.delete(name)
+        store.delete(name)
     click.echo(f"Deleted secret '{name}'.")
 
 
@@ -107,8 +107,9 @@ def delete_secret(name: str, yes: bool) -> None:
 @click.argument("name")
 def get_secret(name: str) -> None:
     """Check if a secret exists (does NOT reveal the value)."""
-    store = _get_secret_store()
-    if store.exists(name):
+    with _SecretStoreContext() as store:
+        exists = store.exists(name)
+    if exists:
         click.echo(f"Secret '{name}' exists.")
     else:
         click.echo(f"Secret '{name}' not found.", err=True)

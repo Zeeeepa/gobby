@@ -96,6 +96,7 @@ class TelemetrySettings(BaseModel):
     )
     trace_retention_days: int = Field(
         default=7,
+        gt=0,
         description="Retention period for local trace spans (days)",
     )
 

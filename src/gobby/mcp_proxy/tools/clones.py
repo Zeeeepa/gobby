@@ -500,14 +500,26 @@ def create_clones_registry(
         clone_storage.record_sync(clone_id)
 
         # Step 2: Stash dirty .gobby/ sync files to prevent merge conflicts
+        # Compare stash list before/after to reliably detect if a stash was created
+        # (avoids locale-dependent string matching on git stash output)
         stash_created = False
+        stash_list_before = git_manager._run_git(
+            ["stash", "list"],
+            cwd=git_manager.repo_path,
+            timeout=10,
+        )
         stash_result = git_manager._run_git(
             ["stash", "push", "-m", "gobby-merge-clone: auto-stash sync files", "--", ".gobby/"],
             cwd=git_manager.repo_path,
             timeout=10,
         )
-        if stash_result.returncode == 0 and "No local changes" not in stash_result.stdout:
-            stash_created = True
+        if stash_result.returncode == 0:
+            stash_list_after = git_manager._run_git(
+                ["stash", "list"],
+                cwd=git_manager.repo_path,
+                timeout=10,
+            )
+            stash_created = stash_list_after.stdout != stash_list_before.stdout
 
         # Step 3: Merge the fetched ref into target branch
         try:
@@ -525,11 +537,16 @@ def create_clones_registry(
             )
             # Restore stashed .gobby/ files
             if stash_created:
-                git_manager._run_git(
+                pop_result = git_manager._run_git(
                     ["stash", "pop"],
                     cwd=git_manager.repo_path,
                     timeout=10,
                 )
+                if pop_result.returncode != 0:
+                    logger.warning(
+                        "Failed to restore stashed .gobby/ files: %s",
+                        pop_result.stderr or pop_result.stdout,
+                    )
 
         if not merge_result.success:
             # Check for conflicts

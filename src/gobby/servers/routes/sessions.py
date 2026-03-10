@@ -275,8 +275,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Registration confirmation with session ID
         """
-        inc_counter("session_registrations_total")
-
         try:
             if server.session_manager is None:
                 raise HTTPException(status_code=503, detail="Session manager not available")
@@ -316,6 +314,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 parent_session_id=request_data.parent_session_id,
             )
 
+            inc_counter("session_registrations_total")
             await _broadcast_session("session_created", session.id)
 
             return {

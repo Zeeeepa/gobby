@@ -307,7 +307,7 @@ class TelemetryMetrics:
             self.set_gauge("daemon_memory_usage_bytes", float(mem_info.rss))
 
             # Update CPU usage
-            cpu_percent = process.cpu_percent(interval=0.1)
+            cpu_percent = process.cpu_percent(interval=None)
             self.set_gauge("daemon_cpu_percent", cpu_percent)
 
         except (psutil.NoSuchProcess, psutil.AccessDenied) as e:

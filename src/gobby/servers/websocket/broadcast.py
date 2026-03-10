@@ -224,7 +224,7 @@ class BroadcastMixin:
         message = {
             "type": "trace_event",
             "span": span,
-            "trace_id": span["trace_id"],
+            "trace_id": span.get("trace_id"),
             "timestamp": datetime.now(UTC).isoformat(),
         }
         await self.broadcast(message)

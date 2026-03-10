@@ -254,7 +254,7 @@ def list_blocked_tasks(
         JOIN tasks blocker ON d.depends_on = blocker.id
         WHERE d.task_id = t.id
           AND d.dep_type = 'blocks'
-          AND blocker.status NOT IN ('closed', 'needs_review')
+          AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           AND NOT EXISTS (
               WITH RECURSIVE ancestors AS (

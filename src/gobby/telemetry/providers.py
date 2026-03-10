@@ -84,13 +84,8 @@ def get_logger_provider(config: TelemetrySettings) -> LoggerProvider:
         # For now, we mainly use LoggerProvider to bridge to regular logging
         # or handle OTel-specific logging features.
         # But we also need to ensure existing RotatingFileHandler is used.
-        _, _, log_handlers = create_exporters(config)
-
-        # Add OTel LoggingHandler to the root logger to bridge logs to OTel
-
         # Note: LoggingInstrumentor often handles the bridge.
-        # However, the task mentions LoggerProvider.
-        # We'll just create the provider for now.
+        # We create the provider; log handler bridging is done elsewhere.
 
     return _LOGGER_PROVIDER
 

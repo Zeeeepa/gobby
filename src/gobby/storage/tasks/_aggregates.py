@@ -94,7 +94,7 @@ def count_ready_tasks(
         JOIN tasks blocker ON d.depends_on = blocker.id
         WHERE d.task_id = t.id
           AND d.dep_type = 'blocks'
-          AND blocker.status NOT IN ('closed', 'needs_review')
+          AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           -- Check if t.id appears anywhere in blocker's ancestor chain
           AND NOT EXISTS (
@@ -146,7 +146,7 @@ def count_blocked_tasks(
         JOIN tasks blocker ON d.depends_on = blocker.id
         WHERE d.task_id = t.id
           AND d.dep_type = 'blocks'
-          AND blocker.status NOT IN ('closed', 'needs_review')
+          AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           -- Check if t.id appears anywhere in blocker's ancestor chain
           AND NOT EXISTS (

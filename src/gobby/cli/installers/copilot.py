@@ -209,7 +209,18 @@ def uninstall_copilot(project_path: Path) -> dict[str, Any]:
                                 break
 
                 for hook_type in hooks_to_remove:
-                    del hooks_config["hooks"][hook_type]
+                    # Only remove gobby entries, preserve user hooks
+                    hook_list = hooks_config["hooks"][hook_type]
+                    if isinstance(hook_list, list):
+                        filtered = [
+                            h for h in hook_list if "hook_dispatcher.py" not in h.get("bash", "")
+                        ]
+                        if filtered:
+                            hooks_config["hooks"][hook_type] = filtered
+                        else:
+                            del hooks_config["hooks"][hook_type]
+                    else:
+                        del hooks_config["hooks"][hook_type]
                     result["hooks_removed"].append(hook_type)
 
                 if hooks_config["hooks"]:
@@ -256,7 +267,18 @@ def uninstall_copilot(project_path: Path) -> dict[str, Any]:
                                 break
 
                 for hook_type in hooks_to_remove:
-                    del hooks_config["hooks"][hook_type]
+                    # Only remove gobby entries, preserve user hooks
+                    hook_list = hooks_config["hooks"][hook_type]
+                    if isinstance(hook_list, list):
+                        filtered = [
+                            h for h in hook_list if "hook_dispatcher.py" not in h.get("command", "")
+                        ]
+                        if filtered:
+                            hooks_config["hooks"][hook_type] = filtered
+                        else:
+                            del hooks_config["hooks"][hook_type]
+                    else:
+                        del hooks_config["hooks"][hook_type]
                     result["hooks_removed"].append(hook_type)
 
                 with open(legacy_hooks_file, "w") as f:

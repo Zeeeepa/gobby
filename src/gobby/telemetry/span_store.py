@@ -47,8 +47,8 @@ class GobbySpanExporter(SpanExporter):
                     )
 
             return SpanExportResult.SUCCESS
-        except Exception as e:
-            logger.error(f"Error exporting spans: {e}")
+        except Exception:
+            logger.error("Error exporting spans", exc_info=True)
             return SpanExportResult.FAILURE
 
     def shutdown(self) -> None:

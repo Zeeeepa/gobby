@@ -86,9 +86,15 @@ def set_trace_context(trace_id: str, span_id: str) -> Context:
     """
     # Create a span context from trace_id and span_id
     # trace_id and span_id are expected to be hex strings
+    try:
+        parsed_trace_id = int(trace_id, 16)
+        parsed_span_id = int(span_id, 16)
+    except ValueError as e:
+        raise ValueError(f"Invalid trace/span ID hex string: {e}") from e
+
     span_context = trace.SpanContext(
-        trace_id=int(trace_id, 16),
-        span_id=int(span_id, 16),
+        trace_id=parsed_trace_id,
+        span_id=parsed_span_id,
         is_remote=True,
         trace_flags=trace.TraceFlags(trace.TraceFlags.SAMPLED),
     )

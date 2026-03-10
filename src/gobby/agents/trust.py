@@ -108,6 +108,9 @@ def _pre_approve_copilot(directory: str) -> None:
 
         trusted: list[str] = data.get("trusted_folders", [])
         if not isinstance(trusted, list):
+            logger.warning(
+                "Copilot config.json trusted_folders is not a list, resetting: %s", config_file
+            )
             trusted = []
 
         if directory in trusted:
