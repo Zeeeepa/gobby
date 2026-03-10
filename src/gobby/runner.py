@@ -119,6 +119,12 @@ class GobbyRunner:
             config_store=self.config_store,
         )
 
+        # Auto-populate search.embedding_api_key from secrets if not already set
+        if hasattr(self.config, "search") and not self.config.search.embedding_api_key:
+            resolved_key = self._resolve_embedding_api_key(self.config.search.embedding_model)
+            if resolved_key:
+                self.config.search.embedding_api_key = resolved_key
+
         # Populate model costs from LiteLLM into DB and load into memory
         from gobby.llm.cost_table import init as init_cost_table
         from gobby.storage.model_costs import ModelCostStore
@@ -221,9 +227,13 @@ class GobbyRunner:
                 if self.llm_service:
                     from functools import partial
 
+                    _mem_api_key = self._resolve_embedding_api_key(
+                        self.config.memory.embedding_model
+                    )
                     embed_fn = partial(
                         generate_embedding,
                         model=self.config.memory.embedding_model,
+                        api_key=_mem_api_key,
                     )
 
                 self.memory_manager = MemoryManager(
@@ -262,11 +272,16 @@ class GobbyRunner:
                 if self.llm_service and ci_config.embedding_enabled:
                     from functools import partial
 
+                    _ci_model = (
+                        self.config.memory.embedding_model
+                        if hasattr(self.config, "memory")
+                        else "text-embedding-3-small"
+                    )
+                    _ci_api_key = self._resolve_embedding_api_key(_ci_model)
                     ci_embed_fn = partial(
                         generate_embedding,
-                        model=self.config.memory.embedding_model
-                        if hasattr(self.config, "memory")
-                        else "text-embedding-3-small",
+                        model=_ci_model,
+                        api_key=_ci_api_key,
                     )
 
                 ci_vector_store = self.vector_store if ci_config.embedding_enabled else None
@@ -756,6 +771,32 @@ class GobbyRunner:
             # Register cron event callback for WebSocket broadcasting
             if self.cron_scheduler:
                 setup_cron_event_broadcasting(self.websocket_server, self.cron_scheduler)
+
+    def _resolve_embedding_api_key(self, model: str) -> str | None:
+        """Resolve the API key for an embedding model from the secret store.
+
+        Maps model prefixes to well-known secret names so users don't need
+        to manually wire $secret: references for standard embedding providers.
+        """
+        # Model-prefix to secret-name mapping
+        prefix_to_secret: dict[str, str] = {
+            "openai/": "openai_api_key",
+            "gemini/": "gemini_api_key",
+            "mistral/": "mistral_api_key",
+            "azure/": "azure_api_key",
+            "cohere/": "cohere_api_key",
+        }
+
+        for prefix, secret_name in prefix_to_secret.items():
+            if model.startswith(prefix):
+                return self.secret_store.get(secret_name)
+
+        # Ollama models don't need an API key
+        if model.startswith("ollama/"):
+            return None
+
+        # Default (no prefix, e.g. "text-embedding-3-small") → OpenAI
+        return self.secret_store.get("openai_api_key")
 
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""

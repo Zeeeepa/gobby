@@ -1714,3 +1714,59 @@ class TestMetricsCleanupLoopDetailed:
 
             # Cleanup should have been called twice (once erroring, once successful)
             assert call_count == 2
+
+
+class TestResolveEmbeddingApiKey:
+    """Tests for GobbyRunner._resolve_embedding_api_key."""
+
+    @pytest.fixture
+    def runner_with_secrets(self):
+        """Create a minimal runner-like object with a mock secret store."""
+        runner = object.__new__(GobbyRunner)
+        runner.secret_store = MagicMock()
+        runner.secret_store.get = MagicMock(
+            side_effect=lambda name: {
+                "openai_api_key": "sk-test-openai",
+                "gemini_api_key": "gemini-test-key",
+                "mistral_api_key": "mistral-test-key",
+            }.get(name)
+        )
+        return runner
+
+    def test_default_model_resolves_openai(self, runner_with_secrets) -> None:
+        """text-embedding-3-small (no prefix) should resolve to openai_api_key."""
+        key = runner_with_secrets._resolve_embedding_api_key("text-embedding-3-small")
+        assert key == "sk-test-openai"
+        runner_with_secrets.secret_store.get.assert_called_with("openai_api_key")
+
+    def test_openai_prefix_resolves_openai(self, runner_with_secrets) -> None:
+        """openai/text-embedding-3-small should resolve to openai_api_key."""
+        key = runner_with_secrets._resolve_embedding_api_key("openai/text-embedding-3-small")
+        assert key == "sk-test-openai"
+        runner_with_secrets.secret_store.get.assert_called_with("openai_api_key")
+
+    def test_gemini_prefix_resolves_gemini(self, runner_with_secrets) -> None:
+        """gemini/ prefix should resolve to gemini_api_key."""
+        key = runner_with_secrets._resolve_embedding_api_key("gemini/text-embedding-004")
+        assert key == "gemini-test-key"
+        runner_with_secrets.secret_store.get.assert_called_with("gemini_api_key")
+
+    def test_mistral_prefix_resolves_mistral(self, runner_with_secrets) -> None:
+        """mistral/ prefix should resolve to mistral_api_key."""
+        key = runner_with_secrets._resolve_embedding_api_key("mistral/mistral-embed")
+        assert key == "mistral-test-key"
+        runner_with_secrets.secret_store.get.assert_called_with("mistral_api_key")
+
+    def test_ollama_returns_none(self, runner_with_secrets) -> None:
+        """ollama/ models don't need an API key."""
+        key = runner_with_secrets._resolve_embedding_api_key("ollama/nomic-embed-text")
+        assert key is None
+        runner_with_secrets.secret_store.get.assert_not_called()
+
+    def test_missing_secret_returns_none(self) -> None:
+        """Returns None when the secret doesn't exist."""
+        runner = object.__new__(GobbyRunner)
+        runner.secret_store = MagicMock()
+        runner.secret_store.get = MagicMock(return_value=None)
+        key = runner._resolve_embedding_api_key("text-embedding-3-small")
+        assert key is None
