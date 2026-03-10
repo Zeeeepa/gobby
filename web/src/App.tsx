@@ -86,6 +86,11 @@ const DashboardPage = lazy(() =>
     default: m.DashboardPage,
   })),
 );
+const TracesPage = lazy(() =>
+  import("./components/traces/TracesPage").then((m) => ({
+    default: m.TracesPage,
+  })),
+);
 
 class AppErrorBoundary extends Component<
   { children: ReactNode; activeTab: string; onReturnToChat: () => void },
@@ -878,7 +883,9 @@ export default function App() {
     { id: "reports", label: "Reports", icon: <ReportsIcon /> },
     { id: "source-control", label: "GitHub", icon: <GitHubIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
-    { id: "memory", label: "Memory", icon: <MemoryIcon /> },
+    { id: "traces", label: "Traces", icon: <TracesIcon /> },
+    {
+      id: "memory", label: "Memory", icon: <MemoryIcon /> },
     { id: "skills", label: "Skills", icon: <SkillsIcon /> },
     { id: "mcp", label: "MCP", icon: <McpIcon /> },
     {
@@ -1079,6 +1086,8 @@ export default function App() {
             <MemoryPage projectId={effectiveProjectId} />
           ) : activeTab === "cron" ? (
             <CronJobsPage />
+          ) : activeTab === "traces" ? (
+            <TracesPage projectId={effectiveProjectId} />
           ) : activeTab === "skills" ? (
             <SkillsPage />
           ) : activeTab === "workflows" ? (
@@ -1422,6 +1431,23 @@ function ChatIcon() {
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       <path d="M8 10h8" />
       <path d="M8 14h4" />
+    </svg>
+  );
+}
+
+function TracesIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
     </svg>
   );
 }
