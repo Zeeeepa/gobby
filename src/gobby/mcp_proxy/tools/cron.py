@@ -102,6 +102,26 @@ def create_cron_registry(
             timezone: Timezone (default: UTC)
             description: Job description
         """
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
+        from gobby.utils.project_context import get_project_context
+
+        if not project_id:
+            project_ctx = get_project_context()
+            if project_ctx and project_ctx.get("id"):
+                project_id = project_ctx["id"]
+            else:
+                project_id = PERSONAL_PROJECT_ID
+
+        if action_type == "pipeline" and "inputs" in action_config and "task_id" in action_config["inputs"]:
+            task_ref = action_config["inputs"]["task_id"]
+            if isinstance(task_ref, str) and (task_ref.startswith("#") or task_ref.isdigit()):
+                from gobby.storage.tasks._id import resolve_task_reference
+                try:
+                    resolved_id = resolve_task_reference(cron_storage.db, task_ref, project_id)
+                    action_config["inputs"]["task_id"] = resolved_id
+                except Exception as e:
+                    return {"success": False, "error": f"Failed to resolve task reference '{task_ref}': {e}"}
+
         try:
             job = cron_storage.create_job(
                 project_id=project_id,
