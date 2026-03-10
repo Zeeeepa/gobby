@@ -80,7 +80,7 @@ def ui_start(ctx: click.Context) -> None:
             click.echo("Error: Web UI directory not found", err=True)
             sys.exit(1)
 
-        ui_log = Path(config.logging.client).expanduser().parent / "ui.log"
+        ui_log = Path(config.telemetry.log_file).expanduser().parent / "ui.log"
         pid = spawn_ui_server(config.ui.host, config.ui.port, web_dir, ui_log)
         if pid:
             click.echo(
