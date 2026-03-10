@@ -75,7 +75,10 @@ class SpanStorage:
         params: list[Any] = []
 
         if project_id:
-            conditions.append("json_extract(attributes_json, '$.project_id') = ?")
+            conditions.append(
+                "(json_extract(attributes_json, '$.project_id') = ? "
+                "OR json_extract(attributes_json, '$.project_id') IS NULL)"
+            )
             params.append(project_id)
         if status:
             conditions.append("status = ?")
