@@ -32,7 +32,7 @@ def _encode_claude_project_path(directory: str) -> str:
     Claude Code uses the convention of replacing '/' with '-' and
     dropping the leading slash.
 
-    Example: /Users/josh/.gobby/clones/foo -> -Users-josh--gobby-clones-foo
+    Example: /Users/josh/.gobby/clones/foo -> -Users-josh-.gobby-clones-foo
     """
     return directory.replace("/", "-")
 

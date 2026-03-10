@@ -796,6 +796,10 @@ def load_config(
             telemetry_config["log_file_mcp_server"] = safe_mcp_server
         if safe_mcp_client := os.environ.get("GOBBY_LOGGING_MCP_CLIENT"):
             telemetry_config["log_file_mcp_client"] = safe_mcp_client
+        if safe_hook := os.environ.get("GOBBY_LOGGING_HOOK_MANAGER"):
+            telemetry_config["log_file_hook_manager"] = safe_hook
+        if safe_watchdog := os.environ.get("GOBBY_LOGGING_WATCHDOG"):
+            telemetry_config["log_file_watchdog"] = safe_watchdog
 
     # Migrate legacy config keys (renamed/removed fields still in DB)
     config_dict = _migrate_legacy_config(config_dict)

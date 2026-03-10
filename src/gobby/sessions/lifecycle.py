@@ -223,8 +223,7 @@ class SessionLifecycleManager:
                             archive_dir,
                         )
                         if archive_path:
-                            await self.message_manager.delete(session.id)
-                            await self.message_manager.delete_state(session.id)
+                            await self.message_manager.purge(session.id)
                             logger.debug(
                                 f"Purged DB messages for session {session.id} "
                                 f"(archived to {archive_path})"

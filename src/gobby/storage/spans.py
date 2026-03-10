@@ -97,11 +97,33 @@ class SpanStorage:
         params.extend([limit, offset])
         trace_rows = self.db.fetchall(query, tuple(params))
 
+        if not trace_rows:
+            return []
+
+        # Batch-fetch root spans to avoid N+1 queries
+        trace_ids = [tr["trace_id"] for tr in trace_rows]
+        placeholders = ",".join("?" * len(trace_ids))
+        root_query = f"""
+        SELECT * FROM spans
+        WHERE trace_id IN ({placeholders})
+        AND start_time_ns = (
+            SELECT MIN(s2.start_time_ns)
+            FROM spans s2
+            WHERE s2.trace_id = spans.trace_id
+        )
+        """
+        root_rows = self.db.fetchall(root_query, tuple(trace_ids))
+
+        # Index by trace_id and preserve original ordering
+        root_by_trace: dict[str, Any] = {}
+        for row in root_rows:
+            tid = row["trace_id"]
+            if tid not in root_by_trace:
+                root_by_trace[tid] = row
+
         results = []
         for tr in trace_rows:
-            trace_id = tr["trace_id"]
-            root_query = "SELECT * FROM spans WHERE trace_id = ? ORDER BY start_time_ns ASC LIMIT 1"
-            root_row = self.db.fetchone(root_query, (trace_id,))
+            root_row = root_by_trace.get(tr["trace_id"])
             if root_row:
                 results.append(self._row_to_dict(root_row))
 

@@ -344,7 +344,7 @@ class CloneGitManager:
         Returns:
             GitOperationResult with success status and message
         """
-        clone_path = Path(clone_path)
+        clone_path = Path(clone_path).expanduser()
 
         if not clone_path.exists():
             return GitOperationResult(
@@ -413,7 +413,7 @@ class CloneGitManager:
         Returns:
             GitOperationResult with success status and message
         """
-        clone_path = Path(clone_path)
+        clone_path = Path(clone_path).expanduser()
 
         if not clone_path.exists():
             return GitOperationResult(
@@ -459,7 +459,7 @@ class CloneGitManager:
         Returns:
             CloneStatus or None if path is not valid
         """
-        clone_path = Path(clone_path)
+        clone_path = Path(clone_path).expanduser()
 
         if not clone_path.exists():
             return None

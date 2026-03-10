@@ -242,6 +242,20 @@ class LocalSessionMessageManager:
             (session_id,),
         )
 
+    async def purge(self, session_id: str) -> None:
+        """Atomically delete all messages and processing state for a session.
+
+        Args:
+            session_id: Session ID to purge
+        """
+
+        def _purge(sid: str) -> None:
+            with self.db.transaction() as conn:
+                conn.execute("DELETE FROM session_messages WHERE session_id = ?", (sid,))
+                conn.execute("DELETE FROM session_message_state WHERE session_id = ?", (sid,))
+
+        await asyncio.to_thread(_purge, session_id)
+
     async def search_messages(
         self,
         query_text: str,

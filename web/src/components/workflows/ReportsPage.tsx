@@ -7,6 +7,7 @@ import {
   StepDisplay,
   ChevronIcon,
   AlertIcon,
+  PipelineStatusDot as StatusDot,
   formatTime,
   formatDuration,
   formatJson,
@@ -263,27 +264,6 @@ function useResizablePanel(
 // Status dot
 // =============================================================================
 
-function StatusDot({ status }: { status: string }) {
-  const colorMap: Record<string, string> = {
-    running: "#60a5fa",
-    pending: "#888",
-    completed: "#4ade80",
-    success: "#4ade80",
-    failed: "#f87171",
-    error: "#f87171",
-    timeout: "#fb923c",
-    waiting_approval: "#fbbf24",
-    cancelled: "#888",
-    interrupted: "#c084fc",
-  };
-  return (
-    <span
-      className="reports-status-dot"
-      style={{ backgroundColor: colorMap[status] || "#888" }}
-      title={status}
-    />
-  );
-}
 
 // =============================================================================
 // Close icon

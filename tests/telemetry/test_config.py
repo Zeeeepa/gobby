@@ -15,7 +15,7 @@ def test_telemetry_settings_defaults() -> None:
     assert settings.log_level == "info"
     assert settings.log_format == "text"
     assert settings.log_file == "~/.gobby/logs/gobby.log"
-    assert settings.traces_enabled is False
+    assert settings.traces_enabled is True
     assert settings.traces_to_console is False
     assert settings.trace_sample_rate == 1.0
     assert settings.metrics_enabled is True

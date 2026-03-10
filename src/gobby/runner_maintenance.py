@@ -57,7 +57,6 @@ async def span_cleanup_loop(
 
     while not is_shutdown_requested():
         try:
-            await asyncio.sleep(interval_seconds)
             deleted = storage.delete_old_spans(retention_days=retention_days)
             if deleted > 0:
                 logger.info(f"Periodic span cleanup: removed {deleted} old spans")
@@ -65,6 +64,10 @@ async def span_cleanup_loop(
             break
         except Exception as e:
             logger.error(f"Error in span cleanup loop: {e}")
+        try:
+            await asyncio.sleep(interval_seconds)
+        except asyncio.CancelledError:
+            break
 
 
 async def rebuild_vector_store(

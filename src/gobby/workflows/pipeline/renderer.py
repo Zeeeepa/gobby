@@ -100,7 +100,7 @@ class StepRenderer:
             "parent_session_id": context.get("parent_session_id"),
             "project_id": context.get("project_id"),
             "project_path": context.get("project_path"),
-            "current_branch": context.get("current_branch", "main"),
+            "current_branch": context.get("current_branch"),
         }
         # Flatten step outputs as top-level names for direct template access
         for step_id, step_data in steps.items():
@@ -306,7 +306,7 @@ class StepRenderer:
                 "parent_session_id": context.get("parent_session_id"),
                 "project_id": context.get("project_id"),
                 "project_path": context.get("project_path"),
-                "current_branch": context.get("current_branch", "main"),
+                "current_branch": context.get("current_branch"),
             }
             # Flatten step outputs as top-level names for condition evaluation
             for step_id, step_data in steps.items():

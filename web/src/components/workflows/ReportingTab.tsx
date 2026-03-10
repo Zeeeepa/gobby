@@ -9,6 +9,7 @@ import {
   AlertIcon,
   PipelineIcon,
   AgentIcon,
+  PipelineStatusDot as StatusDot,
   formatTime,
   formatDuration,
   formatJson,
@@ -394,29 +395,6 @@ export function ReportingTab({
   );
 }
 
-// ── Status Dot (matches tasks pattern) ──
-
-function StatusDot({ status }: { status: string }) {
-  const colorMap: Record<string, string> = {
-    running: "#60a5fa",
-    pending: "#888",
-    completed: "#4ade80",
-    success: "#4ade80",
-    failed: "#f87171",
-    error: "#f87171",
-    timeout: "#fb923c",
-    waiting_approval: "#fbbf24",
-    cancelled: "#888",
-    interrupted: "#c084fc",
-  };
-  return (
-    <span
-      className="tasks-status-dot"
-      style={{ backgroundColor: colorMap[status] || "#888" }}
-      title={status}
-    />
-  );
-}
 
 // ── Pipeline Drill-Down ──
 

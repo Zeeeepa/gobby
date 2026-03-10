@@ -230,7 +230,7 @@ class PipelineExecutor:
                     from gobby.config.pipelines import PipelineConfig
 
                     depth_limit = PipelineConfig().nesting_depth_limit
-                except Exception:
+                except (ImportError, ValueError):
                     pass
 
                 if _depth > depth_limit:
@@ -351,7 +351,7 @@ class PipelineExecutor:
                     pctx = get_project_context()
                     if pctx:
                         project_path = pctx.get("project_path")
-                except Exception:
+                except (ImportError, OSError):
                     pass
 
                 if project_path:
@@ -359,7 +359,7 @@ class PipelineExecutor:
                         from gobby.worktrees.git import WorktreeGitManager
 
                         current_branch = WorktreeGitManager(project_path).get_current_branch()
-                    except Exception:
+                    except (ImportError, ValueError, OSError):
                         pass
 
                 context: dict[str, Any] = {

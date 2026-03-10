@@ -583,7 +583,8 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                         (run.child_session_id,),
                     )
                     d["commands"] = [dict(row) for row in commands]
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to fetch commands for agent run: {e}")
                     d["commands"] = []
 
             return {"status": "success", "run": d}

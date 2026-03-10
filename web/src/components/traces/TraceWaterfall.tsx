@@ -73,14 +73,14 @@ export function TraceWaterfall({ spans, onSelectSpan, selectedSpanId }: TraceWat
   const rows = useMemo(() => buildRows(spans), [spans])
 
   const { minTime, totalTime } = useMemo(() => {
-    if (spans.length === 0) return { minTime: 0, maxTime: 1, totalTime: 1 }
+    if (spans.length === 0) return { minTime: 0, totalTime: 1 }
     let min = spans[0].start_time_ns
     let max = spans[0].end_time_ns
     for (const s of spans) {
       if (s.start_time_ns < min) min = s.start_time_ns
       if (s.end_time_ns > max) max = s.end_time_ns
     }
-    return { minTime: min, maxTime: max, totalTime: Math.max(max - min, 1) }
+    return { minTime: min, totalTime: Math.max(max - min, 1) }
   }, [spans])
 
   const svgWidth = LABEL_WIDTH + TIMELINE_WIDTH

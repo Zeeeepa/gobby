@@ -80,7 +80,7 @@ export function TraceDetail({ isOpen, onClose, span }: TraceDetailProps) {
               {events.map((event, index) => {
                 const eventAttrs = event.attributes || {}
                 return (
-                  <div key={index} className="trace-detail-event">
+                  <div key={`${event.name}-${index}`} className="trace-detail-event">
                     <div className="trace-detail-event-header">
                       <span className="trace-detail-event-name">{event.name}</span>
                       {event.timestamp && (

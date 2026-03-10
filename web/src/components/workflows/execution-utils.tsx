@@ -160,6 +160,47 @@ export function PipelineIcon() {
   );
 }
 
+export function TraceIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ marginRight: '6px', verticalAlign: 'middle' }}
+    >
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  );
+}
+
+export function PipelineStatusDot({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    running: "#60a5fa",
+    pending: "#888",
+    completed: "#4ade80",
+    success: "#4ade80",
+    failed: "#f87171",
+    error: "#f87171",
+    timeout: "#fb923c",
+    waiting_approval: "#fbbf24",
+    cancelled: "#888",
+    interrupted: "#c084fc",
+  };
+  return (
+    <span
+      className="pipeline-status-dot"
+      style={{ backgroundColor: colorMap[status] || "#888" }}
+      title={status}
+    />
+  );
+}
+
 export function AgentIcon() {
   return (
     <svg
