@@ -86,9 +86,8 @@ def create_traces_router(server: HTTPServer) -> APIRouter:
         storage = _get_storage()
 
         if session_id:
-            traces = storage.get_traces_by_session(session_id)
-            total = len(traces)
-            traces = traces[offset : offset + limit]
+            traces = storage.get_traces_by_session(session_id, limit=limit, offset=offset)
+            total = storage.get_trace_count_by_session(session_id)
         else:
             traces = storage.get_recent_traces(
                 limit=limit,

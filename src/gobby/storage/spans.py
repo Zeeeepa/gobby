@@ -86,66 +86,70 @@ class SpanStorage:
 
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
+        # Using a single query with ROW_NUMBER() to get the root span per trace_id
+        # and joining it with the max start_time_ns for ordering.
         query = f"""
-        SELECT trace_id, MAX(start_time_ns) as last_activity
-        FROM spans
-        {where}
-        GROUP BY trace_id
-        ORDER BY last_activity DESC
-        LIMIT ? OFFSET ?
+        WITH TraceLastActivity AS (
+            SELECT trace_id, MAX(start_time_ns) as last_activity
+            FROM spans
+            {where}
+            GROUP BY trace_id
+            ORDER BY last_activity DESC
+            LIMIT ? OFFSET ?
+        ),
+        RootSpans AS (
+            SELECT *,
+                   ROW_NUMBER() OVER(PARTITION BY trace_id ORDER BY start_time_ns ASC) as rn
+            FROM spans
+            WHERE trace_id IN (SELECT trace_id FROM TraceLastActivity)
+        )
+        SELECT r.*
+        FROM RootSpans r
+        JOIN TraceLastActivity tla ON r.trace_id = tla.trace_id
+        WHERE r.rn = 1
+        ORDER BY tla.last_activity DESC
         """
         params.extend([limit, offset])
-        trace_rows = self.db.fetchall(query, tuple(params))
+        rows = self.db.fetchall(query, tuple(params))
+        return [self._row_to_dict(row) for row in rows]
 
-        if not trace_rows:
-            return []
-
-        # Batch-fetch root spans to avoid N+1 queries
-        trace_ids = [tr["trace_id"] for tr in trace_rows]
-        placeholders = ",".join("?" * len(trace_ids))
-        root_query = f"""
-        SELECT * FROM spans
-        WHERE trace_id IN ({placeholders})
-        AND start_time_ns = (
-            SELECT MIN(s2.start_time_ns)
-            FROM spans s2
-            WHERE s2.trace_id = spans.trace_id
-        )
-        """
-        root_rows = self.db.fetchall(root_query, tuple(trace_ids))
-
-        # Index by trace_id and preserve original ordering
-        root_by_trace: dict[str, Any] = {}
-        for row in root_rows:
-            tid = row["trace_id"]
-            if tid not in root_by_trace:
-                root_by_trace[tid] = row
-
-        results = []
-        for tr in trace_rows:
-            root_row = root_by_trace.get(tr["trace_id"])
-            if root_row:
-                results.append(self._row_to_dict(root_row))
-
-        return results
-
-    def get_traces_by_session(self, session_id: str) -> list[dict[str, Any]]:
+    def get_traces_by_session(
+        self, session_id: str, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
         """Retrieve traces that have a matching session_id in their attributes."""
-        # Use SQLite json_extract to filter by session_id in attributes_json
         query = """
-        SELECT DISTINCT trace_id FROM spans
+        WITH SessionTraces AS (
+            SELECT trace_id, MAX(start_time_ns) as last_activity
+            FROM spans
+            WHERE json_extract(attributes_json, '$.session_id') = ?
+            GROUP BY trace_id
+            ORDER BY last_activity DESC
+            LIMIT ? OFFSET ?
+        ),
+        RootSpans AS (
+            SELECT *,
+                   ROW_NUMBER() OVER(PARTITION BY trace_id ORDER BY start_time_ns ASC) as rn
+            FROM spans
+            WHERE trace_id IN (SELECT trace_id FROM SessionTraces)
+        )
+        SELECT r.*
+        FROM RootSpans r
+        JOIN SessionTraces st ON r.trace_id = st.trace_id
+        WHERE r.rn = 1
+        ORDER BY st.last_activity DESC
+        """
+        rows = self.db.fetchall(query, (session_id, limit, offset))
+        return [self._row_to_dict(row) for row in rows]
+
+    def get_trace_count_by_session(self, session_id: str) -> int:
+        """Get the total number of distinct traces for a session."""
+        query = """
+        SELECT COUNT(DISTINCT trace_id) as count
+        FROM spans
         WHERE json_extract(attributes_json, '$.session_id') = ?
         """
-        trace_ids = self.db.fetchall(query, (session_id,))
-
-        results = []
-        for tr in trace_ids:
-            trace_id = tr["trace_id"]
-            root_query = "SELECT * FROM spans WHERE trace_id = ? ORDER BY start_time_ns ASC LIMIT 1"
-            root_row = self.db.fetchone(root_query, (trace_id,))
-            if root_row:
-                results.append(self._row_to_dict(root_row))
-        return results
+        row = self.db.fetchone(query, (session_id,))
+        return row["count"] if row else 0
 
     def delete_old_spans(self, retention_days: int = 7) -> int:
         """Delete spans older than the specified retention period."""
