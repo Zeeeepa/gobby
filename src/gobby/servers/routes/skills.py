@@ -11,8 +11,6 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from gobby.telemetry.instruments import get_telemetry_metrics
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
@@ -88,7 +86,6 @@ class HubInstallRequest(BaseModel):
 def create_skills_router(server: "HTTPServer") -> APIRouter:
     """Create skills router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/skills", tags=["skills"])
-    metrics = get_telemetry_metrics()
 
     async def _broadcast_skill(event: str, skill_id: str, **kwargs: Any) -> None:
         """Broadcast a skill event via WebSocket if available."""

@@ -11,8 +11,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from gobby.telemetry.instruments import get_telemetry_metrics
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
     from gobby.storage.cron import CronJobStorage
@@ -61,7 +59,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with cron job endpoints
     """
     router = APIRouter(prefix="/api/cron", tags=["cron"])
-    metrics = get_telemetry_metrics()
 
     def _get_storage() -> "CronJobStorage":
         from gobby.storage.cron import CronJobStorage

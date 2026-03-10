@@ -13,8 +13,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, ValidationError
 
-from gobby.telemetry.instruments import get_telemetry_metrics
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
@@ -121,7 +119,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with agent definition endpoints
     """
     router = APIRouter(prefix="/api/agents", tags=["agents"])
-    metrics = get_telemetry_metrics()
 
     def _get_manager() -> Any:
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager

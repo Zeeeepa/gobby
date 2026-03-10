@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from gobby.telemetry.instruments import get_telemetry_metrics
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
@@ -51,7 +49,6 @@ class MemoryUpdateRequest(BaseModel):
 def create_memory_router(server: "HTTPServer") -> APIRouter:
     """Create memory router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/memories", tags=["memories"])
-    metrics = get_telemetry_metrics()
 
     @router.get("")
     def list_memories(

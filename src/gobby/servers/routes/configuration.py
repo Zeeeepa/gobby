@@ -34,7 +34,6 @@ from gobby.storage.config_store import (
 )
 from gobby.storage.prompts import LocalPromptManager
 from gobby.storage.secrets import VALID_CATEGORIES, SecretStore
-from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -101,7 +100,6 @@ class ImportConfigRequest(BaseModel):
 def create_configuration_router(server: "HTTPServer") -> APIRouter:
     """Create the configuration API router."""
     router = APIRouter(prefix="/api/config", tags=["configuration"])
-    metrics = get_telemetry_metrics()
 
     def _get_secret_store() -> SecretStore:
         from gobby.storage.database import LocalDatabase

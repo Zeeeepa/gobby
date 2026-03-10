@@ -272,7 +272,6 @@ async def list_mcp_tools(
     except HTTPException:
         raise
     except Exception as e:
-
         logger.error(f"MCP list tools error: {server_name}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -373,7 +372,6 @@ async def get_tool_schema(
     except HTTPException:
         raise
     except Exception as e:
-
         logger.error(f"Get tool schema error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}

@@ -59,7 +59,6 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         except Exception as e:
-
             logger.error("Error initiating shutdown: %s", e, exc_info=True)
             return {
                 "status": "error",
@@ -75,7 +74,6 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
         daemon to exit, then starts a new one. Returns immediately.
         """
         start_time = time.perf_counter()
-        metrics = get_telemetry_metrics()
 
         restart_lock = _get_restart_lock()
         if restart_lock.locked():
@@ -195,7 +193,6 @@ with open(pid_file, "w") as f:
         Triggers the gobby-workflows.reload_cache MCP tool internally.
         """
         start_time = time.perf_counter()
-        metrics = get_telemetry_metrics()
 
         try:
             # Find the gobby-workflows registry
@@ -237,6 +234,5 @@ with open(pid_file, "w") as f:
             }
 
         except Exception as e:
-
             logger.error("Error reloading workflows: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

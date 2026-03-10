@@ -327,7 +327,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-
             raise
 
         except ValueError as e:
@@ -336,7 +335,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         except Exception as e:
-
             logger.error(f"Error registering session: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500, detail="Internal server error while registering session"
@@ -431,10 +429,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Error listing sessions: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -507,10 +503,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Bulk move sessions error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -885,10 +879,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Synthesize title error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to synthesize title") from e
 
@@ -929,10 +921,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             return {"status": "success", "title": title}
 
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Rename session error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -994,7 +984,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         except HTTPException:
             raise
         except Exception as e:
-
             logger.error(f"Generate summary error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1056,10 +1045,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Error sending stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1108,10 +1095,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Error checking stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1152,10 +1137,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             }
 
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Error clearing stop signal: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1178,7 +1161,6 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 result["archive_path"] = str(archive_path)
             return result
         except Exception as e:
-
             logger.error(f"Error getting transcript status: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1219,10 +1201,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
             raise HTTPException(status_code=404, detail="No transcript found")
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Error getting transcript: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1251,10 +1231,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 "size": size,
             }
         except HTTPException:
-
             raise
         except Exception as e:
-
             logger.error(f"Error restoring transcript: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 

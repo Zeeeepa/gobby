@@ -21,7 +21,6 @@ from gobby.mcp_proxy.tools.workflows._rules import (
     toggle_rule,
 )
 from gobby.storage.config_store import ConfigStore
-from gobby.telemetry.instruments import get_telemetry_metrics
 from gobby.workflows.definitions import RuleDefinitionBody
 
 if TYPE_CHECKING:
@@ -84,7 +83,6 @@ class BulkToggleRequest(BaseModel):
 def create_rules_router(server: "HTTPServer") -> APIRouter:
     """Create rules router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/rules", tags=["rules"])
-    metrics = get_telemetry_metrics()
 
     def _get_manager() -> "LocalWorkflowDefinitionManager":
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager

@@ -81,7 +81,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with workflow definition endpoints
     """
     router = APIRouter(prefix="/api/workflows", tags=["workflows"])
-    metrics = get_telemetry_metrics()
+    get_telemetry_metrics()
 
     def _get_manager() -> "LocalWorkflowDefinitionManager":
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -380,7 +380,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
                 workflow=None,
             )
         except Exception as e:
-
             logger.error(f"Error setting variable: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -400,7 +399,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
                 workflow=None,
             )
         except Exception as e:
-
             logger.error(f"Error getting variable: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 

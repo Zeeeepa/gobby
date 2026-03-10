@@ -155,7 +155,6 @@ async def list_all_mcp_tools(
         }
 
     except Exception as e:
-
         logger.error(f"List MCP tools error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -247,7 +246,6 @@ async def recommend_mcp_tools(
     except HTTPException:
         raise
     except Exception as e:
-
         logger.error(f"Recommend tools error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -390,7 +388,6 @@ async def search_mcp_tools(
     except HTTPException:
         raise
     except Exception as e:
-
         logger.error(f"Search tools error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}

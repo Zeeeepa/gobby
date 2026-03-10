@@ -16,7 +16,6 @@ from gobby.storage.task_dependencies import (
     TaskDependencyManager,
 )
 from gobby.storage.tasks._models import VALID_CATEGORIES, TaskNotFoundError
-from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -117,7 +116,6 @@ class DependencyAddRequest(BaseModel):
 def create_tasks_router(server: "HTTPServer") -> APIRouter:
     """Create tasks router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/tasks", tags=["tasks"])
-    metrics = get_telemetry_metrics()
 
     def _resolve_project(project_id: str | None) -> str:
         """Resolve project ID, falling back to server's project context."""
