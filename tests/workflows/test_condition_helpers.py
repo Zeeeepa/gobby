@@ -3,8 +3,8 @@
 Covers:
 - _normalize_task_id: int → '#N', str passthrough
 - task_tree_complete: int task_id, str task_id, list of mixed, None, missing task
-- task_needs_user_review: int task_id normalization
-- is_task_complete: status-based completion logic
+- task_needs_human_review: escalated status check with int/str task_id
+- is_task_complete: only closed counts as complete
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import pytest
 from gobby.workflows.condition_helpers import (
     _normalize_task_id,
     is_task_complete,
-    task_needs_user_review,
+    task_needs_human_review,
     task_tree_complete,
 )
 
@@ -33,7 +33,6 @@ pytestmark = pytest.mark.unit
 class FakeTask:
     id: str
     status: str = "open"
-    requires_user_review: bool = False
 
 
 class FakeTaskManager:
@@ -87,23 +86,17 @@ class TestIsTaskComplete:
     def test_closed_is_complete(self) -> None:
         assert is_task_complete(FakeTask(id="1", status="closed")) is True
 
-    def test_needs_review_no_hitl_is_complete(self) -> None:
-        assert (
-            is_task_complete(FakeTask(id="1", status="needs_review", requires_user_review=False))
-            is True
-        )
-
-    def test_needs_review_with_hitl_is_not_complete(self) -> None:
-        assert (
-            is_task_complete(FakeTask(id="1", status="needs_review", requires_user_review=True))
-            is False
-        )
+    def test_needs_review_is_not_complete(self) -> None:
+        assert is_task_complete(FakeTask(id="1", status="needs_review")) is False
 
     def test_open_is_not_complete(self) -> None:
         assert is_task_complete(FakeTask(id="1", status="open")) is False
 
     def test_in_progress_is_not_complete(self) -> None:
         assert is_task_complete(FakeTask(id="1", status="in_progress")) is False
+
+    def test_escalated_is_not_complete(self) -> None:
+        assert is_task_complete(FakeTask(id="1", status="escalated")) is False
 
 
 # ---------------------------------------------------------------------------
@@ -233,28 +226,33 @@ class TestTaskTreeCompleteEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# task_needs_user_review — int task_id handling
+# task_needs_human_review — escalated status check
 # ---------------------------------------------------------------------------
 
 
-class TestTaskNeedsUserReview:
-    def test_int_task_id_in_review(self) -> None:
+class TestTaskNeedsHumanReview:
+    def test_int_task_id_escalated(self) -> None:
         mgr = FakeTaskManager()
-        mgr.add(FakeTask(id="#9438", status="needs_review", requires_user_review=True))
-        assert task_needs_user_review(mgr, 9438) is True
+        mgr.add(FakeTask(id="#9438", status="escalated"))
+        assert task_needs_human_review(mgr, 9438) is True
 
-    def test_int_task_id_not_in_review(self) -> None:
+    def test_int_task_id_not_escalated(self) -> None:
         mgr = FakeTaskManager()
         mgr.add(FakeTask(id="#9438", status="open"))
-        assert task_needs_user_review(mgr, 9438) is False
+        assert task_needs_human_review(mgr, 9438) is False
+
+    def test_needs_review_is_not_human_review(self) -> None:
+        mgr = FakeTaskManager()
+        mgr.add(FakeTask(id="#100", status="needs_review"))
+        assert task_needs_human_review(mgr, "#100") is False
 
     def test_string_task_id(self) -> None:
         mgr = FakeTaskManager()
-        mgr.add(FakeTask(id="#100", status="needs_review", requires_user_review=True))
-        assert task_needs_user_review(mgr, "#100") is True
+        mgr.add(FakeTask(id="#100", status="escalated"))
+        assert task_needs_human_review(mgr, "#100") is True
 
     def test_none_returns_false(self) -> None:
-        assert task_needs_user_review(FakeTaskManager(), None) is False
+        assert task_needs_human_review(FakeTaskManager(), None) is False
 
     def test_no_manager_returns_false(self) -> None:
-        assert task_needs_user_review(None, "#100") is False
+        assert task_needs_human_review(None, "#100") is False

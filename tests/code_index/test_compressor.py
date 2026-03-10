@@ -126,8 +126,8 @@ def test_outline_indents_methods(
 
     # Methods should use 4-space indent, top-level 2-space
     lines = result.compressed.split("\n")
-    method_lines = [l for l in lines if "add" in l and "method" in l]
-    top_lines = [l for l in lines if "greet" in l and "function" in l]
+    method_lines = [line for line in lines if "add" in line and "method" in line]
+    top_lines = [line for line in lines if "greet" in line and "function" in line]
 
     if method_lines:
         assert method_lines[0].startswith("    ")

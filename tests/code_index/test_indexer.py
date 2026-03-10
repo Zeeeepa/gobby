@@ -178,7 +178,7 @@ async def test_index_changed_files_handles_deleted(
     (sample_project / "src" / "app.py").unlink()
 
     # Process the "changed" file (which is now deleted)
-    result = await indexer.index_changed_files(
+    await indexer.index_changed_files(
         "proj-1",
         str(sample_project),
         ["src/app.py"],

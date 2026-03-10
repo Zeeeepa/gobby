@@ -16,8 +16,13 @@ from typing import TYPE_CHECKING, Any
 from gobby.sessions.transcript_archive import get_archive_dir
 
 if TYPE_CHECKING:
+    from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+    from gobby.sessions.transcripts.codex import CodexTranscriptParser
+    from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
+
+    TranscriptParser = ClaudeTranscriptParser | GeminiTranscriptParser | CodexTranscriptParser
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +53,9 @@ def _parse_lines_to_dicts(
     from gobby.sessions.transcripts.codex import CodexTranscriptParser
     from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 
+    parser: TranscriptParser
     if source == "gemini":
-        parser: Any = GeminiTranscriptParser()
+        parser = GeminiTranscriptParser()
     elif source == "codex":
         parser = CodexTranscriptParser()
     else:
@@ -133,9 +139,21 @@ class TranscriptReader:
         if db_count > 0:
             return db_count
 
-        # Fallback: count from archive
-        all_msgs = await self._read_from_archive(session_id, limit=999_999, offset=0)
-        return len(all_msgs)
+        # Fallback: count lines from archive (avoids loading all messages into memory)
+        session = self._session_manager.get(session_id)
+        if not session or not session.external_id:
+            return 0
+
+        archive_dir = get_archive_dir(self._archive_dir)
+        archive_path = archive_dir / f"{session.external_id}.jsonl.gz"
+        if not archive_path.is_file():
+            return 0
+
+        lines = await asyncio.get_event_loop().run_in_executor(
+            None, _decompress_archive, str(archive_path)
+        )
+        # Count non-empty lines (each line is a message)
+        return sum(1 for line in lines if line.strip())
 
     async def _read_from_archive(
         self,

@@ -15,11 +15,31 @@ logger = logging.getLogger(__name__)
 def is_task_complete(task: Any) -> bool:
     """Check if a task counts as complete for workflow purposes.
 
-    A task is complete if:
-    - status is 'closed', OR
-    - status is 'needs_review' (review submitted, pending human action)
+    A task is complete only when status is 'closed'.
     """
-    return task.status in ("closed", "needs_review")
+    return bool(task.status == "closed")
+
+
+def task_needs_human_review(task_manager: Any, task_id: str | int | None) -> bool:
+    """Check if a task has been escalated for human review.
+
+    Returns True when the task has status 'escalated'.
+
+    Used in rule conditions like:
+        when: "task_needs_human_review(variables.session_task)"
+    """
+    if not task_id:
+        return False
+    if not task_manager:
+        return False
+
+    normalized = _normalize_task_id(task_id)
+    task = task_manager.get_task(normalized)
+    if not task:
+        logger.warning(f"task_needs_human_review: Task '{normalized}' not found")
+        return False
+
+    return bool(task.status == "escalated")
 
 
 def _normalize_task_id(task_id: Any) -> str:
@@ -36,7 +56,7 @@ def task_tree_complete(task_manager: Any, task_id: str | int | list[str | int] |
     """Check if a task tree is complete (all work is done).
 
     A task tree is complete when either:
-    - The task is explicitly closed/needs_review, OR
+    - The task is explicitly closed, OR
     - The task has subtasks and ALL subtasks are recursively complete
 
     Used in rule conditions like:
@@ -50,7 +70,7 @@ def task_tree_complete(task_manager: Any, task_id: str | int | list[str | int] |
         logger.warning("task_tree_complete: No task_manager available")
         return False
 
-    if isinstance(task_id, (str, int)):
+    if isinstance(task_id, str | int):
         task_ids = [_normalize_task_id(task_id)]
     elif isinstance(task_id, list):
         task_ids = [_normalize_task_id(t) for t in task_id]

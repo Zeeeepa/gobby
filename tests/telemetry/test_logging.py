@@ -171,6 +171,7 @@ def test_setup_otel_logging_attaches_otel_handler(telemetry_config):
 
 def test_init_telemetry_sets_providers(telemetry_config):
     from opentelemetry import metrics, trace
+
     from gobby.telemetry.logging import init_telemetry
 
     # Clear providers if possible or just check they are set

@@ -1,14 +1,15 @@
 """Tests for config consolidation and telemetry cleanup."""
 
 import pytest
-from pydantic import ValidationError
+
 from gobby.config.app import DaemonConfig
 
 pytestmark = pytest.mark.unit
 
-def test_old_logging_config_raises_validation_error() -> None:
-    """Old configs with 'logging:' key must fail loudly with ValidationError."""
-    # This should fail after we remove 'logging' field from DaemonConfig
-    # AND set extra='forbid'
-    with pytest.raises(ValidationError):
-        DaemonConfig(logging={"level": "debug"})
+
+def test_old_logging_config_silently_ignored() -> None:
+    """DaemonConfig uses extra='ignore', so stale keys from DB are dropped silently."""
+    # extra='ignore' was set in c70d6299 to allow startup when DB has
+    # removed keys (logging, title_synthesis, rules, ui_settings).
+    cfg = DaemonConfig(logging={"level": "debug"})
+    assert not hasattr(cfg, "logging")

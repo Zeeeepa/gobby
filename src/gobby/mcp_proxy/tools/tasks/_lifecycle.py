@@ -650,21 +650,26 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "message": f"Task is already claimed by session '{task.assignee}'. Use force=True to override.",
             }
 
-        # Update task with assignee and status in single atomic call
+        # Update task: only transition to in_progress when task is open.
+        # For other statuses (e.g. needs_review claimed by QA), preserve status.
+        update_kwargs: dict[str, Any] = {"assignee": resolved_session_id}
+        if task.status == "open":
+            update_kwargs["status"] = "in_progress"
         updated = ctx.task_manager.update_task(
             resolved_id,
-            assignee=resolved_session_id,
-            status="in_progress",
+            **update_kwargs,
         )
         if not updated:
             return {"error": f"Failed to claim task {task_id}"}
 
-        notify_parent_on_status_change(
-            ctx.task_manager.db,
-            resolved_id,
-            "in_progress",
-            task_ref=f"#{task.seq_num}" if task.seq_num else None,
-        )
+        new_status = update_kwargs.get("status", task.status)
+        if new_status != task.status:
+            notify_parent_on_status_change(
+                ctx.task_manager.db,
+                resolved_id,
+                new_status,
+                task_ref=f"#{task.seq_num}" if task.seq_num else None,
+            )
 
         # Link task to session (best-effort, don't fail the claim if this fails)
         try:

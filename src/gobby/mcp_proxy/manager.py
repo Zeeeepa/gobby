@@ -434,28 +434,22 @@ class MCPClientManager:
             store = SecretStore(db)
             import dataclasses
 
+            def _strip_unresolved_secrets(d: dict[str, str], label: str) -> dict[str, str]:
+                resolved = store.resolve_dict(d)
+                unresolved = [k for k, v in resolved.items() if SECRET_REF_PATTERN.search(v)]
+                if unresolved:
+                    logger.warning(
+                        f"Stripping unresolved secret refs from {config.name} {label}: "
+                        f"{', '.join(unresolved)}"
+                    )
+                    resolved = {k: v for k, v in resolved.items() if k not in unresolved}
+                return resolved
+
             updates: dict[str, Any] = {}
             if config.headers:
-                resolved = store.resolve_dict(config.headers)
-                # Strip entries with unresolved $secret: refs
-                unresolved = [k for k, v in resolved.items() if SECRET_REF_PATTERN.search(v)]
-                if unresolved:
-                    logger.warning(
-                        f"Stripping unresolved secret refs from {config.name} headers: "
-                        f"{', '.join(unresolved)}"
-                    )
-                    resolved = {k: v for k, v in resolved.items() if k not in unresolved}
-                updates["headers"] = resolved
+                updates["headers"] = _strip_unresolved_secrets(config.headers, "headers")
             if config.env:
-                resolved = store.resolve_dict(config.env)
-                unresolved = [k for k, v in resolved.items() if SECRET_REF_PATTERN.search(v)]
-                if unresolved:
-                    logger.warning(
-                        f"Stripping unresolved secret refs from {config.name} env: "
-                        f"{', '.join(unresolved)}"
-                    )
-                    resolved = {k: v for k, v in resolved.items() if k not in unresolved}
-                updates["env"] = resolved
+                updates["env"] = _strip_unresolved_secrets(config.env, "env")
             return dataclasses.replace(config, **updates)
         except Exception as e:
             logger.debug(f"Secret resolution skipped for {config.name}: {e}")

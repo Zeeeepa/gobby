@@ -13,11 +13,15 @@ Each handler implements the IsolationHandler ABC to provide:
 """
 
 import asyncio
+import logging
 import subprocess  # nosec B404 - needed for git error handling
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -188,8 +192,6 @@ class WorktreeIsolationHandler(IsolationHandler):
         # Check if worktree already exists for this branch
         existing = self._worktree_storage.get_by_branch(config.project_id, branch_name)
         if existing:
-            from pathlib import Path
-
             if Path(existing.worktree_path).is_dir():
                 # Use existing worktree
                 return IsolationContext(
@@ -201,9 +203,7 @@ class WorktreeIsolationHandler(IsolationHandler):
                 )
             else:
                 # Stale record — directory gone, clean up and fall through to create new
-                import logging
 
-                logger = logging.getLogger(__name__)
                 logger.warning(
                     "Worktree directory missing: %s (cleaning up stale record %s)",
                     existing.worktree_path,
@@ -226,17 +226,13 @@ class WorktreeIsolationHandler(IsolationHandler):
         if has_unpushed:
             # Use local branch ref to preserve unpushed commits
             use_local = True
-            import logging
 
-            logger = logging.getLogger(__name__)
             logger.info(
                 f"Using local branch '{base_branch}' for worktree "
                 f"({unpushed_count} unpushed commits)"
             )
 
         # Generate worktree path
-        from pathlib import Path
-
         project_name = Path(self._git_manager.repo_path).name
         worktree_path = self._generate_worktree_path(branch_name, project_name)
 
@@ -295,9 +291,6 @@ class WorktreeIsolationHandler(IsolationHandler):
 
     async def cleanup_environment(self, config: SpawnConfig) -> None:
         """Clean up partially created worktree on prepare failure."""
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         if self._created_worktree_path:
             try:
@@ -345,8 +338,6 @@ Commit your changes to the worktree branch when done.
 
     def _generate_worktree_path(self, branch_name: str, project_name: str) -> str:
         """Generate a unique worktree path in ~/.gobby/worktrees/."""
-        from pathlib import Path
-
         # Sanitize branch name for use in path
         safe_branch = branch_name.replace("/", "-").replace("\\", "-")
         return str(Path.home() / ".gobby" / "worktrees" / project_name / safe_branch)
@@ -368,12 +359,7 @@ Commit your changes to the worktree branch when done.
             worktree_path: Path to the newly created worktree
             provider: CLI provider (gemini, claude, codex)
         """
-        import asyncio
-        import logging
         import shutil
-        from pathlib import Path
-
-        logger = logging.getLogger(__name__)
 
         # Map provider to CLI hook directory
         cli_dirs = {
@@ -462,8 +448,6 @@ class CloneIsolationHandler(IsolationHandler):
         # Check if clone already exists for this branch
         existing = self._clone_storage.get_by_branch(config.project_id, branch_name)
         if existing:
-            from pathlib import Path
-
             if Path(existing.clone_path).is_dir():
                 # Use existing clone
                 return IsolationContext(
@@ -475,9 +459,7 @@ class CloneIsolationHandler(IsolationHandler):
                 )
             else:
                 # Stale record — directory gone, clean up and fall through to create new
-                import logging
 
-                logger = logging.getLogger(__name__)
                 logger.warning(
                     "Clone directory missing: %s (cleaning up stale record %s)",
                     existing.clone_path,
@@ -495,9 +477,7 @@ class CloneIsolationHandler(IsolationHandler):
             if current_branch and base_branch == "main" and current_branch != "main":
                 # Use parent's current branch instead
                 base_branch = current_branch
-                import logging
 
-                logger = logging.getLogger(__name__)
                 logger.info(f"Using parent's current branch '{base_branch}' for clone")
 
             # Check for unpushed commits on the base branch
@@ -505,25 +485,17 @@ class CloneIsolationHandler(IsolationHandler):
                 has_unpushed, unpushed_count = self._git_manager.has_unpushed_commits(base_branch)
                 if has_unpushed:
                     use_local = True
-                    import logging
-
-                    logger = logging.getLogger(__name__)
                     logger.info(
                         f"Using local repo for clone "
                         f"({unpushed_count} unpushed commits on '{base_branch}')"
                     )
             except (subprocess.CalledProcessError, OSError):
-                import logging
-
-                logger = logging.getLogger(__name__)
                 logger.warning(
                     "Failed to check unpushed commits for clone, using remote",
                     exc_info=True,
                 )
 
         # Generate clone path
-        from pathlib import Path
-
         project_name = Path(config.project_path).name
         clone_path = self._generate_clone_path(branch_name, project_name)
 
@@ -582,9 +554,6 @@ class CloneIsolationHandler(IsolationHandler):
 
     async def cleanup_environment(self, config: SpawnConfig) -> None:
         """Clean up partially created clone on prepare failure."""
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         if self._created_clone_path:
             try:
@@ -630,8 +599,6 @@ Push your changes when ready to share with the original.
 
     def _generate_clone_path(self, branch_name: str, project_name: str) -> str:
         """Generate a unique clone path in ~/.gobby/clones/."""
-        from pathlib import Path
-
         # Sanitize branch name for use in path
         safe_branch = branch_name.replace("/", "-").replace("\\", "-")
         return str(Path.home() / ".gobby" / "clones" / project_name / safe_branch)
@@ -653,12 +620,7 @@ Push your changes when ready to share with the original.
             clone_path: Path to the newly created clone
             provider: CLI provider (gemini, claude, codex)
         """
-        import asyncio
-        import logging
         import shutil
-        from pathlib import Path
-
-        logger = logging.getLogger(__name__)
 
         # Map provider to CLI hook directory
         cli_dirs = {
@@ -716,10 +678,6 @@ async def _patch_mcp_config_for_isolation(
     isolated path as a project with the correct MCP server config.
     """
     import json
-    import logging
-    from pathlib import Path
-
-    logger = logging.getLogger(__name__)
 
     mcp_config = {
         "mcpServers": {
