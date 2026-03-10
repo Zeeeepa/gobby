@@ -1,0 +1,14 @@
+tags: [worker-safety, enforcement, default, gobby]
+
+rules:
+  no-force-push-interactive:
+    description: "Block force push with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "git\\s+push\\s+.*(?:--force(?:-with-lease|-if-includes)?|-f)(?:\\s|$)"
+        reason: "Force pushing is not allowed. Ask the user for permission to disable this rule if you need to proceed."
