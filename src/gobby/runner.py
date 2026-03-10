@@ -103,6 +103,7 @@ class GobbyRunner:
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
         self._vector_rebuild_task: asyncio.Task[None] | None = None
         self._zombie_messages_task: asyncio.Task[None] | None = None
+        self._span_cleanup_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()

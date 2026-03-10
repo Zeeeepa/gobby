@@ -18,9 +18,9 @@ def create_traces_router(server: HTTPServer) -> APIRouter:
     router = APIRouter(prefix="/api/traces", tags=["traces"])
 
     def _get_storage() -> SpanStorage:
-        """Get SpanStorage from the server's database."""
-        # We can either use server.services.database or a dedicated span_storage if added to ServiceContainer
-        # For now, we'll use the database directly to avoid extensive app_context.py changes if not needed
+        """Get SpanStorage from the ServiceContainer."""
+        if server.services.span_storage is not None:
+            return server.services.span_storage
         if server.services.database is None:
             raise HTTPException(503, "Database not available")
         return SpanStorage(server.services.database)
