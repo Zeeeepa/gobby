@@ -223,7 +223,7 @@ class TelemetryMetrics:
         )
         self._values["histograms"][name] = {"count": 0, "sum": 0.0, "buckets": {}, "labels": {}}
 
-    def _observe_gauge_callback(self, name: str) -> Callable:
+    def _observe_gauge_callback(self, name: str) -> Callable[..., Any]:
         def callback(options: metrics.CallbackOptions) -> list[metrics.Observation]:
             with self._lock:
                 val = self._values["gauges"].get(name, {}).get("value", 0.0)

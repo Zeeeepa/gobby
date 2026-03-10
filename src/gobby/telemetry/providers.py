@@ -100,11 +100,11 @@ def shutdown_providers() -> None:
     global _TRACER_PROVIDER, _METER_PROVIDER, _LOGGER_PROVIDER
 
     if _TRACER_PROVIDER is not None:
-        _TRACER_PROVIDER.shutdown()  # type: ignore[no-untyped-call]
+        _TRACER_PROVIDER.shutdown()
         _TRACER_PROVIDER = None
 
     if _METER_PROVIDER is not None:
-        _METER_PROVIDER.shutdown()  # type: ignore[no-untyped-call]
+        _METER_PROVIDER.shutdown()
         _METER_PROVIDER = None
 
     if _LOGGER_PROVIDER is not None:
