@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 from gobby.utils.version import get_version
 
 if TYPE_CHECKING:
@@ -186,8 +186,7 @@ def register_config_routes(router: APIRouter, server: "HTTPServer") -> None:
             Configuration data including ports, features, and versions
         """
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
-        metrics.inc_counter("http_requests_total")
+        metrics = get_telemetry_metrics()
 
         try:
             config_data = {

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_internal_manager, get_mcp_manager, get_server
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Module-level metrics collector (shared across all requests)
-_metrics = get_metrics_collector()
+_metrics = get_telemetry_metrics()
 
 
 def _process_tool_proxy_result(
@@ -163,7 +163,6 @@ async def list_mcp_tools(
         List of available tools with their descriptions
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         # Check internal registries first (gobby-tasks, gobby-memory, etc.)
@@ -273,7 +272,7 @@ async def list_mcp_tools(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
+
         logger.error(f"MCP list tools error: {server_name}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -296,7 +295,6 @@ async def get_tool_schema(
         Tool schema with inputSchema
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         body = await request.json()
@@ -375,7 +373,7 @@ async def get_tool_schema(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
+
         logger.error(f"Get tool schema error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -399,7 +397,6 @@ async def call_mcp_tool(
         Tool execution result
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
     _metrics.inc_counter("mcp_tool_calls_total")
 
     try:
@@ -481,7 +478,6 @@ async def mcp_proxy(
         Tool execution result
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
     _metrics.inc_counter("mcp_tool_calls_total")
 
     try:

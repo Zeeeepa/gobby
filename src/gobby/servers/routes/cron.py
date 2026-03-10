@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -61,7 +61,7 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with cron job endpoints
     """
     router = APIRouter(prefix="/api/cron", tags=["cron"])
-    metrics = get_metrics_collector()
+    metrics = get_telemetry_metrics()
 
     def _get_storage() -> "CronJobStorage":
         from gobby.storage.cron import CronJobStorage
@@ -79,7 +79,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
         enabled: bool | None = Query(None),
     ) -> dict[str, Any]:
         """List cron jobs with optional filtering."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             jobs = storage.list_jobs(project_id=project_id, enabled=enabled)
@@ -97,7 +96,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     @router.post("/jobs")
     async def create_job(request: CreateCronJobRequest) -> dict[str, Any]:
         """Create a new cron job."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             job = storage.create_job(
@@ -122,7 +120,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     @router.get("/jobs/{job_id}")
     async def get_job(job_id: str) -> dict[str, Any]:
         """Get a cron job by ID."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             job = storage.get_job(job_id)
@@ -138,7 +135,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     @router.patch("/jobs/{job_id}")
     async def update_job(job_id: str, request: UpdateCronJobRequest) -> dict[str, Any]:
         """Update a cron job."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             kwargs: dict[str, Any] = {}
@@ -174,7 +170,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/jobs/{job_id}")
     async def delete_job(job_id: str) -> dict[str, Any]:
         """Delete a cron job."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             success = storage.delete_job(job_id)
@@ -190,7 +185,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     @router.post("/jobs/{job_id}/toggle")
     async def toggle_job(job_id: str) -> dict[str, Any]:
         """Toggle a cron job enabled/disabled."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             job = storage.toggle_job(job_id)
@@ -206,7 +200,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     @router.post("/jobs/{job_id}/run", response_model=None)
     async def run_job_now(job_id: str) -> dict[str, Any] | JSONResponse:
         """Trigger immediate execution of a cron job."""
-        metrics.inc_counter("http_requests_total")
         try:
             scheduler = server.services.cron_scheduler
             if scheduler is not None:
@@ -237,7 +230,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
         limit: int = Query(20, ge=1, le=100),
     ) -> dict[str, Any]:
         """List run history for a cron job."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             runs = storage.list_runs(job_id, limit=limit)
@@ -255,7 +247,6 @@ def create_cron_router(server: "HTTPServer") -> APIRouter:
     @router.get("/runs/{run_id}")
     async def get_run(run_id: str) -> dict[str, Any]:
         """Get a specific cron run by ID."""
-        metrics.inc_counter("http_requests_total")
         try:
             storage = _get_storage()
             run = storage.get_run(run_id)

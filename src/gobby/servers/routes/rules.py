@@ -21,7 +21,7 @@ from gobby.mcp_proxy.tools.workflows._rules import (
     toggle_rule,
 )
 from gobby.storage.config_store import ConfigStore
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 from gobby.workflows.definitions import RuleDefinitionBody
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class BulkToggleRequest(BaseModel):
 def create_rules_router(server: "HTTPServer") -> APIRouter:
     """Create rules router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/rules", tags=["rules"])
-    metrics = get_metrics_collector()
+    metrics = get_telemetry_metrics()
 
     def _get_manager() -> "LocalWorkflowDefinitionManager":
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -107,7 +107,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.get("/groups")
     async def list_groups() -> dict[str, Any]:
         """List distinct rule groups."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             rows = manager.list_all(workflow_type="rule")
@@ -128,7 +127,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.get("/tags")
     async def list_tags() -> dict[str, Any]:
         """List distinct rule tags."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             rows = manager.list_all(workflow_type="rule")
@@ -156,7 +154,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> dict[str, Any]:
         """List rules with optional filters."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             result = list_rules(
@@ -186,7 +183,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.post("", status_code=201)
     async def create_rule_endpoint(request: RuleCreateRequest) -> dict[str, Any]:
         """Create a new rule."""
-        metrics.inc_counter("http_requests_total")
         manager = _get_manager()
         result = create_rule(manager, name=request.name, definition=request.definition)
 
@@ -208,7 +204,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.put("")
     async def update_rules_collection(request: RulesCollectionUpdate) -> dict[str, Any]:
         """Update rules collection settings (e.g. global enforcement toggle)."""
-        metrics.inc_counter("http_requests_total")
         config_store = ConfigStore(server.services.database)
         if request.enforcement_enabled is not None:
             config_store.set("rules.enforcement_enabled", request.enforcement_enabled)
@@ -222,7 +217,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.put("/bulk-toggle")
     async def bulk_toggle_rules(request: BulkToggleRequest) -> dict[str, Any]:
         """Toggle all rules matching a source filter."""
-        metrics.inc_counter("http_requests_total")
         if request.source not in ("installed", "project"):
             raise HTTPException(status_code=400, detail="source must be 'installed' or 'project'")
         try:
@@ -245,7 +239,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{name}")
     async def get_rule_endpoint(name: str) -> dict[str, Any]:
         """Get a rule by name."""
-        metrics.inc_counter("http_requests_total")
         manager = _get_manager()
         result = get_rule(manager, name=name)
 
@@ -261,7 +254,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.put("/{name}")
     async def update_rule_endpoint(name: str, request: RuleUpdateRequest) -> dict[str, Any]:
         """Update rule fields."""
-        metrics.inc_counter("http_requests_total")
         manager = _get_manager()
 
         row = manager.get_by_name(name)
@@ -327,7 +319,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
         force: bool = Query(False, description="Override bundled protection"),
     ) -> dict[str, Any]:
         """Soft-delete a rule. Bundled rules are protected unless force=True."""
-        metrics.inc_counter("http_requests_total")
         manager = _get_manager()
         result = delete_rule(manager, name=name, force=force)
 
@@ -348,7 +339,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
     @router.put("/{name}/toggle")
     async def toggle_rule_endpoint(name: str, request: RuleToggleRequest) -> dict[str, Any]:
         """Toggle a rule's enabled state."""
-        metrics.inc_counter("http_requests_total")
         manager = _get_manager()
         result = toggle_rule(manager, name=name, enabled=request.enabled)
 

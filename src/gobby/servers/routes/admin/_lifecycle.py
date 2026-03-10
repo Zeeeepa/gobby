@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -37,9 +37,8 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
             Shutdown confirmation
         """
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
+        metrics = get_telemetry_metrics()
 
-        metrics.inc_counter("http_requests_total")
         metrics.inc_counter("shutdown_requests_total")
 
         try:
@@ -60,7 +59,7 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
+
             logger.error("Error initiating shutdown: %s", e, exc_info=True)
             return {
                 "status": "error",
@@ -76,8 +75,7 @@ def register_lifecycle_routes(router: APIRouter, server: "HTTPServer") -> None:
         daemon to exit, then starts a new one. Returns immediately.
         """
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
-        metrics.inc_counter("http_requests_total")
+        metrics = get_telemetry_metrics()
 
         restart_lock = _get_restart_lock()
         if restart_lock.locked():
@@ -182,7 +180,7 @@ with open(pid_file, "w") as f:
 
         except Exception as e:
             restart_lock.release()
-            metrics.inc_counter("http_requests_errors_total")
+
             logger.error("Error initiating restart: %s", e, exc_info=True)
             return {
                 "status": "error",
@@ -197,8 +195,7 @@ with open(pid_file, "w") as f:
         Triggers the gobby-workflows.reload_cache MCP tool internally.
         """
         start_time = time.perf_counter()
-        metrics = get_metrics_collector()
-        metrics.inc_counter("http_requests_total")
+        metrics = get_telemetry_metrics()
 
         try:
             # Find the gobby-workflows registry
@@ -240,6 +237,6 @@ with open(pid_file, "w") as f:
             }
 
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
+
             logger.error("Error reloading workflows: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

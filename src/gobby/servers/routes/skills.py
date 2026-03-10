@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -88,7 +88,7 @@ class HubInstallRequest(BaseModel):
 def create_skills_router(server: "HTTPServer") -> APIRouter:
     """Create skills router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/skills", tags=["skills"])
-    metrics = get_metrics_collector()
+    metrics = get_telemetry_metrics()
 
     async def _broadcast_skill(event: str, skill_id: str, **kwargs: Any) -> None:
         """Broadcast a skill event via WebSocket if available."""
@@ -112,7 +112,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         offset: int = Query(0, description="Pagination offset"),
     ) -> dict[str, Any]:
         """List skills with optional filters."""
-        metrics.inc_counter("http_requests_total")
         try:
             skills = server.skill_manager.list_skills(
                 project_id=project_id,
@@ -131,7 +130,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("", status_code=201)
     async def create_skill(request_data: SkillCreateRequest) -> Any:
         """Create a new skill."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.create_skill(
                 name=request_data.name,
@@ -163,7 +161,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         limit: int = Query(20, description="Maximum results"),
     ) -> dict[str, Any]:
         """Search skills by name and description."""
-        metrics.inc_counter("http_requests_total")
         try:
             results = server.skill_manager.search_skills(
                 query_text=q,
@@ -184,7 +181,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> Any:
         """Get skill statistics."""
-        metrics.inc_counter("http_requests_total")
         try:
             total = server.skill_manager.count_skills(project_id=project_id)
             enabled = server.skill_manager.count_skills(project_id=project_id, enabled=True)
@@ -231,7 +227,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("/restore-defaults")
     async def restore_defaults() -> dict[str, Any]:
         """Restore bundled skills to their default state."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.skills.sync import sync_bundled_skills
 
@@ -245,7 +240,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("/import")
     async def import_skill(request_data: SkillImportRequest) -> dict[str, Any]:
         """Import a skill from GitHub, ZIP, or local path."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.skills.loader import SkillLoader
 
@@ -303,7 +297,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("/scan")
     def scan_skill(request_data: SkillScanRequest) -> dict[str, Any]:
         """Run safety scan on skill content using Cisco skill-scanner."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.skills.scanner import scan_skill_content
 
@@ -324,7 +317,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.get("/hubs")
     def list_hubs() -> dict[str, Any]:
         """List configured skill hubs."""
-        metrics.inc_counter("http_requests_total")
         if server.hub_manager is None:
             return {"hubs": []}
         try:
@@ -355,7 +347,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         limit: int = Query(20, description="Maximum results"),
     ) -> dict[str, Any]:
         """Search for skills across configured hubs."""
-        metrics.inc_counter("http_requests_total")
         if server.hub_manager is None:
             return {"query": q, "results": [], "count": 0}
         try:
@@ -380,7 +371,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("/hubs/install")
     async def install_from_hub(request_data: HubInstallRequest) -> dict[str, Any]:
         """Download and install a skill from a hub."""
-        metrics.inc_counter("http_requests_total")
         if server.hub_manager is None:
             raise HTTPException(status_code=404, detail="No hub manager configured")
         try:
@@ -436,7 +426,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None, description="Project scope"),
     ) -> dict[str, Any]:
         """Install all eligible template skills."""
-        metrics.inc_counter("http_requests_total")
         try:
             count = server.skill_manager.install_all_templates(project_id=project_id)
             if count:
@@ -449,7 +438,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{skill_id}")
     def get_skill(skill_id: str) -> Any:
         """Get a specific skill by ID."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.get_skill(skill_id)
             return skill.to_dict()
@@ -462,7 +450,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.put("/{skill_id}")
     async def update_skill(skill_id: str, request_data: SkillUpdateRequest) -> Any:
         """Update an existing skill."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.update_skill(
                 skill_id=skill_id,
@@ -489,7 +476,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/{skill_id}")
     async def delete_skill(skill_id: str) -> dict[str, Any]:
         """Delete a skill."""
-        metrics.inc_counter("http_requests_total")
         try:
             result = server.skill_manager.delete_skill(skill_id)
             if not result:
@@ -505,7 +491,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{skill_id}/install")
     async def install_from_template(skill_id: str) -> dict[str, Any]:
         """Install a skill from its template."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.install_from_template(skill_id)
             await _broadcast_skill("skill_created", skill.id)
@@ -522,7 +507,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
         project_id: str = Query(..., description="Target project ID"),
     ) -> dict[str, Any]:
         """Move a skill to project scope."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.move_to_project(skill_id, project_id)
             await _broadcast_skill("skill_updated", skill_id)
@@ -536,7 +520,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{skill_id}/move-to-installed")
     async def move_to_installed(skill_id: str) -> dict[str, Any]:
         """Move a project-scoped skill back to installed scope."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.move_to_installed(skill_id)
             await _broadcast_skill("skill_updated", skill_id)
@@ -550,7 +533,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{skill_id}/restore")
     async def restore_skill(skill_id: str) -> dict[str, Any]:
         """Restore a soft-deleted skill."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.restore_skill(skill_id)
             await _broadcast_skill("skill_updated", skill_id)
@@ -564,7 +546,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{skill_id}/export")
     def export_skill(skill_id: str) -> dict[str, Any]:
         """Export a skill as SKILL.md content with frontmatter."""
-        metrics.inc_counter("http_requests_total")
         try:
             skill = server.skill_manager.get_skill(skill_id)
 

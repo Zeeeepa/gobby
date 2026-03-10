@@ -9,8 +9,9 @@ from typing import TYPE_CHECKING, Any
 import psutil
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -66,7 +67,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             process_metrics = None
 
         # Get background task status
-        metrics = get_metrics_collector()
+        metrics = get_telemetry_metrics()
         all_metrics = metrics.get_all_metrics()
         counters = all_metrics.get("counters", {})
         background_tasks = {
@@ -278,7 +279,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
         - Background task metrics
         - Daemon health metrics
         """
-        metrics = get_metrics_collector()
+        metrics = get_telemetry_metrics()
         try:
             # Update daemon health metrics if available
             if server._daemon is not None:
@@ -300,11 +301,8 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             # Update background task gauge
             metrics.set_gauge("background_tasks_active", float(len(server._background_tasks)))
 
-            # Export in Prometheus format
-            prometheus_output = metrics.export_prometheus()
-            return PlainTextResponse(
-                content=prometheus_output, media_type="text/plain; version=0.0.4"
-            )
+            # Export in Prometheus format using prometheus_client integration
+            return PlainTextResponse(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
         except Exception as e:
             logger.error(f"Failed to export metrics: {e}", exc_info=True)

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_metrics_manager, get_server
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.metrics import ToolMetricsManager
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Module-level metrics collector (shared across all requests)
-_metrics = get_metrics_collector()
+_metrics = get_telemetry_metrics()
 
 # Set to keep background tasks alive (prevent garbage collection)
 _background_tasks: set[asyncio.Task[Any]] = set()
@@ -50,7 +50,6 @@ async def list_all_mcp_tools(
         Dict of server names to tool lists
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         tools_by_server: dict[str, list[dict[str, Any]]] = {}
@@ -156,7 +155,7 @@ async def list_all_mcp_tools(
         }
 
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
+
         logger.error(f"List MCP tools error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -183,7 +182,6 @@ async def recommend_mcp_tools(
         List of tool recommendations
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         try:
@@ -249,7 +247,7 @@ async def recommend_mcp_tools(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
+
         logger.error(f"Recommend tools error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -275,7 +273,6 @@ async def search_mcp_tools(
         List of matching tools with similarity scores
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         try:
@@ -393,7 +390,7 @@ async def search_mcp_tools(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
+
         logger.error(f"Search tools error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}

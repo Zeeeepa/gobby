@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -69,7 +69,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with hooks endpoints
     """
     router = APIRouter(prefix="/api/hooks", tags=["hooks"])
-    metrics = get_metrics_collector()
+    metrics = get_telemetry_metrics()
 
     @router.post("/execute")
     async def execute_hook(request: Request) -> dict[str, Any]:
@@ -87,7 +87,6 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             Hook execution result with status
         """
         start_time = time.perf_counter()
-        metrics.inc_counter("http_requests_total")
         metrics.inc_counter("hooks_total")
         hook_type: str | None = None  # Track for error handling
 

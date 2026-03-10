@@ -34,7 +34,7 @@ from gobby.storage.config_store import (
 )
 from gobby.storage.prompts import LocalPromptManager
 from gobby.storage.secrets import VALID_CATEGORIES, SecretStore
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -101,7 +101,7 @@ class ImportConfigRequest(BaseModel):
 def create_configuration_router(server: "HTTPServer") -> APIRouter:
     """Create the configuration API router."""
     router = APIRouter(prefix="/api/config", tags=["configuration"])
-    metrics = get_metrics_collector()
+    metrics = get_telemetry_metrics()
 
     def _get_secret_store() -> SecretStore:
         from gobby.storage.database import LocalDatabase
@@ -142,14 +142,12 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.get("/schema")
     async def get_config_schema() -> JSONResponse:
         """Return the JSON Schema for DaemonConfig."""
-        metrics.inc_counter("http_requests_total")
         schema = DaemonConfig.model_json_schema()
         return JSONResponse(content=schema)
 
     @router.get("/values")
     async def get_config_values() -> JSONResponse:
         """Return current config as nested dict with secrets masked."""
-        metrics.inc_counter("http_requests_total")
         config = server.services.config
         values = config.model_dump(mode="json", exclude_none=True)
 
@@ -178,7 +176,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
         Returns {ok: true, requires_restart: true} on success.
         """
-        metrics.inc_counter("http_requests_total")
         try:
             config_store = _get_config_store()
             existing_secret_keys = set(config_store.get_secret_keys())
@@ -257,7 +254,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.post("/values/validate")
     async def validate_config(request: SaveConfigRequest) -> JSONResponse:
         """Validate config without saving."""
-        metrics.inc_counter("http_requests_total")
         try:
             current = server.services.config.model_dump(mode="json", exclude_none=True)
             deep_merge(current, request.values)
@@ -269,7 +265,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.post("/values/reset")
     async def reset_config() -> JSONResponse:
         """Reset config to defaults (clear DB config_store)."""
-        metrics.inc_counter("http_requests_total")
         try:
             config_store = _get_config_store()
             deleted = config_store.delete_all()
@@ -290,7 +285,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
 
         Shows every available config option with current values highlighted.
         """
-        metrics.inc_counter("http_requests_total")
         try:
             defaults = DaemonConfig().model_dump(mode="json", exclude_none=True)
             config_store = _get_config_store()
@@ -305,7 +299,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.put("/template")
     async def save_config_template(request: SaveTemplateRequest) -> JSONResponse:
         """Accept YAML, diff against defaults, store only non-default values to DB."""
-        metrics.inc_counter("http_requests_total")
         try:
             parsed = yaml.safe_load(request.content)
             if parsed is None:
@@ -348,7 +341,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.get("/secrets")
     async def list_secrets() -> JSONResponse:
         """List all secrets (metadata only, never values)."""
-        metrics.inc_counter("http_requests_total")
         try:
             store = _get_secret_store()
             secrets = store.list()
@@ -365,7 +357,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.post("/secrets")
     async def save_secret(request: SaveSecretRequest) -> JSONResponse:
         """Create or update a secret."""
-        metrics.inc_counter("http_requests_total")
         try:
             store = _get_secret_store()
             info = store.set(
@@ -384,7 +375,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/secrets/{name}")
     async def delete_secret(name: str) -> JSONResponse:
         """Delete a secret by name."""
-        metrics.inc_counter("http_requests_total")
         try:
             store = _get_secret_store()
             if not store.delete(name):
@@ -403,7 +393,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.get("/prompts")
     async def list_prompts() -> JSONResponse:
         """List all prompts with category, source tier, override status."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_prompt_manager()
             records = manager.list_prompts(
@@ -461,7 +450,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.get("/prompts/{path:path}")
     async def get_prompt_detail(path: str) -> JSONResponse:
         """Get prompt content and frontmatter."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_prompt_manager()
 
@@ -514,7 +502,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.put("/prompts/{path:path}")
     async def save_prompt_override(path: str, request: SavePromptOverrideRequest) -> JSONResponse:
         """Create/update a prompt override (scope='global') in the database."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_prompt_manager()
 
@@ -567,7 +554,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/prompts/{path:path}")
     async def delete_prompt_override(path: str) -> JSONResponse:
         """Remove override (revert to bundled) by deleting the global record."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_prompt_manager()
 
@@ -602,7 +588,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.post("/export")
     async def export_config() -> JSONResponse:
         """Bundle config_store + prompt overrides + secret names (not values)."""
-        metrics.inc_counter("http_requests_total")
         try:
             # Config from DB (flat key-value pairs)
             config_store = _get_config_store()
@@ -660,7 +645,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
         - config_store: flat key-value dict (preferred, from export)
         - config: nested config dict (legacy, flattened on import)
         """
-        metrics.inc_counter("http_requests_total")
         summary_parts: list[str] = []
         config_imported = False
         try:
@@ -768,7 +752,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.get("/ui-settings")
     async def get_ui_settings() -> JSONResponse:
         """Return persisted UI settings (font, model, theme, defaultChatMode)."""
-        metrics.inc_counter("http_requests_total")
         try:
             config_store = _get_config_store()
             result: dict[str, Any] = {}
@@ -784,7 +767,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.put("/ui-settings")
     async def save_ui_settings(request: SaveUISettingsRequest) -> JSONResponse:
         """Persist UI settings to config_store."""
-        metrics.inc_counter("http_requests_total")
         try:
             config_store = _get_config_store()
             entries: dict[str, Any] = {}
@@ -802,7 +784,6 @@ def create_configuration_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/ui-settings/{key}")
     async def delete_ui_setting(key: str) -> JSONResponse:
         """Delete a single UI setting by key name."""
-        metrics.inc_counter("http_requests_total")
         if key not in _UI_SETTINGS_KEYS:
             raise HTTPException(
                 status_code=400,

@@ -16,7 +16,7 @@ from gobby.storage.task_dependencies import (
     TaskDependencyManager,
 )
 from gobby.storage.tasks._models import VALID_CATEGORIES, TaskNotFoundError
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -117,7 +117,7 @@ class DependencyAddRequest(BaseModel):
 def create_tasks_router(server: "HTTPServer") -> APIRouter:
     """Create tasks router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/tasks", tags=["tasks"])
-    metrics = get_metrics_collector()
+    metrics = get_telemetry_metrics()
 
     def _resolve_project(project_id: str | None) -> str:
         """Resolve project ID, falling back to server's project context."""
@@ -154,7 +154,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         offset: int = Query(0, description="Pagination offset"),
     ) -> dict[str, Any]:
         """List tasks with optional filters and status distribution stats."""
-        metrics.inc_counter("http_requests_total")
         try:
             resolved_project = _resolve_project(project_id)
 
@@ -196,7 +195,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.post("", status_code=201)
     async def create_task(request_data: TaskCreateRequest) -> Any:
         """Create a new task."""
-        metrics.inc_counter("http_requests_total")
         try:
             project_id = _resolve_project(request_data.project_id)
             task = server.task_manager.create_task(
@@ -223,7 +221,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{task_id}")
     async def get_task(task_id: str) -> Any:
         """Get a task by ID, seq_num (#N), or path (1.2.3)."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             return task.to_dict()
@@ -233,7 +230,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.patch("/{task_id}")
     async def update_task(task_id: str, request_data: TaskUpdateRequest) -> Any:
         """Update a task's fields. Only provided fields are changed."""
-        metrics.inc_counter("http_requests_total")
         try:
             # Resolve the task ID first
             task = server.task_manager.get_task(task_id)
@@ -263,7 +259,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         cascade: bool = Query(False, description="Delete children and dependents recursively"),
     ) -> dict[str, Any]:
         """Delete a task."""
-        metrics.inc_counter("http_requests_total")
         try:
             # Resolve first
             task = server.task_manager.get_task(task_id)
@@ -286,7 +281,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{task_id}/close")
     async def close_task(task_id: str, request_data: TaskCloseRequest | None = None) -> Any:
         """Close a task."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             resolved_id = task.id
@@ -312,7 +306,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{task_id}/reopen")
     async def reopen_task(task_id: str, request_data: TaskReopenRequest | None = None) -> Any:
         """Reopen a closed task."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             resolved_id = task.id
@@ -329,7 +322,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{task_id}/de-escalate")
     async def de_escalate_task(task_id: str, request_data: TaskDeEscalateRequest) -> Any:
         """De-escalate a task and return it to open status with user decision context."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             resolved_id = task.id
@@ -371,7 +363,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         offset: int = Query(0, ge=0),
     ) -> Any:
         """List comments for a task, threaded."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             resolved_id = task.id
@@ -401,7 +392,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{task_id}/comments")
     async def create_comment(task_id: str, request_data: TaskCommentCreateRequest) -> Any:
         """Add a comment to a task."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             resolved_id = task.id
@@ -434,7 +424,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/{task_id}/comments/{comment_id}")
     async def delete_comment(task_id: str, comment_id: str) -> Any:
         """Delete a comment."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             server.task_manager.db.execute(
@@ -459,7 +448,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
         ),
     ) -> Any:
         """Get the dependency tree for a task."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             dep_manager = TaskDependencyManager(server.task_manager.db)
@@ -470,7 +458,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{task_id}/dependencies", status_code=201)
     async def add_dependency(task_id: str, request_data: DependencyAddRequest) -> Any:
         """Add a dependency to a task."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             blocker = server.task_manager.get_task(request_data.depends_on)
@@ -485,7 +472,6 @@ def create_tasks_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/{task_id}/dependencies/{depends_on_id}")
     async def remove_dependency(task_id: str, depends_on_id: str) -> dict[str, Any]:
         """Remove a dependency from a task."""
-        metrics.inc_counter("http_requests_total")
         try:
             task = server.task_manager.get_task(task_id)
             blocker = server.task_manager.get_task(depends_on_id)

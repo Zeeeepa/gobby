@@ -23,7 +23,7 @@ from gobby.llm import create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.semantic_search import SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_telemetry_metrics
 from gobby.utils.version import get_version
 
 if TYPE_CHECKING:
@@ -247,7 +247,7 @@ class HTTPServer:
         self.app = self._create_app()
         self._running = False
         self._background_tasks: set[asyncio.Task[Any]] = set()
-        self._metrics = get_metrics_collector()
+        self._metrics = get_telemetry_metrics()
         self._daemon: Any = None  # Set externally by daemon
 
     # Property accessors for services (delegate to container)
@@ -651,6 +651,11 @@ class HTTPServer:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+        # Add telemetry middleware (automatic request tracking)
+        from gobby.telemetry.middleware import TelemetryMiddleware
+
+        app.add_middleware(TelemetryMiddleware)
 
         # Add auth middleware (checks after CORS, before routes)
         from gobby.servers.middleware.auth import AuthMiddleware
