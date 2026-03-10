@@ -43,13 +43,12 @@ class TaskCompactor:
         sql = """
             UPDATE tasks
             SET description = ?,
-                summary = ?,
                 compacted_at = ?,
                 updated_at = ?
             WHERE id = ?
         """
 
-        self.task_manager.db.execute(sql, (summary, summary, now, now, task_id))
+        self.task_manager.db.execute(sql, (summary, now, now, task_id))
         self.task_manager._notify_listeners()
 
     def get_stats(self) -> dict[str, Any]:

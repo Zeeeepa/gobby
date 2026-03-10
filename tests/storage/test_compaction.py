@@ -61,11 +61,8 @@ def test_compact_task(manager, sample_project):
     task = manager.get_task(t1.id)
     assert task.description == summary
 
-    # Verify DB column manually since Task object might not have it exposed in properties if not updated
-    # (Task object *does* map columns now? No, we didn't add it to Task dataclass yet, only DB)
-    # Wait, did we add it to Task dataclass? No.
-    row = manager.db.fetchone("SELECT * FROM tasks WHERE id = ?", (t1.id,))
-    assert row["summary"] == summary
+    # Verify compacted_at was set
+    row = manager.db.fetchone("SELECT compacted_at FROM tasks WHERE id = ?", (t1.id,))
     assert row["compacted_at"] is not None
 
 
