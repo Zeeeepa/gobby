@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import type { Span } from '../../hooks/useTraces'
 import { formatDuration } from '../../utils/formatTime'
 
@@ -18,6 +18,21 @@ const LABEL_WIDTH = 200
 const HEADER_HEIGHT = 40
 
 export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWaterfallProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [svgWidth, setSvgWidth] = useState(1200)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const obs = new ResizeObserver((entries) => {
+      const width = entries[0].contentRect.width
+      if (width > 0) {
+        setSvgWidth(width)
+      }
+    })
+    obs.observe(containerRef.current)
+    return () => obs.disconnect()
+  }, [])
+
   // 1. Build tree to calculate depths
   const tree = useMemo(() => {
     const spanMap = new Map<string, SpanNode>()
@@ -64,8 +79,7 @@ export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWat
     return { minTime: min, maxTime: max, totalDuration: max - min }
   }, [spans])
 
-  const svgWidth = 1200 // Could be dynamic
-  const timelineWidth = svgWidth - LABEL_WIDTH - 40
+  const timelineWidth = Math.max(svgWidth - LABEL_WIDTH - 40, 0)
   const svgHeight = HEADER_HEIGHT + tree.length * ROW_HEIGHT + 20
 
   const timeToX = (ns: number) => {
@@ -82,10 +96,10 @@ export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWat
       lines.push({ x: timeToX(t), label: formatDuration((totalDuration * i) / 4 / 1_000_000) })
     }
     return lines
-  }, [minTime, totalDuration, timelineWidth])
+  }, [minTime, totalDuration, timelineWidth, svgWidth]) // dependency on svgWidth added through timeToX
 
   return (
-    <div className="trace-waterfall-container">
+    <div className="trace-waterfall-container" ref={containerRef}>
       <svg width={svgWidth} height={svgHeight} className="trace-waterfall-svg">
         <rect x={0} y={0} width={svgWidth} height={HEADER_HEIGHT} className="trace-waterfall-header-bg" />
         
@@ -116,7 +130,7 @@ export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWat
               
               {/* Span label with indentation */}
               <text x={10 + node.depth * 12} y={y + ROW_HEIGHT / 2 + 5} className="trace-waterfall-row-label">
-                {node.name}
+                {node.name.length > 25 ? node.name.slice(0, 25) + '...' : node.name}
               </text>
 
               {/* Span bar */}
@@ -147,3 +161,4 @@ export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWat
     </div>
   )
 }
+

@@ -3,6 +3,7 @@ import './TracesPage.css'
 import { useTraces, useTraceDetail } from '../../hooks/useTraces'
 import { TraceWaterfall } from './TraceWaterfall'
 import { TraceDetail } from './TraceDetail'
+import { SidebarPanel } from '../shared/SidebarPanel'
 import { formatDuration, formatRelativeTime } from '../../utils/formatTime'
 
 interface TracesPageProps {
@@ -123,14 +124,11 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
             {isTraceLoading ? (
               <div className="trace-empty">Loading trace waterfall...</div>
             ) : (
-              <>
-                <TraceWaterfall
-                  spans={spans}
-                  selectedSpanId={selectedSpanId}
-                  onSelectSpan={setSelectedSpanId}
-                />
-                <TraceDetail span={selectedSpan} />
-              </>
+              <TraceWaterfall
+                spans={spans}
+                selectedSpanId={selectedSpanId}
+                onSelectSpan={setSelectedSpanId}
+              />
             )}
           </div>
         ) : (
@@ -140,6 +138,26 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
           </div>
         )}
       </div>
+
+      {/* Span detail sidebar */}
+      <SidebarPanel
+        isOpen={!!selectedSpanId}
+        onClose={() => setSelectedSpanId(null)}
+        title={selectedSpan?.name || 'Span Detail'}
+        width={440}
+        headerContent={
+          selectedSpan && (
+            <div style={{ marginTop: '8px' }}>
+              <span className={`trace-status-badge trace-status-badge--${(selectedSpan.status || 'unset').toLowerCase()}`}>
+                {selectedSpan.status || 'UNSET'}
+              </span>
+            </div>
+          )
+        }
+      >
+        <TraceDetail span={selectedSpan} />
+      </SidebarPanel>
     </div>
   )
 }
+
