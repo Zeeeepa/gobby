@@ -1201,7 +1201,8 @@ class TestDispatchBatchIsolationParity:
 
         mock_clone_storage = MagicMock()
         mock_clone = MagicMock()
-        mock_clone.clone_path = "/tmp/clones/feat-9981"
+        # Use /tmp which always exists, so clone path validation passes
+        mock_clone.clone_path = "/tmp"
         mock_clone.branch_name = "feat-9981"
         mock_clone_storage.get.return_value = mock_clone
 
@@ -1218,22 +1219,33 @@ class TestDispatchBatchIsolationParity:
                 return_value=agent_body,
             ),
             patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context"
+            ) as mock_factory_ctx,
+            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
             ) as mock_ctx,
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
         ):
-            mock_ctx.return_value = {
+            project_ctx = {
                 "id": "proj-123",
                 "project_path": "/path/to/project",
             }
-            mock_execute.return_value = MagicMock(
-                success=True,
-                run_id="run-123",
-                child_session_id="child-456",
-                status="pending",
-            )
+            mock_factory_ctx.return_value = project_ctx
+            mock_ctx.return_value = project_ctx
+            spawn_result = MagicMock()
+            spawn_result.success = True
+            spawn_result.run_id = "run-123"
+            spawn_result.child_session_id = "child-456"
+            spawn_result.status = "pending"
+            spawn_result.pid = None
+            spawn_result.terminal_type = None
+            spawn_result.tmux_session_name = None
+            spawn_result.process = None
+            spawn_result.error = None
+            spawn_result.message = None
+            mock_execute.return_value = spawn_result
 
             suggestions = [
                 {"ref": "#9981", "id": "task-uuid-1", "title": "Add clone parity"},
@@ -1271,22 +1283,33 @@ class TestDispatchBatchIsolationParity:
                 return_value=agent_body,
             ),
             patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context"
+            ) as mock_factory_ctx,
+            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
             ) as mock_ctx,
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
         ):
-            mock_ctx.return_value = {
+            project_ctx = {
                 "id": "proj-123",
                 "project_path": "/path/to/project",
             }
-            mock_execute.return_value = MagicMock(
-                success=True,
-                run_id="run-456",
-                child_session_id="child-789",
-                status="pending",
-            )
+            mock_factory_ctx.return_value = project_ctx
+            mock_ctx.return_value = project_ctx
+            spawn_result = MagicMock()
+            spawn_result.success = True
+            spawn_result.run_id = "run-456"
+            spawn_result.child_session_id = "child-789"
+            spawn_result.status = "pending"
+            spawn_result.pid = None
+            spawn_result.terminal_type = None
+            spawn_result.tmux_session_name = None
+            spawn_result.process = None
+            spawn_result.error = None
+            spawn_result.message = None
+            mock_execute.return_value = spawn_result
 
             suggestions = [
                 {"ref": "#100", "id": "task-1", "title": "Task one"},

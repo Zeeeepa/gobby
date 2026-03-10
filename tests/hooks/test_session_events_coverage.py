@@ -530,6 +530,7 @@ class TestSessionMoreCoverage:
             ),
             patch("gobby.skills.manager.SkillManager.list_skills", return_value=[]),
             patch.object(handler, "_build_agent_changes") as mock_build,
+            patch("gobby.workflows.state_manager.SessionVariableManager.get_variables", return_value={}),
             patch("gobby.workflows.state_manager.SessionVariableManager.merge_variables"),
             patch(
                 "gobby.hooks.event_handlers._session.select_and_format_agent_skills",

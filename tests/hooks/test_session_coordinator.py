@@ -327,7 +327,7 @@ class TestAgentRunCompletion:
         mock_agent_run_manager.complete.assert_not_called()
 
     def test_complete_agent_run_defaults_counts_on_db_error(self) -> None:
-        """DB error counting stats → counts default to 0 → zero-activity guard fires."""
+        """DB error counting stats → stats_retrieved=False → falls through to complete()."""
         mock_agent_run_manager = MagicMock()
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
@@ -343,9 +343,10 @@ class TestAgentRunCompletion:
 
         coordinator.complete_agent_run(mock_session)
 
-        # Counts default to 0 on DB error, triggering zero-activity guard
-        mock_agent_run_manager.fail.assert_called_once()
-        mock_agent_run_manager.complete.assert_not_called()
+        # When stats retrieval fails, stats_retrieved=False so zero-activity guard
+        # does NOT fire. Falls through to complete() with default counts.
+        mock_agent_run_manager.complete.assert_called_once()
+        mock_agent_run_manager.fail.assert_not_called()
 
 
 class TestWorktreeRelease:

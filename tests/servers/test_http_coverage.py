@@ -462,7 +462,7 @@ class TestProcessShutdown:
         )
         server = HTTPServer(services=services, port=8000, test_mode=True)
 
-        with patch.object(server._metrics, "inc_counter") as mock_inc:
+        with patch("gobby.servers.http.inc_counter") as mock_inc:
             await server._process_shutdown()
             mock_inc.assert_called_with("shutdown_succeeded_total")
 
@@ -659,16 +659,13 @@ class TestAdminEndpoints:
     def test_metrics_endpoint_with_daemon(
         self, client: TestClient, basic_http_server: HTTPServer
     ) -> None:
-        """Test metrics endpoint updates daemon metrics."""
-        mock_daemon = MagicMock()
-        mock_daemon.uptime = 120.5
-        basic_http_server._daemon = mock_daemon
-
+        """Test metrics endpoint returns Prometheus format."""
         response = client.get("/api/admin/metrics")
 
         assert response.status_code == 200
         assert "text/plain" in response.headers["content-type"]
-        assert "daemon_uptime_seconds 120.5" in response.text
+        # Metrics are now exported via OTel/Prometheus SDK, not custom format
+        assert "# HELP" in response.text or "# TYPE" in response.text
 
     def test_config_endpoint_error_handling(self, session_storage: LocalSessionManager) -> None:
         """Test config endpoint handles errors."""

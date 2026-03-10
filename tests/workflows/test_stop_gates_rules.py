@@ -6,13 +6,14 @@ Tier 1 behaviors (hardcoded in RuleEngine.evaluate):
 - tool_block_pending stop gate, force_allow_stop bypass, consecutive tool block counter
 
 Tier 2 rules (YAML templates — configurable):
-- require-error-triage, require-task-close
+- require-error-triage-before-close (task-enforcement), require-task-close
 """
 
 from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -54,7 +55,6 @@ def _get_rule(manager, name):
 
 
 STOP_GATES_RULES = {
-    "require-error-triage",
     "require-task-close",
 }
 
@@ -165,31 +165,30 @@ class TestStopAttemptsPlumbing:
 
 
 class TestRequireErrorTriage:
-    """Verify require-error-triage blocks stop until triage confirmed."""
+    """Verify require-error-triage-before-close blocks close_task until triage confirmed."""
 
-    def test_blocks_on_stop(self, db, manager) -> None:
-        """Should have a block effect on stop event."""
+    def test_blocks_on_before_tool(self, db, manager) -> None:
+        """Should have a block effect on before_tool event."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "require-error-triage")
+        row = _get_rule(manager, "require-error-triage-before-close")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "stop"
+        assert body.event.value == "before_tool"
         effect_types = {e.type for e in body.resolved_effects}
         assert "block" in effect_types
-        assert "set_variable" in effect_types
 
     def test_when_checks_triage_flag(self, db, manager) -> None:
-        """Should check pre_existing_errors_triaged and task_has_commits."""
+        """Should check pre_existing_errors_triaged and commit_sha."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "require-error-triage")
+        row = _get_rule(manager, "require-error-triage-before-close")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
         assert "pre_existing_errors_triaged" in body.when
-        assert "task_has_commits" in body.when
+        assert "commit_sha" in body.when
 
 
 class TestRequireTaskClose:
@@ -264,24 +263,26 @@ class TestCompactPreservesTriagedState:
         """After triaging errors, compact should NOT cause require-error-triage to fire."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "require-error-triage")
+        row = _get_rule(manager, "require-error-triage-before-close")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         # State AFTER agent has triaged errors and committed
         variables: dict[str, object] = {
             "pre_existing_errors_triaged": True,  # Set by agent
-            "task_has_commits": True,  # Set by observer
             "stop_attempts": 1,
         }
 
         # The fix ensures _activate_default_agent does NOT overwrite these.
         # Verify: with preserved variables, the rule condition should NOT match.
+        # Build event context that would normally trigger the rule (close_task with commit)
+        mock_event = MagicMock()
+        mock_event.data = {"mcp_tool": "close_task", "tool_input": {"arguments": {"commit_sha": "abc123"}}}
         evaluator = SafeExpressionEvaluator(
-            context={"variables": variables},
+            context={"variables": variables, "event": mock_event},
             allowed_funcs={"len": len, "str": str, "int": int, "bool": bool},
         )
         assert not evaluator.evaluate(body.when), (
-            "require-error-triage should NOT fire when pre_existing_errors_triaged=true"
+            "require-error-triage-before-close should NOT fire when pre_existing_errors_triaged=true"
         )
 
 
@@ -814,11 +815,13 @@ class TestConsecutiveBlockScoping:
         mgr = LocalWorkflowDefinitionManager(db)
         rule_body = {
             "event": "before_tool",
-            "effect": {
-                "type": "block",
-                "tools": ["TodoWrite"],
-                "reason": "Use gobby-tasks instead",
-            },
+            "effects": [
+                {
+                    "type": "block",
+                    "tools": ["TodoWrite"],
+                    "reason": "Use gobby-tasks instead",
+                },
+            ],
         }
         mgr.create(
             name="block-todowrite-test",
@@ -856,11 +859,13 @@ class TestConsecutiveBlockScoping:
         mgr = LocalWorkflowDefinitionManager(db)
         rule_body = {
             "event": "before_tool",
-            "effect": {
-                "type": "block",
-                "tools": ["TodoWrite"],
-                "reason": "Use gobby-tasks instead",
-            },
+            "effects": [
+                {
+                    "type": "block",
+                    "tools": ["TodoWrite"],
+                    "reason": "Use gobby-tasks instead",
+                },
+            ],
         }
         mgr.create(
             name="block-todowrite-test",

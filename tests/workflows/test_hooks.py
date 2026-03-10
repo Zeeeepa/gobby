@@ -647,11 +647,13 @@ class TestVariablePersistence:
         definition = {
             "event": event,
             "priority": priority,
-            "effect": {
-                "type": "set_variable",
-                "variable": variable,
-                "value": value,
-            },
+            "effects": [
+                {
+                    "type": "set_variable",
+                    "variable": variable,
+                    "value": value,
+                },
+            ],
         }
         db.execute(
             """
@@ -715,10 +717,12 @@ class TestVariablePersistence:
             "event": "stop",
             "priority": 10,
             "when": "variables.get('my_flag')",
-            "effect": {
-                "type": "block",
-                "reason": "Blocked because my_flag is set",
-            },
+            "effects": [
+                {
+                    "type": "block",
+                    "reason": "Blocked because my_flag is set",
+                },
+            ],
         }
         db.execute(
             """

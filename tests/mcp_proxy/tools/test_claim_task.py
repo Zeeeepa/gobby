@@ -110,12 +110,13 @@ class TestClaimTaskTool:
 
             # Should succeed
             assert "error" not in result
-            # Should update task with assignee and status
+            # Should update task with assignee and status (status set because task.status == "open")
             mock_task_manager.update_task.assert_called_once_with(
                 sample_task.id,
                 assignee="my-session-id",
                 status="in_progress",
             )
+            # Note: status is only set to in_progress when task.status == "open"
             # Should link task to session (best-effort)
             mock_st_instance.link_task.assert_called_once_with(
                 "my-session-id", sample_task.id, "claimed"
@@ -186,10 +187,10 @@ class TestClaimTaskTool:
 
             # Should succeed with force=True
             assert "error" not in result
+            # claimed_task.status is "in_progress", so status is NOT changed (only open -> in_progress)
             mock_task_manager.update_task.assert_called_once_with(
                 claimed_task.id,
                 assignee="my-session-id",
-                status="in_progress",
             )
 
     @pytest.mark.asyncio
@@ -479,11 +480,13 @@ class TestClaimTaskVsUpdateTask:
 
             # Both assignee and status should be set in a single update call
             # (atomic operation, not two separate calls)
+            # Note: status is only set when task.status == "open"
             mock_task_manager.update_task.assert_called_once()
             call_kwargs = mock_task_manager.update_task.call_args.kwargs
             assert "assignee" in call_kwargs
-            assert "status" in call_kwargs
             assert call_kwargs["assignee"] == "my-session-id"
+            # sample_task has status "open", so status should be set to "in_progress"
+            assert "status" in call_kwargs
             assert call_kwargs["status"] == "in_progress"
 
     @pytest.mark.asyncio

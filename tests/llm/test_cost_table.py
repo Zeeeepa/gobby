@@ -42,15 +42,15 @@ class TestModelCostStore:
         assert count1 == count2
 
     def test_get_all_returns_dict(self, temp_db: LocalDatabase) -> None:
-        """get_all returns model -> (input, output) dict."""
+        """get_all returns model -> ModelCost(input, output, cache_read, cache_creation) dict."""
         store = ModelCostStore(temp_db)
         store.populate_from_litellm()
         costs = store.get_all()
         assert len(costs) > 100
-        for model, (inp, out) in list(costs.items())[:5]:
+        for model, mc in list(costs.items())[:5]:
             assert isinstance(model, str)
-            assert isinstance(inp, float)
-            assert isinstance(out, float)
+            assert isinstance(mc.input, float)
+            assert isinstance(mc.output, float)
 
 
 class TestLookupCost:

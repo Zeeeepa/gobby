@@ -146,7 +146,9 @@ def test_setup_otel_logging_json_format(telemetry_config):
     setup_otel_logging(telemetry_config)
 
     root_logger = logging.getLogger("gobby")
-    handler = [h for h in root_logger.handlers if isinstance(h, logging.handlers.RotatingFileHandler)][0]
+    handler = [
+        h for h in root_logger.handlers if isinstance(h, logging.handlers.RotatingFileHandler)
+    ][0]
     assert isinstance(handler.formatter, JsonOTelFormatter)
 
 

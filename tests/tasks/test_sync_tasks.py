@@ -1165,7 +1165,7 @@ class TestImportSeqNumPreservation:
             "parent_id": "task-parent-seq",
             "deps_on": [],
             "seq_num": 51,
-            "path_cache": "50/51",
+            "path_cache": "50.51",
         }
 
         # Write parent first so it exists when child's path_cache is built
@@ -1183,4 +1183,4 @@ class TestImportSeqNumPreservation:
         assert p.seq_num == 50
         assert c.seq_num == 51
         assert p.path_cache == "50"
-        assert c.path_cache == "50/51"
+        assert c.path_cache == "50.51"

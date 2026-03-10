@@ -546,25 +546,21 @@ async def test_cleanup_stale_worktrees(registry, mock_worktree_storage, mock_git
 class TestGetWorktreeBaseDir:
     """Tests for _get_worktree_base_dir helper."""
 
-    def test_unix_path(self) -> None:
-        """Test Unix path generation."""
-        with patch("gobby.mcp_proxy.tools.worktrees.platform.system", return_value="Darwin"):
+    def test_unix_path(self, tmp_path) -> None:
+        """Test path uses ~/.gobby/worktrees."""
+        with patch("gobby.mcp_proxy.tools.worktrees.Path.home", return_value=tmp_path):
             path = _get_worktree_base_dir()
-            assert "gobby-worktrees" in str(path)
-            # On macOS, /tmp resolves to /private/tmp
-            assert path.exists() or str(path).startswith("/")
+            assert str(path) == str(tmp_path / ".gobby" / "worktrees")
+            assert path.exists()
 
-    def test_windows_path(self, tmp_path) -> None:
-        """Test Windows path generation uses tempdir."""
-        with (
-            patch("gobby.mcp_proxy.tools.worktrees.platform.system", return_value="Windows"),
-            patch(
-                "gobby.mcp_proxy.tools.worktrees.tempfile.gettempdir", return_value=str(tmp_path)
-            ),
-        ):
+    def test_creates_directory(self, tmp_path) -> None:
+        """Test that the directory is created if it doesn't exist."""
+        mock_home = tmp_path / "fakehome"
+        mock_home.mkdir()
+        with patch("gobby.mcp_proxy.tools.worktrees.Path.home", return_value=mock_home):
             path = _get_worktree_base_dir()
-            assert "gobby-worktrees" in str(path)
-            assert str(tmp_path) in str(path)
+            assert str(path) == str(mock_home / ".gobby" / "worktrees")
+            assert path.exists()
 
 
 class TestGenerateWorktreePath:
