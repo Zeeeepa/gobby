@@ -202,7 +202,7 @@ export function ChatPage({
           sessions={conversations.sessions}
           activeSessionId={conversations.activeSessionId}
           sessionRef={effectiveSessionRef}
-          title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle ?? chat.sessionTitle}
+          title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
           onNewChat={conversations.onNewChat}
           onSelectSession={conversations.onSelectSession}
           onDeleteSession={conversations.onDeleteSession}
@@ -219,7 +219,7 @@ export function ChatPage({
             <div className={`hidden md:block${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " !hidden" : ""}`}>
               <SessionStatusBar
                 sessionRef={effectiveSessionRef}
-                title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle ?? chat.sessionTitle}
+                title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
                 viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
                 isAttached={!!chat.attachedSessionId}
                 onAttach={chat.onAttachToViewed}

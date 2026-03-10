@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { usePipelineExecutions } from '../../hooks/usePipelineExecutions'
 import type { PipelineExecutionRecord } from '../../hooks/usePipelineExecutions'
 import { useAgentRuns } from '../../hooks/useAgentRuns'
@@ -19,6 +19,10 @@ import './reports-page.css'
 
 type SubTab = 'pipelines' | 'agents'
 type StatusFilter = 'all' | 'running' | 'waiting' | 'completed' | 'failed'
+type PipelineSortColumn = 'name' | 'time' | 'duration' | 'status'
+type AgentSortColumn = 'name' | 'provider' | 'time' | 'duration' | 'turns' | 'status'
+type SortDirection = 'asc' | 'desc'
+type GroupBy = 'none' | 'name' | 'provider'
 
 function statusMatchesFilter(status: string, filter: StatusFilter): boolean {
   if (filter === 'all') return true
@@ -46,6 +50,112 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'completed', label: 'Completed' },
   { value: 'failed', label: 'Failed' },
 ]
+
+// =============================================================================
+// Sorting helpers
+// =============================================================================
+
+function comparePipelines(a: PipelineExecutionRecord, b: PipelineExecutionRecord, col: PipelineSortColumn, dir: SortDirection): number {
+  let cmp = 0
+  switch (col) {
+    case 'name': cmp = a.pipeline_name.localeCompare(b.pipeline_name); break
+    case 'time': cmp = a.created_at.localeCompare(b.created_at); break
+    case 'duration': {
+      const da = a.completed_at ? new Date(a.completed_at).getTime() - new Date(a.created_at).getTime() : 0
+      const db = b.completed_at ? new Date(b.completed_at).getTime() - new Date(b.created_at).getTime() : 0
+      cmp = da - db; break
+    }
+    case 'status': cmp = a.status.localeCompare(b.status); break
+  }
+  return dir === 'asc' ? cmp : -cmp
+}
+
+function compareAgents(a: AgentRunRecord, b: AgentRunRecord, col: AgentSortColumn, dir: SortDirection): number {
+  let cmp = 0
+  switch (col) {
+    case 'name': cmp = (a.workflow_name || '').localeCompare(b.workflow_name || ''); break
+    case 'provider': cmp = (a.provider || '').localeCompare(b.provider || ''); break
+    case 'time': cmp = a.created_at.localeCompare(b.created_at); break
+    case 'duration': {
+      const da = a.started_at && a.completed_at ? new Date(a.completed_at).getTime() - new Date(a.started_at).getTime() : 0
+      const db = b.started_at && b.completed_at ? new Date(b.completed_at).getTime() - new Date(b.started_at).getTime() : 0
+      cmp = da - db; break
+    }
+    case 'turns': cmp = (a.turns_used || 0) - (b.turns_used || 0); break
+    case 'status': cmp = a.status.localeCompare(b.status); break
+  }
+  return dir === 'asc' ? cmp : -cmp
+}
+
+function SortArrow<T extends string>({ column, sortColumn, sortDirection }: { column: T; sortColumn: T; sortDirection: SortDirection }) {
+  if (column !== sortColumn) return <span className="sort-arrow muted">{'\u2195'}</span>
+  return <span className="sort-arrow active">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
+}
+
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>()
+  for (const item of items) {
+    const key = keyFn(item) || 'Unknown'
+    const arr = groups.get(key) || []
+    arr.push(item)
+    groups.set(key, arr)
+  }
+  return groups
+}
+
+// =============================================================================
+// Resize handle for detail sidebar
+// =============================================================================
+
+function useResizablePanel(initialWidth: number, minWidth: number, maxWidth: number) {
+  const [width, setWidth] = useState(initialWidth)
+  const isDragging = useRef(false)
+  const startX = useRef(0)
+  const startWidth = useRef(0)
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+    startX.current = e.clientX
+    startWidth.current = width
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return
+      const delta = startX.current - ev.clientX
+      setWidth(Math.max(minWidth, Math.min(maxWidth, startWidth.current + delta)))
+    }
+    const onUp = () => {
+      isDragging.current = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [width, minWidth, maxWidth])
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+    startX.current = e.touches[0].clientX
+    startWidth.current = width
+
+    const onMove = (ev: TouchEvent) => {
+      ev.preventDefault()
+      if (!isDragging.current) return
+      const delta = startX.current - ev.touches[0].clientX
+      setWidth(Math.max(minWidth, Math.min(maxWidth, startWidth.current + delta)))
+    }
+    const onEnd = () => {
+      isDragging.current = false
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+    }
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+  }, [width, minWidth, maxWidth])
+
+  return { width, handleMouseDown, handleTouchStart }
+}
 
 // =============================================================================
 // Status dot
@@ -106,6 +216,33 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
   const [agentDetails, setAgentDetails] = useState<Record<string, AgentRunDetail>>({})
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
+  // Sorting state
+  const [pipelineSortCol, setPipelineSortCol] = useState<PipelineSortColumn>('time')
+  const [pipelineSortDir, setPipelineSortDir] = useState<SortDirection>('desc')
+  const [agentSortCol, setAgentSortCol] = useState<AgentSortColumn>('time')
+  const [agentSortDir, setAgentSortDir] = useState<SortDirection>('desc')
+
+  // Group-by state
+  const [pipelineGroupBy, setPipelineGroupBy] = useState<GroupBy>('none')
+  const [agentGroupBy, setAgentGroupBy] = useState<GroupBy>('none')
+
+  // Resizable sidebar
+  const { width: panelWidth, handleMouseDown: onResizeMouseDown, handleTouchStart: onResizeTouchStart } = useResizablePanel(460, 300, 800)
+
+  const handlePipelineSort = useCallback((col: PipelineSortColumn) => {
+    setPipelineSortCol(prev => {
+      if (prev === col) { setPipelineSortDir(d => d === 'asc' ? 'desc' : 'asc'); return col }
+      setPipelineSortDir('asc'); return col
+    })
+  }, [])
+
+  const handleAgentSort = useCallback((col: AgentSortColumn) => {
+    setAgentSortCol(prev => {
+      if (prev === col) { setAgentSortDir(d => d === 'asc' ? 'desc' : 'asc'); return col }
+      setAgentSortDir('asc'); return col
+    })
+  }, [])
+
   const {
     executions: pipelineExecutions,
     isLoading: pipelinesLoading,
@@ -152,8 +289,8 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
       const q = searchText.toLowerCase()
       items = items.filter(pe => pe.pipeline_name.toLowerCase().includes(q) || pe.id.toLowerCase().includes(q))
     }
-    return items.sort((a, b) => b.created_at.localeCompare(a.created_at))
-  }, [pipelineExecutions, statusFilter, searchText])
+    return [...items].sort((a, b) => comparePipelines(a, b, pipelineSortCol, pipelineSortDir))
+  }, [pipelineExecutions, statusFilter, searchText, pipelineSortCol, pipelineSortDir])
 
   const filteredAgents = useMemo(() => {
     let items = agentRuns.filter(ar => statusMatchesFilter(ar.status, statusFilter))
@@ -165,8 +302,20 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
         ar.id.toLowerCase().includes(q)
       )
     }
-    return items.sort((a, b) => b.created_at.localeCompare(a.created_at))
-  }, [agentRuns, statusFilter, searchText])
+    return [...items].sort((a, b) => compareAgents(a, b, agentSortCol, agentSortDir))
+  }, [agentRuns, statusFilter, searchText, agentSortCol, agentSortDir])
+
+  // Grouped data
+  const pipelineGroups = useMemo(() => {
+    if (pipelineGroupBy === 'none') return null
+    return groupBy(filteredPipelines, pe => pe.pipeline_name)
+  }, [filteredPipelines, pipelineGroupBy])
+
+  const agentGroups = useMemo(() => {
+    if (agentGroupBy === 'none') return null
+    if (agentGroupBy === 'provider') return groupBy(filteredAgents, ar => ar.provider || 'Unknown')
+    return groupBy(filteredAgents, ar => ar.workflow_name || 'Ad-hoc')
+  }, [filteredAgents, agentGroupBy])
 
   // Clear selection on tab switch
   useEffect(() => { setSelectedId(null) }, [subTab])
@@ -223,6 +372,29 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
           </div>
         </div>
         <div className="reports-toolbar-right">
+          <div className="reports-group-toggle">
+            <span className="reports-group-label">Group:</span>
+            {subTab === 'pipelines' ? (
+              <select
+                className="reports-group-select"
+                value={pipelineGroupBy}
+                onChange={e => setPipelineGroupBy(e.target.value as GroupBy)}
+              >
+                <option value="none">None</option>
+                <option value="name">Pipeline</option>
+              </select>
+            ) : (
+              <select
+                className="reports-group-select"
+                value={agentGroupBy}
+                onChange={e => setAgentGroupBy(e.target.value as GroupBy)}
+              >
+                <option value="none">None</option>
+                <option value="name">Workflow</option>
+                <option value="provider">Provider</option>
+              </select>
+            )}
+          </div>
           <input
             type="text"
             className="reports-search"
@@ -264,75 +436,69 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
         <div className="reports-empty">No {subTab === 'pipelines' ? 'pipeline executions' : 'agent runs'} found</div>
       ) : subTab === 'pipelines' ? (
         <div className="reports-table-container">
-          <table className="reports-table">
-            <thead>
-              <tr>
-                <th className="reports-th" style={{ width: 28 }}></th>
-                <th className="reports-th">Name</th>
-                <th className="reports-th" style={{ width: 120 }}>ID</th>
-                <th className="reports-th" style={{ width: 140 }}>Time</th>
-                <th className="reports-th" style={{ width: 80 }}>Duration</th>
-                <th className="reports-th" style={{ width: 100 }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPipelines.map(pe => (
-                <tr
-                  key={pe.id}
-                  className={`reports-row ${selectedId === pe.id ? 'reports-row--selected' : ''}`}
-                  onClick={() => setSelectedId(pe.id)}
-                >
-                  <td className="reports-cell"><StatusDot status={pe.status} /></td>
-                  <td className="reports-cell reports-cell--name">{pe.pipeline_name}</td>
-                  <td className="reports-cell reports-cell--id">{pe.id.slice(0, 12)}</td>
-                  <td className="reports-cell reports-cell--time">{formatDateTime(pe.created_at)}</td>
-                  <td className="reports-cell reports-cell--duration">
-                    {pe.completed_at ? formatDuration(pe.created_at, pe.completed_at) : pe.status === 'running' ? '...' : '—'}
-                  </td>
-                  <td className="reports-cell reports-cell--status-text">{normalizeStatus(pe.status)}</td>
+          {pipelineGroups ? (
+            Array.from(pipelineGroups).map(([group, items]) => (
+              <div key={group} className="reports-group">
+                <div className="reports-group-header">{group} <span className="reports-group-count">({items.length})</span></div>
+                <table className="reports-table">
+                  <thead>
+                    <tr>
+                      <th className="reports-th" style={{ width: 28 }}></th>
+                      <PipelineHeaders onSort={handlePipelineSort} sortCol={pipelineSortCol} sortDir={pipelineSortDir} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map(pe => <PipelineRow key={pe.id} pe={pe} selectedId={selectedId} onSelect={setSelectedId} />)}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          ) : (
+            <table className="reports-table">
+              <thead>
+                <tr>
+                  <th className="reports-th" style={{ width: 28 }}></th>
+                  <PipelineHeaders onSort={handlePipelineSort} sortCol={pipelineSortCol} sortDir={pipelineSortDir} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredPipelines.map(pe => <PipelineRow key={pe.id} pe={pe} selectedId={selectedId} onSelect={setSelectedId} />)}
+              </tbody>
+            </table>
+          )}
         </div>
       ) : (
         <div className="reports-table-container">
-          <table className="reports-table">
-            <thead>
-              <tr>
-                <th className="reports-th" style={{ width: 28 }}></th>
-                <th className="reports-th">Name</th>
-                <th className="reports-th" style={{ width: 80 }}>Provider</th>
-                <th className="reports-th" style={{ width: 120 }}>ID</th>
-                <th className="reports-th" style={{ width: 140 }}>Time</th>
-                <th className="reports-th" style={{ width: 80 }}>Duration</th>
-                <th className="reports-th" style={{ width: 70 }}>Turns</th>
-                <th className="reports-th" style={{ width: 100 }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAgents.map(ar => (
-                <tr
-                  key={ar.id}
-                  className={`reports-row ${selectedId === ar.id ? 'reports-row--selected' : ''}`}
-                  onClick={() => handleSelectAgent(ar.id)}
-                >
-                  <td className="reports-cell"><StatusDot status={ar.status} /></td>
-                  <td className="reports-cell reports-cell--name">{ar.workflow_name || ar.prompt?.slice(0, 60) || 'Agent Run'}</td>
-                  <td className="reports-cell">
-                    <span className="reports-type-badge reports-type-badge--agent">{ar.provider}</span>
-                  </td>
-                  <td className="reports-cell reports-cell--id">{ar.id.slice(0, 12)}</td>
-                  <td className="reports-cell reports-cell--time">{formatDateTime(ar.created_at)}</td>
-                  <td className="reports-cell reports-cell--duration">
-                    {ar.started_at && ar.completed_at ? formatDuration(ar.started_at, ar.completed_at) : ar.status === 'running' ? '...' : '—'}
-                  </td>
-                  <td className="reports-cell" style={{ textAlign: 'center' }}>{ar.turns_used}</td>
-                  <td className="reports-cell reports-cell--status-text">{normalizeStatus(ar.status)}</td>
+          {agentGroups ? (
+            Array.from(agentGroups).map(([group, items]) => (
+              <div key={group} className="reports-group">
+                <div className="reports-group-header">{group} <span className="reports-group-count">({items.length})</span></div>
+                <table className="reports-table">
+                  <thead>
+                    <tr>
+                      <th className="reports-th" style={{ width: 28 }}></th>
+                      <AgentHeaders onSort={handleAgentSort} sortCol={agentSortCol} sortDir={agentSortDir} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map(ar => <AgentRow key={ar.id} ar={ar} selectedId={selectedId} onSelect={handleSelectAgent} />)}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          ) : (
+            <table className="reports-table">
+              <thead>
+                <tr>
+                  <th className="reports-th" style={{ width: 28 }}></th>
+                  <AgentHeaders onSort={handleAgentSort} sortCol={agentSortCol} sortDir={agentSortDir} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredAgents.map(ar => <AgentRow key={ar.id} ar={ar} selectedId={selectedId} onSelect={handleSelectAgent} />)}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
@@ -340,7 +506,15 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
       {selectedId && (selectedPipeline || selectedAgent) && (
         <>
           <div className="reports-detail-backdrop" onClick={() => setSelectedId(null)} />
-          <div className={`reports-detail-panel ${selectedId ? 'open' : ''}`}>
+          <div
+            className={`reports-detail-panel ${selectedId ? 'open' : ''}`}
+            style={{ width: panelWidth }}
+          >
+            <div
+              className="reports-detail-resize-handle"
+              onMouseDown={onResizeMouseDown}
+              onTouchStart={onResizeTouchStart}
+            />
             {selectedPipeline && (
               <PipelineDetail
                 execution={selectedPipeline}
@@ -363,6 +537,70 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
         </>
       )}
     </main>
+  )
+}
+
+// =============================================================================
+// Table headers (extracted for group-by reuse)
+// =============================================================================
+
+function PipelineHeaders({ onSort, sortCol, sortDir }: { onSort: (c: PipelineSortColumn) => void; sortCol: PipelineSortColumn; sortDir: SortDirection }) {
+  return <>
+    <th className="reports-th reports-th--sortable" onClick={() => onSort('name')}>Name <SortArrow column="name" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--id" style={{ width: 120 }}>ID</th>
+    <th className="reports-th reports-th--sortable" style={{ width: 140 }} onClick={() => onSort('time')}>Time <SortArrow column="time" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--sortable" style={{ width: 80 }} onClick={() => onSort('duration')}>Duration <SortArrow column="duration" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--sortable" style={{ width: 100 }} onClick={() => onSort('status')}>Status <SortArrow column="status" sortColumn={sortCol} sortDirection={sortDir} /></th>
+  </>
+}
+
+function AgentHeaders({ onSort, sortCol, sortDir }: { onSort: (c: AgentSortColumn) => void; sortCol: AgentSortColumn; sortDir: SortDirection }) {
+  return <>
+    <th className="reports-th reports-th--sortable" onClick={() => onSort('name')}>Name <SortArrow column="name" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--sortable" style={{ width: 80 }} onClick={() => onSort('provider')}>Provider <SortArrow column="provider" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--id" style={{ width: 120 }}>ID</th>
+    <th className="reports-th reports-th--sortable" style={{ width: 140 }} onClick={() => onSort('time')}>Time <SortArrow column="time" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--sortable" style={{ width: 80 }} onClick={() => onSort('duration')}>Duration <SortArrow column="duration" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--sortable" style={{ width: 70 }} onClick={() => onSort('turns')}>Turns <SortArrow column="turns" sortColumn={sortCol} sortDirection={sortDir} /></th>
+    <th className="reports-th reports-th--sortable" style={{ width: 100 }} onClick={() => onSort('status')}>Status <SortArrow column="status" sortColumn={sortCol} sortDirection={sortDir} /></th>
+  </>
+}
+
+// =============================================================================
+// Table rows (extracted for group-by reuse)
+// =============================================================================
+
+function PipelineRow({ pe, selectedId, onSelect }: { pe: PipelineExecutionRecord; selectedId: string | null; onSelect: (id: string) => void }) {
+  return (
+    <tr className={`reports-row ${selectedId === pe.id ? 'reports-row--selected' : ''}`} onClick={() => onSelect(pe.id)}>
+      <td className="reports-cell"><StatusDot status={pe.status} /></td>
+      <td className="reports-cell reports-cell--name">{pe.pipeline_name}</td>
+      <td className="reports-cell reports-cell--id">{pe.id.slice(0, 12)}</td>
+      <td className="reports-cell reports-cell--time">{formatDateTime(pe.created_at)}</td>
+      <td className="reports-cell reports-cell--duration">
+        {pe.completed_at ? formatDuration(pe.created_at, pe.completed_at) : pe.status === 'running' ? '...' : '—'}
+      </td>
+      <td className="reports-cell reports-cell--status-text">{normalizeStatus(pe.status)}</td>
+    </tr>
+  )
+}
+
+function AgentRow({ ar, selectedId, onSelect }: { ar: AgentRunRecord; selectedId: string | null; onSelect: (id: string) => void }) {
+  return (
+    <tr className={`reports-row ${selectedId === ar.id ? 'reports-row--selected' : ''}`} onClick={() => onSelect(ar.id)}>
+      <td className="reports-cell"><StatusDot status={ar.status} /></td>
+      <td className="reports-cell reports-cell--name">{ar.workflow_name || ar.prompt?.slice(0, 60) || 'Agent Run'}</td>
+      <td className="reports-cell">
+        <span className="reports-type-badge reports-type-badge--agent">{ar.provider}</span>
+      </td>
+      <td className="reports-cell reports-cell--id">{ar.id.slice(0, 12)}</td>
+      <td className="reports-cell reports-cell--time">{formatDateTime(ar.created_at)}</td>
+      <td className="reports-cell reports-cell--duration">
+        {ar.started_at && ar.completed_at ? formatDuration(ar.started_at, ar.completed_at) : ar.status === 'running' ? '...' : '—'}
+      </td>
+      <td className="reports-cell" style={{ textAlign: 'center' }}>{ar.turns_used}</td>
+      <td className="reports-cell reports-cell--status-text">{normalizeStatus(ar.status)}</td>
+    </tr>
   )
 }
 
