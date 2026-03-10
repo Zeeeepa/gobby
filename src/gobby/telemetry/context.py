@@ -90,7 +90,7 @@ def set_trace_context(trace_id: str, span_id: str) -> Context:
         trace_id=int(trace_id, 16),
         span_id=int(span_id, 16),
         is_remote=True,
-        trace_flags=trace.TraceFlags.SAMPLED,
+        trace_flags=trace.TraceFlags(trace.TraceFlags.SAMPLED),
     )
 
     # Create a non-recording span from this context

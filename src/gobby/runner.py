@@ -1082,7 +1082,7 @@ class GobbyRunner:
 
                 web_dir = find_web_dir(self.config)
                 if web_dir:
-                    ui_log = Path(self.config.logging.client).expanduser().parent / "ui.log"
+                    ui_log = Path(self.config.telemetry.log_file).expanduser().parent / "ui.log"
                     # Inherit bind_host so the Vite dev server is reachable
                     # over the network (e.g. Tailscale) when bind_host != localhost
                     ui_host = self.config.ui.host

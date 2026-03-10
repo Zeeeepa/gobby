@@ -146,6 +146,7 @@ def setup_otel_logging(config: TelemetrySettings, verbose: bool = False) -> None
         level = getattr(logging, config.log_level.upper(), logging.INFO)
 
     # 2. Configure formatters
+    formatter: logging.Formatter
     if config.log_format == "json":
         formatter = JsonOTelFormatter(datefmt="%Y-%m-%dT%H:%M:%S")
     else:

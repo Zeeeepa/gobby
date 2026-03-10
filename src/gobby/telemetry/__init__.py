@@ -2,7 +2,7 @@
 Gobby Telemetry Module.
 
 Provides public API for OpenTelemetry tracing, metrics, and logging integration.
-This module co-exists with existing LoggingSettings during migration.
+Replaces legacy utils/logging.py and utils/metrics.py modules.
 """
 
 from __future__ import annotations
@@ -35,6 +35,26 @@ from gobby.telemetry.tracing import (
     record_exception,
     traced,
 )
+
+__all__ = [
+    "init_telemetry",
+    "get_tracer",
+    "get_meter",
+    "shutdown_telemetry",
+    "extract_from_env",
+    "inject_into_env",
+    "add_span_attributes",
+    "create_span",
+    "current_span",
+    "record_exception",
+    "traced",
+    "inc_counter",
+    "inc_gauge",
+    "dec_gauge",
+    "set_gauge",
+    "observe_histogram",
+    "get_telemetry_metrics",
+]
 
 if TYPE_CHECKING:
     from opentelemetry.metrics import Meter
