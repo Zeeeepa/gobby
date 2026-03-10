@@ -132,11 +132,15 @@ class PipelineHeartbeat:
         Returns:
             Number of recovered tasks.
         """
+        import asyncio
+
         if not self._task_manager or not self._agent_run_manager:
             return 0
 
         try:
-            in_progress = self._task_manager.list_tasks(status="in_progress", limit=100)
+            in_progress = await asyncio.to_thread(
+                self._task_manager.list_tasks, status="in_progress", limit=100
+            )
         except Exception:
             logger.exception("Heartbeat: failed to query in_progress tasks")
             return 0
@@ -146,12 +150,16 @@ class PipelineHeartbeat:
             if not task.assignee:
                 continue
             try:
-                has_active = self._agent_run_manager.has_active_run_for_task(task.id)
+                has_active = await asyncio.to_thread(
+                    self._agent_run_manager.has_active_run_for_task, task.id
+                )
                 if has_active:
                     continue
 
                 # No active agent run — task is orphaned, reset it
-                self._task_manager.update_task(task.id, status="open", assignee=None)
+                await asyncio.to_thread(
+                    self._task_manager.update_task, task.id, status="open", assignee=None
+                )
                 logger.warning(
                     "Heartbeat: recovered stale task %s (#%s) — "
                     "reset to open (no active agent run)",

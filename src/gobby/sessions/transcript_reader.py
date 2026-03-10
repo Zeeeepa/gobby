@@ -149,9 +149,7 @@ class TranscriptReader:
         if not archive_path.is_file():
             return 0
 
-        lines = await asyncio.get_event_loop().run_in_executor(
-            None, _decompress_archive, str(archive_path)
-        )
+        lines = await asyncio.to_thread(_decompress_archive, str(archive_path))
         # Count non-empty lines (each line is a message)
         return sum(1 for line in lines if line.strip())
 
