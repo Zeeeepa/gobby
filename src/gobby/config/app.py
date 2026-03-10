@@ -260,7 +260,7 @@ class DaemonConfig(BaseModel):
     Note: machine_id is stored separately in ~/.gobby/machine_id
     """
 
-    model_config = {"populate_by_name": True, "extra": "forbid"}
+    model_config = {"populate_by_name": True, "extra": "ignore"}
 
     # Daemon settings
     daemon_port: int = Field(
@@ -668,6 +668,48 @@ def _resolve_config_values(
     return result
 
 
+# Keys renamed/removed from DaemonConfig that may still exist in DB config_store
+_LEGACY_KEYS_TO_DROP = frozenset({"_meta", "title_synthesis", "rules", "ui_settings"})
+
+# Mapping from old logging.* field names to new telemetry.* field names
+_LOGGING_TO_TELEMETRY_FIELDS: dict[str, str] = {
+    "level": "log_level",
+    "format": "log_format",
+    "client": "log_file",
+    "client_error": "log_file_error",
+    "hook_manager": "log_file_hook_manager",
+    "mcp_server": "log_file_mcp_server",
+    "mcp_client": "log_file_mcp_client",
+    "watchdog": "log_file_watchdog",
+    # These kept the same name
+    "max_size_mb": "max_size_mb",
+    "backup_count": "backup_count",
+}
+
+
+def _migrate_legacy_config(config_dict: dict[str, Any]) -> dict[str, Any]:
+    """Migrate legacy config keys that were renamed or removed.
+
+    Handles:
+    - logging.* → telemetry.* (field name remapping)
+    - Removal of _meta, title_synthesis, rules, ui_settings
+    """
+    # Drop removed top-level keys
+    for key in _LEGACY_KEYS_TO_DROP:
+        config_dict.pop(key, None)
+
+    # Migrate logging → telemetry
+    if "logging" in config_dict:
+        old_logging = config_dict.pop("logging")
+        if isinstance(old_logging, dict):
+            telemetry = config_dict.setdefault("telemetry", {})
+            for old_field, new_field in _LOGGING_TO_TELEMETRY_FIELDS.items():
+                if old_field in old_logging and new_field not in telemetry:
+                    telemetry[new_field] = old_logging[old_field]
+
+    return config_dict
+
+
 def load_config(
     config_file: str | None = None,
     cli_overrides: dict[str, Any] | None = None,
@@ -754,6 +796,9 @@ def load_config(
             telemetry_config["log_file_mcp_server"] = safe_mcp_server
         if safe_mcp_client := os.environ.get("GOBBY_LOGGING_MCP_CLIENT"):
             telemetry_config["log_file_mcp_client"] = safe_mcp_client
+
+    # Migrate legacy config keys (renamed/removed fields still in DB)
+    config_dict = _migrate_legacy_config(config_dict)
 
     # Validate and create config object
     try:
