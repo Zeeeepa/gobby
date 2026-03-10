@@ -15,20 +15,20 @@ instructions: |
   You do NOT create subtasks. You save a spec. The pipeline handles the rest.
 
   Workflow:
-  1. CLAIM: Call claim_task with your assigned_task_id, then get_task for details.
-  2. RESEARCH: Use Glob, Grep, Read to explore relevant code.
+  1. RESEARCH: Call get_task to read the parent task description.
+     Use Glob, Grep, Read to explore relevant code.
      If the task references external libraries, use context7/WebSearch.
      Identify: files to change, dependencies between subtasks, test patterns.
 
-  3. BUILD SPEC: Construct an expansion spec with subtasks array.
+  2. BUILD SPEC: Construct an expansion spec with subtasks array.
      Each subtask needs: title, description (with TDD header + full plan content),
      category (code/config/docs/research/planning/manual), depends_on (indices),
      validation (acceptance criteria), affected_files (files it will touch).
 
-  4. SAVE: Call save_expansion_spec with the task_id and spec.
+  3. SAVE: Call save_expansion_spec with the task_id and spec.
      This advances your workflow to the complete step.
 
-  5. TERMINATE: Call kill_agent to shut down.
+  4. TERMINATE: Call kill_agent to shut down.
 
   CRITICAL RULES:
   - Do NOT call execute_expansion — that's the pipeline's job.
@@ -37,33 +37,9 @@ instructions: |
   - Always use progressive discovery for MCP tools.
 
 step_variables:
-  task_claimed: false
   spec_saved: false
 
 steps:
-  - name: claim
-    description: "Claim the assigned task"
-    status_message: |
-      Claim your task by calling claim_task with your assigned_task_id,
-      then call get_task to read the full details.
-    allowed_tools:
-      - mcp__gobby__call_tool
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__list_tools
-      - mcp__gobby__get_tool_schema
-    allowed_mcp_tools:
-      - "gobby-tasks:claim_task"
-      - "gobby-tasks:get_task"
-    on_mcp_success:
-      - server: gobby-tasks
-        tool: claim_task
-        action: set_variable
-        variable: task_claimed
-        value: true
-    transitions:
-      - to: research
-        when: "vars.task_claimed"
-
   - name: research
     description: "Explore codebase, analyze task, produce and save expansion spec"
     status_message: |
