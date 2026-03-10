@@ -301,6 +301,7 @@ export default function App() {
     null,
   );
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [initialTraceId, setInitialTraceId] = useState<string | null>(null);
   const [uiSettingsLoaded, setUiSettingsLoaded] = useState(false);
   const [projectReady, setProjectReady] = useState(false);
   const showPlanRef = useRef<(() => void) | null>(null);
@@ -308,6 +309,18 @@ export default function App() {
   const [resumeModalOpen, setResumeModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+
+  const handleNavigateToTrace = useCallback((traceId: string) => {
+    setInitialTraceId(traceId);
+    setActiveTab("traces");
+  }, []);
+
+  // When switching to traces tab without navigation, clear initialTraceId
+  useEffect(() => {
+    if (activeTab !== "traces") {
+      setInitialTraceId(null);
+    }
+  }, [activeTab]);
 
   // Auto-synthesize chat title when streaming completes
   const wasStreamingRef = useRef(false);
@@ -1087,7 +1100,7 @@ export default function App() {
           ) : activeTab === "cron" ? (
             <CronJobsPage />
           ) : activeTab === "traces" ? (
-            <TracesPage projectId={effectiveProjectId} />
+            <TracesPage projectId={effectiveProjectId} initialTraceId={initialTraceId} />
           ) : activeTab === "skills" ? (
             <SkillsPage />
           ) : activeTab === "workflows" ? (
@@ -1095,7 +1108,7 @@ export default function App() {
           ) : activeTab === "mcp" ? (
             <McpPage />
           ) : activeTab === "reports" ? (
-            <ReportsPage projectId={effectiveProjectId} />
+            <ReportsPage projectId={effectiveProjectId} onNavigateToTrace={handleNavigateToTrace} />
           ) : activeTab === "source-control" ? (
             <GitHubPage projectId={effectiveProjectId} />
           ) : activeTab === "configuration" ? (

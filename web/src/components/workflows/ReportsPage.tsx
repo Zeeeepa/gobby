@@ -208,7 +208,13 @@ function CronIcon() {
 // ReportsPage
 // =============================================================================
 
-export function ReportsPage({ projectId }: { projectId?: string }) {
+export function ReportsPage({
+  projectId,
+  onNavigateToTrace,
+}: {
+  projectId?: string
+  onNavigateToTrace?: (traceId: string) => void
+}) {
   const [subTab, setSubTab] = useState<SubTab>('pipelines')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchText, setSearchText] = useState('')
@@ -521,6 +527,7 @@ export function ReportsPage({ projectId }: { projectId?: string }) {
                 actionLoading={actionLoading}
                 onApprove={handleApprove}
                 onReject={handleReject}
+                onNavigateToTrace={onNavigateToTrace}
                 onClose={() => setSelectedId(null)}
               />
             )}
@@ -613,12 +620,14 @@ function PipelineDetail({
   actionLoading,
   onApprove,
   onReject,
+  onNavigateToTrace,
   onClose,
 }: {
   execution: PipelineExecutionRecord
   actionLoading: string | null
   onApprove: (token: string) => Promise<void>
   onReject: (token: string) => Promise<void>
+  onNavigateToTrace?: (traceId: string) => void
   onClose: () => void
 }) {
   const [showConfig, setShowConfig] = useState(false)
@@ -646,6 +655,23 @@ function PipelineDetail({
       </div>
 
       <div className="reports-detail-body">
+        {/* Trace link */}
+        {(execution as any).trace_id && onNavigateToTrace && (
+          <div className="reports-detail-section">
+            <button
+              type="button"
+              className="reports-btn"
+              onClick={() => onNavigateToTrace((execution as any).trace_id)}
+              title="View telemetry trace for this execution"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              </svg>
+              View Trace
+            </button>
+          </div>
+        )}
+
         {/* Approval banner — actionable, goes first */}
         {execution.status === 'waiting_approval' && (() => {
           const waitingStep = execution.steps.find(
