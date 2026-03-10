@@ -57,9 +57,11 @@ agents = call_tool("gobby-agents", "list_agents", {"parent_session_id": "<sessio
 for agent in agents.runs:
     call_tool("gobby-agents", "kill_agent", {"run_id": agent.id})
 
-# Delete orchestrator cron jobs
+# Delete orchestrator cron jobs (skip system jobs with gobby: prefix)
 jobs = call_tool("gobby-cron", "list_cron_jobs", {})
 for job in jobs where job.name contains "orchestrator" or "test-battery":
+    if job.name.startswith("gobby:"):
+        continue  # NEVER delete system cron jobs
     call_tool("gobby-cron", "delete_cron_job", {"job_id": job.id})
 ```
 
