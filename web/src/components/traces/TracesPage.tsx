@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useTraces, useTraceDetail } from '../../hooks/useTraces'
 import { TraceWaterfall } from './TraceWaterfall'
 import { TraceDetail } from './TraceDetail'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../chat/ui/Select'
 import './TracesPage.css'
 
 interface TracesPageProps {
@@ -62,28 +63,38 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
             onChange={(e) => setFilters({ ...filters, session_id: e.target.value })}
           />
           <div className="traces-filter-row" style={{ display: 'flex', gap: '8px' }}>
-            <select
-              className="traces-filter-input"
-              value={filters.status || ''}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              style={{ flex: 1 }}
-            >
-              <option value="">All Statuses</option>
-              <option value="OK">OK</option>
-              <option value="ERROR">ERROR</option>
-              <option value="UNSET">UNSET</option>
-            </select>
-            <select
-              className="traces-filter-input"
-              value={filters.time_range || ''}
-              onChange={(e) => setFilters({ ...filters, time_range: e.target.value })}
-              style={{ flex: 1 }}
-            >
-              <option value="">All Time</option>
-              <option value="1h">Last 1h</option>
-              <option value="24h">Last 24h</option>
-              <option value="7d">Last 7d</option>
-            </select>
+            <div style={{ flex: 1 }}>
+              <Select
+                value={filters.status || ''}
+                onValueChange={(val) => setFilters({ ...filters, status: val === 'all' ? '' : val })}
+              >
+                <SelectTrigger className="traces-filter-input" style={{ width: '100%', height: '30px' }}>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="OK">OK</SelectItem>
+                  <SelectItem value="ERROR">ERROR</SelectItem>
+                  <SelectItem value="UNSET">UNSET</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Select
+                value={filters.time_range || ''}
+                onValueChange={(val) => setFilters({ ...filters, time_range: val === 'all' ? '' : val })}
+              >
+                <SelectTrigger className="traces-filter-input" style={{ width: '100%', height: '30px' }}>
+                  <SelectValue placeholder="All Time" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="1h">Last 1h</SelectItem>
+                  <SelectItem value="24h">Last 24h</SelectItem>
+                  <SelectItem value="7d">Last 7d</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -121,31 +132,31 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
         </div>
       </div>
 
-      <div className="traces-content">
-        {selectedTraceId ? (
-          <>
-            <TraceWaterfall
-              spans={spans}
-              selectedSpanId={selectedSpanId}
-              onSelectSpan={setSelectedSpanId}
-            />
-            {selectedSpan && (
-              <TraceDetail
-                span={selectedSpan}
-                onClose={() => setSelectedSpanId(null)}
+        <div className="traces-content">
+          {selectedTraceId ? (
+            <>
+              <TraceWaterfall
+                spans={spans}
+                selectedSpanId={selectedSpanId}
+                onSelectSpan={setSelectedSpanId}
               />
-            )}
-          </>
-        ) : (
-          <div className="trace-empty">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '16px', opacity: 0.5 }}>
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
-            <h3>Select a trace to view details</h3>
-            <p>Choose a trace from the list on the left to see the waterfall visualization and span attributes.</p>
-          </div>
-        )}
+              {selectedSpan && (
+                <TraceDetail
+                  span={selectedSpan}
+                  onClose={() => setSelectedSpanId(null)}
+                />
+              )}
+            </>
+          ) : (
+            <div className="trace-empty">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '16px', opacity: 0.5 }}>
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              </svg>
+              <h3>Select a trace to view details</h3>
+              <p>Choose a trace from the list on the left to see the waterfall visualization and span attributes.</p>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
   )
 }

@@ -20,11 +20,11 @@ export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWat
 
     // 1. Build child map
     const childrenByParent = new Map<string, Span[]>()
-    let root: Span | null = null
+    const roots: Span[] = []
 
     for (const span of spans) {
       if (!span.parent_span_id) {
-        root = span
+        roots.push(span)
       } else {
         const children = childrenByParent.get(span.parent_span_id) || []
         children.push(span)
@@ -32,8 +32,7 @@ export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWat
       }
     }
 
-    if (!root && spans.length > 0) root = spans[0]
-    if (!root) return []
+    if (roots.length === 0 && spans.length > 0) roots.push(spans[0])
 
     // 2. Flatten into depth-first order
     const flattened: { span: Span; depth: number }[] = []
@@ -47,7 +46,11 @@ export function TraceWaterfall({ spans, selectedSpanId, onSelectSpan }: TraceWat
       }
     }
 
-    walk(root, 0)
+    // Sort roots by start time
+    roots.sort((a, b) => a.start_time_ns - b.start_time_ns)
+    for (const root of roots) {
+      walk(root, 0)
+    }
     return flattened
   }, [spans])
 

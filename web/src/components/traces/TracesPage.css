@@ -14,6 +14,20 @@
   background: var(--bg-secondary);
 }
 
+.traces-filter-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.traces-filter-input:focus {
+  border-color: var(--accent);
+}
+
 .traces-content {
   flex: 1;
   display: flex;
