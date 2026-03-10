@@ -137,6 +137,10 @@ class TelemetryMetrics:
             "mcp_tool_calls_failed_total",
             "Total number of failed MCP tool calls",
         )
+        self._register_histogram(
+            "mcp_tool_call_duration_seconds",
+            "MCP tool call duration in seconds",
+        )
 
         # Background task metrics
         self._register_up_down_counter(
