@@ -1,6 +1,6 @@
 name: orchestrator
 type: pipeline
-version: "5.1"
+version: "5.2"
 description: |
   Tick-based orchestration pipeline. Each cron tick does one pass:
   scan task state, dispatch agents, exit. The cron schedule IS the loop.
@@ -116,7 +116,6 @@ steps:
 
   # --- CLONE (first tick creates, subsequent ticks reuse) ---
   - id: get_clone
-    condition: "${{ not done_check.output.orchestration_complete }}"
     mcp:
       server: gobby-clones
       tool: get_clone_by_task
@@ -144,7 +143,6 @@ steps:
         use_local: true
 
   - id: resolve_clone_id
-    condition: "${{ not done_check.output.orchestration_complete }}"
     mcp:
       server: gobby-workflows
       tool: pipeline_eval
@@ -228,6 +226,7 @@ steps:
       tool: close_task
       arguments:
         task_id: "${{ inputs.task_id }}"
+        session_id: "${{ session_id }}"
 
   # --- RESULT ---
   - id: tick_result
