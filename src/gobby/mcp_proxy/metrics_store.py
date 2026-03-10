@@ -152,7 +152,7 @@ class ToolMetricsStore:
         project_id: str | None = None,
         server_name: str | None = None,
         tool_name: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[Any]:
         """
         Get raw metrics rows from SQLite, optionally filtered.
 
@@ -189,7 +189,7 @@ class ToolMetricsStore:
         project_id: str | None = None,
         limit: int = 10,
         order_by: str = "call_count",
-    ) -> list[dict[str, Any]]:
+    ) -> list[Any]:
         """
         Get top tools from SQLite.
         """
@@ -235,7 +235,7 @@ class ToolMetricsStore:
         project_id: str | None = None,
         threshold: float = 0.5,
         limit: int = 10,
-    ) -> list[dict[str, Any]]:
+    ) -> list[Any]:
         """
         Get tools with failure rate above a threshold from SQLite.
         """
@@ -391,7 +391,7 @@ class ToolMetricsStore:
         tool_name: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[Any]:
         """
         Get aggregated daily metrics from SQLite.
         """
@@ -421,7 +421,7 @@ class ToolMetricsStore:
             tuple(params),
         )
 
-    def get_retention_stats(self) -> dict[str, Any]:
+    def get_retention_stats(self) -> Any:
         """
         Get statistics about metrics retention from SQLite.
         """

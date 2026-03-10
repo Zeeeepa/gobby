@@ -426,11 +426,15 @@ class HTTPServer:
             }
             if self.services.config:
                 # Pass full log file path from config
-                hook_manager_kwargs["log_file"] = self.services.config.telemetry.log_file_hook_manager
+                hook_manager_kwargs["log_file"] = (
+                    self.services.config.telemetry.log_file_hook_manager
+                )
                 hook_manager_kwargs["log_max_bytes"] = (
                     self.services.config.telemetry.max_size_mb * 1024 * 1024
                 )
-                hook_manager_kwargs["log_backup_count"] = self.services.config.telemetry.backup_count
+                hook_manager_kwargs["log_backup_count"] = (
+                    self.services.config.telemetry.backup_count
+                )
 
                 app.state.hook_manager = HookManager(**hook_manager_kwargs)
                 self._hook_manager = app.state.hook_manager

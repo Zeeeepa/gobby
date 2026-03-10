@@ -36,7 +36,7 @@ class TelemetrySettings(BaseModel):
         description="Service name for OpenTelemetry resource",
     )
 
-    # Logging settings (preserving LoggingSettings fields)
+    # Logging settings (preserving legacy fields)
     log_level: Literal["debug", "info", "warning", "error"] = Field(
         default="info",
         description="Log level",
@@ -46,7 +46,7 @@ class TelemetrySettings(BaseModel):
         description="Log format (text or json)",
     )
 
-    # Log file paths (preserved from LoggingSettings)
+    # Log file paths (preserved from legacy settings)
     log_file: str = Field(
         default="~/.gobby/logs/gobby.log",
         description="Daemon main log file path",

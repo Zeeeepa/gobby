@@ -6,7 +6,7 @@ Automatically tracks HTTP request counts, durations, and errors.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from fastapi import Request, Response
@@ -30,7 +30,9 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.metrics = get_telemetry_metrics()
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         start_time = time.perf_counter()
 
         # Extract attributes for labeling

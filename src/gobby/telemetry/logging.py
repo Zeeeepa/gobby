@@ -27,7 +27,7 @@ class OTelTraceFormatter(logging.Formatter):
     """
     Formatter that injects OpenTelemetry trace ID into log records.
 
-    Replaces ExtraFieldsFormatter from utils/logging.py with OTel support.
+    Replaces the legacy formatter with OTel support.
     """
 
     STANDARD_ATTRS: ClassVar[set[str]] = {
@@ -133,7 +133,7 @@ def setup_otel_logging(config: TelemetrySettings, verbose: bool = False) -> None
     """
     Configure rotating file logging with OpenTelemetry bridge.
 
-    Replaces setup_file_logging and setup_mcp_logging.
+    Replaces legacy file logging and setup_mcp_logging.
 
     Args:
         config: TelemetrySettings instance.

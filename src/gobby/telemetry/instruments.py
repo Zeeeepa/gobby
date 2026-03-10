@@ -1,6 +1,6 @@
 """
 OpenTelemetry metric instruments.
-Replaces utils/metrics.py MetricsCollector with OTel-based instruments.
+Provides OTel-based instruments.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ class TelemetryMetrics:
     OpenTelemetry-based metrics collector.
 
     Provides standard OTel instruments while maintaining backward compatibility
-    with the MetricsCollector API for status reporting.
+    with the legacy API for status reporting.
     """
 
     def __init__(self, meter: metrics.Meter) -> None:

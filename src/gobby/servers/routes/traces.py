@@ -20,7 +20,7 @@ def create_traces_router(server: HTTPServer) -> APIRouter:
     def _get_storage() -> SpanStorage:
         """Get SpanStorage from the ServiceContainer."""
         if server.services.span_storage is not None:
-            return server.services.span_storage
+            return server.services.span_storage  # type: ignore[no-any-return]
         if server.services.database is None:
             raise HTTPException(503, "Database not available")
         return SpanStorage(server.services.database)
