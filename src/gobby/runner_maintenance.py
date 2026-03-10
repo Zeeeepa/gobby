@@ -199,6 +199,40 @@ async def savings_rollup_loop(
             logger.error(f"Error in savings rollup loop: {e}")
 
 
+async def metric_snapshot_loop(
+    db: Any,
+    is_shutdown_requested: Callable[[], bool],
+    interval_seconds: int = 60,
+    retention_hours: int = 24,
+) -> None:
+    """Background loop that snapshots OTel metrics every interval.
+
+    Captures get_all_metrics() output to SQLite for dashboard time-series charts.
+    Cleans old snapshots each tick to maintain 24h retention.
+    """
+    from gobby.storage.metric_snapshots import MetricSnapshotStorage
+    from gobby.telemetry.instruments import get_all_metrics, update_daemon_metrics
+
+    storage = MetricSnapshotStorage(db)
+
+    while not is_shutdown_requested():
+        try:
+            update_daemon_metrics()
+            metrics = get_all_metrics()
+            storage.save_snapshot(metrics)
+            deleted = storage.delete_old_snapshots(retention_hours=retention_hours)
+            if deleted > 0:
+                logger.debug(f"Metric snapshot cleanup: removed {deleted} old snapshots")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in metric snapshot loop: {e}")
+        try:
+            await asyncio.sleep(interval_seconds)
+        except asyncio.CancelledError:
+            break
+
+
 def write_shutdown_source(source: str, sender_pid: int | None = None) -> None:
     """Write a marker file identifying why/who is sending SIGTERM."""
     try:

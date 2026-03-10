@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 153
+BASELINE_VERSION = 154
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -962,6 +962,13 @@ CREATE TABLE spans (
 );
 CREATE INDEX idx_spans_trace_id ON spans(trace_id);
 CREATE INDEX idx_spans_start_time ON spans(start_time_ns);
+
+CREATE TABLE metric_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    metrics_json TEXT NOT NULL
+);
+CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp);
 """
 
 
@@ -1247,6 +1254,16 @@ CREATE TABLE IF NOT EXISTS savings_daily (
         CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON spans(trace_id);
         CREATE INDEX IF NOT EXISTS idx_spans_start_time ON spans(start_time_ns);
         """,
+    ),
+    (
+        154,
+        "Add metric_snapshots table for OTel time-series dashboard",
+        """CREATE TABLE IF NOT EXISTS metric_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    metrics_json TEXT NOT NULL
+);
+CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
     ),
 ]
 

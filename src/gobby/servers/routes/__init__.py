@@ -17,6 +17,7 @@ from gobby.servers.routes.mcp import (
     create_webhooks_router,
 )
 from gobby.servers.routes.memory import create_memory_router
+from gobby.servers.routes.metrics import create_metrics_router
 from gobby.servers.routes.pipelines import create_pipelines_router
 from gobby.servers.routes.projects import create_projects_router
 from gobby.servers.routes.rules import create_rules_router
@@ -39,6 +40,7 @@ __all__ = [
     "create_hooks_router",
     "create_mcp_router",
     "create_memory_router",
+    "create_metrics_router",
     "create_pipelines_router",
     "create_projects_router",
     "create_rules_router",

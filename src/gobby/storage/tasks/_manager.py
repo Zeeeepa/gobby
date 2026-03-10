@@ -11,6 +11,9 @@ from gobby.storage.tasks._aggregates import (
     count_by_status as _count_by_status,
 )
 from gobby.storage.tasks._aggregates import (
+    count_closed_since as _count_closed_since,
+)
+from gobby.storage.tasks._aggregates import (
     count_ready_tasks as _count_ready_tasks,
 )
 from gobby.storage.tasks._aggregates import (
@@ -592,6 +595,10 @@ class LocalTaskManager:
             Count of blocked tasks
         """
         return _count_blocked_tasks(self.db, project_id=project_id)
+
+    def count_closed_since(self, hours: int = 24, project_id: str | None = None) -> int:
+        """Count tasks closed within the last N hours."""
+        return _count_closed_since(self.db, hours=hours, project_id=project_id)
 
     def create_task_with_decomposition(
         self,

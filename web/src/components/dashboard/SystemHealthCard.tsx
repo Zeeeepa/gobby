@@ -16,7 +16,8 @@ interface Props {
 }
 
 export function SystemHealthCard({ data }: Props) {
-  const { server, process, background_tasks, status } = data
+  const { server, process, background_tasks, status, memory } = data
+  const neo4j = memory?.neo4j
 
   return (
     <div className="dash-card">
@@ -49,6 +50,14 @@ export function SystemHealthCard({ data }: Props) {
             <span className="dash-stat-label">Background Tasks</span>
           </div>
         </div>
+        {neo4j && (
+          <div className="dash-neo4j-status">
+            <span
+              className={`dash-health-dot dash-health-dot--${neo4j.healthy ? 'healthy' : neo4j.configured ? 'unhealthy' : 'unknown'}`}
+            />
+            <span>Neo4j {neo4j.healthy ? 'connected' : neo4j.configured ? 'disconnected' : 'not configured'}</span>
+          </div>
+        )}
       </div>
     </div>
   )

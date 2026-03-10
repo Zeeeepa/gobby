@@ -104,6 +104,7 @@ class GobbyRunner:
         self._vector_rebuild_task: asyncio.Task[None] | None = None
         self._zombie_messages_task: asyncio.Task[None] | None = None
         self._span_cleanup_task: asyncio.Task[None] | None = None
+        self._metric_snapshot_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
@@ -841,6 +842,7 @@ class GobbyRunner:
             cleanup_pid_file,
             cleanup_zombie_messages_loop,
             expire_approval_timeouts_loop,
+            metric_snapshot_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
             savings_rollup_loop,
@@ -991,6 +993,12 @@ class GobbyRunner:
             self._savings_rollup_task = asyncio.create_task(
                 savings_rollup_loop(self.database, lambda: self._shutdown_requested),
                 name="savings-rollup",
+            )
+
+            # Start periodic metric snapshot loop (every 60s)
+            self._metric_snapshot_task = asyncio.create_task(
+                metric_snapshot_loop(self.database, lambda: self._shutdown_requested),
+                name="metric-snapshot",
             )
 
             # Start periodic approval timeout expiry (every 60s)
@@ -1197,6 +1205,14 @@ class GobbyRunner:
                 self._span_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._span_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel metric snapshot task
+            if self._metric_snapshot_task and not self._metric_snapshot_task.done():
+                self._metric_snapshot_task.cancel()
+                try:
+                    await asyncio.wait_for(self._metric_snapshot_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 

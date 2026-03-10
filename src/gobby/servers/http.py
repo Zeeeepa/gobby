@@ -880,6 +880,7 @@ class HTTPServer:
             create_hooks_router,
             create_mcp_router,
             create_memory_router,
+            create_metrics_router,
             create_pipelines_router,
             create_projects_router,
             create_rules_router,
@@ -917,6 +918,7 @@ class HTTPServer:
         app.include_router(create_rules_router(self))
         app.include_router(create_source_control_router(self))
         app.include_router(create_traces_router(self))
+        app.include_router(create_metrics_router(self))
 
     async def _process_shutdown(self) -> None:
         """

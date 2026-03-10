@@ -120,6 +120,36 @@ def count_ready_tasks(
     return result["count"] if result else 0
 
 
+def count_closed_since(
+    db: DatabaseProtocol,
+    hours: int = 24,
+    project_id: str | None = None,
+) -> int:
+    """Count tasks closed within the last N hours.
+
+    Args:
+        db: Database protocol instance
+        hours: Time window in hours
+        project_id: Optional project filter
+
+    Returns:
+        Count of recently closed tasks
+    """
+    query = (
+        "SELECT COUNT(*) as count FROM tasks "
+        "WHERE status = 'closed' "
+        "AND closed_at >= datetime('now', ?)"
+    )
+    params: list[Any] = [f"-{hours} hours"]
+
+    if project_id:
+        query += " AND project_id = ?"
+        params.append(project_id)
+
+    result = db.fetchone(query, tuple(params))
+    return result["count"] if result else 0
+
+
 def count_blocked_tasks(
     db: DatabaseProtocol,
     project_id: str | None = None,

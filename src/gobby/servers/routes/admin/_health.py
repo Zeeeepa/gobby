@@ -140,17 +140,34 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
                 logger.warning(f"Failed to get session stats: {e}")
 
         # Get task statistics using efficient count queries
-        task_stats = {"open": 0, "in_progress": 0, "closed": 0, "ready": 0, "blocked": 0}
+        task_stats: dict[str, Any] = {
+            "open": 0,
+            "in_progress": 0,
+            "closed": 0,
+            "needs_review": 0,
+            "review_approved": 0,
+            "escalated": 0,
+            "ready": 0,
+            "blocked": 0,
+            "closed_24h": 0,
+        }
         if server.task_manager is not None:
             try:
                 # Use count_by_status for efficient grouped counts
                 status_counts = server.task_manager.count_by_status()
-                task_stats["open"] = status_counts.get("open", 0)
-                task_stats["in_progress"] = status_counts.get("in_progress", 0)
-                task_stats["closed"] = status_counts.get("closed", 0)
-                # Get ready and blocked counts using dedicated count methods
+                for key in (
+                    "open",
+                    "in_progress",
+                    "closed",
+                    "needs_review",
+                    "review_approved",
+                    "escalated",
+                ):
+                    task_stats[key] = status_counts.get(key, 0)
+                # Get ready, blocked, and recent closed counts
                 task_stats["ready"] = server.task_manager.count_ready_tasks()
                 task_stats["blocked"] = server.task_manager.count_blocked_tasks()
+                task_stats["closed_24h"] = server.task_manager.count_closed_since(hours=24)
             except Exception as e:
                 logger.warning(f"Failed to get task stats: {e}")
 
