@@ -63,22 +63,40 @@ class SpanStorage:
         rows = self.db.fetchall(query, (trace_id,))
         return [self._row_to_dict(row) for row in rows]
 
-    def get_recent_traces(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    def get_recent_traces(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        project_id: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Retrieve recent traces, represented by their root (earliest) span."""
-        # Get unique trace_ids ordered by their latest span's start time
-        query = """
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if project_id:
+            conditions.append("json_extract(attributes_json, '$.project_id') = ?")
+            params.append(project_id)
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+        query = f"""
         SELECT trace_id, MAX(start_time_ns) as last_activity
         FROM spans
+        {where}
         GROUP BY trace_id
         ORDER BY last_activity DESC
         LIMIT ? OFFSET ?
         """
-        trace_rows = self.db.fetchall(query, (limit, offset))
+        params.extend([limit, offset])
+        trace_rows = self.db.fetchall(query, tuple(params))
 
         results = []
         for tr in trace_rows:
             trace_id = tr["trace_id"]
-            # Find the root/earliest span for this trace
             root_query = "SELECT * FROM spans WHERE trace_id = ? ORDER BY start_time_ns ASC LIMIT 1"
             root_row = self.db.fetchone(root_query, (trace_id,))
             if root_row:

@@ -83,8 +83,8 @@ class TelemetrySettings(BaseModel):
 
     # Tracing settings
     traces_enabled: bool = Field(
-        default=False,
-        description="Enable distributed tracing (opt-in)",
+        default=True,
+        description="Enable distributed tracing",
     )
     traces_to_console: bool = Field(
         default=False,
