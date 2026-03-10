@@ -1,0 +1,98 @@
+tags: [worker-safety, enforcement, default, gobby]
+
+rules:
+  no-npm-install-interactive:
+    description: "Block npm install/add with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bnpm\\s+(install|i|add)\\b"
+        reason: "Package installation is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
+
+  no-npx-interactive:
+    description: "Block npx with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bnpx\\b"
+        reason: "Running npx is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
+
+  no-yarn-add-interactive:
+    description: "Block yarn add with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\byarn\\s+add\\b"
+        reason: "Package installation is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
+
+  no-pip-install-interactive:
+    description: "Block pip install with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bpip3?\\s+install\\b"
+        reason: "Package installation is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
+
+  no-uv-add-interactive:
+    description: "Block uv add/pip install with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\buv\\s+(add|pip\\s+install)\\b"
+        reason: "Package installation is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
+
+  no-cargo-add-interactive:
+    description: "Block cargo add with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bcargo\\s+add\\b"
+        reason: "Package installation is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
+
+  no-gem-install-interactive:
+    description: "Block gem install with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bgem\\s+install\\b"
+        reason: "Package installation is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
+
+  no-brew-install-interactive:
+    description: "Block brew install with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bbrew\\s+install\\b"
+        reason: "Package installation is blocked by default. Ask the user for permission to disable this rule if you need to proceed."
