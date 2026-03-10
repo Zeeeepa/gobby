@@ -1,0 +1,73 @@
+"""
+Tests for telemetry providers.
+"""
+
+import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk._logs import LoggerProvider
+
+from gobby.telemetry.config import TelemetrySettings
+from gobby.telemetry.providers import (
+    get_tracer_provider,
+    get_meter_provider,
+    get_logger_provider,
+    shutdown_providers,
+)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_providers() -> None:
+    """Ensure providers are cleared after each test."""
+    shutdown_providers()
+    yield
+    shutdown_providers()
+
+
+def test_get_tracer_provider() -> None:
+    """Test TracerProvider creation and caching."""
+    config = TelemetrySettings(service_name="test-trace", traces_enabled=True)
+    provider1 = get_tracer_provider(config)
+    assert isinstance(provider1, TracerProvider)
+    assert provider1.resource.attributes["service.name"] == "test-trace"
+
+    provider2 = get_tracer_provider(config)
+    assert provider1 is provider2
+
+
+def test_get_meter_provider() -> None:
+    """Test MeterProvider creation and caching."""
+    config = TelemetrySettings(service_name="test-metrics", metrics_enabled=True)
+    provider1 = get_meter_provider(config)
+    assert isinstance(provider1, MeterProvider)
+    # MeterProvider internal attribute access
+    assert provider1._sdk_config.resource.attributes["service.name"] == "test-metrics"
+
+    provider2 = get_meter_provider(config)
+    assert provider1 is provider2
+
+
+def test_get_logger_provider() -> None:
+    """Test LoggerProvider creation and caching."""
+    config = TelemetrySettings(service_name="test-logs")
+    provider1 = get_logger_provider(config)
+    assert isinstance(provider1, LoggerProvider)
+    assert provider1.resource.attributes["service.name"] == "test-logs"
+
+    provider2 = get_logger_provider(config)
+    assert provider1 is provider2
+
+
+def test_shutdown_providers() -> None:
+    """Test shutdown of all providers."""
+    config = TelemetrySettings()
+    p_trace = get_tracer_provider(config)
+    p_meter = get_meter_provider(config)
+    p_logger = get_logger_provider(config)
+
+    shutdown_providers()
+
+    # Getting them again should create new instances
+    assert get_tracer_provider(config) is not p_trace
+    assert get_meter_provider(config) is not p_meter
+    assert get_logger_provider(config) is not p_logger

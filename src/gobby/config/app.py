@@ -60,6 +60,7 @@ from gobby.config.tmux import TmuxConfig
 from gobby.config.voice import VoiceConfig
 from gobby.config.watchdog import WatchdogConfig
 from gobby.search.models import SearchConfig
+from gobby.telemetry.config import TelemetrySettings
 
 
 class ToolApprovalPolicy(BaseModel):
@@ -294,6 +295,10 @@ class DaemonConfig(BaseModel):
     logging: LoggingSettings = Field(
         default_factory=LoggingSettings,
         description="Logging configuration",
+    )
+    telemetry: TelemetrySettings = Field(
+        default_factory=TelemetrySettings,
+        description="Unified telemetry and logging configuration",
     )
     session_summary: SessionSummaryConfig = Field(
         default_factory=SessionSummaryConfig,
