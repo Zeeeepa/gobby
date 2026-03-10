@@ -1,33 +1,67 @@
 {
+  "version": 1,
   "hooks": {
     "sessionStart": [
       {
-        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=sessionStart"
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=sessionStart",
+        "timeoutSec": 30
       }
     ],
     "sessionEnd": [
       {
-        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=sessionEnd"
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=sessionEnd",
+        "timeoutSec": 30
       }
     ],
     "userPromptSubmitted": [
       {
-        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=userPromptSubmitted"
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=userPromptSubmitted",
+        "timeoutSec": 30
       }
     ],
     "preToolUse": [
       {
-        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=preToolUse"
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=preToolUse",
+        "timeoutSec": 30
       }
     ],
     "postToolUse": [
       {
-        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=postToolUse"
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=postToolUse",
+        "timeoutSec": 30
       }
     ],
     "errorOccurred": [
       {
-        "command": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=errorOccurred"
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=errorOccurred",
+        "timeoutSec": 30
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=agentStop",
+        "timeoutSec": 30
+      }
+    ],
+    "subagentStart": [
+      {
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=subagentStart",
+        "timeoutSec": 30
+      }
+    ],
+    "subagentStop": [
+      {
+        "type": "command",
+        "bash": "uv run python \"$HOOKS_DIR/hook_dispatcher.py\" --cli=copilot --type=subagentStop",
+        "timeoutSec": 30
       }
     ]
   }

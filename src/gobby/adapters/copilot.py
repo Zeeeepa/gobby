@@ -3,11 +3,13 @@
 This adapter translates between GitHub Copilot CLI's hook format and the unified
 HookEvent/HookResponse models.
 
-Copilot Hook Types (similar to Claude Code but with camelCase):
+Copilot Hook Types (camelCase, .github/hooks/ format):
 - sessionStart, sessionEnd: Session lifecycle
 - userPromptSubmitted: Before user prompt validation
 - preToolUse, postToolUse: Tool execution lifecycle
 - errorOccurred: Error notifications
+- agentStop: Agent stop (official replacement for legacy "stop")
+- subagentStart, subagentStop: Subagent lifecycle
 
 Key differences from Claude Code:
 - Uses camelCase hook names (preToolUse vs pre-tool-use)
@@ -48,9 +50,12 @@ class CopilotAdapter(BaseAdapter):
         "preToolUse": HookEventType.BEFORE_TOOL,
         "postToolUse": HookEventType.AFTER_TOOL,
         "errorOccurred": HookEventType.NOTIFICATION,
-        "stop": HookEventType.STOP,
+        "stop": HookEventType.STOP,  # Legacy — prefer agentStop
+        "agentStop": HookEventType.STOP,
         "preCompact": HookEventType.PRE_COMPACT,
         "notification": HookEventType.NOTIFICATION,
+        "subagentStart": HookEventType.SUBAGENT_START,
+        "subagentStop": HookEventType.SUBAGENT_STOP,
     }
 
     # Map Copilot hook types to PascalCase event names for response
@@ -60,11 +65,14 @@ class CopilotAdapter(BaseAdapter):
         "sessionEnd": "SessionEnd",
         "userPromptSubmitted": "UserPromptSubmitted",
         "stop": "Stop",
+        "agentStop": "AgentStop",
         "preToolUse": "PreToolUse",
         "postToolUse": "PostToolUse",
         "preCompact": "PreCompact",
         "notification": "Notification",
         "errorOccurred": "Notification",
+        "subagentStart": "SubagentStart",
+        "subagentStop": "SubagentStop",
     }
 
     def __init__(self, hook_manager: "HookManager | None" = None):
@@ -270,6 +278,9 @@ class CopilotAdapter(BaseAdapter):
             "UserPromptSubmitted",
             "PostToolUse",
             "SessionStart",
+            "AgentStop",
+            "SubagentStart",
+            "SubagentStop",
         }
         if additional_context_parts and hook_event_name in valid_hook_event_names:
             result["hookSpecificOutput"] = {

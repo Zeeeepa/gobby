@@ -43,7 +43,15 @@ def test_install_copilot_global_hooks_error(tmp_path: Path) -> None:
 def test_install_copilot_shared_content_error(tmp_path: Path) -> None:
     copilot_install_dir = tmp_path / "copilot"
     copilot_install_dir.mkdir(parents=True)
-    (copilot_install_dir / "hooks-template.json").write_text('{"hooks": {"pre-commit": "test"}}')
+    template = {
+        "version": 1,
+        "hooks": {
+            "sessionStart": [
+                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+            ]
+        },
+    }
+    (copilot_install_dir / "hooks-template.json").write_text(json.dumps(template))
 
     with (
         patch("gobby.cli.installers.copilot.get_install_dir", return_value=tmp_path),
@@ -56,7 +64,71 @@ def test_install_copilot_shared_content_error(tmp_path: Path) -> None:
         # Should not fail entirely
         result = install_copilot(tmp_path, mode="project")
         assert result["success"] is True
-        assert "pre-commit" in result["hooks_installed"]
+        assert "sessionStart" in result["hooks_installed"]
+
+
+def test_install_copilot_creates_github_hooks_dir(tmp_path: Path) -> None:
+    """Verify installer creates .github/hooks/ and writes gobby-hooks.json."""
+    copilot_install_dir = tmp_path / "copilot"
+    copilot_install_dir.mkdir(parents=True)
+    template = {
+        "version": 1,
+        "hooks": {
+            "sessionStart": [
+                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+            ]
+        },
+    }
+    (copilot_install_dir / "hooks-template.json").write_text(json.dumps(template))
+
+    with (
+        patch("gobby.cli.installers.copilot.get_install_dir", return_value=tmp_path),
+        patch("gobby.cli.installers.copilot.install_global_hooks"),
+        patch("gobby.cli.installers.copilot.install_shared_content", return_value={}),
+    ):
+        result = install_copilot(tmp_path, mode="project")
+        assert result["success"] is True
+
+    hooks_file = tmp_path / ".github" / "hooks" / "gobby-hooks.json"
+    assert hooks_file.exists()
+    data = json.loads(hooks_file.read_text())
+    assert data["version"] == 1
+    assert "sessionStart" in data["hooks"]
+    # Verify new format: bash field, not command
+    hook_entry = data["hooks"]["sessionStart"][0]
+    assert hook_entry["type"] == "command"
+    assert "bash" in hook_entry
+    assert "command" not in hook_entry
+
+
+def test_install_copilot_all_hook_types_from_real_template(tmp_path: Path) -> None:
+    """Verify the actual template installs all 9 hook types."""
+    from gobby.cli.utils import get_install_dir
+
+    real_install_dir = get_install_dir()
+    real_template = real_install_dir / "copilot" / "hooks-template.json"
+    if not real_template.exists():
+        pytest.skip("Real template not found")
+
+    with (
+        patch("gobby.cli.installers.copilot.install_global_hooks"),
+        patch("gobby.cli.installers.copilot.install_shared_content", return_value={}),
+    ):
+        result = install_copilot(tmp_path, mode="project")
+        assert result["success"] is True
+
+    expected_hooks = {
+        "sessionStart",
+        "sessionEnd",
+        "userPromptSubmitted",
+        "preToolUse",
+        "postToolUse",
+        "errorOccurred",
+        "agentStop",
+        "subagentStart",
+        "subagentStop",
+    }
+    assert set(result["hooks_installed"]) == expected_hooks
 
 
 def test_install_copilot_backup_error(tmp_path: Path) -> None:
@@ -64,7 +136,7 @@ def test_install_copilot_backup_error(tmp_path: Path) -> None:
     copilot_install_dir.mkdir(parents=True)
     (copilot_install_dir / "hooks-template.json").write_text("{}")
 
-    hooks_file = tmp_path / ".copilot" / "hooks.json"
+    hooks_file = tmp_path / ".github" / "hooks" / "gobby-hooks.json"
     hooks_file.parent.mkdir(parents=True)
     hooks_file.write_text("{}")
 
@@ -82,9 +154,17 @@ def test_install_copilot_backup_error(tmp_path: Path) -> None:
 def test_install_copilot_existing_file_json_decode_error(tmp_path: Path) -> None:
     copilot_install_dir = tmp_path / "copilot"
     copilot_install_dir.mkdir(parents=True)
-    (copilot_install_dir / "hooks-template.json").write_text('{"hooks": {"pre-commit": "test"}}')
+    template = {
+        "version": 1,
+        "hooks": {
+            "sessionStart": [
+                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+            ]
+        },
+    }
+    (copilot_install_dir / "hooks-template.json").write_text(json.dumps(template))
 
-    hooks_file = tmp_path / ".copilot" / "hooks.json"
+    hooks_file = tmp_path / ".github" / "hooks" / "gobby-hooks.json"
     hooks_file.parent.mkdir(parents=True)
     hooks_file.write_text("{bad-json")
 
@@ -101,9 +181,17 @@ def test_install_copilot_existing_file_json_decode_error(tmp_path: Path) -> None
 def test_install_copilot_existing_file_os_error(tmp_path: Path) -> None:
     copilot_install_dir = tmp_path / "copilot"
     copilot_install_dir.mkdir(parents=True)
-    (copilot_install_dir / "hooks-template.json").write_text('{"hooks": {"pre-commit": "test"}}')
+    template = {
+        "version": 1,
+        "hooks": {
+            "sessionStart": [
+                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+            ]
+        },
+    }
+    (copilot_install_dir / "hooks-template.json").write_text(json.dumps(template))
 
-    hooks_file = tmp_path / ".copilot" / "hooks.json"
+    hooks_file = tmp_path / ".github" / "hooks" / "gobby-hooks.json"
     hooks_file.parent.mkdir(parents=True)
     hooks_file.write_text("{}")
 
@@ -116,7 +204,7 @@ def test_install_copilot_existing_file_os_error(tmp_path: Path) -> None:
     ):
         result = install_copilot(tmp_path, mode="project")
         assert result["success"] is False
-        assert "Failed to read hooks.json" in result["error"]
+        assert "Failed to read gobby-hooks.json" in result["error"]
 
 
 def test_install_copilot_template_read_errors(tmp_path: Path) -> None:
@@ -165,7 +253,15 @@ def test_install_copilot_template_json_error(tmp_path: Path) -> None:
 def test_install_copilot_write_error(tmp_path: Path) -> None:
     copilot_install_dir = tmp_path / "copilot"
     copilot_install_dir.mkdir(parents=True)
-    (copilot_install_dir / "hooks-template.json").write_text('{"hooks": {"pre-commit": "test"}}')
+    template = {
+        "version": 1,
+        "hooks": {
+            "sessionStart": [
+                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+            ]
+        },
+    }
+    (copilot_install_dir / "hooks-template.json").write_text(json.dumps(template))
 
     with (
         patch("gobby.cli.installers.copilot.get_install_dir", return_value=tmp_path),
@@ -175,15 +271,23 @@ def test_install_copilot_write_error(tmp_path: Path) -> None:
     ):
         result = install_copilot(tmp_path, mode="project")
         assert result["success"] is False
-        assert "Failed to write hooks.json" in result["error"]
+        assert "Failed to write gobby-hooks.json" in result["error"]
 
 
 def test_install_copilot_write_error_with_backup_restore(tmp_path: Path) -> None:
     copilot_install_dir = tmp_path / "copilot"
     copilot_install_dir.mkdir(parents=True)
-    (copilot_install_dir / "hooks-template.json").write_text('{"hooks": {"pre-commit": "test"}}')
+    template = {
+        "version": 1,
+        "hooks": {
+            "sessionStart": [
+                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+            ]
+        },
+    }
+    (copilot_install_dir / "hooks-template.json").write_text(json.dumps(template))
 
-    hooks_file = tmp_path / ".copilot" / "hooks.json"
+    hooks_file = tmp_path / ".github" / "hooks" / "gobby-hooks.json"
     hooks_file.parent.mkdir(parents=True)
     hooks_file.write_text("{}")
 
@@ -195,12 +299,67 @@ def test_install_copilot_write_error_with_backup_restore(tmp_path: Path) -> None
     ):
         result = install_copilot(tmp_path, mode="project")
         assert result["success"] is False
-        assert "Failed to write hooks.json" in result["error"]
+        assert "Failed to write gobby-hooks.json" in result["error"]
         # The original hooks file should have been restored correctly
         assert hooks_file.read_text() == "{}"
 
 
-def test_uninstall_copilot(tmp_path: Path) -> None:
+def test_uninstall_copilot_new_format(tmp_path: Path) -> None:
+    """Uninstall removes gobby hooks from .github/hooks/gobby-hooks.json."""
+    github_hooks = tmp_path / ".github" / "hooks"
+    github_hooks.mkdir(parents=True)
+    hooks_file = github_hooks / "gobby-hooks.json"
+    hooks_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "hooks": {
+                    "sessionStart": [
+                        {"type": "command", "bash": "python hook_dispatcher.py", "timeoutSec": 30}
+                    ],
+                    "custom": [{"type": "command", "bash": "echo custom", "timeoutSec": 10}],
+                },
+            }
+        )
+    )
+
+    result = uninstall_copilot(tmp_path)
+    assert result["success"] is True
+    assert "sessionStart" in result["hooks_removed"]
+
+    # Custom hook should remain, file should still exist
+    data = json.loads(hooks_file.read_text())
+    assert "custom" in data["hooks"]
+    assert "sessionStart" not in data["hooks"]
+
+
+def test_uninstall_copilot_new_format_removes_empty_file(tmp_path: Path) -> None:
+    """When all hooks are gobby hooks, the file is removed entirely."""
+    github_hooks = tmp_path / ".github" / "hooks"
+    github_hooks.mkdir(parents=True)
+    hooks_file = github_hooks / "gobby-hooks.json"
+    hooks_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "hooks": {
+                    "sessionStart": [
+                        {"type": "command", "bash": "python hook_dispatcher.py", "timeoutSec": 30}
+                    ],
+                },
+            }
+        )
+    )
+
+    result = uninstall_copilot(tmp_path)
+    assert result["success"] is True
+    assert "sessionStart" in result["hooks_removed"]
+    assert str(hooks_file) in result["files_removed"]
+    assert not hooks_file.exists()
+
+
+def test_uninstall_copilot_legacy_format(tmp_path: Path) -> None:
+    """Uninstall also cleans up legacy .copilot/ location."""
     copilot_path = tmp_path / ".copilot"
     hooks_dir = copilot_path / "hooks"
     hooks_dir.mkdir(parents=True)

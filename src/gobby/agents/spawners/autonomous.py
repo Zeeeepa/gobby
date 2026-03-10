@@ -45,6 +45,7 @@ from gobby.servers.chat_session_helpers import (
     _response_to_pre_tool_output,
     _response_to_prompt_output,
     _response_to_stop_output,
+    _response_to_subagent_output,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,8 @@ class AutonomousRunner:
         on_post_tool: LifecycleCallback | None = None,
         on_stop: LifecycleCallback | None = None,
         on_pre_compact: LifecycleCallback | None = None,
+        on_subagent_start: LifecycleCallback | None = None,
+        on_subagent_stop: LifecycleCallback | None = None,
         seq_num: int | None = None,
         resume_session_id: str | None = None,
     ) -> None:
@@ -109,6 +112,8 @@ class AutonomousRunner:
         self._on_post_tool = on_post_tool
         self._on_stop = on_stop
         self._on_pre_compact = on_pre_compact
+        self._on_subagent_start = on_subagent_start
+        self._on_subagent_stop = on_subagent_stop
 
         # Captured after first ResultMessage
         self.sdk_session_id: str | None = None
@@ -329,5 +334,39 @@ class AutonomousRunner:
                 return _response_to_compact_output(resp)
 
             hooks["PreCompact"] = [HookMatcher(matcher=None, hooks=[_compact_hook])]
+
+        if self._on_subagent_start:
+            cb_sub_start = self._on_subagent_start
+
+            async def _subagent_start_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {
+                    "session_id": inp.get("session_id", ""),
+                    "source": "autonomous_sdk",
+                }
+                resp = await cb_sub_start(data)
+                return _response_to_subagent_output(resp, "SubagentStart")
+
+            hooks["SubagentStart"] = [HookMatcher(matcher=None, hooks=[_subagent_start_hook])]
+
+        if self._on_subagent_stop:
+            cb_sub_stop = self._on_subagent_stop
+
+            async def _subagent_stop_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {
+                    "session_id": inp.get("session_id", ""),
+                    "source": "autonomous_sdk",
+                }
+                resp = await cb_sub_stop(data)
+                return _response_to_subagent_output(resp, "SubagentStop")
+
+            hooks["SubagentStop"] = [HookMatcher(matcher=None, hooks=[_subagent_stop_hook])]
 
         return hooks if hooks else None
