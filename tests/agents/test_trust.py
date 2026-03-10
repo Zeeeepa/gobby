@@ -32,6 +32,13 @@ class TestEncodePath:
             == "-private-tmp-gobby-worktrees-gobby-task-9395"
         )
 
+    def test_hidden_directory_dots_replaced_with_dashes(self) -> None:
+        """Dots must become dashes to match Claude Code's actual encoding."""
+        assert (
+            _encode_claude_project_path("/Users/josh/.gobby/clones/epic-9915")
+            == "-Users-josh--gobby-clones-epic-9915"
+        )
+
 
 class TestPreApproveClaude:
     def test_creates_project_directory(self, tmp_path: Path) -> None:

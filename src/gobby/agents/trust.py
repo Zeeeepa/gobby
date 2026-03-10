@@ -29,12 +29,11 @@ _CLAUDE_COMPATIBLE_CLIS = frozenset({"claude", "cursor", "windsurf"})
 def _encode_claude_project_path(directory: str) -> str:
     """Encode a directory path into Claude's project directory name.
 
-    Claude Code uses the convention of replacing '/' with '-' and
-    dropping the leading slash.
+    Claude Code replaces '/' and '.' with '-'.
 
-    Example: /Users/josh/.gobby/clones/foo -> -Users-josh-.gobby-clones-foo
+    Example: /Users/josh/.gobby/clones/foo -> -Users-josh--gobby-clones-foo
     """
-    return directory.replace("/", "-")
+    return directory.replace("/", "-").replace(".", "-")
 
 
 def pre_approve_directory(cli: str, directory: str) -> None:
