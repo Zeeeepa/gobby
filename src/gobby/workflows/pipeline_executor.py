@@ -330,8 +330,15 @@ class PipelineExecutor:
                             exc_info=True,
                         )
 
-                # 3. Build execution context (merge defaults from pipeline definition)
-                merged_inputs = {**pipeline.inputs, **inputs}
+                # 3. Build execution context (resolve defaults from pipeline input definitions)
+                resolved_defaults: dict[str, Any] = {}
+                for key, spec in pipeline.inputs.items():
+                    if isinstance(spec, dict):
+                        resolved_defaults[key] = spec.get("default")
+                    else:
+                        # Bare value (not a definition dict) — use as-is
+                        resolved_defaults[key] = spec
+                merged_inputs = {**resolved_defaults, **inputs}
                 # Inject parent_session_id into inputs so ${{ inputs.parent_session_id }} resolves
                 if parent_session_id and not inputs.get("parent_session_id"):
                     merged_inputs["parent_session_id"] = parent_session_id
