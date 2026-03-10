@@ -216,7 +216,7 @@ export function ChatPage({
         <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
           <div className="flex flex-col flex-1 min-h-0">
             {/* Status bar */}
-            <div className={`hidden md:block${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " !hidden" : ""}`}>
+            <div className={`session-status-desktop${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}>
               <SessionStatusBar
                 sessionRef={effectiveSessionRef}
                 title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}

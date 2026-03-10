@@ -431,12 +431,12 @@ export default function App() {
     [sessionsHook.projects],
   );
 
-  // Default to "gobby" in dev mode (Vite port 5173), "Personal" otherwise
+  // Default to first repo-backed project, fall back to Personal
   const defaultProjectId = useMemo(() => {
-    const isDev = window.location.port === "5173";
-    const preferred = isDev ? "gobby" : "Personal";
+    const repoProject = projectOptions.find((p) => p.name !== "Personal");
     return (
-      projectOptions.find((p) => p.name === preferred)?.id ??
+      repoProject?.id ??
+      projectOptions.find((p) => p.name === "Personal")?.id ??
       projectOptions[0]?.id ??
       null
     );
