@@ -39,6 +39,17 @@ uv run pytest tests/path/ --cov=gobby --cov-report=term-missing  # Add coverage 
 
 **Test markers**: `unit`, `slow`, `integration`, `e2e`
 
+## Web Frontend Development
+
+When working in the `web/` directory (especially within isolated clones):
+
+- **Setup:** Run `npm install` inside `web/`.
+- **Dev Server:** Run `npm run dev` (Vite). If working in a clone and you need to test visually, the clone's dev server will run on a non-standard port. You can expose it using tailscale: `tailscale serve --bg localhost:<port>`.
+- **Type Checking:** Run `npm run type-check` (`tsc --noEmit`) to verify TypeScript errors before committing.
+- **Building:** Run `npm run build`.
+- **Linting:** Run `npm run lint`.
+- **Testing:** Run `npm run test` (Vitest).
+
 ## Architecture Overview
 
 ```text
