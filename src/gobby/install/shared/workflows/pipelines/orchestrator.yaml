@@ -220,7 +220,7 @@ steps:
         target_branch: "${{ inputs.merge_target }}"
 
   - id: close_epic
-    condition: "${{ done_check.output.orchestration_complete and merge_clone.output }}"
+    condition: "${{ done_check.output.orchestration_complete and merge_clone.output and not merge_clone.output.get('error') }}"
     mcp:
       server: gobby-tasks
       tool: close_task

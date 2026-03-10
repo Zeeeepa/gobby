@@ -36,6 +36,7 @@ steps:
         clone_id: "${{ inputs.clone_id }}"
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
+        parent_session_id: "${{ session_id }}"
         mode: terminal
 
 outputs:
