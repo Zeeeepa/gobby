@@ -483,3 +483,148 @@
     transform: rotate(360deg);
   }
 }
+
+/* ── Reporting Tab ── */
+
+.reporting-kind-icon {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.6;
+  margin-right: 2px;
+}
+
+.reporting-detail-section {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-secondary, #aaa);
+}
+
+.reporting-detail-section h4 {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary, #888);
+}
+
+.reporting-detail-section pre {
+  background: var(--bg-tertiary, #1a1a2e);
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 4px 0 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reporting-detail-label {
+  font-weight: 600;
+  margin-right: 6px;
+  color: var(--text-tertiary, #888);
+}
+
+.reporting-badges-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.reporting-config-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  font-size: 13px;
+}
+
+.reporting-config-toggle:hover {
+  color: var(--text-primary, #eee);
+}
+
+.reporting-config-block {
+  margin-top: 4px;
+}
+
+.reporting-config-block pre {
+  background: var(--bg-tertiary, #1a1a2e);
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.reporting-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.reporting-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reporting-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary, #888);
+}
+
+.reporting-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #eee);
+}
+
+.reporting-command-entry {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+/* Agent-specific badge colors */
+.pipeline-badge--success {
+  background: var(--color-success-bg, #0d2818);
+  color: var(--color-success, #4ade80);
+}
+
+.pipeline-badge--error {
+  background: var(--color-error-bg, #2d1215);
+  color: var(--color-error, #f87171);
+}
+
+.pipeline-badge--timeout {
+  background: var(--color-warning-bg, #2d2012);
+  color: var(--color-warning, #fbbf24);
+}
+
+.pipeline-badge--provider {
+  background: var(--bg-tertiary, #1a1a2e);
+  color: var(--text-secondary, #aaa);
+}
+
+.pipeline-badge--model {
+  background: var(--bg-tertiary, #1a1a2e);
+  color: var(--text-secondary, #aaa);
+}
+
+.pipeline-badge--mode {
+  background: var(--bg-tertiary, #1a1a2e);
+  color: var(--text-secondary, #aaa);
+}

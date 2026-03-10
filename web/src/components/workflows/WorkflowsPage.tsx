@@ -3,17 +3,19 @@ import { TabBar } from '../shared/TabBar'
 import { RulesTab } from './RulesTab'
 import { AgentsTab } from './AgentsTab'
 import { PipelinesTab } from './PipelinesTab'
+import { ReportingTab } from './ReportingTab'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import './WorkflowsPage.css'
 
-type ActiveTab = 'pipelines' | 'agents' | 'rules'
+type ActiveTab = 'pipelines' | 'agents' | 'rules' | 'reporting'
 type SourceFilter = 'installed' | 'project' | 'templates' | 'deleted'
 
 const TABS = [
   { id: 'pipelines', label: 'Pipelines' },
   { id: 'agents', label: 'Agents' },
   { id: 'rules', label: 'Rules' },
+  { id: 'reporting', label: 'Reporting' },
 ]
 
 const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
@@ -102,7 +104,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
 
   // Bulk actions
   const handleInstallAll = useCallback(async () => {
-    const typeMap: Record<ActiveTab, string> = { pipelines: 'pipeline', agents: 'agent', rules: 'rule' }
+    const typeMap: Record<string, string> = { pipelines: 'pipeline', agents: 'agent', rules: 'rule' }
     try {
       const res = await fetch(`/api/workflows/install-all-templates?workflow_type=${typeMap[activeTab]}`, {
         method: 'POST',
@@ -153,7 +155,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
           />
-          <div className="workflows-filter-wrapper" ref={filterRef}>
+          {activeTab !== 'reporting' && <div className="workflows-filter-wrapper" ref={filterRef}>
             <button
               type="button"
               className={`workflows-filter-icon-btn ${activeFilterCount > 0 ? 'workflows-filter-icon-btn--active' : ''}`}
@@ -190,7 +192,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
                 onPriorityFilterChange={setPriorityFilter}
               />
             )}
-          </div>
+          </div>}
           <button
             type="button"
             className={`workflows-toolbar-btn ${refreshing ? 'workflows-toolbar-btn--spinning' : ''}`}
@@ -199,7 +201,7 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           >
             &#x21bb;
           </button>
-          {sourceFilter === 'templates' && (
+          {activeTab !== 'reporting' && sourceFilter === 'templates' && (
             <button
               type="button"
               className="workflows-toolbar-btn"
@@ -300,6 +302,14 @@ export function WorkflowsPage({ projectId }: { projectId?: string }) {
           tagFilter={tagFilter}
           priorityFilter={priorityFilter}
           onTagsChange={setAvailableTags}
+        />
+      )}
+
+      {activeTab === 'reporting' && (
+        <ReportingTab
+          searchText={searchText}
+          projectId={projectId}
+          refreshKey={refreshKey}
         />
       )}
     </main>

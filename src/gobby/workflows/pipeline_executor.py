@@ -251,10 +251,18 @@ class PipelineExecutor:
                     f"Start a new execution instead."
                 )
         else:
+            # Snapshot the pipeline definition for later inspection
+            try:
+                definition_snapshot = pipeline.model_dump_json()
+            except Exception:
+                definition_snapshot = json.dumps(
+                    {"name": pipeline.name, "error": "serialization failed"}
+                )
             execution = self.execution_manager.create_execution(
                 pipeline_name=pipeline.name,
                 inputs_json=json.dumps(inputs),
                 session_id=session_id,
+                definition_json=definition_snapshot,
             )
 
         # 2. Update status to RUNNING

@@ -38,6 +38,7 @@ class LocalPipelineExecutionManager:
         session_id: str | None = None,
         parent_execution_id: str | None = None,
         continuation_prompt: str | None = None,
+        definition_json: str | None = None,
     ) -> PipelineExecution:
         """Create a new pipeline execution.
 
@@ -47,6 +48,7 @@ class LocalPipelineExecutionManager:
             session_id: Session that triggered the execution
             parent_execution_id: Parent execution for nested pipelines
             continuation_prompt: Instructions for wake notification on completion
+            definition_json: Snapshot of the pipeline definition at execution time
 
         Returns:
             Created PipelineExecution instance
@@ -60,9 +62,9 @@ class LocalPipelineExecutionManager:
                 INSERT INTO pipeline_executions (
                     id, pipeline_name, project_id, status, inputs_json,
                     session_id, parent_execution_id, continuation_prompt,
-                    created_at, updated_at
+                    definition_json, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     execution_id,
@@ -73,6 +75,7 @@ class LocalPipelineExecutionManager:
                     session_id,
                     parent_execution_id,
                     continuation_prompt,
+                    definition_json,
                     now,
                     now,
                 ),

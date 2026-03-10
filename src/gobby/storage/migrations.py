@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 151
+BASELINE_VERSION = 152
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -703,7 +703,8 @@ CREATE TABLE pipeline_executions (
     resume_token TEXT UNIQUE,
     session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
     parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE,
-    continuation_prompt TEXT
+    continuation_prompt TEXT,
+    definition_json TEXT
 );
 CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
 CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
@@ -1203,6 +1204,11 @@ CREATE TABLE IF NOT EXISTS savings_daily (
         ALTER TABLE tasks DROP COLUMN requires_user_review;
         ALTER TABLE tasks DROP COLUMN accepted_by_user;
         """,
+    ),
+    (
+        152,
+        "Add definition_json column to pipeline_executions for config snapshots",
+        "ALTER TABLE pipeline_executions ADD COLUMN definition_json TEXT",
     ),
 ]
 

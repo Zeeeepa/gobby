@@ -44,6 +44,37 @@ class PipelineApprovalResponse(BaseModel):
     message: str
 
 
+def _batch_load_cron_info(database: Any, execution_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Load cron trigger info for a batch of pipeline execution IDs.
+
+    Returns a dict mapping execution_id to {name, cron_job_id, cron_expr}.
+    """
+    if not execution_ids:
+        return {}
+    try:
+        placeholders = ", ".join("?" for _ in execution_ids)
+        rows = database.fetchall(
+            f"""
+            SELECT cr.pipeline_execution_id, cj.id as cron_job_id, cj.name, cj.cron_expr
+            FROM cron_runs cr
+            JOIN cron_jobs cj ON cr.cron_job_id = cj.id
+            WHERE cr.pipeline_execution_id IN ({placeholders})
+            """,  # nosec B608
+            tuple(execution_ids),
+        )
+        return {
+            row["pipeline_execution_id"]: {
+                "name": row["name"],
+                "cron_job_id": row["cron_job_id"],
+                "cron_expr": row["cron_expr"],
+            }
+            for row in rows
+        }
+    except Exception:
+        logger.warning("Failed to load cron info for executions", exc_info=True)
+        return {}
+
+
 def create_pipelines_router(server: "HTTPServer") -> APIRouter:
     """
     Create pipelines router with endpoints bound to server instance.
@@ -92,34 +123,43 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         # Batch-load steps for all executions in one query
         all_steps = execution_manager.get_steps_for_executions([e.id for e in executions])
 
+        # Batch-load cron info for executions
+        cron_info = _batch_load_cron_info(server.services.database, [e.id for e in executions])
+
         result = []
         for execution in executions:
             steps = all_steps.get(execution.id, [])
-            result.append(
-                {
-                    "id": execution.id,
-                    "pipeline_name": execution.pipeline_name,
-                    "project_id": execution.project_id,
-                    "status": execution.status.value,
-                    "created_at": execution.created_at,
-                    "updated_at": execution.updated_at,
-                    "completed_at": execution.completed_at,
-                    "inputs_json": execution.inputs_json,
-                    "outputs_json": execution.outputs_json,
-                    "steps": [
-                        {
-                            "id": step.id,
-                            "step_id": step.step_id,
-                            "status": step.status.value,
-                            "started_at": step.started_at,
-                            "completed_at": step.completed_at,
-                            "output_json": step.output_json,
-                            "error": step.error,
-                        }
-                        for step in steps
-                    ],
-                }
-            )
+            entry: dict[str, Any] = {
+                "id": execution.id,
+                "pipeline_name": execution.pipeline_name,
+                "project_id": execution.project_id,
+                "status": execution.status.value,
+                "created_at": execution.created_at,
+                "updated_at": execution.updated_at,
+                "completed_at": execution.completed_at,
+                "inputs_json": execution.inputs_json,
+                "outputs_json": execution.outputs_json,
+                "definition_json": execution.definition_json,
+                "parent_execution_id": execution.parent_execution_id,
+                "steps": [
+                    {
+                        "id": step.id,
+                        "step_id": step.step_id,
+                        "status": step.status.value,
+                        "started_at": step.started_at,
+                        "completed_at": step.completed_at,
+                        "output_json": step.output_json,
+                        "error": step.error,
+                    }
+                    for step in steps
+                ],
+            }
+            cron = cron_info.get(execution.id)
+            if cron:
+                entry["cron_job_name"] = cron["name"]
+                entry["cron_job_id"] = cron["cron_job_id"]
+                entry["cron_expr"] = cron["cron_expr"]
+            result.append(entry)
 
         return {"executions": result, "count": len(result)}
 
@@ -272,7 +312,10 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         # Fetch steps
         steps = execution_manager.get_steps_for_execution(execution_id)
 
-        return {
+        # Load cron trigger info
+        cron_info = _batch_load_cron_info(server.services.database, [execution.id])
+
+        result: dict[str, Any] = {
             "id": execution.id,
             "pipeline_name": execution.pipeline_name,
             "project_id": execution.project_id,
@@ -282,6 +325,8 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             "completed_at": execution.completed_at,
             "inputs_json": execution.inputs_json,
             "outputs_json": execution.outputs_json,
+            "definition_json": execution.definition_json,
+            "parent_execution_id": execution.parent_execution_id,
             "steps": [
                 {
                     "id": step.id,
@@ -296,6 +341,13 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
                 for step in steps
             ],
         }
+        cron = cron_info.get(execution.id)
+        if cron:
+            result["cron_job_name"] = cron["name"]
+            result["cron_job_id"] = cron["cron_job_id"]
+            result["cron_expr"] = cron["cron_expr"]
+
+        return result
 
     @router.post("/approve/{token}", response_model=None)
     async def approve_execution(token: str) -> dict[str, Any] | JSONResponse:

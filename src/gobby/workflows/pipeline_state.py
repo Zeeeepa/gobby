@@ -69,6 +69,7 @@ class PipelineExecution:
     session_id: str | None = None  # Session that triggered execution
     parent_execution_id: str | None = None  # For nested pipeline invocations
     continuation_prompt: str | None = None  # Instructions for wake notification
+    definition_json: str | None = None  # Snapshot of pipeline definition at execution time
 
     @classmethod
     def from_row(cls, row: Any) -> PipelineExecution:
@@ -89,6 +90,7 @@ class PipelineExecution:
             continuation_prompt=row["continuation_prompt"]
             if "continuation_prompt" in row.keys()
             else None,
+            definition_json=row["definition_json"] if "definition_json" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -107,6 +109,7 @@ class PipelineExecution:
             "session_id": self.session_id,
             "parent_execution_id": self.parent_execution_id,
             "continuation_prompt": self.continuation_prompt,
+            "definition_json": self.definition_json,
         }
 
 
