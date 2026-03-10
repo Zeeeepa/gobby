@@ -64,9 +64,7 @@ class PipelineHeartbeat:
         Returns:
             Number of stalled executions handled
         """
-        stalled = self._execution_manager.get_stalled_executions(
-            int(self._stall_threshold_seconds), all_projects=True
-        )
+        stalled = self._execution_manager.get_stalled_executions(int(self._stall_threshold_seconds))
         if not stalled:
             return 0
 

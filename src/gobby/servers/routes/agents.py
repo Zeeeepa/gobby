@@ -72,25 +72,34 @@ class UpdateAgentDefinitionRequest(BaseModel):
     enabled: bool | None = None
 
 
-def _batch_load_session_info(database: Any, session_ids: list[str]) -> dict[str, dict[str, Any]]:
+async def _batch_load_session_info(
+    database: Any, session_ids: list[str]
+) -> dict[str, dict[str, Any]]:
     """Load session token/cost data for a batch of session IDs.
 
     Returns dict mapping session_id to enrichment fields.
     """
+    import asyncio
+    import sqlite3
+
     if not session_ids:
         return {}
     try:
         placeholders = ", ".join("?" for _ in session_ids)
-        rows = database.fetchall(
-            f"""
-            SELECT id, usage_input_tokens, usage_output_tokens,
-                   usage_cache_creation_tokens, usage_cache_read_tokens,
-                   usage_total_cost_usd, summary_markdown, git_branch
-            FROM sessions
-            WHERE id IN ({placeholders})
-            """,  # nosec B608
-            tuple(session_ids),
-        )
+
+        def do_query() -> list[Any]:
+            return database.fetchall(
+                f"""
+                SELECT id, usage_input_tokens, usage_output_tokens,
+                       usage_cache_creation_tokens, usage_cache_read_tokens,
+                       usage_total_cost_usd, summary_markdown, git_branch
+                FROM sessions
+                WHERE id IN ({placeholders})
+                """,  # nosec B608
+                tuple(session_ids),
+            )
+
+        rows = await asyncio.to_thread(do_query)
         result = {}
         for row in rows:
             result[row["id"]] = {
@@ -103,7 +112,7 @@ def _batch_load_session_info(database: Any, session_ids: list[str]) -> dict[str,
                 "git_branch": row["git_branch"],
             }
         return result
-    except Exception:
+    except sqlite3.Error:
         logger.warning("Failed to load session info for agent runs", exc_info=True)
         return {}
 
@@ -532,7 +541,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             # Enrich with session data (token usage, cost)
             enriched = []
             session_ids = [r.child_session_id for r in runs if r.child_session_id]
-            session_map = _batch_load_session_info(server.services.database, session_ids)
+            session_map = await _batch_load_session_info(server.services.database, session_ids)
 
             for r in runs:
                 d = r.to_dict()
@@ -564,7 +573,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
 
             # Session enrichment
             if run.child_session_id:
-                session_info = _batch_load_session_info(
+                session_info = await _batch_load_session_info(
                     server.services.database, [run.child_session_id]
                 )
                 if run.child_session_id in session_info:

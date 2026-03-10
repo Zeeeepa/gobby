@@ -177,9 +177,6 @@ class LocalPipelineExecutionManager:
         params: list[Any] = []
         if self.project_id is None:
             query = "SELECT * FROM pipeline_executions WHERE project_id IS NULL"
-        elif self.project_id == "":
-            # Empty string = cross-project query (no project filter)
-            query = "SELECT * FROM pipeline_executions WHERE 1=1"
         else:
             query = "SELECT * FROM pipeline_executions WHERE project_id = ?"
             params.append(self.project_id)
@@ -233,8 +230,6 @@ class LocalPipelineExecutionManager:
         # Build WHERE conditions
         if self.project_id is None:
             project_clause = "pe.project_id IS NULL"
-        elif self.project_id == "":
-            project_clause = "1=1"
         else:
             project_clause = "pe.project_id = ?"
             params.append(self.project_id)
@@ -697,14 +692,11 @@ class LocalPipelineExecutionManager:
             result[step.execution_id].append(step)
         return result
 
-    def get_stalled_executions(
-        self, stall_threshold_seconds: int, all_projects: bool = False
-    ) -> list[PipelineExecution]:
+    def get_stalled_executions(self, stall_threshold_seconds: int) -> list[PipelineExecution]:
         """Get running executions that haven't been updated within the threshold.
 
         Args:
             stall_threshold_seconds: Seconds of inactivity before considering stalled
-            all_projects: If True, query across all projects (for heartbeat)
 
         Returns:
             List of stalled PipelineExecution instances
@@ -713,26 +705,16 @@ class LocalPipelineExecutionManager:
 
         cutoff = (datetime.now(UTC) - timedelta(seconds=stall_threshold_seconds)).isoformat()
 
-        if all_projects:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM pipeline_executions
-                WHERE status = ? AND updated_at < ?
-                ORDER BY updated_at ASC
-                """,
-                (ExecutionStatus.RUNNING.value, cutoff),
-            )
-        else:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM pipeline_executions
-                WHERE status = ?
-                  AND project_id = ?
-                  AND updated_at < ?
-                ORDER BY updated_at ASC
-                """,
-                (ExecutionStatus.RUNNING.value, self.project_id, cutoff),
-            )
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM pipeline_executions
+            WHERE status = ?
+              AND project_id = ?
+              AND updated_at < ?
+            ORDER BY updated_at ASC
+            """,
+            (ExecutionStatus.RUNNING.value, self.project_id, cutoff),
+        )
         return [PipelineExecution.from_row(row) for row in rows]
 
     def get_steps_for_execution(self, execution_id: str) -> list[StepExecution]:
