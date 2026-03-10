@@ -396,7 +396,7 @@ def test_compute_next_run_interval_no_last_run() -> None:
 
 
 def test_compute_next_run_interval_with_last_run() -> None:
-    """compute_next_run with interval adds timedelta from last_run_at."""
+    """compute_next_run with interval always computes from now, not last_run_at."""
     last = datetime.now(UTC).isoformat()
     job = CronJob(
         id="cj-1",
@@ -416,6 +416,34 @@ def test_compute_next_run_interval_with_last_run() -> None:
     assert next_run is not None
     diff = next_run - datetime.now(UTC)
     assert 50 < diff.total_seconds() < 70
+
+
+def test_compute_next_run_interval_stale_last_run_no_double_fire() -> None:
+    """Regression: stale last_run_at must not cause next_run in the past (double-fire)."""
+    # Simulate: job ran 5 minutes ago with 5-minute interval.
+    # Old bug: last_run_at + interval ≈ now → immediate re-fire.
+    stale = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
+    job = CronJob(
+        id="cj-1",
+        project_id="p",
+        name="test",
+        schedule_type="interval",
+        action_type="handler",
+        action_config={},
+        created_at="",
+        updated_at="",
+        interval_seconds=300,
+        timezone="UTC",
+        enabled=True,
+        last_run_at=stale,
+    )
+    next_run = compute_next_run(job)
+    assert next_run is not None
+    # Must be in the future, not ≈ now
+    diff = next_run - datetime.now(UTC)
+    assert diff.total_seconds() > 290, (
+        f"next_run should be ~5min in the future, got {diff.total_seconds():.1f}s"
+    )
 
 
 def test_compute_next_run_once_future() -> None:

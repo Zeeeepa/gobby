@@ -438,6 +438,19 @@ class SessionCoordinator:
             except (sqlite3.Error, ValueError) as e:
                 self.logger.warning(f"Failed to count session stats for {session.id}: {e}")
 
+            # Guard: agent exited cleanly but did nothing — treat as error
+            if tool_calls_count == 0 and turns_used == 0:
+                self._agent_run_manager.fail(
+                    run_id=agent_run_id,
+                    error="Agent completed with no activity (0 tool calls, 0 turns)",
+                )
+                self.logger.warning(
+                    f"Agent run {agent_run_id} marked as failed: "
+                    f"no activity detected (0 tool calls, 0 turns)"
+                )
+                self._notify_agent_completion(agent_run_id, "error")
+                return
+
             # Mark as success
             self._agent_run_manager.complete(
                 run_id=agent_run_id,

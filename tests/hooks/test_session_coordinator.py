@@ -295,8 +295,39 @@ class TestAgentRunCompletion:
         assert call_kwargs["tool_calls_count"] == 5
         assert call_kwargs["turns_used"] == 3
 
+    def test_complete_agent_run_zero_activity_marks_failed(self) -> None:
+        """Agent with 0 tool calls and 0 turns is marked error, not success."""
+        mock_agent_run_manager = MagicMock()
+        mock_agent_run = MagicMock(status="running")
+        mock_agent_run_manager.get.return_value = mock_agent_run
+
+        # fetchone is called multiple times: result fallback queries, then stats query.
+        # Return None for the fallback queries, then the stats row.
+        mock_agent_run_manager.db.fetchone.side_effect = [
+            None,  # last assistant message fallback
+            None,  # inter_session_messages fallback
+            {"tool_calls": 0, "turns": 0},  # session stats query
+        ]
+
+        coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
+
+        mock_session = MagicMock()
+        mock_session.agent_run_id = "run-ghost"
+        mock_session.id = "sess-ghost"
+        mock_session.summary_markdown = ""
+        mock_session.compact_markdown = None
+
+        coordinator.complete_agent_run(mock_session)
+
+        # Should call fail, not complete
+        mock_agent_run_manager.fail.assert_called_once()
+        fail_kwargs = mock_agent_run_manager.fail.call_args[1]
+        assert fail_kwargs["run_id"] == "run-ghost"
+        assert "no activity" in fail_kwargs["error"].lower()
+        mock_agent_run_manager.complete.assert_not_called()
+
     def test_complete_agent_run_defaults_counts_on_db_error(self) -> None:
-        """Test that tool call counts default to 0 if DB query fails."""
+        """DB error counting stats → counts default to 0 → zero-activity guard fires."""
         mock_agent_run_manager = MagicMock()
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
@@ -312,9 +343,9 @@ class TestAgentRunCompletion:
 
         coordinator.complete_agent_run(mock_session)
 
-        call_kwargs = mock_agent_run_manager.complete.call_args[1]
-        assert call_kwargs["tool_calls_count"] == 0
-        assert call_kwargs["turns_used"] == 0
+        # Counts default to 0 on DB error, triggering zero-activity guard
+        mock_agent_run_manager.fail.assert_called_once()
+        mock_agent_run_manager.complete.assert_not_called()
 
 
 class TestWorktreeRelease:

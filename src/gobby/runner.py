@@ -571,6 +571,7 @@ class GobbyRunner:
             # Register pipeline heartbeat handler
             try:
                 from gobby.agents.registry import get_running_agent_registry
+                from gobby.storage.agents import LocalAgentRunManager
                 from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
 
                 if self.pipeline_execution_manager is None:
@@ -579,6 +580,8 @@ class GobbyRunner:
                 heartbeat = PipelineHeartbeat(
                     execution_manager=self.pipeline_execution_manager,
                     agent_registry=get_running_agent_registry(),
+                    task_manager=self.task_manager,
+                    agent_run_manager=LocalAgentRunManager(self.database),
                 )
                 cron_executor.register_handler("pipeline_heartbeat", heartbeat)
 
