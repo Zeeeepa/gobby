@@ -551,6 +551,10 @@ class PipelineExecutor:
                     execution.id, "completed", pipeline.name, outputs=outputs
                 )
 
+                if span.is_recording():
+                    span.set_attribute("status", "completed")
+                    span.set_attribute("step_count", len(pipeline.steps))
+
                 return execution
 
             except ApprovalRequired:
@@ -559,26 +563,31 @@ class PipelineExecutor:
 
             except Exception as e:
                 if span.is_recording():
+                    span.set_attribute("status", "failed")
+                    span.set_attribute("step_count", len(pipeline.steps))
                     span.record_exception(e)
                     span.set_status(Status(StatusCode.ERROR, str(e)))
 
-                logger.error(f"Pipeline execution failed: {e}", exc_info=True)
-
-                # Mark the currently-running step as FAILED
-                if current_step_execution and current_step_execution.status == StepStatus.RUNNING:
-                    try:
-                        self.execution_manager.update_step_execution(
-                            step_execution_id=current_step_execution.id,
-                            status=StepStatus.FAILED,
-                            error=str(e),
-                        )
-                    except Exception:
-                        logger.error(
-                            f"Failed to mark step {current_step_execution.id} as failed",
-                            exc_info=True,
-                        )
-
                 if execution:
+                    logger.error(f"Pipeline execution failed: {e}", exc_info=True)
+
+                    # Mark the currently-running step as FAILED
+                    if (
+                        current_step_execution
+                        and current_step_execution.status == StepStatus.RUNNING
+                    ):
+                        try:
+                            self.execution_manager.update_step_execution(
+                                step_execution_id=current_step_execution.id,
+                                status=StepStatus.FAILED,
+                                error=str(e),
+                            )
+                        except Exception:
+                            logger.error(
+                                f"Failed to mark step {current_step_execution.id} as failed",
+                                exc_info=True,
+                            )
+
                     try:
                         failed = self.execution_manager.update_execution_status(
                             execution_id=execution.id,

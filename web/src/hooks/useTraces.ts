@@ -27,9 +27,10 @@ export interface TraceSummary {
 interface TraceFilters {
   session_id?: string
   status?: string
+  time_range?: string
 }
 
-export function useTraces() {
+export function useTraces(projectId?: string) {
   const [traces, setTraces] = useState<Span[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -39,7 +40,9 @@ export function useTraces() {
 
   const fetchTraces = useCallback(async () => {
     const params = new URLSearchParams()
+    if (projectId) params.set('project_id', projectId)
     if (filters.session_id) params.set('session_id', filters.session_id)
+    if (filters.time_range) params.set('time_range', filters.time_range)
     // status filtering is currently manual in the UI if not supported by backend
     
     try {
@@ -57,7 +60,7 @@ export function useTraces() {
     } finally {
       setIsLoading(false)
     }
-  }, [filters])
+  }, [projectId, filters])
 
   useEffect(() => {
     setIsLoading(true)
@@ -77,6 +80,10 @@ export function useTraces() {
     }
   }, [])
 
+  const selectedTrace = useMemo(() => {
+    return traces.find(t => t.trace_id === selectedTraceId) || null
+  }, [traces, selectedTraceId])
+
   return {
     traces,
     total,
@@ -86,6 +93,7 @@ export function useTraces() {
     fetchTraces,
     selectedTraceId,
     setSelectedTraceId,
+    selectedTrace,
   }
 }
 
