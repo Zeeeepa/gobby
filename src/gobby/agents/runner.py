@@ -15,6 +15,8 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from opentelemetry.trace import Status, StatusCode
+
 from gobby.agents import runner_queries as _queries
 from gobby.agents.registry import RunningAgent
 from gobby.agents.runner_models import AgentConfig, AgentRunContext
@@ -22,6 +24,7 @@ from gobby.agents.runner_tracking import RunTracker
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolHandler, ToolResult
 from gobby.storage.agents import LocalAgentRunManager
+from gobby.telemetry.tracing import create_span
 
 __all__ = ["AgentRunner"]
 
@@ -341,220 +344,250 @@ class AgentRunner:
         Returns:
             AgentResult with execution outcome.
         """
-        # Validate context
-        if not context.session or not context.run:
-            return AgentResult(
-                output="",
-                status="error",
-                error="Invalid context: missing session or run",
-                turns_used=0,
-            )
-
-        child_session = context.session
-        agent_run = context.run
-
-        # Get executor for provider
-        executor = self.get_executor(config.provider)
-        if not executor:
-            error_msg = f"No executor registered for provider: {config.provider}"
-            self.logger.error(error_msg)
-            self._run_storage.fail(agent_run.id, error=error_msg)
-            return AgentResult(
-                output="",
-                status="error",
-                error=error_msg,
-                turns_used=0,
-            )
-
-        # Start the run
-        self._run_storage.start(agent_run.id)
-        self.logger.info(
-            f"Starting agent run {agent_run.id} "
-            f"(child_session={child_session.id}, provider={config.provider})"
-        )
-
-        # Track in memory for real-time status
-        # Note: parent_session_id is guaranteed non-None here because execute_run
-        # is only called after prepare_run validates it
-        self._tracker.track(
-            run_id=agent_run.id,
-            parent_session_id=config.parent_session_id,
-            child_session_id=child_session.id,
-            provider=config.provider,
-            prompt=config.prompt,
-            mode=config.mode,
-            workflow_name=config.get_effective_workflow(),
-            model=config.model,
-            worktree_id=config.worktree_id,
-        )
-
-        # Set up tool handler with workflow filtering
-        async def default_tool_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
-            """Default tool handler that returns not implemented."""
-            return ToolResult(
-                tool_name=tool_name,
-                success=False,
-                error=f"Tool {tool_name} not implemented",
-            )
-
-        base_handler = tool_handler or default_tool_handler
-
-        handler = base_handler
-
-        # Track tool calls to preserve partial progress info on exception
-        # Note: Each tool call within a turn counts separately. The executor's
-        # run() method handles turns - we only track tool calls for monitoring.
-        tool_calls_made = 0
-
-        async def tracking_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
-            nonlocal tool_calls_made
-            tool_calls_made += 1
-            # Update in-memory state for real-time monitoring
-            # Note: turns_used is tracked by the executor, not per tool call
-            self._tracker.update(
-                agent_run.id,
-                tool_calls_count=tool_calls_made,
-            )
-            return await handler(tool_name, arguments)
-
-        async def hook_aware_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
-            """Wrap tracking_handler with AFTER_TOOL hook evaluation."""
-            result = await tracking_handler(tool_name, arguments)
-            if not self._workflow_handler:
-                return result
+        with create_span(
+            "agent.execute",
+            attributes={
+                "agent_run_id": context.run_id,
+                "provider": config.provider,
+            },
+        ) as span:
             try:
-                from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+                # Validate context
+                if not context.session or not context.run:
+                    return AgentResult(
+                        output="",
+                        status="error",
+                        error="Invalid context: missing session or run",
+                        turns_used=0,
+                    )
 
-                event = HookEvent(
-                    event_type=HookEventType.AFTER_TOOL,
-                    session_id=child_session.id,
-                    source=SessionSource.AUTONOMOUS_SDK,
-                    timestamp=datetime.now(UTC),
-                    data={
-                        "tool_name": tool_name,
-                        "tool_input": arguments,
-                        "is_error": not result.success,
-                    },
-                    metadata={
-                        "is_failure": not result.success,
-                        "_platform_session_id": child_session.id,
-                    },
-                )
-                response = await asyncio.to_thread(self._workflow_handler.evaluate, event)
-                if response and response.context:
-                    if not result.success:
-                        result.error = (
-                            f"{result.error}\n\n{response.context}"
-                            if result.error
-                            else response.context
-                        )
-                    else:
-                        result_str = str(result.result) if result.result else ""
-                        result.result = (
-                            f"{result_str}\n\n{response.context}"
-                            if result_str
-                            else response.context
-                        )
-            except Exception:
-                logger.debug(
-                    "AFTER_TOOL hook eval failed for %s (fail-open)", tool_name, exc_info=True
-                )
-            return result
+                child_session = context.session
+                agent_run = context.run
 
-        # Execute the agent
-        try:
-            result = await executor.run(
-                prompt=config.prompt,
-                tools=config.tools or [],
-                tool_handler=hook_aware_handler,
-                system_prompt=config.system_prompt,
-                model=config.model,
-                max_turns=config.max_turns,
-                timeout=config.timeout,
-            )
+                # Get executor for provider
+                executor = self.get_executor(config.provider)
+                if not executor:
+                    error_msg = f"No executor registered for provider: {config.provider}"
+                    self.logger.error(error_msg)
+                    self._run_storage.fail(agent_run.id, error=error_msg)
+                    return AgentResult(
+                        output="",
+                        status="error",
+                        error=error_msg,
+                        turns_used=0,
+                    )
 
-            # Update run based on result
-            if result.status == "success":
-                self._run_storage.complete(
-                    agent_run.id,
-                    result=result.output,
-                    tool_calls_count=len(result.tool_calls),
-                    turns_used=result.turns_used,
-                )
+                # Start the run
+                self._run_storage.start(agent_run.id)
                 self.logger.info(
-                    f"Agent run {agent_run.id} completed successfully "
-                    f"({result.turns_used} turns, {len(result.tool_calls)} tool calls)"
+                    f"Starting agent run {agent_run.id} "
+                    f"(child_session={child_session.id}, provider={config.provider})"
                 )
-            elif result.status == "timeout":
-                self._run_storage.timeout(agent_run.id, turns_used=result.turns_used)
-                self.logger.warning(f"Agent run {agent_run.id} timed out")
-            elif result.status == "error":
+
+                # Track in memory for real-time status
+                # Note: parent_session_id is guaranteed non-None here because execute_run
+                # is only called after prepare_run validates it
+                self._tracker.track(
+                    run_id=agent_run.id,
+                    parent_session_id=config.parent_session_id,
+                    child_session_id=child_session.id,
+                    provider=config.provider,
+                    prompt=config.prompt,
+                    mode=config.mode,
+                    workflow_name=config.get_effective_workflow(),
+                    model=config.model,
+                    worktree_id=config.worktree_id,
+                )
+
+                # Set up tool handler with workflow filtering
+                async def default_tool_handler(
+                    tool_name: str, arguments: dict[str, Any]
+                ) -> ToolResult:
+                    """Default tool handler that returns not implemented."""
+                    return ToolResult(
+                        tool_name=tool_name,
+                        success=False,
+                        error=f"Tool {tool_name} not implemented",
+                    )
+
+                base_handler = tool_handler or default_tool_handler
+
+                handler = base_handler
+
+                # Track tool calls to preserve partial progress info on exception
+                # Note: Each tool call within a turn counts separately. The executor's
+                # run() method handles turns - we only track tool calls for monitoring.
+                tool_calls_made = 0
+
+                async def tracking_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
+                    nonlocal tool_calls_made
+                    tool_calls_made += 1
+                    # Update in-memory state for real-time monitoring
+                    # Note: turns_used is tracked by the executor, not per tool call
+                    self._tracker.update(
+                        agent_run.id,
+                        tool_calls_count=tool_calls_made,
+                    )
+                    return await handler(tool_name, arguments)
+
+                async def hook_aware_handler(
+                    tool_name: str, arguments: dict[str, Any]
+                ) -> ToolResult:
+                    """Wrap tracking_handler with AFTER_TOOL hook evaluation."""
+                    result = await tracking_handler(tool_name, arguments)
+                    if not self._workflow_handler:
+                        return result
+                    try:
+                        from gobby.hooks.events import (
+                            HookEvent,
+                            HookEventType,
+                            SessionSource,
+                        )
+
+                        event = HookEvent(
+                            event_type=HookEventType.AFTER_TOOL,
+                            session_id=child_session.id,
+                            source=SessionSource.AUTONOMOUS_SDK,
+                            timestamp=datetime.now(UTC),
+                            data={
+                                "tool_name": tool_name,
+                                "tool_input": arguments,
+                                "is_error": not result.success,
+                            },
+                            metadata={
+                                "is_failure": not result.success,
+                                "_platform_session_id": child_session.id,
+                            },
+                        )
+                        response = await asyncio.to_thread(self._workflow_handler.evaluate, event)
+                        if response and response.context:
+                            if not result.success:
+                                result.error = (
+                                    f"{result.error}\n\n{response.context}"
+                                    if result.error
+                                    else response.context
+                                )
+                            else:
+                                result_str = str(result.result) if result.result else ""
+                                result.result = (
+                                    f"{result_str}\n\n{response.context}"
+                                    if result_str
+                                    else response.context
+                                )
+                    except Exception:
+                        logger.debug(
+                            "AFTER_TOOL hook eval failed for %s (fail-open)",
+                            tool_name,
+                            exc_info=True,
+                        )
+                    return result
+
+                # Execute the agent
+                result = await executor.run(
+                    prompt=config.prompt,
+                    tools=config.tools or [],
+                    tool_handler=hook_aware_handler,
+                    system_prompt=config.system_prompt,
+                    model=config.model,
+                    max_turns=config.max_turns,
+                    timeout=config.timeout,
+                )
+
+                if span.is_recording():
+                    span.set_attribute("status", result.status)
+                    span.set_attribute("turns_used", result.turns_used)
+                    span.set_attribute("tool_calls", len(result.tool_calls))
+
+                # Update run based on result
+                if result.status == "success":
+                    self._run_storage.complete(
+                        agent_run.id,
+                        result=result.output,
+                        tool_calls_count=len(result.tool_calls),
+                        turns_used=result.turns_used,
+                    )
+                    self.logger.info(
+                        f"Agent run {agent_run.id} completed successfully "
+                        f"({result.turns_used} turns, {len(result.tool_calls)} tool calls)"
+                    )
+                elif result.status == "timeout":
+                    self._run_storage.timeout(agent_run.id, turns_used=result.turns_used)
+                    self.logger.warning(f"Agent run {agent_run.id} timed out")
+                elif result.status == "error":
+                    self._run_storage.fail(
+                        agent_run.id,
+                        error=result.error or "Unknown error",
+                        tool_calls_count=len(result.tool_calls),
+                        turns_used=result.turns_used,
+                    )
+                    self.logger.error(f"Agent run {agent_run.id} failed: {result.error}")
+                else:
+                    # Partial completion
+                    self._run_storage.complete(
+                        agent_run.id,
+                        result=result.output,
+                        tool_calls_count=len(result.tool_calls),
+                        turns_used=result.turns_used,
+                    )
+                    self.logger.info(
+                        f"Agent run {agent_run.id} completed with status {result.status}"
+                    )
+
+                # Update session status
+                if result.status in ("success", "partial"):
+                    self._session_storage.update_status(child_session.id, "completed")
+                else:
+                    self._session_storage.update_status(child_session.id, "failed")
+
+                # Persist cost to session storage for budget tracking
+                if result.cost_info and result.cost_info.total_cost > 0:
+                    self._session_storage.add_cost(child_session.id, result.cost_info.total_cost)
+                    self.logger.debug(
+                        f"Persisted cost ${result.cost_info.total_cost:.4f} "
+                        f"for session {child_session.id}"
+                    )
+
+                # Remove from in-memory tracking
+                self._tracker.untrack(agent_run.id)
+
+                # Notify completion registry
+                await self._notify_completion(
+                    agent_run.id, result.status, result.output, result.error
+                )
+
+                # Set run_id and child_session_id on the result so callers don't need to call list_runs()
+                result.run_id = agent_run.id
+                result.child_session_id = child_session.id
+
+                return result
+
+            except Exception as e:
+                if span.is_recording():
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+
+                self.logger.error(f"Agent execution failed: {e}", exc_info=True)
+                # On exception, we don't know the actual turns used by the executor,
+                # so we pass 0. tool_calls_made is the count we tracked.
                 self._run_storage.fail(
                     agent_run.id,
-                    error=result.error or "Unknown error",
-                    tool_calls_count=len(result.tool_calls),
-                    turns_used=result.turns_used,
+                    error=str(e),
+                    tool_calls_count=tool_calls_made,
+                    turns_used=0,
                 )
-                self.logger.error(f"Agent run {agent_run.id} failed: {result.error}")
-            else:
-                # Partial completion
-                self._run_storage.complete(
-                    agent_run.id,
-                    result=result.output,
-                    tool_calls_count=len(result.tool_calls),
-                    turns_used=result.turns_used,
-                )
-                self.logger.info(f"Agent run {agent_run.id} completed with status {result.status}")
-
-            # Update session status
-            if result.status in ("success", "partial"):
-                self._session_storage.update_status(child_session.id, "completed")
-            else:
                 self._session_storage.update_status(child_session.id, "failed")
+                # Remove from in-memory tracking
+                self._tracker.untrack(agent_run.id)
 
-            # Persist cost to session storage for budget tracking
-            if result.cost_info and result.cost_info.total_cost > 0:
-                self._session_storage.add_cost(child_session.id, result.cost_info.total_cost)
-                self.logger.debug(
-                    f"Persisted cost ${result.cost_info.total_cost:.4f} "
-                    f"for session {child_session.id}"
+                # Notify completion registry
+                await self._notify_completion(agent_run.id, "error", None, str(e))
+
+                return AgentResult(
+                    output="",
+                    status="error",
+                    error=str(e),
+                    turns_used=0,
                 )
-
-            # Remove from in-memory tracking
-            self._tracker.untrack(agent_run.id)
-
-            # Notify completion registry
-            await self._notify_completion(agent_run.id, result.status, result.output, result.error)
-
-            # Set run_id and child_session_id on the result so callers don't need to call list_runs()
-            result.run_id = agent_run.id
-            result.child_session_id = child_session.id
-
-            return result
-
-        except Exception as e:
-            self.logger.error(f"Agent execution failed: {e}", exc_info=True)
-            # On exception, we don't know the actual turns used by the executor,
-            # so we pass 0. tool_calls_made is the count we tracked.
-            self._run_storage.fail(
-                agent_run.id,
-                error=str(e),
-                tool_calls_count=tool_calls_made,
-                turns_used=0,
-            )
-            self._session_storage.update_status(child_session.id, "failed")
-            # Remove from in-memory tracking
-            self._tracker.untrack(agent_run.id)
-
-            # Notify completion registry
-            await self._notify_completion(agent_run.id, "error", None, str(e))
-
-            return AgentResult(
-                output="",
-                status="error",
-                error=str(e),
-                turns_used=0,
-            )
 
     async def _notify_completion(
         self,

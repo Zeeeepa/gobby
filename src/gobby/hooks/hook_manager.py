@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.factory import HookManagerFactory
+from gobby.telemetry.tracing import create_span
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
@@ -261,6 +262,25 @@ class HookManager:
         Raises:
             ValueError: If event_type has no registered handler.
         """
+        with create_span(
+            "hook.handle",
+            attributes={
+                "event_type": str(event.event_type),
+                "source": str(event.source),
+            },
+        ) as span:
+            try:
+                response = self._handle_internal(event)
+                if span.is_recording():
+                    span.set_attribute("decision", response.decision)
+                return response
+            except Exception as e:
+                if span.is_recording():
+                    span.record_exception(e)
+                raise
+
+    def _handle_internal(self, event: HookEvent) -> HookResponse:
+        """Internal handle logic wrapped by span."""
         # Check daemon status (cached)
         is_ready, _, daemon_status, error_reason = self._get_cached_daemon_status()
 
