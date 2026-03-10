@@ -1,38 +1,39 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useWebSocketEvent } from './useWebSocketEvent'
 
-export interface Span {
-  span_id: string
+export interface TraceRecord {
+  id: string
+  project_id: string
   trace_id: string
-  parent_span_id: string | null
-  name: string
-  kind: string | null
+  root_span_name: string
+  status: 'OK' | 'ERROR' | 'UNSET'
   start_time_ns: number
-  end_time_ns: number | null
-  status: 'UNSET' | 'OK' | 'ERROR' | string
-  status_message: string | null
-  attributes: Record<string, any>
-  events: any[]
+  end_time_ns: number
+  duration_ms: number
+  timestamp: string
 }
 
-export interface TraceSummary {
+export interface SpanRecord {
+  id: string
   trace_id: string
+  span_id: string
+  parent_id: string | null
   name: string
-  status: string
+  kind: string
+  status: 'OK' | 'ERROR' | 'UNSET'
   start_time_ns: number
-  end_time_ns: number | null
-  duration_ms?: number
+  end_time_ns: number
+  attributes_json: string | null
+  events_json: string | null
 }
 
 interface TraceFilters {
-  session_id?: string
   status?: string
-  time_range?: string
+  session_id?: string
 }
 
 export function useTraces(projectId?: string) {
-  const [traces, setTraces] = useState<Span[]>([])
-  const [total, setTotal] = useState(0)
+  const [traces, setTraces] = useState<TraceRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<TraceFilters>({})
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
@@ -41,18 +42,16 @@ export function useTraces(projectId?: string) {
   const fetchTraces = useCallback(async () => {
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
+    if (filters.status) params.set('status', filters.status)
     if (filters.session_id) params.set('session_id', filters.session_id)
-    if (filters.time_range) params.set('time_range', filters.time_range)
-    // status filtering is currently manual in the UI if not supported by backend
-    
+
     try {
       const res = await fetch(`/api/traces?${params}`)
       if (res.ok) {
         const data = await res.json()
         setTraces(data.traces || [])
-        setTotal(data.total || 0)
       } else {
-        console.error('Failed to fetch traces:', res.status)
+        console.error('Failed to fetch traces:', res.status, res.statusText)
         setTraces([])
       }
     } catch (e) {
@@ -68,7 +67,7 @@ export function useTraces(projectId?: string) {
   }, [fetchTraces])
 
   useWebSocketEvent('trace_event', useCallback(() => {
-    if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
     refetchTimerRef.current = window.setTimeout(() => {
       fetchTraces()
     }, 500)
@@ -76,48 +75,40 @@ export function useTraces(projectId?: string) {
 
   useEffect(() => {
     return () => {
-      if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
     }
   }, [])
 
-  const selectedTrace = useMemo(() => {
-    return traces.find(t => t.trace_id === selectedTraceId) || null
-  }, [traces, selectedTraceId])
-
   return {
     traces,
-    total,
     isLoading,
     filters,
     setFilters,
     fetchTraces,
     selectedTraceId,
     setSelectedTraceId,
-    selectedTrace,
   }
 }
 
 export function useTraceDetail(traceId: string | null) {
-  const [spans, setSpans] = useState<Span[]>([])
-  const [rootSpan, setRootSpan] = useState<Span | null>(null)
+  const [spans, setSpans] = useState<SpanRecord[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const refetchTimerRef = useRef<number | null>(null)
 
-  const fetchTraceDetail = useCallback(async () => {
+  const fetchDetail = useCallback(async () => {
     if (!traceId) {
       setSpans([])
-      setRootSpan(null)
       return
     }
-
     setIsLoading(true)
     try {
-      const res = await fetch(`/api/traces/${traceId}`)
+      const res = await fetch(`/api/traces/${encodeURIComponent(traceId)}`)
       if (res.ok) {
         const data = await res.json()
         setSpans(data.spans || [])
-        setRootSpan(data.root_span || null)
       } else {
-        console.error('Failed to fetch trace detail:', res.status)
+        console.error('Failed to fetch trace detail:', res.status, res.statusText)
+        setSpans([])
       }
     } catch (e) {
       console.error('Failed to fetch trace detail:', e)
@@ -127,13 +118,27 @@ export function useTraceDetail(traceId: string | null) {
   }, [traceId])
 
   useEffect(() => {
-    fetchTraceDetail()
-  }, [fetchTraceDetail])
+    fetchDetail()
+  }, [fetchDetail])
+
+  useWebSocketEvent('trace_event', useCallback((data: any) => {
+    if (data?.trace_id === traceId) {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
+      refetchTimerRef.current = window.setTimeout(() => {
+        fetchDetail()
+      }, 500)
+    }
+  }, [traceId, fetchDetail]))
+
+  useEffect(() => {
+    return () => {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
+    }
+  }, [])
 
   return {
     spans,
-    rootSpan,
     isLoading,
-    refetch: fetchTraceDetail
+    fetchDetail,
   }
 }
