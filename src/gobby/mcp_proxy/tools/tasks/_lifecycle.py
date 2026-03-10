@@ -66,7 +66,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             task_id: Task reference (#N, path, or UUID)
             reason: Reason for closing. Use "duplicate", "already_implemented", "wont_fix",
                 or "obsolete" to auto-skip commit check (these imply no work was done).
-            changes_summary: Summary of changes made. Required for all close reasons.
+            changes_summary: Summary of changes made. Required for leaf/standalone tasks.
+                Optional for parent/epic tasks where all children are closed.
                 For completed tasks: describe what was changed and why.
                 For no-work closes (duplicate, wont_fix, obsolete): explain why no changes were needed.
             skip_validation: Skip all validation checks
@@ -113,6 +114,15 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     response.update(parent_result.extra)
                 return response
             is_parent_all_closed = True
+
+        # Require changes_summary for non-parent closes (agents must explain what changed)
+        if not is_parent_all_closed and not changes_summary:
+            return {
+                "success": False,
+                "error": "missing_changes_summary",
+                "message": "changes_summary is required when closing leaf/standalone tasks. "
+                "Describe what was changed and why.",
+            }
 
         # Check for linked commits (unless parent with all children closed)
         if not is_parent_all_closed:
@@ -344,7 +354,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "changes_summary": {
                     "type": "string",
-                    "description": "Required: summary of what was changed and why. For tasks closed without changes (duplicate, wont_fix, etc.), describe why no changes were needed.",
+                    "description": "Summary of what was changed and why. Required for leaf tasks and standalone closes. Optional for parent/epic tasks where all children are closed. For tasks closed without changes (duplicate, wont_fix, etc.), describe why no changes were needed.",
                 },
                 "skip_validation": {
                     "type": "boolean",
@@ -374,7 +384,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "default": None,
                 },
             },
-            "required": ["task_id", "changes_summary"],
+            "required": ["task_id"],
         },
         func=close_task,
     )

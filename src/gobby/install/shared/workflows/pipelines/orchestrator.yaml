@@ -227,9 +227,7 @@ steps:
       arguments:
         task_id: "${{ inputs.task_id }}"
         session_id: "${{ session_id }}"
-        changes_summary: "All child tasks closed."
-        skip_validation: true
-        override_justification: "Epic closed by orchestrator pipeline — all child tasks approved/closed"
+        changes_summary: "Orchestration complete. All tasks approved/closed."
 
   # --- RESULT ---
   - id: tick_result
