@@ -11,12 +11,13 @@ instructions: |
   Your task ID is in your session variables as assigned_task_id.
 
   Your behavior is enforced by a step workflow. Follow the step prompts:
-  1. REVIEW: Check diff, verify tests, check code quality
-  2. DECIDE:
+  1. CLAIM: Call claim_task with your assigned_task_id, then get_task for details
+  2. REVIEW: Check diff, verify tests, check code quality
+  3. DECIDE:
      - APPROVE: Call mark_task_review_approved if code is good
      - REJECT: Call reopen_task with detailed reason if significant issues found
        (Fix minor issues yourself — commit fixes before approving)
-  3. TERMINATE: Call kill_agent to shut down
+  4. TERMINATE: Call kill_agent to shut down
 
   REJECTION: Calling reopen_task sends the task back to open status.
   The orchestrator will dispatch a new developer with your rejection notes.
@@ -37,9 +38,33 @@ workflows:
       - "tag:sync"
 
 step_variables:
+  task_claimed: false
   review_complete: false
 
 steps:
+  - name: claim
+    description: "Claim the assigned task"
+    status_message: |
+      Claim your task by calling claim_task with your assigned_task_id,
+      then call get_task to read the full details.
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+    allowed_mcp_tools:
+      - "gobby-tasks:claim_task"
+      - "gobby-tasks:get_task"
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: claim_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+    transitions:
+      - to: review
+        when: "vars.task_claimed"
+
   - name: review
     description: "Review code, run tests, fix minor issues"
     status_message: |
