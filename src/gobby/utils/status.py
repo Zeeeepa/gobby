@@ -143,6 +143,8 @@ def format_status_message(
     neo4j_installed: bool | None = None,
     neo4j_healthy: bool | None = None,
     neo4j_url: str | None = None,
+    # Service info
+    service_info: str | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -196,6 +198,10 @@ def format_status_message(
         if pid:
             status_line += f" (PID: {pid})"
         lines.append(status_line)
+
+        # Service status
+        if service_info:
+            lines.append(f"Service: {service_info}")
 
         # Watchdog status
         if watchdog_pid is not None:

@@ -17,6 +17,12 @@ import psutil
 
 from gobby.utils.status import fetch_rich_status, format_status_message
 
+from .installers.service import (
+    get_service_status,
+    service_restart,
+    service_start,
+    service_stop,
+)
 from .utils import (
     _is_process_alive,
     find_web_dir,
@@ -163,6 +169,21 @@ def start(
     ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, neo4j_flag: bool
 ) -> None:
     """Start the Gobby daemon."""
+    # If OS service is installed, delegate to it
+    svc = get_service_status()
+    if svc.get("installed"):
+        click.echo("Starting via OS service manager...")
+        result = service_start()
+        if result.get("success"):
+            click.echo(f"Daemon started via {svc.get('platform', 'OS')} service")
+        else:
+            click.echo(f"Service start failed: {result.get('error')}", err=True)
+            click.echo("Falling back to direct start...")
+            # Fall through to direct start
+            svc = {"installed": False}
+        if svc.get("installed"):
+            return
+
     # Get config object
     config = ctx.obj["config"]
 
@@ -379,6 +400,25 @@ def start(
 @click.pass_context
 def stop(ctx: click.Context, neo4j_flag: bool) -> None:
     """Stop the Gobby daemon."""
+    # If OS service is installed and running, delegate to it
+    svc = get_service_status()
+    if svc.get("installed") and svc.get("running"):
+        click.echo("Stopping via OS service manager...")
+        result = service_stop()
+        if result.get("success"):
+            click.echo(f"Daemon stopped via {svc.get('platform', 'OS')} service")
+        else:
+            click.echo(f"Service stop failed: {result.get('error')}", err=True)
+            click.echo("Falling back to direct stop...")
+
+        # Stop Neo4j if requested
+        if neo4j_flag:
+            click.echo("Stopping Neo4j containers...")
+            _neo4j_stop(get_gobby_home())
+
+        if result.get("success"):
+            sys.exit(0)
+
     success = stop_daemon_util(quiet=False)
 
     # Stop Neo4j containers if requested
@@ -418,6 +458,17 @@ def restart(
 ) -> None:
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
+
+    # If OS service is installed, delegate to it
+    svc = get_service_status()
+    if svc.get("installed") and svc.get("enabled"):
+        click.echo(f"Restarting via {svc.get('platform', 'OS')} service manager...")
+        result = service_restart()
+        if result.get("success"):
+            click.echo(f"Daemon restarted via {result.get('method', 'service manager')}")
+            return
+        click.echo(f"Service restart failed: {result.get('error')}", err=True)
+        click.echo("Falling back to direct restart...")
 
     click.echo("Restarting Gobby daemon...")
 
@@ -533,6 +584,21 @@ def status(ctx: click.Context) -> None:
     # Fetch rich status from daemon API (includes Neo4j status)
     rich_status = asyncio.run(fetch_rich_status(http_port, timeout=2.0))
     status_kwargs.update(rich_status)
+
+    # Add service info
+    svc = get_service_status()
+    if svc.get("installed"):
+        parts = []
+        if svc.get("running"):
+            parts.append("running")
+        elif svc.get("enabled"):
+            parts.append("enabled")
+        else:
+            parts.append("disabled")
+        parts.append(svc.get("platform", "unknown"))
+        if svc.get("mode"):
+            parts.append(f"{svc['mode']} mode")
+        status_kwargs["service_info"] = f"installed ({', '.join(parts)})"
 
     # Format and display status
     message = format_status_message(**status_kwargs)

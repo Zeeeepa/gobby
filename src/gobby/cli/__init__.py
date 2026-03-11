@@ -27,6 +27,7 @@ from .pipelines import pipelines
 from .projects import projects
 from .rules import rules
 from .secrets import secrets
+from .service import service
 from .sessions import sessions
 from .setup import setup
 from .skills import skills
@@ -83,6 +84,7 @@ cli.add_command(ui)
 cli.add_command(sync)
 cli.add_command(auth)
 cli.add_command(secrets)
+cli.add_command(service)
 cli.add_command(compress)
 cli.add_command(export_cmd)
 cli.add_command(import_cmd)
