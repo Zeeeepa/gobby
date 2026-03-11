@@ -96,6 +96,16 @@ class RunningAgent:
     timeout_seconds: float | None = None
     """Timeout in seconds — lifecycle monitor kills agent when exceeded. 0 or None = no timeout."""
 
+    # Stall detection (populated by lifecycle monitor)
+    stall_status: str | None = None
+    """Current stall classification: healthy, provider_stall, task_slow, unknown."""
+
+    stall_reason: str | None = None
+    """Human-readable reason for the stall status."""
+
+    last_stall_check_at: float | None = None
+    """Monotonic timestamp of the last stall check."""
+
     # In-process agent tracking
     task: Any | None = None
     """Async task object for in-process agents (asyncio.Task)."""
@@ -121,6 +131,8 @@ class RunningAgent:
             "clone_id": self.clone_id,
             "task_id": self.task_id,
             "timeout_seconds": self.timeout_seconds,
+            "stall_status": self.stall_status,
+            "stall_reason": self.stall_reason,
             "has_task": self.task is not None,
         }
 

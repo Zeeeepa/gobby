@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from gobby.agents.idle_detector import IdleDetector
 from gobby.agents.prompt_detector import PromptDetector
 from gobby.agents.registry import RunningAgent, RunningAgentRegistry
+from gobby.agents.stall_classifier import StallClassifier, StallStatus
 from gobby.agents.tmux.session_manager import TmuxSessionManager
 from gobby.config.tmux import TmuxConfig
 from gobby.storage.agents import LocalAgentRunManager
@@ -63,6 +64,7 @@ class AgentLifecycleMonitor:
         self._tmux = TmuxSessionManager(config=self._tmux_config)
         self._idle_detector = IdleDetector()
         self._prompt_detector = PromptDetector()
+        self._stall_classifier = StallClassifier()
         self._running = False
         self._task: asyncio.Task[None] | None = None
 
@@ -145,6 +147,7 @@ class AgentLifecycleMonitor:
                 await self.check_dead_agents()
                 await self.check_expired_agents()
                 await self.check_idle_agents()
+                await self.check_provider_stalls()
             except Exception as e:
                 logger.error(f"Agent lifecycle check error: {e}")
 
@@ -291,6 +294,7 @@ class AgentLifecycleMonitor:
 
                 # Clean up detector state
                 self._prompt_detector.clear(agent.run_id)
+                self._stall_classifier.clear(agent.run_id)
 
                 # Release worktrees
                 if self._session_coordinator:
@@ -493,6 +497,49 @@ class AgentLifecycleMonitor:
 
         return handled
 
+    async def check_provider_stalls(self) -> int:
+        """Check tmux agents for provider-side stalls (rate limits, outages).
+
+        Updates the stall_status/stall_reason fields on RunningAgent entries
+        so the orchestrator can decide whether to rotate providers.
+
+        Returns:
+            Number of agents with confirmed provider stalls.
+        """
+        agents = self._registry.list_all()
+        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+
+        stalled = 0
+        for agent in tmux_agents:
+            try:
+                tmux_name = agent.tmux_session_name
+                assert tmux_name is not None
+
+                pane_output = await self._tmux.capture_pane(tmux_name, lines=30)
+                classification = self._stall_classifier.classify(
+                    agent.run_id,
+                    pane_output=pane_output,
+                )
+
+                import time
+
+                agent.stall_status = classification.status.value
+                agent.stall_reason = classification.reason
+                agent.last_stall_check_at = time.monotonic()
+
+                if classification.status == StallStatus.PROVIDER_STALL:
+                    logger.warning(
+                        "Provider stall detected for agent %s: %s (consecutive=%d)",
+                        agent.run_id,
+                        classification.reason,
+                        classification.consecutive_hits,
+                    )
+                    stalled += 1
+            except Exception as e:
+                logger.warning("Error checking provider stall for agent %s: %s", agent.run_id, e)
+
+        return stalled
+
     async def _handle_idle_check(self, agent: RunningAgent) -> int:
         """Handle idle check for a single agent. Returns 1 if action taken, 0 otherwise."""
         tmux_name = agent.tmux_session_name
@@ -569,6 +616,7 @@ class AgentLifecycleMonitor:
         # Clean up detector state
         self._idle_detector.clear_state(agent.run_id)
         self._prompt_detector.clear(agent.run_id)
+        self._stall_classifier.clear(agent.run_id)
 
         # Remove from registry
         self._registry.remove(agent.run_id, status="failed")
