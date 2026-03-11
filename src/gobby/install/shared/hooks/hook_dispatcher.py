@@ -569,7 +569,7 @@ async def main() -> int:
     # Fire-and-forget hooks: spawn a detached curl process and return immediately.
     # This prevents Claude Code from cancelling the hook during /exit — the curl
     # child survives parent death and delivers the payload to the daemon.
-    _FIRE_AND_FORGET_HOOKS = {"session-end", "SessionEnd", "sessionEnd", "stop"}
+    _FIRE_AND_FORGET_HOOKS = {"session-end", "SessionEnd", "sessionEnd"}
 
     if hook_type in _FIRE_AND_FORGET_HOOKS:
         import subprocess
