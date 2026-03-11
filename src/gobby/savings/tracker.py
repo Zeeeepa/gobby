@@ -24,7 +24,6 @@ class SavingsTracker:
     - code_index: symbol retrieval vs full file read
     - discovery: progressive schema loading
     - handoff: context preservation across compactions
-    - memory: instant recall vs re-discovery
     """
 
     def __init__(self, db: DatabaseProtocol, model_costs: ModelCostStore | None = None) -> None:

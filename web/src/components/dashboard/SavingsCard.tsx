@@ -22,7 +22,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   code_index: 'Code Index',
   discovery: 'Discovery',
   handoff: 'Handoff',
-  memory: 'Memory',
 }
 
 export function SavingsCard({ savings }: Props) {

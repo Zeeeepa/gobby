@@ -198,21 +198,6 @@ def create_memory_registry(
                 for m in memories
             ]
 
-            # Record savings: memory recall avoids re-discovery (~8K tokens)
-            if result_memories:
-                try:
-                    from gobby.savings.record import record_savings
-
-                    recalled_chars = sum(len(str(m["content"])) for m in result_memories)
-                    record_savings(
-                        category="memory",
-                        original_chars=29600,  # ~8K tokens * 3.7 chars/token
-                        actual_chars=recalled_chars,
-                        project_id=get_current_project_id(),
-                    )
-                except Exception:
-                    pass  # Best-effort
-
             return {
                 "success": True,
                 "memories": result_memories,
