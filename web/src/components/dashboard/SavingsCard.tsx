@@ -21,7 +21,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   compression: 'Compression',
   code_index: 'Code Index',
   discovery: 'Discovery',
-  handoff: 'Handoff',
 }
 
 export function SavingsCard({ savings }: Props) {

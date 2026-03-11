@@ -2,7 +2,7 @@
 
 import pytest
 
-from gobby.savings.tracker import CHARS_PER_TOKEN, SavingsTracker
+from gobby.savings.tracker import CHARS_PER_TOKEN, VALID_CATEGORIES, SavingsTracker
 from gobby.storage.database import LocalDatabase
 
 
@@ -67,7 +67,7 @@ class TestSavingsTracker:
 
     def test_record_with_session_and_project(self, tracker: SavingsTracker) -> None:
         tracker.record_tokens(
-            category="handoff",
+            category="compression",
             original_tokens=15000,
             actual_tokens=3000,
             session_id="sess-1",
@@ -84,7 +84,7 @@ class TestSavingsTracker:
     def test_multiple_categories(self, tracker: SavingsTracker) -> None:
         tracker.record_tokens(category="compression", original_tokens=1000, actual_tokens=200)
         tracker.record_tokens(category="code_index", original_tokens=5000, actual_tokens=500)
-        tracker.record_tokens(category="memory", original_tokens=8000, actual_tokens=1000)
+        tracker.record_tokens(category="discovery", original_tokens=8000, actual_tokens=1000)
 
         summary = tracker.get_summary(days=1)
         assert len(summary["categories"]) == 3
@@ -134,3 +134,18 @@ class TestSavingsTracker:
         tracker.record_tokens(category="compression", original_tokens=100, actual_tokens=200)
         summary = tracker.get_summary(days=1)
         assert summary["categories"]["compression"]["tokens_saved"] == 0
+
+    def test_invalid_category_rejected(self, tracker: SavingsTracker) -> None:
+        """Invalid categories are silently dropped — never appear in summaries."""
+        tracker.record_tokens(category="memory", original_tokens=8000, actual_tokens=0)
+        tracker.record(category="handoff", original_chars=55500, actual_chars=1000)
+        tracker.record_tokens(category="compression", original_tokens=1000, actual_tokens=200)
+
+        summary = tracker.get_summary(days=1)
+        assert list(summary["categories"].keys()) == ["compression"]
+        assert summary["total_tokens_saved"] == 800
+        assert summary["total_events"] == 1
+
+    def test_valid_categories_constant(self) -> None:
+        """VALID_CATEGORIES contains exactly the expected set."""
+        assert VALID_CATEGORIES == {"compression", "code_index", "discovery"}

@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 # Empirical chars-per-token for code-heavy content
 CHARS_PER_TOKEN = 3.7
 
+# Only these categories produce real, measurable savings.
+VALID_CATEGORIES: frozenset[str] = frozenset({"compression", "code_index", "discovery"})
+
 
 class SavingsTracker:
     """Track token and cost savings from Gobby features.
@@ -23,7 +26,6 @@ class SavingsTracker:
     - compression: tool output compression
     - code_index: symbol retrieval vs full file read
     - discovery: progressive schema loading
-    - handoff: context preservation across compactions
     """
 
     def __init__(self, db: DatabaseProtocol, model_costs: ModelCostStore | None = None) -> None:
@@ -41,6 +43,9 @@ class SavingsTracker:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Record a savings event using character counts (converted to tokens)."""
+        if category not in VALID_CATEGORIES:
+            logger.warning("Rejected savings record for invalid category %r", category)
+            return
         original_tokens = max(0, int(original_chars / CHARS_PER_TOKEN))
         actual_tokens = max(0, int(actual_chars / CHARS_PER_TOKEN))
         self.record_tokens(
@@ -64,6 +69,9 @@ class SavingsTracker:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Record a savings event using token counts."""
+        if category not in VALID_CATEGORIES:
+            logger.warning("Rejected savings record for invalid category %r", category)
+            return
         tokens_saved = max(0, original_tokens - actual_tokens)
         cost_saved = self._estimate_cost(tokens_saved, model)
 
@@ -94,6 +102,11 @@ class SavingsTracker:
             project_filter = "AND project_id = ?"
             params.append(project_id)
 
+        # Build category IN clause
+        cat_placeholders = ", ".join("?" for _ in VALID_CATEGORIES)
+        cat_filter = f"AND category IN ({cat_placeholders})"
+        cat_params = list(VALID_CATEGORIES)
+
         # Recent ledger entries
         rows = self.db.fetchall(
             f"SELECT category, "
@@ -103,9 +116,9 @@ class SavingsTracker:
             f"SUM(cost_saved_usd) as cost_saved_usd, "
             f"COUNT(*) as event_count "
             f"FROM savings_ledger "
-            f"WHERE created_at >= datetime('now', ?) {project_filter} "
+            f"WHERE created_at >= datetime('now', ?) {project_filter} {cat_filter} "
             f"GROUP BY category",
-            tuple(params),
+            tuple(params + cat_params),
         )
 
         categories: dict[str, Any] = {}
@@ -127,15 +140,18 @@ class SavingsTracker:
             total_events += row["event_count"] or 0
 
         # Also include rolled-up daily data for the window
+        daily_params: list[Any] = [f"-{days} days"]
+        if project_id:
+            daily_params.append(project_id)
         daily_rows = self.db.fetchall(
             f"SELECT category, "
             f"SUM(total_tokens_saved) as tokens_saved, "
             f"SUM(total_cost_saved_usd) as cost_saved_usd, "
             f"SUM(event_count) as event_count "
             f"FROM savings_daily "
-            f"WHERE date >= date('now', ?) {project_filter} "
+            f"WHERE date >= date('now', ?) {project_filter} {cat_filter} "
             f"GROUP BY category",
-            tuple(params),
+            tuple(daily_params + cat_params),
         )
         for row in daily_rows:
             cat = row["category"]
