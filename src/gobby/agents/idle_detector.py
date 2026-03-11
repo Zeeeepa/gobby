@@ -34,6 +34,14 @@ class IdleDetector:
         re.compile(r"^\s*\$\s*$"),  # Shell prompt (agent exited)
     )
 
+    # Patterns that indicate text is sitting in the tmux buffer unsubmitted.
+    # The agent typed something but never hit Enter — treated as idle so the
+    # lifecycle monitor can submit it via send_keys("\n").
+    STALLED_BUFFER_PATTERNS: tuple[re.Pattern[str], ...] = (
+        re.compile(r"^\s*[❯>]\s+\S"),  # Prompt char followed by unsubmitted text
+        re.compile(r"^\s*\$\s+\S"),  # Shell prompt with trailing text
+    )
+
     # Patterns that indicate agent tried to stop but was blocked by a hook.
     # Treated as idle — the agent isn't doing useful work, it's stuck.
     STOP_HOOK_BLOCKED_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -107,6 +115,9 @@ class IdleDetector:
             if any(p.search(stripped) for p in self.STATUS_BAR_PATTERNS):
                 continue
             for pattern in self.IDLE_PROMPT_PATTERNS:
+                if pattern.match(stripped):
+                    return "idle"
+            for pattern in self.STALLED_BUFFER_PATTERNS:
                 if pattern.match(stripped):
                     return "idle"
             # First non-empty, non-status-bar line doesn't match idle → active
