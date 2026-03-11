@@ -497,19 +497,24 @@ def status(ctx: click.Context) -> None:
     pid_file = get_gobby_home() / "gobby.pid"
     log_dir = Path(config.telemetry.log_file).expanduser().parent
 
-    # Read PID from file
-    if not pid_file.exists():
-        message = format_status_message(running=False)
-        click.echo(message)
-        sys.exit(0)
+    # Read PID from file, falling back to launchctl service detection
+    pid: int | None = None
+    if pid_file.exists():
+        try:
+            with open(pid_file) as f:
+                pid = int(f.read().strip())
+        except Exception:
+            pid = None
 
-    try:
-        with open(pid_file) as f:
-            pid = int(f.read().strip())
-    except Exception:
-        message = format_status_message(running=False)
-        click.echo(message)
-        sys.exit(0)
+    if pid is None:
+        # No PID file — check if running as a launchctl service
+        svc = get_service_status()
+        if svc.get("running") and svc.get("pid"):
+            pid = svc["pid"]
+        else:
+            message = format_status_message(running=False)
+            click.echo(message)
+            sys.exit(0)
 
     # Check if process is actually running
     try:

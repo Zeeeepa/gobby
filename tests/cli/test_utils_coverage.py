@@ -245,9 +245,14 @@ def test_stop_daemon_bad_pid_file(tmp_path: Path) -> None:
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils.stop_ui_server"),
         patch("gobby.cli.utils.stop_watchdog"),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False},
+        ),
     ):
         result = stop_daemon(quiet=False)
-    assert result is False
+    # Bad PID file + no service running = daemon not running = success
+    assert result is True
 
 
 def test_stop_daemon_not_gobby_process(tmp_path: Path) -> None:

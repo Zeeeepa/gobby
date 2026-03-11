@@ -233,12 +233,14 @@ class TestStatusCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
+    @patch("gobby.cli.daemon.get_service_status", return_value={"installed": False})
     @patch("gobby.cli.load_config")
     @patch("gobby.cli.daemon.get_gobby_home")
     def test_status_no_pid_file(
         self,
         mock_get_home: MagicMock,
         mock_load_config: MagicMock,
+        mock_get_service_status: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
     ) -> None:

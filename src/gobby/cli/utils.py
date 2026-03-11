@@ -818,20 +818,28 @@ def stop_daemon(quiet: bool = False) -> bool:
 
     pid_file = get_gobby_home() / "gobby.pid"
 
-    # Read PID from file
-    if not pid_file.exists():
-        if not quiet:
-            click.echo("Gobby daemon is not running (no PID file found)")
-        return True
+    # Read PID from file, falling back to launchctl service detection
+    pid: int | None = None
+    if pid_file.exists():
+        try:
+            with open(pid_file) as f:
+                pid = int(f.read().strip())
+        except Exception as e:
+            if not quiet:
+                click.echo(f"Error reading PID file: {e}", err=True)
+            pid_file.unlink(missing_ok=True)
 
-    try:
-        with open(pid_file) as f:
-            pid = int(f.read().strip())
-    except Exception as e:
-        if not quiet:
-            click.echo(f"Error reading PID file: {e}", err=True)
-        pid_file.unlink(missing_ok=True)
-        return False
+    if pid is None:
+        # No PID file — check if running as a launchctl service
+        from gobby.cli.installers.service import get_service_status
+
+        svc = get_service_status()
+        if svc.get("running") and svc.get("pid"):
+            pid = svc["pid"]
+        else:
+            if not quiet:
+                click.echo("Gobby daemon is not running (no PID file found)")
+            return True
 
     # Check if process is actually running (handles zombies correctly)
     if not _is_process_alive(pid):

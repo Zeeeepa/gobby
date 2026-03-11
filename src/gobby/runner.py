@@ -849,6 +849,14 @@ class GobbyRunner:
         try:
             setup_signal_handlers(lambda: setattr(self, "_shutdown_requested", True))
 
+            # Write PID file (ensures it exists regardless of how the runner
+            # was started — CLI `gobby start`, launchctl, or direct invocation)
+            from gobby.cli.utils import get_gobby_home
+
+            pid_file = get_gobby_home() / "gobby.pid"
+            pid_file.write_text(str(os.getpid()))
+            logger.info(f"Wrote PID file: {pid_file} (PID {os.getpid()})")
+
             # Connect MCP servers
             try:
                 await asyncio.wait_for(self.mcp_proxy.connect_all(), timeout=10.0)
