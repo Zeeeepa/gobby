@@ -82,6 +82,19 @@ class Clone:
             "updated_at": self.updated_at,
         }
 
+    def to_brief(self) -> dict[str, Any]:
+        """Slim representation for list operations."""
+        return {
+            "id": self.id,
+            "branch_name": self.branch_name,
+            "clone_path": self.clone_path,
+            "status": self.status,
+            "task_id": self.task_id,
+            "agent_session_id": self.agent_session_id,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
 
 class LocalCloneManager:
     """Manager for local clone storage."""

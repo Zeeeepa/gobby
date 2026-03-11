@@ -83,6 +83,19 @@ class InterSessionMessage:
             "delivered_at": self.delivered_at,
         }
 
+    def to_brief(self) -> dict[str, Any]:
+        """Slim representation for list operations."""
+        return {
+            "id": self.id,
+            "from_session": self.from_session,
+            "to_session": self.to_session,
+            "content": self.content,
+            "priority": self.priority,
+            "message_type": self.message_type,
+            "sent_at": self.sent_at,
+            "read_at": self.read_at,
+        }
+
 
 class InterSessionMessageManager:
     """Manages inter-session messages.

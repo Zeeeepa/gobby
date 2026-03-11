@@ -160,6 +160,78 @@ class TestRunningAgent:
         assert parsed == agent.started_at
 
 
+class TestRunningAgentToBrief:
+    """Tests for RunningAgent.to_brief() slim representation."""
+
+    def test_to_brief_has_fewer_fields_than_to_dict(self) -> None:
+        """to_brief returns fewer fields than to_dict."""
+        agent = RunningAgent(
+            run_id="ar-brief",
+            session_id="sess-brief",
+            parent_session_id="sess-parent-brief",
+            mode="terminal",
+            pid=12345,
+            provider="claude",
+            task_id="gt-task1",
+            stall_status="healthy",
+        )
+
+        brief = agent.to_brief()
+        full = agent.to_dict()
+        assert len(brief) < len(full)
+
+    def test_to_brief_essential_fields_present(self) -> None:
+        """to_brief includes essential identification and status fields."""
+        agent = RunningAgent(
+            run_id="ar-brief2",
+            session_id="sess-brief2",
+            parent_session_id="sess-parent-brief2",
+            mode="autonomous",
+            pid=99999,
+            provider="gemini",
+            task_id="gt-task2",
+            stall_status="provider_stall",
+        )
+
+        brief = agent.to_brief()
+        assert brief["run_id"] == "ar-brief2"
+        assert brief["session_id"] == "sess-brief2"
+        assert brief["parent_session_id"] == "sess-parent-brief2"
+        assert brief["mode"] == "autonomous"
+        assert brief["pid"] == 99999
+        assert brief["provider"] == "gemini"
+        assert brief["task_id"] == "gt-task2"
+        assert brief["stall_status"] == "provider_stall"
+        assert brief["has_task"] is False
+        assert "started_at" in brief
+
+    def test_to_brief_excludes_internal_fields(self) -> None:
+        """to_brief omits internal process details."""
+        agent = RunningAgent(
+            run_id="ar-brief3",
+            session_id="sess-brief3",
+            parent_session_id="sess-parent-brief3",
+            mode="terminal",
+            master_fd=7,
+            terminal_type="tmux",
+            tmux_session_name="gobby-agent-1",
+            workflow_name="plan-execute",
+            worktree_id="wt-abc",
+            clone_id="clone-xyz",
+            timeout_seconds=300,
+        )
+
+        brief = agent.to_brief()
+        assert "master_fd" not in brief
+        assert "terminal_type" not in brief
+        assert "tmux_session_name" not in brief
+        assert "workflow_name" not in brief
+        assert "worktree_id" not in brief
+        assert "clone_id" not in brief
+        assert "timeout_seconds" not in brief
+        assert "stall_reason" not in brief
+
+
 class TestRunningAgentRegistry:
     """Tests for RunningAgentRegistry class."""
 

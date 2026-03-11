@@ -183,3 +183,21 @@ class Session:
             "seq_num": self.seq_num,
             "id": self.id,  # UUID at end for backwards compat
         }
+
+    def to_brief(self) -> dict[str, Any]:
+        """Slim representation for list operations."""
+        return {
+            "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
+            "external_id": self.external_id,
+            "source": self.source,
+            "project_id": self.project_id,
+            "title": self.title,
+            "status": self.status,
+            "git_branch": self.git_branch,
+            "model": self.model,
+            "had_edits": self.had_edits,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "seq_num": self.seq_num,
+            "id": self.id,
+        }

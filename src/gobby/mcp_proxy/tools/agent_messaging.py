@@ -306,7 +306,7 @@ def add_messaging_tools(
             messages = []
             for msg in undelivered:
                 message_manager.mark_delivered(msg.id)
-                messages.append(msg.to_dict())
+                messages.append(msg.to_brief())
 
             return {
                 "success": True,
@@ -351,7 +351,7 @@ def add_messaging_tools(
 
             return {
                 "success": True,
-                "messages": [m.to_dict() for m in messages],
+                "messages": [m.to_brief() for m in messages],
                 "count": len(messages),
             }
 

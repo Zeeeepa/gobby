@@ -117,6 +117,85 @@ class TestClone:
         assert result["remote_url"] == "https://github.com/user/repo.git"
 
 
+class TestCloneToBrief:
+    """Tests for Clone.to_brief() slim representation."""
+
+    def test_to_brief_has_fewer_fields_than_to_dict(self) -> None:
+        """to_brief returns fewer fields than to_dict."""
+        clone = Clone(
+            id="clone-123456",
+            project_id="proj-abc",
+            branch_name="feature/test",
+            clone_path="/tmp/clones/test",
+            base_branch="main",
+            task_id="gt-task123",
+            agent_session_id="sess-xyz",
+            status="active",
+            remote_url="https://github.com/user/repo.git",
+            last_sync_at="2026-01-22T12:00:00+00:00",
+            cleanup_after="2026-01-23T12:00:00+00:00",
+            created_at="2026-01-22T00:00:00+00:00",
+            updated_at="2026-01-22T00:00:00+00:00",
+        )
+
+        brief = clone.to_brief()
+        full = clone.to_dict()
+        assert len(brief) < len(full)
+
+    def test_to_brief_essential_fields_present(self) -> None:
+        """to_brief includes essential fields for list operations."""
+        clone = Clone(
+            id="clone-brief",
+            project_id="proj-abc",
+            branch_name="feature/slim",
+            clone_path="/tmp/clones/slim",
+            base_branch="main",
+            task_id="gt-task1",
+            agent_session_id="sess-1",
+            status="active",
+            remote_url="https://github.com/user/repo.git",
+            last_sync_at=None,
+            cleanup_after=None,
+            created_at="2026-01-22T00:00:00+00:00",
+            updated_at="2026-01-22T00:00:00+00:00",
+        )
+
+        brief = clone.to_brief()
+        assert brief["id"] == "clone-brief"
+        assert brief["branch_name"] == "feature/slim"
+        assert brief["clone_path"] == "/tmp/clones/slim"
+        assert brief["status"] == "active"
+        assert brief["task_id"] == "gt-task1"
+        assert brief["agent_session_id"] == "sess-1"
+        assert brief["created_at"] == "2026-01-22T00:00:00+00:00"
+        assert brief["updated_at"] == "2026-01-22T00:00:00+00:00"
+
+    def test_to_brief_excludes_internal_fields(self) -> None:
+        """to_brief omits fields not needed in list views."""
+        clone = Clone(
+            id="clone-exc",
+            project_id="proj-abc",
+            branch_name="feature/test",
+            clone_path="/tmp/clones/test",
+            base_branch="main",
+            task_id=None,
+            agent_session_id=None,
+            status="active",
+            remote_url="https://github.com/user/repo.git",
+            last_sync_at="2026-01-22T12:00:00+00:00",
+            cleanup_after="2026-01-23T12:00:00+00:00",
+            created_at="2026-01-22T00:00:00+00:00",
+            updated_at="2026-01-22T00:00:00+00:00",
+        )
+
+        brief = clone.to_brief()
+        assert "project_id" not in brief
+        assert "remote_url" not in brief
+        assert "last_sync_at" not in brief
+        assert "cleanup_after" not in brief
+        assert "base_branch" not in brief
+
+
 class TestLocalCloneManagerInit:
     """Tests for LocalCloneManager initialization."""
 

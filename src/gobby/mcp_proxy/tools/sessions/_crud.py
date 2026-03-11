@@ -195,7 +195,7 @@ This tool is for browsing/listing sessions, not for self-identification.""",
                     "Use get_current_session(external_id='<your-external-id>', source='claude') instead."
                 ),
                 "hint": "Your external_id is in your transcript path: /path/to/<external_id>.jsonl",
-                "sessions": [s.to_dict() for s in sessions],
+                "sessions": [s.to_brief() for s in sessions],
                 "count": len(sessions),
                 "total": total,
                 "limit": limit,
@@ -207,7 +207,7 @@ This tool is for browsing/listing sessions, not for self-identification.""",
             }
 
         return {
-            "sessions": [s.to_dict() for s in sessions],
+            "sessions": [s.to_brief() for s in sessions],
             "count": len(sessions),
             "total": total,
             "limit": limit,
