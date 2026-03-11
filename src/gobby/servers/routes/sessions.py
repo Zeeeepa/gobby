@@ -338,6 +338,22 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 status_code=500, detail="Internal server error while registering session"
             ) from e
 
+    @router.get("/usage")
+    async def get_usage_breakdown(
+        days: int = Query(1, ge=1, le=365, description="Number of days to look back"),
+        project_id: str | None = Query(None, description="Filter by project ID"),
+    ) -> dict[str, Any]:
+        """Get token usage and cost breakdown by source and model.
+
+        Returns aggregated usage statistics including per-model and
+        per-source (CLI adapter) breakdowns.
+        """
+        from gobby.sessions.token_tracker import SessionTokenTracker
+
+        sm = _get_session_manager()
+        tracker = SessionTokenTracker(session_storage=sm)
+        return tracker.get_usage_summary(days=days, project_id=project_id)
+
     @router.get("")
     async def list_sessions(
         project_id: str | None = None,

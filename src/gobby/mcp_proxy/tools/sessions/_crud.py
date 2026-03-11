@@ -5,6 +5,7 @@ This module contains MCP tools for:
 - Getting current session (get_current_session)
 - Listing sessions (list_sessions)
 - Session statistics (session_stats)
+- Usage breakdown by source and model (get_usage_breakdown)
 """
 
 from __future__ import annotations
@@ -251,3 +252,30 @@ This tool is for browsing/listing sessions, not for self-identification.""",
             "by_source": by_source,
             "project_id": project_id,
         }
+
+    @registry.tool(
+        name="get_usage_breakdown",
+        description="Get token usage and cost breakdown by source (CLI adapter) and model over a time period.",
+    )
+    def get_usage_breakdown(
+        days: int = 1,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Get token usage and cost aggregated by source and model.
+
+        Args:
+            days: Number of days to look back (default: 1 = today, max 365)
+            project_id: Filter by project ID (optional)
+
+        Returns:
+            Usage summary with total cost/tokens, usage_by_model, and usage_by_source
+        """
+        from gobby.sessions.token_tracker import SessionTokenTracker
+
+        if session_manager is None:
+            return {"error": "Session manager not available"}
+
+        days = max(1, min(days, 365))
+        tracker = SessionTokenTracker(session_storage=session_manager)
+        return tracker.get_usage_summary(days=days, project_id=project_id)

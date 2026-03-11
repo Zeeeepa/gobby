@@ -35,6 +35,7 @@ def sample_sessions():
             usage_cache_read_tokens=None,
             usage_total_cost_usd=0.05,
             model="claude-3-5-sonnet-20241022",
+            source="claude",
             created_at=(now - timedelta(hours=1)).isoformat(),
         ),
         MagicMock(
@@ -45,6 +46,7 @@ def sample_sessions():
             usage_cache_read_tokens=None,
             usage_total_cost_usd=0.10,
             model="claude-3-5-sonnet-20241022",
+            source="claude",
             created_at=(now - timedelta(hours=2)).isoformat(),
         ),
         MagicMock(
@@ -55,6 +57,7 @@ def sample_sessions():
             usage_cache_read_tokens=None,
             usage_total_cost_usd=0.25,
             model="gemini/gemini-2.0-flash-exp",
+            source="gemini",
             created_at=(now - timedelta(days=2)).isoformat(),
         ),
     ]
@@ -141,6 +144,46 @@ class TestGetUsageSummary:
         assert claude_usage["cost"] == pytest.approx(0.15)  # 0.05 + 0.10
         assert claude_usage["sessions"] == 2
 
+    def test_get_usage_summary_by_source(
+        self, mock_session_storage: MagicMock, sample_sessions: list[Any]
+    ) -> None:
+        """Get usage summary broken down by source (CLI adapter)."""
+        from gobby.sessions.token_tracker import SessionTokenTracker
+
+        mock_session_storage.get_sessions_since.return_value = sample_sessions
+
+        tracker = SessionTokenTracker(session_storage=mock_session_storage)
+        summary = tracker.get_usage_summary(days=7)
+
+        assert "usage_by_source" in summary
+        assert "claude" in summary["usage_by_source"]
+        assert "gemini" in summary["usage_by_source"]
+
+        claude_usage = summary["usage_by_source"]["claude"]
+        assert claude_usage["cost"] == pytest.approx(0.15)  # 0.05 + 0.10
+        assert claude_usage["input_tokens"] == 3000  # 1000 + 2000
+        assert claude_usage["output_tokens"] == 1500  # 500 + 1000
+        assert claude_usage["sessions"] == 2
+
+        gemini_usage = summary["usage_by_source"]["gemini"]
+        assert gemini_usage["cost"] == pytest.approx(0.25)
+        assert gemini_usage["input_tokens"] == 5000
+        assert gemini_usage["sessions"] == 1
+
+    def test_get_usage_summary_passes_project_id(
+        self, mock_session_storage: MagicMock
+    ) -> None:
+        """Project ID is forwarded to storage layer."""
+        from gobby.sessions.token_tracker import SessionTokenTracker
+
+        mock_session_storage.get_sessions_since.return_value = []
+
+        tracker = SessionTokenTracker(session_storage=mock_session_storage)
+        tracker.get_usage_summary(days=3, project_id="proj-123")
+
+        call_args = mock_session_storage.get_sessions_since.call_args
+        assert call_args.kwargs.get("project_id") == "proj-123"
+
     def test_get_usage_summary_empty(self, mock_session_storage: MagicMock) -> None:
         """Get usage summary with no sessions."""
         from gobby.sessions.token_tracker import SessionTokenTracker
@@ -152,6 +195,8 @@ class TestGetUsageSummary:
 
         assert summary["total_cost_usd"] == 0.0
         assert summary["session_count"] == 0
+        assert summary["usage_by_source"] == {}
+        assert summary["usage_by_model"] == {}
 
 
 class TestGetBudgetStatus:
@@ -288,6 +333,7 @@ class TestCanSpawnAgent:
             usage_cache_read_tokens=None,
             usage_total_cost_usd=100.0,  # $100 used
             model="claude-3-5-sonnet-20241022",
+            source="claude",
             created_at=datetime.now(UTC).isoformat(),
         )
         mock_session_storage.get_sessions_since.return_value = [expensive_session]
