@@ -258,11 +258,10 @@ class RuleEngine:
                             variables["tool_block_pending"] = True
                             self._check_catastrophic_failure(event, variables)
                         else:
-                            # Don't clear tool_block_pending on success — in parallel
-                            # tool calls, a success arriving after a failure would
-                            # incorrectly clear the flag. The flag is self-clearing:
-                            # it fires once on STOP (line ~228) and clears on
-                            # BEFORE_AGENT (line ~164).
+                            # Clear tool_block_pending on successful tool completion
+                            variables["tool_block_pending"] = False
+                            variables["_last_blocked_tool"] = ""
+                            variables["consecutive_tool_blocks"] = 0
 
                             # Clear edit_write_pending on successful edit/write
                             tool_name_lower = event.data.get("tool_name", "").lower()
@@ -293,11 +292,10 @@ class RuleEngine:
                         variables["tool_block_pending"] = True
                         self._check_catastrophic_failure(event, variables)
                     else:
-                        # Don't clear tool_block_pending on success — in parallel
-                        # tool calls, a success arriving after a failure would
-                        # incorrectly clear the flag. The flag is self-clearing:
-                        # it fires once on STOP (line ~228) and clears on
-                        # BEFORE_AGENT (line ~164).
+                        # Clear tool_block_pending on successful tool completion
+                        variables["tool_block_pending"] = False
+                        variables["_last_blocked_tool"] = ""
+                        variables["consecutive_tool_blocks"] = 0
 
                         # Clear edit_write_pending on successful edit/write
                         tool_name_lower = event.data.get("tool_name", "").lower()

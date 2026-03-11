@@ -46,7 +46,7 @@ def _sync_bundled(db):
 TASK_ENFORCEMENT_RULES = {
     "block-native-task-tools",
     "require-task-before-edit",
-    "require-commit-before-close",
+    "require-commit-before-status",
     "strip-skip-validation-with-commit",
     "block-ask-during-stop-compliance",
     "track-task-claim",
@@ -299,14 +299,14 @@ class TestIsPlanFile:
         assert is_plan_file("/project/.gobby/plans/x.md", None) is True
 
 
-class TestRequireCommitBeforeClose:
-    """Verify require-commit-before-close requires commit before close_task."""
+class TestRequireCommitBeforeStatus:
+    """Verify require-commit-before-status requires commit before status transitions."""
 
     def test_blocks_close_task_mcp(self, db, manager) -> None:
         """Should block gobby-tasks:close_task."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-commit-before-close")
+        row = manager.get_by_name("require-commit-before-status")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -318,7 +318,7 @@ class TestRequireCommitBeforeClose:
         """Should check task_has_commits and special close reasons."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-commit-before-close")
+        row = manager.get_by_name("require-commit-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
