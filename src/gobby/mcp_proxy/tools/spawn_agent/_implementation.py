@@ -128,6 +128,7 @@ async def spawn_agent_impl(
         _raw_provider = agent_body.provider
     if _raw_provider in (None, "inherit"):
         _raw_provider = "claude"
+    assert _raw_provider is not None  # guaranteed by fallback above
     effective_provider: str = _raw_provider
 
     VALID_MODES = ("terminal", "autonomous", "self")

@@ -88,15 +88,17 @@ async def _batch_load_session_info(
         placeholders = ", ".join("?" for _ in session_ids)
 
         def do_query() -> list[Any]:
-            return database.fetchall(
-                f"""
+            return list(
+                database.fetchall(
+                    f"""
                 SELECT id, usage_input_tokens, usage_output_tokens,
                        usage_cache_creation_tokens, usage_cache_read_tokens,
                        usage_total_cost_usd, summary_markdown, git_branch
                 FROM sessions
                 WHERE id IN ({placeholders})
                 """,  # nosec B608
-                tuple(session_ids),
+                    tuple(session_ids),
+                )
             )
 
         rows = await asyncio.to_thread(do_query)

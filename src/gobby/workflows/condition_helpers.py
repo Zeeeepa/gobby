@@ -17,7 +17,7 @@ def is_task_complete(task: Any) -> bool:
 
     A task is complete only when status is 'closed'.
     """
-    return task.status == "closed"
+    return bool(task.status == "closed")
 
 
 def task_needs_human_review(task_manager: Any, task_id: str | int | None) -> bool:
