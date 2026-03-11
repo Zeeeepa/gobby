@@ -21,7 +21,7 @@
 
 Gobby is a local-first daemon that unifies your AI coding assistants—Claude Code, Gemini CLI, Cursor, Windsurf, Copilot, and Codex—under one persistent, extensible platform. It handles the stuff these tools forget: sessions that survive restarts, context that carries across compactions, declarative rules that keep agents from going off the rails, and an MCP proxy that doesn't eat half your context window just loading tool definitions.
 
-**Gobby is built with Gobby.** Most of this codebase was written by AI agents running through Gobby's own task system and workflows. Case in point: the entire OpenTelemetry observability stack (tracing, metrics, logging bridge, trace viewer UI) was built autonomously — 10 tasks dispatched across Gemini devs and Claude Opus reviewers, orchestrated by a cron-driven pipeline, completed in ~3 hours. Six infrastructure bugs were discovered and fixed live during the run. See [test-battery.md](test-battery.md) for the full story. Over 10,000 tasks have been tracked through Gobby's task system.
+**Gobby is built with Gobby.** Most of this codebase was written by AI agents running through Gobby's own task system and workflows — over 10,000 tasks tracked and counting. Case in point: the entire OpenTelemetry observability stack (tracing, metrics, logging bridge, trace viewer UI) was built autonomously — 10 tasks dispatched across Gemini devs and Claude Opus reviewers, orchestrated by a cron-driven pipeline, completed in ~3 hours with six infrastructure bugs discovered and fixed live. See [test-battery.md](test-battery.md) for the full story.
 
 Note: Gobby is currently in alpha. Expect rough edges and breaking changes until the first stable release.
 
