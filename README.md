@@ -118,16 +118,16 @@ No configuration needed — just use Claude Code's native task tools and Gobby h
 
 ### 📚 Skills System
 
-Reusable instructions that teach agents how to perform specific tasks. Compatible with the [Agent Skills specification](https://agentskills.io) and SkillPort.
+Reusable instruction sets that teach agents how to perform specific tasks. Skills follow the SKILL.md format and are managed through the database.
 
-- **Core skills** bundled with Gobby for tasks, sessions, memory, workflows
+- **Core skills** bundled with Gobby — synced to the database on daemon startup
 - **Project skills** in `.gobby/skills/` for team-specific patterns
-- **Install from anywhere** — GitHub repos, local paths, ZIP archives
-- **Search and discovery** — TF-IDF and semantic search across your skill library
+- **Auto-injection** — skills with `alwaysApply: true` inject into every session
+- **Search and discovery** — find relevant skills via MCP tools or CLI
 
 ```bash
-# Install a skill from GitHub
-gobby skills install github:user/repo/skills/my-skill
+# List installed skills
+gobby skills list
 
 # Search for relevant skills
 gobby skills search "testing coverage"
