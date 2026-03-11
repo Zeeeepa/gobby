@@ -306,16 +306,20 @@ def _get_service_status_macos() -> dict[str, Any]:
         running = False
         pid = None
         if loaded and result.stdout:
-            for line in result.stdout.splitlines():
-                line = line.strip()
-                if line.startswith("pid = "):
+            for raw_line in result.stdout.splitlines():
+                stripped = raw_line.strip()
+                # Only match top-level keys (single tab indent) to avoid
+                # nested subprocess `state = active` overwriting the
+                # service-level `state = running`.
+                is_top_level = raw_line.startswith("\t") and not raw_line.startswith("\t\t")
+                if stripped.startswith("pid = ") and is_top_level:
                     try:
-                        pid = int(line.split("=")[1].strip())
+                        pid = int(stripped.split("=")[1].strip())
                         running = True
                     except (ValueError, IndexError):
                         pass
-                elif line.startswith("state = "):
-                    state = line.split("=")[1].strip()
+                elif stripped.startswith("state = ") and is_top_level:
+                    state = stripped.split("=")[1].strip()
                     running = state == "running"
     except (subprocess.TimeoutExpired, OSError):
         loaded = False

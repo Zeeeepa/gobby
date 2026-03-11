@@ -623,9 +623,22 @@ class TestMacOSStatus:
         )
         mock_plist_path.return_value = plist_file
 
+        # Realistic launchctl print output with nested state = active lines
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout="pid = 12345\nstate = running\n",
+            stdout=(
+                "com.gobby.daemon = {\n"
+                "\tstate = running\n"
+                "\tprogram = /usr/bin/python3\n"
+                "\tpid = 12345\n"
+                "\tsubprocess = {\n"
+                "\t\tstate = active\n"
+                "\t}\n"
+                "\tanother = {\n"
+                "\t\tstate = active\n"
+                "\t}\n"
+                "}\n"
+            ),
             stderr="",
         )
 
@@ -634,6 +647,45 @@ class TestMacOSStatus:
         assert result["installed"] is True
         assert result["running"] is True
         assert result["pid"] == 12345
+
+    @patch("gobby.cli.installers.service.subprocess.run")
+    @patch("gobby.cli.installers.service._plist_path")
+    def test_status_nested_state_does_not_override(
+        self,
+        mock_plist_path: MagicMock,
+        mock_run: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Nested `state = active` lines don't override top-level `state = running`."""
+        from gobby.cli.installers.service import _get_service_status_macos
+
+        plist_file = tmp_path / LAUNCHD_PLIST_NAME
+        plist_file.write_text(
+            '<?xml version="1.0"?><plist><dict>'
+            "<key>ProgramArguments</key><array>"
+            f"<string>{sys.executable}</string>"
+            "</array>"
+            f"<key>WorkingDirectory</key><string>{tmp_path}</string>"
+            "</dict></plist>"
+        )
+        mock_plist_path.return_value = plist_file
+
+        # state = running first, then nested state = active (the bug scenario)
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                "\tstate = running\n"
+                "\tpid = 99999\n"
+                "\t\tstate = active\n"
+                "\t\tstate = active\n"
+            ),
+            stderr="",
+        )
+
+        result = _get_service_status_macos()
+
+        assert result["running"] is True
+        assert result["pid"] == 99999
 
 
 # ---------------------------------------------------------------------------
