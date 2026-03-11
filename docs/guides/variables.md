@@ -248,11 +248,11 @@ These functions are available in `when` conditions and provide higher-level chec
 | Function | Description |
 |----------|-------------|
 | `task_tree_complete(task_id)` | Check if a task and all subtasks are recursively complete. A task is complete if `closed` or `needs_review` (without `requires_user_review`). |
-| `task_needs_user_review(task_id)` | Check if task is in `needs_review` status AND has the `requires_user_review` flag set. |
+| `task_needs_human_review(task_id)` | Check if task is in `needs_review` status AND has the `requires_user_review` flag set. |
 
 ```yaml
 when: "task_tree_complete(variables.get('session_task'))"
-when: "task_needs_user_review(variables.get('auto_task_ref'))"
+when: "task_needs_human_review(variables.get('auto_task_ref'))"
 ```
 
 ### Stop Signal Helper

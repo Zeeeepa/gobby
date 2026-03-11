@@ -209,7 +209,7 @@ when: "event.data.get('source') in ['clear', 'compact']"
 ```yaml
 # Task helpers
 when: "task_tree_complete(variables.get('session_task'))"
-when: "task_needs_user_review(variables.get('auto_task_ref'))"
+when: "task_needs_human_review(variables.get('auto_task_ref'))"
 
 # Stop signal
 when: "has_stop_signal(session_id)"
