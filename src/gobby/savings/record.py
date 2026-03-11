@@ -81,8 +81,9 @@ def _get_tracker() -> Any:
             return tracker
 
         from gobby.savings.tracker import SavingsTracker
+        from gobby.storage.model_costs import ModelCostStore
 
-        tracker = SavingsTracker(db=ctx.database)
+        tracker = SavingsTracker(db=ctx.database, model_costs=ModelCostStore(ctx.database))
         ctx._savings_tracker = tracker  # type: ignore[attr-defined]
         return tracker
     except Exception:

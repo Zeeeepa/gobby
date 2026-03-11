@@ -138,6 +138,7 @@ def register_handoff_tools(
                     actual_chars=len(content),
                     session_id=session.id,
                     project_id=getattr(session, "project_id", None),
+                    model=getattr(session, "model", None),
                 )
             except Exception:
                 pass  # Best-effort
