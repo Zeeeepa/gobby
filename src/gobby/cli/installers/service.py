@@ -40,23 +40,48 @@ def _render_template(template_name: str, **context: Any) -> str:
 def _is_dev_mode() -> bool:
     """Check if running from a development install (source checkout with .venv).
 
-    Returns True if sys.executable is inside a project directory that
-    contains a pyproject.toml with the gobby project.
+    Returns True if:
+    1. sys.executable is inside a gobby project directory, OR
+    2. CWD is a gobby project directory with a .venv (covers globally
+       installed CLI being run from the source checkout)
     """
+    # Strategy 1: Check if sys.executable is inside a gobby project
     exe = Path(sys.executable).resolve()
-
-    # Walk up from the executable to find a pyproject.toml
     for parent in exe.parents:
         pyproject = parent / "pyproject.toml"
         if pyproject.exists():
-            try:
-                content = pyproject.read_text(encoding="utf-8")
-                if 'name = "gobby"' in content or "name = 'gobby'" in content:
-                    return True
-            except OSError:
-                pass
+            if _is_gobby_pyproject(pyproject):
+                return True
             break  # Only check the first pyproject.toml we find
-    return False
+
+    # Strategy 2: Check if CWD is a gobby project with a .venv
+    return _find_project_from_cwd() is not None
+
+
+def _is_gobby_pyproject(pyproject: Path) -> bool:
+    """Check if a pyproject.toml belongs to the gobby project."""
+    try:
+        content = pyproject.read_text(encoding="utf-8")
+        return 'name = "gobby"' in content or "name = 'gobby'" in content
+    except OSError:
+        return False
+
+
+def _find_project_from_cwd() -> Path | None:
+    """Find a gobby project root from CWD (or parents).
+
+    Returns the project root if CWD is inside a gobby source checkout
+    that has a .venv with a python3 executable. Returns None otherwise.
+    """
+    cwd = Path.cwd().resolve()
+    for directory in [cwd, *cwd.parents]:
+        pyproject = directory / "pyproject.toml"
+        venv_python = directory / ".venv" / "bin" / "python3"
+        if pyproject.exists() and venv_python.exists():
+            if _is_gobby_pyproject(pyproject):
+                return directory
+            break
+    return None
 
 
 def _resolve_install_context(*, verbose: bool = False) -> dict[str, str]:
@@ -78,14 +103,25 @@ def _resolve_install_context(*, verbose: bool = False) -> dict[str, str]:
     gobby_home = os.environ.get("GOBBY_HOME", "")
 
     if _is_dev_mode():
-        # Dev mode: working directory is the project root
+        # Dev mode: use the project .venv python, not the global one.
+        # First check if sys.executable is already inside the project,
+        # otherwise fall back to CWD-based detection.
         project_root = _find_project_root(exe)
+        dev_exe = exe
+
+        cwd_project = _find_project_from_cwd()
+        if cwd_project and project_root == Path.home():
+            # sys.executable is NOT in the project (global install),
+            # but CWD IS the project — use the project's .venv python
+            project_root = cwd_project
+            dev_exe = cwd_project / ".venv" / "bin" / "python3"
+
         return {
-            "python_executable": str(exe),
+            "python_executable": str(dev_exe),
             "working_directory": str(project_root),
             "mode": "dev",
             "home_dir": home_dir,
-            "path_env": _build_path(exe),
+            "path_env": _build_path(dev_exe),
             "log_file": log_file,
             "error_log_file": error_log_file,
             "gobby_home": gobby_home,
@@ -102,7 +138,7 @@ def _resolve_install_context(*, verbose: bool = False) -> dict[str, str]:
         "log_file": log_file,
         "error_log_file": error_log_file,
         "gobby_home": gobby_home,
-        "verbose": str(verbose).lower(),
+        "verbose": verbose,
     }
 
 

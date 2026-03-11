@@ -13,6 +13,7 @@ from gobby.cli.installers.service import (
     LAUNCHD_PLIST_NAME,
     SYSTEMD_UNIT_NAME,
     _build_path,
+    _find_project_from_cwd,
     _find_project_root,
     _is_dev_mode,
     _render_template,
@@ -160,8 +161,8 @@ class TestTemplateRendering:
 class TestDevModeDetection:
     """Test development mode detection logic."""
 
-    def test_is_dev_mode_with_pyproject(self, tmp_path: Path) -> None:
-        """Detects dev mode when pyproject.toml has gobby project."""
+    def test_is_dev_mode_exe_in_project_venv(self, tmp_path: Path) -> None:
+        """Detects dev mode when sys.executable is inside a gobby project .venv."""
         venv_bin = tmp_path / ".venv" / "bin"
         venv_bin.mkdir(parents=True)
         fake_exe = venv_bin / "python3"
@@ -174,13 +175,37 @@ class TestDevModeDetection:
             mock_sys.executable = str(fake_exe)
             assert _is_dev_mode() is True
 
+    def test_is_dev_mode_global_exe_in_project_cwd(self, tmp_path: Path) -> None:
+        """Detects dev mode when global CLI is run from a gobby project directory."""
+        # sys.executable is a global Python (not in a gobby project)
+        global_exe = tmp_path / "global" / "bin" / "python3"
+        global_exe.parent.mkdir(parents=True)
+        global_exe.touch()
+
+        # But CWD is a gobby project with .venv
+        project_dir = tmp_path / "project"
+        venv_bin = project_dir / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python3").touch()
+        (project_dir / "pyproject.toml").write_text('[project]\nname = "gobby"\n')
+
+        with (
+            patch("gobby.cli.installers.service.sys") as mock_sys,
+            patch("gobby.cli.installers.service.Path.cwd", return_value=project_dir),
+        ):
+            mock_sys.executable = str(global_exe)
+            assert _is_dev_mode() is True
+
     def test_is_dev_mode_without_pyproject(self, tmp_path: Path) -> None:
         """Not dev mode when no pyproject.toml found."""
         fake_exe = tmp_path / "bin" / "python3"
         fake_exe.parent.mkdir(parents=True)
         fake_exe.touch()
 
-        with patch("gobby.cli.installers.service.sys") as mock_sys:
+        with (
+            patch("gobby.cli.installers.service.sys") as mock_sys,
+            patch("gobby.cli.installers.service.Path.cwd", return_value=tmp_path),
+        ):
             mock_sys.executable = str(fake_exe)
             assert _is_dev_mode() is False
 
@@ -194,9 +219,56 @@ class TestDevModeDetection:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text('[project]\nname = "other-project"\n')
 
-        with patch("gobby.cli.installers.service.sys") as mock_sys:
+        with (
+            patch("gobby.cli.installers.service.sys") as mock_sys,
+            patch("gobby.cli.installers.service.Path.cwd", return_value=tmp_path),
+        ):
             mock_sys.executable = str(fake_exe)
             assert _is_dev_mode() is False
+
+
+class TestFindProjectFromCwd:
+    """Test CWD-based project detection."""
+
+    def test_finds_project_in_cwd(self, tmp_path: Path) -> None:
+        """Finds gobby project when CWD is the project root."""
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python3").touch()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "gobby"\n')
+
+        with patch("gobby.cli.installers.service.Path.cwd", return_value=tmp_path):
+            assert _find_project_from_cwd() == tmp_path
+
+    def test_finds_project_from_subdirectory(self, tmp_path: Path) -> None:
+        """Finds gobby project when CWD is a subdirectory."""
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python3").touch()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "gobby"\n')
+
+        subdir = tmp_path / "src" / "gobby"
+        subdir.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.service.Path.cwd", return_value=subdir):
+            assert _find_project_from_cwd() == tmp_path
+
+    def test_returns_none_without_venv(self, tmp_path: Path) -> None:
+        """Returns None when project has no .venv."""
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "gobby"\n')
+
+        with patch("gobby.cli.installers.service.Path.cwd", return_value=tmp_path):
+            assert _find_project_from_cwd() is None
+
+    def test_returns_none_for_non_gobby_project(self, tmp_path: Path) -> None:
+        """Returns None for a different project."""
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python3").touch()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "other"\n')
+
+        with patch("gobby.cli.installers.service.Path.cwd", return_value=tmp_path):
+            assert _find_project_from_cwd() is None
 
 
 class TestResolveInstallContext:
@@ -226,6 +298,32 @@ class TestResolveInstallContext:
             ctx = _resolve_install_context()
             assert ctx["mode"] == "dev"
             assert ctx["working_directory"] == str(tmp_path)
+
+    def test_resolve_dev_mode_via_cwd_uses_venv_python(self, tmp_path: Path) -> None:
+        """When global CLI runs from project dir, uses .venv python."""
+        # Global python (not in project)
+        global_exe = tmp_path / "global" / "bin" / "python3"
+        global_exe.parent.mkdir(parents=True)
+        global_exe.touch()
+
+        # Project with .venv
+        project_dir = tmp_path / "project"
+        venv_bin = project_dir / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        venv_python = venv_bin / "python3"
+        venv_python.touch()
+        (project_dir / "pyproject.toml").write_text('[project]\nname = "gobby"\n')
+
+        with (
+            patch("gobby.cli.installers.service._is_dev_mode", return_value=True),
+            patch("gobby.cli.installers.service._find_project_from_cwd", return_value=project_dir),
+            patch("gobby.cli.installers.service.sys") as mock_sys,
+        ):
+            mock_sys.executable = str(global_exe)
+            ctx = _resolve_install_context()
+            assert ctx["mode"] == "dev"
+            assert ctx["working_directory"] == str(project_dir)
+            assert ".venv/bin/python3" in ctx["python_executable"]
 
     def test_resolve_installed_mode_uses_home(self) -> None:
         """Installed mode sets working directory to $HOME."""
