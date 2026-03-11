@@ -1,0 +1,29 @@
+tags: [task-enforcement, enforcement, tasks, gobby, default]
+
+rules:
+  require-commit-before-status:
+    description: "Require linked commit and no dirty files before terminal status transitions"
+    event: before_tool
+    enabled: true
+    priority: 32
+    when: >
+      variables.get('require_commit_before_status') and 
+      (has_dirty_files or 
+      (not variables.get('task_has_commits') and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']))
+    effects:
+      - type: block
+        mcp_tools:
+          - "gobby-tasks:close_task"
+          - "gobby-tasks:mark_task_needs_review"
+          - "gobby-tasks:mark_task_review_approved"
+        reason: |
+          A commit is required before changing this task's status.
+          
+          You must commit your changes before marking as needs_review, review_approved, or closed.
+          If there are dirty files, commit them:
+          1. git add <files>
+          2. git commit -m "[{{ project.name }}-#N] description"
+          
+          If you have no code changes at all, pass a reason to skip the commit requirement:
+          close_task(task_id="#N", reason="obsolete")
+          Valid reasons: obsolete, duplicate, wont_fix, already_implemented, out_of_repo
