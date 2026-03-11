@@ -1,12 +1,14 @@
 """Pre-approve workspace trust for CLI agents.
 
-When spawning agents in clone or worktree directories, CLIs like Claude Code
-and Gemini show interactive trust prompts that block headless execution.
-This module pre-approves directories so those prompts never appear.
+When spawning agents in clone or worktree directories, CLIs show interactive
+trust prompts that block headless execution. This module pre-approves
+directories so those prompts never appear.
 
 Each CLI has a different trust mechanism:
-- Claude Code (+ Cursor, Windsurf, Copilot): ~/.claude/projects/<encoded-path>/
-- Gemini CLI: ~/.gemini/projects.json
+- Claude Code: ~/.claude/projects/<encoded-path>/ (directory existence = trust)
+- Cursor/Windsurf: Also use ~/.claude/projects/ (they embed Claude Code)
+- Copilot CLI: ~/.copilot/config.json trusted_folders array
+- Gemini CLI: ~/.gemini/trustedFolders.json + ~/.gemini/projects.json
 - Codex CLI: sandboxed via --full-auto, no trust needed
 """
 
@@ -19,19 +21,19 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Claude-compatible CLIs that use ~/.claude/projects/ for trust
-_CLAUDE_COMPATIBLE_CLIS = frozenset({"claude", "cursor", "windsurf", "copilot"})
+# CLIs that use Claude Code's ~/.claude/projects/ directory trust.
+# Cursor and Windsurf embed Claude Code, so they inherit its trust mechanism.
+_CLAUDE_COMPATIBLE_CLIS = frozenset({"claude", "cursor", "windsurf"})
 
 
 def _encode_claude_project_path(directory: str) -> str:
     """Encode a directory path into Claude's project directory name.
 
-    Claude Code uses the convention of replacing '/' with '-' and
-    dropping the leading slash.
+    Claude Code replaces '/' and '.' with '-'.
 
-    Example: /private/tmp/gobby-clones/foo -> -private-tmp-gobby-clones-foo
+    Example: /Users/josh/.gobby/clones/foo -> -Users-josh--gobby-clones-foo
     """
-    return directory.replace("/", "-")
+    return directory.replace("/", "-").replace(".", "-")
 
 
 def pre_approve_directory(cli: str, directory: str) -> None:
@@ -53,6 +55,9 @@ def pre_approve_directory(cli: str, directory: str) -> None:
     if cli in _CLAUDE_COMPATIBLE_CLIS:
         for path in paths:
             _pre_approve_claude(path)
+    elif cli == "copilot":
+        for path in paths:
+            _pre_approve_copilot(path)
     elif cli == "gemini":
         for path in paths:
             _pre_approve_gemini(path)
@@ -60,7 +65,7 @@ def pre_approve_directory(cli: str, directory: str) -> None:
 
 
 def _pre_approve_claude(directory: str) -> None:
-    """Pre-approve a directory for Claude Code and compatible CLIs.
+    """Pre-approve a directory for Claude Code (and Cursor/Windsurf).
 
     Creates the project directory under ~/.claude/projects/ if it doesn't
     exist. Claude treats directory existence as implicit trust.
@@ -79,34 +84,102 @@ def _pre_approve_claude(directory: str) -> None:
         logger.warning("Failed to pre-approve Claude trust for %s: %s", directory, e)
 
 
+def _pre_approve_copilot(directory: str) -> None:
+    """Pre-approve a directory for GitHub Copilot CLI.
+
+    Adds the directory to the trusted_folders array in
+    ~/.copilot/config.json (or $COPILOT_HOME/config.json).
+
+    See: https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/configure-copilot-cli
+    """
+    copilot_home = Path(os.environ.get("COPILOT_HOME", Path.home() / ".copilot"))
+    config_file = copilot_home / "config.json"
+
+    try:
+        if config_file.exists():
+            data = json.loads(config_file.read_text())
+            if not isinstance(data, dict):
+                logger.warning("Copilot config.json root is not a dict, resetting: %s", config_file)
+                data = {}
+        else:
+            copilot_home.mkdir(parents=True, exist_ok=True)
+            data = {}
+
+        trusted: list[str] = data.get("trusted_folders", [])
+        if not isinstance(trusted, list):
+            logger.warning(
+                "Copilot config.json trusted_folders is not a list, resetting: %s", config_file
+            )
+            trusted = []
+
+        if directory in trusted:
+            return
+
+        trusted.append(directory)
+        data["trusted_folders"] = trusted
+
+        config_file.write_text(json.dumps(data, indent=2) + "\n")
+        logger.info("Pre-approved Copilot CLI trust for %s", directory)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Failed to pre-approve Copilot trust for %s: %s", directory, e)
+
+
 def _pre_approve_gemini(directory: str) -> None:
     """Pre-approve a directory for Gemini CLI.
 
-    Adds the directory to ~/.gemini/projects.json which Gemini uses
-    to track known workspaces.
+    Writes to both:
+    - ~/.gemini/projects.json — workspace registry
+    - ~/.gemini/trustedFolders.json — actual folder trust (TRUST_PARENT)
+
+    Without the trustedFolders entry, Gemini shows an interactive trust
+    prompt that blocks headless agent execution.
     """
     gemini_home = Path.home() / ".gemini"
-    projects_file = gemini_home / "projects.json"
+    gemini_home.mkdir(parents=True, exist_ok=True)
 
+    # 1. Register in projects.json
+    projects_file = gemini_home / "projects.json"
     try:
         if projects_file.exists():
             data = json.loads(projects_file.read_text())
+            if not isinstance(data, dict):
+                logger.warning(
+                    "Gemini projects.json root is not a dict, resetting: %s", projects_file
+                )
+                data = {"projects": {}}
         else:
-            gemini_home.mkdir(parents=True, exist_ok=True)
             data = {"projects": {}}
 
         projects = data.get("projects") or {}
         if not isinstance(projects, dict):
             projects = {}
-        if directory in projects:
-            return
 
-        # Use the directory basename as the project name
-        project_name = Path(directory).name
-        projects[directory] = project_name
-        data["projects"] = projects
-
-        projects_file.write_text(json.dumps(data, indent=2) + "\n")
-        logger.info("Pre-approved Gemini workspace trust for %s", directory)
+        if directory not in projects:
+            project_name = Path(directory).name
+            projects[directory] = project_name
+            data["projects"] = projects
+            projects_file.write_text(json.dumps(data, indent=2) + "\n")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to pre-approve Gemini trust for %s: %s", directory, e)
+        logger.warning("Failed to update Gemini projects.json for %s: %s", directory, e)
+
+    # 2. Pre-trust in trustedFolders.json (the actual trust gate)
+    trust_file = gemini_home / "trustedFolders.json"
+    try:
+        if trust_file.exists():
+            raw = json.loads(trust_file.read_text())
+            if not isinstance(raw, dict):
+                logger.warning(
+                    "Gemini trustedFolders.json root is not a dict, resetting: %s", trust_file
+                )
+            trusted: dict[str, str] = raw if isinstance(raw, dict) else {}
+        else:
+            trusted = {}
+
+        if trusted.get(directory) == "TRUST_PARENT":
+            return  # Already fully trusted
+
+        trusted[directory] = "TRUST_PARENT"
+        trust_file.write_text(json.dumps(trusted, indent=2) + "\n")
+        logger.info("Pre-approved Gemini folder trust for %s", directory)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Failed to update Gemini trustedFolders.json for %s: %s", directory, e)

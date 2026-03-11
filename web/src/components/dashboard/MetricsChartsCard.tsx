@@ -1,0 +1,226 @@
+import { useState, useMemo } from 'react'
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts'
+import { useMetricSnapshots, type MetricSnapshot } from '../../hooks/useMetrics'
+
+type TimeRange = 1 | 6 | 12 | 24
+const TIME_RANGES: { value: TimeRange; label: string }[] = [
+  { value: 1, label: '1h' },
+  { value: 6, label: '6h' },
+  { value: 12, label: '12h' },
+  { value: 24, label: '24h' },
+]
+
+interface ChartPoint {
+  time: string
+  ts: number
+  // HTTP traffic
+  httpReqs: number
+  httpErrors: number
+  // MCP operations
+  mcpCalls: number
+  mcpErrors: number
+  // System resources
+  memoryMb: number
+  cpuPercent: number
+  // Latency
+  httpLatencyMs: number
+  mcpLatencyMs: number
+}
+
+function formatTime(ts: string): string {
+  const d = new Date(ts + 'Z')
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function getCounter(snap: MetricSnapshot, name: string): number {
+  return snap.metrics.counters?.[name]?.value ?? 0
+}
+
+function getGauge(snap: MetricSnapshot, name: string): number {
+  return snap.metrics.gauges?.[name]?.value ?? 0
+}
+
+function getHistogramAvg(snap: MetricSnapshot, name: string): number {
+  const h = snap.metrics.histograms?.[name]
+  if (!h || !h.count) return 0
+  return h.sum / h.count
+}
+
+function buildChartData(snapshots: MetricSnapshot[]): ChartPoint[] {
+  if (snapshots.length === 0) return []
+
+  const points: ChartPoint[] = []
+
+  for (let i = 0; i < snapshots.length; i++) {
+    const snap = snapshots[i]
+    const prev = i > 0 ? snapshots[i - 1] : null
+
+    // Delta computation for cumulative counters
+    const httpReqs = prev
+      ? Math.max(0, getCounter(snap, 'http_requests_total') - getCounter(prev, 'http_requests_total'))
+      : 0
+    const httpErrors = prev
+      ? Math.max(0, getCounter(snap, 'http_errors_total') - getCounter(prev, 'http_errors_total'))
+      : 0
+    const mcpCalls = prev
+      ? Math.max(0, getCounter(snap, 'mcp_tool_calls_total') - getCounter(prev, 'mcp_tool_calls_total'))
+      : 0
+    const mcpErrors = prev
+      ? Math.max(0, getCounter(snap, 'mcp_tool_errors_total') - getCounter(prev, 'mcp_tool_errors_total'))
+      : 0
+
+    points.push({
+      time: formatTime(snap.timestamp),
+      ts: new Date(snap.timestamp + 'Z').getTime(),
+      httpReqs,
+      httpErrors,
+      mcpCalls,
+      mcpErrors,
+      memoryMb: Math.round(getGauge(snap, 'daemon_memory_usage_bytes') / (1024 * 1024) * 10) / 10,
+      cpuPercent: Math.round(getGauge(snap, 'daemon_cpu_percent') * 10) / 10,
+      httpLatencyMs: Math.round(getHistogramAvg(snap, 'http_request_duration_seconds') * 1000 * 10) / 10,
+      mcpLatencyMs: Math.round(getHistogramAvg(snap, 'mcp_tool_call_duration_seconds') * 1000 * 10) / 10,
+    })
+  }
+
+  // Skip the first point since it has no delta
+  return points.slice(1)
+}
+
+const CHART_MARGIN = { top: 5, right: 10, left: 0, bottom: 5 }
+const GRID_STROKE = 'rgba(255,255,255,0.06)'
+const AXIS_STYLE = { fontSize: 10, fill: 'var(--text-secondary)' }
+
+function EmptyChart() {
+  return (
+    <div className="dash-chart-empty">
+      No metrics data yet. Snapshots are taken every 60s.
+    </div>
+  )
+}
+
+export function MetricsChartsCard() {
+  const [hours, setHours] = useState<TimeRange>(1)
+  const { data: snapshots, isLoading } = useMetricSnapshots(hours)
+  const chartData = useMemo(() => buildChartData(snapshots), [snapshots])
+
+  const hasData = chartData.length > 0
+
+  return (
+    <div className="dash-card dash-card--full">
+      <div className="dash-card-header">
+        <h3 className="dash-card-title">Metrics</h3>
+        <div className="dash-time-range">
+          {TIME_RANGES.map(({ value, label }) => (
+            <button
+              key={value}
+              className={`dash-time-range-btn${hours === value ? ' dash-time-range-btn--active' : ''}`}
+              onClick={() => setHours(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="dash-card-body">
+        {isLoading && !hasData ? (
+          <div className="dash-loading" style={{ padding: '20px' }}>Loading metrics...</div>
+        ) : (
+          <div className="dash-chart-grid">
+            {/* HTTP Traffic */}
+            <div className="dash-chart-cell">
+              <div className="dash-chart-label">HTTP Traffic (per interval)</div>
+              {hasData ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <AreaChart data={chartData} margin={CHART_MARGIN}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                    <XAxis dataKey="time" tick={AXIS_STYLE} interval="preserveStartEnd" />
+                    <YAxis tick={AXIS_STYLE} width={35} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 12 }}
+                    />
+                    <Area type="monotone" dataKey="httpReqs" name="Requests" stroke="#3b82f6" fill="rgba(59,130,246,0.15)" />
+                    <Area type="monotone" dataKey="httpErrors" name="Errors" stroke="#ef4444" fill="rgba(239,68,68,0.15)" />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : <EmptyChart />}
+            </div>
+
+            {/* MCP Operations */}
+            <div className="dash-chart-cell">
+              <div className="dash-chart-label">MCP Operations (per interval)</div>
+              {hasData ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <AreaChart data={chartData} margin={CHART_MARGIN}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                    <XAxis dataKey="time" tick={AXIS_STYLE} interval="preserveStartEnd" />
+                    <YAxis tick={AXIS_STYLE} width={35} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 12 }}
+                    />
+                    <Area type="monotone" dataKey="mcpCalls" name="Calls" stroke="#8b5cf6" fill="rgba(139,92,246,0.15)" />
+                    <Area type="monotone" dataKey="mcpErrors" name="Errors" stroke="#ef4444" fill="rgba(239,68,68,0.15)" />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : <EmptyChart />}
+            </div>
+
+            {/* System Resources */}
+            <div className="dash-chart-cell">
+              <div className="dash-chart-label">System Resources</div>
+              {hasData ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={chartData} margin={CHART_MARGIN}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                    <XAxis dataKey="time" tick={AXIS_STYLE} interval="preserveStartEnd" />
+                    <YAxis yAxisId="mem" tick={AXIS_STYLE} width={35} />
+                    <YAxis yAxisId="cpu" orientation="right" tick={AXIS_STYLE} width={35} unit="%" />
+                    <Tooltip
+                      contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 12 }}
+                    />
+                    <Line yAxisId="mem" type="monotone" dataKey="memoryMb" name="Memory (MB)" stroke="#22c55e" dot={false} />
+                    <Line yAxisId="cpu" type="monotone" dataKey="cpuPercent" name="CPU (%)" stroke="#f59e0b" dot={false} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : <EmptyChart />}
+            </div>
+
+            {/* Operation Latency */}
+            <div className="dash-chart-cell">
+              <div className="dash-chart-label">Avg Latency (ms)</div>
+              {hasData ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={chartData} margin={CHART_MARGIN}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                    <XAxis dataKey="time" tick={AXIS_STYLE} interval="preserveStartEnd" />
+                    <YAxis tick={AXIS_STYLE} width={35} />
+                    <Tooltip
+                      contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 12 }}
+                    />
+                    <Line type="monotone" dataKey="httpLatencyMs" name="HTTP" stroke="#3b82f6" dot={false} />
+                    <Line type="monotone" dataKey="mcpLatencyMs" name="MCP" stroke="#8b5cf6" dot={false} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : <EmptyChart />}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pydantic
+from opentelemetry.trace import Status, StatusCode
 
 from gobby.hooks.event_handlers._tool import EDIT_TOOLS
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
@@ -21,6 +22,7 @@ from gobby.storage.workflow_definitions import (
     LocalWorkflowDefinitionManager,
     WorkflowDefinitionRow,
 )
+from gobby.telemetry.tracing import create_span
 from gobby.workflows.definitions import (
     RuleDefinitionBody,
     RuleEffect,
@@ -109,280 +111,324 @@ class RuleEngine:
         Returns:
             HookResponse with merged results from all matching rules.
         """
-        rule_event = _EVENT_TYPE_MAP.get(event.event_type)
-        if rule_event is None:
-            return HookResponse(decision="allow")
+        with create_span(
+            "rules.evaluate",
+            attributes={"event_type": str(event.event_type), "session_id": session_id},
+        ) as span:
+            try:
+                rule_event = _EVENT_TYPE_MAP.get(event.event_type)
+                if rule_event is None:
+                    return HookResponse(decision="allow")
 
-        # Check global enforcement toggle
-        config_store = ConfigStore(self.db)
-        if config_store.get("rules.enforcement_enabled") is False:
-            return HookResponse(decision="allow")
+                # Check global enforcement toggle
+                config_store = ConfigStore(self.db)
+                if config_store.get("rules.enforcement_enabled") is False:
+                    return HookResponse(decision="allow")
 
-        # Auto-track consecutive tool blocks (universal safety — not configurable)
-        # Only escalate when the SAME tool is retried — different tools reset the counter
-        # so the agent can recover by using other tools (Read, Bash, etc.).
-        if rule_event == RuleEvent.BEFORE_TOOL and variables.get("tool_block_pending"):
-            tool_name = _get_tool_identity(event.data)
-            last_blocked = variables.get("_last_blocked_tool", "")
-            if tool_name == last_blocked:
-                count = variables.get("consecutive_tool_blocks", 0) + 1
-                variables["consecutive_tool_blocks"] = count
-                if count >= 2:
-                    return HookResponse(
-                        decision="block",
-                        reason=(
-                            "Rule enforced by Gobby: [consecutive-tool-block]\n"
-                            f"You have attempted {tool_name} {count + 1} times consecutively "
-                            "without addressing the error.\n"
-                            "STOP retrying the same action. Read the previous error messages "
-                            "and take a DIFFERENT action to resolve the underlying issue first."
-                        ),
-                    )
-            else:
-                # Different tool — reset counter, let it through to rule evaluation
-                variables["consecutive_tool_blocks"] = 0
-        # Track edit/write attempts — set pending on pre-tool
-        if rule_event == RuleEvent.BEFORE_TOOL:
-            tool_name_lower = event.data.get("tool_name", "").lower()
-            if tool_name_lower in EDIT_TOOLS:
-                variables["edit_write_pending"] = True
-
-        elif rule_event == RuleEvent.BEFORE_AGENT:
-            variables["consecutive_tool_blocks"] = 0
-            variables["_last_blocked_tool"] = ""
-            variables["tool_block_pending"] = False
-            variables["stop_attempts"] = 0
-
-        # Auto-increment stop attempts (universal — not configurable)
-        if rule_event == RuleEvent.STOP:
-            variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
-            logger.debug(
-                "STOP gate diagnostics: session_id=%s, auto_task_ref=%r, "
-                "stop_attempts=%s, task_claimed=%s, claimed_tasks=%s, "
-                "pre_existing_errors_triaged=%s, error_triage_blocks=%s",
-                session_id,
-                variables.get("auto_task_ref"),
-                variables["stop_attempts"],
-                variables.get("task_claimed"),
-                variables.get("claimed_tasks"),
-                variables.get("pre_existing_errors_triaged"),
-                variables.get("error_triage_blocks", 0),
-            )
-
-        # 1. Load enabled rules for this event, sorted by priority
-        rules = self._load_rules(rule_event)
-
-        # 2. Apply session overrides
-        overrides = self._load_session_overrides(session_id)
-        rules = self._apply_overrides(rules, overrides)
-
-        # 3. Filter by agent_scope
-        agent_type = variables.get("_agent_type")
-        rules = self._filter_by_agent_scope(rules, agent_type)
-
-        # 4. Filter by active rules (selector-based)
-        rules = self._filter_by_active_rules(rules, variables)
-
-        # 4b. Step-level tool enforcement (preempts declarative rules)
-        if rule_event == RuleEvent.BEFORE_TOOL:
-            step_block = self._check_step_tool_enforcement(event, session_id)
-            if step_block is not None:
-                variables["tool_block_pending"] = True
-                variables["_last_blocked_tool"] = _get_tool_identity(event.data)
-                return step_block
-
-        # 4c. Step workflow transition processing (after successful MCP tool calls)
-        if rule_event == RuleEvent.AFTER_TOOL:
-            self._process_step_after_tool(event, session_id, variables)
-
-        # Deferred overrides — these used to early-return, but that skipped rule
-        # evaluation entirely, preventing mcp_call effects (like digest-on-response)
-        # from being collected. Now we record the override and let the loop run.
-        override_decision: str | None = None
-        override_reason: str | None = None
-
-        # Force-allow stop (catastrophic failure bypass — self-clearing)
-        if rule_event == RuleEvent.STOP and variables.get("force_allow_stop"):
-            variables["force_allow_stop"] = False
-            override_decision = "allow"
-
-        # Auto-block stop when a tool just failed (self-clearing)
-        elif rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
-            variables["tool_block_pending"] = False
-            override_decision = "block"
-            override_reason = (
-                "Rule enforced by Gobby: [tool-failure-recovery]\n"
-                "A tool just failed. Read the error and recover — do not stop."
-            )
-
-        # Block stop when edit/write is pending (failed or in-flight)
-        elif rule_event == RuleEvent.STOP and variables.get("edit_write_pending"):
-            edit_stop_blocks = variables.get("edit_write_stop_blocks", 0)
-            if edit_stop_blocks < 3:  # Circuit breaker
-                variables["edit_write_stop_blocks"] = edit_stop_blocks + 1
-                override_decision = "block"
-                override_reason = (
-                    "Rule enforced by Gobby: [edit-write-recovery]\n"
-                    "Your last Edit/Write attempt failed. "
-                    "Read the error and retry — do not stop."
-                )
-            else:
-                # Circuit breaker tripped — clear and allow stop
-                _clear_edit_write_state(variables)
-
-        if not rules:
-            # Auto-manage tool_block_pending on after_tool
-            # (Symmetric with auto-set on before_tool block at line ~164)
-            if rule_event == RuleEvent.AFTER_TOOL:
-                is_failure = event.metadata.get("is_failure", False) or event.data.get(
-                    "is_error", False
-                )
-                if is_failure:
-                    variables["tool_block_pending"] = True
-                    self._check_catastrophic_failure(event, variables)
-                else:
-                    if variables.get("tool_block_pending"):
-                        variables["tool_block_pending"] = False
+                # Auto-track consecutive tool blocks (universal safety — not configurable)
+                # Only escalate when the SAME tool is retried — different tools reset the counter
+                # so the agent can recover by using other tools (Read, Bash, etc.).
+                if rule_event == RuleEvent.BEFORE_TOOL and variables.get("tool_block_pending"):
+                    tool_name = _get_tool_identity(event.data)
+                    last_blocked = variables.get("_last_blocked_tool", "")
+                    if tool_name == last_blocked:
+                        count = variables.get("consecutive_tool_blocks", 0) + 1
+                        variables["consecutive_tool_blocks"] = count
+                        if count >= 2:
+                            resp = HookResponse(
+                                decision="block",
+                                reason=(
+                                    "Rule enforced by Gobby: [consecutive-tool-block]\n"
+                                    f"You have attempted {tool_name} {count + 1} times consecutively "
+                                    "without addressing the error.\n"
+                                    "STOP retrying the same action. Read the previous error messages "
+                                    "and take a DIFFERENT action to resolve the underlying issue first."
+                                ),
+                            )
+                            if span.is_recording():
+                                span.set_attribute("final_decision", resp.decision)
+                                span.set_attribute("block_reason", resp.reason)
+                            return resp
+                    else:
+                        # Different tool — reset counter, let it through to rule evaluation
                         variables["consecutive_tool_blocks"] = 0
-                        variables["_last_blocked_tool"] = ""
-                    # Clear edit_write_pending on successful edit/write
+                # Track edit/write attempts — set pending on pre-tool
+                if rule_event == RuleEvent.BEFORE_TOOL:
                     tool_name_lower = event.data.get("tool_name", "").lower()
-                    if tool_name_lower in EDIT_TOOLS and not is_failure:
-                        _clear_edit_write_state(variables)
-            # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
-            # even when no declarative rules are installed for this event.
-            if override_decision == "block":
-                return HookResponse(decision="block", reason=override_reason or "")
-            if override_decision == "allow":
-                return HookResponse(decision="allow")
-            return HookResponse(decision="allow")
+                    if tool_name_lower in EDIT_TOOLS:
+                        variables["edit_write_pending"] = True
 
-        # Auto-manage tool_block_pending on after_tool before rule eval
-        # (Symmetric with auto-set on before_tool block at line ~164)
-        if rule_event == RuleEvent.AFTER_TOOL:
-            is_failure = event.metadata.get("is_failure", False) or event.data.get(
-                "is_error", False
-            )
-            if is_failure:
-                variables["tool_block_pending"] = True
-                self._check_catastrophic_failure(event, variables)
-            else:
-                if variables.get("tool_block_pending"):
-                    variables["tool_block_pending"] = False
+                elif rule_event == RuleEvent.BEFORE_AGENT:
                     variables["consecutive_tool_blocks"] = 0
                     variables["_last_blocked_tool"] = ""
-                # Clear edit_write_pending on successful edit/write
-                tool_name_lower = event.data.get("tool_name", "").lower()
-                if tool_name_lower in EDIT_TOOLS and not is_failure:
-                    _clear_edit_write_state(variables)
+                    variables["tool_block_pending"] = False
+                    variables["stop_attempts"] = 0
 
-        # 5. Evaluate rules in priority order
-        context_parts: list[str] = []
-        mcp_calls: list[dict[str, Any]] = []
-        block_reason: str | None = None
+                # Auto-increment stop attempts (universal — not configurable)
+                if rule_event == RuleEvent.STOP:
+                    variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
+                    logger.debug(
+                        "STOP gate diagnostics: session_id=%s, auto_task_ref=%r, "
+                        "stop_attempts=%s, task_claimed=%s, claimed_tasks=%s, "
+                        "pre_existing_errors_triaged=%s, error_triage_blocks=%s",
+                        session_id,
+                        variables.get("auto_task_ref"),
+                        variables["stop_attempts"],
+                        variables.get("task_claimed"),
+                        variables.get("claimed_tasks"),
+                        variables.get("pre_existing_errors_triaged"),
+                        variables.get("error_triage_blocks", 0),
+                    )
 
-        for _row, body in rules:
-            # Pre-filter: skip rule if tools field doesn't match current tool
-            if body.tools:
-                tool_name = event.data.get("tool_name", "")
-                if tool_name not in body.tools:
-                    continue
+                # 1. Load enabled rules for this event, sorted by priority
+                rules = self._load_rules(rule_event)
 
-            # Build fresh eval context with current variables
-            ctx = self._build_eval_context(event, variables, eval_context)
+                # 2. Apply session overrides
+                overrides = self._load_session_overrides(session_id)
+                rules = self._apply_overrides(rules, overrides)
 
-            # Build allowed_funcs once per iteration — shared by condition and templates
-            allowed_funcs = self._build_allowed_funcs(ctx)
+                # 3. Filter by agent_scope
+                agent_type = variables.get("_agent_type")
+                rules = self._filter_by_agent_scope(rules, agent_type)
 
-            # Check rule-level `when` condition
-            if body.when:
-                # Use first effect type for fail-open/closed heuristic
-                first_type = body.resolved_effects[0].type if body.resolved_effects else "block"
-                if not self._evaluate_condition(body.when, ctx, first_type, allowed_funcs):
-                    continue
+                # 4. Filter by active rules (selector-based)
+                rules = self._filter_by_active_rules(rules, variables)
 
-            # Process effects: non-block effects first, then block (if any)
-            effects = body.resolved_effects
-            deferred_block: RuleEffect | None = None
+                if span.is_recording():
+                    span.set_attribute("rule_count", len(rules))
 
-            for effect in effects:
-                # Check per-effect `when` condition
-                if effect.when:
-                    if not self._evaluate_condition(effect.when, ctx, effect.type, allowed_funcs):
-                        continue
-
-                if effect.type == "block":
-                    # Defer block to after all sibling non-block effects
-                    deferred_block = effect
-                    continue
-
-                # Apply non-block effects immediately
-                self._apply_effect(
-                    effect, _row, variables, ctx, allowed_funcs, context_parts, mcp_calls
-                )
-
-            # Now apply deferred block (if any)
-            if deferred_block is not None:
-                if self._should_block(deferred_block, event):
-                    block_reason = deferred_block.reason or "Blocked by rule"
-                    block_reason = self._render_template(block_reason, ctx, allowed_funcs)
-                    block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
-                    # Auto-set tool_block_pending on before_tool blocks
-                    if rule_event == RuleEvent.BEFORE_TOOL:
+                # 4b. Step-level tool enforcement (preempts declarative rules)
+                if rule_event == RuleEvent.BEFORE_TOOL:
+                    step_block = self._check_step_tool_enforcement(event, session_id)
+                    if step_block is not None:
                         variables["tool_block_pending"] = True
                         variables["_last_blocked_tool"] = _get_tool_identity(event.data)
-                    # First block wins — stop evaluating
-                    break
+                        if span.is_recording():
+                            span.set_attribute("final_decision", step_block.decision)
+                            span.set_attribute("block_reason", step_block.reason)
+                        return step_block
 
-        # 6. Build response — overrides take precedence over rule-evaluated decisions,
-        # but the rule loop always runs so mcp_calls are always collected.
-        ctx_str = "\n\n".join(context_parts) if context_parts else None
-        meta = {"mcp_calls": mcp_calls} if mcp_calls else {}
+                # 4c. Step workflow transition processing (after successful MCP tool calls)
+                if rule_event == RuleEvent.AFTER_TOOL:
+                    self._process_step_after_tool(event, session_id, variables)
 
-        # Propagate rewrite_input from variables to response
-        rewrite_meta = variables.pop("_rewrite_input", None)
-        modified_input: dict[str, Any] | None = None
-        auto_approve = False
-        if rewrite_meta and isinstance(rewrite_meta, dict):
-            modified_input = rewrite_meta.get("input_updates")
-            auto_approve = rewrite_meta.get("auto_approve", False)
+                # Deferred overrides — these used to early-return, but that skipped rule
+                # evaluation entirely, preventing mcp_call effects (like digest-on-response)
+                # from being collected. Now we record the override and let the loop run.
+                override_decision: str | None = None
+                override_reason: str | None = None
 
-        # Propagate compress_output directive to metadata
-        compress_meta = variables.pop("_compress_output", None)
-        if compress_meta and isinstance(compress_meta, dict):
-            meta["compression"] = compress_meta
+                # Force-allow stop (catastrophic failure bypass — self-clearing)
+                if rule_event == RuleEvent.STOP and variables.get("force_allow_stop"):
+                    variables["force_allow_stop"] = False
+                    override_decision = "allow"
 
-        if override_decision == "block":
-            return HookResponse(
-                decision="block",
-                reason=override_reason or "",
-                context=ctx_str,
-                metadata=meta,
-            )
-        if override_decision == "allow":
-            return HookResponse(
-                decision="allow",
-                context=ctx_str,
-                metadata=meta,
-                modified_input=modified_input,
-                auto_approve=auto_approve,
-            )
+                # Auto-block stop when a tool just failed (self-clearing)
+                elif rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
+                    variables["tool_block_pending"] = False
+                    override_decision = "block"
+                    override_reason = (
+                        "Rule enforced by Gobby: [tool-failure-recovery]\n"
+                        "A tool just failed. Read the error and recover — do not stop."
+                    )
 
-        if block_reason:
-            return HookResponse(
-                decision="block",
-                reason=block_reason,
-                context=ctx_str,
-                metadata=meta,
-            )
+                # Block stop when edit/write is pending (failed or in-flight)
+                elif rule_event == RuleEvent.STOP and variables.get("edit_write_pending"):
+                    edit_stop_blocks = variables.get("edit_write_stop_blocks", 0)
+                    if edit_stop_blocks < 3:  # Circuit breaker
+                        variables["edit_write_stop_blocks"] = edit_stop_blocks + 1
+                        override_decision = "block"
+                        override_reason = (
+                            "Rule enforced by Gobby: [edit-write-recovery]\n"
+                            "Your last Edit/Write attempt failed. "
+                            "Read the error and retry — do not stop."
+                        )
+                    else:
+                        # Circuit breaker tripped — clear and allow stop
+                        _clear_edit_write_state(variables)
 
-        return HookResponse(
-            decision="allow",
-            context=ctx_str,
-            metadata=meta,
-            modified_input=modified_input,
-            auto_approve=auto_approve,
-        )
+                if not rules:
+                    # Auto-manage tool_block_pending on after_tool
+                    # (Symmetric with auto-set on before_tool block at line ~164)
+                    if rule_event == RuleEvent.AFTER_TOOL:
+                        is_failure = event.metadata.get("is_failure", False) or event.data.get(
+                            "is_error", False
+                        )
+                        if is_failure:
+                            variables["tool_block_pending"] = True
+                            self._check_catastrophic_failure(event, variables)
+                        else:
+                            # Clear tool_block_pending on successful tool completion
+                            variables["tool_block_pending"] = False
+                            variables["_last_blocked_tool"] = ""
+                            variables["consecutive_tool_blocks"] = 0
+
+                            # Clear edit_write_pending on successful edit/write
+                            tool_name_lower = event.data.get("tool_name", "").lower()
+                            if tool_name_lower in EDIT_TOOLS and not is_failure:
+                                _clear_edit_write_state(variables)
+                    # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
+                    # even when no declarative rules are installed for this event.
+                    if override_decision == "block":
+                        resp = HookResponse(decision="block", reason=override_reason or "")
+                    elif override_decision == "allow":
+                        resp = HookResponse(decision="allow")
+                    else:
+                        resp = HookResponse(decision="allow")
+
+                    if span.is_recording():
+                        span.set_attribute("final_decision", resp.decision)
+                        if resp.reason:
+                            span.set_attribute("block_reason", resp.reason)
+                    return resp
+
+                # Auto-manage tool_block_pending on after_tool before rule eval
+                # (Symmetric with auto-set on before_tool block at line ~164)
+                if rule_event == RuleEvent.AFTER_TOOL:
+                    is_failure = event.metadata.get("is_failure", False) or event.data.get(
+                        "is_error", False
+                    )
+                    if is_failure:
+                        variables["tool_block_pending"] = True
+                        self._check_catastrophic_failure(event, variables)
+                    else:
+                        # Clear tool_block_pending on successful tool completion
+                        variables["tool_block_pending"] = False
+                        variables["_last_blocked_tool"] = ""
+                        variables["consecutive_tool_blocks"] = 0
+
+                        # Clear edit_write_pending on successful edit/write
+                        tool_name_lower = event.data.get("tool_name", "").lower()
+                        if tool_name_lower in EDIT_TOOLS and not is_failure:
+                            _clear_edit_write_state(variables)
+
+                # 5. Evaluate rules in priority order
+                context_parts: list[str] = []
+                mcp_calls: list[dict[str, Any]] = []
+                block_reason: str | None = None
+
+                for _row, body in rules:
+                    # Pre-filter: skip rule if tools field doesn't match current tool
+                    if body.tools:
+                        tool_name = event.data.get("tool_name", "")
+                        if tool_name not in body.tools:
+                            continue
+
+                    # Build fresh eval context with current variables
+                    ctx = self._build_eval_context(event, variables, eval_context)
+
+                    # Build allowed_funcs once per iteration — shared by condition and templates
+                    allowed_funcs = self._build_allowed_funcs(ctx)
+
+                    # Check rule-level `when` condition
+                    if body.when:
+                        # Use first effect type for fail-open/closed heuristic
+                        first_type = (
+                            body.resolved_effects[0].type if body.resolved_effects else "block"
+                        )
+                        if not self._evaluate_condition(body.when, ctx, first_type, allowed_funcs):
+                            continue
+
+                    # Process effects: non-block effects first, then block (if any)
+                    effects = body.resolved_effects
+                    deferred_block: RuleEffect | None = None
+
+                    for effect in effects:
+                        # Check per-effect `when` condition
+                        if effect.when:
+                            if not self._evaluate_condition(
+                                effect.when, ctx, effect.type, allowed_funcs
+                            ):
+                                continue
+
+                        if effect.type == "block":
+                            # Defer block to after all sibling non-block effects
+                            deferred_block = effect
+                            continue
+
+                        # Apply non-block effects immediately
+                        self._apply_effect(
+                            effect,
+                            _row,
+                            variables,
+                            ctx,
+                            allowed_funcs,
+                            context_parts,
+                            mcp_calls,
+                        )
+
+                    # Now apply deferred block (if any)
+                    if deferred_block is not None:
+                        if self._should_block(deferred_block, event):
+                            block_reason = deferred_block.reason or "Blocked by rule"
+                            block_reason = self._render_template(block_reason, ctx, allowed_funcs)
+                            block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
+                            # Auto-set tool_block_pending on before_tool blocks
+                            if rule_event == RuleEvent.BEFORE_TOOL:
+                                variables["tool_block_pending"] = True
+                                variables["_last_blocked_tool"] = _get_tool_identity(event.data)
+                            # First block wins — stop evaluating
+                            break
+
+                # 6. Build response — overrides take precedence over rule-evaluated decisions,
+                # but the rule loop always runs so mcp_calls are always collected.
+                ctx_str = "\n\n".join(context_parts) if context_parts else None
+                meta = {"mcp_calls": mcp_calls} if mcp_calls else {}
+
+                # Propagate rewrite_input from variables to response
+                rewrite_meta = variables.pop("_rewrite_input", None)
+                modified_input: dict[str, Any] | None = None
+                auto_approve = False
+                if rewrite_meta and isinstance(rewrite_meta, dict):
+                    modified_input = rewrite_meta.get("input_updates")
+                    auto_approve = rewrite_meta.get("auto_approve", False)
+
+                # Propagate compress_output directive to metadata
+                compress_meta = variables.pop("_compress_output", None)
+                if compress_meta and isinstance(compress_meta, dict):
+                    meta["compression"] = compress_meta
+
+                if override_decision == "block":
+                    resp = HookResponse(
+                        decision="block",
+                        reason=override_reason or "",
+                        context=ctx_str,
+                        metadata=meta,
+                    )
+                elif override_decision == "allow":
+                    resp = HookResponse(
+                        decision="allow",
+                        context=ctx_str,
+                        metadata=meta,
+                        modified_input=modified_input,
+                        auto_approve=auto_approve,
+                    )
+                elif block_reason:
+                    resp = HookResponse(
+                        decision="block",
+                        reason=block_reason,
+                        context=ctx_str,
+                        metadata=meta,
+                    )
+                else:
+                    resp = HookResponse(
+                        decision="allow",
+                        context=ctx_str,
+                        metadata=meta,
+                        modified_input=modified_input,
+                        auto_approve=auto_approve,
+                    )
+
+                if span.is_recording():
+                    span.set_attribute("final_decision", resp.decision)
+                    if resp.reason:
+                        span.set_attribute("block_reason", resp.reason)
+                return resp
+            except Exception as e:
+                if span.is_recording():
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+                raise
 
     def _load_rules(
         self, rule_event: RuleEvent
@@ -961,14 +1007,13 @@ class RuleEngine:
         is_app_failure = False
         if isinstance(tool_output, dict):
             # Direct: tool returned {success: false, ...}
-            if tool_output.get("success") is False:
+            if tool_output.get("success") is False or bool(tool_output.get("error")):
                 is_app_failure = True
             # Nested: proxy returned {success: true, result: {success: false, ...}}
-            elif (
-                isinstance(tool_output.get("result"), dict)
-                and tool_output["result"].get("success") is False
-            ):
-                is_app_failure = True
+            elif isinstance(tool_output.get("result"), dict):
+                result_dict = tool_output["result"]
+                if result_dict.get("success") is False or bool(result_dict.get("error")):
+                    is_app_failure = True
 
         handlers = step.on_mcp_error if is_app_failure else step.on_mcp_success
 

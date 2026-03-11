@@ -406,7 +406,9 @@ class TestEnsureDaemonRunning:
                         return_value={"success": True},
                     ) as mock_restart:
                         with patch("gobby.mcp_proxy.stdio.get_daemon_pid", return_value=12345):
-                            with patch("gobby.mcp_proxy.stdio.asyncio.sleep", new_callable=AsyncMock):
+                            with patch(
+                                "gobby.mcp_proxy.stdio.asyncio.sleep", new_callable=AsyncMock
+                            ):
                                 from gobby.mcp_proxy.stdio import ensure_daemon_running
 
                                 await ensure_daemon_running()

@@ -106,17 +106,10 @@ class Task:
     validation_status: Literal["pending", "valid", "invalid"] | None = None
     validation_feedback: str | None = None
     category: str | None = None
-    complexity_score: int | None = None
-    estimated_subtasks: int | None = None
     expansion_context: str | None = None
     validation_criteria: str | None = None
-    use_external_validator: bool = False
     validation_fail_count: int = 0
     validation_override_reason: str | None = None  # Why agent bypassed validation
-    # Workflow integration fields
-    workflow_name: str | None = None
-    verification: str | None = None
-    sequence_order: int | None = None
     # Commit linking
     commits: list[str] | None = None
     # Escalation fields
@@ -132,17 +125,8 @@ class Task:
     # Human-friendly ID fields (task renumbering)
     seq_num: int | None = None
     path_cache: str | None = None
-    # Agent configuration
-    agent_name: str | None = None  # Subagent config file to use for this task
-    # Spec traceability
-    reference_doc: str | None = None  # Path to source specification document
-    # Processing flags for idempotent operations
-    is_expanded: bool = False  # Subtasks have been created
     # Skill-based expansion status (for new /gobby-expand flow)
     expansion_status: Literal["none", "pending", "completed"] = "none"
-    # Review status fields (HITL support)
-    requires_user_review: bool = False  # Task requires user sign-off before closing
-    accepted_by_user: bool = False  # Set True when user moves review → closed
     # Scheduling fields (Gantt chart)
     start_date: str | None = None
     due_date: str | None = None
@@ -189,14 +173,9 @@ class Task:
                 row["validation_feedback"] if "validation_feedback" in keys else None
             ),
             category=row["category"] if "category" in keys else None,
-            complexity_score=row["complexity_score"] if "complexity_score" in keys else None,
-            estimated_subtasks=row["estimated_subtasks"] if "estimated_subtasks" in keys else None,
             expansion_context=row["expansion_context"] if "expansion_context" in keys else None,
             validation_criteria=(
                 row["validation_criteria"] if "validation_criteria" in keys else None
-            ),
-            use_external_validator=(
-                bool(row["use_external_validator"]) if "use_external_validator" in keys else False
             ),
             validation_fail_count=(
                 row["validation_fail_count"] if "validation_fail_count" in keys else 0
@@ -204,9 +183,6 @@ class Task:
             validation_override_reason=(
                 row["validation_override_reason"] if "validation_override_reason" in keys else None
             ),
-            workflow_name=row["workflow_name"] if "workflow_name" in keys else None,
-            verification=row["verification"] if "verification" in keys else None,
-            sequence_order=row["sequence_order"] if "sequence_order" in keys else None,
             commits=json.loads(row["commits"]) if "commits" in keys and row["commits"] else None,
             escalated_at=row["escalated_at"] if "escalated_at" in keys else None,
             escalation_reason=row["escalation_reason"] if "escalation_reason" in keys else None,
@@ -219,19 +195,10 @@ class Task:
             linear_team_id=row["linear_team_id"] if "linear_team_id" in keys else None,
             seq_num=row["seq_num"] if "seq_num" in keys else None,
             path_cache=row["path_cache"] if "path_cache" in keys else None,
-            agent_name=row["agent_name"] if "agent_name" in keys else None,
-            reference_doc=row["reference_doc"] if "reference_doc" in keys else None,
-            is_expanded=bool(row["is_expanded"]) if "is_expanded" in keys else False,
             expansion_status=(
                 row["expansion_status"]
                 if "expansion_status" in keys and row["expansion_status"]
                 else "none"
-            ),
-            requires_user_review=(
-                bool(row["requires_user_review"]) if "requires_user_review" in keys else False
-            ),
-            accepted_by_user=(
-                bool(row["accepted_by_user"]) if "accepted_by_user" in keys else False
             ),
             start_date=row["start_date"] if "start_date" in keys else None,
             due_date=row["due_date"] if "due_date" in keys else None,
@@ -260,16 +227,10 @@ class Task:
             "validation_status": self.validation_status,
             "validation_feedback": self.validation_feedback,
             "category": self.category,
-            "complexity_score": self.complexity_score,
-            "estimated_subtasks": self.estimated_subtasks,
             "expansion_context": self.expansion_context,
             "validation_criteria": self.validation_criteria,
-            "use_external_validator": self.use_external_validator,
             "validation_fail_count": self.validation_fail_count,
             "validation_override_reason": self.validation_override_reason,
-            "workflow_name": self.workflow_name,
-            "verification": self.verification,
-            "sequence_order": self.sequence_order,
             "commits": self.commits,
             "escalated_at": self.escalated_at,
             "escalation_reason": self.escalation_reason,
@@ -280,12 +241,7 @@ class Task:
             "linear_team_id": self.linear_team_id,
             "seq_num": self.seq_num,
             "path_cache": self.path_cache,
-            "agent_name": self.agent_name,
-            "reference_doc": self.reference_doc,
-            "is_expanded": self.is_expanded,
             "expansion_status": self.expansion_status,
-            "requires_user_review": self.requires_user_review,
-            "accepted_by_user": self.accepted_by_user,
             "start_date": self.start_date,
             "due_date": self.due_date,
             "id": self.id,  # UUID at end for backwards compat
@@ -312,15 +268,12 @@ class Task:
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,
             "path_cache": self.path_cache,
-            "requires_user_review": self.requires_user_review,
             "assignee": self.assignee,
-            "agent_name": self.agent_name,
             "category": self.category,
             "closed_at": self.closed_at,
             "closed_in_session_id": self.closed_in_session_id,
             "validation_fail_count": self.validation_fail_count,
             "escalated_at": self.escalated_at,
-            "sequence_order": self.sequence_order,
             "start_date": self.start_date,
             "due_date": self.due_date,
             "id": self.id,  # UUID at end for backwards compat

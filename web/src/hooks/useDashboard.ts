@@ -20,8 +20,12 @@ export interface AdminStatus {
     tool_count?: number
   }>
   sessions: { active: number; paused: number; handoff_ready: number; total: number }
-  tasks: { open: number; in_progress: number; closed: number; ready: number; blocked: number }
-  memory: { count: number }
+  tasks: {
+    open: number; in_progress: number; closed: number
+    needs_review: number; review_approved: number; escalated: number
+    ready: number; blocked: number; closed_24h: number
+  }
+  memory: { count: number; by_type: Record<string, number>; recent_count: number; neo4j?: { configured: boolean; installed: boolean; healthy: boolean } }
   skills: { total: number }
   pipelines: { running: number; waiting_approval: number; completed: number; failed: number; total: number }
   savings: {

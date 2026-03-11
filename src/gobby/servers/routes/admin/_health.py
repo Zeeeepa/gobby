@@ -9,8 +9,9 @@ from typing import TYPE_CHECKING, Any
 import psutil
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import get_all_metrics, set_gauge, update_daemon_metrics
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -66,8 +67,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             process_metrics = None
 
         # Get background task status
-        metrics = get_metrics_collector()
-        all_metrics = metrics.get_all_metrics()
+        all_metrics = get_all_metrics()
         counters = all_metrics.get("counters", {})
         background_tasks = {
             "active": len(server._background_tasks),
@@ -140,26 +140,45 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
                 logger.warning(f"Failed to get session stats: {e}")
 
         # Get task statistics using efficient count queries
-        task_stats = {"open": 0, "in_progress": 0, "closed": 0, "ready": 0, "blocked": 0}
+        task_stats: dict[str, Any] = {
+            "open": 0,
+            "in_progress": 0,
+            "closed": 0,
+            "needs_review": 0,
+            "review_approved": 0,
+            "escalated": 0,
+            "ready": 0,
+            "blocked": 0,
+            "closed_24h": 0,
+        }
         if server.task_manager is not None:
             try:
                 # Use count_by_status for efficient grouped counts
                 status_counts = server.task_manager.count_by_status()
-                task_stats["open"] = status_counts.get("open", 0)
-                task_stats["in_progress"] = status_counts.get("in_progress", 0)
-                task_stats["closed"] = status_counts.get("closed", 0)
-                # Get ready and blocked counts using dedicated count methods
+                for key in (
+                    "open",
+                    "in_progress",
+                    "closed",
+                    "needs_review",
+                    "review_approved",
+                    "escalated",
+                ):
+                    task_stats[key] = status_counts.get(key, 0)
+                # Get ready, blocked, and recent closed counts
                 task_stats["ready"] = server.task_manager.count_ready_tasks()
                 task_stats["blocked"] = server.task_manager.count_blocked_tasks()
+                task_stats["closed_24h"] = server.task_manager.count_closed_since(hours=24)
             except Exception as e:
                 logger.warning(f"Failed to get task stats: {e}")
 
         # Get memory statistics
-        memory_stats: dict[str, Any] = {"count": 0}
+        memory_stats: dict[str, Any] = {"count": 0, "by_type": {}, "recent_count": 0}
         if server.memory_manager is not None:
             try:
                 stats = server.memory_manager.get_stats()
                 memory_stats["count"] = stats.get("total_count", 0)
+                memory_stats["by_type"] = stats.get("by_type", {})
+                memory_stats["recent_count"] = stats.get("recent_count", 0)
             except Exception as e:
                 logger.warning(f"Failed to get memory stats: {e}")
 
@@ -278,33 +297,15 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
         - Background task metrics
         - Daemon health metrics
         """
-        metrics = get_metrics_collector()
         try:
-            # Update daemon health metrics if available
-            if server._daemon is not None:
-                try:
-                    uptime = server._daemon.uptime
-                    if uptime is not None:
-                        metrics.set_gauge("daemon_uptime_seconds", uptime)
-
-                    # Get process info for daemon
-                    process = psutil.Process(os.getpid())
-                    memory_info = process.memory_info()
-                    metrics.set_gauge("daemon_memory_usage_bytes", float(memory_info.rss))
-
-                    cpu_percent = process.cpu_percent(interval=0)
-                    metrics.set_gauge("daemon_cpu_percent", cpu_percent)
-                except Exception as e:
-                    logger.warning(f"Failed to update daemon metrics: {e}")
+            # Update daemon health metrics
+            update_daemon_metrics()
 
             # Update background task gauge
-            metrics.set_gauge("background_tasks_active", float(len(server._background_tasks)))
+            set_gauge("background_tasks_active", float(len(server._background_tasks)))
 
-            # Export in Prometheus format
-            prometheus_output = metrics.export_prometheus()
-            return PlainTextResponse(
-                content=prometheus_output, media_type="text/plain; version=0.0.4"
-            )
+            # Export in Prometheus format using prometheus_client integration
+            return PlainTextResponse(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
         except Exception as e:
             logger.error(f"Failed to export metrics: {e}", exc_info=True)

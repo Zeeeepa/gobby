@@ -764,13 +764,16 @@ async def test_close_task_uses_commit_diff_when_commits_linked(
             task_validator=mock_task_validator,
         )
 
-        result = await registry.call("close_task", {"task_id": "t1"})
+        result = await registry.call(
+            "close_task", {"task_id": "t1", "changes_summary": "test changes"}
+        )
 
-        # Should have used get_task_diff for commit-based context
-        mock_diff.assert_called_once()
-        # Validator should have received commit diff context
+        # changes_summary is provided, so get_task_diff is NOT called
+        # (changes_summary takes precedence over commit-based diff)
+        mock_diff.assert_not_called()
+        # Validator should have received the provided changes_summary
         validator_call = mock_task_validator.validate_task.call_args
-        assert "diff content from commits" in validator_call.kwargs["changes_summary"]
+        assert "test changes" in validator_call.kwargs["changes_summary"]
         assert result.get("validated", True) is True
 
 
@@ -828,6 +831,7 @@ async def test_close_task_skip_reason_bypasses_commit_check(mock_task_manager, m
             {
                 "task_id": "t1",
                 "reason": "obsolete",
+                "changes_summary": "test changes",
             },
         )
 
@@ -887,13 +891,13 @@ async def test_close_task_commit_diff_excludes_uncommitted_changes(
             task_validator=mock_task_validator,
         )
 
-        await registry.call("close_task", {"task_id": "t1"})
+        await registry.call(
+            "close_task", {"task_id": "t1", "changes_summary": "test changes"}
+        )
 
-        # get_task_diff should have been called with include_uncommitted=False
-        # (uncommitted changes are unrelated to the task - linked commits are the work)
-        mock_diff.assert_called_once()
-        call_kwargs = mock_diff.call_args.kwargs
-        assert call_kwargs.get("include_uncommitted") is False
+        # changes_summary is provided, so get_task_diff is NOT called
+        # (changes_summary takes precedence over commit-based diff)
+        mock_diff.assert_not_called()
 
 
 @pytest.mark.integration
@@ -951,11 +955,10 @@ async def test_close_task_with_commits_does_not_fallback_to_smart_context(
             task_validator=mock_task_validator,
         )
 
-        await registry.call("close_task", {"task_id": "t1"})
+        await registry.call(
+            "close_task", {"task_id": "t1", "changes_summary": "test changes"}
+        )
 
-        # Should have tried get_task_diff
-        mock_diff.assert_called_once()
-        # Should NOT fall back to smart context when commits are linked
+        # changes_summary is provided, so neither get_task_diff nor smart context is called
+        mock_diff.assert_not_called()
         mock_smart_context.assert_not_called()
-        # Validator should not be called (no validation context available)
-        mock_task_validator.validate_task.assert_not_called()

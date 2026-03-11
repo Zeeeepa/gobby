@@ -33,6 +33,7 @@ def create_http_server(
     websocket_server: Any | None = None,
     codex_client: Any | None = None,
     database: Any | None = None,
+    span_storage: Any | None = None,
 ) -> HTTPServer:
     """
     Create an HTTPServer instance with the new ServiceContainer API.
@@ -56,6 +57,7 @@ def create_http_server(
         database=db,
         session_manager=sess_mgr,
         task_manager=task_mgr,
+        span_storage=span_storage,
         task_sync_manager=task_sync_manager,
         memory_sync_manager=memory_sync_manager,
         memory_manager=memory_manager,

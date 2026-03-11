@@ -46,7 +46,7 @@ def _sync_bundled(db):
 TASK_ENFORCEMENT_RULES = {
     "block-native-task-tools",
     "require-task-before-edit",
-    "require-commit-before-close",
+    "require-commit-before-status",
     "strip-skip-validation-with-commit",
     "block-ask-during-stop-compliance",
     "track-task-claim",
@@ -63,9 +63,9 @@ class TestTaskEnforcementSync:
         rules = manager.list_all(workflow_type="rule")
         rule_names = {r.name for r in rules}
 
-        assert TASK_ENFORCEMENT_RULES.issubset(
-            rule_names
-        ), f"Missing: {TASK_ENFORCEMENT_RULES - rule_names}"
+        assert TASK_ENFORCEMENT_RULES.issubset(rule_names), (
+            f"Missing: {TASK_ENFORCEMENT_RULES - rule_names}"
+        )
 
     def test_all_rules_have_group(self, db, manager) -> None:
         """All rules should have group='task-enforcement'."""
@@ -86,7 +86,13 @@ class TestTaskEnforcementSync:
             if row.name in TASK_ENFORCEMENT_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
                 effect_types = {e.type for e in body.resolved_effects}
-                assert effect_types <= {"block", "set_variable", "observe", "inject_context", "rewrite_input"}
+                assert effect_types <= {
+                    "block",
+                    "set_variable",
+                    "observe",
+                    "inject_context",
+                    "rewrite_input",
+                }
 
 
 class TestBlockNativeTaskTools:
@@ -293,14 +299,14 @@ class TestIsPlanFile:
         assert is_plan_file("/project/.gobby/plans/x.md", None) is True
 
 
-class TestRequireCommitBeforeClose:
-    """Verify require-commit-before-close requires commit before close_task."""
+class TestRequireCommitBeforeStatus:
+    """Verify require-commit-before-status requires commit before status transitions."""
 
     def test_blocks_close_task_mcp(self, db, manager) -> None:
         """Should block gobby-tasks:close_task."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-commit-before-close")
+        row = manager.get_by_name("require-commit-before-status")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -312,7 +318,7 @@ class TestRequireCommitBeforeClose:
         """Should check task_has_commits and special close reasons."""
         _sync_bundled(db)
 
-        row = manager.get_by_name("require-commit-before-close")
+        row = manager.get_by_name("require-commit-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None

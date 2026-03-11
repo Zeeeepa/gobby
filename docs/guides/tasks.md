@@ -99,7 +99,7 @@ Tasks enter `needs_review` status instead of `closed` when:
 - Tasks in `review` with `requires_user_review=true` keep dependents blocked until user closes
 
 **Workflow condition:**
-- `task_needs_user_review()` - Returns true when session_task is in review AND requires user approval
+- `task_needs_human_review()` - Returns true when session_task is in review AND requires user approval
 
 ## Task Types
 

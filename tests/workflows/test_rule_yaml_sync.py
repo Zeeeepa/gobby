@@ -87,8 +87,8 @@ rules:
         rows = manager.list_all(workflow_type="rule")
         body = json.loads(rows[0].definition_json)
         assert body["event"] == "before_tool"
-        assert body["effect"]["type"] == "block"
-        assert body["effect"]["tools"] == ["Edit"]
+        assert body["effects"][0]["type"] == "block"
+        assert body["effects"][0]["tools"] == ["Edit"]
 
     def test_rule_enabled_defaults_false(self, db, manager, rules_dir) -> None:
         """Rules should be disabled by default (opt-in activation)."""
@@ -270,7 +270,7 @@ rules:
 
         rows = manager.list_all(workflow_type="rule")
         body1 = json.loads(rows[0].definition_json)
-        assert body1["effect"]["reason"] == "Version 1."
+        assert body1["effects"][0]["reason"] == "Version 1."
 
         (rules_dir / "changing.yaml").write_text(
             """
@@ -287,7 +287,7 @@ rules:
 
         rows = manager.list_all(workflow_type="rule")
         body2 = json.loads(rows[0].definition_json)
-        assert body2["effect"]["reason"] == "Version 2."
+        assert body2["effects"][0]["reason"] == "Version 2."
 
     def test_soft_deleted_template_restored_on_resync(self, db, manager, rules_dir) -> None:
         """A soft-deleted template rule should be restored on re-sync."""

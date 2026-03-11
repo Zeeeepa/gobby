@@ -251,8 +251,8 @@ class Watchdog:
         # Start new daemon
         try:
             config = load_config()
-            log_file = Path(config.logging.client).expanduser()
-            error_log_file = Path(config.logging.client_error).expanduser()
+            log_file = Path(config.telemetry.log_file).expanduser()
+            error_log_file = Path(config.telemetry.log_file_error).expanduser()
 
             cmd = [sys.executable, "-m", "gobby.runner"]
             if self.verbose:
@@ -378,7 +378,7 @@ def main() -> None:
     # Load config to get log file path
     try:
         config = load_config()
-        log_file = Path(config.logging.watchdog).expanduser()
+        log_file = Path(config.telemetry.log_file_watchdog).expanduser()
         log_file.parent.mkdir(parents=True, exist_ok=True)
         watchdog_config = config.watchdog
     except Exception:

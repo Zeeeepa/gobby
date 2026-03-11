@@ -1,151 +1,466 @@
 ---
 name: test-battery
-description: "Use when user asks to 'run test battery', 'orchestrator test', 'e2e test', 'test the orchestrator'. Interactive skill that walks through the orchestrator test battery step by step. Supports testing individual components (expand-task, dev-loop) or the full orchestrator."
-version: "2.0.0"
+description: "Setup wizard + autonomous monitoring loop for orchestrator test battery. Creates cron-driven orchestrator pipeline on a clone, monitors agent progress, and intervenes on infrastructure failures. Persists state in test-battery.md for compaction survival."
+version: "3.0.0"
 category: testing
-triggers: test battery, orchestrator test, run test battery, e2e test, test expand, test dev-loop
+triggers: test battery, orchestrator test, run test battery, e2e test, test the orchestrator
 metadata:
   gobby:
     audience: interactive
     depth: 0
 ---
 
-# /gobby test-battery — Orchestrator Test Battery
+# /gobby test-battery — Orchestrator Test Battery v3
 
-Interactive skill for testing orchestrator components individually or end-to-end. Each section is a self-contained test with structured output.
+Autonomous monitoring loop for the orchestrator pipeline. Sets up a cron-driven orchestrator on a clone, then monitors continuously — fixing infrastructure bugs as they arise — until the epic completes.
 
-**Components testable independently:**
-- **Expand-task** (Section 2) — Task decomposition pipeline
-- **Dev-loop** (Section 3) — Developer/QA dispatch cycle
-- **Full orchestrator** (Section 4) — Integrated expand + worktree + dev-loop
+**Three phases:**
+1. **Phase 0: Resume** — Check for existing `test-battery.md` and resume monitoring
+2. **Phase 1: Setup** — Interactive wizard (9 prompts)
+3. **Phase 2: Init** — Create monitoring task, cron job, state file
+4. **Phase 3: Monitor** — Autonomous polling loop with intervention protocol
 
-**Regression suite** (Section 5) — Checks for bugs found in the 2026-03-07 smoke test
+---
 
-## Before Starting
+## Phase 0: Resume Check
 
-1. Read the full test battery reference: `docs/guides/orchestrator-test-battery.md`
-2. Verify prerequisites:
-   - Daemon running: `gobby status`
-   - Clean git state: `git status`
-   - No other orchestrator pipelines running
-3. Ask the user which sections to run:
-   - **All** — Full battery (Sections 1-8)
-   - **Expand only** — Sections 1-2 (setup + expand-task)
-   - **Dev-loop only** — Sections 1, 3 (setup + dev-loop, requires pre-expanded epic)
-   - **Integration only** — Sections 1, 4 (setup + full orchestrator)
-   - **Regression only** — Section 5 (run during any of the above)
+Before anything else, check if a monitoring session is already in progress:
 
-## Workflow
+1. Read `test-battery.md` from the project root
+2. If it exists and contains `Status: RUNNING`:
+   - Parse all configuration and state from the file
+   - Report: "Resuming test battery monitoring from cycle N"
+   - Skip directly to **Phase 3: Monitoring Loop**
+3. If the file doesn't exist or status is COMPLETE/FAILED, proceed to Phase 1
 
-Walk through each selected section interactively, reporting results as you go.
+**After compaction, you will land here.** The test-battery.md file is your memory. Trust it.
 
-### Section 1: Setup
+---
 
-1. Create a minimal test plan at `.gobby/plans/test-battery.md` with 2-3 code tasks and 1 docs task
-2. Create an epic task from the plan
-3. Report:
-   ```
-   Section 1: Setup
-   PASS Plan created: .gobby/plans/test-battery.md
-   PASS Epic created: #<N> "Test Battery Feature"
-   ```
+## Phase 1: Interactive Setup Wizard
 
-### Section 2: Expand-Task Pipeline (Standalone)
+Collect configuration through 9 sequential prompts. Show the default for each and accept enter/confirmation for defaults.
 
-Tests expansion in isolation. Use `wait_for_completion: true` since expansion is synchronous (waits for researcher agent).
+### Prompt 1: Reset Environment
 
-1. Run `expand-task` pipeline on the epic
-2. Verify subtasks created with categories, validation criteria, and dependencies
-3. Check file annotations on subtasks
-4. Check dependency analysis (file overlap detection between tasks)
-5. Report:
-   ```
-   Section 2: Expand-Task Pipeline
-   PASS Pipeline completed: <execution_id>
-   PASS Subtasks created: N tasks
-   PASS Dependencies wired: [list]
-   PASS File annotations: [count] files annotated
-   FAIL Dependency analysis: [issue]  (if applicable)
-   ```
+Ask: "Reset environment? This will delete existing clones, kill running agents, and remove orchestrator cron jobs. (y/N)"
 
-### Section 3: Dev-Loop Pipeline (Standalone)
-
-Tests the dev/QA dispatch loop in isolation. Requires a pre-expanded epic from Section 2 or an existing one.
-
-**Setup:** Create a worktree manually before running dev-loop:
+If yes:
 ```python
-wt = call_tool("gobby-worktrees", "create_worktree", {
-    "branch": "test-dev-loop-<epic_num>",
-    "base": "HEAD",
+# Delete all clones
+clones = call_tool("gobby-clones", "list_clones", {})
+for clone in clones.clones:
+    call_tool("gobby-clones", "delete_clone", {"clone_id": clone.id, "force": true})
+
+# Kill running agents
+agents = call_tool("gobby-agents", "list_agents", {"parent_session_id": "<session_id>", "status": "running"})
+for agent in agents.runs:
+    call_tool("gobby-agents", "kill_agent", {"run_id": agent.id})
+
+# Delete orchestrator cron jobs (skip system jobs with gobby: prefix)
+jobs = call_tool("gobby-cron", "list_cron_jobs", {})
+for job in jobs where job.name contains "orchestrator" or "test-battery":
+    if job.name.startswith("gobby:"):
+        continue  # NEVER delete system cron jobs
+    call_tool("gobby-cron", "delete_cron_job", {"job_id": job.id})
+```
+
+### Prompt 2: Commit Changes
+
+Run `git status`. If there are uncommitted changes:
+- Ask: "You have uncommitted changes. Commit them before proceeding? (Y/n)"
+- If yes, use the committing-changes skill to commit everything
+- If no, warn that uncommitted changes won't be in the clone
+
+### Prompt 3: Target Task/Epic
+
+Ask: "What task or epic should the orchestrator target? Enter a ref (#N) or 'new' to create one."
+
+- If ref provided: fetch the task with `get_task` and confirm it exists
+- If "new": ask for a title and create an epic task
+
+### Prompt 4: Expansion
+
+Ask: "How should subtasks be created?"
+- **(a) Run expand-task pipeline now** — Will block until expansion completes (~2-5 min)
+- **(b) Provide a plan file** — Path to .md plan file for the expander to use
+- **(c) Skip** — Subtasks already exist under this epic
+
+If (a): Run expand-task pipeline with `wait_for_completion: true`:
+```python
+call_tool("gobby-workflows", "run_pipeline", {
+    "name": "expand-task",
+    "inputs": {"task_id": "<epic_id>", "session_id": "<session_id>"},
+    "wait_for_completion": true,
+    "wait_timeout": 600
+})
+```
+
+If (b): Run expand-task with the plan file:
+```python
+call_tool("gobby-workflows", "run_pipeline", {
+    "name": "expand-task",
+    "inputs": {"task_id": "<epic_id>", "plan_file": "<path>", "session_id": "<session_id>"},
+    "wait_for_completion": true,
+    "wait_timeout": 600
+})
+```
+
+If (c): Verify subtasks exist with `list_tasks(parent_task_id=epic_id)`. Warn if zero subtasks found.
+
+### Prompt 5: Developer Provider/Model
+
+Ask: "Developer agent provider and model? (default: gemini / provider-default)"
+- Parse as `provider / model` or just `provider`
+- Default: `developer_provider="gemini"`, `developer_model=null`
+
+### Prompt 6: QA Provider/Model
+
+Ask: "QA agent provider and model? (default: claude / opus)"
+- Default: `qa_provider="claude"`, `qa_model="opus"`
+
+### Prompt 7: Agent Timeout
+
+Ask: "Agent timeout in seconds? (default: 1200)"
+- Default: 1200
+
+### Prompt 8: Cron Interval
+
+Ask: "Cron interval — how often should the orchestrator tick? (default: 5m)"
+- Accept formats: "5m", "300", "300s", "10m"
+- Convert to seconds
+- Default: 300
+
+### Prompt 9: Confirm
+
+Display the full configuration:
+
+```
+============================================
+  Test Battery Configuration
+============================================
+Epic:           #<N> "<title>"
+Subtasks:       <count> tasks
+Dev Agent:      <provider> / <model>
+QA Agent:       <provider> / <model>
+Timeout:        <N>s
+Cron Interval:  <N>s (<N>m)
+Max Concurrent: 5
+Merge Target:   <current_branch>
+============================================
+```
+
+Ask: "Proceed? (Y/n)"
+
+---
+
+## Phase 2: Initialization
+
+Execute these steps in order. If any step fails, report the error and stop.
+
+### Step 1: Create Monitoring Task
+
+```python
+task = call_tool("gobby-tasks", "create_task", {
+    "title": "Test Battery Monitor: <epic_title>",
+    "task_type": "task",
+    "category": "testing",
+    "validation_criteria": "Epic #<N> reaches orchestration_complete. All subtasks review_approved or closed.",
+    "description": "Monitoring task for orchestrator test battery. Do not close until epic completes.",
+    "session_id": "<session_id>",
+    "claim": true
+})
+```
+
+### Step 2: Create Cron Job
+
+```python
+job = call_tool("gobby-cron", "create_cron_job", {
+    "name": "test-battery-orchestrator",
+    "action_type": "pipeline",
+    "action_config": {
+        "pipeline_name": "orchestrator",
+        "inputs": {
+            "task_id": "<epic_id>",
+            "developer_agent": "developer",
+            "qa_agent": "qa-reviewer",
+            "developer_provider": "<dev_provider>",
+            "qa_provider": "<qa_provider>",
+            "developer_model": "<dev_model>",
+            "qa_model": "<qa_model>",
+            "agent_timeout": <timeout>,
+            "max_concurrent": 5,
+            "merge_target": "<current_branch>"
+        }
+    },
+    "schedule_type": "interval",
+    "interval_seconds": <interval>,
+    "description": "Orchestrator tick for test battery epic #<N>"
+})
+```
+
+### Step 3: Write State File
+
+Create `test-battery.md` in the project root with the template from the **State File Template** section below. Fill in all configuration values.
+
+### Step 4: Trigger First Tick
+
+```python
+call_tool("gobby-cron", "run_cron_job", {"job_id": "<cron_job_id>"})
+```
+
+Report: "First orchestrator tick triggered. Entering monitoring loop."
+
+### Step 5: Enter Monitoring Loop
+
+Proceed to Phase 3.
+
+---
+
+## Phase 3: Monitoring Loop
+
+This is the core autonomous loop. **Re-enter here after every compaction** by reading `test-battery.md` in Phase 0.
+
+### Entry Point
+
+1. Read and parse `test-battery.md`
+2. Extract: `epic_id`, `cron_job_id`, `monitoring_task_id`, `cycle_number`, `interval_seconds`, `agent_timeout`
+3. Report current state: "Monitoring cycle <N>. Epic #<ref>: <open> open, <in_progress> in progress, <needs_review> in review, <review_approved> approved."
+
+### Loop Body (One Cycle)
+
+Repeat this for each orchestrator tick:
+
+#### 1. Poll for Tick Completion
+
+Poll `list_cron_runs` every 30 seconds until a new completed or failed run appears:
+
+```python
+while True:
+    sleep(30)
+    runs = call_tool("gobby-cron", "list_cron_runs", {
+        "job_id": "<cron_job_id>",
+        "limit": 3
+    })
+    # Check if there's a run newer than last_run_id
+    # A run with status "completed" or "failed" that we haven't seen
+    if new_run_found:
+        break
+```
+
+Extract `pipeline_execution_id` from the completed run.
+
+#### 2. Inspect Tick Results
+
+```python
+status = call_tool("gobby-workflows", "get_pipeline_status", {
+    "execution_id": "<pipeline_execution_id>"
+})
+```
+
+Check:
+- Did the tick complete successfully? (status = "completed")
+- `orchestration_complete` in outputs?
+- How many agents were dispatched?
+- Did the re-entrancy guard skip this tick?
+
+#### 3. Check Task States
+
+```python
+for s in ["open", "in_progress", "needs_review", "review_approved", "closed"]:
+    tasks = call_tool("gobby-tasks", "list_tasks", {
+        "parent_task_id": "<epic_id>",
+        "status": s
+    })
+```
+
+Record counts and task refs for each status.
+
+#### 4. Check Agent Health
+
+```python
+agents = call_tool("gobby-agents", "list_agents", {
+    "status": "running"
+})
+```
+
+For each running agent:
+- If running longer than `2 * agent_timeout`: it's a zombie
+- Kill it: `call_tool("gobby-agents", "kill_agent", {"run_id": "<run_id>"})`
+- Reopen its task: `call_tool("gobby-tasks", "reopen_task", {"task_id": "<task_id>"})`
+
+#### 5. Check for Errors
+
+Tail the daemon log for critical errors:
+```bash
+tail -50 ~/.gobby/logs/gobby.log | grep -E "(ERROR|CRITICAL|Traceback)"
+```
+
+Check recent failed pipeline executions:
+```python
+call_tool("gobby-workflows", "list_pipeline_executions", {
+    "pipeline_name": "orchestrator",
+    "status": "failed",
+    "limit": 5
+})
+```
+
+#### 6. Update State File
+
+Increment `cycle_number`. Update task counts, last tick details, and agent activity in `test-battery.md`. Use Edit tool to update specific sections.
+
+#### 7. Evaluate Completion
+
+If `orchestration_complete` was true in tick outputs, OR all subtasks are in `review_approved`/`closed`:
+
+```python
+# Disable cron
+call_tool("gobby-cron", "toggle_cron_job", {"job_id": "<cron_job_id>"})
+
+# Close monitoring task
+call_tool("gobby-tasks", "close_task", {
+    "task_id": "<monitoring_task_id>",
     "session_id": "<session_id>"
 })
 ```
 
-**Run:** Use `continuation_prompt` — the dev-loop is event-driven, each pass dispatches agents then exits:
-```python
-call_tool("gobby-workflows", "run_pipeline", {
-    "name": "dev-loop",
-    "inputs": {
-        "session_task": "<epic_ref>",
-        "worktree_id": "<wt_id>",
-        "merge_target": "<current_branch>",
-        "max_concurrent": 1,
-        "max_iterations": 10
-    },
-    "continuation_prompt": "Dev-loop pass completed. Check task states."
-})
+Update `test-battery.md` status to `COMPLETE`. Write a final summary report. **Stop.**
+
+#### 8. Evaluate Infrastructure Issues
+
+If the tick failed, or 3+ consecutive ticks have failed, execute the **Intervention Protocol**.
+
+#### 9. Wait for Next Tick
+
+The cron handles scheduling. Wait approximately `interval_seconds` before polling again (the poll loop in step 1 handles this naturally).
+
+---
+
+## Intervention Protocol
+
+When an **infrastructure or orchestration bug** is detected — not agent-level code failures.
+
+### What Counts as Infrastructure
+
+**Intervene on:**
+- Pipeline execution failures (step errors in orchestrator pipeline)
+- Clone/git errors (path issues, branch conflicts)
+- Agent spawn failures (provider errors, config issues)
+- Daemon crashes or MCP connection errors
+- Task state machine bugs (tasks stuck in wrong states)
+
+**Do NOT intervene on:**
+- Agent producing incorrect code (normal — QA will catch it)
+- QA rejecting agent work (normal — orchestrator retries)
+- Agent timing out on a hard task (orchestrator handles retry)
+
+### Protocol Steps
+
+1. **Pause cron:**
+   ```python
+   call_tool("gobby-cron", "toggle_cron_job", {"job_id": "<cron_job_id>"})
+   ```
+
+2. **Kill running agents:**
+   ```python
+   agents = call_tool("gobby-agents", "list_agents", {"status": "running"})
+   for agent in agents.runs:
+       call_tool("gobby-agents", "kill_agent", {"run_id": agent.id})
+   ```
+
+3. **Kill orphaned tmux sessions:**
+   ```bash
+   tmux -L gobby list-sessions 2>/dev/null | grep -v attached | cut -d: -f1 | xargs -I{} tmux -L gobby kill-session -t {}
+   ```
+
+4. **Fix the issue** in the main worktree. Run targeted tests to verify the fix.
+
+5. **Commit changes** using the committing-changes skill.
+
+6. **Reset stuck tasks** — Any tasks stuck in `in_progress` from killed agents:
+   ```python
+   call_tool("gobby-tasks", "reopen_task", {"task_id": "<stuck_task_id>"})
+   ```
+
+7. **Restart daemon:**
+   ```bash
+   gobby restart
+   ```
+   Wait 5 seconds for daemon to come back. Verify with `gobby status`.
+
+8. **Re-enable cron:**
+   ```python
+   call_tool("gobby-cron", "toggle_cron_job", {"job_id": "<cron_job_id>"})
+   ```
+
+9. **Log in test-battery.md:**
+   Add an entry to the Issues Log section with: issue number, type, description, fix applied, commit SHA, cycle number.
+
+10. **Continue monitoring loop.**
+
+---
+
+## State File Template
+
+Create this as `test-battery.md` in the project root during Phase 2:
+
+```markdown
+# Test Battery State
+
+> Persistent state for the test-battery monitoring loop.
+> Survives context compaction. Read this file on every skill invocation.
+> DO NOT DELETE while status is RUNNING.
+
+## Status: RUNNING
+
+## Configuration
+- **Epic**: #<N> "<title>"
+- **Epic ID**: <uuid>
+- **Monitoring Task**: #<M> (ID: <uuid>)
+- **Cron Job ID**: <uuid>
+- **Current Branch**: <branch>
+- **Merge Target**: <branch>
+- **Dev Provider/Model**: <provider> / <model>
+- **QA Provider/Model**: <provider> / <model>
+- **Agent Timeout**: <N>s
+- **Cron Interval**: <N>s
+- **Max Concurrent**: 5
+- **Started At**: <ISO timestamp>
+
+## Current Cycle: 0
+
+### Task Summary
+| Status | Count | Refs |
+|--------|-------|------|
+| open | 0 | |
+| in_progress | 0 | |
+| needs_review | 0 | |
+| review_approved | 0 | |
+| closed | 0 | |
+
+### Last Tick
+- **Cron Run ID**: (none yet)
+- **Pipeline Execution ID**: (none yet)
+- **Status**: (pending first tick)
+- **Orchestration Complete**: false
+- **Agents Dispatched**: 0
+- **Timestamp**: (none yet)
+
+## Issues Log
+
+(No issues yet)
+
+## Pipeline Executions
+
+| Cycle | Execution ID | Status | Dispatched | Open | In Prog | Review | Approved |
+|-------|-------------|--------|------------|------|---------|--------|----------|
 ```
 
-**Do NOT use `wait_for_completion`** — the dev-loop completes quickly per pass. Continuations handle re-invocation.
+---
 
-Check these across multiple passes:
+## Regression Checks
 
-1. Developer dispatch and task claiming
-2. Agent step workflow (claim -> implement -> terminate)
-3. Idle detection + reprompt cycle (if agent stalls)
-4. QA dispatch on `needs_review`
-5. Continuation registration (event-driven re-invocation)
-6. Iteration counting and `max_iterations` guard
-7. Report:
-   ```
-   Section 3: Dev-Loop Pipeline
-   PASS Worktree created: <wt_id>
-   PASS First pass completed, iteration 1
-   PASS Developer dispatched: agent <run_id>
-   PASS Step workflow: claim -> implement -> terminate
-   PASS QA dispatched on needs_review
-   PASS Continuation fired, iteration 2
-   PASS Iteration count increments correctly
-   FAIL Idle detection: [issue]  (if applicable)
-   ```
-
-**Monitoring:** Use `gobby pipelines history dev-loop` to see the chain of passes and `gobby agents ps` to watch agent states.
-
-### Section 4: Full Orchestrator (Integration)
-
-Tests the complete flow. Run this after verifying components individually in Sections 2-3, or as a standalone integration test.
-
-1. Start the orchestrator pipeline on a fresh (unexpanded) epic with `continuation_prompt`
-2. Monitor progress — each pass is a separate execution triggered by agent completions
-3. Verify expansion, worktree creation, developer dispatch, QA review
-4. Run standalone task test (non-epic single task)
-5. Report:
-   ```
-   Section 4: Full Orchestrator
-   PASS Epic expanded: N subtasks
-   PASS Worktree created: epic-<N>
-   PASS Dev/QA cycle completed
-   PASS All tasks reached review_approved
-   PASS orchestration_complete: true
-   PASS Standalone task: detected and completed
-   FAIL [component]: [issue]  (if applicable)
-   ```
-
-**Monitoring:** Use `gobby pipelines history orchestrator` to see the chain of passes. Check `orchestration_complete` in execution results to know when done.
-
-### Section 5: Regression Checks
-
-Verify fixes for bugs found during the 2026-03-07 smoke test. Run these checks during any orchestrator test (Sections 3 or 4). Watch daemon logs: `tail -f ~/.gobby/logs/gobby.log`
+While monitoring, watch for these known issues from previous smoke tests:
 
 | Check | What to verify | Bug ref |
 |-------|---------------|---------|
@@ -158,86 +473,38 @@ Verify fixes for bugs found during the 2026-03-07 smoke test. Run these checks d
 | Idle detection | Sees through status bar, detects true idle | #9932 |
 | Dependency satisfaction | `review_approved` satisfies blocked tasks | #9933 |
 
-Report:
-```
-Section 5: Regression Checks
-PASS Dead-end retry counter increments
-PASS No session lineage warnings
-PASS Single retry chain (no parallel forks)
-PASS Agent exits within 30s
-PASS Pipeline executions: N (< 50 threshold)
-PASS Stop hooks scoped to interactive only
-PASS Idle detection accurate
-PASS review_approved satisfies dependencies
-```
-
-**Red flags** (any of these means FAIL):
+**Red flags** (any of these warrants investigation, not necessarily intervention):
 - Retry counter stuck at "1/10"
 - "Lineage exceeded safety limit" in logs
-- Pipeline executions > 50 for a 3-task epic
+- Pipeline executions > 50
 - Agent idle > 3 minutes before exit
-- "stop hook error" in agent logs
 
-### Section 6: Cleanup
+---
 
-1. Verify all tasks reached `review_approved` or `closed`
-2. Clean up test files and worktrees
-3. Report:
-   ```
-   Section 6: Cleanup
-   PASS All subtasks review_approved or closed
-   PASS Test files removed
-   PASS Worktree cleaned up
-   ```
+## Monitoring Commands
 
-### Section 7: Issue Tracking
+Useful commands for debugging during the monitoring loop:
 
-Create gobby tasks for any issues discovered during the test:
+```bash
+# Pipeline pass history
+gobby pipelines history orchestrator
 
-```python
-call_tool("gobby-tasks", "create_task", {
-    "title": "Bug: <description>",
-    "task_type": "bug",
-    "category": "code",
-    "description": "Found during orchestrator test battery: ...",
-    "session_id": "<session_id>"
-})
+# Specific execution details
+gobby pipelines status <execution_id>
+
+# Running agents
+gobby agents ps
+
+# Task states
+gobby tasks list --parent <epic_id>
+
+# Watch for issues
+tail -f ~/.gobby/logs/gobby.log | grep -E "(ERROR|dead.end|lineage|retry)"
+
+# Tmux agent sessions
+tmux -L gobby list-sessions
+
+# Cron job status
+gobby cron list
+gobby cron runs <job_id>
 ```
-
-### Section 8: Final Report
-
-Compile the full results:
-
-```
-=============================================
-  Orchestrator Test Battery Results
-=============================================
-
-Section 1: Setup              [2/2 PASS]
-Section 2: Expand-Task        [4/4 PASS]
-Section 3: Dev-Loop            [8/8 PASS]
-Section 4: Full Orchestrator  [3/3 PASS]
-Section 5: Regression          [8/8 PASS]
-Section 6: Cleanup            [2/2 PASS]
-
-Total: 27/27 PASS
-
-Pipeline Executions: N (target: < 50)
-Agent Spawns: N
-Bugs Found: N
-  #<N> Bug: ...
-
-Overall: PASS
-=============================================
-```
-
-## Tips
-
-- Use `gobby pipelines history <name>` to see the chain of event-driven passes
-- Use `gobby pipelines status <id>` to check a specific pass and its outputs
-- Use `gobby agents ps` to see running agents
-- Use `gobby tasks list --parent <epic_id>` to check task states
-- If an agent gets stuck, use `gobby agents kill <run_id>`
-- Watch for retry spirals: `tail -f ~/.gobby/logs/gobby.log | grep -E "(dead.end|retry)"`
-- The full battery typically takes 10-30 minutes depending on task complexity and LLM speed
-- Run component tests first (Sections 2-3) to isolate failures before full integration

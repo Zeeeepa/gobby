@@ -188,6 +188,15 @@ class LocalAgentRunManager:
         )
         return row is not None
 
+    def get_active_run_for_task(self, task_id: str) -> AgentRun | None:
+        """Get the active (pending/running) agent run for a task, if any."""
+        row = self.db.fetchone(
+            "SELECT * FROM agent_runs WHERE task_id = ? AND status IN ('pending', 'running')"
+            " ORDER BY created_at DESC LIMIT 1",
+            (task_id,),
+        )
+        return AgentRun.from_row(row) if row else None
+
     def start(self, run_id: str) -> AgentRun | None:
         """Mark agent run as started."""
         now = datetime.now(UTC).isoformat()

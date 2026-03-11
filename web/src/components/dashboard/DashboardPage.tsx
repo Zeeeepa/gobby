@@ -2,10 +2,9 @@ import { useDashboard } from '../../hooks/useDashboard'
 import { SystemHealthCard } from './SystemHealthCard'
 import { TasksCard } from './TasksCard'
 import { SessionsCard } from './SessionsCard'
-import { PipelinesCard } from './PipelinesCard'
-import { McpHealthCard } from './McpHealthCard'
-import { MemorySkillsCard } from './MemorySkillsCard'
+import { MemoryCard } from './MemoryCard'
 import { SavingsCard } from './SavingsCard'
+import { MetricsChartsCard } from './MetricsChartsCard'
 import './DashboardPage.css'
 
 function formatTime(date: Date | null): string {
@@ -38,13 +37,17 @@ export function DashboardPage() {
           <div className="dash-error">Failed to load: {error.slice(0, 200)}</div>
         ) : data ? (
           <div className="dash-grid">
+            {/* Row 1: System + donut cards */}
             <SystemHealthCard data={data} />
             <TasksCard tasks={data.tasks} />
-            <PipelinesCard pipelines={data.pipelines} />
             <SessionsCard sessions={data.sessions} />
-            <McpHealthCard mcpServers={data.mcp_servers} />
-            <MemorySkillsCard memory={data.memory} skills={data.skills} />
+
+            {/* Row 2: Savings + Memory (spans 2) */}
             <SavingsCard savings={data.savings} />
+            <MemoryCard memory={data.memory} />
+
+            {/* Row 3: Metrics charts (full width) */}
+            <MetricsChartsCard />
           </div>
         ) : null}
       </div>

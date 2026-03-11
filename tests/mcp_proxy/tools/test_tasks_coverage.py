@@ -61,7 +61,6 @@ def mock_config():
     validation_config = MagicMock()
     validation_config.auto_generate_on_create = False
     validation_config.auto_generate_on_expand = False
-    validation_config.use_external_validator = False
     tasks_config.validation = validation_config
     config.get_gobby_tasks_config.return_value = tasks_config
     return config
@@ -1092,7 +1091,11 @@ class TestCloseTaskTool:
             MockProjManager.return_value = mock_proj_instance
 
             result = await registry.call(
-                "close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"}
+                "close_task",
+                {
+                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "changes_summary": "test changes",
+                },
             )
 
             assert "error" in result
@@ -1129,7 +1132,11 @@ class TestCloseTaskTool:
 
             result = await registry.call(
                 "close_task",
-                {"task_id": "550e8400-e29b-41d4-a716-446655440000", "reason": "duplicate"},
+                {
+                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "reason": "duplicate",
+                    "changes_summary": "test changes",
+                },
             )
 
             assert "error" not in result
@@ -1202,7 +1209,11 @@ class TestCloseTaskTool:
             mock_git.return_value = "abc123"
 
             result = await registry.call(
-                "close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"}
+                "close_task",
+                {
+                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "changes_summary": "test changes",
+                },
             )
 
             assert result == {}
@@ -1279,6 +1290,7 @@ class TestCloseTaskTool:
                     "task_id": "550e8400-e29b-41d4-a716-446655440000",
                     "skip_validation": True,
                     "override_justification": "Manually verified",
+                    "changes_summary": "test changes",
                 },
             )
 
@@ -1323,6 +1335,7 @@ class TestCloseTaskTool:
                     "task_id": "550e8400-e29b-41d4-a716-446655440000",
                     "reason": "out_of_repo",
                     "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "changes_summary": "test changes",
                 },
             )
 
@@ -1386,7 +1399,11 @@ class TestCloseTaskTool:
 
             result = await registry.call(
                 "close_task",
-                {"task_id": task_uuid, "session_id": "test-session"},
+                {
+                    "task_id": task_uuid,
+                    "session_id": "test-session",
+                    "changes_summary": "test changes",
+                },
             )
 
             assert "error" not in result
@@ -1949,12 +1966,12 @@ class TestToolSchemas:
             assert prop in props, f"Missing property: {prop}"
 
     def test_close_task_schema_requires_changes_summary(self, task_registry) -> None:
-        """Test close_task schema requires changes_summary."""
+        """Test close_task schema has changes_summary in properties (enforced at runtime)."""
         schema = task_registry.get_schema("close_task")
 
         assert schema is not None
-        required = schema["inputSchema"]["required"]
-        assert "changes_summary" in required, "changes_summary must be in required list"
+        props = schema["inputSchema"]["properties"]
+        assert "changes_summary" in props, "changes_summary must be in properties"
 
     def test_list_tasks_schema_has_filters(self, task_registry) -> None:
         """Test list_tasks schema includes filter options."""

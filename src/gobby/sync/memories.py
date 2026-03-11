@@ -6,7 +6,7 @@ MemoryBackendProtocol. This module handles:
 
 - Backup export to .gobby/memories.jsonl for disaster recovery
 - One-time migration import from existing JSONL files
-- Debounced auto-backup on memory changes
+- On-demand backup via CLI, pre-commit hook, and daemon shutdown
 
 Classes:
     MemoryBackupManager: Main backup manager (formerly MemorySyncManager)
@@ -17,7 +17,6 @@ import asyncio
 import json
 import logging
 import os
-import time
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +40,7 @@ class MemoryBackupManager:
     in the database (via the configured backend) and this class provides:
     - JSONL backup export (to .gobby/memories.jsonl)
     - One-time migration import from existing JSONL files
-    - Debounced auto-backup on changes
+    - On-demand backup via CLI, pre-commit hook, and daemon shutdown
 
     For actual memory storage, see gobby.memory.backends.
     """
@@ -56,64 +55,6 @@ class MemoryBackupManager:
         self.memory_manager = memory_manager
         self.config = config
         self.export_path = config.export_path
-
-        # Debounce state
-        self._export_task: asyncio.Task[None] | None = None
-        self._last_change_time: float = 0
-        self._shutdown_requested = False
-
-    def trigger_export(self) -> None:
-        """Trigger a debounced export."""
-        if not self.config.enabled:
-            return
-
-        self._last_change_time = time.time()
-
-        if self._export_task is None or self._export_task.done():
-            try:
-                loop = asyncio.get_running_loop()
-                self._export_task = loop.create_task(self._process_export_queue())
-            except RuntimeError:
-                # No running event loop (e.g. CLI usage) - run sync immediately
-                # We skip the debounce loop and just export
-                memories_file = self._get_export_path()
-                try:
-                    self._export_to_files_sync(memories_file)
-                except Exception as e:
-                    logger.warning(f"Failed to sync memory export: {e}")
-
-    async def shutdown(self) -> None:
-        """Gracefully shutdown the export task."""
-        self._shutdown_requested = True
-        if self._export_task:
-            if not self._export_task.done():
-                try:
-                    await self._export_task
-                except asyncio.CancelledError:
-                    pass
-            self._export_task = None
-
-    async def _process_export_queue(self) -> None:
-        """Process export task with debounce."""
-        if not self.config.enabled:
-            return
-
-        while not self._shutdown_requested:
-            # Check if debounce time has passed
-            now = time.time()
-            elapsed = now - self._last_change_time
-
-            if elapsed >= self.config.export_debounce:
-                try:
-                    await self.export_to_files()
-                    return
-                except Exception as e:
-                    logger.error(f"Error during memory sync export: {e}")
-                    return
-
-            # Wait for remaining debounce time
-            wait_time = max(0.1, self.config.export_debounce - elapsed)
-            await asyncio.sleep(wait_time)
 
     def _get_export_path(self) -> Path:
         """Get the path for the memories.jsonl file.

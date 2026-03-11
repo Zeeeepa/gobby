@@ -467,17 +467,50 @@ class TmuxSessionManager:
     async def send_keys(self, session_name: str, keys: str) -> bool:
         """Send raw keys to a tmux session (for web UI input forwarding).
 
+        Sends text in literal mode (``-l``) so special characters are not
+        interpreted, then sends ``Enter`` as a separate key event to submit.
+        A trailing newline in *keys* is treated as the submit request and
+        stripped from the literal text.
+
         Args:
             session_name: Target session name.
-            keys: Key string to send (uses tmux ``send-keys -l``).
+            keys: Key string to send.  A trailing ``\\n`` triggers an
+                  ``Enter`` keypress after the literal text.
 
         Returns:
             True on success.
         """
-        rc, _stdout, stderr = await self._run("send-keys", "-t", session_name, "-l", keys)
-        if rc != 0:
-            logger.warning(
-                f"Failed to send keys to tmux session '{session_name}': {stderr.strip()}"
+        # Split trailing newline: literal text + Enter as a real key event.
+        # TUI apps (Claude Code, Gemini CLI) treat a literal \n inside
+        # send-keys -l as "add a line" rather than "submit the prompt".
+        send_enter = keys.endswith("\n")
+        text = keys.rstrip("\n")
+
+        if text:
+            rc, _stdout, stderr = await self._run(
+                "send-keys",
+                "-t",
+                session_name,
+                "-l",
+                text,
             )
-            return False
+            if rc != 0:
+                logger.warning(
+                    f"Failed to send keys to tmux session '{session_name}': {stderr.strip()}"
+                )
+                return False
+
+        if send_enter:
+            rc, _stdout, stderr = await self._run(
+                "send-keys",
+                "-t",
+                session_name,
+                "Enter",
+            )
+            if rc != 0:
+                logger.warning(
+                    f"Failed to send Enter to tmux session '{session_name}': {stderr.strip()}"
+                )
+                return False
+
         return True

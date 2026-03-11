@@ -356,6 +356,102 @@ function JobDetail({ job, runs, isRunsLoading, onToggle, onRunNow, onDelete }: J
 }
 
 // =============================================================================
+// Mobile Cron Drawer (top bar, replaces sidebar on small screens)
+// =============================================================================
+
+function MobileCronDrawer({
+  jobs, selectedJob, onSelectJob, isLoading,
+  filters, onFiltersChange,
+  onCreateClick, onRefresh,
+}: {
+  jobs: CronJob[]
+  selectedJob: CronJob | null
+  onSelectJob: (job: CronJob) => void
+  isLoading: boolean
+  filters: { search: string; enabled: boolean | null }
+  onFiltersChange: (f: { search: string; enabled: boolean | null }) => void
+  onCreateClick: () => void
+  onRefresh: () => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div className={`mobile-cron-drawer ${isOpen ? '' : 'collapsed'}`}>
+      <div
+        className="mobile-cron-drawer-header"
+        onClick={() => setIsOpen(!isOpen)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen) } }}
+      >
+        <span className="mobile-cron-drawer-title">
+          <CronIcon size={14} />
+          {isOpen ? 'Cron Jobs' : (selectedJob?.name || 'Cron Jobs')}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            type="button"
+            className="mobile-drawer-action"
+            onClick={(e) => { e.stopPropagation(); onCreateClick() }}
+            title="Create job"
+          >
+            <PlusIcon />
+          </button>
+          <button
+            type="button"
+            className="mobile-drawer-action"
+            onClick={(e) => { e.stopPropagation(); onRefresh() }}
+            title="Refresh"
+            disabled={isLoading}
+          >
+            <RefreshIcon />
+          </button>
+          <span>{isOpen ? '\u25B2' : '\u25BC'}</span>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="mobile-cron-drawer-content">
+          <div className="cron-filter-bar">
+            <input
+              className="cron-filter-input"
+              type="text"
+              placeholder="Search jobs..."
+              value={filters.search}
+              onChange={e => onFiltersChange({ ...filters, search: e.target.value })}
+            />
+          </div>
+          <div className="mobile-cron-drawer-list">
+            {jobs.length === 0 && !isLoading && (
+              <div className="mobile-cron-drawer-empty">No cron jobs found</div>
+            )}
+            {isLoading && jobs.length === 0 && (
+              <div className="mobile-cron-drawer-empty">Loading...</div>
+            )}
+            {jobs.map(job => (
+              <div
+                key={job.id}
+                className={`cron-job-item ${selectedJob?.id === job.id ? 'selected' : ''} ${!job.enabled ? 'disabled' : ''}`}
+                onClick={() => { onSelectJob(job); setIsOpen(false) }}
+              >
+                <div className="cron-job-item-header">
+                  <span className={`cron-job-status-dot ${getStatusDotClass(job)}`} />
+                  <span className="cron-job-name">{job.name}</span>
+                </div>
+                <div className="cron-job-item-meta">
+                  <span className={`cron-action-badge ${job.action_type}`}>{job.action_type}</span>
+                  <span>{formatSchedule(job)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =============================================================================
 // Main Page Component
 // =============================================================================
 
@@ -410,7 +506,19 @@ export function CronJobsPage() {
 
   return (
     <div className="cron-page">
-      {/* Left panel: job browser */}
+      {/* Mobile drawer (hidden on desktop via CSS) */}
+      <MobileCronDrawer
+        jobs={jobs}
+        selectedJob={selectedJob}
+        onSelectJob={selectJob}
+        isLoading={isLoading}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onCreateClick={() => setShowCreateDialog(true)}
+        onRefresh={refresh}
+      />
+
+      {/* Left panel: job browser (hidden on mobile via CSS) */}
       <div className={`cron-browser ${sidebarOpen ? '' : 'collapsed'}`}>
         <div className="cron-sidebar-header">
           {sidebarOpen && <span className="cron-sidebar-title">Cron Jobs</span>}

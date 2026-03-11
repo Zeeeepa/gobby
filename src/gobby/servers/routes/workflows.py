@@ -11,8 +11,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from gobby.utils.metrics import get_metrics_collector
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
     from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -81,7 +79,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with workflow definition endpoints
     """
     router = APIRouter(prefix="/api/workflows", tags=["workflows"])
-    metrics = get_metrics_collector()
 
     def _get_manager() -> "LocalWorkflowDefinitionManager":
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -102,7 +99,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         """List available workflow templates for the 'New' button."""
         from gobby.workflows.workflow_templates import get_workflow_templates
 
-        metrics.inc_counter("http_requests_total")
         templates = get_workflow_templates()
         return {"status": "success", "templates": templates, "count": len(templates)}
 
@@ -114,7 +110,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         include_deleted: bool = Query(False),
     ) -> dict[str, Any]:
         """List workflow definitions with optional filters."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             rows = manager.list_all(
@@ -135,7 +130,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{definition_id}/export")
     async def export_workflow(definition_id: str) -> Response:
         """Export a workflow definition as YAML."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             yaml_content = manager.export_to_yaml(definition_id)
@@ -153,7 +147,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{definition_id}")
     async def get_workflow(definition_id: str) -> dict[str, Any]:
         """Get a workflow definition by ID."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.get(definition_id)
@@ -167,7 +160,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("/import")
     async def import_workflow(request: ImportYAMLRequest) -> dict[str, Any]:
         """Import a workflow definition from YAML content."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.import_from_yaml(request.yaml_content, project_id=request.project_id)
@@ -182,7 +174,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{definition_id}/duplicate")
     async def duplicate_workflow(definition_id: str, request: DuplicateRequest) -> dict[str, Any]:
         """Duplicate a workflow definition with a new name."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.duplicate(definition_id, request.new_name)
@@ -197,7 +188,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("")
     async def create_workflow(request: CreateWorkflowRequest) -> dict[str, Any]:
         """Create a new workflow definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.create(
@@ -223,7 +213,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.put("/{definition_id}/toggle")
     async def toggle_workflow(definition_id: str) -> dict[str, Any]:
         """Toggle a workflow definition's enabled status."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.get(definition_id)
@@ -239,7 +228,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.put("/{definition_id}")
     async def update_workflow(definition_id: str, request: UpdateWorkflowRequest) -> dict[str, Any]:
         """Update a workflow definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             fields = request.model_dump(exclude_unset=True)
@@ -259,7 +247,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/{definition_id}")
     async def delete_workflow(definition_id: str) -> dict[str, Any]:
         """Delete a workflow definition (soft-delete)."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             deleted = manager.delete(definition_id)
@@ -276,7 +263,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{definition_id}/install")
     async def install_from_template(definition_id: str) -> dict[str, Any]:
         """Create a custom copy from a bundled definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.install_from_template(definition_id)
@@ -293,7 +279,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
         workflow_type: str | None = Query(None),
     ) -> dict[str, Any]:
         """Create custom copies of all eligible bundled definitions."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             rows = manager.install_all_templates(workflow_type=workflow_type)
@@ -317,7 +302,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{definition_id}/move-to-project")
     async def move_to_project(definition_id: str, request: MoveToProjectRequest) -> dict[str, Any]:
         """Move a definition to project scope."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.move_to_project(definition_id, request.project_id)
@@ -334,7 +318,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{definition_id}/move-to-global")
     async def move_to_global(definition_id: str) -> dict[str, Any]:
         """Move a definition to global (installed) scope."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.move_to_global(definition_id)
@@ -351,7 +334,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("/{definition_id}/restore")
     async def restore_workflow(definition_id: str) -> dict[str, Any]:
         """Restore a soft-deleted workflow definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.restore(definition_id)
@@ -381,7 +363,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
     @router.post("/variables/set")
     async def set_variable(request: SetVariableRequest) -> dict[str, Any]:
         """Set a session-scoped variable."""
-        metrics.inc_counter("http_requests_total")
         if server.session_manager is None:
             raise HTTPException(status_code=503, detail="Session manager not available")
         try:
@@ -396,14 +377,12 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
                 workflow=None,
             )
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error setting variable: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/variables/get")
     async def get_variable(request: GetVariableRequest) -> dict[str, Any]:
         """Get session-scoped variable(s)."""
-        metrics.inc_counter("http_requests_total")
         if server.session_manager is None:
             raise HTTPException(status_code=503, detail="Session manager not available")
         try:
@@ -417,7 +396,6 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
                 workflow=None,
             )
         except Exception as e:
-            metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error getting variable: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 

@@ -540,6 +540,24 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
             )
         }
 
+    # Subagent lifecycle callbacks — log the event so the daemon can
+    # correlate subagent sessions even without a full hook manager.
+    async def _on_subagent_start(data: dict[str, Any]) -> dict[str, Any] | None:
+        logger.info(
+            "SubagentStart in autonomous run %s: %s",
+            spawn_context.agent_run_id,
+            data.get("session_id", "unknown"),
+        )
+        return None
+
+    async def _on_subagent_stop(data: dict[str, Any]) -> dict[str, Any] | None:
+        logger.info(
+            "SubagentStop in autonomous run %s: %s",
+            spawn_context.agent_run_id,
+            data.get("session_id", "unknown"),
+        )
+        return None
+
     runner = AutonomousRunner(
         session_id=gobby_session_id,
         run_id=spawn_context.agent_run_id,
@@ -552,6 +570,8 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
         agent_run_manager=request.agent_run_manager,
         seq_num=seq_num,
         on_pre_compact=_on_pre_compact,
+        on_subagent_start=_on_subagent_start,
+        on_subagent_stop=_on_subagent_stop,
     )
 
     # Launch as background task for lifecycle monitoring

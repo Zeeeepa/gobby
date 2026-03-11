@@ -71,10 +71,11 @@ def count_ready_tasks(
     db: DatabaseProtocol,
     project_id: str | None = None,
 ) -> int:
-    """Count tasks that are ready (open or in_progress) and not blocked.
+    """Count tasks that are ready (open and not blocked).
 
-    A task is ready if it has no external blocking dependencies.
+    A task is ready if it is open and has no external blocking dependencies.
     Excludes parent tasks blocked by their own descendants (completion block, not work block).
+    In-progress tasks are not counted as "ready" — they are already being worked on.
 
     Args:
         db: Database protocol instance
@@ -88,17 +89,13 @@ def count_ready_tasks(
     # ancestor chain and check if the blocked task (t.id) appears anywhere.
     query = """
     SELECT COUNT(*) as count FROM tasks t
-    WHERE t.status IN ('open', 'in_progress')
+    WHERE t.status = 'open'
     AND NOT EXISTS (
         SELECT 1 FROM task_dependencies d
         JOIN tasks blocker ON d.depends_on = blocker.id
         WHERE d.task_id = t.id
           AND d.dep_type = 'blocks'
-          -- Blocker is unresolved if not closed AND not in review without requiring user review
-          AND NOT (
-              blocker.status = 'closed'
-              OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
-          )
+          AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           -- Check if t.id appears anywhere in blocker's ancestor chain
           AND NOT EXISTS (
@@ -118,6 +115,36 @@ def count_ready_tasks(
 
     if project_id:
         query += " AND t.project_id = ?"
+        params.append(project_id)
+
+    result = db.fetchone(query, tuple(params))
+    return result["count"] if result else 0
+
+
+def count_closed_since(
+    db: DatabaseProtocol,
+    hours: int = 24,
+    project_id: str | None = None,
+) -> int:
+    """Count tasks closed within the last N hours.
+
+    Args:
+        db: Database protocol instance
+        hours: Time window in hours
+        project_id: Optional project filter
+
+    Returns:
+        Count of recently closed tasks
+    """
+    query = (
+        "SELECT COUNT(*) as count FROM tasks "
+        "WHERE status = 'closed' "
+        "AND closed_at >= datetime('now', ?)"
+    )
+    params: list[Any] = [f"-{hours} hours"]
+
+    if project_id:
+        query += " AND project_id = ?"
         params.append(project_id)
 
     result = db.fetchone(query, tuple(params))
@@ -150,11 +177,7 @@ def count_blocked_tasks(
         JOIN tasks blocker ON d.depends_on = blocker.id
         WHERE d.task_id = t.id
           AND d.dep_type = 'blocks'
-          -- Blocker is unresolved if not closed AND not in review without requiring user review
-          AND NOT (
-              blocker.status = 'closed'
-              OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
-          )
+          AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           -- Check if t.id appears anywhere in blocker's ancestor chain
           AND NOT EXISTS (

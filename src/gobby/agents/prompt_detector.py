@@ -12,10 +12,10 @@ import re
 
 
 class PromptDetector:
-    """Detects blocking CLI prompts (e.g. folder trust) in tmux pane output.
+    """Detects blocking CLI prompts (e.g. folder trust, loop detection) in tmux pane output.
 
     Separate from ``IdleDetector`` — that handles idle-at-prompt vs working.
-    This handles interactive prompts that block agent startup entirely.
+    This handles interactive prompts that block agent startup or execution.
     """
 
     TRUST_PROMPT_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -30,12 +30,29 @@ class PromptDetector:
     # when multiple dev pipelines run in parallel.
     TRUST_DISMISS_KEYS = "\n"
 
+    LOOP_DETECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
+        re.compile(r"stuck in a loop", re.IGNORECASE),
+        re.compile(r"repeating myself", re.IGNORECASE),
+        re.compile(r"potential loop detected", re.IGNORECASE),
+        re.compile(r"seems? to be (?:stuck|looping|repeating)", re.IGNORECASE),
+    )
+
+    # Key sequence to dismiss loop detection: "yes, continue"
+    LOOP_DISMISS_KEYS = "y\n"
+
     def __init__(self) -> None:
         self._dismissed: set[str] = set()
 
     def detect_trust_prompt(self, pane_output: str) -> bool:
         """Return True if pane output contains a folder trust prompt."""
         for pattern in self.TRUST_PROMPT_PATTERNS:
+            if pattern.search(pane_output):
+                return True
+        return False
+
+    def detect_loop_prompt(self, pane_output: str) -> bool:
+        """Return True if pane output contains a loop detection prompt."""
+        for pattern in self.LOOP_DETECTION_PATTERNS:
             if pattern.search(pane_output):
                 return True
         return False

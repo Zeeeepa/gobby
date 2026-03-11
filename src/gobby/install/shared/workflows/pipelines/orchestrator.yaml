@@ -1,6 +1,6 @@
 name: orchestrator
 type: pipeline
-version: "5.1"
+version: "5.2"
 description: |
   Tick-based orchestration pipeline. Each cron tick does one pass:
   scan task state, dispatch agents, exit. The cron schedule IS the loop.
@@ -20,8 +20,8 @@ inputs:
   task_id: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
-  developer_provider: "gemini"
-  qa_provider: "claude"
+  developer_provider: "gemini"  # Comma-separated for fallback rotation, e.g. "gemini,claude"
+  qa_provider: "claude"  # Comma-separated for fallback rotation, e.g. "claude,gemini"
   developer_model: null
   qa_model: "opus"
   agent_timeout: 1200
@@ -116,7 +116,6 @@ steps:
 
   # --- CLONE (first tick creates, subsequent ticks reuse) ---
   - id: get_clone
-    condition: "${{ not done_check.output.orchestration_complete }}"
     mcp:
       server: gobby-clones
       tool: get_clone_by_task
@@ -138,13 +137,12 @@ steps:
       tool: create_clone
       arguments:
         branch_name: "${{ 'epic-' + str(get_task_info.output.seq_num) if get_task_info.output.task_type == 'epic' else 'task-' + str(get_task_info.output.seq_num) }}"
-        clone_path: "${{ '/tmp/gobby-clones/epic-' + str(get_task_info.output.seq_num) }}"
-        base_branch: "${{ inputs.merge_target }}"
+        clone_path: "${{ '~/.gobby/clones/epic-' + str(get_task_info.output.seq_num) }}"
+        base_branch: "${{ inputs.merge_target or current_branch }}"
         task_id: "${{ inputs.task_id }}"
         use_local: true
 
   - id: resolve_clone_id
-    condition: "${{ not done_check.output.orchestration_complete }}"
     mcp:
       server: gobby-workflows
       tool: pipeline_eval
@@ -195,6 +193,7 @@ steps:
       tool: update_observed_files
       arguments:
         task_id: "${{ scan_needs_review.output.tasks[0].id }}"
+        require_commits: true
 
   - id: dispatch_qa
     condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 }}"
@@ -222,12 +221,14 @@ steps:
         target_branch: "${{ inputs.merge_target }}"
 
   - id: close_epic
-    condition: "${{ done_check.output.orchestration_complete }}"
+    condition: "${{ done_check.output.orchestration_complete and merge_clone.output and not merge_clone.output.get('error') }}"
     mcp:
       server: gobby-tasks
       tool: close_task
       arguments:
         task_id: "${{ inputs.task_id }}"
+        session_id: "${{ session_id }}"
+        changes_summary: "Orchestration complete. All tasks approved/closed."
 
   # --- RESULT ---
   - id: tick_result

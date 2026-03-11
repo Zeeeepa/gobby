@@ -2,7 +2,7 @@
 
 This module contains MCP tools for:
 - Getting messages for a session (get_session_messages)
-- Searching messages using FTS (search_messages)
+- Searching messages using FTS (search_messages, DB-only)
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+    from gobby.sessions.transcript_reader import TranscriptReader
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
@@ -19,6 +20,7 @@ def register_message_tools(
     registry: InternalToolRegistry,
     message_manager: LocalSessionMessageManager,
     session_manager: LocalSessionManager | None = None,
+    transcript_reader: TranscriptReader | None = None,
 ) -> None:
     """
     Register message retrieval and search tools with a registry.
@@ -27,6 +29,7 @@ def register_message_tools(
         registry: The InternalToolRegistry to register tools with
         message_manager: LocalSessionMessageManager instance for message operations
         session_manager: LocalSessionManager for resolving session references
+        transcript_reader: Optional TranscriptReader for DB + gzip fallback reads
     """
 
     def _resolve_session_id(session_id: str) -> str:
@@ -50,7 +53,7 @@ def register_message_tools(
 
     @registry.tool(
         name="get_session_messages",
-        description="Get messages for a session. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Get messages for a session. Falls back to gzip archive if DB messages were purged. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def get_session_messages(
         session_id: str,
@@ -72,11 +75,22 @@ def register_message_tools(
                 raise RuntimeError("Message manager not available")
 
             resolved_id = _resolve_session_id(session_id)
-            messages = await message_manager.get_messages(
-                session_id=resolved_id,
-                limit=limit,
-                offset=offset,
-            )
+
+            # Use TranscriptReader (DB + gzip fallback) when available
+            if transcript_reader:
+                messages = await transcript_reader.get_messages(
+                    session_id=resolved_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                session_total = await transcript_reader.count_messages(resolved_id)
+            else:
+                messages = await message_manager.get_messages(
+                    session_id=resolved_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                session_total = await message_manager.count_messages(resolved_id)
 
             # Truncate content if not full_content
             if not full_content:
@@ -103,8 +117,6 @@ def register_message_tools(
                         ):
                             tr["content"] = tr["content"][:200] + "... (truncated)"
 
-            session_total = await message_manager.count_messages(resolved_id)
-
             return {
                 "success": True,
                 "messages": messages,
@@ -119,7 +131,7 @@ def register_message_tools(
 
     @registry.tool(
         name="search_messages",
-        description="Search messages using Full Text Search (FTS). Accepts #N, N, UUID, or prefix for session_id.",
+        description="Search messages using text matching (DB-only, does not search gzip archives). Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def search_messages(
         query: str,

@@ -70,13 +70,13 @@ class TestClaudeExecutorInit:
             assert executor.default_model == "claude-opus-4-5-20251101"
 
     def test_init_subscription_mode_without_cli_raises(self, mock_anthropic_module) -> None:
-        """ClaudeExecutor raises ValueError when CLI not found in subscription mode."""
+        """ClaudeExecutor raises RuntimeError when CLI not found in subscription mode."""
         import shutil
 
         with patch.object(shutil, "which", return_value=None):
             from gobby.llm.claude_executor import ClaudeExecutor
 
-            with pytest.raises(ValueError, match="Claude CLI not found"):
+            with pytest.raises(RuntimeError, match="Claude CLI not found"):
                 ClaudeExecutor(auth_mode="subscription")
 
     def test_init_api_key_mode(self, mock_anthropic_module) -> None:

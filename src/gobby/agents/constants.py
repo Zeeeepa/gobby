@@ -97,6 +97,11 @@ def get_terminal_env_vars(
     elif prompt:
         env[GOBBY_PROMPT] = prompt
 
+    # Inject trace context for propagation to child process
+    from gobby.telemetry import inject_into_env
+
+    env = inject_into_env(env)
+
     return env
 
 

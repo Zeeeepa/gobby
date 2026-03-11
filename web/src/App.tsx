@@ -78,9 +78,17 @@ const WorkflowsPage = lazy(() =>
 const GitHubPage = lazy(() =>
   import("./components/source-control/GitHubPage").then((m) => ({ default: m.GitHubPage })),
 );
+const ReportsPage = lazy(() =>
+  import("./components/workflows/ReportsPage").then((m) => ({ default: m.ReportsPage })),
+);
 const DashboardPage = lazy(() =>
   import("./components/dashboard/DashboardPage").then((m) => ({
     default: m.DashboardPage,
+  })),
+);
+const TracesPage = lazy(() =>
+  import("./components/traces/TracesPage").then((m) => ({
+    default: m.TracesPage,
   })),
 );
 
@@ -287,12 +295,25 @@ export default function App() {
   >(null);
   const sessionsHook = useSessions();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("chat");
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const hash = window.location.hash.slice(1);
+    const validTabs = new Set([
+      "dashboard", "chat", "sessions", "terminals", "projects",
+      "tasks", "workflows", "reports", "source-control", "cron",
+      "traces", "memory", "skills", "mcp", "configuration",
+    ]);
+    return validTabs.has(hash) ? hash : "chat";
+  });
+
+  useEffect(() => {
+    window.location.hash = activeTab;
+  }, [activeTab]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null,
   );
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [initialTraceId, setInitialTraceId] = useState<string | null>(null);
   const [uiSettingsLoaded, setUiSettingsLoaded] = useState(false);
   const [projectReady, setProjectReady] = useState(false);
   const showPlanRef = useRef<(() => void) | null>(null);
@@ -300,6 +321,18 @@ export default function App() {
   const [resumeModalOpen, setResumeModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+
+  const handleNavigateToTrace = useCallback((traceId: string) => {
+    setInitialTraceId(traceId);
+    setActiveTab("traces");
+  }, []);
+
+  // When switching to traces tab without navigation, clear initialTraceId
+  useEffect(() => {
+    if (activeTab !== "traces") {
+      setInitialTraceId(null);
+    }
+  }, [activeTab]);
 
   // Auto-synthesize chat title when streaming completes
   const wasStreamingRef = useRef(false);
@@ -410,12 +443,12 @@ export default function App() {
     [sessionsHook.projects],
   );
 
-  // Default to "gobby" in dev mode (Vite port 5173), "Personal" otherwise
+  // Default to first repo-backed project, fall back to Personal
   const defaultProjectId = useMemo(() => {
-    const isDev = window.location.port === "5173";
-    const preferred = isDev ? "gobby" : "Personal";
+    const repoProject = projectOptions.find((p) => p.name !== "Personal");
     return (
-      projectOptions.find((p) => p.name === preferred)?.id ??
+      repoProject?.id ??
+      projectOptions.find((p) => p.name === "Personal")?.id ??
       projectOptions[0]?.id ??
       null
     );
@@ -872,9 +905,12 @@ export default function App() {
     },
     { id: "tasks", label: "Tasks", icon: <TasksIcon /> },
     { id: "workflows", label: "Workflows", icon: <WorkflowsIcon /> },
+    { id: "reports", label: "Reports", icon: <ReportsIcon /> },
     { id: "source-control", label: "GitHub", icon: <GitHubIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
-    { id: "memory", label: "Memory", icon: <MemoryIcon /> },
+    { id: "traces", label: "Traces", icon: <TracesIcon /> },
+    {
+      id: "memory", label: "Memory", icon: <MemoryIcon /> },
     { id: "skills", label: "Skills", icon: <SkillsIcon /> },
     { id: "mcp", label: "MCP", icon: <McpIcon /> },
     {
@@ -1075,12 +1111,16 @@ export default function App() {
             <MemoryPage projectId={effectiveProjectId} />
           ) : activeTab === "cron" ? (
             <CronJobsPage />
+          ) : activeTab === "traces" ? (
+            <TracesPage projectId={effectiveProjectId || undefined} initialTraceId={initialTraceId} />
           ) : activeTab === "skills" ? (
             <SkillsPage />
           ) : activeTab === "workflows" ? (
             <WorkflowsPage projectId={effectiveProjectId} />
           ) : activeTab === "mcp" ? (
             <McpPage />
+          ) : activeTab === "reports" ? (
+            <ReportsPage projectId={effectiveProjectId} onNavigateToTrace={handleNavigateToTrace} />
           ) : activeTab === "source-control" ? (
             <GitHubPage projectId={effectiveProjectId} />
           ) : activeTab === "configuration" ? (
@@ -1262,6 +1302,29 @@ function ProjectsIcon() {
   );
 }
 
+function ReportsIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 19h16" />
+      <path d="M4 15h16" />
+      <path d="M4 11h16" />
+      <rect x="6" y="3" width="4" height="18" rx="1" opacity="0.3" />
+      <rect x="6" y="7" width="4" height="14" rx="1" />
+      <rect x="14" y="3" width="4" height="18" rx="1" opacity="0.3" />
+      <rect x="14" y="11" width="4" height="10" rx="1" />
+    </svg>
+  );
+}
+
 function WorkflowsIcon() {
   return (
     <svg
@@ -1393,6 +1456,23 @@ function ChatIcon() {
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       <path d="M8 10h8" />
       <path d="M8 14h4" />
+    </svg>
+  );
+}
+
+function TracesIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
     </svg>
   );
 }

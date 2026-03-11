@@ -1,6 +1,54 @@
 # Task Orchestration
 
-The `gobby-orchestration` MCP server provides tools for automated task orchestration — spawning agents for ready subtasks, monitoring their progress, handling review, and cleaning up worktrees.
+Gobby provides two orchestration modes: **pipeline-based** (v3, recommended) and **MCP tool-based** (v2, legacy).
+
+## Pipeline-Based Orchestration (v3)
+
+The recommended approach uses a tick-based orchestrator pipeline driven by a cron job. Each tick scans task states, dispatches agents for ready work, monitors progress, handles review, and merges results.
+
+### Key concepts
+
+- **Clone-based isolation** — one shared clone per epic, agents work sequentially within it
+- **Tick-based loop** — cron fires every N seconds, pipeline evaluates state and dispatches
+- **Provider fallback rotation** — comma-separated provider lists (e.g., `"gemini,claude"`) with auto-retry on failures
+- **Stall detection** — lifecycle monitor detects provider-side stalls and triggers provider rotation
+- **Agent types** — developer agents write code, QA-dev agents review AND fix, merge agents handle landing
+
+### Running the orchestrator
+
+```bash
+# Create a cron job to tick the orchestrator every 4 minutes
+gobby cron create --name orchestrator-tick \
+  --interval 240 \
+  --action-type pipeline \
+  --pipeline orchestrator \
+  --inputs '{"epic_task_id": "#100", "developer_provider": "gemini,claude"}'
+```
+
+### Agent templates
+
+| Template | Role | Behavior |
+| :--- | :--- | :--- |
+| `developer` | Write code | Claim → implement → commit → needs_review |
+| `qa-dev` | Review + fix | Claim → review & fix → approve or escalate |
+| `merge` | Land code | Merge clone branch, resolve conflicts |
+
+### Pipeline template
+
+The orchestrator pipeline (`orchestrator.yaml`) handles:
+1. **Setup** — resolve or create clone for the epic
+2. **Scan** — check task states (open, in_progress, needs_review, review_approved)
+3. **Dispatch** — spawn dev agents for open tasks, QA agents for needs_review tasks
+4. **Monitor** — track agent health, detect stalls, handle failures
+5. **Merge** — when all tasks are approved, merge the clone and close the epic
+
+See [orchestrator-test-battery.md](orchestrator-test-battery.md) for a real-world example: 10 OTel tasks completed autonomously in ~3 hours.
+
+---
+
+## MCP Tool-Based Orchestration (v2)
+
+The `gobby-orchestration` MCP server provides tools for manual orchestration — spawning agents for ready subtasks, monitoring their progress, handling review, and cleaning up worktrees.
 
 All orchestration tools live on the **`gobby-orchestration`** server (not `gobby-tasks`). Task CRUD, dependencies, and readiness queries remain on `gobby-tasks`.
 

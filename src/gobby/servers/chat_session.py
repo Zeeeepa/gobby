@@ -67,6 +67,7 @@ from gobby.servers.chat_session_helpers import (
     _response_to_pre_tool_output,
     _response_to_prompt_output,
     _response_to_stop_output,
+    _response_to_subagent_output,
 )
 from gobby.servers.chat_session_permissions import ChatSessionPermissionsMixin
 
@@ -143,6 +144,12 @@ class ChatSession(ChatSessionPermissionsMixin):
     _on_stop: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
         default=None, repr=False
     )
+    _on_subagent_start: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
+    _on_subagent_stop: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
+        default=None, repr=False
+    )
     _on_mode_changed: Callable[[str, str], Awaitable[None]] | None = field(default=None, repr=False)
     _on_mode_persist: Callable[[str], None] | None = field(default=None, repr=False)
 
@@ -150,7 +157,11 @@ class ChatSession(ChatSessionPermissionsMixin):
         """Connect the ClaudeSDKClient with configured options."""
         cli_path = _find_cli_path()
         if not cli_path:
-            raise RuntimeError("Claude CLI not found in PATH")
+            raise RuntimeError(
+                "Claude CLI not found in PATH. "
+                "Install Claude Code for subscription mode, or set "
+                "auth_mode to 'api_key' in llm_providers config."
+            )
 
         mcp_config = _find_mcp_config()
         self._model = model
@@ -370,6 +381,40 @@ class ChatSession(ChatSessionPermissionsMixin):
                 return _response_to_compact_output(resp)
 
             hooks["PreCompact"] = [HookMatcher(matcher=None, hooks=[_compact_hook])]
+
+        if self._on_subagent_start:
+            cb_sub_start = self._on_subagent_start
+
+            async def _subagent_start_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {
+                    "session_id": inp.get("session_id", ""),
+                    "source": "claude_sdk_web_chat",
+                }
+                resp = await cb_sub_start(data)
+                return _response_to_subagent_output(resp, "SubagentStart")
+
+            hooks["SubagentStart"] = [HookMatcher(matcher=None, hooks=[_subagent_start_hook])]
+
+        if self._on_subagent_stop:
+            cb_sub_stop = self._on_subagent_stop
+
+            async def _subagent_stop_hook(
+                inp: SDKHookInput,
+                tool_use_id: str | None,
+                ctx: HookContext,
+            ) -> SyncHookJSONOutput:
+                data = {
+                    "session_id": inp.get("session_id", ""),
+                    "source": "claude_sdk_web_chat",
+                }
+                resp = await cb_sub_stop(data)
+                return _response_to_subagent_output(resp, "SubagentStop")
+
+            hooks["SubagentStop"] = [HookMatcher(matcher=None, hooks=[_subagent_stop_hook])]
 
         return hooks if hooks else None
 

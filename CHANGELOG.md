@@ -8,6 +8,125 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.28]
+
+### Features
+
+#### OpenTelemetry Full Observability Stack
+Built autonomously via orchestrator pipeline — 10 subtasks across Gemini devs and Claude Opus reviewers, completed in ~3 hours with 6 infrastructure bugs discovered and fixed live. See `test-battery.md` for the full story.
+
+- Added `src/gobby/telemetry/` module: tracing (`@traced` decorator, span context propagation), metrics (instruments for MCP calls, pipelines, tasks, hooks), logging bridge (OTel replaces custom logging), OTLP gRPC + Prometheus exporters (#9916–#9925)
+- Added SQLite span storage with migrations (`src/gobby/storage/spans.py`) (#9923)
+- Added trace query API (`src/gobby/servers/routes/traces.py`) (#9923)
+- Added trace viewer UI: TracesPage, TraceWaterfall, TraceDetail components (#9924)
+- Added TelemetryMiddleware for FastAPI request tracing (#9918)
+- Consolidated config: removed LoggingSettings, migrated `config.logging.*` to `config.telemetry.*` (#9925)
+- Removed 1,700+ lines of legacy logging/metrics code
+- Added 2,400+ lines of tests across 12 new test files
+
+#### Orchestration v3
+- Tick-based orchestrator pipeline with cron schedule as the loop (#10039)
+- Clone-based isolation — shared clone per epic, sequential dispatch (#10041)
+- Provider fallback rotation — comma-separated provider lists with auto-retry on failures (#10162)
+- Provider stall detection — lifecycle monitor detects provider-side stalls, triggers rotation (#10163)
+- QA-Dev agent template — reviews AND fixes in one pass, cannot reopen tasks (#10134)
+- Merge agent with conflict resolution via gobby-merge (#10004, #10006)
+- Re-entrancy guard preventing duplicate concurrent executions
+- Orchestrator pipeline v5.2 with outputs block for result propagation
+
+#### Agent System
+- Codex autonomous runner + web chat session (#10028)
+- Agent idle detection + worktree code version isolation (#9931)
+- Stalled buffer detection in idle detector (#10136)
+- Gemini loop detection with auto-dismiss (#10140)
+- Persistent agent runtime state survives daemon restarts (#9992)
+- Auto-dismiss folder trust prompts for spawned agents (#10026)
+- Auto-claim tasks on agent spawn (#9926, #9927)
+- Agent rule_selectors for scoped rule loading (#9958)
+
+#### Dashboard & Web UI
+- Dashboard redesign: 3-column grid, time range pills, donut charts, removed MCP card (#10192, #10199)
+- OTel metrics charts on dashboard (#10192)
+- Active tab persistence via URL hash (#10205)
+- Reports page: sorting, group-by, resizable sidebar, mobile view (#10112)
+- Reports promoted to top-level sidebar tab
+- Artifacts panel: show files with skill doc + Read button (#10002)
+- Token cost & savings tracking system (#10059)
+- Fixed hidden status bar and empty sidebar in web chat (#10178)
+
+#### Pipeline System
+- Pipeline execution list & search — MCP tools, CLI, HTTP (#9993)
+- Pipeline heartbeat with cron broadcast (#9973)
+- Pipeline context injection: project_id, project_path, current_branch (#10095)
+- Pipeline continuation: register_pipeline_continuation for agent dispatch → resume
+- Coerce Jinja2 string booleans in pipeline outputs (#10021)
+- Surface child pipeline outputs in invoke_pipeline results (#10005)
+
+#### Infrastructure
+- `gobby secrets` CLI command with encrypted store (#10076)
+- Wire MCP servers to secrets store, remove env var refs (#10091)
+- Move clones/worktrees to `~/.gobby/` + disk verification (#10090)
+- Blocking rules for destructive shell commands (#10073)
+- Copilot adapter with hooks in `.github/hooks/` format (#10107)
+- Codex hook parity — kebab-case fields, app-server wiring (#9984)
+- Auto-healing progressive discovery rules (#9996)
+- Persistent conductor with cron broadcast (#9977)
+- show_file MCP tool for artifacts panel (#9945)
+- Replace Playwright MCP server with CLI + skill (#10092)
+
+### Fixes
+- Rule engine: clear tool_block_pending on successful AFTER_TOOL (#10208, #9997)
+- Provider resolution dead code in spawn_agent_impl (#10195)
+- Savings cost always showing $0.00 (#10197)
+- Cron logger reserved `name` key masking errors (#10117)
+- `no-truncate-interactive` rule false positives (#10164)
+- tmux send-keys literal newline bug — split into text + separate Enter key (#10169)
+- Orchestrator clone resolution gate made unconditional (#10170)
+- Epic changes_summary made optional for parent tasks (#10171)
+- merge-clone missing parent_session_id (#10172)
+- Premature step advancement on tool validation failure (#10149)
+- Claude project path encoding for dot-prefixed directories (#10123)
+- spawn_agent dedup check made idempotent (#10124)
+- Dead-end retry counter, session lineage, parallel chains (#9937)
+- Orchestrator deadlock — ghost success, stale task recovery, cron double-fire (#10103)
+- N+1 queries in spans.py, push limit/offset to storage layer in traces.py (#10180)
+- Sync I/O in pipeline_heartbeat and transcript_reader (#10182)
+- Remove continuous JSONL sync that blocks git branch switches (#10075)
+- Divergent branch handling in sync_clone and merge_clone (#10013)
+- DaemonConfig extra=forbid changed to extra=ignore (#10175)
+- Parallel tool failure resilience (#10139)
+- Block hallucinated `--no-stat` git flag (#10137)
+- Auto-coerce string arguments in call_tool MCP entry points (#10010)
+- Pre-approve workspace trust for CLI agents in clone/worktree dirs (#9995)
+- Prevent user tmux.conf from killing agent sessions (#10000)
+- 79 mypy errors resolved across multiple sessions (#10031, #10071, #10177, #10207)
+- 54 test failures aligned with source code changes (#10179)
+- CodeRabbit triage: 16 fixes + 15 bug fixes + 6 bugs + 17 nits across 40+ files (#10186, #10188, #10189, #10043, #10044, #10047, #10048)
+- Stale require-commit-before-close test refs updated (#10208)
+
+### Refactoring
+- Reorganize install/shared/ into workflows/ subdirectories (#9960)
+- Consolidate JSONL sync rules into sync/ group (#9957)
+- Move error triage from stop gate to before_tool triple-rule (#10097)
+- Remove deprecated singular `effect=` from RuleDefinitionBody (#10067, #10049)
+- Remove merge agent from dev-loop and orchestrator pipelines (#9961)
+- Extract duplicated edit_write state clearing in rule engine (#9979)
+- Encapsulate pipeline continuation access behind public API (#9979)
+- Move transcript blob storage from SQLite to filesystem archive (#10058)
+- Drop 14 dead columns from tasks table (#10070)
+- Purge session_messages after gzip archival (#10080)
+- Deferred JSONL exports to commit-time only (#10198)
+
+### Docs
+- Chronicle test battery Phase 3 completion (#10116)
+- Expand review.md with all 109 CodeRabbit findings (#10191)
+- Restructure orchestrator test battery for component-level testing (#9972)
+- Add dev environment instructions to GEMINI.md for agent clones (#10147)
+- Clarify Codex CLI hook limitations in README (#10017)
+- Remove continuation references from guides (#10037)
+
+---
+
 ## [0.2.27]
 
 ### Features

@@ -1,0 +1,98 @@
+tags: [worker-safety, enforcement, gobby]
+
+rules:
+  no-npm-install:
+    description: "Block npm install/add for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bnpm\\s+(install|i|add)\\b"
+        reason: "Package installation is not allowed for agents. Dependencies should be managed by the user."
+
+  no-npx:
+    description: "Block npx for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bnpx\\b"
+        reason: "Running npx is not allowed for agents. Dependencies should be managed by the user."
+
+  no-yarn-add:
+    description: "Block yarn add for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\byarn\\s+add\\b"
+        reason: "Package installation is not allowed for agents. Dependencies should be managed by the user."
+
+  no-pip-install:
+    description: "Block pip install for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bpip3?\\s+install\\b"
+        reason: "Package installation is not allowed for agents. Dependencies should be managed by the user."
+
+  no-uv-add:
+    description: "Block uv add/pip install for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\buv\\s+(add|pip\\s+install)\\b"
+        reason: "Package installation is not allowed for agents. Dependencies should be managed by the user."
+
+  no-cargo-add:
+    description: "Block cargo add for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bcargo\\s+add\\b"
+        reason: "Package installation is not allowed for agents. Dependencies should be managed by the user."
+
+  no-gem-install:
+    description: "Block gem install for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bgem\\s+install\\b"
+        reason: "Package installation is not allowed for agents. Dependencies should be managed by the user."
+
+  no-brew-install:
+    description: "Block brew install for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bbrew\\s+install\\b"
+        reason: "Package installation is not allowed for agents. Dependencies should be managed by the user."

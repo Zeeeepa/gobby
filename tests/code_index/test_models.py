@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from gobby.code_index.models import (
-    CODE_INDEX_UUID_NAMESPACE,
     IndexedFile,
     IndexResult,
     Symbol,

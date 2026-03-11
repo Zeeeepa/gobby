@@ -1,0 +1,14 @@
+tags: [worker-safety, enforcement, default, gobby]
+
+rules:
+  no-destructive-git-interactive:
+    description: "Block destructive git operations with escape hatch for interactive sessions."
+    event: before_tool
+    enabled: false
+    priority: 55
+    when: "not variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "git\\s+(reset\\s+--hard|clean\\s+-[fdx]+|checkout\\s+(--\\s+)?\\.|restore\\s+\\.|branch\\s+-D|stash\\s+(drop|clear))"
+        reason: "Destructive git operations are not allowed without explicit approval. Ask the user for permission to disable this rule if you need to proceed."

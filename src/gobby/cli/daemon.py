@@ -169,8 +169,8 @@ def start(
     # Get paths from config (respects GOBBY_HOME env var)
     gobby_dir = get_gobby_home()
     pid_file = gobby_dir / "gobby.pid"
-    log_file = Path(config.logging.client).expanduser()
-    error_log_file = Path(config.logging.client_error).expanduser()
+    log_file = Path(config.telemetry.log_file).expanduser()
+    error_log_file = Path(config.telemetry.log_file_error).expanduser()
 
     gobby_dir.mkdir(parents=True, exist_ok=True)
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -304,7 +304,7 @@ def start(
         # Spawn watchdog if daemon is healthy and watchdog is enabled
         watchdog_pid = None
         if daemon_healthy and not no_watchdog and config.watchdog.enabled:
-            watchdog_log = Path(config.logging.watchdog).expanduser()
+            watchdog_log = Path(config.telemetry.log_file_watchdog).expanduser()
             watchdog_pid = spawn_watchdog(http_port, verbose, watchdog_log)
             if watchdog_pid:
                 watchdog_pid_file = gobby_dir / "watchdog.pid"
@@ -318,7 +318,7 @@ def start(
             if config.ui.mode == "dev":
                 web_dir = find_web_dir(config)
                 if web_dir:
-                    ui_log = Path(config.logging.client).expanduser().parent / "ui.log"
+                    ui_log = Path(config.telemetry.log_file).expanduser().parent / "ui.log"
                     ui_pid = spawn_ui_server(config.ui.host, config.ui.port, web_dir, ui_log)
                     if ui_pid:
                         ui_url = f"http://{config.ui.host}:{config.ui.port}"
@@ -444,7 +444,7 @@ def status(ctx: click.Context) -> None:
     """Show Gobby daemon status and information."""
     config = ctx.obj["config"]
     pid_file = get_gobby_home() / "gobby.pid"
-    log_dir = Path(config.logging.client).expanduser().parent
+    log_dir = Path(config.telemetry.log_file).expanduser().parent
 
     # Read PID from file
     if not pid_file.exists():

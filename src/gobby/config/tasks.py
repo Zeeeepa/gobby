@@ -219,22 +219,6 @@ class TaskValidationConfig(BaseModel):
         default=None,
         description="Path to custom criteria generation prompt template (e.g., 'validation/criteria')",
     )
-    external_system_prompt_path: str | None = Field(
-        default=None,
-        description="Path to external validator system prompt (e.g., 'external_validation/system')",
-    )
-    external_spawn_prompt_path: str | None = Field(
-        default=None,
-        description="Path to spawn validation prompt template (e.g., 'external_validation/spawn')",
-    )
-    external_agent_prompt_path: str | None = Field(
-        default=None,
-        description="Path to agent validation prompt template (e.g., 'external_validation/agent')",
-    )
-    external_llm_prompt_path: str | None = Field(
-        default=None,
-        description="Path to LLM validation prompt template (e.g., 'external_validation/external')",
-    )
     criteria_system_prompt: str = Field(
         default="You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that aren't mentioned. Vague tasks get vague criteria. Use markdown checkboxes.",
         description="System prompt for generating validation criteria",
@@ -269,21 +253,6 @@ class TaskValidationConfig(BaseModel):
     build_command: str | None = Field(
         default=None,
         description="Custom build command (auto-detected if None: npm test, pytest, etc.)",
-    )
-    # External validator
-    use_external_validator: bool = Field(
-        default=False,
-        description="Use external LLM for validation (different from task agent)",
-    )
-    external_validator_model: str | None = Field(
-        default=None,
-        description="Model for external validation (defaults to validation.model)",
-    )
-    external_validator_mode: Literal["llm", "agent", "spawn"] = Field(
-        default="llm",
-        description="External validator mode: 'llm' uses direct API calls, "
-        "'agent' uses in-process agent with tools, "
-        "'spawn' spawns a separate headless agent process via gobby-agents",
     )
     # Escalation settings
     escalation_enabled: bool = Field(

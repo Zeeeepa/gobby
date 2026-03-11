@@ -81,14 +81,16 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then
     fi
 fi
 
-# Gobby task sync - export tasks before commit
+# Gobby sync - export tasks and memories before commit
 # Skip for spawned agents to avoid JSONL contamination in worktrees
 if [ -z "$GOBBY_AGENT_RUN_ID" ] && command -v gobby >/dev/null 2>&1; then
     gobby tasks sync --export --quiet 2>/dev/null || true
-    # Stage task file if modified by export
-    if git diff --name-only 2>/dev/null | grep -q "\.gobby/tasks.jsonl"; then
-        git add .gobby/tasks.jsonl 2>/dev/null || true
-    fi
+    gobby memory backup --quiet 2>/dev/null || true
+
+    # Stage exported files if they exist
+    for f in .gobby/tasks.jsonl .gobby/memories.jsonl; do
+        [ -f "$f" ] && git add "$f" 2>/dev/null || true
+    done
 fi
 """,
     "pre-push": """

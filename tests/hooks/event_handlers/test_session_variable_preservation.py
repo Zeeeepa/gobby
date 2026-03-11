@@ -130,9 +130,7 @@ class TestReturningSessionPreservesUserVariables:
     ) -> None:
         """stop_attempts set during session should not be reset to default."""
         handlers = _make_event_handlers()
-        mock_resolve.return_value = _make_agent_body(
-            variables={"stop_attempts": 0}
-        )
+        mock_resolve.return_value = _make_agent_body(variables={"stop_attempts": 0})
 
         mock_svm = MagicMock()
         mock_svm_cls.return_value = mock_svm
@@ -193,9 +191,7 @@ class TestReturningSessionReappliesInternalKeys:
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
     @patch("gobby.workflows.agent_resolver.resolve_agent")
-    def test_reapplies_agent_type(
-        self, mock_resolve: MagicMock, mock_svm_cls: MagicMock
-    ) -> None:
+    def test_reapplies_agent_type(self, mock_resolve: MagicMock, mock_svm_cls: MagicMock) -> None:
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body("default")
 

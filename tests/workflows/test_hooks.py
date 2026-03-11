@@ -647,11 +647,13 @@ class TestVariablePersistence:
         definition = {
             "event": event,
             "priority": priority,
-            "effect": {
-                "type": "set_variable",
-                "variable": variable,
-                "value": value,
-            },
+            "effects": [
+                {
+                    "type": "set_variable",
+                    "variable": variable,
+                    "value": value,
+                },
+            ],
         }
         db.execute(
             """
@@ -701,9 +703,9 @@ class TestVariablePersistence:
         for i in range(3):
             await handler._evaluate_rules(event)
             variables = session_var_manager.get_variables("test-session")
-            assert (
-                variables.get("custom_counter") == i + 1
-            ), f"After evaluation {i + 1}, custom_counter should be {i + 1}"
+            assert variables.get("custom_counter") == i + 1, (
+                f"After evaluation {i + 1}, custom_counter should be {i + 1}"
+            )
 
     @pytest.mark.asyncio
     async def test_session_variables_visible_to_rule_conditions(
@@ -715,10 +717,12 @@ class TestVariablePersistence:
             "event": "stop",
             "priority": 10,
             "when": "variables.get('my_flag')",
-            "effect": {
-                "type": "block",
-                "reason": "Blocked because my_flag is set",
-            },
+            "effects": [
+                {
+                    "type": "block",
+                    "reason": "Blocked because my_flag is set",
+                },
+            ],
         }
         db.execute(
             """

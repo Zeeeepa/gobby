@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from gobby.storage.task_dependencies import TaskDependencyManager
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import inc_counter
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -162,7 +162,6 @@ def _get_config_store(server: HTTPServer) -> Any:
 def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
     """Create agent spawn router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/agents", tags=["agent-spawn"])
-    metrics = get_metrics_collector()
 
     async def _get_or_create_launcher_session(project_id: str) -> str:
         """Get or create a persistent web_launcher session for HTTP-initiated spawns."""
@@ -381,8 +380,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
     @router.post("/spawn")
     async def spawn_agent(request: AgentSpawnRequest) -> dict[str, Any]:
         """Spawn an agent to work on a task."""
-        metrics.inc_counter("http_requests_total")
-        metrics.inc_counter("agent_spawns_total")
+        inc_counter("agent_spawns_total")
 
         try:
             # Resolve project context
@@ -407,7 +405,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
     @router.post("/spawn/batch")
     async def spawn_batch(request: BatchSpawnRequest) -> dict[str, Any]:
         """Spawn agents for multiple tasks concurrently."""
-        metrics.inc_counter("http_requests_total")
 
         if not request.spawns:
             raise HTTPException(status_code=400, detail="No spawn requests provided")
@@ -446,7 +443,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         project_id: str = Query(..., description="Project ID"),
     ) -> dict[str, Any]:
         """Get per-category launch defaults for the project."""
-        metrics.inc_counter("http_requests_total")
         try:
             store = _get_config_store(server)
             key = f"launch_defaults.{project_id}"
@@ -463,7 +459,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
     @router.put("/launch-defaults")
     async def save_launch_defaults(request: LaunchDefaultsRequest) -> dict[str, Any]:
         """Save per-category launch defaults for the project."""
-        metrics.inc_counter("http_requests_total")
         try:
             store = _get_config_store(server)
             key = f"launch_defaults.{request.project_id}"
@@ -489,7 +484,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         agent_name: str = Query("default", description="Agent definition name"),
     ) -> dict[str, Any]:
         """Generate a preview of the auto-generated spawn prompt for a task."""
-        metrics.inc_counter("http_requests_total")
         try:
             task_manager = server.services.task_manager
             if not task_manager:

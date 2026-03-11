@@ -16,8 +16,10 @@ from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
 
 if TYPE_CHECKING:
     from gobby.agents.registry import RunningAgentRegistry
+    from gobby.storage.agents import LocalAgentRunManager
     from gobby.storage.cron_models import CronJob
     from gobby.storage.pipelines import LocalPipelineExecutionManager
+    from gobby.storage.tasks._manager import LocalTaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +36,23 @@ class PipelineHeartbeat:
         execution_manager: LocalPipelineExecutionManager,
         agent_registry: RunningAgentRegistry,
         stall_threshold_seconds: float = 120.0,
+        task_manager: LocalTaskManager | None = None,
+        agent_run_manager: LocalAgentRunManager | None = None,
     ) -> None:
         self._execution_manager = execution_manager
         self._agent_registry = agent_registry
         self._stall_threshold_seconds = stall_threshold_seconds
+        self._task_manager = task_manager
+        self._agent_run_manager = agent_run_manager
 
     async def __call__(self, job: CronJob) -> str:
         """Cron handler entry point."""
         stalled = await self.check_stalled_executions()
-        return f"Heartbeat: {stalled} stalled handled"
+        recovered = await self.check_stale_tasks()
+        parts = [f"{stalled} stalled handled"]
+        if recovered:
+            parts.append(f"{recovered} stale tasks recovered")
+        return f"Heartbeat: {', '.join(parts)}"
 
     async def check_stalled_executions(self) -> int:
         """Find stalled RUNNING executions and take corrective action.
@@ -54,9 +64,7 @@ class PipelineHeartbeat:
         Returns:
             Number of stalled executions handled
         """
-        stalled = self._execution_manager.get_stalled_executions(
-            int(self._stall_threshold_seconds), all_projects=True
-        )
+        stalled = self._execution_manager.get_stalled_executions(int(self._stall_threshold_seconds))
         if not stalled:
             return 0
 
@@ -111,3 +119,52 @@ class PipelineHeartbeat:
         except Exception:
             logger.exception("Failed to check alive agents for execution %s", execution.id)
             return False
+
+    async def check_stale_tasks(self) -> int:
+        """Find in_progress tasks with no alive agent and reset to open.
+
+        For each in_progress task that has an assignee:
+        1. Check if there's an active agent run (pending/running) for the task
+        2. If not, reset the task to open with no assignee
+
+        Returns:
+            Number of recovered tasks.
+        """
+        import asyncio
+
+        if not self._task_manager or not self._agent_run_manager:
+            return 0
+
+        try:
+            in_progress = await asyncio.to_thread(
+                self._task_manager.list_tasks, status="in_progress", limit=100
+            )
+        except Exception:
+            logger.exception("Heartbeat: failed to query in_progress tasks")
+            return 0
+
+        recovered = 0
+        for task in in_progress:
+            if not task.assignee:
+                continue
+            try:
+                has_active = await asyncio.to_thread(
+                    self._agent_run_manager.has_active_run_for_task, task.id
+                )
+                if has_active:
+                    continue
+
+                # No active agent run — task is orphaned, reset it
+                await asyncio.to_thread(
+                    self._task_manager.update_task, task.id, status="open", assignee=None
+                )
+                logger.warning(
+                    "Heartbeat: recovered stale task %s (#%s) — "
+                    "reset to open (no active agent run)",
+                    task.id,
+                    task.seq_num,
+                )
+                recovered += 1
+            except Exception:
+                logger.exception("Heartbeat: error checking task %s for staleness", task.id)
+        return recovered

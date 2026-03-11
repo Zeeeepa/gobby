@@ -36,7 +36,7 @@ def executor(cron_storage: CronJobStorage) -> CronExecutor:
 
 
 @pytest.fixture
-def cron_config() -> "CronConfig":
+def cron_config() -> CronConfig:
     from gobby.config.cron import CronConfig
 
     return CronConfig(
@@ -51,7 +51,7 @@ def cron_config() -> "CronConfig":
 def scheduler(
     cron_storage: CronJobStorage,
     executor: CronExecutor,
-    cron_config: "CronConfig",
+    cron_config: CronConfig,
 ) -> CronScheduler:
     return CronScheduler(
         storage=cron_storage,

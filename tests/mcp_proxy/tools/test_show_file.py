@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from gobby.mcp_proxy.tools.canvas import (
-    EXTENSION_MAP,
     MAX_IMAGE_FILE_SIZE,
     MAX_TEXT_FILE_SIZE,
     create_canvas_registry,
@@ -162,7 +161,7 @@ async def test_show_file_image_too_large(registry, artifact_bc, tmp_path):
 async def test_show_file_unknown_extension(registry, artifact_bc, tmp_path):
     """Unknown extensions should default to code with extension as language."""
     f = tmp_path / "script.zig"
-    f.write_text("const std = @import(\"std\");\n", encoding="utf-8")
+    f.write_text('const std = @import("std");\n', encoding="utf-8")
 
     tool = registry.get_tool("show_file")
     result = await tool(file_path=str(f), conversation_id="conv_1")
@@ -178,9 +177,7 @@ async def test_show_file_custom_title(registry, artifact_bc, tmp_path):
     f.write_text("pass\n", encoding="utf-8")
 
     tool = registry.get_tool("show_file")
-    result = await tool(
-        file_path=str(f), title="Entry Point", conversation_id="conv_1"
-    )
+    result = await tool(file_path=str(f), title="Entry Point", conversation_id="conv_1")
 
     assert result["title"] == "Entry Point"
     assert artifact_bc.events[0]["title"] == "Entry Point"

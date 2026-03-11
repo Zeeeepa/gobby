@@ -81,11 +81,11 @@ class TestScoreTasks:
         tm.list_tasks.return_value = []
 
         t1 = self._make_task("t1", priority=2)
-        t2 = self._make_task("t2", priority=2, complexity=3)
+        t2 = self._make_task("t2", priority=2, category="tests")
 
         scored = _score_tasks([t1, t2], tm, prefer_subtasks=False, active_ancestry=[])
 
-        # t2 has complexity bonus, t1 doesn't. Both leaf, but leaf bonus disabled.
+        # t2 has category bonus, t1 doesn't. Both leaf, but leaf bonus disabled.
         assert scored[0][0].id == "t2"
 
     def test_returns_sorted_descending(self) -> None:

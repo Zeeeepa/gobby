@@ -1724,6 +1724,17 @@
   font-size: calc(var(--font-size-base) * 0.85);
 }
 
+/* Session status bar: visible on desktop, hidden on mobile */
+.session-status-desktop {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .session-status-desktop {
+    display: none;
+  }
+}
+
 /* Mobile: hide sidebars, use top drawer instead */
 @media (max-width: 768px) {
   .conversation-picker {

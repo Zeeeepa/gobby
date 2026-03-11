@@ -249,3 +249,22 @@ def _response_to_compact_output(resp: dict[str, Any] | None) -> SyncHookJSONOutp
             },
         )
     return output
+
+
+def _response_to_subagent_output(
+    resp: dict[str, Any] | None, event_name: str
+) -> SyncHookJSONOutput:
+    """Convert workflow HookResponse dict to SubagentStart/SubagentStop SDK output."""
+    if not resp:
+        return SyncHookJSONOutput()
+    output = SyncHookJSONOutput()
+    context = resp.get("context")
+    if context:
+        output["hookSpecificOutput"] = cast(
+            Any,
+            {  # No SDK TypedDict for Subagent hooks
+                "hookEventName": event_name,
+                "additionalContext": _truncate(context),
+            },
+        )
+    return output

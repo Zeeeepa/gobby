@@ -223,7 +223,7 @@ variables:
             "max_stop_attempts",
             "task_claimed",
             "require_task_before_edit",
-            "require_commit_before_close",
+            "require_commit_before_status",
             "pre_existing_errors_triaged",
             "enforce_tool_schema_check",
             "auto_inject_handoff",

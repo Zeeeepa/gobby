@@ -70,9 +70,7 @@ def test_parse_python_extracts_methods(
 # ── Parent linking ──────────────────────────────────────────────────────
 
 
-def test_parent_linking(
-    parser: CodeParser, python_file: Path, tmp_path: Path
-) -> None:
+def test_parent_linking(parser: CodeParser, python_file: Path, tmp_path: Path) -> None:
     """Methods have parent_symbol_id set to their enclosing class."""
     result = parser.parse_file(str(python_file), "proj", str(tmp_path))
     assert result is not None
@@ -84,9 +82,7 @@ def test_parent_linking(
         assert m.parent_symbol_id == class_sym.id
 
 
-def test_qualified_name_for_methods(
-    parser: CodeParser, python_file: Path, tmp_path: Path
-) -> None:
+def test_qualified_name_for_methods(parser: CodeParser, python_file: Path, tmp_path: Path) -> None:
     """Methods get qualified names like ClassName.method_name."""
     result = parser.parse_file(str(python_file), "proj", str(tmp_path))
     assert result is not None
@@ -98,9 +94,7 @@ def test_qualified_name_for_methods(
 # ── Docstring extraction ───────────────────────────────────────────────
 
 
-def test_docstring_extraction(
-    parser: CodeParser, python_file: Path, tmp_path: Path
-) -> None:
+def test_docstring_extraction(parser: CodeParser, python_file: Path, tmp_path: Path) -> None:
     """Parser extracts docstrings from functions and classes."""
     result = parser.parse_file(str(python_file), "proj", str(tmp_path))
     assert result is not None
@@ -117,9 +111,7 @@ def test_docstring_extraction(
 # ── Import extraction ──────────────────────────────────────────────────
 
 
-def test_import_extraction(
-    parser: CodeParser, python_file: Path, tmp_path: Path
-) -> None:
+def test_import_extraction(parser: CodeParser, python_file: Path, tmp_path: Path) -> None:
     """Parser extracts import statements."""
     result = parser.parse_file(str(python_file), "proj", str(tmp_path))
     assert result is not None
@@ -131,9 +123,7 @@ def test_import_extraction(
 # ── Call extraction ─────────────────────────────────────────────────────
 
 
-def test_call_extraction(
-    parser: CodeParser, python_file: Path, tmp_path: Path
-) -> None:
+def test_call_extraction(parser: CodeParser, python_file: Path, tmp_path: Path) -> None:
     """Parser extracts function/method calls."""
     result = parser.parse_file(str(python_file), "proj", str(tmp_path))
     assert result is not None
@@ -147,9 +137,7 @@ def test_call_extraction(
 # ── Skip conditions ─────────────────────────────────────────────────────
 
 
-def test_skip_binary_file(
-    parser: CodeParser, tmp_path: Path
-) -> None:
+def test_skip_binary_file(parser: CodeParser, tmp_path: Path) -> None:
     """Binary files are skipped."""
     f = tmp_path / "binary.py"
     f.write_bytes(b"\x89PNG\x00\x00\x00data")
@@ -169,9 +157,7 @@ def test_skip_excluded_pattern(tmp_path: Path) -> None:
     assert result is None
 
 
-def test_skip_secret_extension(
-    parser: CodeParser, tmp_path: Path
-) -> None:
+def test_skip_secret_extension(parser: CodeParser, tmp_path: Path) -> None:
     """Files with secret extensions are skipped."""
     f = tmp_path / "credentials.json"
     f.write_text('{"key": "secret"}')
@@ -179,9 +165,7 @@ def test_skip_secret_extension(
     assert result is None
 
 
-def test_skip_empty_file(
-    parser: CodeParser, tmp_path: Path
-) -> None:
+def test_skip_empty_file(parser: CodeParser, tmp_path: Path) -> None:
     """Empty files are skipped."""
     f = tmp_path / "empty.py"
     f.write_text("")
@@ -189,9 +173,7 @@ def test_skip_empty_file(
     assert result is None
 
 
-def test_skip_unsupported_language(
-    parser: CodeParser, tmp_path: Path
-) -> None:
+def test_skip_unsupported_language(parser: CodeParser, tmp_path: Path) -> None:
     """Files with unsupported extensions are skipped."""
     f = tmp_path / "data.csv"
     f.write_text("a,b,c\n1,2,3")
@@ -214,9 +196,7 @@ def test_skip_oversized_file(tmp_path: Path) -> None:
 # ── Signature extraction ────────────────────────────────────────────────
 
 
-def test_signature_extracted(
-    parser: CodeParser, python_file: Path, tmp_path: Path
-) -> None:
+def test_signature_extracted(parser: CodeParser, python_file: Path, tmp_path: Path) -> None:
     """Symbols have a signature (first line of definition)."""
     result = parser.parse_file(str(python_file), "proj", str(tmp_path))
     assert result is not None
@@ -229,9 +209,7 @@ def test_signature_extracted(
 # ── Content hash ────────────────────────────────────────────────────────
 
 
-def test_content_hash_set(
-    parser: CodeParser, python_file: Path, tmp_path: Path
-) -> None:
+def test_content_hash_set(parser: CodeParser, python_file: Path, tmp_path: Path) -> None:
     """Each symbol has a non-empty content hash."""
     result = parser.parse_file(str(python_file), "proj", str(tmp_path))
     assert result is not None

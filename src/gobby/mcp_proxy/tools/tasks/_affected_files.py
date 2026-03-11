@@ -255,6 +255,7 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
 
     def update_observed_files(
         task_id: str,
+        require_commits: bool = False,
     ) -> dict[str, Any]:
         """Annotate a task's affected files from its linked commits.
 
@@ -264,6 +265,7 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
 
         Args:
             task_id: Task reference (#N, path, or UUID)
+            require_commits: If true, fails if no linked commits are found.
 
         Returns:
             Dict with task_id, commits_processed, files_observed, and files list
@@ -283,6 +285,13 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
         commit_shas = task.commits or []
 
         if not commit_shas:
+            logger.warning(
+                "No linked commits found for task %s in update_observed_files", resolved_id
+            )
+            if require_commits:
+                return {
+                    "error": "No linked commits found for task. Commits are required for this action."
+                }
             return {
                 "task_id": resolved_id,
                 "commits_processed": 0,
@@ -328,6 +337,11 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
                 "task_id": {
                     "type": "string",
                     "description": "Task reference: #N, path, or UUID",
+                },
+                "require_commits": {
+                    "type": "boolean",
+                    "description": "If true, fails if no linked commits are found",
+                    "default": False,
                 },
             },
             "required": ["task_id"],

@@ -330,7 +330,7 @@ def build_condition_helpers(
     so helper functions can be called from AST-based expressions.
 
     Args:
-        task_manager: LocalTaskManager instance (enables task_tree_complete, task_needs_user_review)
+        task_manager: LocalTaskManager instance (enables task_tree_complete)
         stop_registry: StopRegistry instance (enables has_stop_signal)
         plugin_conditions: Dict of plugin condition name -> callable
         context: Evaluation context dict (needed for mcp_* helpers to access variables)
@@ -338,7 +338,7 @@ def build_condition_helpers(
     Returns:
         Dict of function_name -> callable, ready to pass as allowed_funcs.
     """
-    from .condition_helpers import task_needs_user_review, task_tree_complete
+    from .condition_helpers import task_needs_human_review, task_tree_complete
 
     ctx = context or {}
     funcs: dict[str, Callable[..., Any]] = {
@@ -356,12 +356,12 @@ def build_condition_helpers(
 
     if task_manager:
         funcs["task_tree_complete"] = lambda task_id: task_tree_complete(task_manager, task_id)
-        funcs["task_needs_user_review"] = lambda task_id: task_needs_user_review(
+        funcs["task_needs_human_review"] = lambda task_id: task_needs_human_review(
             task_manager, task_id
         )
     else:
         funcs["task_tree_complete"] = lambda task_id: True
-        funcs["task_needs_user_review"] = lambda task_id: False
+        funcs["task_needs_human_review"] = lambda task_id: False
 
     # --- Stop signal helper ---
 

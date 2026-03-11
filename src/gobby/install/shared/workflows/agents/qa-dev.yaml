@@ -1,0 +1,115 @@
+name: qa-dev
+description: |
+  QA developer agent: reviews code AND fixes issues in one pass, then approves or escalates.
+  Last stop before merge — does not reopen tasks back to developers.
+  Behavior enforced by inline step workflow.
+
+version: "2.0"
+enabled: false
+
+instructions: |
+  You are a QA developer agent spawned by an orchestrator pipeline.
+  Your task ID is in your session variables as assigned_task_id.
+
+  Your behavior is enforced by a step workflow. Follow the step prompts:
+  1. CLAIM: Call claim_task with your assigned_task_id, then get_task for details
+  2. REVIEW AND FIX: Check diff, run tests, fix any issues you find, commit your fixes
+  3. DECIDE:
+     - APPROVE: Call mark_task_review_approved if code is good (after any fixes)
+     - ESCALATE: Call escalate_task if issues cannot be resolved without human intervention
+  4. TERMINATE: Call kill_agent to shut down
+
+  You are the last stop before merge. You CANNOT reopen tasks — fix issues yourself
+  or escalate to a human. Do not throw work back to developer agents.
+
+  CRITICAL RULES:
+  - Do NOT call close_task — blocked by workflow. Approve or escalate only.
+  - Do NOT call reopen_task — you fix issues yourself or escalate.
+  - Do NOT call git push — the merge agent handles pushing.
+  - Do NOT stop or exit without calling kill_agent.
+  - Always use `uv run` for Python commands.
+  - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
+
+provider: claude
+mode: code
+isolation: clone
+
+workflows:
+  rule_selectors:
+    include:
+      - "tag:default"
+      - "tag:worker-safety"
+    exclude:
+      - "tag:sync"
+
+step_variables:
+  task_claimed: false
+  review_complete: false
+
+steps:
+  - name: claim
+    description: "Claim the assigned task"
+    status_message: |
+      Claim your task by calling claim_task with your assigned_task_id,
+      then call get_task to read the full details.
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+    allowed_mcp_tools:
+      - "gobby-tasks:claim_task"
+      - "gobby-tasks:get_task"
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: claim_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+    transitions:
+      - to: review_and_fix
+        when: "vars.task_claimed"
+
+  - name: review_and_fix
+    description: "Review code, fix issues, then approve or escalate"
+    status_message: |
+      Review and fix the code changes for the assigned task.
+      1. Check diff: git diff, git log
+      2. Run tests: uv run pytest <test_file> -v
+      3. Fix any issues found — you have full edit access in this clone
+      4. Commit your fixes if you made changes
+      5. APPROVE: call mark_task_review_approved if code is good
+      6. ESCALATE (cannot resolve): call escalate_task with detailed reason
+    allowed_tools: "all"
+    blocked_mcp_tools:
+      - "gobby-tasks:close_task"
+      - "gobby-tasks:reopen_task"
+      - "gobby-agents:spawn_agent"
+      - "gobby-agents:kill_agent"
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: mark_task_review_approved
+        action: set_variable
+        variable: review_complete
+        value: true
+      - server: gobby-tasks
+        tool: escalate_task
+        action: set_variable
+        variable: review_complete
+        value: true
+    transitions:
+      - to: terminate
+        when: "vars.review_complete"
+
+  - name: terminate
+    description: "Self-terminate"
+    status_message: "Call kill_agent to terminate."
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+    allowed_mcp_tools:
+      - "gobby-agents:kill_agent"
+
+exit_condition: "current_step == 'terminate'"

@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_internal_manager, get_mcp_manager, get_server
-from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -20,9 +19,6 @@ if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
-
-# Module-level metrics collector (shared across all requests)
-_metrics = get_metrics_collector()
 
 
 async def list_mcp_servers(
@@ -39,7 +35,6 @@ async def list_mcp_servers(
     Returns:
         List of servers with connection status
     """
-    _metrics.inc_counter("http_requests_total")
 
     try:
         server_list = []
@@ -81,7 +76,6 @@ async def list_mcp_servers(
         }
 
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"List MCP servers error: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
 
@@ -105,7 +99,6 @@ async def add_mcp_server(
         Success status
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         body = await request.json()
@@ -173,7 +166,6 @@ async def add_mcp_server(
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Add MCP server error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -198,7 +190,6 @@ async def import_mcp_server(
         Import result with imported/skipped/failed lists
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         body = await request.json()
@@ -279,7 +270,6 @@ async def import_mcp_server(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Import MCP server error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -299,7 +289,6 @@ async def remove_mcp_server(
         Success status
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         if server.mcp_manager is None:
@@ -331,7 +320,6 @@ async def remove_mcp_server(
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Remove MCP server error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}

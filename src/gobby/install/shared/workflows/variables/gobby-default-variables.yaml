@@ -25,9 +25,9 @@ variables:
   require_task_before_edit:
     value: true
     description: Default require_task_before_edit to true
-  require_commit_before_close:
+  require_commit_before_status:
     value: true
-    description: Default require_commit_before_close to true
+    description: Default require_commit_before_status to true
   pre_existing_errors_triaged:
     value: false
     description: Default pre_existing_errors_triaged to false

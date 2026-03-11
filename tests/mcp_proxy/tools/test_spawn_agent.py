@@ -1201,7 +1201,8 @@ class TestDispatchBatchIsolationParity:
 
         mock_clone_storage = MagicMock()
         mock_clone = MagicMock()
-        mock_clone.clone_path = "/tmp/clones/feat-9981"
+        # Use /tmp which always exists, so clone path validation passes
+        mock_clone.clone_path = "/tmp"
         mock_clone.branch_name = "feat-9981"
         mock_clone_storage.get.return_value = mock_clone
 
@@ -1218,22 +1219,33 @@ class TestDispatchBatchIsolationParity:
                 return_value=agent_body,
             ),
             patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context"
+            ) as mock_factory_ctx,
+            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
             ) as mock_ctx,
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
         ):
-            mock_ctx.return_value = {
+            project_ctx = {
                 "id": "proj-123",
                 "project_path": "/path/to/project",
             }
-            mock_execute.return_value = MagicMock(
-                success=True,
-                run_id="run-123",
-                child_session_id="child-456",
-                status="pending",
-            )
+            mock_factory_ctx.return_value = project_ctx
+            mock_ctx.return_value = project_ctx
+            spawn_result = MagicMock()
+            spawn_result.success = True
+            spawn_result.run_id = "run-123"
+            spawn_result.child_session_id = "child-456"
+            spawn_result.status = "pending"
+            spawn_result.pid = None
+            spawn_result.terminal_type = None
+            spawn_result.tmux_session_name = None
+            spawn_result.process = None
+            spawn_result.error = None
+            spawn_result.message = None
+            mock_execute.return_value = spawn_result
 
             suggestions = [
                 {"ref": "#9981", "id": "task-uuid-1", "title": "Add clone parity"},
@@ -1271,22 +1283,33 @@ class TestDispatchBatchIsolationParity:
                 return_value=agent_body,
             ),
             patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory.get_project_context"
+            ) as mock_factory_ctx,
+            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
             ) as mock_ctx,
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
         ):
-            mock_ctx.return_value = {
+            project_ctx = {
                 "id": "proj-123",
                 "project_path": "/path/to/project",
             }
-            mock_execute.return_value = MagicMock(
-                success=True,
-                run_id="run-456",
-                child_session_id="child-789",
-                status="pending",
-            )
+            mock_factory_ctx.return_value = project_ctx
+            mock_ctx.return_value = project_ctx
+            spawn_result = MagicMock()
+            spawn_result.success = True
+            spawn_result.run_id = "run-456"
+            spawn_result.child_session_id = "child-789"
+            spawn_result.status = "pending"
+            spawn_result.pid = None
+            spawn_result.terminal_type = None
+            spawn_result.tmux_session_name = None
+            spawn_result.process = None
+            spawn_result.error = None
+            spawn_result.message = None
+            mock_execute.return_value = spawn_result
 
             suggestions = [
                 {"ref": "#100", "id": "task-1", "title": "Task one"},
@@ -1303,3 +1326,77 @@ class TestDispatchBatchIsolationParity:
 
             assert result["dispatched"] == 1
             assert result["results"][0]["success"] is True
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent dedup (idempotent)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestSpawnAgentDedup:
+    """Tests for idempotent dedup when agent already running for a task."""
+
+    @pytest.mark.asyncio
+    async def test_dedup_returns_success_when_agent_already_running(self) -> None:
+        """Dedup check should return success=True (not False) when agent already active."""
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "Can spawn", 0)
+        runner._child_session_manager = MagicMock()
+        runner.run_storage.has_active_run_for_task.return_value = True
+
+        active_run = MagicMock()
+        active_run.id = "existing-run-456"
+        runner.run_storage.get_active_run_for_task.return_value = active_run
+
+        agent_body = AgentDefinitionBody(
+            name="default",
+            provider="claude",
+            mode="terminal",
+        )
+
+        mock_task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.title = "Test task"
+        mock_task.seq_num = 100
+        mock_task.id = "task-uuid-123"
+        mock_task_manager.get_task.return_value = mock_task
+
+        registry = create_spawn_agent_registry(
+            runner,
+            task_manager=mock_task_manager,
+            db=MagicMock(),
+        )
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._factory._load_agent_body",
+                return_value=agent_body,
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp"
+            ) as mock_resolve,
+        ):
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
+            mock_resolve.return_value = "task-uuid-123"
+
+            result = await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Test prompt",
+                    "parent_session_id": "parent-789",
+                    "task_id": "#100",
+                },
+            )
+
+        assert result["success"] is True
+        assert result["skipped"] is True
+        assert result["run_id"] == "existing-run-456"
+        assert "already running" in result["message"]

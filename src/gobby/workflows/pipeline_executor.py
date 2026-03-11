@@ -7,6 +7,9 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any, cast
 
+from opentelemetry.trace import Status, StatusCode
+
+from gobby.telemetry.tracing import create_span
 from gobby.workflows.pipeline.gatekeeper import ApprovalManager
 from gobby.workflows.pipeline.handlers import (
     execute_exec_step,
@@ -208,346 +211,417 @@ class PipelineExecutor:
         Raises:
             RuntimeError: If nesting depth limit exceeded or cycle detected
         """
-        # 0. Enforce nesting depth limit and cycle detection
-        depth_limit = 10
-        try:
-            from gobby.config.pipelines import PipelineConfig
-
-            depth_limit = PipelineConfig().nesting_depth_limit
-        except Exception:
-            pass
-
-        if _depth > depth_limit:
-            raise RuntimeError(
-                f"Pipeline nesting depth limit exceeded ({_depth} > {depth_limit}). "
-                f"Pipeline '{pipeline.name}' would exceed maximum recursion depth."
-            )
-
-        if _pipeline_stack is None:
-            _pipeline_stack = frozenset()
-
-        # Block cross-pipeline cycles (A→B→A) but allow self-recursion (A→A).
-        # Self-recursion is bounded by the depth limit above.
-        if pipeline.name in _pipeline_stack and _pipeline_stack != frozenset({pipeline.name}):
-            raise RuntimeError(
-                f"Pipeline cycle detected: '{pipeline.name}' is already in the "
-                f"call stack {sorted(_pipeline_stack)}."
-            )
-
-        _pipeline_stack = _pipeline_stack | {pipeline.name}
-
-        # 1. Create or load execution record
-        _terminal_statuses = {ExecutionStatus.CANCELLED, ExecutionStatus.COMPLETED}
-        prior_status: ExecutionStatus | None = None
-        if execution_id:
-            execution = self.execution_manager.get_execution(execution_id)
-            if not execution:
-                raise ValueError(f"Execution {execution_id} not found")
-            prior_status = execution.status
-            if prior_status in _terminal_statuses:
-                raise ValueError(
-                    f"Cannot resume execution {execution_id}: "
-                    f"status is {prior_status.value} (terminal). "
-                    f"Start a new execution instead."
-                )
-        else:
-            execution = self.execution_manager.create_execution(
-                pipeline_name=pipeline.name,
-                inputs_json=json.dumps(inputs),
-                session_id=session_id,
-            )
-
-        # 2. Update status to RUNNING
-        updated = self.execution_manager.update_execution_status(
-            execution_id=execution.id,
-            status=ExecutionStatus.RUNNING,
-        )
-        if updated:
-            execution = updated
-
-        # Emit pipeline_started event
-        await self._emit_event(
-            "pipeline_started",
-            execution.id,
-            pipeline_name=pipeline.name,
-            inputs=inputs,
-            step_count=len(pipeline.steps),
-        )
-
-        # 2b. Create child session for top-level pipelines
-        caller_session_id = session_id
-        pipeline_session_id = session_id
-        parent_session_id = _parent_session_id
-
-        if _depth == 0 and session_id and self.session_manager:
-            try:
-                child_session = self.session_manager.register(
-                    external_id=f"pipeline-{execution.id}",
-                    machine_id="pipeline",
-                    source="pipeline",
-                    project_id=project_id,
-                    title=f"pipeline:{pipeline.name}",
-                    parent_session_id=caller_session_id,
-                    agent_depth=0,
-                )
-                pipeline_session_id = child_session.id
-                parent_session_id = caller_session_id
-                logger.info(
-                    f"Created child session {child_session.id} for pipeline "
-                    f"{pipeline.name} (parent={caller_session_id})"
-                )
-            except Exception:
-                logger.warning(
-                    "Failed to create child session for pipeline, using caller session_id",
-                    exc_info=True,
-                )
-
-        # 3. Build execution context (merge defaults from pipeline definition)
-        merged_inputs = {**pipeline.inputs, **inputs}
-        # Inject parent_session_id into inputs so ${{ inputs.parent_session_id }} resolves
-        if parent_session_id and not inputs.get("parent_session_id"):
-            merged_inputs["parent_session_id"] = parent_session_id
-        context: dict[str, Any] = {
-            "inputs": merged_inputs,
-            "steps": {},  # Will hold step outputs as they complete
-            "session_id": pipeline_session_id,
-            "parent_session_id": parent_session_id,
-            "_depth": _depth,
-            "_pipeline_stack": _pipeline_stack,
+        span_attrs = {
+            "pipeline_name": pipeline.name,
+            "project_id": project_id,
         }
-
-        # Fetch existing steps if resuming a non-failed execution.
-        # Failed executions re-execute all steps since completed steps
-        # may reference stale agent sessions or other invalidated state.
-        existing_steps: dict[str, StepExecution] = {}
-        if execution_id and prior_status != ExecutionStatus.FAILED:
-            steps = self.execution_manager.get_steps_for_execution(execution_id)
-            existing_steps = {s.step_id: s for s in steps}
+        if execution_id:
+            span_attrs["execution_id"] = execution_id
 
         # Track current step for error handling
         current_step_execution: StepExecution | None = None
+        execution: PipelineExecution | None = None
 
-        try:
-            # 4. Iterate through steps in order
-            for step in pipeline.steps:
-                # Check for existing execution
-                step_execution = existing_steps.get(step.id)
+        with create_span("pipeline.execute", attributes=span_attrs) as span:
+            try:
+                # 0. Enforce nesting depth limit and cycle detection
+                depth_limit = 10
+                try:
+                    from gobby.config.pipelines import PipelineConfig
 
-                if step_execution:
-                    # If completed, load output into context and skip
-                    if step_execution.status == StepStatus.COMPLETED:
-                        logger.info(f"Skipping completed step {step.id}")
-                        output = None
-                        if step_execution.output_json:
-                            try:
-                                output = json.loads(step_execution.output_json)
-                            except json.JSONDecodeError:
-                                output = step_execution.output_json
-                        context["steps"][step.id] = {"output": output}
-                        continue
+                    depth_limit = PipelineConfig().nesting_depth_limit
+                except (ImportError, ValueError):
+                    pass
 
-                    # If skipped, just skip (but register in context so downstream
-                    # conditions like ``steps.X.output`` resolve to None instead
-                    # of raising a KeyError / attribute error).
-                    if step_execution.status == StepStatus.SKIPPED:
-                        logger.info(f"Skipping previously skipped step {step.id}")
-                        context["steps"][step.id] = {"output": None}
-                        continue
+                if _depth > depth_limit:
+                    raise RuntimeError(
+                        f"Pipeline nesting depth limit exceeded ({_depth} > {depth_limit}). "
+                        f"Pipeline '{pipeline.name}' would exceed maximum recursion depth."
+                    )
 
-                    # If waiting approval, check if we should check gate again
-                    # If we are resuming, it might have been approved
-                    if step_execution.status == StepStatus.WAITING_APPROVAL:
-                        # If the step is still marked as waiting approval in DB,
-                        # checking the gate will just re-raise ApprovalRequired.
-                        # If it was approved, status should be COMPLETED.
-                        # So we can just proceed to check/execute.
+                if _pipeline_stack is None:
+                    _pipeline_stack = frozenset()
+
+                # Block cross-pipeline cycles (A→B→A) but allow self-recursion (A→A).
+                # Self-recursion is bounded by the depth limit above.
+                if pipeline.name in _pipeline_stack and _pipeline_stack != frozenset(
+                    {pipeline.name}
+                ):
+                    raise RuntimeError(
+                        f"Pipeline cycle detected: '{pipeline.name}' is already in the "
+                        f"call stack {sorted(_pipeline_stack)}."
+                    )
+
+                _pipeline_stack = _pipeline_stack | {pipeline.name}
+
+                # 1. Create or load execution record
+                _terminal_statuses = {ExecutionStatus.CANCELLED, ExecutionStatus.COMPLETED}
+                prior_status: ExecutionStatus | None = None
+                if execution_id:
+                    execution = self.execution_manager.get_execution(execution_id)
+                    if not execution:
+                        raise ValueError(f"Execution {execution_id} not found")
+                    prior_status = execution.status
+                    if prior_status in _terminal_statuses:
+                        raise ValueError(
+                            f"Cannot resume execution {execution_id}: "
+                            f"status is {prior_status.value} (terminal). "
+                            f"Start a new execution instead."
+                        )
+                else:
+                    # Snapshot the pipeline definition for later inspection
+                    try:
+                        definition_snapshot = pipeline.model_dump_json()
+                    except Exception:
+                        definition_snapshot = json.dumps(
+                            {"name": pipeline.name, "error": "serialization failed"}
+                        )
+                    execution = self.execution_manager.create_execution(
+                        pipeline_name=pipeline.name,
+                        inputs_json=json.dumps(inputs),
+                        session_id=session_id,
+                        definition_json=definition_snapshot,
+                    )
+                    if span.is_recording():
+                        span.set_attribute("execution_id", str(execution.id))
+
+                # 2. Update status to RUNNING
+                updated = self.execution_manager.update_execution_status(
+                    execution_id=execution.id,
+                    status=ExecutionStatus.RUNNING,
+                )
+                if updated:
+                    execution = updated
+
+                # Emit pipeline_started event
+                await self._emit_event(
+                    "pipeline_started",
+                    execution.id,
+                    pipeline_name=pipeline.name,
+                    inputs=inputs,
+                    step_count=len(pipeline.steps),
+                )
+
+                # 2b. Create child session for top-level pipelines
+                caller_session_id = session_id
+                pipeline_session_id = session_id
+                parent_session_id = _parent_session_id
+
+                if _depth == 0 and session_id and self.session_manager:
+                    try:
+                        child_session = self.session_manager.register(
+                            external_id=f"pipeline-{execution.id}",
+                            machine_id="pipeline",
+                            source="pipeline",
+                            project_id=project_id,
+                            title=f"pipeline:{pipeline.name}",
+                            parent_session_id=caller_session_id,
+                            agent_depth=0,
+                        )
+                        pipeline_session_id = child_session.id
+                        parent_session_id = caller_session_id
+                        logger.info(
+                            f"Created child session {child_session.id} for pipeline "
+                            f"{pipeline.name} (parent={caller_session_id})"
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Failed to create child session for pipeline, using caller session_id",
+                            exc_info=True,
+                        )
+
+                # 3. Build execution context (resolve defaults from pipeline input definitions)
+                resolved_defaults: dict[str, Any] = {}
+                for key, spec in pipeline.inputs.items():
+                    if isinstance(spec, dict):
+                        resolved_defaults[key] = spec.get("default")
+                    else:
+                        # Bare value (not a definition dict) — use as-is
+                        resolved_defaults[key] = spec
+                merged_inputs = {**resolved_defaults, **inputs}
+                # Inject parent_session_id into inputs so ${{ inputs.parent_session_id }} resolves
+                if parent_session_id and not inputs.get("parent_session_id"):
+                    merged_inputs["parent_session_id"] = parent_session_id
+                # Resolve project context for template expressions
+                project_path: str | None = None
+                current_branch: str | None = None
+                try:
+                    from gobby.utils.project_context import get_project_context
+
+                    pctx = get_project_context()
+                    if pctx:
+                        project_path = pctx.get("project_path")
+                except (ImportError, OSError):
+                    pass
+
+                if project_path:
+                    try:
+                        from gobby.worktrees.git import WorktreeGitManager
+
+                        current_branch = WorktreeGitManager(project_path).get_current_branch()
+                    except (ImportError, ValueError, OSError):
                         pass
 
-                # Create new step execution if not exists
-                if not step_execution:
-                    step_execution = self.execution_manager.create_step_execution(
-                        execution_id=execution.id,
-                        step_id=step.id,
-                        input_json=json.dumps(
-                            {k: v for k, v in context.items() if not k.startswith("_")}
-                        )
-                        if context
-                        else None,
-                    )
+                context: dict[str, Any] = {
+                    "inputs": merged_inputs,
+                    "steps": {},  # Will hold step outputs as they complete
+                    "session_id": pipeline_session_id,
+                    "parent_session_id": parent_session_id,
+                    "project_id": project_id,
+                    "project_path": project_path,
+                    "current_branch": current_branch or "main",
+                    "_depth": _depth,
+                    "_pipeline_stack": _pipeline_stack,
+                }
 
-                # Check if step should run based on condition
-                if not self.renderer.should_run_step(step, context):
-                    # Skip this step
+                # Fetch existing steps if resuming a non-failed execution.
+                # Failed executions re-execute all steps since completed steps
+                # may reference stale agent sessions or other invalidated state.
+                existing_steps: dict[str, StepExecution] = {}
+                if execution_id and prior_status != ExecutionStatus.FAILED:
+                    steps = self.execution_manager.get_steps_for_execution(execution_id)
+                    existing_steps = {s.step_id: s for s in steps}
+
+                # 4. Iterate through steps in order
+                for step in pipeline.steps:
+                    # Check for existing execution
+                    step_execution = existing_steps.get(step.id)
+
+                    if step_execution:
+                        # If completed, load output into context and skip
+                        if step_execution.status == StepStatus.COMPLETED:
+                            logger.info(f"Skipping completed step {step.id}")
+                            output = None
+                            if step_execution.output_json:
+                                try:
+                                    output = json.loads(step_execution.output_json)
+                                except json.JSONDecodeError:
+                                    output = step_execution.output_json
+                            context["steps"][step.id] = {"output": output}
+                            continue
+
+                        # If skipped, just skip (but register in context so downstream
+                        # conditions like ``steps.X.output`` resolve to None instead
+                        # of raising a KeyError / attribute error).
+                        if step_execution.status == StepStatus.SKIPPED:
+                            logger.info(f"Skipping previously skipped step {step.id}")
+                            context["steps"][step.id] = {"output": None}
+                            continue
+
+                        # If waiting approval, check if we should check gate again
+                        # If we are resuming, it might have been approved
+                        if step_execution.status == StepStatus.WAITING_APPROVAL:
+                            # If the step is still marked as waiting approval in DB,
+                            # checking the gate will just re-raise ApprovalRequired.
+                            # If it was approved, status should be COMPLETED.
+                            # So we can just proceed to check/execute.
+                            pass
+
+                    # Create new step execution if not exists
+                    if not step_execution:
+                        step_execution = self.execution_manager.create_step_execution(
+                            execution_id=execution.id,
+                            step_id=step.id,
+                            input_json=json.dumps(
+                                {k: v for k, v in context.items() if not k.startswith("_")}
+                            )
+                            if context
+                            else None,
+                        )
+
+                    # Check if step should run based on condition
+                    if not self.renderer.should_run_step(step, context):
+                        # Skip this step
+                        self.execution_manager.update_step_execution(
+                            step_execution_id=step_execution.id,
+                            status=StepStatus.SKIPPED,
+                        )
+                        logger.info(f"Skipping step {step.id}: condition not met")
+
+                        # Emit step_skipped event
+                        await self._emit_event(
+                            "step_skipped",
+                            execution.id,
+                            step_id=step.id,
+                            step_name=getattr(step, "name", step.id),
+                            reason="condition not met",
+                        )
+                        # Register skipped step in context so downstream conditions
+                        # like ``steps.X.output`` resolve to None instead of erroring.
+                        context["steps"][step.id] = {"output": None}
+                        current_step_execution = None
+                        continue
+
+                    # Update step status to RUNNING
                     self.execution_manager.update_step_execution(
                         step_execution_id=step_execution.id,
-                        status=StepStatus.SKIPPED,
+                        status=StepStatus.RUNNING,
                     )
-                    logger.info(f"Skipping step {step.id}: condition not met")
+                    step_execution.status = StepStatus.RUNNING
+                    current_step_execution = step_execution
 
-                    # Emit step_skipped event
+                    # Emit step_started event
                     await self._emit_event(
-                        "step_skipped",
+                        "step_started",
                         execution.id,
                         step_id=step.id,
                         step_name=getattr(step, "name", step.id),
-                        reason="condition not met",
                     )
-                    # Register skipped step in context so downstream conditions
-                    # like ``steps.X.output`` resolve to None instead of erroring.
-                    context["steps"][step.id] = {"output": None}
-                    current_step_execution = None
-                    continue
 
-                # Update step status to RUNNING
-                self.execution_manager.update_step_execution(
-                    step_execution_id=step_execution.id,
-                    status=StepStatus.RUNNING,
-                )
-                step_execution.status = StepStatus.RUNNING
-                current_step_execution = step_execution
-
-                # Emit step_started event
-                await self._emit_event(
-                    "step_started",
-                    execution.id,
-                    step_id=step.id,
-                    step_name=getattr(step, "name", step.id),
-                )
-
-                # Check for approval gate
-                await self.approval_manager.check_approval_gate(
-                    step, execution, step_execution, pipeline
-                )
-
-                # Execute the step
-                step_output = await self._execute_step(step, context, project_id)
-
-                # Detect exec step failures from non-zero exit codes
-                if isinstance(step_output, dict) and step_output.get("exit_code", 0) != 0:
-                    error_msg = (
-                        step_output.get("stderr") or step_output.get("stdout") or "Unknown error"
+                    # Check for approval gate
+                    await self.approval_manager.check_approval_gate(
+                        step, execution, step_execution, pipeline
                     )
+
+                    # Execute the step
+                    step_output = await self._execute_step(step, context, project_id)
+
+                    # Detect exec step failures from non-zero exit codes
+                    if isinstance(step_output, dict) and step_output.get("exit_code", 0) != 0:
+                        error_msg = (
+                            step_output.get("stderr")
+                            or step_output.get("stdout")
+                            or "Unknown error"
+                        )
+                        context["steps"][step.id] = {"output": step_output}
+                        self.execution_manager.update_step_execution(
+                            step_execution_id=step_execution.id,
+                            status=StepStatus.FAILED,
+                            output_json=json.dumps(step_output),
+                            error=f"Exit code {step_output['exit_code']}: {error_msg}",
+                        )
+                        raise RuntimeError(
+                            f"Step '{step.id}' failed with exit code {step_output['exit_code']}"
+                        )
+
+                    # For exec steps with JSON stdout, merge parsed data into output
+                    if isinstance(step_output, dict) and "stdout" in step_output:
+                        try:
+                            parsed = json.loads(step_output["stdout"].strip())
+                            if isinstance(parsed, dict):
+                                step_output.update(parsed)
+                        except (json.JSONDecodeError, ValueError):
+                            pass
+
+                    # Store step output in context for subsequent steps
                     context["steps"][step.id] = {"output": step_output}
+
+                    # Update step with output and mark completed
                     self.execution_manager.update_step_execution(
                         step_execution_id=step_execution.id,
-                        status=StepStatus.FAILED,
-                        output_json=json.dumps(step_output),
-                        error=f"Exit code {step_output['exit_code']}: {error_msg}",
+                        status=StepStatus.COMPLETED,
+                        output_json=json.dumps(step_output) if step_output is not None else None,
                     )
-                    raise RuntimeError(
-                        f"Step '{step.id}' failed with exit code {step_output['exit_code']}"
+                    current_step_execution = None
+
+                    # Emit step_completed event
+                    await self._emit_event(
+                        "step_completed",
+                        execution.id,
+                        step_id=step.id,
+                        step_name=getattr(step, "name", step.id),
+                        output=step_output,
                     )
 
-                # For exec steps with JSON stdout, merge parsed data into output
-                if isinstance(step_output, dict) and "stdout" in step_output:
-                    try:
-                        parsed = json.loads(step_output["stdout"].strip())
-                        if isinstance(parsed, dict):
-                            step_output.update(parsed)
-                    except (json.JSONDecodeError, ValueError):
-                        pass
+                # 5. Safety net — verify no steps failed before marking completed
+                failed_steps = self.execution_manager.get_failed_steps(execution.id)
+                if failed_steps:
+                    failed_ids = [s.step_id for s in failed_steps]
+                    outputs = self._build_outputs(pipeline, context)
+                    self.execution_manager.update_execution_status(
+                        execution_id=execution.id,
+                        status=ExecutionStatus.FAILED,
+                        outputs_json=json.dumps(outputs),
+                    )
+                    raise RuntimeError(f"Pipeline has failed steps: {', '.join(failed_ids)}")
 
-                # Store step output in context for subsequent steps
-                context["steps"][step.id] = {"output": step_output}
-
-                # Update step with output and mark completed
-                self.execution_manager.update_step_execution(
-                    step_execution_id=step_execution.id,
-                    status=StepStatus.COMPLETED,
-                    output_json=json.dumps(step_output) if step_output is not None else None,
-                )
-                current_step_execution = None
-
-                # Emit step_completed event
-                await self._emit_event(
-                    "step_completed",
-                    execution.id,
-                    step_id=step.id,
-                    step_name=getattr(step, "name", step.id),
-                    output=step_output,
-                )
-
-            # 5. Safety net — verify no steps failed before marking completed
-            failed_steps = self.execution_manager.get_failed_steps(execution.id)
-            if failed_steps:
-                failed_ids = [s.step_id for s in failed_steps]
+                # Mark execution as completed
                 outputs = self._build_outputs(pipeline, context)
-                self.execution_manager.update_execution_status(
+                completed = self.execution_manager.update_execution_status(
                     execution_id=execution.id,
-                    status=ExecutionStatus.FAILED,
+                    status=ExecutionStatus.COMPLETED,
                     outputs_json=json.dumps(outputs),
                 )
-                raise RuntimeError(f"Pipeline has failed steps: {', '.join(failed_ids)}")
+                if completed:
+                    execution = completed
 
-            # Mark execution as completed
-            outputs = self._build_outputs(pipeline, context)
-            completed = self.execution_manager.update_execution_status(
-                execution_id=execution.id,
-                status=ExecutionStatus.COMPLETED,
-                outputs_json=json.dumps(outputs),
-            )
-            if completed:
-                execution = completed
+                # Emit pipeline_completed event
+                await self._emit_event(
+                    "pipeline_completed",
+                    execution.id,
+                    pipeline_name=pipeline.name,
+                    outputs=outputs,
+                )
 
-            # Emit pipeline_completed event
-            await self._emit_event(
-                "pipeline_completed",
-                execution.id,
-                pipeline_name=pipeline.name,
-                outputs=outputs,
-            )
+                # Notify completion registry
+                await self._notify_completion(
+                    execution.id, "completed", pipeline.name, outputs=outputs
+                )
 
-            # Notify completion registry
-            await self._notify_completion(execution.id, "completed", pipeline.name, outputs=outputs)
+                if span.is_recording():
+                    span.set_attribute("status", "completed")
+                    span.set_attribute("step_count", len(pipeline.steps))
 
-        except ApprovalRequired:
-            # Don't treat approval as an error - just re-raise
-            raise
+                return execution
 
-        except Exception as e:
-            logger.error(f"Pipeline execution failed: {e}", exc_info=True)
+            except ApprovalRequired:
+                # Don't treat approval as an error - just re-raise
+                raise
 
-            # Mark the currently-running step as FAILED
-            if current_step_execution and current_step_execution.status == StepStatus.RUNNING:
-                try:
-                    self.execution_manager.update_step_execution(
-                        step_execution_id=current_step_execution.id,
-                        status=StepStatus.FAILED,
+            except Exception as e:
+                if span.is_recording():
+                    span.set_attribute("status", "failed")
+                    span.set_attribute("step_count", len(pipeline.steps))
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+
+                if execution:
+                    logger.error(f"Pipeline execution failed: {e}", exc_info=True)
+
+                    # Mark the currently-running step as FAILED
+                    if (
+                        current_step_execution
+                        and current_step_execution.status == StepStatus.RUNNING
+                    ):
+                        try:
+                            self.execution_manager.update_step_execution(
+                                step_execution_id=current_step_execution.id,
+                                status=StepStatus.FAILED,
+                                error=str(e),
+                            )
+                        except Exception:
+                            logger.error(
+                                f"Failed to mark step {current_step_execution.id} as failed",
+                                exc_info=True,
+                            )
+
+                    try:
+                        failed = self.execution_manager.update_execution_status(
+                            execution_id=execution.id,
+                            status=ExecutionStatus.FAILED,
+                            outputs_json=json.dumps({"error": str(e)}),
+                        )
+                        if failed:
+                            execution = failed
+                    except Exception:
+                        logger.error(
+                            f"Failed to mark execution {execution.id} as failed",
+                            exc_info=True,
+                        )
+
+                    # Emit pipeline_failed event
+                    await self._emit_event(
+                        "pipeline_failed",
+                        execution.id,
+                        pipeline_name=pipeline.name,
                         error=str(e),
                     )
-                except Exception:
-                    logger.error(
-                        f"Failed to mark step {current_step_execution.id} as failed",
-                        exc_info=True,
+
+                    # Notify completion registry
+                    await self._notify_completion(
+                        execution.id, "failed", pipeline.name, error=str(e)
                     )
-
-            try:
-                failed = self.execution_manager.update_execution_status(
-                    execution_id=execution.id,
-                    status=ExecutionStatus.FAILED,
-                    outputs_json=json.dumps({"error": str(e)}),
-                )
-                if failed:
-                    execution = failed
-            except Exception:
-                logger.error(
-                    f"Failed to mark execution {execution.id} as failed",
-                    exc_info=True,
-                )
-
-            # Emit pipeline_failed event
-            await self._emit_event(
-                "pipeline_failed",
-                execution.id,
-                pipeline_name=pipeline.name,
-                error=str(e),
-            )
-
-            # Notify completion registry
-            await self._notify_completion(execution.id, "failed", pipeline.name, error=str(e))
-            raise
-
-        return execution
+                raise
 
     async def _execute_step(
         self,
@@ -556,49 +630,72 @@ class PipelineExecutor:
         project_id: str,
     ) -> Any:
         """Execute a single pipeline step."""
-        # Render any template variables in the step
-        rendered_step = self.renderer.render_step(step, context)
-
-        # Warn if multiple step types are set — only the first match executes
+        # Determine step type for instrumentation
         step_types = [
             f
-            for f in ("wait", "exec", "prompt", "invoke_pipeline", "mcp", "activate_workflow")
+            for f in (
+                "wait",
+                "exec",
+                "prompt",
+                "invoke_pipeline",
+                "mcp",
+                "activate_workflow",
+            )
             if getattr(step, f, None)
         ]
-        if len(step_types) > 1:
-            logger.warning(
-                "Step %s has multiple types set: %s — only '%s' will execute",
-                step.id,
-                step_types,
-                step_types[0],
-            )
+        step_type = step_types[0] if step_types else "unknown"
+        step_name = getattr(step, "name", step.id)
 
-        if step.wait:
-            # Block until completion event fires
-            return await self._execute_wait_step(rendered_step, context)
-        elif step.exec:
-            # Execute shell command
-            return await execute_exec_step(rendered_step.exec, context)
-        elif step.prompt:
-            # Execute LLM prompt
-            return await execute_prompt_step(rendered_step.prompt, context, self.llm_service)
-        elif step.invoke_pipeline:
-            # Execute nested pipeline
-            return await self._execute_nested_pipeline(
-                rendered_step.invoke_pipeline, context, project_id
-            )
-        elif step.mcp:
-            # Execute MCP tool call
-            return await execute_mcp_step(rendered_step, context, self.tool_proxy_getter)
-        elif step.activate_workflow:
-            # activate_workflow steps are not supported in pipeline execution
-            return {
-                "error": "activate_workflow pipeline steps are not supported",
-                "step_id": step.id,
-            }
-        else:
-            logger.warning(f"Step {step.id} has no action defined")
-            return None
+        with create_span(
+            f"pipeline.step.{step.id}",
+            attributes={"step_type": step_type, "step_name": step_name},
+        ) as span:
+            try:
+                # Render any template variables in the step
+                rendered_step = self.renderer.render_step(step, context)
+
+                # Warn if multiple step types are set — only the first match executes
+                if len(step_types) > 1:
+                    logger.warning(
+                        "Step %s has multiple types set: %s — only '%s' will execute",
+                        step.id,
+                        step_types,
+                        step_types[0],
+                    )
+
+                if step.wait:
+                    # Block until completion event fires
+                    return await self._execute_wait_step(rendered_step, context)
+                elif step.exec:
+                    # Execute shell command
+                    return await execute_exec_step(rendered_step.exec, context)
+                elif step.prompt:
+                    # Execute LLM prompt
+                    return await execute_prompt_step(
+                        rendered_step.prompt, context, self.llm_service
+                    )
+                elif step.invoke_pipeline:
+                    # Execute nested pipeline
+                    return await self._execute_nested_pipeline(
+                        rendered_step.invoke_pipeline, context, project_id
+                    )
+                elif step.mcp:
+                    # Execute MCP tool call
+                    return await execute_mcp_step(rendered_step, context, self.tool_proxy_getter)
+                elif step.activate_workflow:
+                    # activate_workflow steps are not supported in pipeline execution
+                    return {
+                        "error": "activate_workflow pipeline steps are not supported",
+                        "step_id": step.id,
+                    }
+                else:
+                    logger.warning(f"Step {step.id} has no action defined")
+                    return None
+            except Exception as e:
+                if span.is_recording():
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+                raise
 
     async def _execute_wait_step(
         self,

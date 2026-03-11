@@ -8,6 +8,7 @@ configuration, and IDE terminal title setup.
 from __future__ import annotations
 
 import logging
+import subprocess
 from pathlib import Path
 from shutil import copy2
 from typing import Any
@@ -107,6 +108,34 @@ def run_daemon_setup(project_path: Path) -> None:
             )
     else:
         click.echo(f"Warning: Failed to configure MCP servers: {mcp_result['error']}")
+
+    # Install Playwright CLI globally (token-efficient browser automation)
+    try:
+        npm_result = subprocess.run(
+            ["npm", "install", "-g", "@playwright/cli@latest"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if npm_result.returncode == 0:
+            click.echo("Installed Playwright CLI (@playwright/cli)")
+            # Install skills so coding agents auto-discover commands
+            skills_result = subprocess.run(
+                ["playwright-cli", "install", "--skills"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if skills_result.returncode != 0:
+                click.echo(
+                    f"Warning: Playwright skills install failed: {skills_result.stderr.strip()}"
+                )
+        else:
+            click.echo(f"Warning: Failed to install Playwright CLI: {npm_result.stderr.strip()}")
+    except FileNotFoundError:
+        click.echo("Warning: npm not found — skipping Playwright CLI install")
+    except subprocess.TimeoutExpired:
+        click.echo("Warning: Playwright CLI install timed out")
 
     # Configure VS Code terminal title (any CLI may run inside VS Code's terminal)
     try:

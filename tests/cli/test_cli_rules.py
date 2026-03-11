@@ -44,7 +44,7 @@ def _make_rule_row(
         {
             "event": "before_tool",
             "group": "test-group",
-            "effect": {"type": "block", "tools": ["Bash"], "reason": "test"},
+            "effects": [{"type": "block", "tools": ["Bash"], "reason": "test"}],
             "when": "not task_claimed",
         }
     )
@@ -193,7 +193,7 @@ class TestShowRule:
             assert result.exit_code == 0
             data = json.loads(result.output)
             assert data["name"] == "json-rule"
-            assert "effect" in data
+            assert "effects" in data
 
 
 # ==============================================================================

@@ -17,6 +17,7 @@ from gobby.servers.routes.mcp import (
     create_webhooks_router,
 )
 from gobby.servers.routes.memory import create_memory_router
+from gobby.servers.routes.metrics import create_metrics_router
 from gobby.servers.routes.pipelines import create_pipelines_router
 from gobby.servers.routes.projects import create_projects_router
 from gobby.servers.routes.rules import create_rules_router
@@ -24,6 +25,7 @@ from gobby.servers.routes.sessions import create_sessions_router
 from gobby.servers.routes.skills import create_skills_router
 from gobby.servers.routes.source_control import create_source_control_router
 from gobby.servers.routes.tasks import create_tasks_router
+from gobby.servers.routes.traces import create_traces_router
 from gobby.servers.routes.voice import create_voice_router
 from gobby.servers.routes.workflows import create_workflows_router
 
@@ -38,6 +40,7 @@ __all__ = [
     "create_hooks_router",
     "create_mcp_router",
     "create_memory_router",
+    "create_metrics_router",
     "create_pipelines_router",
     "create_projects_router",
     "create_rules_router",
@@ -45,6 +48,7 @@ __all__ = [
     "create_skills_router",
     "create_source_control_router",
     "create_tasks_router",
+    "create_traces_router",
     "create_voice_router",
     "create_webhooks_router",
     "create_workflows_router",

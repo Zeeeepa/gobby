@@ -2,6 +2,8 @@
 GitHub Copilot CLI installation for Gobby hooks.
 
 This module handles installing and uninstalling Gobby hooks for Copilot CLI.
+Hooks are written to .github/hooks/gobby-hooks.json using the version 1 format:
+  { "version": 1, "hooks": { "<event>": [{ "type": "command", "bash": "...", "timeoutSec": N }] } }
 """
 
 import json
@@ -48,12 +50,12 @@ def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
         )
         return result
 
-    copilot_path = project_path / ".copilot"
-    hooks_file = copilot_path / "hooks.json"
+    github_hooks_path = project_path / ".github" / "hooks"
+    hooks_file = github_hooks_path / "gobby-hooks.json"
     hooks_dir = Path.home() / ".gobby" / "hooks"
 
-    # Ensure .copilot subdirectories exist
-    copilot_path.mkdir(parents=True, exist_ok=True)
+    # Ensure .github/hooks/ directory exists
+    github_hooks_path.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
@@ -86,34 +88,36 @@ def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
         logger.warning(f"Failed to install shared content: {e}")
         # Non-fatal - continue with hooks installation
 
-    # Backup existing hooks.json if it exists
+    # Backup existing hooks file if it exists
     backup_file = None
     if hooks_file.exists():
         timestamp = int(time.time())
-        backup_file = copilot_path / f"hooks.json.{timestamp}.backup"
+        backup_file = github_hooks_path / f"gobby-hooks.json.{timestamp}.backup"
         try:
             copy2(hooks_file, backup_file)
         except OSError as e:
-            logger.error(f"Failed to create backup of hooks.json: {e}")
+            logger.error(f"Failed to create backup of gobby-hooks.json: {e}")
             result["error"] = f"Failed to create backup: {e}"
             return result
 
-    # Load existing hooks or create empty
-    existing_hooks: dict[str, Any] = {"hooks": {}}
+    # Load existing hooks or create empty (version 1 format)
+    existing_hooks: dict[str, Any] = {"version": 1, "hooks": {}}
     if hooks_file.exists():
         try:
             with open(hooks_file) as f:
                 existing_hooks = json.load(f)
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse hooks.json, starting fresh: {e}")
+            logger.warning(f"Failed to parse gobby-hooks.json, starting fresh: {e}")
         except OSError as e:
-            logger.error(f"Failed to read hooks.json: {e}")
-            result["error"] = f"Failed to read hooks.json: {e}"
+            logger.error(f"Failed to read gobby-hooks.json: {e}")
+            result["error"] = f"Failed to read gobby-hooks.json: {e}"
             return result
 
     # Ensure structure
     if "hooks" not in existing_hooks:
         existing_hooks["hooks"] = {}
+    if "version" not in existing_hooks:
+        existing_hooks["version"] = 1
 
     # Load Gobby hooks from template
     try:
@@ -142,7 +146,7 @@ def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
 
     # Write merged hooks back using atomic write
     try:
-        fd, temp_path = tempfile.mkstemp(dir=str(copilot_path), suffix=".tmp", prefix="hooks_")
+        fd, temp_path = tempfile.mkstemp(dir=str(github_hooks_path), suffix=".tmp", prefix="hooks_")
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(existing_hooks, f, indent=2)
@@ -155,14 +159,14 @@ def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
                 os.unlink(temp_path)
             raise
     except OSError as e:
-        logger.error(f"Failed to write hooks.json: {e}")
+        logger.error(f"Failed to write gobby-hooks.json: {e}")
         if backup_file and backup_file.exists():
             try:
                 copy2(backup_file, hooks_file)
-                logger.info("Restored hooks.json from backup after write failure")
+                logger.info("Restored gobby-hooks.json from backup after write failure")
             except OSError as restore_error:
                 logger.error(f"Failed to restore from backup: {restore_error}")
-        result["error"] = f"Failed to write hooks.json: {e}"
+        result["error"] = f"Failed to write gobby-hooks.json: {e}"
         return result
 
     result["success"] = True
@@ -171,6 +175,8 @@ def install_copilot(project_path: Path, mode: str = "global") -> dict[str, Any]:
 
 def uninstall_copilot(project_path: Path) -> dict[str, Any]:
     """Uninstall Gobby integration from Copilot CLI.
+
+    Checks both .github/hooks/ (new format) and .copilot/ (legacy) locations.
 
     Args:
         project_path: Path to the project root
@@ -185,12 +191,57 @@ def uninstall_copilot(project_path: Path) -> dict[str, Any]:
         "error": None,
     }
 
-    copilot_path = project_path / ".copilot"
-    hooks_file = copilot_path / "hooks.json"
-    hooks_dir = copilot_path / "hooks"
+    # --- New location: .github/hooks/gobby-hooks.json ---
+    github_hooks_file = project_path / ".github" / "hooks" / "gobby-hooks.json"
+    if github_hooks_file.exists():
+        try:
+            with open(github_hooks_file) as f:
+                hooks_config = json.load(f)
 
-    # Remove hook dispatcher
-    dispatcher = hooks_dir / "hook_dispatcher.py"
+            if "hooks" in hooks_config:
+                hooks_to_remove = []
+                for hook_type, hook_list in hooks_config["hooks"].items():
+                    if isinstance(hook_list, list):
+                        for hook in hook_list:
+                            bash_cmd = hook.get("bash", "")
+                            if "hook_dispatcher.py" in bash_cmd:
+                                hooks_to_remove.append(hook_type)
+                                break
+
+                for hook_type in hooks_to_remove:
+                    # Only remove gobby entries, preserve user hooks
+                    hook_list = hooks_config["hooks"][hook_type]
+                    if isinstance(hook_list, list):
+                        filtered = [
+                            h for h in hook_list if "hook_dispatcher.py" not in h.get("bash", "")
+                        ]
+                        if filtered:
+                            hooks_config["hooks"][hook_type] = filtered
+                        else:
+                            del hooks_config["hooks"][hook_type]
+                    else:
+                        del hooks_config["hooks"][hook_type]
+                    result["hooks_removed"].append(hook_type)
+
+                if hooks_config["hooks"]:
+                    # Other hooks remain — write back
+                    with open(github_hooks_file, "w") as f:
+                        json.dump(hooks_config, f, indent=2)
+                else:
+                    # No hooks left — remove the file
+                    github_hooks_file.unlink()
+                    result["files_removed"].append(str(github_hooks_file))
+
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to update gobby-hooks.json: {e}")
+
+    # --- Legacy location: .copilot/hooks.json ---
+    copilot_path = project_path / ".copilot"
+    legacy_hooks_file = copilot_path / "hooks.json"
+    legacy_hooks_dir = copilot_path / "hooks"
+
+    # Remove legacy hook dispatcher
+    dispatcher = legacy_hooks_dir / "hook_dispatcher.py"
     if dispatcher.exists():
         try:
             dispatcher.unlink()
@@ -198,33 +249,43 @@ def uninstall_copilot(project_path: Path) -> dict[str, Any]:
         except OSError as e:
             logger.warning(f"Failed to remove {dispatcher}: {e}")
 
-    # Remove hooks from hooks.json
-    if hooks_file.exists():
+    # Remove hooks from legacy hooks.json
+    if legacy_hooks_file.exists():
         try:
-            with open(hooks_file) as f:
+            with open(legacy_hooks_file) as f:
                 hooks_config = json.load(f)
 
-            # Remove all Gobby hooks (those that reference hook_dispatcher.py)
             if "hooks" in hooks_config:
                 hooks_to_remove = []
                 for hook_type, hook_list in hooks_config["hooks"].items():
                     if isinstance(hook_list, list):
                         for hook in hook_list:
+                            # Legacy format uses "command" field
                             cmd = hook.get("command", "")
                             if "hook_dispatcher.py" in cmd:
                                 hooks_to_remove.append(hook_type)
                                 break
 
                 for hook_type in hooks_to_remove:
-                    del hooks_config["hooks"][hook_type]
+                    # Only remove gobby entries, preserve user hooks
+                    hook_list = hooks_config["hooks"][hook_type]
+                    if isinstance(hook_list, list):
+                        filtered = [
+                            h for h in hook_list if "hook_dispatcher.py" not in h.get("command", "")
+                        ]
+                        if filtered:
+                            hooks_config["hooks"][hook_type] = filtered
+                        else:
+                            del hooks_config["hooks"][hook_type]
+                    else:
+                        del hooks_config["hooks"][hook_type]
                     result["hooks_removed"].append(hook_type)
 
-                # Write back
-                with open(hooks_file, "w") as f:
+                with open(legacy_hooks_file, "w") as f:
                     json.dump(hooks_config, f, indent=2)
 
         except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Failed to update hooks.json: {e}")
+            logger.warning(f"Failed to update legacy hooks.json: {e}")
 
     result["success"] = True
     return result

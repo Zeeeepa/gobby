@@ -49,6 +49,33 @@ def _make_message(index: int, role: str = "user", content: str = "hello") -> Par
     )
 
 
+class TestDeleteState:
+    """Tests for delete_state()."""
+
+    @pytest.mark.asyncio
+    async def test_delete_state_removes_state(
+        self, message_manager: LocalSessionMessageManager, session_id: str
+    ) -> None:
+        """delete_state removes processing state for a session."""
+        # Create state first
+        await message_manager.update_state(session_id, byte_offset=100, message_index=5)
+        state = await message_manager.get_state(session_id)
+        assert state is not None
+
+        # Delete it
+        await message_manager.delete_state(session_id)
+        state = await message_manager.get_state(session_id)
+        assert state is None
+
+    @pytest.mark.asyncio
+    async def test_delete_state_noop_for_nonexistent(
+        self, message_manager: LocalSessionMessageManager
+    ) -> None:
+        """delete_state is a no-op for sessions without state."""
+        # Should not raise
+        await message_manager.delete_state("nonexistent-session-id")
+
+
 class TestGetMaxMessageIndex:
     """Tests for get_max_message_index()."""
 

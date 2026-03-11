@@ -58,6 +58,12 @@ dependencies = [
     # Native SDK executors for autonomous mode
     "google-genai>=1.0.0",
     "openai>=1.0.0",
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.28.0",
+    "opentelemetry-exporter-prometheus>=0.49b0",
+    "opentelemetry-instrumentation-logging>=0.49b0",
+    "opentelemetry-semantic-conventions>=0.49b0",
 ]
 
 [project.scripts]
@@ -130,7 +136,8 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-exclude = [".archive", ".gobby"]
+exclude = [".archive", ".gobby", "*.yaml", "*.yml", "*.json", "*.md", "*.sh", "*.mjs", "*.txt"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = [

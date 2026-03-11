@@ -409,7 +409,6 @@ class TestGetValidationStatusTool:
             validation_feedback="Missing tests",
             validation_criteria="- [ ] Tests pass",
             validation_fail_count=2,
-            use_external_validator=False,
             created_at="now",
             updated_at="now",
         )
@@ -422,7 +421,6 @@ class TestGetValidationStatusTool:
         assert result["validation_feedback"] == "Missing tests"
         assert result["validation_criteria"] == "- [ ] Tests pass"
         assert result["validation_fail_count"] == 2
-        assert result["use_external_validator"] is False
 
     @pytest.mark.asyncio
     async def test_get_validation_status_not_found(self, mock_task_manager, validation_registry):

@@ -518,7 +518,7 @@ These functions are available in `when` conditions via `build_condition_helpers`
 | `any()`, `all()` | Aggregate checks (work with generator expressions) |
 | `isinstance()` | Type checking |
 | `task_tree_complete(task_id)` | Check if a task and all subtasks are complete |
-| `task_needs_user_review(task_id)` | Check if task is awaiting human review |
+| `task_needs_human_review(task_id)` | Check if task is awaiting human review |
 | `has_stop_signal(session_id)` | Check if a stop signal is pending |
 | `mcp_called(server, tool?)` | Check if an MCP tool was called successfully |
 | `mcp_result_is_null(server, tool)` | Check if MCP result is null/missing |

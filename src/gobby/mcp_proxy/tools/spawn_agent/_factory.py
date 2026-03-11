@@ -254,6 +254,32 @@ def create_spawn_agent_registry(
             else:
                 logger.warning("Workflow %r not found for agent spawn", effective_workflow)
 
+        # Provider rotation: if spawning for a task, check if previous attempts
+        # failed with provider errors and skip those providers
+        effective_provider = provider
+        if task_id and db and effective_provider:
+            try:
+                from gobby.agents.provider_rotation import (
+                    get_failed_providers_for_task,
+                    parse_provider_list,
+                )
+                from gobby.storage.agents import LocalAgentRunManager
+
+                arm = LocalAgentRunManager(db)
+                provider_list = parse_provider_list(effective_provider)
+                if len(provider_list) > 1:
+                    # Multi-provider list — pick the first untried one
+                    failed = get_failed_providers_for_task(task_id, arm)
+                    for p in provider_list:
+                        if p not in failed:
+                            effective_provider = p
+                            break
+                    else:
+                        # All exhausted — use the first one as fallback
+                        effective_provider = provider_list[0]
+            except Exception as e:
+                logger.debug("Provider rotation check failed: %s", e)
+
         # Delegate to spawn_agent_impl
         result = await spawn_agent_impl(
             prompt=effective_prompt,
@@ -274,7 +300,7 @@ def create_spawn_agent_registry(
             workflow=effective_workflow,
             mode=mode,
             initial_step=initial_step,
-            provider=provider,
+            provider=effective_provider,
             model=model,
             timeout=timeout,
             max_turns=max_turns,

@@ -60,7 +60,7 @@ class CronExecutor:
             if job.action_type == "agent_spawn":
                 output = await self._execute_agent_spawn(job)
             elif job.action_type == "pipeline":
-                output = await self._execute_pipeline(job)
+                output = await self._execute_pipeline(job, run)
             elif job.action_type == "shell":
                 output = await self._execute_shell(job)
             elif job.action_type == "handler":
@@ -131,7 +131,7 @@ class CronExecutor:
 
         return result.get("output", "Agent completed") if isinstance(result, dict) else str(result)
 
-    async def _execute_pipeline(self, job: CronJob) -> str:
+    async def _execute_pipeline(self, job: CronJob, run: CronRun) -> str:
         """Execute a pipeline action."""
         if not self.pipeline_executor:
             raise RuntimeError("pipeline_executor not configured for cron executor")
@@ -199,6 +199,17 @@ class CronExecutor:
             )
         finally:
             reset_project_context(token)
+
+        # Link the pipeline execution back to the cron run
+        try:
+            self.storage.update_run(run.id, pipeline_execution_id=execution.id)
+        except Exception:
+            logger.warning(
+                "Failed to link pipeline execution %s to cron run %s",
+                execution.id,
+                run.id,
+                exc_info=True,
+            )
 
         return f"Pipeline completed with status: {execution.status}"
 

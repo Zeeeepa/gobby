@@ -337,10 +337,6 @@ def _score_tasks(
         if prefer_subtasks and is_leaf:
             score += 25  # Prefer actionable leaf tasks
 
-        # Bonus for tasks with clear complexity
-        if task.complexity_score and task.complexity_score <= 5:
-            score += 15  # Prefer lower complexity tasks
-
         # Bonus for tasks with category defined
         if task.category:
             score += 10
@@ -584,8 +580,6 @@ def create_readiness_registry(
             reasons.append("high priority")
         if is_leaf:
             reasons.append("actionable leaf task")
-        if best_task.complexity_score and best_task.complexity_score <= 5:
-            reasons.append("manageable complexity")
         if best_task.category:
             reasons.append(f"has category ({best_task.category})")
         if best_proximity > 0:

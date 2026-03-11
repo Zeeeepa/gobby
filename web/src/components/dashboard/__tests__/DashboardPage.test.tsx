@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-// Mock the dashboard hook
+// Mock the hooks
 vi.mock('../../../hooks/useDashboard', () => ({
   useDashboard: vi.fn(),
+}))
+
+vi.mock('../../../hooks/useMetrics', () => ({
+  useMetricSnapshots: vi.fn(() => ({ data: [], isLoading: false, error: null })),
 }))
 
 // Mock CSS
@@ -19,14 +23,14 @@ vi.mock('../TasksCard', () => ({
 vi.mock('../SessionsCard', () => ({
   SessionsCard: () => <div data-testid="sessions-card">Sessions</div>,
 }))
-vi.mock('../McpHealthCard', () => ({
-  McpHealthCard: () => <div data-testid="mcp-card">MCP</div>,
+vi.mock('../MemoryCard', () => ({
+  MemoryCard: () => <div data-testid="memory-card">Memory</div>,
 }))
-vi.mock('../MemorySkillsCard', () => ({
-  MemorySkillsCard: () => <div data-testid="memory-card">Memory</div>,
+vi.mock('../SavingsCard', () => ({
+  SavingsCard: () => <div data-testid="savings-card">Savings</div>,
 }))
-vi.mock('../PipelinesCard', () => ({
-  PipelinesCard: () => <div data-testid="pipelines-card">Pipelines</div>,
+vi.mock('../MetricsChartsCard', () => ({
+  MetricsChartsCard: () => <div data-testid="metrics-charts">Metrics</div>,
 }))
 
 import { DashboardPage } from '../DashboardPage'
@@ -42,8 +46,12 @@ const SAMPLE_DATA: AdminStatus = {
   background_tasks: { active: 0, total: 5, completed: 5, failed: 0 },
   mcp_servers: {},
   sessions: { active: 2, paused: 0, handoff_ready: 0, total: 5 },
-  tasks: { open: 3, in_progress: 1, closed: 10, ready: 0, blocked: 0 },
-  memory: { count: 42 },
+  tasks: {
+    open: 3, in_progress: 1, closed: 10,
+    needs_review: 0, review_approved: 0, escalated: 0,
+    ready: 0, blocked: 0, closed_24h: 2,
+  },
+  memory: { count: 42, by_type: { fact: 20, preference: 10, pattern: 8, context: 4 }, recent_count: 3 },
   skills: { total: 15 },
   pipelines: { running: 0, waiting_approval: 0, completed: 3, failed: 1, total: 4 },
   savings: {
@@ -100,8 +108,9 @@ describe('DashboardPage', () => {
     expect(screen.getByTestId('system-health')).toBeTruthy()
     expect(screen.getByTestId('tasks-card')).toBeTruthy()
     expect(screen.getByTestId('sessions-card')).toBeTruthy()
-    expect(screen.getByTestId('mcp-card')).toBeTruthy()
     expect(screen.getByTestId('memory-card')).toBeTruthy()
+    expect(screen.getByTestId('savings-card')).toBeTruthy()
+    expect(screen.getByTestId('metrics-charts')).toBeTruthy()
   })
 
   it('renders title', () => {

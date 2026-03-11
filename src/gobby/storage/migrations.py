@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 150
+BASELINE_VERSION = 154
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -331,22 +331,13 @@ CREATE TABLE tasks (
     labels TEXT,
     closed_reason TEXT,
     compacted_at TEXT,
-    summary TEXT,
     validation_status TEXT CHECK(validation_status IN ('pending', 'valid', 'invalid')),
     validation_feedback TEXT,
     validation_override_reason TEXT,
-    original_instruction TEXT,
-    details TEXT,
     category TEXT,
-    complexity_score INTEGER,
-    estimated_subtasks INTEGER,
     expansion_context TEXT,
     validation_criteria TEXT,
-    use_external_validator INTEGER DEFAULT 0,
     validation_fail_count INTEGER DEFAULT 0,
-    workflow_name TEXT,
-    verification TEXT,
-    sequence_order INTEGER,
     commits TEXT,
     escalated_at TEXT,
     escalation_reason TEXT,
@@ -357,12 +348,7 @@ CREATE TABLE tasks (
     linear_team_id TEXT,
     seq_num INTEGER,
     path_cache TEXT,
-    agent_name TEXT,
-    reference_doc TEXT,
-    is_expanded INTEGER DEFAULT 0,
     expansion_status TEXT DEFAULT 'none',
-    requires_user_review INTEGER DEFAULT 0,
-    accepted_by_user INTEGER DEFAULT 0,
     start_date TEXT,
     due_date TEXT,
     created_at TEXT NOT NULL,
@@ -371,8 +357,6 @@ CREATE TABLE tasks (
 CREATE INDEX idx_tasks_project ON tasks(project_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);
-CREATE INDEX idx_tasks_workflow ON tasks(workflow_name);
-CREATE INDEX idx_tasks_sequence ON tasks(workflow_name, sequence_order);
 CREATE INDEX idx_tasks_created_session ON tasks(created_in_session_id);
 CREATE INDEX idx_tasks_closed_session ON tasks(closed_in_session_id);
 CREATE UNIQUE INDEX idx_tasks_seq_num ON tasks(project_id, seq_num);
@@ -719,7 +703,8 @@ CREATE TABLE pipeline_executions (
     resume_token TEXT UNIQUE,
     session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
     parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE,
-    continuation_prompt TEXT
+    continuation_prompt TEXT,
+    definition_json TEXT
 );
 CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
 CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
@@ -961,6 +946,29 @@ CREATE INDEX idx_cs_qualified ON code_symbols(qualified_name);
 CREATE INDEX idx_cs_kind ON code_symbols(kind);
 CREATE INDEX idx_cs_parent ON code_symbols(parent_symbol_id);
 
+CREATE TABLE spans (
+    span_id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    parent_span_id TEXT,
+    name TEXT NOT NULL,
+    kind TEXT,
+    start_time_ns INTEGER NOT NULL,
+    end_time_ns INTEGER,
+    status TEXT,
+    status_message TEXT,
+    attributes_json TEXT,
+    events_json TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_spans_trace_id ON spans(trace_id);
+CREATE INDEX idx_spans_start_time ON spans(start_time_ns);
+
+CREATE TABLE metric_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    metrics_json TEXT NOT NULL
+);
+CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp);
 """
 
 
@@ -1197,6 +1205,65 @@ CREATE TABLE IF NOT EXISTS savings_daily (
         150,
         "Drop session_transcripts table (replaced by filesystem archive)",
         "DROP TABLE IF EXISTS session_transcripts",
+    ),
+    (
+        151,
+        "Drop 14 dead columns from tasks table + remove workflow indexes",
+        """
+        DROP INDEX IF EXISTS idx_tasks_workflow;
+        DROP INDEX IF EXISTS idx_tasks_sequence;
+        ALTER TABLE tasks DROP COLUMN summary;
+        ALTER TABLE tasks DROP COLUMN original_instruction;
+        ALTER TABLE tasks DROP COLUMN details;
+        ALTER TABLE tasks DROP COLUMN complexity_score;
+        ALTER TABLE tasks DROP COLUMN estimated_subtasks;
+        ALTER TABLE tasks DROP COLUMN use_external_validator;
+        ALTER TABLE tasks DROP COLUMN workflow_name;
+        ALTER TABLE tasks DROP COLUMN verification;
+        ALTER TABLE tasks DROP COLUMN sequence_order;
+        ALTER TABLE tasks DROP COLUMN agent_name;
+        ALTER TABLE tasks DROP COLUMN reference_doc;
+        ALTER TABLE tasks DROP COLUMN is_expanded;
+        ALTER TABLE tasks DROP COLUMN requires_user_review;
+        ALTER TABLE tasks DROP COLUMN accepted_by_user;
+        """,
+    ),
+    (
+        152,
+        "Add definition_json column to pipeline_executions for config snapshots",
+        "ALTER TABLE pipeline_executions ADD COLUMN definition_json TEXT",
+    ),
+    (
+        153,
+        "Add spans table for local tracing",
+        """
+        CREATE TABLE IF NOT EXISTS spans (
+            span_id TEXT PRIMARY KEY,
+            trace_id TEXT NOT NULL,
+            parent_span_id TEXT,
+            name TEXT NOT NULL,
+            kind TEXT,
+            start_time_ns INTEGER NOT NULL,
+            end_time_ns INTEGER,
+            status TEXT,
+            status_message TEXT,
+            attributes_json TEXT,
+            events_json TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON spans(trace_id);
+        CREATE INDEX IF NOT EXISTS idx_spans_start_time ON spans(start_time_ns);
+        """,
+    ),
+    (
+        154,
+        "Add metric_snapshots table for OTel time-series dashboard",
+        """CREATE TABLE IF NOT EXISTS metric_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    metrics_json TEXT NOT NULL
+);
+CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
     ),
 ]
 

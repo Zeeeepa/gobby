@@ -13,7 +13,7 @@ import { useArtifacts } from "../../hooks/useArtifacts";
 import { ArtifactContext } from "./artifacts/ArtifactContext";
 import { ArtifactPanel } from "./artifacts/ArtifactPanel";
 import { ResizeHandle } from "./artifacts/ResizeHandle";
-import { MessageList } from "./MessageList";
+import { MessageList, type MessageListHandle } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { MobileChatDrawer } from "./MobileChatDrawer";
 import { SessionStatusBar } from "./SessionStatusBar";
@@ -47,6 +47,7 @@ export function ChatPage({
   agentHasGlobal = false,
   agentHasProject = false,
 }: ChatPageProps) {
+  const messageListRef = useRef<MessageListHandle>(null);
   const activeSession = conversations.sessions.find(
     (s) => s.external_id === conversations.activeSessionId,
   );
@@ -215,7 +216,7 @@ export function ChatPage({
         <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
           <div className="flex flex-col flex-1 min-h-0">
             {/* Status bar */}
-            <div className={`hidden md:block${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " !hidden" : ""}`}>
+            <div className={`session-status-desktop${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}>
               <SessionStatusBar
                 sessionRef={effectiveSessionRef}
                 title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
@@ -234,6 +235,7 @@ export function ChatPage({
                 style={!isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? { minWidth: MIN_CHAT_WIDTH } : undefined}
               >
                 <MessageList
+                  ref={messageListRef}
                   messages={chat.messages}
                   isStreaming={chat.isStreaming}
                   isThinking={chat.isThinking}
@@ -314,6 +316,7 @@ export function ChatPage({
                 voiceError={voice.voiceError}
                 onToggleVoice={voice.onToggleVoice}
                 isMobile={isMobile}
+                onScrollToBottom={() => messageListRef.current?.scrollToBottom()}
               />
             </div>
           </div>

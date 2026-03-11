@@ -79,8 +79,10 @@ class ClaudeExecutor(AgentExecutor):
         if auth_mode == "subscription":
             cli_path = shutil.which("claude")
             if not cli_path:
-                raise ValueError(
-                    "Claude CLI not found in PATH. Install Claude Code for subscription mode."
+                raise RuntimeError(
+                    "Claude CLI not found in PATH. "
+                    "Install Claude Code for subscription mode, or set "
+                    "auth_mode to 'api_key' in llm_providers config."
                 )
             self._cli_path = cli_path
         elif auth_mode == "api_key" and not api_key:
@@ -266,20 +268,18 @@ class ClaudeExecutor(AgentExecutor):
                                 if isinstance(block, ToolResultBlock):
                                     self.logger.debug(f"ToolResultBlock: {block.tool_use_id}")
 
-                # Build cost info for api_key mode
+                # Build cost info from ResultMessage — SDK returns usage
+                # in both subscription and api_key modes.
                 cost_info: CostInfo | None = None
-                if self.auth_mode == "api_key":
-                    # Extract token counts from the last ResultMessage
-                    prompt_tokens = 0
-                    completion_tokens = 0
-                    total_cost = 0.0
-                    # Walk messages to find the ResultMessage with usage
-                    # (result_msg captured during iteration above)
-                    if result_msg and result_msg.usage:
-                        prompt_tokens = result_msg.usage.get("input_tokens", 0)
-                        completion_tokens = result_msg.usage.get("output_tokens", 0)
-                    if result_msg and result_msg.total_cost_usd is not None:
-                        total_cost = result_msg.total_cost_usd
+                prompt_tokens = 0
+                completion_tokens = 0
+                total_cost = 0.0
+                if result_msg and result_msg.usage:
+                    prompt_tokens = result_msg.usage.get("input_tokens", 0)
+                    completion_tokens = result_msg.usage.get("output_tokens", 0)
+                if result_msg and result_msg.total_cost_usd is not None:
+                    total_cost = result_msg.total_cost_usd
+                if result_msg:
                     cost_info = CostInfo(
                         model=model,
                         prompt_tokens=prompt_tokens,

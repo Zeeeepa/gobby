@@ -93,9 +93,15 @@ def make_spawn_env(env: dict[str, str] | None = None) -> dict[str, str]:
     Returns:
         Clean environment dict ready for subprocess.Popen
     """
+    from gobby.telemetry import inject_into_env
+
     spawn_env = os.environ.copy()
     if env:
         spawn_env.update(env)
+
+    # Inject trace context for propagation
+    spawn_env = inject_into_env(spawn_env)
+
     # Clear VIRTUAL_ENV to prevent uv warnings in clones/worktrees
     # "VIRTUAL_ENV=/path/to/.venv does not match project environment"
     spawn_env.pop("VIRTUAL_ENV", None)

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from gobby.sessions.transcript_reader import TranscriptReader
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
@@ -61,6 +62,7 @@ class ContextResolver:
         max_content_size: int = 51200,  # 50KB default for all content types
         max_transcript_messages: int = 100,
         truncation_suffix: str = "\n\n[truncated: {bytes} bytes remaining]",
+        transcript_reader: TranscriptReader | None = None,
     ):
         """
         Initialize the context resolver.
@@ -73,6 +75,7 @@ class ContextResolver:
             max_content_size: Maximum content size for all sources (default: 50KB).
             max_transcript_messages: Maximum transcript messages to fetch.
             truncation_suffix: Suffix template when content is truncated.
+            transcript_reader: Optional TranscriptReader for DB + gzip fallback reads.
         """
         self._session_manager = session_manager
         self._message_manager = message_manager
@@ -81,6 +84,7 @@ class ContextResolver:
         self._max_file_size = max_file_size
         self._max_content_size = max_content_size
         self._max_transcript_messages = max_transcript_messages
+        self._transcript_reader = transcript_reader
 
     async def resolve(self, source: str, session_id: str) -> str:
         """
@@ -191,11 +195,19 @@ class ContextResolver:
         # Clamp count to max
         count = min(count, self._max_transcript_messages)
 
-        messages = await self._message_manager.get_messages(
-            session_id=session_id,
-            limit=count,
-            offset=0,
-        )
+        # Use TranscriptReader (DB + gzip fallback) when available
+        if self._transcript_reader:
+            messages = await self._transcript_reader.get_messages(
+                session_id=session_id,
+                limit=count,
+                offset=0,
+            )
+        else:
+            messages = await self._message_manager.get_messages(
+                session_id=session_id,
+                limit=count,
+                offset=0,
+            )
 
         if not messages:
             return ""

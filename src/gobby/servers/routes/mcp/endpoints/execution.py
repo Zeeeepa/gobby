@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_internal_manager, get_mcp_manager, get_server
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import inc_counter, observe_histogram
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -21,9 +21,6 @@ if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
-
-# Module-level metrics collector (shared across all requests)
-_metrics = get_metrics_collector()
 
 
 def _process_tool_proxy_result(
@@ -50,7 +47,7 @@ def _process_tool_proxy_result(
     """
     # Track metrics for tool-level failures vs successes
     if isinstance(result, dict) and result.get("success") is False:
-        _metrics.inc_counter("mcp_tool_calls_failed_total")
+        inc_counter("mcp_tool_calls_failed_total")
 
         # Return all errors consistently as {success: False, result: {...}}
         # Previously, server-not-found errors raised HTTPException(404), but this
@@ -75,7 +72,7 @@ def _process_tool_proxy_result(
             "response_time_ms": response_time_ms,
         }
     else:
-        _metrics.inc_counter("mcp_tool_calls_succeeded_total")
+        inc_counter("mcp_tool_calls_succeeded_total")
         logger.debug(
             f"MCP tool call successful: {server_name}.{tool_name}",
             extra={
@@ -131,14 +128,14 @@ async def _call_internal_tool(
     try:
         result = await registry.call(tool_name, arguments or {})
         response_time_ms = (time.perf_counter() - start_time) * 1000
-        _metrics.inc_counter("mcp_tool_calls_succeeded_total")
+        inc_counter("mcp_tool_calls_succeeded_total")
         return {
             "success": True,
             "result": result,
             "response_time_ms": response_time_ms,
         }
     except Exception as e:
-        _metrics.inc_counter("mcp_tool_calls_failed_total")
+        inc_counter("mcp_tool_calls_failed_total")
         error_msg = str(e) or f"{type(e).__name__}: (no message)"
         raise HTTPException(
             status_code=500,
@@ -163,7 +160,6 @@ async def list_mcp_tools(
         List of available tools with their descriptions
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         # Check internal registries first (gobby-tasks, gobby-memory, etc.)
@@ -172,7 +168,7 @@ async def list_mcp_tools(
             if registry:
                 tools = registry.list_tools()
                 response_time_ms = (time.perf_counter() - start_time) * 1000
-                _metrics.observe_histogram("list_mcp_tools", response_time_ms / 1000)
+                observe_histogram("list_mcp_tools", response_time_ms / 1000)
                 return {
                     "success": True,
                     "tools": tools,
@@ -273,7 +269,6 @@ async def list_mcp_tools(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"MCP list tools error: {server_name}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -296,7 +291,6 @@ async def get_tool_schema(
         Tool schema with inputSchema
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
 
     try:
         body = await request.json()
@@ -375,7 +369,6 @@ async def get_tool_schema(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("http_requests_errors_total")
         logger.error(f"Get tool schema error: {e}", exc_info=True)
         response_time_ms = (time.perf_counter() - start_time) * 1000
         return {"success": False, "error": str(e), "response_time_ms": response_time_ms}
@@ -399,8 +392,7 @@ async def call_mcp_tool(
         Tool execution result
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
-    _metrics.inc_counter("mcp_tool_calls_total")
+    inc_counter("mcp_tool_calls_total")
 
     try:
         body = await request.json()
@@ -439,7 +431,7 @@ async def call_mcp_tool(
         try:
             result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
             response_time_ms = (time.perf_counter() - start_time) * 1000
-            _metrics.inc_counter("mcp_tool_calls_succeeded_total")
+            inc_counter("mcp_tool_calls_succeeded_total")
 
             return {
                 "success": True,
@@ -448,7 +440,7 @@ async def call_mcp_tool(
             }
 
         except Exception as e:
-            _metrics.inc_counter("mcp_tool_calls_failed_total")
+            inc_counter("mcp_tool_calls_failed_total")
             error_msg = str(e) or f"{type(e).__name__}: (no message)"
             raise HTTPException(
                 status_code=500, detail={"success": False, "error": error_msg}
@@ -457,7 +449,7 @@ async def call_mcp_tool(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("mcp_tool_calls_failed_total")
+        inc_counter("mcp_tool_calls_failed_total")
         error_msg = str(e) or f"{type(e).__name__}: (no message)"
         logger.error(f"Call MCP tool error: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail={"success": False, "error": error_msg}) from e
@@ -481,8 +473,7 @@ async def mcp_proxy(
         Tool execution result
     """
     start_time = time.perf_counter()
-    _metrics.inc_counter("http_requests_total")
-    _metrics.inc_counter("mcp_tool_calls_total")
+    inc_counter("mcp_tool_calls_total")
 
     try:
         # Parse request body as tool arguments
@@ -537,7 +528,7 @@ async def mcp_proxy(
                 },
             )
 
-            _metrics.inc_counter("mcp_tool_calls_succeeded_total")
+            inc_counter("mcp_tool_calls_succeeded_total")
 
             return {
                 "success": True,
@@ -546,14 +537,14 @@ async def mcp_proxy(
             }
 
         except ValueError as e:
-            _metrics.inc_counter("mcp_tool_calls_failed_total")
+            inc_counter("mcp_tool_calls_failed_total")
             logger.warning(
                 f"MCP tool not found: {server_name}.{tool_name}",
                 extra={"server": server_name, "tool": tool_name, "error": str(e)},
             )
             raise HTTPException(status_code=404, detail={"success": False, "error": str(e)}) from e
         except Exception as e:
-            _metrics.inc_counter("mcp_tool_calls_failed_total")
+            inc_counter("mcp_tool_calls_failed_total")
             error_msg = str(e) or f"{type(e).__name__}: (no message)"
             logger.error(
                 f"MCP tool call error: {server_name}.{tool_name}",
@@ -567,7 +558,7 @@ async def mcp_proxy(
     except HTTPException:
         raise
     except Exception as e:
-        _metrics.inc_counter("mcp_tool_calls_failed_total")
+        inc_counter("mcp_tool_calls_failed_total")
         error_msg = str(e) or f"{type(e).__name__}: (no message)"
         logger.error(f"MCP proxy error: {server_name}.{tool_name}", exc_info=True)
         raise HTTPException(status_code=500, detail={"success": False, "error": error_msg}) from e

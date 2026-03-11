@@ -234,35 +234,6 @@ async def validate_leaf_task_with_llm(
             extra={"validation_status": result.status},
         )
 
-    # Run external validation if enabled (after internal validation passes)
-    if validation_config and validation_config.use_external_validator:
-        from gobby.tasks.external_validator import run_external_validation
-
-        external_result = await run_external_validation(
-            config=validation_config,
-            llm_service=task_validator.llm_service,
-            task={
-                "id": task.id,
-                "title": task.title,
-                "description": task.description,
-                "validation_criteria": task.validation_criteria,
-            },
-            changes_context=validation_context,
-            agent_runner=ctx.agent_runner,
-        )
-
-        if external_result.status not in ("valid", "skipped"):
-            # Block closing on external validation failure
-            return ValidationResult(
-                can_close=False,
-                error_type="external_validation_failed",
-                message=external_result.summary,
-                extra={
-                    "validation_status": external_result.status,
-                    "issues": [issue.to_dict() for issue in external_result.issues],
-                },
-            )
-
     return ValidationResult(can_close=True)
 
 
@@ -284,8 +255,7 @@ def determine_close_outcome(
     # Determine if override should be stored
     store_override = skip_validation
 
-    # Route to review if task requires user review OR override was used
-    # This ensures tasks with HITL flag or skipped validation go through human review
-    route_to_review = bool(task.requires_user_review or (override_justification and store_override))
+    # Route to review if override was used — skipped validation goes through human review
+    route_to_review = bool(override_justification and store_override)
 
     return route_to_review, store_override

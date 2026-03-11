@@ -341,8 +341,14 @@ export function useChat() {
   const [currentBranch, setCurrentBranch] = useState<string | null>(null);
   const [worktreePath, setWorktreePath] = useState<string | null>(null);
 
-  // Active agent tracking
-  const [activeAgent, setActiveAgent] = useState<string>("default-web-chat");
+  // Active agent tracking — persisted to survive page reloads
+  const ACTIVE_AGENT_KEY = "gobby-active-agent";
+  const [activeAgent, setActiveAgent] = useState<string>(
+    () => localStorage.getItem(ACTIVE_AGENT_KEY) || "default-web-chat",
+  );
+
+  // Session title — stored from switchConversation to survive filtered list race
+  const [sessionTitle, setSessionTitle] = useState<string | null>(null);
 
   // Session viewing tracking (read-only observation of CLI sessions via REST)
   const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
@@ -357,6 +363,13 @@ export function useChat() {
   const attachedSessionIdRef = useRef<string | null>(null);
   const [attachedSessionMeta, setAttachedSessionMeta] =
     useState<import("../types/chat").SessionObservationMeta | null>(null);
+
+  // Keep a ref so onopen/reconnect can read the current agent
+  const activeAgentRef = useRef(activeAgent);
+  useEffect(() => {
+    activeAgentRef.current = activeAgent;
+    localStorage.setItem(ACTIVE_AGENT_KEY, activeAgent);
+  }, [activeAgent]);
 
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false);
@@ -508,6 +521,15 @@ export function useChat() {
             conversation_id: conversationIdRef.current,
           }),
         );
+
+        // Re-sync persisted agent on reconnect
+        ws.send(
+          JSON.stringify({
+            type: "set_agent",
+            conversation_id: conversationIdRef.current,
+            agent_name: activeAgentRef.current,
+          }),
+        );
       }
     };
 
@@ -549,31 +571,38 @@ export function useChat() {
           data.type === "voice_audio_chunk" ||
           data.type === "voice_status"
         ) {
-          // When STT transcription arrives, inject it as a user message and
-          // register the request_id so the assistant's response stream is accepted.
-          if (data.type === "voice_transcription") {
-            const voiceMsg = data as unknown as VoiceTranscriptionMessage;
-            const text = typeof voiceMsg.text === "string" ? voiceMsg.text : "";
-            const reqId =
-              typeof voiceMsg.request_id === "string"
-                ? voiceMsg.request_id
-                : "";
-            if (text && reqId) {
-              activeRequestIdRef.current = reqId;
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: `user-voice-${reqId}`,
-                  role: "user" as const,
-                  content: text,
-                  timestamp: new Date(),
-                },
-              ]);
-              setIsStreaming(true);
-              setIsThinking(true);
+          try {
+            // When STT transcription arrives, inject it as a user message and
+            // register the request_id so the assistant's response stream is accepted.
+            if (data.type === "voice_transcription") {
+              const voiceMsg = data as unknown as VoiceTranscriptionMessage;
+              const text =
+                typeof voiceMsg.text === "string" ? voiceMsg.text : "";
+              const reqId =
+                typeof voiceMsg.request_id === "string"
+                  ? voiceMsg.request_id
+                  : "";
+              if (text && reqId) {
+                activeRequestIdRef.current = reqId;
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `user-voice-${reqId}`,
+                    role: "user" as const,
+                    content: text,
+                    timestamp: new Date(),
+                  },
+                ]);
+                setIsStreaming(true);
+                setIsThinking(true);
+              }
             }
+            handleVoiceMessageRef.current(data as Record<string, unknown>);
+          } catch (err) {
+            console.error("Voice message handling error:", err);
+            setIsStreaming(false);
+            setIsThinking(false);
           }
-          handleVoiceMessageRef.current(data as Record<string, unknown>);
         } else if (data.type === "plan_pending_approval") {
           const planContent = (data as Record<string, unknown>).plan_content as
             | string
@@ -1308,6 +1337,7 @@ export function useChat() {
     setIsStreaming(false);
     setIsThinking(false);
     setSessionRef(null);
+    setSessionTitle(null);
     setDbSessionId(dbSessionId ?? null);
     setCurrentBranch(null);
     setWorktreePath(null);
@@ -1355,6 +1385,9 @@ export function useChat() {
         .then((data) => {
           const s = data?.session;
           if (!s || conversationIdRef.current !== id) return;
+          // Store title and ref so they survive filtered session list races
+          if (s.title) setSessionTitle(s.title);
+          if (s.seq_num != null) setSessionRef(`#${s.seq_num}`);
           if (
             s.usage_input_tokens > 0 ||
             s.usage_output_tokens > 0 ||
@@ -1409,6 +1442,7 @@ export function useChat() {
     saveConversationId(newId);
     setMessages([]);
     setSessionRef(null);
+    setSessionTitle(null);
     setDbSessionId(null);
     setCurrentBranch(null);
     setWorktreePath(null);
@@ -2146,6 +2180,7 @@ export function useChat() {
     conversationId,
     conversationSwitchKey,
     sessionRef,
+    sessionTitle,
     dbSessionId,
     currentBranch,
     worktreePath,

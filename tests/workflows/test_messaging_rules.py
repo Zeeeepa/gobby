@@ -82,11 +82,13 @@ class TestDeliverPendingMessages:
         return RuleDefinitionBody(
             event=RuleEvent.BEFORE_AGENT,
             when="variables.get('is_spawned_agent')",
-            effects=[RuleEffect(
-                type="mcp_call",
-                server="gobby-agents",
-                tool="deliver_pending_messages",
-            )],
+            effects=[
+                RuleEffect(
+                    type="mcp_call",
+                    server="gobby-agents",
+                    tool="deliver_pending_messages",
+                )
+            ],
         )
 
     @pytest.mark.asyncio
@@ -146,11 +148,13 @@ class TestActivatePendingCommand:
         return RuleDefinitionBody(
             event=RuleEvent.BEFORE_AGENT,
             when="variables.get('is_spawned_agent') and variables.get('has_pending_command')",
-            effects=[RuleEffect(
-                type="mcp_call",
-                server="gobby-agents",
-                tool="activate_command",
-            )],
+            effects=[
+                RuleEffect(
+                    type="mcp_call",
+                    server="gobby-agents",
+                    tool="activate_command",
+                )
+            ],
         )
 
     @pytest.mark.asyncio
@@ -217,10 +221,12 @@ class TestCommandToolRestriction:
                 "and variables.get('allowed_tools') "
                 "and event.data.get('tool_name') not in variables.get('allowed_tools', [])"
             ),
-            effects=[RuleEffect(
-                type="block",
-                reason="Tool not allowed by active command",
-            )],
+            effects=[
+                RuleEffect(
+                    type="block",
+                    reason="Tool not allowed by active command",
+                )
+            ],
         )
 
     @pytest.mark.asyncio
@@ -309,10 +315,12 @@ class TestCommandMcpToolRestriction:
                 "and (event.data.get('mcp_server') + ':' + event.data.get('mcp_tool')) "
                 "not in variables.get('allowed_mcp_tools', [])"
             ),
-            effects=[RuleEffect(
-                type="block",
-                reason="MCP tool not allowed by active command",
-            )],
+            effects=[
+                RuleEffect(
+                    type="block",
+                    reason="MCP tool not allowed by active command",
+                )
+            ],
         )
 
     @pytest.mark.asyncio
@@ -461,11 +469,13 @@ class TestCommandExitCondition:
                 "and variables.get('command_id') "
                 "and variables.get('exit_condition_met')"
             ),
-            effects=[RuleEffect(
-                type="mcp_call",
-                server="gobby-agents",
-                tool="complete_command",
-            )],
+            effects=[
+                RuleEffect(
+                    type="mcp_call",
+                    server="gobby-agents",
+                    tool="complete_command",
+                )
+            ],
         )
 
     @pytest.mark.asyncio
@@ -633,14 +643,16 @@ def _notify_unread_mail_body() -> RuleDefinitionBody:
             "has_pending_messages(event.metadata.get('_platform_session_id', '')) "
             "and not is_message_delivery_tool(event.data.get('mcp_tool'))"
         ),
-        effects=[RuleEffect(
-            type="inject_context",
-            template=(
-                "You have {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}"
-                " undelivered inter-session message(s).\n"
-                "Please read them soon by calling: deliver_pending_messages(session_id=\"{{ event.metadata.get('_platform_session_id', '') }}\")"
-            ),
-        )],
+        effects=[
+            RuleEffect(
+                type="inject_context",
+                template=(
+                    "You have {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}"
+                    " undelivered inter-session message(s).\n"
+                    "Please read them soon by calling: deliver_pending_messages(session_id=\"{{ event.metadata.get('_platform_session_id', '') }}\")"
+                ),
+            )
+        ],
     )
 
 
@@ -821,10 +833,12 @@ class TestJinja2HelperRendering:
             event=RuleEvent.BEFORE_TOOL,
             agent_scope=["*"],
             when="has_pending_messages(event.metadata.get('_platform_session_id', ''))",
-            effects=[RuleEffect(
-                type="block",
-                reason="Count: {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}",
-            )],
+            effects=[
+                RuleEffect(
+                    type="block",
+                    reason="Count: {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}",
+                )
+            ],
         )
         _insert_rule(manager, "count-test", body, priority=1)
 
@@ -852,10 +866,12 @@ class TestJinja2HelperRendering:
             event=RuleEvent.BEFORE_TOOL,
             agent_scope=["*"],
             when="has_pending_messages(event.metadata.get('_platform_session_id', ''))",
-            effects=[RuleEffect(
-                type="inject_context",
-                template="Pending: {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}",
-            )],
+            effects=[
+                RuleEffect(
+                    type="inject_context",
+                    template="Pending: {{ pending_message_count(event.metadata.get('_platform_session_id', '')) }}",
+                )
+            ],
         )
         _insert_rule(manager, "inject-test", body, priority=1)
 

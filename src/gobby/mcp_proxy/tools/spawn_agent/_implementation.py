@@ -123,13 +123,13 @@ async def spawn_agent_impl(
         _raw_isolation if _raw_isolation in ("none", "worktree", "clone") else "none"  # type: ignore[assignment]
     )
 
-    effective_provider: str = provider or "claude"
-    if effective_provider == "inherit":
-        effective_provider = "claude"
-    if effective_provider is None and agent_body:
-        effective_provider = agent_body.provider
-    if effective_provider in (None, "inherit"):
-        effective_provider = "claude"
+    _raw_provider: str | None = provider
+    if _raw_provider is None and agent_body:
+        _raw_provider = agent_body.provider
+    if _raw_provider in (None, "inherit"):
+        _raw_provider = "claude"
+    assert _raw_provider is not None  # guaranteed by fallback above
+    effective_provider: str = _raw_provider
 
     VALID_MODES = ("terminal", "autonomous", "self")
 
@@ -280,13 +280,15 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to resolve task_id {task_id}: {e}")
 
-    # 4b. Dedup check — skip if an agent is already running for this task
+    # 4b. Dedup check — idempotent: return success if agent already running
     if resolved_task_id and runner.run_storage:
         if runner.run_storage.has_active_run_for_task(resolved_task_id):
+            active_run = runner.run_storage.get_active_run_for_task(resolved_task_id)
             return {
-                "success": False,
+                "success": True,
                 "skipped": True,
-                "error": f"Agent already dispatched for task {task_id}",
+                "run_id": active_run.id if active_run else None,
+                "message": f"Agent already running for task {task_id}",
             }
 
     # 5. Handle worktree_id/clone_id reuse: skip isolation creation when existing resource provided
@@ -295,6 +297,14 @@ async def spawn_agent_impl(
         existing_worktree = worktree_storage.get(worktree_id)
         if not existing_worktree:
             return {"success": False, "error": f"Worktree {worktree_id} not found"}
+
+        # Verify worktree directory still exists on disk
+        if not Path(existing_worktree.worktree_path).is_dir():
+            worktree_storage.delete(worktree_id)
+            return {
+                "success": False,
+                "error": f"Worktree directory missing: {existing_worktree.worktree_path} (stale record cleaned up)",
+            }
 
         from gobby.agents.isolation import IsolationContext
 
@@ -310,6 +320,14 @@ async def spawn_agent_impl(
         existing_clone = clone_storage.get(clone_id)
         if not existing_clone:
             return {"success": False, "error": f"Clone {clone_id} not found"}
+
+        # Verify clone directory still exists on disk
+        if not Path(existing_clone.clone_path).is_dir():
+            clone_storage.delete(clone_id)
+            return {
+                "success": False,
+                "error": f"Clone directory missing: {existing_clone.clone_path} (stale record cleaned up)",
+            }
 
         from gobby.agents.isolation import IsolationContext
 

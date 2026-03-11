@@ -63,10 +63,12 @@ class TestNormalizeInputDataKebabCase:
 
     def test_session_id_takes_priority(self) -> None:
         """session_id takes priority over thread-id."""
-        result = _normalize_input_data({
-            "session_id": "priority_one",
-            "thread-id": "should_not_win",
-        })
+        result = _normalize_input_data(
+            {
+                "session_id": "priority_one",
+                "thread-id": "should_not_win",
+            }
+        )
         assert result["session_id"] == "priority_one"
 
     def test_thread_id_from_nested_thread_object(self) -> None:
@@ -113,9 +115,11 @@ class TestNormalizeInputDataMessages:
 
     def test_last_message_fallback_from_messages(self) -> None:
         """Falls back to extracting text from input messages."""
-        result = _normalize_input_data({
-            "input-messages": [{"role": "user", "text": "Extracted fallback"}],
-        })
+        result = _normalize_input_data(
+            {
+                "input-messages": [{"role": "user", "text": "Extracted fallback"}],
+            }
+        )
         assert result["last_message"] == "Extracted fallback"
 
     def test_non_list_messages_returns_empty_list(self) -> None:

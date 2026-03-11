@@ -33,7 +33,7 @@
 **Goal**: Single evaluation engine for all `when` conditions.
 
 **Tasks:**
-- [ ] Extend `SafeExpressionEvaluator` with helper functions from `ConditionEvaluator` (task_tree_complete, mcp_called, mcp_result_is_null, mcp_failed, mcp_result_has, has_stop_signal, task_needs_user_review, plugin conditions)
+- [ ] Extend `SafeExpressionEvaluator` with helper functions from `ConditionEvaluator` (task_tree_complete, mcp_called, mcp_result_is_null, mcp_failed, mcp_result_has, has_stop_signal, task_needs_human_review, plugin conditions)
 - [ ] Replace `ConditionEvaluator.evaluate()` internals with `SafeExpressionEvaluator` — keep public API, swap eval backend
 - [ ] Verify all existing `when` expressions work with AST evaluator (audit YAML files)
 - [ ] Remove `eval()` usage from `ConditionEvaluator`

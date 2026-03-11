@@ -215,7 +215,6 @@ class TestExecuteExpansion:
 
         # Verify parent task updated
         task = task_manager.get_task(parent_task)
-        assert task.is_expanded is True
         assert task.expansion_status == "completed"
 
         # Verify subtasks created

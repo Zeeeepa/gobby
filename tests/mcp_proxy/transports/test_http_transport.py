@@ -58,7 +58,7 @@ async def _fake_streamablehttp(url: str, headers: dict | None = None):
 async def _fake_streamablehttp_error(url: str, headers: dict | None = None):
     """streamablehttp_client that raises on entry."""
     raise ConnectionError("refused")
-    yield  # noqa: unreachable — needed for generator syntax
+    yield  # noqa: E501 — unreachable but needed for generator syntax
 
 
 # ---------------------------------------------------------------------------

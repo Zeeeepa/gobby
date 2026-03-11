@@ -16,8 +16,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import platform
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -40,21 +38,12 @@ def _get_worktree_base_dir() -> Path:
     """
     Get the base directory for worktrees.
 
-    Uses the system temp directory:
-    - macOS/Linux: /tmp/gobby-worktrees/
-    - Windows: %TEMP%/gobby-worktrees/
+    Uses ~/.gobby/worktrees/ so worktrees survive reboots.
 
     Returns:
         Path to worktree base directory (creates if needed)
     """
-    if platform.system() == "Windows":
-        # Windows: use %TEMP% (typically C:\\Users\\<user>\\AppData\\Local\\Temp)
-        base = Path(tempfile.gettempdir()) / "gobby-worktrees"
-    else:
-        # macOS/Linux: use /tmp for better isolation (tmpfs, cleared on reboot)
-        # Resolve symlink on macOS (/tmp -> /private/tmp) for consistent paths
-        base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
-
+    base = Path.home() / ".gobby" / "worktrees"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -345,9 +334,11 @@ def create_worktrees_registry(
 
         # Generate default worktree path if not provided
         if worktree_path is None:
-            # Use temp directory (e.g., /tmp/gobby-worktrees/project-name/branch-name)
             project_name = Path(resolved_git_mgr.repo_path).name
             worktree_path = _generate_worktree_path(branch_name, project_name)
+        else:
+            # Expand ~ before any filesystem operations (subprocess.run doesn't expand tildes)
+            worktree_path = str(Path(worktree_path).expanduser())
 
         # Auto-detect use_local when not explicitly set
         resolved_use_local = use_local

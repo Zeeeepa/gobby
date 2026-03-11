@@ -92,8 +92,10 @@ class TestPipelineResume:
         execution.pipeline_name = "resume-pipeline"
         execution.status = ExecutionStatus.WAITING_APPROVAL
         execution.inputs_json = json.dumps({"env": "prod"})
+        execution.project_id = "test-project"
 
         mock_execution_manager.get_execution.return_value = execution
+        mock_execution_manager.get_failed_steps.return_value = []
 
         # Mock get_steps_for_execution to return the history so execute() can skip completed steps
         # When execute() runs, it should see step1 is COMPLETED (because approve() marks it so)

@@ -18,6 +18,7 @@ from gobby.mcp_proxy.tools.sessions._registration import register_registration_t
 from gobby.mcp_proxy.tools.sessions._transcripts import register_transcript_tools
 
 if TYPE_CHECKING:
+    from gobby.sessions.transcript_reader import TranscriptReader
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
@@ -33,6 +34,7 @@ def create_session_messages_registry(
     db: Any | None = None,
     worktree_manager: Any | None = None,
     inter_session_message_manager: Any | None = None,
+    transcript_reader: TranscriptReader | None = None,
 ) -> InternalToolRegistry:
     """
     Create a sessions tool registry with session and message tools.
@@ -57,7 +59,7 @@ def create_session_messages_registry(
     # --- Message Tools ---
     # Only register if message_manager is available
     if message_manager is not None:
-        register_message_tools(registry, message_manager, session_manager)
+        register_message_tools(registry, message_manager, session_manager, transcript_reader)
 
     # --- Handoff Tools ---
     # Only register if session_manager is available

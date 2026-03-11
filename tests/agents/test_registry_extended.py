@@ -180,8 +180,8 @@ class TestRunningAgentRegistryKill:
         # pgrep returns two PIDs (parent shell + child CLI)
         mock_subprocess.side_effect = [
             (0, "10000\n10050\n", ""),  # pgrep returns two PIDs
-            (0, f"claude --session-id sess-multi", ""),  # ps for PID 10000
-            (0, f"claude --session-id sess-multi", ""),  # ps for PID 10050
+            (0, "claude --session-id sess-multi", ""),  # ps for PID 10000
+            (0, "claude --session-id sess-multi", ""),  # ps for PID 10050
         ]
 
         # Simulate: alive -> signal -> dead

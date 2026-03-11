@@ -213,14 +213,26 @@ class SessionLifecycleManager:
                 logger.debug(f"Processed transcript for session {session.id}")
 
                 # Best-effort backup of the transcript archive
+                # On success, purge DB messages (gzip is now the source of truth)
                 if session.jsonl_path and session.external_id:
                     try:
-                        await asyncio.to_thread(
+                        archive_path = await asyncio.to_thread(
                             backup_transcript,
                             session.external_id,
                             session.jsonl_path,
                             archive_dir,
                         )
+                        if archive_path:
+                            await self.message_manager.purge(session.id)
+                            logger.debug(
+                                f"Purged DB messages for session {session.id} "
+                                f"(archived to {archive_path})"
+                            )
+                        else:
+                            logger.warning(
+                                f"Transcript backup returned None for {session.id}, "
+                                f"retaining DB messages"
+                            )
                     except Exception as e:
                         logger.warning(f"Transcript backup failed for {session.id}: {e}")
             except Exception as e:
@@ -265,13 +277,8 @@ class SessionLifecycleManager:
                 logger.info(
                     f"Extracted {len(candidates)} memories from expired session {session_id}"
                 )
-
-                # Export to JSONL if sync manager available
-                if self.memory_sync_manager:
-                    try:
-                        await self.memory_sync_manager.export_to_files()
-                    except Exception as e:
-                        logger.warning(f"Memory sync export after extraction failed: {e}")
+                # NOTE: JSONL export removed to avoid git noise (#10198).
+                # Memories are in DB; pre-commit hook exports at commit time.
 
         except Exception as e:
             logger.warning(f"Memory extraction failed for session {session_id}: {e}")

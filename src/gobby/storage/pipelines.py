@@ -38,6 +38,7 @@ class LocalPipelineExecutionManager:
         session_id: str | None = None,
         parent_execution_id: str | None = None,
         continuation_prompt: str | None = None,
+        definition_json: str | None = None,
     ) -> PipelineExecution:
         """Create a new pipeline execution.
 
@@ -47,6 +48,7 @@ class LocalPipelineExecutionManager:
             session_id: Session that triggered the execution
             parent_execution_id: Parent execution for nested pipelines
             continuation_prompt: Instructions for wake notification on completion
+            definition_json: Snapshot of the pipeline definition at execution time
 
         Returns:
             Created PipelineExecution instance
@@ -60,9 +62,9 @@ class LocalPipelineExecutionManager:
                 INSERT INTO pipeline_executions (
                     id, pipeline_name, project_id, status, inputs_json,
                     session_id, parent_execution_id, continuation_prompt,
-                    created_at, updated_at
+                    definition_json, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     execution_id,
@@ -73,6 +75,7 @@ class LocalPipelineExecutionManager:
                     session_id,
                     parent_execution_id,
                     continuation_prompt,
+                    definition_json,
                     now,
                     now,
                 ),
@@ -225,8 +228,10 @@ class LocalPipelineExecutionManager:
         params: list[Any] = []
 
         # Build WHERE conditions
-        project_clause = "pe.project_id IS NULL" if self.project_id is None else "pe.project_id = ?"
-        if self.project_id is not None:
+        if self.project_id is None:
+            project_clause = "pe.project_id IS NULL"
+        else:
+            project_clause = "pe.project_id = ?"
             params.append(self.project_id)
 
         # Build LIKE conditions
@@ -687,14 +692,11 @@ class LocalPipelineExecutionManager:
             result[step.execution_id].append(step)
         return result
 
-    def get_stalled_executions(
-        self, stall_threshold_seconds: int, all_projects: bool = False
-    ) -> list[PipelineExecution]:
+    def get_stalled_executions(self, stall_threshold_seconds: int) -> list[PipelineExecution]:
         """Get running executions that haven't been updated within the threshold.
 
         Args:
             stall_threshold_seconds: Seconds of inactivity before considering stalled
-            all_projects: If True, query across all projects (for heartbeat)
 
         Returns:
             List of stalled PipelineExecution instances
@@ -703,26 +705,16 @@ class LocalPipelineExecutionManager:
 
         cutoff = (datetime.now(UTC) - timedelta(seconds=stall_threshold_seconds)).isoformat()
 
-        if all_projects:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM pipeline_executions
-                WHERE status = ? AND updated_at < ?
-                ORDER BY updated_at ASC
-                """,
-                (ExecutionStatus.RUNNING.value, cutoff),
-            )
-        else:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM pipeline_executions
-                WHERE status = ?
-                  AND project_id = ?
-                  AND updated_at < ?
-                ORDER BY updated_at ASC
-                """,
-                (ExecutionStatus.RUNNING.value, self.project_id, cutoff),
-            )
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM pipeline_executions
+            WHERE status = ?
+              AND project_id = ?
+              AND updated_at < ?
+            ORDER BY updated_at ASC
+            """,
+            (ExecutionStatus.RUNNING.value, self.project_id, cutoff),
+        )
         return [PipelineExecution.from_row(row) for row in rows]
 
     def get_steps_for_execution(self, execution_id: str) -> list[StepExecution]:

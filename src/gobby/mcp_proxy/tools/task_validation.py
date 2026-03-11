@@ -267,7 +267,6 @@ def create_validation_registry(
             "validation_feedback": task.validation_feedback,
             "validation_criteria": task.validation_criteria,
             "validation_fail_count": task.validation_fail_count,
-            "use_external_validator": task.use_external_validator,
         }
 
     @registry.tool(

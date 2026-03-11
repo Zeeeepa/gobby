@@ -393,7 +393,8 @@ class TestWorktreeIsolationHandler:
             parent_session_id="sess-456",
         )
 
-        ctx = await handler.prepare_environment(config)
+        with patch("pathlib.Path.is_dir", return_value=True):
+            ctx = await handler.prepare_environment(config)
 
         assert ctx.worktree_id == "existing-wt-456"
         assert ctx.cwd == "/tmp/worktrees/existing-branch"
@@ -758,7 +759,8 @@ class TestCloneIsolationHandler:
             parent_session_id="sess-456",
         )
 
-        ctx = await handler.prepare_environment(config)
+        with patch("pathlib.Path.is_dir", return_value=True):
+            ctx = await handler.prepare_environment(config)
 
         assert ctx.clone_id == "existing-clone-456"
         assert ctx.cwd == "/tmp/clones/existing-branch"

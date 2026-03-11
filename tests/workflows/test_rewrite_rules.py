@@ -75,11 +75,13 @@ class TestMCPRewriteNesting:
             "strip-flag",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effects=[RuleEffect(
-                    type="rewrite_input",
-                    input_updates={"skip_validation": False},
-                    auto_approve=True,
-                )],
+                effects=[
+                    RuleEffect(
+                        type="rewrite_input",
+                        input_updates={"skip_validation": False},
+                        auto_approve=True,
+                    )
+                ],
             ),
         )
 
@@ -116,11 +118,13 @@ class TestMCPRewriteNesting:
             "rewrite-command",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effects=[RuleEffect(
-                    type="rewrite_input",
-                    input_updates={"command": "uv run python script.py"},
-                    auto_approve=True,
-                )],
+                effects=[
+                    RuleEffect(
+                        type="rewrite_input",
+                        input_updates={"command": "uv run python script.py"},
+                        auto_approve=True,
+                    )
+                ],
             ),
         )
 
@@ -149,11 +153,13 @@ class TestMCPRewriteNesting:
             "strip-flag",
             RuleDefinitionBody(
                 event=RuleEvent.BEFORE_TOOL,
-                effects=[RuleEffect(
-                    type="rewrite_input",
-                    input_updates={"skip_validation": False},
-                    auto_approve=True,
-                )],
+                effects=[
+                    RuleEffect(
+                        type="rewrite_input",
+                        input_updates={"skip_validation": False},
+                        auto_approve=True,
+                    )
+                ],
             ),
         )
 
@@ -381,9 +387,7 @@ class TestRequireUvRewrite:
         )
 
         engine = RuleEngine(db)
-        response = await engine.evaluate(
-            event, session_id="sess-1", variables={"require_uv": True}
-        )
+        response = await engine.evaluate(event, session_id="sess-1", variables={"require_uv": True})
 
         assert response.decision == "allow"
         assert response.modified_input is not None
@@ -426,9 +430,7 @@ class TestRequireUvRewrite:
         )
 
         engine = RuleEngine(db)
-        response = await engine.evaluate(
-            event, session_id="sess-1", variables={"require_uv": True}
-        )
+        response = await engine.evaluate(event, session_id="sess-1", variables={"require_uv": True})
 
         assert response.decision == "allow"
         # The per-effect when still matches ('python' is in the string), so rewrite fires,
@@ -473,9 +475,7 @@ class TestRequireUvRewrite:
         )
 
         engine = RuleEngine(db)
-        response = await engine.evaluate(
-            event, session_id="sess-1", variables={"require_uv": True}
-        )
+        response = await engine.evaluate(event, session_id="sess-1", variables={"require_uv": True})
 
         assert response.decision == "allow"
         assert response.modified_input is not None
@@ -519,9 +519,7 @@ class TestRequireUvRewrite:
         )
 
         engine = RuleEngine(db)
-        response = await engine.evaluate(
-            event, session_id="sess-1", variables={"require_uv": True}
-        )
+        response = await engine.evaluate(event, session_id="sess-1", variables={"require_uv": True})
 
         assert response.decision == "allow"
         # Per-effect when blocks the rewrite since 'python'/'pip' not in command

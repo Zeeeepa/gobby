@@ -16,14 +16,16 @@ Documentation guides for using Gobby's features.
 | [search.md](search.md) | Unified search with TF-IDF, embeddings, and hybrid modes |
 | [code-index.md](code-index.md) | AST-based symbol indexing with `gobby-code` MCP tools |
 | [tool-compression.md](tool-compression.md) | Output compression and code index compression for token savings |
-| [testing.md](testing.md) | Token-efficient test/lint/typecheck infrastructure for agents |
+| [tdd-enforcement.md](tdd-enforcement.md) | TDD enforcement — test-first ordering, nudges, and block rules |
 
-## Parallel Development
+## Orchestration & Parallel Development
 
 | Guide | Description |
 |-------|-------------|
 | [agents.md](agents.md) | Subagent spawning and management |
 | [worktrees.md](worktrees.md) | Git worktrees, clones, and merge operations |
+| [orchestration.md](orchestration.md) | Task orchestration — pipeline-based (v3) and MCP tool-based (v2) |
+| [orchestrator-test-battery.md](orchestrator-test-battery.md) | Real-world orchestration example: OTel epic built autonomously |
 
 ## Reference
 

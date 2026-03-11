@@ -256,3 +256,4 @@ node_modules/
 *.tsbuildinfo
 shift_enter_investigation.md
 2048-game/
+package-lock.json

@@ -10,7 +10,6 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -181,15 +180,21 @@ class TestSendMessage:
     async def test_text_chunks_from_deltas(self) -> None:
         """Delta notifications become TextChunk events."""
         client = _mock_client()
-        _wire_turn_events(client, [
-            ("item/agentMessage/delta", {"delta": "Hello "}),
-            ("item/agentMessage/delta", {"delta": "world!"}),
-            ("turn/completed", {}),
-        ])
+        _wire_turn_events(
+            client,
+            [
+                ("item/agentMessage/delta", {"delta": "Hello "}),
+                ("item/agentMessage/delta", {"delta": "world!"}),
+                ("turn/completed", {}),
+            ],
+        )
 
         session = _make_session(project_path="/tmp/test")
         with (
-            patch("gobby.servers.codex_chat_session.CodexAdapter.is_codex_available", return_value=True),
+            patch(
+                "gobby.servers.codex_chat_session.CodexAdapter.is_codex_available",
+                return_value=True,
+            ),
             patch("gobby.servers.codex_chat_session.CodexAppServerClient", return_value=client),
         ):
             await session.start()
@@ -208,15 +213,41 @@ class TestSendMessage:
     async def test_tool_call_and_result_events(self) -> None:
         """Tool item events become ToolCallEvent and ToolResultEvent."""
         client = _mock_client()
-        _wire_turn_events(client, [
-            ("item/started", {"item": {"id": "item-1", "type": "commandExecution", "metadata": {"command": "ls"}}}),
-            ("item/completed", {"item": {"id": "item-1", "type": "commandExecution", "content": "file.txt", "status": "completed", "metadata": {}}}),
-            ("turn/completed", {}),
-        ])
+        _wire_turn_events(
+            client,
+            [
+                (
+                    "item/started",
+                    {
+                        "item": {
+                            "id": "item-1",
+                            "type": "commandExecution",
+                            "metadata": {"command": "ls"},
+                        }
+                    },
+                ),
+                (
+                    "item/completed",
+                    {
+                        "item": {
+                            "id": "item-1",
+                            "type": "commandExecution",
+                            "content": "file.txt",
+                            "status": "completed",
+                            "metadata": {},
+                        }
+                    },
+                ),
+                ("turn/completed", {}),
+            ],
+        )
 
         session = _make_session(project_path="/tmp/test")
         with (
-            patch("gobby.servers.codex_chat_session.CodexAdapter.is_codex_available", return_value=True),
+            patch(
+                "gobby.servers.codex_chat_session.CodexAdapter.is_codex_available",
+                return_value=True,
+            ),
             patch("gobby.servers.codex_chat_session.CodexAppServerClient", return_value=client),
         ):
             await session.start()
@@ -240,14 +271,20 @@ class TestSendMessage:
     async def test_content_list_input(self) -> None:
         """Content can be a list of content blocks."""
         client = _mock_client()
-        _wire_turn_events(client, [
-            ("item/agentMessage/delta", {"delta": "ok"}),
-            ("turn/completed", {}),
-        ])
+        _wire_turn_events(
+            client,
+            [
+                ("item/agentMessage/delta", {"delta": "ok"}),
+                ("turn/completed", {}),
+            ],
+        )
 
         session = _make_session(project_path="/tmp/test")
         with (
-            patch("gobby.servers.codex_chat_session.CodexAdapter.is_codex_available", return_value=True),
+            patch(
+                "gobby.servers.codex_chat_session.CodexAdapter.is_codex_available",
+                return_value=True,
+            ),
             patch("gobby.servers.codex_chat_session.CodexAppServerClient", return_value=client),
         ):
             await session.start()
@@ -280,7 +317,10 @@ class TestInterruptAndStop:
         session = _make_session(project_path="/tmp/test")
 
         with (
-            patch("gobby.servers.codex_chat_session.CodexAdapter.is_codex_available", return_value=True),
+            patch(
+                "gobby.servers.codex_chat_session.CodexAdapter.is_codex_available",
+                return_value=True,
+            ),
             patch("gobby.servers.codex_chat_session.CodexAppServerClient", return_value=client),
         ):
             await session.start()
@@ -296,7 +336,10 @@ class TestInterruptAndStop:
         session = _make_session(project_path="/tmp/test")
 
         with (
-            patch("gobby.servers.codex_chat_session.CodexAdapter.is_codex_available", return_value=True),
+            patch(
+                "gobby.servers.codex_chat_session.CodexAdapter.is_codex_available",
+                return_value=True,
+            ),
             patch("gobby.servers.codex_chat_session.CodexAppServerClient", return_value=client),
         ):
             await session.start()
@@ -325,7 +368,10 @@ class TestModelSwitching:
         session = _make_session(project_path="/tmp/test")
 
         with (
-            patch("gobby.servers.codex_chat_session.CodexAdapter.is_codex_available", return_value=True),
+            patch(
+                "gobby.servers.codex_chat_session.CodexAdapter.is_codex_available",
+                return_value=True,
+            ),
             patch("gobby.servers.codex_chat_session.CodexAppServerClient", return_value=client),
         ):
             await session.start(model="gpt-4.1")

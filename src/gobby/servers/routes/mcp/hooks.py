@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from gobby.utils.metrics import get_metrics_collector
+from gobby.telemetry.instruments import inc_counter
 
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
@@ -69,7 +69,6 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with hooks endpoints
     """
     router = APIRouter(prefix="/api/hooks", tags=["hooks"])
-    metrics = get_metrics_collector()
 
     @router.post("/execute")
     async def execute_hook(request: Request) -> dict[str, Any]:
@@ -87,8 +86,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             Hook execution result with status
         """
         start_time = time.perf_counter()
-        metrics.inc_counter("http_requests_total")
-        metrics.inc_counter("hooks_total")
+        inc_counter("hooks_total")
         hook_type: str | None = None  # Track for error handling
 
         try:
@@ -155,7 +153,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
                 result = await asyncio.to_thread(adapter.handle_native, payload, hook_manager)
 
                 response_time_ms = (time.perf_counter() - start_time) * 1000
-                metrics.inc_counter("hooks_succeeded_total")
+                inc_counter("hooks_succeeded_total")
 
                 logger.debug(
                     f"Hook executed: {hook_type}",
@@ -170,7 +168,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
 
             except ValueError as e:
                 # Invalid request - still return graceful response
-                metrics.inc_counter("hooks_failed_total")
+                inc_counter("hooks_failed_total")
                 logger.warning(
                     f"Invalid hook request: {hook_type}",
                     extra={"hook_type": hook_type, "error": str(e)},
@@ -180,7 +178,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 # Hook execution error - return graceful response so tool proceeds
                 # This prevents confusing "hook failed" warnings in Claude Code
-                metrics.inc_counter("hooks_failed_total")
+                inc_counter("hooks_failed_total")
                 logger.error(
                     f"Hook execution failed: {hook_type}",
                     exc_info=True,
@@ -193,7 +191,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             raise
         except Exception as e:
             # Outer exception - return graceful response to prevent CLI warning
-            metrics.inc_counter("hooks_failed_total")
+            inc_counter("hooks_failed_total")
             logger.error("Hook endpoint error", exc_info=True)
             if hook_type:
                 return _graceful_error_response(hook_type, str(e))

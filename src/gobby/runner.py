@@ -37,7 +37,7 @@ from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.memories import MemorySyncManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
-from gobby.utils.logging import setup_file_logging
+from gobby.telemetry.logging import init_telemetry
 from gobby.utils.machine_id import get_machine_id
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -68,8 +68,6 @@ class GobbyRunner:
     """Runner for Gobby daemon."""
 
     def __init__(self, config_path: Path | None = None, verbose: bool = False):
-        setup_file_logging(verbose=verbose)
-
         if config_path is not None and not config_path.exists():
             raise FileNotFoundError(
                 f"Config file not found: {config_path}. "
@@ -79,6 +77,10 @@ class GobbyRunner:
         self._config_file = str(config_path) if config_path else None
         self.config = load_config(self._config_file)
         self.verbose = verbose
+
+        # Initialize telemetry (logging, tracing, metrics)
+        init_telemetry(self.config.telemetry, verbose=verbose)
+
         self.machine_id = get_machine_id()
 
         # Check tmux availability (agent spawning requires it)
@@ -101,6 +103,8 @@ class GobbyRunner:
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
         self._vector_rebuild_task: asyncio.Task[None] | None = None
         self._zombie_messages_task: asyncio.Task[None] | None = None
+        self._span_cleanup_task: asyncio.Task[None] | None = None
+        self._metric_snapshot_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
         self.database = self._init_database()
@@ -119,6 +123,12 @@ class GobbyRunner:
             config_store=self.config_store,
         )
 
+        # Auto-populate search.embedding_api_key from secrets if not already set
+        if hasattr(self.config, "search") and not self.config.search.embedding_api_key:
+            resolved_key = self._resolve_embedding_api_key(self.config.search.embedding_model)
+            if resolved_key:
+                self.config.search.embedding_api_key = resolved_key
+
         # Populate model costs from LiteLLM into DB and load into memory
         from gobby.llm.cost_table import init as init_cost_table
         from gobby.storage.model_costs import ModelCostStore
@@ -134,6 +144,27 @@ class GobbyRunner:
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
+
+        # Initialize Span Storage and wire OTel exporter
+        from gobby.storage.spans import SpanStorage
+
+        self.span_storage = SpanStorage(self.database)
+
+        if self.config.telemetry and self.config.telemetry.traces_enabled:
+            from gobby.telemetry.providers import add_span_storage_exporter
+
+            def _broadcast_proxy(span: dict[str, Any]) -> None:
+                """Proxy for trace event broadcasting via WebSocket."""
+                if hasattr(self, "websocket_server") and self.websocket_server:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(self.websocket_server.broadcast_trace_event(span))
+                    except RuntimeError:
+                        # No running loop (likely shutdown or too early)
+                        pass
+
+            add_span_storage_exporter(self.span_storage, broadcast_callback=_broadcast_proxy)
+            logger.debug("Local span storage exporter wired to OTel")
 
         from gobby.utils.dev import is_dev_mode
 
@@ -221,9 +252,13 @@ class GobbyRunner:
                 if self.llm_service:
                     from functools import partial
 
+                    _mem_api_key = self._resolve_embedding_api_key(
+                        self.config.memory.embedding_model
+                    )
                     embed_fn = partial(
                         generate_embedding,
                         model=self.config.memory.embedding_model,
+                        api_key=_mem_api_key,
                     )
 
                 self.memory_manager = MemoryManager(
@@ -262,11 +297,16 @@ class GobbyRunner:
                 if self.llm_service and ci_config.embedding_enabled:
                     from functools import partial
 
+                    _ci_model = (
+                        self.config.memory.embedding_model
+                        if hasattr(self.config, "memory")
+                        else "text-embedding-3-small"
+                    )
+                    _ci_api_key = self._resolve_embedding_api_key(_ci_model)
                     ci_embed_fn = partial(
                         generate_embedding,
-                        model=self.config.memory.embedding_model
-                        if hasattr(self.config, "memory")
-                        else "text-embedding-3-small",
+                        model=_ci_model,
+                        api_key=_ci_api_key,
                     )
 
                 ci_vector_store = self.vector_store if ci_config.embedding_enabled else None
@@ -321,16 +361,9 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Task sync import failed: {e}")
 
-        # Force initial synchronous export
-        # Ensures disk state matches DB state before we start serving
-        try:
-            self.task_sync_manager.export_to_jsonl()
-            logger.info("Initial task sync export completed")
-        except Exception as e:
-            logger.warning(f"Initial task sync export failed: {e}")
-
-        # Wire up change listener for automatic export (after import to avoid race)
-        self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
+        # NOTE: Startup export removed to avoid git noise (#10198).
+        # The pre-commit hook exports and stages JSONL files at commit time.
+        # Import above pulls in changes from git; export deferred to commit.
 
         # Initialize Memory Sync Manager (Phase 7) & Wire up listeners
         self.memory_sync_manager: MemorySyncManager | None = None
@@ -498,7 +531,10 @@ class GobbyRunner:
 
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
-        self.executor_registry = ExecutorRegistry(config=self.config)
+        self.executor_registry = ExecutorRegistry(
+            config=self.config,
+            secret_resolver=self.secret_store.get,
+        )
         self.agent_runner: AgentRunner | None = None
         try:
             # Pre-initialize common executors
@@ -571,6 +607,7 @@ class GobbyRunner:
             # Register pipeline heartbeat handler
             try:
                 from gobby.agents.registry import get_running_agent_registry
+                from gobby.storage.agents import LocalAgentRunManager
                 from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
 
                 if self.pipeline_execution_manager is None:
@@ -579,6 +616,8 @@ class GobbyRunner:
                 heartbeat = PipelineHeartbeat(
                     execution_manager=self.pipeline_execution_manager,
                     agent_registry=get_running_agent_registry(),
+                    task_manager=self.task_manager,
+                    agent_run_manager=LocalAgentRunManager(self.database),
                 )
                 cron_executor.register_handler("pipeline_heartbeat", heartbeat)
 
@@ -645,6 +684,7 @@ class GobbyRunner:
             database=self.database,
             session_manager=self.session_manager,
             task_manager=self.task_manager,
+            span_storage=self.span_storage,
             task_sync_manager=self.task_sync_manager,
             memory_sync_manager=self.memory_sync_manager,
             memory_manager=self.memory_manager,
@@ -754,6 +794,32 @@ class GobbyRunner:
             if self.cron_scheduler:
                 setup_cron_event_broadcasting(self.websocket_server, self.cron_scheduler)
 
+    def _resolve_embedding_api_key(self, model: str) -> str | None:
+        """Resolve the API key for an embedding model from the secret store.
+
+        Maps model prefixes to well-known secret names so users don't need
+        to manually wire $secret: references for standard embedding providers.
+        """
+        # Model-prefix to secret-name mapping
+        prefix_to_secret: dict[str, str] = {
+            "openai/": "openai_api_key",
+            "gemini/": "gemini_api_key",
+            "mistral/": "mistral_api_key",
+            "azure/": "azure_api_key",
+            "cohere/": "cohere_api_key",
+        }
+
+        for prefix, secret_name in prefix_to_secret.items():
+            if model.startswith(prefix):
+                return self.secret_store.get(secret_name)
+
+        # Ollama models don't need an API key
+        if model.startswith("ollama/"):
+            return None
+
+        # Default (no prefix, e.g. "text-embedding-3-small") → OpenAI
+        return self.secret_store.get("openai_api_key")
+
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""
         hub_db_path = Path(self.config.database_path).expanduser()
@@ -772,10 +838,12 @@ class GobbyRunner:
             cleanup_pid_file,
             cleanup_zombie_messages_loop,
             expire_approval_timeouts_loop,
+            metric_snapshot_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
             savings_rollup_loop,
             setup_signal_handlers,
+            span_cleanup_loop,
         )
 
         try:
@@ -880,6 +948,20 @@ class GobbyRunner:
                 name="metrics-cleanup",
             )
 
+            # Start periodic span cleanup (every 24 hours, 7-day retention)
+            retention_days = 7
+            if self.config.telemetry and hasattr(self.config.telemetry, "trace_retention_days"):
+                retention_days = self.config.telemetry.trace_retention_days
+
+            self._span_cleanup_task = asyncio.create_task(
+                span_cleanup_loop(
+                    self.database,
+                    lambda: self._shutdown_requested,
+                    retention_days=retention_days,
+                ),
+                name="span-cleanup",
+            )
+
             # Start periodic zombie message cleanup (every 6 hours)
             self._zombie_messages_task = asyncio.create_task(
                 cleanup_zombie_messages_loop(self.database, lambda: self._shutdown_requested),
@@ -907,6 +989,12 @@ class GobbyRunner:
             self._savings_rollup_task = asyncio.create_task(
                 savings_rollup_loop(self.database, lambda: self._shutdown_requested),
                 name="savings-rollup",
+            )
+
+            # Start periodic metric snapshot loop (every 60s)
+            self._metric_snapshot_task = asyncio.create_task(
+                metric_snapshot_loop(self.database, lambda: self._shutdown_requested),
+                name="metric-snapshot",
             )
 
             # Start periodic approval timeout expiry (every 60s)
@@ -998,7 +1086,7 @@ class GobbyRunner:
 
                 web_dir = find_web_dir(self.config)
                 if web_dir:
-                    ui_log = Path(self.config.logging.client).expanduser().parent / "ui.log"
+                    ui_log = Path(self.config.telemetry.log_file).expanduser().parent / "ui.log"
                     # Inherit bind_host so the Vite dev server is reachable
                     # over the network (e.g. Tailscale) when bind_host != localhost
                     ui_host = self.config.ui.host
@@ -1108,6 +1196,22 @@ class GobbyRunner:
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 
+            # Cancel span cleanup task
+            if self._span_cleanup_task and not self._span_cleanup_task.done():
+                self._span_cleanup_task.cancel()
+                try:
+                    await asyncio.wait_for(self._span_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel metric snapshot task
+            if self._metric_snapshot_task and not self._metric_snapshot_task.done():
+                self._metric_snapshot_task.cancel()
+                try:
+                    await asyncio.wait_for(self._metric_snapshot_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
             # Cancel zombie message cleanup task
             if self._zombie_messages_task and not self._zombie_messages_task.done():
                 self._zombie_messages_task.cancel()
@@ -1139,18 +1243,8 @@ class GobbyRunner:
                 except Exception as e:
                     logger.warning(f"VectorStore close failed: {e}")
 
-            # Export memories to JSONL backup on shutdown
-            if self.memory_sync_manager:
-                try:
-                    count = await asyncio.wait_for(
-                        self.memory_sync_manager.export_to_files(), timeout=5.0
-                    )
-                    if count > 0:
-                        logger.info(f"Shutdown memory backup: exported {count} memories")
-                except TimeoutError:
-                    logger.warning("Memory backup on shutdown timed out")
-                except Exception as e:
-                    logger.warning(f"Memory backup on shutdown failed: {e}")
+            # NOTE: Shutdown JSONL exports removed to avoid git noise (#10198).
+            # The pre-commit hook exports and stages JSONL files at commit time.
 
             try:
                 await asyncio.wait_for(self.mcp_proxy.disconnect_all(), timeout=3.0)

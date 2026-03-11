@@ -37,13 +37,9 @@ async def test_set_variable_delegates_correctly() -> None:
         "gobby.mcp_proxy.tools.workflows._variables.set_variable",
         return_value={"success": True, "value": True, "scope": "session"},
     ) as mock_set:
-        result = await handler.set_variable(
-            name="flag", value=True, session_id="#1"
-        )
+        result = await handler.set_variable(name="flag", value=True, session_id="#1")
 
-    mock_set.assert_called_once_with(
-        sm, sm.db, "flag", True, "#1", workflow=None
-    )
+    mock_set.assert_called_once_with(sm, sm.db, "flag", True, "#1", workflow=None)
     assert result["success"] is True
 
 
@@ -55,13 +51,18 @@ async def test_get_variable_delegates_correctly() -> None:
 
     with patch(
         "gobby.mcp_proxy.tools.workflows._variables.get_variable",
-        return_value={"success": True, "session_id": "uuid", "variable": "flag", "value": True, "exists": True, "scope": "session"},
+        return_value={
+            "success": True,
+            "session_id": "uuid",
+            "variable": "flag",
+            "value": True,
+            "exists": True,
+            "scope": "session",
+        },
     ) as mock_get:
         result = await handler.get_variable(name="flag", session_id="#1")
 
-    mock_get.assert_called_once_with(
-        sm, sm.db, "flag", "#1", workflow=None
-    )
+    mock_get.assert_called_once_with(sm, sm.db, "flag", "#1", workflow=None)
     assert result["success"] is True
     assert result["value"] is True
 

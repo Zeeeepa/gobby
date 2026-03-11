@@ -548,9 +548,7 @@ class TestSessionStartNewSession:
         mock_dependencies["session_manager"].register_session.assert_called_once()
         call_kwargs = mock_dependencies["session_manager"].register_session.call_args
         assert call_kwargs.kwargs.get("parent_session_id") is None or (
-            call_kwargs[1].get("parent_session_id") is None
-            if call_kwargs[1]
-            else True
+            call_kwargs[1].get("parent_session_id") is None if call_kwargs[1] else True
         )
 
     def test_new_session_parent_lookup_error(self, mock_dependencies: dict) -> None:

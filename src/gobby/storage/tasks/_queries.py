@@ -152,11 +152,7 @@ def list_ready_tasks(
             JOIN tasks blocker ON d.depends_on = blocker.id
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
-              -- Blocker is unresolved if not closed/approved AND not in review without requiring user review
-              AND NOT (
-                  blocker.status IN ('closed', 'review_approved')
-                  OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
-              )
+              AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
               AND NOT EXISTS (
                   WITH RECURSIVE ancestors AS (
@@ -182,11 +178,7 @@ def list_ready_tasks(
             JOIN tasks blocker ON d.depends_on = blocker.id
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
-              -- Blocker is unresolved if not closed/approved AND not in review without requiring user review
-              AND NOT (
-                  blocker.status IN ('closed', 'review_approved')
-                  OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
-              )
+              AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
               AND NOT EXISTS (
                   WITH RECURSIVE ancestors AS (
@@ -262,11 +254,7 @@ def list_blocked_tasks(
         JOIN tasks blocker ON d.depends_on = blocker.id
         WHERE d.task_id = t.id
           AND d.dep_type = 'blocks'
-          -- Blocker is unresolved if not closed AND not in review without requiring user review
-          AND NOT (
-              blocker.status = 'closed'
-              OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
-          )
+          AND blocker.status NOT IN ('closed', 'review_approved', 'needs_review')
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           AND NOT EXISTS (
               WITH RECURSIVE ancestors AS (
@@ -301,42 +289,3 @@ def list_blocked_tasks(
     # Order hierarchically, then apply user's limit/offset
     ordered = order_tasks_hierarchically(tasks)
     return ordered[offset : offset + limit] if limit else ordered
-
-
-def list_workflow_tasks(
-    db: DatabaseProtocol,
-    workflow_name: str,
-    project_id: str | None = None,
-    status: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
-) -> list[Task]:
-    """List tasks associated with a workflow, ordered by sequence_order.
-
-    Args:
-        db: Database protocol instance
-        workflow_name: The workflow name to filter by
-        project_id: Optional project ID filter
-        status: Optional status filter ('open', 'in_progress', 'closed')
-        limit: Maximum tasks to return
-        offset: Pagination offset
-
-    Returns:
-        List of tasks ordered by sequence_order (nulls last), then created_at
-    """
-    query = "SELECT * FROM tasks WHERE workflow_name = ?"
-    params: list[Any] = [workflow_name]
-
-    if project_id:
-        query += " AND project_id = ?"
-        params.append(project_id)
-    if status:
-        query += " AND status = ?"
-        params.append(status)
-
-    # Order by sequence_order (nulls last), then created_at
-    query += " ORDER BY COALESCE(sequence_order, 999999) ASC, created_at ASC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
-
-    rows = db.fetchall(query, tuple(params))
-    return [Task.from_row(row) for row in rows]

@@ -152,6 +152,87 @@ class TestCopilotAdapter:
         assert result["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
         assert "Important context here" in result["hookSpecificOutput"]["additionalContext"]
 
+    def test_event_map_agent_stop(self) -> None:
+        """Maps agentStop to STOP."""
+        adapter = CopilotAdapter()
+        assert adapter.EVENT_MAP["agentStop"] == HookEventType.STOP
+
+    def test_event_map_legacy_stop(self) -> None:
+        """Legacy stop mapping is preserved as fallback."""
+        adapter = CopilotAdapter()
+        assert adapter.EVENT_MAP["stop"] == HookEventType.STOP
+
+    def test_event_map_subagent_start(self) -> None:
+        """Maps subagentStart to SUBAGENT_START."""
+        adapter = CopilotAdapter()
+        assert adapter.EVENT_MAP["subagentStart"] == HookEventType.SUBAGENT_START
+
+    def test_event_map_subagent_stop(self) -> None:
+        """Maps subagentStop to SUBAGENT_STOP."""
+        adapter = CopilotAdapter()
+        assert adapter.EVENT_MAP["subagentStop"] == HookEventType.SUBAGENT_STOP
+
+    def test_hook_event_name_map_agent_stop(self) -> None:
+        """agentStop maps to AgentStop PascalCase name."""
+        adapter = CopilotAdapter()
+        assert adapter.HOOK_EVENT_NAME_MAP["agentStop"] == "AgentStop"
+
+    def test_hook_event_name_map_subagent_start(self) -> None:
+        """subagentStart maps to SubagentStart PascalCase name."""
+        adapter = CopilotAdapter()
+        assert adapter.HOOK_EVENT_NAME_MAP["subagentStart"] == "SubagentStart"
+
+    def test_hook_event_name_map_subagent_stop(self) -> None:
+        """subagentStop maps to SubagentStop PascalCase name."""
+        adapter = CopilotAdapter()
+        assert adapter.HOOK_EVENT_NAME_MAP["subagentStop"] == "SubagentStop"
+
+    def test_translate_agent_stop(self) -> None:
+        """Translates agentStop event to STOP HookEvent."""
+        adapter = CopilotAdapter()
+        native_event = {
+            "hook_type": "agentStop",
+            "input_data": {"session_id": "test-session"},
+        }
+        hook_event = adapter.translate_to_hook_event(native_event)
+        assert hook_event.event_type == HookEventType.STOP
+
+    def test_translate_subagent_start(self) -> None:
+        """Translates subagentStart event to SUBAGENT_START HookEvent."""
+        adapter = CopilotAdapter()
+        native_event = {
+            "hook_type": "subagentStart",
+            "input_data": {"session_id": "test-session"},
+        }
+        hook_event = adapter.translate_to_hook_event(native_event)
+        assert hook_event.event_type == HookEventType.SUBAGENT_START
+
+    def test_translate_subagent_stop(self) -> None:
+        """Translates subagentStop event to SUBAGENT_STOP HookEvent."""
+        adapter = CopilotAdapter()
+        native_event = {
+            "hook_type": "subagentStop",
+            "input_data": {"session_id": "test-session"},
+        }
+        hook_event = adapter.translate_to_hook_event(native_event)
+        assert hook_event.event_type == HookEventType.SUBAGENT_STOP
+
+    def test_response_context_injection_agent_stop(self) -> None:
+        """AgentStop hook allows context injection."""
+        adapter = CopilotAdapter()
+        response = HookResponse(decision="allow", context="Stop context")
+        result = adapter.translate_from_hook_response(response, hook_type="agentStop")
+        assert "hookSpecificOutput" in result
+        assert result["hookSpecificOutput"]["hookEventName"] == "AgentStop"
+
+    def test_response_context_injection_subagent_start(self) -> None:
+        """SubagentStart hook allows context injection."""
+        adapter = CopilotAdapter()
+        response = HookResponse(decision="allow", context="Subagent context")
+        result = adapter.translate_from_hook_response(response, hook_type="subagentStart")
+        assert "hookSpecificOutput" in result
+        assert result["hookSpecificOutput"]["hookEventName"] == "SubagentStart"
+
     def test_unknown_event_maps_to_notification(self) -> None:
         """Unknown hook types fall back to NOTIFICATION."""
         adapter = CopilotAdapter()

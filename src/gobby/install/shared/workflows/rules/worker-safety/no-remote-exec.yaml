@@ -1,0 +1,13 @@
+tags: [worker-safety, enforcement, default, gobby]
+
+rules:
+  no-remote-exec:
+    description: "Block piping remote scripts to shell."
+    event: before_tool
+    enabled: false
+    priority: 40
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "(curl|wget)\\s+.*\\|\\s*(ba)?sh|\\$\\(\\s*(curl|wget)|<\\(\\s*(curl|wget)"
+        reason: "Piping remote scripts to shell is never allowed."

@@ -1,0 +1,122 @@
+tags: [worker-safety, enforcement, gobby]
+
+rules:
+  no-recursive-rm:
+    description: "Block recursive delete for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\brm\\s+(-\\w*r|--recursive)"
+        reason: "Recursive delete is not allowed. Do not recursively delete files or directories."
+
+  no-secure-delete:
+    description: "Block secure/permanent delete for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\b(shred|srm)\\b"
+        reason: "Secure/permanent delete is not allowed."
+
+  no-truncate:
+    description: "Block file truncation for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "(?:^|&&|;|\\|\\|)\\s*truncate\\b|(?:^|&&|;|\\|\\|)\\s*>\\s*['\"]?/(?!dev/null)"
+        reason: "File truncation is not allowed."
+
+  no-force-kill:
+    description: "Block force-killing processes for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bkill\\s+(-\\w*9|-KILL)|\\bkillall\\b"
+        reason: "Force-killing processes is not allowed. Use graceful signals."
+
+  no-recursive-permissions:
+    description: "Block recursive permission changes for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\b(chmod|chown)\\s+.*-R\\b"
+        reason: "Recursive permission changes are not allowed."
+
+  no-dd:
+    description: "Block low-level disk operations for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bdd\\s+"
+        reason: "Low-level disk operations are not allowed."
+
+  no-npm-publish:
+    description: "Block npm publish for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bnpm\\s+publish\\b"
+        reason: "Package publishing is not allowed."
+
+  no-twine-upload:
+    description: "Block twine upload for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\btwine\\s+upload\\b"
+        reason: "Package publishing is not allowed."
+
+  no-cargo-publish:
+    description: "Block cargo publish for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bcargo\\s+publish\\b"
+        reason: "Package publishing is not allowed."
+
+  no-gem-push:
+    description: "Block gem push for spawned agents."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bgem\\s+push\\b"
+        reason: "Package publishing is not allowed."

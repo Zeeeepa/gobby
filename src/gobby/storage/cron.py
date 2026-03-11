@@ -53,13 +53,9 @@ def compute_next_run(job: CronJob) -> datetime | None:
     elif job.schedule_type == "interval":
         if not job.interval_seconds:
             return None
-        if job.last_run_at:
-            last = datetime.fromisoformat(job.last_run_at)
-            if last.tzinfo is None:
-                last = last.replace(tzinfo=ZoneInfo("UTC"))
-            next_interval: datetime = last + timedelta(seconds=job.interval_seconds)
-        else:
-            next_interval = now + timedelta(seconds=job.interval_seconds)
+        # Always compute from now to prevent double-fire when last_run_at
+        # is stale (close to current time after execution).
+        next_interval: datetime = now + timedelta(seconds=job.interval_seconds)
         return next_interval.astimezone(ZoneInfo("UTC"))
 
     elif job.schedule_type == "once":

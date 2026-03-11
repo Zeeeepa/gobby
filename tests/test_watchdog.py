@@ -327,8 +327,8 @@ class TestRestartDaemon:
 
         # Setup config mock
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         # Setup Popen mock
@@ -355,8 +355,10 @@ class TestRestartDaemon:
     @patch("gobby.watchdog.load_config")
     @patch("gobby.watchdog.get_gobby_home")
     @patch("gobby.watchdog.os.kill")
+    @patch("gobby.runner_maintenance.write_shutdown_source")
     def test_restart_stops_existing_daemon_gracefully(
         self,
+        mock_write_shutdown: MagicMock,
         mock_kill: MagicMock,
         mock_home: MagicMock,
         mock_load_config: MagicMock,
@@ -375,8 +377,8 @@ class TestRestartDaemon:
         mock_kill.side_effect = [None, ProcessLookupError()]
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()
@@ -395,8 +397,10 @@ class TestRestartDaemon:
     @patch("gobby.watchdog.load_config")
     @patch("gobby.watchdog.get_gobby_home")
     @patch("gobby.watchdog.os.kill")
+    @patch("gobby.runner_maintenance.write_shutdown_source")
     def test_restart_force_kills_when_graceful_fails(
         self,
+        mock_write_shutdown: MagicMock,
         mock_kill: MagicMock,
         mock_home: MagicMock,
         mock_load_config: MagicMock,
@@ -417,8 +421,8 @@ class TestRestartDaemon:
         mock_kill.side_effect = effects
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()
@@ -437,8 +441,10 @@ class TestRestartDaemon:
     @patch("gobby.watchdog.load_config")
     @patch("gobby.watchdog.get_gobby_home")
     @patch("gobby.watchdog.os.kill")
+    @patch("gobby.runner_maintenance.write_shutdown_source")
     def test_restart_force_kill_process_already_dead(
         self,
+        mock_write_shutdown: MagicMock,
         mock_kill: MagicMock,
         mock_home: MagicMock,
         mock_load_config: MagicMock,
@@ -458,8 +464,8 @@ class TestRestartDaemon:
         mock_kill.side_effect = effects
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()
@@ -476,8 +482,10 @@ class TestRestartDaemon:
     @patch("gobby.watchdog.load_config")
     @patch("gobby.watchdog.get_gobby_home")
     @patch("gobby.watchdog.os.kill")
+    @patch("gobby.runner_maintenance.write_shutdown_source")
     def test_restart_existing_pid_invalid_value(
         self,
+        mock_write_shutdown: MagicMock,
         mock_kill: MagicMock,
         mock_home: MagicMock,
         mock_load_config: MagicMock,
@@ -491,8 +499,8 @@ class TestRestartDaemon:
         pid_file.write_text("not-a-number")
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()
@@ -511,8 +519,10 @@ class TestRestartDaemon:
     @patch("gobby.watchdog.load_config")
     @patch("gobby.watchdog.get_gobby_home")
     @patch("gobby.watchdog.os.kill")
+    @patch("gobby.runner_maintenance.write_shutdown_source")
     def test_restart_error_stopping_daemon(
         self,
+        mock_write_shutdown: MagicMock,
         mock_kill: MagicMock,
         mock_home: MagicMock,
         mock_load_config: MagicMock,
@@ -529,8 +539,8 @@ class TestRestartDaemon:
         mock_kill.side_effect = OSError("Permission denied")
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()
@@ -559,8 +569,8 @@ class TestRestartDaemon:
         mock_home.return_value = tmp_path
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()
@@ -586,8 +596,8 @@ class TestRestartDaemon:
         mock_home.return_value = tmp_path
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         with patch("gobby.watchdog.subprocess.Popen", side_effect=OSError("No such file")):
@@ -626,8 +636,8 @@ class TestRestartDaemon:
         mock_home.return_value = tmp_path
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()
@@ -648,8 +658,10 @@ class TestRestartDaemon:
     @patch("gobby.watchdog.load_config")
     @patch("gobby.watchdog.get_gobby_home")
     @patch("gobby.watchdog.os.kill")
+    @patch("gobby.runner_maintenance.write_shutdown_source")
     def test_restart_existing_pid_process_not_found(
         self,
+        mock_write_shutdown: MagicMock,
         mock_kill: MagicMock,
         mock_home: MagicMock,
         mock_load_config: MagicMock,
@@ -666,8 +678,8 @@ class TestRestartDaemon:
         mock_kill.side_effect = ProcessLookupError()
 
         mock_config = MagicMock()
-        mock_config.logging.client = str(tmp_path / "daemon.log")
-        mock_config.logging.client_error = str(tmp_path / "daemon-error.log")
+        mock_config.telemetry.log_file = str(tmp_path / "daemon.log")
+        mock_config.telemetry.log_file_error = str(tmp_path / "daemon-error.log")
         mock_load_config.return_value = mock_config
 
         mock_process = MagicMock()

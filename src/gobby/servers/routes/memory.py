@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from gobby.utils.metrics import get_metrics_collector
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
@@ -51,7 +49,6 @@ class MemoryUpdateRequest(BaseModel):
 def create_memory_router(server: "HTTPServer") -> APIRouter:
     """Create memory router with endpoints bound to server instance."""
     router = APIRouter(prefix="/api/memories", tags=["memories"])
-    metrics = get_metrics_collector()
 
     @router.get("")
     def list_memories(
@@ -61,7 +58,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         offset: int = Query(0, description="Pagination offset"),
     ) -> dict[str, Any]:
         """List memories with optional filters."""
-        metrics.inc_counter("http_requests_total")
         try:
             memories = server.memory_manager.list_memories(
                 project_id=project_id,
@@ -78,7 +74,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     @router.post("", status_code=201)
     async def create_memory(request_data: MemoryCreateRequest) -> Any:
         """Create a new memory."""
-        metrics.inc_counter("http_requests_total")
         try:
             memory = await server.memory_manager.create_memory(
                 content=request_data.content,
@@ -102,7 +97,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         limit: int = Query(10, description="Maximum results"),
     ) -> dict[str, Any]:
         """Search memories by query."""
-        metrics.inc_counter("http_requests_total")
         try:
             results = await server.memory_manager.search_memories(
                 query=q,
@@ -125,7 +119,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> Any:
         """Get memory statistics."""
-        metrics.inc_counter("http_requests_total")
         try:
             return server.memory_manager.get_stats(project_id=project_id)
         except Exception as e:
@@ -137,7 +130,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         limit: int = Query(500, description="Maximum entities to fetch"),
     ) -> dict[str, Any]:
         """Get Neo4j knowledge graph entities and relationships."""
-        metrics.inc_counter("http_requests_total")
         if server.memory_manager is None or not getattr(
             server.memory_manager, "_neo4j_client", None
         ):
@@ -158,7 +150,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     @router.get("/graph/entities/{entity_name}/neighbors")
     async def entity_neighbors(entity_name: str) -> dict[str, Any]:
         """Get neighbors for a single Neo4j entity."""
-        metrics.inc_counter("http_requests_total")
         if server.memory_manager is None or not getattr(
             server.memory_manager, "_neo4j_client", None
         ):
@@ -182,7 +173,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         memory_limit: int = Query(200, description="Max memories (most recent first)"),
     ) -> dict[str, Any]:
         """Get memory graph data (memories + crossrefs) for visualization."""
-        metrics.inc_counter("http_requests_total")
         try:
             memories = server.memory_manager.list_memories(
                 project_id=project_id, limit=memory_limit
@@ -207,7 +197,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> dict[str, Any]:
         """Rebuild crossrefs for all existing memories."""
-        metrics.inc_counter("http_requests_total")
         try:
             memories = server.memory_manager.list_memories(project_id=project_id, limit=500)
             total_created = 0
@@ -230,7 +219,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None, description="Filter by project ID"),
     ) -> dict[str, Any]:
         """Extract entities from all existing memories into the knowledge graph."""
-        metrics.inc_counter("http_requests_total")
         try:
             kg = server.memory_manager.kg_service
             if not kg:
@@ -262,7 +250,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     @router.get("/{memory_id}")
     def get_memory(memory_id: str) -> Any:
         """Get a specific memory by ID."""
-        metrics.inc_counter("http_requests_total")
         try:
             memory = server.memory_manager.get_memory(memory_id)
         except Exception as e:
@@ -276,7 +263,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     @router.put("/{memory_id}")
     async def update_memory(memory_id: str, request_data: MemoryUpdateRequest) -> Any:
         """Update an existing memory."""
-        metrics.inc_counter("http_requests_total")
         try:
             memory = await server.memory_manager.update_memory(
                 memory_id=memory_id,
@@ -293,7 +279,6 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/{memory_id}")
     async def delete_memory(memory_id: str) -> dict[str, Any]:
         """Delete a memory."""
-        metrics.inc_counter("http_requests_total")
         try:
             result = await server.memory_manager.delete_memory(memory_id)
         except Exception as e:

@@ -11,6 +11,9 @@ from gobby.storage.tasks._aggregates import (
     count_by_status as _count_by_status,
 )
 from gobby.storage.tasks._aggregates import (
+    count_closed_since as _count_closed_since,
+)
+from gobby.storage.tasks._aggregates import (
     count_ready_tasks as _count_ready_tasks,
 )
 from gobby.storage.tasks._aggregates import (
@@ -77,9 +80,6 @@ from gobby.storage.tasks._queries import (
 )
 from gobby.storage.tasks._queries import (
     list_tasks as _list_tasks,
-)
-from gobby.storage.tasks._queries import (
-    list_workflow_tasks as _list_workflow_tasks,
 )
 from gobby.storage.tasks._search import TaskSearcher
 
@@ -174,22 +174,14 @@ class LocalTaskManager:
         assignee: str | None = None,
         labels: list[str] | None = None,
         category: str | None = None,
-        complexity_score: int | None = None,
-        estimated_subtasks: int | None = None,
         expansion_context: str | None = None,
         validation_criteria: str | None = None,
-        use_external_validator: bool = False,
-        workflow_name: str | None = None,
-        verification: str | None = None,
-        sequence_order: int | None = None,
         github_issue_number: int | None = None,
         github_pr_number: int | None = None,
         github_repo: str | None = None,
         linear_issue_id: str | None = None,
         linear_team_id: str | None = None,
-        agent_name: str | None = None,
-        reference_doc: str | None = None,
-        requires_user_review: bool = False,
+        **kwargs: Any,
     ) -> Task:
         """Create a new task with collision handling."""
         task_id = _create_task(
@@ -204,22 +196,13 @@ class LocalTaskManager:
             assignee=assignee,
             labels=labels,
             category=category,
-            complexity_score=complexity_score,
-            estimated_subtasks=estimated_subtasks,
             expansion_context=expansion_context,
             validation_criteria=validation_criteria,
-            use_external_validator=use_external_validator,
-            workflow_name=workflow_name,
-            verification=verification,
-            sequence_order=sequence_order,
             github_issue_number=github_issue_number,
             github_pr_number=github_pr_number,
             github_repo=github_repo,
             linear_issue_id=linear_issue_id,
             linear_team_id=linear_team_id,
-            agent_name=agent_name,
-            reference_doc=reference_doc,
-            requires_user_review=requires_user_review,
         )
         self._notify_listeners()
         return self.get_task(task_id)
@@ -287,15 +270,9 @@ class LocalTaskManager:
         validation_status: str | None | Any = UNSET,
         validation_feedback: str | None | Any = UNSET,
         category: str | None | Any = UNSET,
-        complexity_score: int | None | Any = UNSET,
-        estimated_subtasks: int | None | Any = UNSET,
         expansion_context: str | None | Any = UNSET,
         validation_criteria: str | None | Any = UNSET,
-        use_external_validator: bool | None | Any = UNSET,
         validation_fail_count: int | None | Any = UNSET,
-        workflow_name: str | None | Any = UNSET,
-        verification: str | None | Any = UNSET,
-        sequence_order: int | None | Any = UNSET,
         escalated_at: str | None | Any = UNSET,
         escalation_reason: str | None | Any = UNSET,
         github_issue_number: int | None | Any = UNSET,
@@ -303,12 +280,9 @@ class LocalTaskManager:
         github_repo: str | None | Any = UNSET,
         linear_issue_id: str | None | Any = UNSET,
         linear_team_id: str | None | Any = UNSET,
-        agent_name: str | None | Any = UNSET,
-        reference_doc: str | None | Any = UNSET,
-        is_expanded: bool | None | Any = UNSET,
         expansion_status: str | None | Any = UNSET,
         validation_override_reason: str | None | Any = UNSET,
-        requires_user_review: bool | None | Any = UNSET,
+        **kwargs: Any,
     ) -> Task:
         """Update task fields."""
         parent_changed = _update_task(
@@ -325,15 +299,9 @@ class LocalTaskManager:
             validation_status=validation_status,
             validation_feedback=validation_feedback,
             category=category,
-            complexity_score=complexity_score,
-            estimated_subtasks=estimated_subtasks,
             expansion_context=expansion_context,
             validation_criteria=validation_criteria,
-            use_external_validator=use_external_validator,
             validation_fail_count=validation_fail_count,
-            workflow_name=workflow_name,
-            verification=verification,
-            sequence_order=sequence_order,
             escalated_at=escalated_at,
             escalation_reason=escalation_reason,
             github_issue_number=github_issue_number,
@@ -341,12 +309,8 @@ class LocalTaskManager:
             github_repo=github_repo,
             linear_issue_id=linear_issue_id,
             linear_team_id=linear_team_id,
-            agent_name=agent_name,
-            reference_doc=reference_doc,
-            is_expanded=is_expanded,
             expansion_status=expansion_status,
             validation_override_reason=validation_override_reason,
-            requires_user_review=requires_user_review,
         )
 
         # If parent_task_id was changed, update path_cache for this task and all descendants
@@ -578,35 +542,6 @@ class LocalTaskManager:
             offset=offset,
         )
 
-    def list_workflow_tasks(
-        self,
-        workflow_name: str,
-        project_id: str | None = None,
-        status: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> list[Task]:
-        """List tasks associated with a workflow, ordered by sequence_order.
-
-        Args:
-            workflow_name: The workflow name to filter by
-            project_id: Optional project ID filter
-            status: Optional status filter ('open', 'in_progress', 'closed')
-            limit: Maximum tasks to return
-            offset: Pagination offset
-
-        Returns:
-            List of tasks ordered by sequence_order (nulls last), then created_at
-        """
-        return _list_workflow_tasks(
-            self.db,
-            workflow_name=workflow_name,
-            project_id=project_id,
-            status=status,
-            limit=limit,
-            offset=offset,
-        )
-
     def count_tasks(
         self,
         project_id: str | None = None,
@@ -661,6 +596,10 @@ class LocalTaskManager:
         """
         return _count_blocked_tasks(self.db, project_id=project_id)
 
+    def count_closed_since(self, hours: int = 24, project_id: str | None = None) -> int:
+        """Count tasks closed within the last N hours."""
+        return _count_closed_since(self.db, hours=hours, project_id=project_id)
+
     def create_task_with_decomposition(
         self,
         project_id: str,
@@ -673,40 +612,11 @@ class LocalTaskManager:
         assignee: str | None = None,
         labels: list[str] | None = None,
         category: str | None = None,
-        complexity_score: int | None = None,
-        estimated_subtasks: int | None = None,
         expansion_context: str | None = None,
         validation_criteria: str | None = None,
-        use_external_validator: bool = False,
-        workflow_name: str | None = None,
-        verification: str | None = None,
-        sequence_order: int | None = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
-        """Create a task and return result dict.
-
-        Args:
-            project_id: Project ID
-            title: Task title
-            description: Task description
-            parent_task_id: Optional parent task ID
-            created_in_session_id: Session ID where task was created
-            priority: Task priority
-            task_type: Task type
-            assignee: Optional assignee
-            labels: Optional labels list
-            category: Task domain category
-            complexity_score: Complexity score
-            estimated_subtasks: Estimated number of subtasks
-            expansion_context: Additional context for expansion
-            validation_criteria: Validation criteria for completion
-            use_external_validator: Whether to use external validator
-            workflow_name: Workflow name
-            verification: Verification steps
-            sequence_order: Sequence order in parent
-
-        Returns:
-            Dict with task details.
-        """
+        """Create a task and return result dict."""
         task = self.create_task(
             project_id=project_id,
             title=title,
@@ -718,14 +628,8 @@ class LocalTaskManager:
             assignee=assignee,
             labels=labels,
             category=category,
-            complexity_score=complexity_score,
-            estimated_subtasks=estimated_subtasks,
             expansion_context=expansion_context,
             validation_criteria=validation_criteria,
-            use_external_validator=use_external_validator,
-            workflow_name=workflow_name,
-            verification=verification,
-            sequence_order=sequence_order,
         )
         return {"task": task.to_dict()}
 

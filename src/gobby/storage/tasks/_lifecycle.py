@@ -57,10 +57,6 @@ def close_task(
                 f"Cannot close task {task_id}: has {len(open_children)} open child task(s): {child_list}"
             )
 
-    # Check if task is being closed from needs_review state (user acceptance)
-    current_task = get_task(db, task_id)
-    accepted_by_user = current_task.status == "needs_review" if current_task else False
-
     now = datetime.now(UTC).isoformat()
     with db.transaction() as conn:
         cursor = conn.execute(
@@ -71,7 +67,6 @@ def close_task(
                 closed_in_session_id = ?,
                 closed_commit_sha = ?,
                 validation_override_reason = ?,
-                accepted_by_user = ?,
                 updated_at = ?
             WHERE id = ?""",
             (
@@ -80,7 +75,6 @@ def close_task(
                 closed_in_session_id,
                 closed_commit_sha,
                 validation_override_reason,
-                1 if accepted_by_user else 0,
                 now,
                 task_id,
             ),
@@ -140,7 +134,6 @@ def reopen_task(
                 closed_at = NULL,
                 closed_in_session_id = NULL,
                 closed_commit_sha = NULL,
-                accepted_by_user = 0,
                 validation_fail_count = 0,
                 description = ?,
                 updated_at = ?

@@ -45,9 +45,7 @@ class TestGetArchiveDir:
 
 
 class TestBackupTranscript:
-    def test_backup_creates_valid_gzip(
-        self, sample_jsonl: Path, archive_dir: str
-    ) -> None:
+    def test_backup_creates_valid_gzip(self, sample_jsonl: Path, archive_dir: str) -> None:
         result = backup_transcript("ext-123", str(sample_jsonl), archive_dir)
         assert result is not None
 
@@ -64,9 +62,7 @@ class TestBackupTranscript:
         result = backup_transcript("ext-456", "/nonexistent/file.jsonl", archive_dir)
         assert result is None
 
-    def test_backup_overwrites_existing(
-        self, sample_jsonl: Path, archive_dir: str
-    ) -> None:
+    def test_backup_overwrites_existing(self, sample_jsonl: Path, archive_dir: str) -> None:
         # First backup
         backup_transcript("ext-789", str(sample_jsonl), archive_dir)
 
@@ -98,25 +94,19 @@ class TestRestoreTranscript:
         assert result is True
         assert restore_target.read_text() == original_content
 
-    def test_restore_noop_when_original_exists(
-        self, sample_jsonl: Path, archive_dir: str
-    ) -> None:
+    def test_restore_noop_when_original_exists(self, sample_jsonl: Path, archive_dir: str) -> None:
         backup_transcript("ext-noop", str(sample_jsonl), archive_dir)
 
         # Restore to same path — should be a no-op
         result = restore_transcript("ext-noop", str(sample_jsonl), archive_dir)
         assert result is False
 
-    def test_restore_missing_archive_returns_false(
-        self, archive_dir: str, tmp_path: Path
-    ) -> None:
+    def test_restore_missing_archive_returns_false(self, archive_dir: str, tmp_path: Path) -> None:
         target = tmp_path / "missing.jsonl"
         result = restore_transcript("no-such-session", str(target), archive_dir)
         assert result is False
 
-    def test_restore_corrupt_archive(
-        self, archive_dir: str, tmp_path: Path
-    ) -> None:
+    def test_restore_corrupt_archive(self, archive_dir: str, tmp_path: Path) -> None:
         # Write corrupt data as a .gz file
         corrupt = Path(archive_dir) / "corrupt-session.jsonl.gz"
         corrupt.write_bytes(b"this is not gzip data")
@@ -137,9 +127,7 @@ class TestRestoreTranscript:
         assert result is True
         assert nested_target.exists()
 
-    def test_custom_archive_dir(
-        self, sample_jsonl: Path, tmp_path: Path
-    ) -> None:
+    def test_custom_archive_dir(self, sample_jsonl: Path, tmp_path: Path) -> None:
         custom_dir = str(tmp_path / "custom")
         backup_transcript("ext-custom", str(sample_jsonl), custom_dir)
 

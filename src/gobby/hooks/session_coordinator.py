@@ -421,6 +421,7 @@ class SessionCoordinator:
             # Count tool calls and turns from session messages
             tool_calls_count = 0
             turns_used = 0
+            stats_retrieved = False
             try:
                 db = self._agent_run_manager.db
                 row = db.fetchone(
@@ -435,8 +436,23 @@ class SessionCoordinator:
                 if row:
                     tool_calls_count = row["tool_calls"] or 0
                     turns_used = row["turns"] or 0
+                    stats_retrieved = True
             except (sqlite3.Error, ValueError) as e:
                 self.logger.warning(f"Failed to count session stats for {session.id}: {e}")
+
+            # Guard: agent exited cleanly but did nothing — treat as error
+            # Only apply when stats were successfully retrieved to avoid false positives on DB failure
+            if stats_retrieved and tool_calls_count == 0 and turns_used == 0:
+                self._agent_run_manager.fail(
+                    run_id=agent_run_id,
+                    error="Agent completed with no activity (0 tool calls, 0 turns)",
+                )
+                self.logger.warning(
+                    f"Agent run {agent_run_id} marked as failed: "
+                    f"no activity detected (0 tool calls, 0 turns)"
+                )
+                self._notify_agent_completion(agent_run_id, "error")
+                return
 
             # Mark as success
             self._agent_run_manager.complete(

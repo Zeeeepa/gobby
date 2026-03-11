@@ -13,8 +13,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, ValidationError
 
-from gobby.utils.metrics import get_metrics_collector
-
 if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
@@ -74,6 +72,53 @@ class UpdateAgentDefinitionRequest(BaseModel):
     enabled: bool | None = None
 
 
+async def _batch_load_session_info(
+    database: Any, session_ids: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Load session token/cost data for a batch of session IDs.
+
+    Returns dict mapping session_id to enrichment fields.
+    """
+    import asyncio
+    import sqlite3
+
+    if not session_ids:
+        return {}
+    try:
+        placeholders = ", ".join("?" for _ in session_ids)
+
+        def do_query() -> list[Any]:
+            return list(
+                database.fetchall(
+                    f"""
+                SELECT id, usage_input_tokens, usage_output_tokens,
+                       usage_cache_creation_tokens, usage_cache_read_tokens,
+                       usage_total_cost_usd, summary_markdown, git_branch
+                FROM sessions
+                WHERE id IN ({placeholders})
+                """,  # nosec B608
+                    tuple(session_ids),
+                )
+            )
+
+        rows = await asyncio.to_thread(do_query)
+        result = {}
+        for row in rows:
+            result[row["id"]] = {
+                "usage_input_tokens": row["usage_input_tokens"],
+                "usage_output_tokens": row["usage_output_tokens"],
+                "usage_cache_creation_tokens": row["usage_cache_creation_tokens"],
+                "usage_cache_read_tokens": row["usage_cache_read_tokens"],
+                "usage_total_cost_usd": row["usage_total_cost_usd"],
+                "summary_markdown": row["summary_markdown"],
+                "git_branch": row["git_branch"],
+            }
+        return result
+    except sqlite3.Error:
+        logger.warning("Failed to load session info for agent runs", exc_info=True)
+        return {}
+
+
 def create_agents_router(server: "HTTPServer") -> APIRouter:
     """
     Create agents router with endpoints bound to server instance.
@@ -85,7 +130,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         Configured APIRouter with agent definition endpoints
     """
     router = APIRouter(prefix="/api/agents", tags=["agents"])
-    metrics = get_metrics_collector()
 
     def _get_manager() -> Any:
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -124,7 +168,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         source_filter: str | None = Query(None),
     ) -> dict[str, Any]:
         """List all agent definitions from workflow_definitions."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             rows = manager.list_all(
@@ -150,7 +193,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None),
     ) -> Response:
         """Export an agent definition as YAML for download."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.workflows.definitions import AgentDefinitionBody
 
@@ -181,7 +223,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None),
     ) -> dict[str, Any]:
         """Get a single agent definition by name."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             rows = manager.list_all(workflow_type="agent", project_id=project_id)
@@ -200,7 +241,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         request: CreateAgentDefinitionRequest,
     ) -> dict[str, Any]:
         """Create a new agent definition in the DB."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.workflows.definitions import AgentDefinitionBody, AgentWorkflows
 
@@ -246,7 +286,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         definition_id: str, request: UpdateAgentDefinitionRequest
     ) -> dict[str, Any]:
         """Update a DB-backed agent definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             import json as _json
 
@@ -316,7 +355,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     @router.delete("/definitions/{definition_id}")
     async def delete_definition(definition_id: str) -> dict[str, Any]:
         """Delete a DB-backed agent definition (soft-delete)."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             deleted = manager.delete(definition_id)
@@ -332,7 +370,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     @router.post("/definitions/{definition_id}/restore")
     async def restore_definition(definition_id: str) -> dict[str, Any]:
         """Restore a soft-deleted agent definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             row = manager.restore(definition_id)
@@ -370,7 +407,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     @router.patch("/definitions/{definition_id}/rules")
     async def patch_rules(definition_id: str, request: PatchRulesRequest) -> dict[str, Any]:
         """Add or remove rules from an agent definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             import json as _json
 
@@ -404,7 +440,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         definition_id: str, request: PatchRuleSelectorsRequest
     ) -> dict[str, Any]:
         """Add or remove rule selectors from an agent definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             import json as _json
 
@@ -445,7 +480,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     @router.patch("/definitions/{definition_id}/variables")
     async def patch_variables(definition_id: str, request: PatchVariablesRequest) -> dict[str, Any]:
         """Set or remove variables from an agent definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             import json as _json
 
@@ -480,7 +514,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     @router.get("/running")
     async def list_running_agents() -> dict[str, Any]:
         """List all currently running agents from the in-memory registry."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.agents.registry import get_running_agent_registry
 
@@ -500,26 +533,81 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         status: str | None = Query(None),
         limit: int = Query(50, ge=1, le=200),
     ) -> dict[str, Any]:
-        """List recent agent runs from the database."""
-        metrics.inc_counter("http_requests_total")
+        """List recent agent runs from the database with session enrichment."""
         try:
             from gobby.storage.agents import LocalAgentRunManager
 
             manager = LocalAgentRunManager(server.services.database)
             runs = manager.list_by_status(status=status, limit=limit)
+
+            # Enrich with session data (token usage, cost)
+            enriched = []
+            session_ids = [r.child_session_id for r in runs if r.child_session_id]
+            session_map = await _batch_load_session_info(server.services.database, session_ids)
+
+            for r in runs:
+                d = r.to_dict()
+                if r.child_session_id and r.child_session_id in session_map:
+                    d.update(session_map[r.child_session_id])
+                enriched.append(d)
+
             return {
                 "status": "success",
-                "runs": [r.to_dict() for r in runs],
-                "count": len(runs),
+                "runs": enriched,
+                "count": len(enriched),
             }
         except Exception as e:
             logger.error(f"Error listing agent runs: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.get("/runs/{run_id}")
+    async def get_agent_run_detail(run_id: str) -> dict[str, Any]:
+        """Get detailed agent run info with session enrichment and commands."""
+        try:
+            from gobby.storage.agents import LocalAgentRunManager
+
+            manager = LocalAgentRunManager(server.services.database)
+            run = manager.get(run_id)
+            if not run:
+                raise HTTPException(status_code=404, detail=f"Agent run '{run_id}' not found")
+
+            d = run.to_dict()
+
+            # Session enrichment
+            if run.child_session_id:
+                session_info = await _batch_load_session_info(
+                    server.services.database, [run.child_session_id]
+                )
+                if run.child_session_id in session_info:
+                    d.update(session_info[run.child_session_id])
+
+                # Load agent commands sent to this agent
+                try:
+                    commands = server.services.database.fetchall(
+                        """
+                        SELECT id, from_session, command_text, allowed_tools,
+                               allowed_mcp_tools, exit_condition, status, created_at
+                        FROM agent_commands
+                        WHERE to_session = ?
+                        ORDER BY created_at ASC
+                        """,
+                        (run.child_session_id,),
+                    )
+                    d["commands"] = [dict(row) for row in commands]
+                except Exception as e:
+                    logger.debug(f"Failed to fetch commands for agent run: {e}")
+                    d["commands"] = []
+
+            return {"status": "success", "run": d}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting agent run detail: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/runs/{run_id}/cancel")
     async def cancel_agent_run(run_id: str) -> dict[str, Any]:
         """Cancel a running agent."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.agents.registry import get_running_agent_registry
 
@@ -563,7 +651,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         name: str,
     ) -> dict[str, Any]:
         """Create an installed copy from a template agent definition."""
-        metrics.inc_counter("http_requests_total")
         try:
             manager = _get_manager()
             # Find the template definition by name
@@ -593,7 +680,6 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
         project_id: str | None = Query(None),
     ) -> dict[str, Any]:
         """Copy a file-based agent definition into the DB for customization."""
-        metrics.inc_counter("http_requests_total")
         try:
             from gobby.agents.sync import get_bundled_agents_path
             from gobby.workflows.definitions import AgentDefinitionBody

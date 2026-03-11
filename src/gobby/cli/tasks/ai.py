@@ -8,8 +8,6 @@ from typing import Any
 import click
 
 from gobby.cli.tasks._utils import get_task_manager, resolve_task_id
-from gobby.storage.tasks import LocalTaskManager, Task
-from gobby.utils.project_context import get_project_context
 
 
 @click.command("validate")
@@ -219,121 +217,6 @@ def validate_task_cmd(
         click.echo(f"Validation error: {e}", err=True)
 
 
-@click.command("complexity")
-@click.argument("task_id", required=False)
-@click.option("--all", "analyze_all", is_flag=True, help="Analyze all pending tasks")
-@click.option("--pending", is_flag=True, help="Only analyze pending (open) tasks (use with --all)")
-@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def complexity_cmd(
-    task_id: str | None,
-    analyze_all: bool,
-    pending: bool,
-    json_format: bool,
-) -> None:
-    """Analyze task complexity based on subtasks or description."""
-    import json as json_mod
-
-    manager = get_task_manager()
-
-    if analyze_all:
-        # Batch analysis
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
-
-        status_filter = "open" if pending else None
-        tasks_list = manager.list_tasks(
-            project_id=project_id,
-            status=status_filter,
-            limit=100,
-        )
-
-        if not tasks_list:
-            click.echo("No tasks found to analyze.")
-            return
-
-        results = []
-        for task in tasks_list:
-            result = _analyze_task_complexity(manager, task)
-            results.append(result)
-
-        if json_format:
-            click.echo(json_mod.dumps(results, indent=2))
-            return
-
-        click.echo(f"Analyzed {len(results)} tasks:\n")
-        for r in results:
-            click.echo(
-                f"  {r['task_id'][:12]} | Score: {r['complexity_score']:2}/10 | {r['title'][:50]}"
-            )
-
-    else:
-        # Single task analysis
-        if not task_id:
-            click.echo("Error: TASK_ID required (or use --all)", err=True)
-            return
-
-        resolved = resolve_task_id(manager, task_id)
-        if not resolved:
-            return
-
-        result = _analyze_task_complexity(manager, resolved)
-
-        if json_format:
-            click.echo(json_mod.dumps(result, indent=2))
-            return
-
-        click.echo(f"Task: {result['title']}")
-        click.echo(f"ID: {result['task_id']}")
-        click.echo(f"Complexity Score: {result['complexity_score']}/10")
-        click.echo(f"Reasoning: {result['reasoning']}")
-        click.echo(f"Recommended Subtasks: {result['recommended_subtasks']}")
-        if result["existing_subtasks"] > 0:
-            click.echo(f"Existing Subtasks: {result['existing_subtasks']}")
-
-
-def _analyze_task_complexity(manager: LocalTaskManager, task: Task) -> dict[str, Any]:
-    """Analyze complexity for a single task. Returns dict with results."""
-    # Check for existing subtasks
-    subtasks = manager.list_tasks(parent_task_id=task.id, limit=100)
-    subtask_count = len(subtasks)
-
-    # Simple heuristic-based complexity
-    if subtask_count > 0:
-        score = min(10, 1 + subtask_count // 2)
-        reasoning = f"Task has {subtask_count} subtasks"
-        recommended = subtask_count
-    else:
-        desc_len = len(task.description or "")
-        if desc_len < 100:
-            score = 2
-            reasoning = "Short description, likely simple task"
-            recommended = 2
-        elif desc_len < 500:
-            score = 5
-            reasoning = "Medium description, moderate complexity"
-            recommended = 5
-        else:
-            score = 8
-            reasoning = "Long description, likely complex task"
-            recommended = 10
-
-    # Update task with complexity score
-    manager.update_task(
-        task.id,
-        complexity_score=score,
-        estimated_subtasks=recommended,
-    )
-
-    return {
-        "task_id": task.id,
-        "title": task.title,
-        "complexity_score": score,
-        "reasoning": reasoning,
-        "recommended_subtasks": recommended,
-        "existing_subtasks": subtask_count,
-    }
-
-
 @click.command("suggest")
 @click.option("--type", "-t", "task_type", help="Filter by task type")
 @click.option("--no-prefer-subtasks", is_flag=True, help="Don't prefer leaf tasks over parents")
@@ -369,10 +252,6 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
         if prefer_subtasks and is_leaf:
             score += 25
 
-        # Bonus for tasks with clear complexity
-        if task.complexity_score and task.complexity_score <= 5:
-            score += 15
-
         # Bonus for tasks with category defined
         if task.category:
             score += 10
@@ -388,8 +267,6 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
         reasons.append("high priority")
     if is_leaf:
         reasons.append("actionable leaf task")
-    if best_task.complexity_score and best_task.complexity_score <= 5:
-        reasons.append("manageable complexity")
     if best_task.category:
         reasons.append(f"has category ({best_task.category})")
 
