@@ -348,9 +348,16 @@ class ChatSessionPermissionsMixin:
         # Fallback: find the most recently modified plan file
         try:
             plan_dirs = [Path(".gobby/plans"), Path(".claude/plans")]
-            # Also check home directory
             home = Path.home()
-            plan_dirs.append(home / ".claude" / "plans")
+            for cli in (".claude", ".gemini", ".codex", ".cursor", ".windsurf", ".copilot"):
+                plan_dirs.append(home / cli / "plans")
+            # Gemini also uses ~/.gemini/tmp/{hash}/plans/
+            gemini_tmp = home / ".gemini" / "tmp"
+            if gemini_tmp.is_dir():
+                for sub in gemini_tmp.iterdir():
+                    plans = sub / "plans"
+                    if plans.is_dir():
+                        plan_dirs.append(plans)
 
             candidates: list[Path] = []
             for d in plan_dirs:
@@ -389,7 +396,7 @@ class ChatSessionPermissionsMixin:
             '<plan-mode status="active">',
             "You are in PLAN MODE. Your role is to research and design, not execute.",
             "",
-            "ALLOWED: Read, Glob, Grep, read-only Bash (ls, cat, grep, git status/log/diff, find), Write/Edit to ~/.claude/plans/*.md and .gobby/plans/*.md",
+            "ALLOWED: Read, Glob, Grep, read-only Bash (ls, cat, grep, git status/log/diff, find), Write/Edit to .md files under CLI config dirs (.gobby/, .claude/, .gemini/, .codex/, .cursor/, .windsurf/, .copilot/)",
             "BLOCKED: Edit, Write, NotebookEdit, write/destructive Bash (rm, mv, git add/commit/push, redirects)",
             "",
             "Present a structured plan with:",

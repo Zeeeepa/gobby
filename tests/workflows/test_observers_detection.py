@@ -139,6 +139,60 @@ class TestDetectPlanModeFromContext:
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") == 0
 
+    # --- Gemini CLI detection ---
+
+    def test_detects_gemini_active_approval_mode_plan(self, variables) -> None:
+        prompt = "# Active Approval Mode: Plan\nPlease analyze the codebase."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 0
+
+    def test_detects_gemini_operating_in_plan_mode(self, variables) -> None:
+        prompt = "You are operating in **Plan Mode**. Research only."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 0
+
+    def test_detects_gemini_exit_via_execute_mode(self, variables) -> None:
+        variables["mode_level"] = 0
+        variables["chat_mode"] = "bypass"
+        prompt = "# Active Approval Mode: Execute\nNow implement."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 2
+
+    def test_gemini_markers_inside_conversation_history_ignored(self, variables) -> None:
+        prompt = (
+            "<conversation-history>\n"
+            "# Active Approval Mode: Plan\n"
+            "You are operating in **Plan Mode**.\n"
+            "</conversation-history>\n"
+            "Now do something else."
+        )
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert "mode_level" not in variables
+
+    # --- Gobby <plan-mode> tag detection ---
+
+    def test_detects_plan_mode_active_tag(self, variables) -> None:
+        prompt = '<plan-mode status="active">\nYou are in PLAN MODE.\n</plan-mode>'
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 0
+
+    def test_detects_plan_mode_approved_tag(self, variables) -> None:
+        variables["mode_level"] = 0
+        variables["chat_mode"] = "bypass"
+        prompt = '<plan-mode status="approved">\nPlan approved.\n</plan-mode>'
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 2
+
+    def test_plan_mode_active_tag_inside_conversation_history_ignored(self, variables) -> None:
+        prompt = (
+            "<conversation-history>\n"
+            '<plan-mode status="active">\nOld plan mode.\n</plan-mode>\n'
+            "</conversation-history>\n"
+            "Continue working."
+        )
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert "mode_level" not in variables
+
 
 # =============================================================================
 # Tests for detect_task_claim - close_task behavior

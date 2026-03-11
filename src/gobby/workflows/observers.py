@@ -233,10 +233,17 @@ def detect_commit_link(event: "HookEvent", variables: dict[str, Any], session_id
 
 
 def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], session_id: str) -> None:
-    """Detect plan mode from system reminders injected by Claude Code.
+    """Detect plan mode from system reminders or CLI-specific markers.
 
-    IMPORTANT: Only matches indicators within <system-reminder> tags to avoid
-    false positives from handoff context or user messages that mention plan mode.
+    Detection runs three passes on the prompt (after stripping conversation
+    history to avoid false positives from prior turns):
+
+    1. **Claude Code** — indicators inside ``<system-reminder>`` tags.
+    2. **Gemini CLI** — markdown-formatted plan mode headers/bold text
+       searched in the cleaned prompt directly.
+    3. **Gobby ``<plan-mode>``** — Gobby's own plan-mode tags (injected
+       by ``_consume_plan_mode_context``), for CLIs where Gobby manages
+       plan mode natively.
 
     Args:
         prompt: The user prompt text (may contain system reminders)
@@ -250,6 +257,7 @@ def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], sessio
         r"<conversation-history>.*?</conversation-history>", "", prompt, flags=re.DOTALL
     )
 
+    # --- Pass 1: Claude Code system-reminder indicators ---
     system_reminders = re.findall(r"<system-reminder>(.*?)</system-reminder>", cleaned, re.DOTALL)
     reminder_text = " ".join(system_reminders)
 
@@ -284,6 +292,58 @@ def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], sessio
                     f"(detected from system reminder: '{indicator}')"
                 )
             return
+
+    # --- Pass 2: Gemini CLI markdown indicators ---
+    gemini_plan_indicators = [
+        "# Active Approval Mode: Plan",
+        "You are operating in **Plan Mode**",
+    ]
+
+    for indicator in gemini_plan_indicators:
+        if indicator in cleaned:
+            if variables.get("mode_level") != 0:
+                variables["mode_level"] = 0
+                logger.info(
+                    f"Session {session_id}: mode_level=0 (plan) "
+                    f"(detected from Gemini marker: '{indicator}')"
+                )
+            return
+
+    gemini_exit_indicators = [
+        "Exited Plan Mode",
+        "# Active Approval Mode: Execute",
+    ]
+
+    for indicator in gemini_exit_indicators:
+        if indicator in cleaned:
+            if variables.get("mode_level") == 0:
+                chat_mode = variables.get("chat_mode", "bypass")
+                variables["mode_level"] = compute_mode_level(chat_mode)
+                logger.info(
+                    f"Session {session_id}: mode_level={variables['mode_level']} "
+                    f"(detected from Gemini marker: '{indicator}')"
+                )
+            return
+
+    # --- Pass 3: Gobby <plan-mode> tags ---
+    if '<plan-mode status="active">' in cleaned:
+        if variables.get("mode_level") != 0:
+            variables["mode_level"] = 0
+            logger.info(
+                f"Session {session_id}: mode_level=0 (plan) "
+                f'(detected from <plan-mode status="active">)'
+            )
+        return
+
+    if '<plan-mode status="approved">' in cleaned:
+        if variables.get("mode_level") == 0:
+            chat_mode = variables.get("chat_mode", "bypass")
+            variables["mode_level"] = compute_mode_level(chat_mode)
+            logger.info(
+                f"Session {session_id}: mode_level={variables['mode_level']} "
+                f'(detected from <plan-mode status="approved">)'
+            )
+        return
 
 
 def reconcile_claimed_tasks(
