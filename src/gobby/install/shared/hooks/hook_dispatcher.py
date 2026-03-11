@@ -566,6 +566,43 @@ async def main() -> int:
         print(json.dumps({}))
         return config.json_error_exit_code
 
+    # Fire-and-forget hooks: spawn a detached curl process and return immediately.
+    # This prevents Claude Code from cancelling the hook during /exit — the curl
+    # child survives parent death and delivers the payload to the daemon.
+    _FIRE_AND_FORGET_HOOKS = {"session-end", "SessionEnd", "sessionEnd", "stop"}
+
+    if hook_type in _FIRE_AND_FORGET_HOOKS:
+        import subprocess
+
+        daemon_url = await get_daemon_url()
+        payload = json.dumps(
+            {
+                "hook_type": hook_type,
+                "input_data": input_data,
+                "source": _detect_source(config),
+            }
+        )
+        subprocess.Popen(
+            [
+                "curl",
+                "-s",
+                "-X",
+                "POST",
+                f"{daemon_url}/api/hooks/execute",
+                "-H",
+                "Content-Type: application/json",
+                "-d",
+                payload,
+                "--max-time",
+                "90",
+            ],
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+        )
+        return 0
+
     # Call daemon HTTP endpoint
     import httpx
 
