@@ -264,6 +264,31 @@ _RUBY_SPEC = LanguageSpec(
     container_types=["class", "module"],
 )
 
+_MARKDOWN_SPEC = LanguageSpec(
+    extensions=[".md", ".markdown"],
+    symbol_query="""
+        (atx_heading heading_content: (_) @name) @definition.section
+        (setext_heading heading_content: (_) @name) @definition.section
+    """,
+    container_types=[],
+)
+
+_YAML_SPEC = LanguageSpec(
+    extensions=[".yaml", ".yml"],
+    symbol_query="""
+        (block_mapping_pair key: (flow_node) @name) @definition.property
+    """,
+    container_types=["block_mapping_pair"],
+)
+
+_JSON_SPEC = LanguageSpec(
+    extensions=[".json"],
+    symbol_query="""
+        (pair key: (string (string_content) @name)) @definition.property
+    """,
+    container_types=["pair"],
+)
+
 
 # ── Registry ─────────────────────────────────────────────────────────────
 
@@ -281,6 +306,9 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
     "cpp": _CPP_SPEC,
     "elixir": _ELIXIR_SPEC,
     "ruby": _RUBY_SPEC,
+    "markdown": _MARKDOWN_SPEC,
+    "yaml": _YAML_SPEC,
+    "json": _JSON_SPEC,
 }
 
 
