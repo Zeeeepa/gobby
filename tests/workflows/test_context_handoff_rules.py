@@ -10,8 +10,6 @@ Verifies context handoff rules sync correctly and have proper structure:
 - preserve-context-on-end: mcp_call on session_end (extract memories)
 - preserve-context-on-compact: set_variable+mcp_call on pre_compact (reset + extract)
 
-Note: task-sync-import-on-start moved to sync/ group (see test_sync_rules.py).
-Sync export effects moved from preserve-context-on-end/compact to sync/ group.
 """
 
 from __future__ import annotations

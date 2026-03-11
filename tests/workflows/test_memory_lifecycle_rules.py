@@ -13,7 +13,6 @@ Active memory-lifecycle rules:
 - require-memory-review-before-approve: block on before_tool (mark_task_review_approved)
 - clear-memory-review-on-create: set_variable on before_tool
 
-Note: memory-sync-import moved to sync/ group (see test_sync_rules.py).
 """
 
 from __future__ import annotations
