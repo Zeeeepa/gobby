@@ -75,6 +75,12 @@ Legend:
 - ✅ Tmux first-class agent spawning, auto terminal detection
 - ✅ Inter-agent messaging: parent↔child message passing
 - ✅ Conductor daemon, token budget tracking, review gates
+- ✅ Orchestration v3: tick-based pipeline, clone-based isolation, single clone per epic (0.2.28)
+- ✅ Provider fallback rotation — comma-separated provider lists with auto-retry (0.2.28)
+- ✅ Provider stall detection — lifecycle monitor triggers rotation on provider-side stalls (0.2.28)
+- ✅ QA-Dev agent template — reviews AND fixes in one pass (0.2.28)
+- ✅ Agent idle detection + stalled buffer detection (0.2.28)
+- ✅ Persistent agent runtime state survives daemon restarts (0.2.28)
 
 ### Workflows
 
@@ -114,6 +120,16 @@ Legend:
 - ✅ GitHub integration, Linear integration
 - ✅ Plugin architecture (extensible domains/tools)
 
+### OpenTelemetry observability
+
+- ✅ Tool call tracing (latency, success/error, payload size) (0.2.28)
+- ✅ Metrics instruments for MCP calls, pipelines, tasks, hooks (0.2.28)
+- ✅ Replace custom logging/metrics with OpenTelemetry logging bridge (0.2.28)
+- ✅ OTLP gRPC export + Prometheus exporter (0.2.28)
+- ✅ Trace viewer UI: TracesPage, TraceWaterfall, TraceDetail (0.2.28)
+- ✅ SQLite span storage with trace query API (0.2.28)
+- Built autonomously via orchestrator pipeline — Epic #9915, 10 tasks, ~3 hours
+
 ### Infrastructure
 
 - ✅ DB-first config resolution, $secret:NAME pattern, encrypted secrets store
@@ -121,44 +137,25 @@ Legend:
 - ✅ Code decomposition rounds 1–3 (strangler fig), canonical imports only
 - ✅ Worktree creation + agent spawning primitives
 - ✅ Terminal: consolidated tmux spawners, pane monitoring, title synthesis
+- ✅ Native AST code indexing via gobby-code server (0.2.26)
+- ✅ `gobby secrets` CLI with encrypted store (0.2.28)
 
 ---
 
-## In progress — Orchestration v3
+## In progress — v1 release prep
 
-The current orchestrator creates one worktree per task, producing N branches and N merge operations. v3 fixes this and establishes a clean three-part mental model: **rules** (reactive enforcement), **agents** (intelligent workers with phased behavior), **pipelines** (deterministic orchestration).
+Orchestration v3 is complete and in battle-hardening. Focus is now on stability, polish, and documentation for the first stable release.
 
-Seven stages, each independently shippable:
-
-1. **Single worktree per epic + bug fixes** — one worktree per epic instead of per-task, sequential dispatch, `use_local` for clones
-2. **Agent system overhaul** — remove `extends`, agents absorb their step workflows, inline rule_definitions extracted to templates
-3. **`task_affected_files` infrastructure** — file-based dependency analysis, overlap detection for parallel dispatch
-4. **Expansion sub-pipeline** — research agent produces spec, mechanical builder creates tasks (hard boundary, no mixing)
-5. **Parallel dispatch** — `suggest_next_tasks` returns batches of non-conflicting tasks, multiple agents in shared worktree
-6. **Deterministic TDD enforcement** — rule-based (not prompt-based), block implementation writes until tests exist, per-file validation criteria
-7. **Documentation rewrite** — three-part model: rules/agents/pipelines, delete and rewrite all workflow guides
-
-See `docs/plans/orchestrator-v3-final.md` for full implementation details.
-
----
-
-## Near term — UI fit & polish for v1 launch
-
-- 🗺️ Mobile responsiveness pass
-- 🗺️ Visual workflow builder completion (additional node types, validation, undo/redo)
-- 🗺️ Hook inspector
-- 🗺️ General UX polish pass
+- 🚧 Bug fixing and orchestration battle-hardening
+- 🚧 Documentation refresh (guides, changelog, README)
+- 🚧 Mobile responsiveness pass
+- 🚧 Visual workflow builder completion (additional node types, validation, undo/redo)
+- 🚧 Hook inspector
+- 🚧 General UX polish pass
 
 ---
 
 ## After v1
-
-### OpenTelemetry integration
-
-- 🗺️ Tool call tracing (latency, success/error, payload size)
-- 🗺️ Session timeline view (event stream: hooks fired, tools invoked, compactions, files changed)
-- 🗺️ Replace custom logging/metrics with OpenTelemetry
-- 🗺️ OTLP export + console fallback for local dev
 
 ### Ollama support
 

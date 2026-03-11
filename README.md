@@ -21,7 +21,7 @@
 
 Gobby is a local-first daemon that unifies your AI coding assistants—Claude Code, Gemini CLI, Cursor, Windsurf, Copilot, and Codex—under one persistent, extensible platform. It handles the stuff these tools forget: sessions that survive restarts, context that carries across compactions, declarative rules that keep agents from going off the rails, and an MCP proxy that doesn't eat half your context window just loading tool definitions.
 
-**Gobby is built with Gobby.** Most of this codebase was written by AI agents running through Gobby's own task system and workflows. Dogfooding isn't a buzzword here—it's the development process.
+**Gobby is built with Gobby.** Most of this codebase was written by AI agents running through Gobby's own task system and workflows. Case in point: the entire OpenTelemetry observability stack (tracing, metrics, logging bridge, trace viewer UI) was built autonomously — 10 tasks dispatched across Gemini devs and Claude Opus reviewers, orchestrated by a cron-driven pipeline, completed in ~3 hours. Six infrastructure bugs were discovered and fixed live during the run. See [test-battery.md](test-battery.md) for the full story. Over 10,000 tasks have been tracked through Gobby's task system.
 
 Note: Gobby is currently in alpha. Expect rough edges and breaking changes until the first stable release.
 
@@ -146,14 +146,38 @@ Gobby ships a built-in web interface that auto-starts with the daemon:
 
 Access at `http://localhost:60887` when the daemon is running.
 
-### 🚀 Pipelines
+### 🔍 Observability (OpenTelemetry)
 
-Deterministic, repeatable automation with approval gates:
+Full observability built on OpenTelemetry — no custom metrics frameworks, no vendor lock-in:
 
-- Step types: `exec`, `prompt`, `invoke_pipeline`
+- **Tracing** — `@traced` decorator, span context propagation, SQLite span storage
+- **Metrics** — instruments for MCP calls, pipeline executions, task lifecycle, hook events
+- **Logging** — OTel logging bridge replaces custom logging
+- **Exporters** — OTLP gRPC, Prometheus
+- **Trace viewer** — built-in UI with waterfall visualization and span detail panel
+
+### 🧬 Code Indexing
+
+AST-based symbol indexing via the `gobby-code` MCP server. Search and retrieve code by symbol instead of reading entire files — saves 90%+ tokens on large codebases:
+
+```text
+search_symbols("TaskExpander")  → Find symbols by name
+get_file_outline("src/foo.py")  → Hierarchical symbol map
+get_symbol(symbol_id)           → Just the source you need
+```
+
+Tree-sitter parsing for 15+ languages. Auto-indexes on commit, on init, and on session start.
+
+### 🚀 Pipelines & Orchestration
+
+Deterministic automation with approval gates — from simple scripts to autonomous multi-agent orchestration:
+
+- Step types: `exec`, `prompt`, `invoke_pipeline`, `spawn_session`
+- Tick-based orchestrator pipeline with cron scheduling
+- Clone-based agent isolation — one clone per epic, sequential or parallel dispatch
+- Provider fallback rotation — auto-retry across providers on failures
 - Approval gates for human-in-the-loop workflows
 - Condition evaluation with safe expression engine
-- Import from Lobster format
 - CLI, MCP, and HTTP API access
 
 ## Installation
@@ -305,8 +329,10 @@ All CLIs can also connect via MCP for tool access (see configuration examples ab
 | Multi-CLI orchestration | ✅ | ❌ | ❌ | ❌ |
 | Session handoffs | ✅ | ❌ | ❌ | ❌ |
 | Declarative rules | ✅ | ❌ | ❌ | ✅ |
-| Worktree orchestration | ✅ | ❌ | ❌ | ❌ |
+| Worktree/clone orchestration | ✅ | ❌ | ❌ | ❌ |
 | Pipeline automation | ✅ | ❌ | ❌ | ❌ |
+| Observability (OTel) | ✅ | ❌ | ❌ | ❌ |
+| Code indexing (AST) | ✅ | ❌ | ❌ | ❌ |
 | Zero external deps | ✅ | ❌ | ✅ | ❌ |
 | Local-first | ✅ | ✅ | ✅ | ✅ |
 
@@ -397,13 +423,11 @@ See [AUTH.md](AUTH.md) for details on authentication modes and AI vendor policie
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2, TDD expansion, rule engine (13 bundled rule groups), MCP proxy with progressive discovery, session handoffs, memory v5 (Qdrant + knowledge graph), hooks for all 6 CLIs, coordinator pipeline with developer/QA/merge agent trio, autonomous SDK agent execution, session handoff & digest overhaul, stop-gate enforcement, legacy workflow removal, pipeline resume on daemon restart, web UI (tasks, memory, sessions, chat with voice, cron, config, skills, projects, agents, file browser), skills system, pipeline system, worktree/clone orchestration
+**Shipped:** Task system v2, TDD expansion, rule engine (13 bundled rule groups), MCP proxy with progressive discovery, session handoffs, memory v5 (Qdrant + knowledge graph), hooks for all 6 CLIs, orchestration v3 (tick-based pipeline, clone isolation, provider fallback rotation, QA-dev agent), OpenTelemetry observability (tracing, metrics, logging, trace viewer UI), native AST code indexing, autonomous SDK agent execution, session handoff & digest overhaul, stop-gate enforcement, pipeline system with approval gates, web UI (tasks, memory, sessions, chat with voice, cron, config, skills, projects, agents, file browser, traces), skills system, worktree/clone orchestration
 
-**In progress:** Orchestration v3 — single worktree per epic, agent system overhaul, parallel dispatch, deterministic TDD enforcement
+**In progress:** v1 release prep — bug fixing, orchestration battle-hardening, UI polish, documentation
 
-**Near term:** UI fit & polish for v1 launch
-
-**After v1:** OpenTelemetry integration, Ollama support
+**After v1:** Ollama support
 
 **Future:** Pro cloud features, fleet management, plugin ecosystem v2
 
