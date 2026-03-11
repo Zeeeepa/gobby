@@ -114,7 +114,7 @@ class CodeSearcher:
             if matched is None:
                 continue
 
-            result = matched.to_dict()
+            result = matched.to_brief()
             result["_score"] = round(score, 4)
             result["_sources"] = list(score_map.get(sym_id, {}).keys())
             results.append(result)
@@ -179,4 +179,4 @@ class CodeSearcher:
             file_path=file_path,
             limit=limit,
         )
-        return [sym.to_dict() for sym in results]
+        return [sym.to_brief() for sym in results]
