@@ -740,6 +740,46 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 extra={"workflow_name": existing_session.workflow_name, "session_id": session_id},
             )
 
+        # Set code_index_available if project has an index
+        if session_id and existing_session.project_id and self._session_storage:
+            try:
+                from gobby.code_index.storage import CodeIndexStorage
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                cis = CodeIndexStorage(self._session_storage.db)
+                stats = cis.get_project_stats(existing_session.project_id)
+                if stats and stats.total_symbols > 0:
+                    sv_mgr = SessionVariableManager(self._session_storage.db)
+                    sv_mgr.set_variable(session_id, "code_index_available", True)
+            except Exception as e:
+                self.logger.debug(
+                    f"Could not check code index availability for pre-created session: {e}"
+                )
+
+        # Kick off session-start auto-indexing (fire-and-forget)
+        if session_id and existing_session.project_id and cwd:
+
+            def _trigger_session_index() -> None:
+                try:
+                    import httpx
+
+                    from gobby.config.bootstrap import load_bootstrap
+
+                    port = load_bootstrap().daemon_port
+                    httpx.post(
+                        f"http://localhost:{port}/api/code-index/session-start",
+                        json={
+                            "project_id": existing_session.project_id,
+                            "root_path": cwd,
+                            "session_id": session_id,
+                        },
+                        timeout=300,
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Session-start index request failed: {e}")
+
+            threading.Thread(target=_trigger_session_index, daemon=True).start()
+
         # Deep load default agent (rules, skills, variables) for pre-created session
         agent_result: AgentActivationResult | None = None
         input_data = event.data if event else {}
