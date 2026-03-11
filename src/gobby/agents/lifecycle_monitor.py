@@ -73,7 +73,11 @@ class AgentLifecycleMonitor:
         self._session_coordinator = coordinator
 
     async def _recover_task_from_failed_agent(self, run_id: str) -> None:
-        """Reset a failed agent's task back to 'open' so the orchestrator can re-dispatch it."""
+        """Reset a failed agent's task back to 'open' so the orchestrator can re-dispatch it.
+
+        If the failure is provider-side, logs which provider failed so the
+        orchestrator can rotate to an alternative on the next dispatch.
+        """
         if not self._task_manager:
             return
         try:
@@ -101,6 +105,16 @@ class AgentLifecycleMonitor:
 
             if not task_id:
                 return
+
+            # Classify error for provider rotation
+            is_provider = self._stall_classifier.is_provider_error(db_run.error)
+            if is_provider:
+                logger.info(
+                    "Agent %s failed with provider error (provider=%s): %s",
+                    run_id,
+                    db_run.provider,
+                    db_run.error,
+                )
 
             task = await asyncio.to_thread(self._task_manager.get_task, task_id)
             if task and task.status == "in_progress":

@@ -20,8 +20,8 @@ inputs:
   task_id: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
-  developer_provider: "gemini"
-  qa_provider: "claude"
+  developer_provider: "gemini"  # Comma-separated for fallback rotation, e.g. "gemini,claude"
+  qa_provider: "claude"  # Comma-separated for fallback rotation, e.g. "claude,gemini"
   developer_model: null
   qa_model: "opus"
   agent_timeout: 1200
