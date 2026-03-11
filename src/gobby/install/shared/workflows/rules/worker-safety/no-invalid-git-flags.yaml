@@ -1,0 +1,14 @@
+tags: [worker-safety, tool-hygiene, gobby]
+
+rules:
+  no-invalid-git-flags:
+    description: "Block git show/log with hallucinated --no-stat flag"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "git\\s+(show|log)\\s+.*--no-stat"
+        reason: "--no-stat is not a valid flag for git show/log. Stat output is off by default — just omit the flag. For diffs, use git diff --no-stat instead."
