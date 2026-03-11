@@ -7,7 +7,7 @@ rules:
     enabled: false
     priority: 50
     when: >
-      event.data.get('tool_name') == 'Bash'
+      event.data.get('tool_name') in ('Bash', 'run_shell_command')
       and any(p in str(event.data.get('tool_input', {}).get('command', ''))
               for p in ['pytest', 'vitest', 'jest ', 'mocha ',
                         'cargo test', 'cargo build',
