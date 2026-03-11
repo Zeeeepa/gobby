@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { AdminStatus } from '../../hooks/useDashboard'
+import { TimeRangePills, type TimeRange } from './TimeRangePills'
 
 interface Props {
   tasks: AdminStatus['tasks']
@@ -20,6 +22,8 @@ const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 export function TasksCard({ tasks }: Props) {
+  const [range, setRange] = useState<TimeRange>('all')
+
   const activeTotal = tasks.open + tasks.in_progress + tasks.needs_review +
     tasks.review_approved + tasks.escalated
   const segments = SEGMENTS.map(s => ({ ...s, value: tasks[s.key] ?? 0 }))
@@ -40,6 +44,7 @@ export function TasksCard({ tasks }: Props) {
     <div className="dash-card">
       <div className="dash-card-header">
         <h3 className="dash-card-title">Tasks</h3>
+        <TimeRangePills value={range} onChange={setRange} />
       </div>
       <div className="dash-card-body" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
         <svg width={SIZE} height={SIZE} style={{ flexShrink: 0 }}>

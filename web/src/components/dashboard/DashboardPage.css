@@ -67,8 +67,13 @@
 
 .dash-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
+}
+
+/* Cards that span 2 columns */
+.dash-card--span-2 {
+  grid-column: span 2;
 }
 
 /* Cards */
@@ -496,6 +501,10 @@
 
   .dash-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dash-card--span-2 {
+    grid-column: span 1;
   }
 
   .dash-toolbar {

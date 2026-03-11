@@ -23,9 +23,6 @@ vi.mock('../TasksCard', () => ({
 vi.mock('../SessionsCard', () => ({
   SessionsCard: () => <div data-testid="sessions-card">Sessions</div>,
 }))
-vi.mock('../McpHealthCard', () => ({
-  McpHealthCard: () => <div data-testid="mcp-card">MCP</div>,
-}))
 vi.mock('../MemoryCard', () => ({
   MemoryCard: () => <div data-testid="memory-card">Memory</div>,
 }))
@@ -111,7 +108,6 @@ describe('DashboardPage', () => {
     expect(screen.getByTestId('system-health')).toBeTruthy()
     expect(screen.getByTestId('tasks-card')).toBeTruthy()
     expect(screen.getByTestId('sessions-card')).toBeTruthy()
-    expect(screen.getByTestId('mcp-card')).toBeTruthy()
     expect(screen.getByTestId('memory-card')).toBeTruthy()
     expect(screen.getByTestId('savings-card')).toBeTruthy()
     expect(screen.getByTestId('metrics-charts')).toBeTruthy()
