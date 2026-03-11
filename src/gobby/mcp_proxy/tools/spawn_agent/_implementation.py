@@ -123,13 +123,12 @@ async def spawn_agent_impl(
         _raw_isolation if _raw_isolation in ("none", "worktree", "clone") else "none"  # type: ignore[assignment]
     )
 
-    effective_provider: str = provider or "claude"
-    if effective_provider == "inherit":
-        effective_provider = "claude"
-    if effective_provider is None and agent_body:
-        effective_provider = agent_body.provider
-    if effective_provider in (None, "inherit"):
-        effective_provider = "claude"
+    _raw_provider: str | None = provider
+    if _raw_provider is None and agent_body:
+        _raw_provider = agent_body.provider
+    if _raw_provider in (None, "inherit"):
+        _raw_provider = "claude"
+    effective_provider: str = _raw_provider
 
     VALID_MODES = ("terminal", "autonomous", "self")
 
