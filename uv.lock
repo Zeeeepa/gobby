@@ -1011,7 +1011,7 @@ wheels = [
 
 [[package]]
 name = "gobby"
-version = "0.2.28"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
