@@ -141,6 +141,7 @@ class AgentLifecycleMonitor:
         while self._running:
             try:
                 await self.check_trust_prompts()  # Fast unblock before other checks
+                await self.check_loop_prompts()  # Dismiss loop detection prompts
                 await self.check_dead_agents()
                 await self.check_expired_agents()
                 await self.check_idle_agents()
@@ -185,6 +186,40 @@ class AgentLifecycleMonitor:
                         handled += 1
             except Exception as e:
                 logger.warning("Error checking trust prompt for agent %s: %s", agent.run_id, e)
+
+        return handled
+
+    async def check_loop_prompts(self) -> int:
+        """Check for loop detection prompts and auto-dismiss them.
+
+        Gemini CLI detects when agents appear stuck in a loop and shows
+        a confirmation prompt. This sends "y" to continue execution.
+        Unlike trust prompts, loop detection can fire multiple times
+        per session so there is no dismissed tracking.
+
+        Returns:
+            Number of loop prompts dismissed.
+        """
+        agents = self._registry.list_all()
+        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+
+        handled = 0
+        for agent in tmux_agents:
+            tmux_name = agent.tmux_session_name
+            assert tmux_name is not None  # guaranteed by filter above
+
+            try:
+                pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
+                if pane_output and self._prompt_detector.detect_loop_prompt(pane_output):
+                    sent = await self._tmux.send_keys(tmux_name, PromptDetector.LOOP_DISMISS_KEYS)
+                    if sent:
+                        logger.info(
+                            "Auto-dismissed loop detection prompt for agent %s",
+                            agent.run_id,
+                        )
+                        handled += 1
+            except Exception as e:
+                logger.warning("Error checking loop prompt for agent %s: %s", agent.run_id, e)
 
         return handled
 

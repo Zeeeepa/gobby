@@ -75,6 +75,44 @@ class TestDetectTrustPrompt:
         assert detector.detect_trust_prompt(output) is True
 
 
+class TestDetectLoopPrompt:
+    """Tests for loop detection pattern matching."""
+
+    def test_detects_stuck_in_loop(self) -> None:
+        detector = PromptDetector()
+        assert detector.detect_loop_prompt("It seems like I'm stuck in a loop.") is True
+
+    def test_detects_repeating_myself(self) -> None:
+        detector = PromptDetector()
+        assert detector.detect_loop_prompt("I think I'm repeating myself.") is True
+
+    def test_detects_potential_loop(self) -> None:
+        detector = PromptDetector()
+        assert detector.detect_loop_prompt("Potential loop detected. Continue? (y/n)") is True
+
+    def test_detects_seems_stuck(self) -> None:
+        detector = PromptDetector()
+        assert detector.detect_loop_prompt("It seems to be stuck.") is True
+        assert detector.detect_loop_prompt("The agent seem to be looping.") is True
+        assert detector.detect_loop_prompt("This seems to be repeating.") is True
+
+    def test_case_insensitive(self) -> None:
+        detector = PromptDetector()
+        assert detector.detect_loop_prompt("STUCK IN A LOOP") is True
+        assert detector.detect_loop_prompt("Potential Loop Detected") is True
+
+    def test_no_match_on_normal_output(self) -> None:
+        detector = PromptDetector()
+        assert detector.detect_loop_prompt("Running tests...\n$ pytest -v\n") is False
+        assert detector.detect_loop_prompt("Loop iteration 5 complete\n") is False
+        assert detector.detect_loop_prompt("") is False
+
+    def test_embedded_in_output(self) -> None:
+        detector = PromptDetector()
+        output = "Processing files...\nWarning: potential loop detected\nContinue? (y/n)\n"
+        assert detector.detect_loop_prompt(output) is True
+
+
 class TestDismissedTracking:
     """Tests for the dismissed state tracking."""
 
