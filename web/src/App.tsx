@@ -295,7 +295,19 @@ export default function App() {
   >(null);
   const sessionsHook = useSessions();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("chat");
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const hash = window.location.hash.slice(1);
+    const validTabs = new Set([
+      "dashboard", "chat", "sessions", "terminals", "projects",
+      "tasks", "workflows", "reports", "source-control", "cron",
+      "traces", "memory", "skills", "mcp", "configuration",
+    ]);
+    return validTabs.has(hash) ? hash : "chat";
+  });
+
+  useEffect(() => {
+    window.location.hash = activeTab;
+  }, [activeTab]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null,
