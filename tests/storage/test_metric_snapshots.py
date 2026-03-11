@@ -1,7 +1,5 @@
 """Tests for MetricSnapshotStorage."""
 
-import json
-
 import pytest
 
 from gobby.storage.metric_snapshots import MetricSnapshotStorage
