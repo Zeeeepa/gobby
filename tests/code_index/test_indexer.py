@@ -201,6 +201,40 @@ async def test_index_changed_files_result(indexer: CodeIndexer, sample_project: 
     assert result.duration_ms >= 0
 
 
+@pytest.mark.asyncio
+async def test_index_changed_files_cleans_up_external_stores(
+    indexer: CodeIndexer, sample_project: Path
+) -> None:
+    """index_changed_files cleans up Qdrant and Neo4j for deleted files."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    # Setup mocks
+    mock_vector_store = AsyncMock()
+    mock_graph = AsyncMock()
+    mock_graph.available = True
+    indexer._vector_store = mock_vector_store
+    indexer._graph = mock_graph
+
+    # Delete the file
+    (sample_project / "src" / "app.py").unlink()
+
+    # Process the "changed" file (which is now deleted)
+    await indexer.index_changed_files(
+        "proj-1",
+        str(sample_project),
+        ["src/app.py"],
+    )
+
+    # Verify vector store delete was called
+    mock_vector_store.delete.assert_called_once_with(
+        filters={"file_path": "src/app.py", "project_id": "proj-1"},
+        collection_name=f"{indexer._config.qdrant_collection_prefix}proj-1",
+    )
+
+    # Verify graph delete was called
+    mock_graph.delete_file.assert_called_once_with(file_path="src/app.py", project_id="proj-1")
+
+
 # ── invalidate ──────────────────────────────────────────────────────────
 
 
