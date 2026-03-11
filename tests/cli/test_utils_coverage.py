@@ -1344,6 +1344,10 @@ def test_stop_daemon_graceful_shutdown(tmp_path: Path) -> None:
         patch("gobby.cli.utils.os.kill") as mock_kill,
         patch("gobby.cli.utils.time.sleep"),
         patch("gobby.cli.utils.click.echo"),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
     ):
         result = stop_daemon(quiet=False)
     assert result is True
@@ -1374,6 +1378,10 @@ def test_stop_daemon_force_kill_after_timeout(tmp_path: Path) -> None:
         patch("gobby.cli.utils.os.kill") as mock_kill,
         patch("gobby.cli.utils.time.sleep"),
         patch("gobby.cli.utils.click.echo"),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
     ):
         result = stop_daemon(quiet=False)
     assert result is True
@@ -1403,6 +1411,10 @@ def test_stop_daemon_force_kill_fails(tmp_path: Path) -> None:
         patch("gobby.cli.utils.os.kill"),
         patch("gobby.cli.utils.time.sleep"),
         patch("gobby.cli.utils.click.echo"),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
     ):
         result = stop_daemon(quiet=False)
     assert result is False
@@ -1426,9 +1438,98 @@ def test_stop_daemon_generic_exception(tmp_path: Path) -> None:
         patch("gobby.cli.utils.psutil.Process", return_value=mock_proc),
         patch("gobby.cli.utils.os.kill", side_effect=RuntimeError("unexpected")),
         patch("gobby.cli.utils.click.echo"),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
     ):
         result = stop_daemon(quiet=False)
     assert result is False
+
+
+# ---------------------------------------------------------------------------
+# stop_daemon — launchctl-aware stop (bootout instead of SIGTERM)
+# ---------------------------------------------------------------------------
+
+
+def test_stop_daemon_uses_service_stop_under_launchctl(tmp_path: Path) -> None:
+    """When running under launchctl, uses service_stop (bootout) instead of SIGTERM."""
+    from gobby.cli.utils import stop_daemon
+
+    pid_file = tmp_path / "gobby.pid"
+    pid_file.write_text("12345")
+
+    mock_proc = MagicMock()
+    mock_proc.cmdline.return_value = ["python", "-m", "gobby.runner"]
+
+    # Process is alive initially, then dies after bootout
+    alive_calls = iter([True, True, False])
+
+    with (
+        patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
+        patch("gobby.cli.utils.stop_ui_server"),
+        patch("gobby.cli.utils.stop_watchdog"),
+        patch("gobby.cli.utils._is_process_alive", side_effect=lambda pid: next(alive_calls)),
+        patch("gobby.cli.utils.psutil.Process", return_value=mock_proc),
+        patch("gobby.cli.utils.os.kill") as mock_kill,
+        patch("gobby.cli.utils.time.sleep"),
+        patch("gobby.cli.utils.click.echo") as mock_echo,
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": True, "running": True, "platform": "macos"},
+        ),
+        patch(
+            "gobby.cli.installers.service.service_stop",
+            return_value={"success": True},
+        ) as mock_service_stop,
+    ):
+        result = stop_daemon(quiet=False)
+
+    assert result is True
+    mock_service_stop.assert_called_once()
+    # SIGTERM should NOT have been sent — bootout handled it
+    mock_kill.assert_not_called()
+    # Should mention service manager in output
+    echo_calls = [str(c) for c in mock_echo.call_args_list]
+    assert any("service manager" in c for c in echo_calls)
+
+
+def test_stop_daemon_falls_back_to_sigterm_on_service_stop_failure(tmp_path: Path) -> None:
+    """When service_stop fails, falls back to SIGTERM."""
+    from gobby.cli.utils import stop_daemon
+
+    pid_file = tmp_path / "gobby.pid"
+    pid_file.write_text("12345")
+
+    mock_proc = MagicMock()
+    mock_proc.cmdline.return_value = ["python", "-m", "gobby.runner"]
+
+    # Process is alive, then dies after SIGTERM
+    alive_calls = iter([True, True, False])
+
+    with (
+        patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
+        patch("gobby.cli.utils.stop_ui_server"),
+        patch("gobby.cli.utils.stop_watchdog"),
+        patch("gobby.cli.utils._is_process_alive", side_effect=lambda pid: next(alive_calls)),
+        patch("gobby.cli.utils.psutil.Process", return_value=mock_proc),
+        patch("gobby.cli.utils.os.kill") as mock_kill,
+        patch("gobby.cli.utils.time.sleep"),
+        patch("gobby.cli.utils.click.echo"),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": True, "running": True, "platform": "macos"},
+        ),
+        patch(
+            "gobby.cli.installers.service.service_stop",
+            return_value={"success": False, "error": "bootout failed"},
+        ),
+    ):
+        result = stop_daemon(quiet=False)
+
+    assert result is True
+    # Should have fallen back to SIGTERM
+    mock_kill.assert_called_once_with(12345, signal.SIGTERM)
 
 
 # ---------------------------------------------------------------------------
