@@ -92,6 +92,5 @@ steps:
       - mcp__gobby__get_tool_schema
     allowed_mcp_tools:
       - "gobby-agents:kill_agent"
-      - "gobby-tasks:mark_task_needs_review"
 
 exit_condition: "current_step == 'terminate'"

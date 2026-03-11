@@ -1005,14 +1005,13 @@ class RuleEngine:
         is_app_failure = False
         if isinstance(tool_output, dict):
             # Direct: tool returned {success: false, ...}
-            if tool_output.get("success") is False:
+            if tool_output.get("success") is False or bool(tool_output.get("error")):
                 is_app_failure = True
             # Nested: proxy returned {success: true, result: {success: false, ...}}
-            elif (
-                isinstance(tool_output.get("result"), dict)
-                and tool_output["result"].get("success") is False
-            ):
-                is_app_failure = True
+            elif isinstance(tool_output.get("result"), dict):
+                result_dict = tool_output["result"]
+                if result_dict.get("success") is False or bool(result_dict.get("error")):
+                    is_app_failure = True
 
         handlers = step.on_mcp_error if is_app_failure else step.on_mcp_success
 
