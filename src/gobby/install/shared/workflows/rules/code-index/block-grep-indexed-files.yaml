@@ -10,6 +10,7 @@ rules:
       event.data.get('tool_name') in ('grep_search', 'glob', 'Grep', 'Glob')
     conditions:
       - "variables.get('code_index_available', False)"
+      - "variables.get('servers_listed', False)"
     effects:
       - type: block
         reason: >

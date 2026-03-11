@@ -11,6 +11,7 @@ rules:
       and len(event.data.get('tool_output', '')) > 20000
     conditions:
       - "variables.get('code_index_available', False)"
+      - "variables.get('servers_listed', False)"
     effects:
       - type: compress_output
         compressor: code_index

@@ -11,6 +11,7 @@ rules:
       and len(event.data.get('tool_output', '')) > 10000
     conditions:
       - "variables.get('code_index_available', False)"
+      - "variables.get('servers_listed', False)"
     effects:
       - type: inject_context
         template: |
