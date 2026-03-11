@@ -139,8 +139,8 @@ class CodeSearcher:
         )
 
         hits = await self._vector_store.search(
+            query_embedding=embedding,
             collection_name=collection,
-            query_vector=embedding,
             limit=limit,
         )
 

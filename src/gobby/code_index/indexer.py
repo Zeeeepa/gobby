@@ -164,6 +164,24 @@ class CodeIndexer:
         )
         return result
 
+    async def _delete_file_data(self, project_id: str, file_path: str) -> None:
+        """Remove all data for a file from SQLite, Qdrant, and Neo4j."""
+        self._storage.delete_symbols_for_file(project_id, file_path)
+        self._storage.delete_file(project_id, file_path)
+
+        if self._graph is not None and self._graph.available:
+            await self._graph.delete_file(file_path=file_path, project_id=project_id)
+
+        if self._vector_store is not None:
+            collection = f"{self._config.qdrant_collection_prefix}{project_id}"
+            try:
+                await self._vector_store.delete(
+                    filters={"file_path": file_path, "project_id": project_id},
+                    collection_name=collection,
+                )
+            except Exception as e:
+                logger.debug(f"Vector delete failed for {file_path}: {e}")
+
     async def index_file(
         self,
         file_path: str,
@@ -172,6 +190,17 @@ class CodeIndexer:
     ) -> list[Symbol] | None:
         """Index a single file. Returns symbols or None if skipped."""
         parse_result = self._parser.parse_file(file_path, project_id, root_path)
+
+        root = Path(root_path).resolve()
+        path = Path(file_path).resolve()
+        try:
+            rel_path = str(path.relative_to(root))
+        except ValueError:
+            rel_path = str(path)
+
+        # Always clear old data first before re-indexing to prevent ghosts
+        await self._delete_file_data(project_id, rel_path)
+
         if parse_result is None:
             return None
 
@@ -181,14 +210,6 @@ class CodeIndexer:
 
         # Store symbols
         self._storage.upsert_symbols(symbols)
-
-        # Store file record
-        root = Path(root_path).resolve()
-        path = Path(file_path).resolve()
-        try:
-            rel_path = str(path.relative_to(root))
-        except ValueError:
-            rel_path = str(path)
 
         language = detect_language(file_path) or "unknown"
         try:
@@ -240,9 +261,8 @@ class CodeIndexer:
             # Resolve relative to root
             abs_path = Path(root_path) / fp if not Path(fp).is_absolute() else Path(fp)
             if not abs_path.exists():
-                # File was deleted — clean up
-                self._storage.delete_symbols_for_file(project_id, fp)
-                self._storage.delete_file(project_id, fp)
+                # File was deleted — clean up everywhere
+                await self._delete_file_data(project_id, fp)
                 continue
 
             symbols = await self.index_file(str(abs_path), project_id, root_path)
@@ -306,28 +326,28 @@ class CodeIndexer:
         collection = f"{self._config.qdrant_collection_prefix}{project_id}"
         count = 0
         try:
-            points = []
+            items = []
             for i, emb in enumerate(embeddings):
                 if emb is not None:
-                    points.append(
-                        {
-                            "id": ids[i],
-                            "vector": emb,
-                            "payload": {
+                    items.append(
+                        (
+                            ids[i],
+                            emb,
+                            {
                                 "name": symbols[i].name,
                                 "kind": symbols[i].kind,
                                 "file_path": symbols[i].file_path,
                                 "project_id": project_id,
                             },
-                        }
+                        )
                     )
 
-            if points:
+            if items:
                 await self._vector_store.batch_upsert(
+                    items=items,
                     collection_name=collection,
-                    points=points,
                 )
-                count = len(points)
+                count = len(items)
         except Exception as e:
             logger.debug(f"Vector upsert failed: {e}")
 

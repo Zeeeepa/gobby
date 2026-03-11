@@ -466,7 +466,7 @@ class KnowledgeGraphService:
         # Fallback: substring match
         try:
             rows = await self._neo4j.query(
-                "MATCH (n) WHERE toLower(n.name) CONTAINS toLower($query) "
+                "MATCH (n:_Entity) WHERE toLower(n.name) CONTAINS toLower($query) "
                 "RETURN n.name AS name, labels(n) AS labels, properties(n) AS props "
                 "LIMIT $limit",
                 {"query": query, "limit": limit},

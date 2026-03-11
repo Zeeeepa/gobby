@@ -163,7 +163,8 @@ class Neo4jClient:
         """
         # Fetch entities
         entity_rows = await self.query(
-            "MATCH (n) RETURN n.name AS name, labels(n) AS labels, properties(n) AS props LIMIT $limit",
+            "MATCH (n) WHERE n:_Entity OR n:Memory "
+            "RETURN n.name AS name, labels(n) AS labels, properties(n) AS props LIMIT $limit",
             {"limit": limit},
         )
 
@@ -194,6 +195,7 @@ class Neo4jClient:
         # Fetch relationships
         rel_rows = await self.query(
             "MATCH (a)-[r]->(b) "
+            "WHERE (a:_Entity OR a:Memory) AND (b:_Entity OR b:Memory) "
             "RETURN a.name AS source, b.name AS target, type(r) AS rel_type, properties(r) AS props "
             "LIMIT $limit",
             {"limit": limit * 4},
@@ -231,6 +233,7 @@ class Neo4jClient:
         """
         rows = await self.query(
             "MATCH (a {name: $name})-[r]-(b) "
+            "WHERE (a:_Entity OR a:Memory) AND (b:_Entity OR b:Memory) "
             "RETURN a.name AS source_name, labels(a) AS source_labels, properties(a) AS source_props, "
             "b.name AS target_name, labels(b) AS target_labels, properties(b) AS target_props, "
             "type(r) AS rel_type, properties(r) AS rel_props, "
@@ -293,7 +296,8 @@ class Neo4jClient:
         if entity_name not in seen:
             # Fetch the center entity's labels
             center_rows = await self.query(
-                "MATCH (n {name: $name}) RETURN labels(n) AS labels, properties(n) AS props LIMIT 1",
+                "MATCH (n {name: $name}) WHERE n:_Entity OR n:Memory "
+                "RETURN labels(n) AS labels, properties(n) AS props LIMIT 1",
                 {"name": entity_name},
             )
             entity_type = "entity"

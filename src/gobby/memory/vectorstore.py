@@ -91,6 +91,7 @@ class VectorStore:
         memory_id: str,
         embedding: list[float],
         payload: dict[str, Any] | None = None,
+        collection_name: str | None = None,
     ) -> None:
         """Insert or update a single point."""
         client = self._ensure_client()
@@ -101,7 +102,7 @@ class VectorStore:
         )
         await asyncio.to_thread(
             client.upsert,
-            collection_name=self._collection_name,
+            collection_name=collection_name or self._collection_name,
             points=[point],
         )
 
@@ -110,6 +111,7 @@ class VectorStore:
         query_embedding: list[float],
         limit: int = 10,
         filters: dict[str, str] | None = None,
+        collection_name: str | None = None,
     ) -> list[tuple[str, float]]:
         """Search for similar vectors.
 
@@ -117,6 +119,7 @@ class VectorStore:
             query_embedding: Query vector.
             limit: Maximum number of results.
             filters: Optional field filters (e.g. {"project_id": "proj-A"}).
+            collection_name: Optional collection name override.
 
         Returns:
             List of (memory_id, score) tuples sorted by relevance (desc).
@@ -132,7 +135,7 @@ class VectorStore:
 
         results = await asyncio.to_thread(
             client.query_points,
-            collection_name=self._collection_name,
+            collection_name=collection_name or self._collection_name,
             query=query_embedding,
             query_filter=query_filter,
             limit=limit,
@@ -140,23 +143,42 @@ class VectorStore:
 
         return [(str(point.id), point.score) for point in results.points]
 
-    async def delete(self, memory_id: str) -> None:
-        """Delete a point by memory ID."""
+    async def delete(
+        self,
+        memory_id: str | None = None,
+        filters: dict[str, str] | None = None,
+        collection_name: str | None = None,
+    ) -> None:
+        """Delete a point by memory ID or filter."""
         client = self._ensure_client()
+
+        selector: PointIdsList | Filter
+        if memory_id:
+            selector = PointIdsList(points=[memory_id])
+        elif filters:
+            conditions = [
+                FieldCondition(key=k, match=MatchValue(value=v)) for k, v in filters.items()
+            ]
+            selector = Filter(must=conditions)
+        else:
+            raise ValueError("Must provide either memory_id or filters to delete")
+
         await asyncio.to_thread(
             client.delete,
-            collection_name=self._collection_name,
-            points_selector=PointIdsList(points=[memory_id]),
+            collection_name=collection_name or self._collection_name,
+            points_selector=selector,
         )
 
     async def batch_upsert(
         self,
         items: list[tuple[str, list[float], dict[str, Any]]],
+        collection_name: str | None = None,
     ) -> None:
         """Insert or update multiple points at once.
 
         Args:
             items: List of (memory_id, embedding, payload) tuples.
+            collection_name: Optional collection name override.
         """
         if not items:
             return
@@ -167,8 +189,16 @@ class VectorStore:
         ]
         await asyncio.to_thread(
             client.upsert,
-            collection_name=self._collection_name,
+            collection_name=collection_name or self._collection_name,
             points=points,
+        )
+
+    async def delete_collection(self, collection_name: str) -> None:
+        """Delete a collection by name."""
+        client = self._ensure_client()
+        await asyncio.to_thread(
+            client.delete_collection,
+            collection_name=collection_name,
         )
 
     async def count(self) -> int:
