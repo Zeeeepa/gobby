@@ -4,8 +4,7 @@ interface Props {
   tasks: AdminStatus['tasks']
 }
 
-const STATUS_ROWS: { key: keyof AdminStatus['tasks']; label: string; color: string; dimmed?: boolean }[] = [
-  { key: 'open', label: 'Open', color: '#3b82f6' },
+const SEGMENTS: { key: keyof AdminStatus['tasks']; label: string; color: string; dimmed?: boolean }[] = [
   { key: 'ready', label: 'Ready', color: '#8b5cf6' },
   { key: 'in_progress', label: 'In Progress', color: '#f59e0b' },
   { key: 'blocked', label: 'Blocked', color: '#ef4444' },
@@ -15,27 +14,61 @@ const STATUS_ROWS: { key: keyof AdminStatus['tasks']; label: string; color: stri
   { key: 'closed_24h', label: 'Closed (24h)', color: '#737373', dimmed: true },
 ]
 
+const SIZE = 120
+const STROKE = 18
+const RADIUS = (SIZE - STROKE) / 2
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+
 export function TasksCard({ tasks }: Props) {
+  const activeTotal = tasks.open + tasks.in_progress + tasks.needs_review +
+    tasks.review_approved + tasks.escalated
+  const segments = SEGMENTS.map(s => ({ ...s, value: tasks[s.key] ?? 0 }))
+  const total = segments.reduce((sum, s) => sum + s.value, 0)
+
+  let offset = 0
+  const arcs = segments
+    .filter(s => s.value > 0)
+    .map(s => {
+      const fraction = total > 0 ? s.value / total : 0
+      const dashLen = fraction * CIRCUMFERENCE
+      const arc = { ...s, dashLen, dashOffset: -offset }
+      offset += dashLen
+      return arc
+    })
+
   return (
     <div className="dash-card">
       <div className="dash-card-header">
         <h3 className="dash-card-title">Tasks</h3>
       </div>
-      <div className="dash-card-body">
-        <div className="dash-status-list">
-          {STATUS_ROWS.map(({ key, label, color, dimmed }) => {
-            const value = tasks[key] ?? 0
-            return (
-              <div
-                key={key}
-                className={`dash-status-row${dimmed ? ' dash-status-row--dimmed' : ''}`}
-              >
-                <span className="dash-legend-dot" style={{ background: color }} />
-                <span className="dash-status-row-label">{label}</span>
-                <span className="dash-status-row-value">{value}</span>
-              </div>
-            )
-          })}
+      <div className="dash-card-body" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        <svg width={SIZE} height={SIZE} style={{ flexShrink: 0 }}>
+          {total === 0 ? (
+            <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}
+              fill="none" stroke="#333" strokeWidth={STROKE} />
+          ) : (
+            arcs.map(a => (
+              <circle key={a.key} cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}
+                fill="none" stroke={a.color} strokeWidth={STROKE}
+                strokeDasharray={`${a.dashLen} ${CIRCUMFERENCE - a.dashLen}`}
+                strokeDashoffset={a.dashOffset}
+                transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+              />
+            ))
+          )}
+          <text x={SIZE / 2} y={SIZE / 2 - 6} textAnchor="middle" fill="#e5e5e5"
+            fontSize="22" fontWeight="bold">{activeTotal}</text>
+          <text x={SIZE / 2} y={SIZE / 2 + 12} textAnchor="middle" fill="#a3a3a3"
+            fontSize="10">active</text>
+        </svg>
+        <div className="dash-status-list" style={{ flex: 1, minWidth: 0 }}>
+          {segments.map(({ key, label, color, value, dimmed }) => (
+            <div key={key} className={`dash-status-row${dimmed ? ' dash-status-row--dimmed' : ''}`}>
+              <span className="dash-legend-dot" style={{ background: color }} />
+              <span className="dash-status-row-label">{label}</span>
+              <span className="dash-status-row-value">{value}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

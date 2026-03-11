@@ -54,7 +54,7 @@ const SAMPLE_DATA: AdminStatus = {
     needs_review: 0, review_approved: 0, escalated: 0,
     ready: 0, blocked: 0, closed_24h: 2,
   },
-  memory: { count: 42 },
+  memory: { count: 42, by_type: { fact: 20, preference: 10, pattern: 8, context: 4 }, recent_count: 3 },
   skills: { total: 15 },
   pipelines: { running: 0, waiting_approval: 0, completed: 3, failed: 1, total: 4 },
   savings: {

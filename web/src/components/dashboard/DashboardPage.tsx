@@ -49,7 +49,7 @@ export function DashboardPage() {
 
             {/* Row 3: Utility cards */}
             <McpHealthCard mcpServers={data.mcp_servers} />
-            <MemoryCard memory={data.memory} skills={data.skills} />
+            <MemoryCard memory={data.memory} />
           </div>
         ) : null}
       </div>

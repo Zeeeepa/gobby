@@ -71,10 +71,11 @@ def count_ready_tasks(
     db: DatabaseProtocol,
     project_id: str | None = None,
 ) -> int:
-    """Count tasks that are ready (open or in_progress) and not blocked.
+    """Count tasks that are ready (open and not blocked).
 
-    A task is ready if it has no external blocking dependencies.
+    A task is ready if it is open and has no external blocking dependencies.
     Excludes parent tasks blocked by their own descendants (completion block, not work block).
+    In-progress tasks are not counted as "ready" — they are already being worked on.
 
     Args:
         db: Database protocol instance
@@ -88,7 +89,7 @@ def count_ready_tasks(
     # ancestor chain and check if the blocked task (t.id) appears anywhere.
     query = """
     SELECT COUNT(*) as count FROM tasks t
-    WHERE t.status IN ('open', 'in_progress')
+    WHERE t.status = 'open'
     AND NOT EXISTS (
         SELECT 1 FROM task_dependencies d
         JOIN tasks blocker ON d.depends_on = blocker.id
