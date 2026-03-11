@@ -361,13 +361,9 @@ class GobbyRunner:
         except Exception as e:
             logger.warning(f"Task sync import failed: {e}")
 
-        # Force initial synchronous export
-        # Ensures disk state matches DB state before we start serving
-        try:
-            self.task_sync_manager.export_to_jsonl()
-            logger.info("Initial task sync export completed")
-        except Exception as e:
-            logger.warning(f"Initial task sync export failed: {e}")
+        # NOTE: Startup export removed to avoid git noise (#10198).
+        # The pre-commit hook exports and stages JSONL files at commit time.
+        # Import above pulls in changes from git; export deferred to commit.
 
         # Initialize Memory Sync Manager (Phase 7) & Wire up listeners
         self.memory_sync_manager: MemorySyncManager | None = None
@@ -1247,25 +1243,8 @@ class GobbyRunner:
                 except Exception as e:
                     logger.warning(f"VectorStore close failed: {e}")
 
-            # Export tasks to JSONL on shutdown (final sync for clean state)
-            try:
-                self.task_sync_manager.export_to_jsonl()
-                logger.info("Shutdown task export completed")
-            except Exception as e:
-                logger.warning(f"Task export on shutdown failed: {e}")
-
-            # Export memories to JSONL backup on shutdown
-            if self.memory_sync_manager:
-                try:
-                    count = await asyncio.wait_for(
-                        self.memory_sync_manager.export_to_files(), timeout=5.0
-                    )
-                    if count > 0:
-                        logger.info(f"Shutdown memory backup: exported {count} memories")
-                except TimeoutError:
-                    logger.warning("Memory backup on shutdown timed out")
-                except Exception as e:
-                    logger.warning(f"Memory backup on shutdown failed: {e}")
+            # NOTE: Shutdown JSONL exports removed to avoid git noise (#10198).
+            # The pre-commit hook exports and stages JSONL files at commit time.
 
             try:
                 await asyncio.wait_for(self.mcp_proxy.disconnect_all(), timeout=3.0)

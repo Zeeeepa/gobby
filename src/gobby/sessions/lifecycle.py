@@ -277,13 +277,8 @@ class SessionLifecycleManager:
                 logger.info(
                     f"Extracted {len(candidates)} memories from expired session {session_id}"
                 )
-
-                # Export to JSONL if sync manager available
-                if self.memory_sync_manager:
-                    try:
-                        await self.memory_sync_manager.export_to_files()
-                    except Exception as e:
-                        logger.warning(f"Memory sync export after extraction failed: {e}")
+                # NOTE: JSONL export removed to avoid git noise (#10198).
+                # Memories are in DB; pre-commit hook exports at commit time.
 
         except Exception as e:
             logger.warning(f"Memory extraction failed for session {session_id}: {e}")
