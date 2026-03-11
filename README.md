@@ -37,15 +37,12 @@ If you've tried Beads or TaskMaster, you know the pain: databases that corrupt, 
 - **Git-native sync** — `.gobby/tasks.jsonl` lives in your repo, works with worktrees
 - **Commit linking** — `[task-id] feat: thing` auto-links commits to tasks
 
-```bash
-# Create a task
-gobby tasks create "Add user authentication" --type feature
+Your AI assistant creates, expands, and closes tasks through MCP tools — no CLI needed:
 
-# Let the AI break it down with TDD ordering
-gobby tasks expand <task-id>
-
-# See what's ready to work on
-gobby tasks list --ready
+```text
+create_task(title="Add user authentication", task_type="feature")
+expand_task(task_id="#42")           → TDD-ordered subtasks
+list_ready_tasks()                   → What's unblocked and ready
 ```
 
 ### 🔌 MCP Proxy Without the Token Tax
@@ -123,15 +120,7 @@ Reusable instruction sets that teach agents how to perform specific tasks. Skill
 - **Core skills** bundled with Gobby — synced to the database on daemon startup
 - **Project skills** in `.gobby/skills/` for team-specific patterns
 - **Auto-injection** — skills with `alwaysApply: true` inject into every session
-- **Search and discovery** — find relevant skills via MCP tools or CLI
-
-```bash
-# List installed skills
-gobby skills list
-
-# Search for relevant skills
-gobby skills search "testing coverage"
-```
+- **Search and discovery** — your AI assistant finds and uses skills through MCP tools
 
 ### 🌐 Web UI
 
@@ -199,22 +188,17 @@ pipx install gobby
 pip install gobby
 ```
 
-**Requirements:** Python 3.13+
-
 ## Quick Start
 
 ```bash
-# Start the daemon
-gobby start
-
-# In your project directory
-gobby init
-gobby install  # Installs hooks for detected CLIs
+gobby start              # Start the daemon
+gobby init               # In your project directory
+gobby install            # Installs hooks for detected CLIs
 ```
 
-**Requirements:** At least one AI CLI ([Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), or [Codex CLI](https://github.com/openai/codex))
+Then add Gobby as an MCP server in your AI CLI (see below) and start coding. Gobby handles sessions, tasks, rules, and context automatically.
 
-Works with your Claude, Gemini, or Codex subscriptions—or bring your own API keys. Local model support coming soon.
+**Requirements:** Python 3.13+ and [Claude Code](https://claude.ai/code). Additional CLIs ([Gemini CLI](https://github.com/google-gemini/gemini-cli), [Codex CLI](https://github.com/openai/codex), Cursor, Windsurf, Copilot) are supported but Claude Code is the primary development target. Works with your existing subscriptions — or bring your own API keys.
 
 ## Configure Your AI CLI
 
@@ -299,24 +283,7 @@ args = ["mcp-server"]
 
 ### Hook Installation
 
-Gobby uses Python hook dispatchers that capture terminal context and communicate with the daemon. Run `gobby install` in your project to set up hooks:
-
-```bash
-gobby install           # Auto-detect and install hooks for all CLIs
-gobby install --claude  # Install for specific CLI
-gobby install --gemini
-gobby install --codex
-gobby install --cursor
-gobby install --windsurf
-gobby install --copilot
-```
-
-The dispatchers handle:
-- Terminal context capture (TTY, parent PID, session IDs)
-- Proper JSON serialization and HTTP communication
-- Exit code handling for blocking actions
-
-All CLIs can also connect via MCP for tool access (see configuration examples above).
+Run `gobby install` in your project to auto-detect and set up hooks for all supported CLIs. Hooks handle terminal context capture, session tracking, and rule enforcement. All CLIs also connect via MCP for tool access.
 
 ## How It Compares
 
