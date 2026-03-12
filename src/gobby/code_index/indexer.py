@@ -53,6 +53,8 @@ class CodeIndexer:
         self._config = config or CodeIndexConfig()
         # Set by runner.py after creation for http.py registry wiring
         self.searcher: Any | None = None
+        # Cache collections known to be missing to avoid repeated failed HTTP roundtrips
+        self._missing_collections: set[str] = set()
 
     @property
     def storage(self) -> CodeIndexStorage:
@@ -122,6 +124,17 @@ class CodeIndexer:
         else:
             stale = None  # Index everything
 
+        # Clean up orphan files no longer in candidates (e.g., newly excluded dirs)
+        if incremental and current_hashes:
+            try:
+                orphans = self._storage.get_orphan_files(project_id, set(current_hashes.keys()))
+                for orphan_path in orphans:
+                    await self._delete_file_data(project_id, orphan_path)
+                if orphans:
+                    logger.info(f"Cleaned up {len(orphans)} orphan indexed files")
+            except Exception as e:
+                logger.debug(f"Orphan cleanup failed: {e}")
+
         # Index each file
         for path in candidates:
             try:
@@ -174,13 +187,22 @@ class CodeIndexer:
 
         if self._vector_store is not None:
             collection = f"{self._config.qdrant_collection_prefix}{project_id}"
-            try:
-                await self._vector_store.delete(
-                    filters={"file_path": file_path, "project_id": project_id},
-                    collection_name=collection,
-                )
-            except Exception as e:
-                logger.debug(f"Vector delete failed for {file_path}: {e}")
+            if collection not in self._missing_collections:
+                try:
+                    await self._vector_store.delete(
+                        filters={"file_path": file_path, "project_id": project_id},
+                        collection_name=collection,
+                    )
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "not found" in err_str or "doesn't exist" in err_str:
+                        self._missing_collections.add(collection)
+                        logger.debug(
+                            f"Qdrant collection {collection} not found, "
+                            f"skipping future deletes this run"
+                        )
+                    else:
+                        logger.debug(f"Vector delete failed for {file_path}: {e}")
 
     async def index_file(
         self,
@@ -350,6 +372,8 @@ class CodeIndexer:
                     collection_name=collection,
                 )
                 count = len(items)
+                # Collection exists now — clear from missing cache
+                self._missing_collections.discard(collection)
         except Exception as e:
             logger.debug(f"Vector upsert failed: {e}")
 

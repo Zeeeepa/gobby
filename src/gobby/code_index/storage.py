@@ -311,6 +311,27 @@ class CodeIndexStorage:
 
         return [row[0] for row in rows]
 
+    def get_orphan_files(self, project_id: str, current_paths: set[str]) -> list[str]:
+        """Find indexed files that are no longer in the candidate set.
+
+        These are files that were previously indexed but are now excluded
+        (e.g., by new exclude_patterns) or deleted from disk.
+
+        Args:
+            project_id: Project to check.
+            current_paths: Set of file paths currently eligible for indexing.
+
+        Returns:
+            List of orphan file paths to clean up.
+        """
+        with self.db.transaction() as conn:
+            rows = conn.execute(
+                "SELECT file_path FROM code_indexed_files WHERE project_id = ?",
+                (project_id,),
+            ).fetchall()
+
+        return [row[0] for row in rows if row[0] not in current_paths]
+
     def delete_file(self, project_id: str, file_path: str) -> None:
         """Delete a file record (symbols deleted separately)."""
         with self.db.transaction() as conn:

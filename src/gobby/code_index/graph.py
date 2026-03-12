@@ -174,7 +174,9 @@ class CodeGraph:
 
         try:
             await self._client.execute_write(
-                """MATCH (n {project: $project}) DETACH DELETE n""",
+                """MATCH (n {project: $project})
+                   WHERE n:CodeFile OR n:CodeSymbol OR n:CodeModule
+                   DETACH DELETE n""",
                 {"project": project_id},
             )
         except Exception as e:
