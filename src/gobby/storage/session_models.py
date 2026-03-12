@@ -143,10 +143,15 @@ class Session:
             logger.warning(f"Failed to parse {field_name} JSON, returning None")
             return None
 
+    @property
+    def ref(self) -> str:
+        """Short human-readable reference: #seq_num or first 8 chars of id."""
+        return f"#{self.seq_num}" if self.seq_num else self.id[:8]
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
-            "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
+            "ref": self.ref,
             "external_id": self.external_id,
             "machine_id": self.machine_id,
             "source": self.source,
@@ -187,7 +192,7 @@ class Session:
     def to_brief(self) -> dict[str, Any]:
         """Slim representation for list operations."""
         return {
-            "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
+            "ref": self.ref,
             "external_id": self.external_id,
             "source": self.source,
             "project_id": self.project_id,

@@ -170,19 +170,20 @@ def start(
 ) -> None:
     """Start the Gobby daemon."""
     # If OS service is installed, delegate to it
+    fallback_to_direct = False
     svc = get_service_status()
     if svc.get("installed"):
         click.echo("Starting via OS service manager...")
         result = service_start()
         if result.get("success"):
             click.echo(f"Daemon started via {svc.get('platform', 'OS')} service")
+            return
         else:
             click.echo(f"Service start failed: {result.get('error')}", err=True)
             click.echo("Falling back to direct start...")
-            # Fall through to direct start
-            svc = {"installed": False}
-        if svc.get("installed"):
-            return
+            fallback_to_direct = True
+    if not svc.get("installed") or fallback_to_direct:
+        pass  # Fall through to direct start
 
     # Get config object
     config = ctx.obj["config"]
@@ -401,6 +402,7 @@ def start(
 def stop(ctx: click.Context, neo4j_flag: bool) -> None:
     """Stop the Gobby daemon."""
     # If OS service is installed and running, delegate to it
+    neo4j_stopped = False
     svc = get_service_status()
     if svc.get("installed") and svc.get("running"):
         click.echo("Stopping via OS service manager...")
@@ -415,14 +417,15 @@ def stop(ctx: click.Context, neo4j_flag: bool) -> None:
         if neo4j_flag:
             click.echo("Stopping Neo4j containers...")
             _neo4j_stop(get_gobby_home())
+            neo4j_stopped = True
 
         if result.get("success"):
             sys.exit(0)
 
     success = stop_daemon_util(quiet=False)
 
-    # Stop Neo4j containers if requested
-    if neo4j_flag:
+    # Stop Neo4j containers if requested (only if not already stopped above)
+    if neo4j_flag and not neo4j_stopped:
         click.echo("Stopping Neo4j containers...")
         _neo4j_stop(get_gobby_home())
 

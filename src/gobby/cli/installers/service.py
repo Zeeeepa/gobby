@@ -354,12 +354,7 @@ def _get_service_status_macos() -> dict[str, Any]:
                 status["mode"] = "installed"
         else:
             status["mode"] = "installed"
-    except OSError:
-        pass
-
-    # Better mode detection: check if the python path is in a .venv
-    try:
-        content = plist_file.read_text(encoding="utf-8")
+        # Better mode detection: check if the python path is in a .venv
         if ".venv" in content:
             status["mode"] = "dev"
     except OSError:

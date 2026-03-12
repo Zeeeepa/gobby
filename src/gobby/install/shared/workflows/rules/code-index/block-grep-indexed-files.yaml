@@ -7,7 +7,7 @@ rules:
     enabled: true
     priority: 50
     when: >
-      event.data.get('tool_name') in ('grep_search', 'glob', 'Grep', 'Glob')
+      event.data.get('tool_name', '').lower() in ('grep_search', 'glob', 'grep', 'glob')
     conditions:
       - "variables.get('code_index_available', False)"
       - "variables.get('servers_listed', False)"

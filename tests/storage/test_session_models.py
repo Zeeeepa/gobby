@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from gobby.storage.session_models import Session
@@ -9,7 +11,7 @@ from gobby.storage.session_models import Session
 pytestmark = pytest.mark.unit
 
 
-def _make_session(**overrides) -> Session:
+def _make_session(**overrides: Any) -> Session:
     """Create a Session with sensible defaults."""
     defaults = {
         "id": "sess-abc123",

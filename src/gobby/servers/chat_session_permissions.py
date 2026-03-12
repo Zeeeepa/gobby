@@ -354,10 +354,13 @@ class ChatSessionPermissionsMixin:
             # Gemini also uses ~/.gemini/tmp/{hash}/plans/
             gemini_tmp = home / ".gemini" / "tmp"
             if gemini_tmp.is_dir():
-                for sub in gemini_tmp.iterdir():
-                    plans = sub / "plans"
-                    if plans.is_dir():
-                        plan_dirs.append(plans)
+                try:
+                    for sub in gemini_tmp.iterdir():
+                        plans = sub / "plans"
+                        if plans.is_dir():
+                            plan_dirs.append(plans)
+                except (PermissionError, OSError) as e:
+                    logger.warning("Could not scan %s: %s", gemini_tmp, e)
 
             candidates: list[Path] = []
             for d in plan_dirs:

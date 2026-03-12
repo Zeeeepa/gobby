@@ -854,8 +854,11 @@ class GobbyRunner:
             from gobby.cli.utils import get_gobby_home
 
             pid_file = get_gobby_home() / "gobby.pid"
-            pid_file.write_text(str(os.getpid()))
-            logger.info(f"Wrote PID file: {pid_file} (PID {os.getpid()})")
+            try:
+                pid_file.write_text(str(os.getpid()))
+                logger.info(f"Wrote PID file: {pid_file} (PID {os.getpid()})")
+            except OSError as e:
+                logger.warning(f"Could not write PID file {pid_file}: {e}")
 
             # Connect MCP servers
             try:

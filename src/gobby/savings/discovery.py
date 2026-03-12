@@ -77,7 +77,11 @@ def record_discovery_savings(
                     "all_skills_count": len(skills_rows),
                     "used_skills_count": len(used_skill_names),
                     "all_tools_count": len(tools_rows),
-                    "used_tools_count": len(unlocked_tools),
+                    "used_tools_count": sum(
+                        1
+                        for row in tools_rows
+                        if f"{row['server_name']}:{row['tool_name']}" in unlocked_tools
+                    ),
                 },
             )
             logger.debug(
