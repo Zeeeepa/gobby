@@ -349,18 +349,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to mark parent session as expired: {e}")
 
         # Step 2c: Set code_index_available if project has an index
-        if session_id and project_id and self._session_storage:
-            try:
-                from gobby.code_index.storage import CodeIndexStorage
-                from gobby.workflows.state_manager import SessionVariableManager
-
-                cis = CodeIndexStorage(self._session_storage.db)
-                stats = cis.get_project_stats(project_id)
-                if stats and stats.total_symbols > 0:
-                    sv_mgr = SessionVariableManager(self._session_storage.db)
-                    sv_mgr.set_variable(session_id, "code_index_available", True)
-            except Exception as e:
-                self.logger.debug(f"Could not check code index availability: {e}")
+        self._setup_code_index(session_id, project_id)
 
         # Step 2d: Pipeline workflows are executed by the agent via run_pipeline MCP tool.
         # Agent rules enforce pipeline execution by blocking all tools except
@@ -743,20 +732,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             )
 
         # Set code_index_available if project has an index
-        if session_id and existing_session.project_id and self._session_storage:
-            try:
-                from gobby.code_index.storage import CodeIndexStorage
-                from gobby.workflows.state_manager import SessionVariableManager
-
-                cis = CodeIndexStorage(self._session_storage.db)
-                stats = cis.get_project_stats(existing_session.project_id)
-                if stats and stats.total_symbols > 0:
-                    sv_mgr = SessionVariableManager(self._session_storage.db)
-                    sv_mgr.set_variable(session_id, "code_index_available", True)
-            except Exception as e:
-                self.logger.debug(
-                    f"Could not check code index availability for pre-created session: {e}"
-                )
+        self._setup_code_index(session_id, existing_session.project_id)
 
         # Deep load default agent (rules, skills, variables) for pre-created session
         agent_result: AgentActivationResult | None = None
@@ -907,6 +883,22 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     self.logger.debug("Failed to parse variable definition for %s", var_row.name)
 
         return changes, active_rules, active_skills
+
+    def _setup_code_index(self, session_id: str | None, project_id: str | None) -> None:
+        """Set code_index_available session variable if the project has an index."""
+        if not session_id or not project_id or not self._session_storage:
+            return
+        try:
+            from gobby.code_index.storage import CodeIndexStorage
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            cis = CodeIndexStorage(self._session_storage.db)
+            stats = cis.get_project_stats(project_id)
+            if stats and stats.total_symbols > 0:
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv_mgr.set_variable(session_id, "code_index_available", True)
+        except Exception as e:
+            self.logger.debug(f"Could not check code index availability: {e}")
 
     def _activate_default_agent(
         self,

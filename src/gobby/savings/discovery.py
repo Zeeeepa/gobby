@@ -55,10 +55,12 @@ def record_discovery_savings(
         unlocked_tools = vars_dict.get("unlocked_tools", [])
 
         used_tools_chars = 0
+        used_tools_count = 0
         for row in tools_rows:
             key = f"{row['server_name']}:{row['tool_name']}"
             if key in unlocked_tools:
                 used_tools_chars += len(row["input_schema"] or "")
+                used_tools_count += 1
 
         # 3. Record Savings
         original_chars = all_skills_chars + all_tools_chars
@@ -77,11 +79,7 @@ def record_discovery_savings(
                     "all_skills_count": len(skills_rows),
                     "used_skills_count": len(used_skill_names),
                     "all_tools_count": len(tools_rows),
-                    "used_tools_count": sum(
-                        1
-                        for row in tools_rows
-                        if f"{row['server_name']}:{row['tool_name']}" in unlocked_tools
-                    ),
+                    "used_tools_count": used_tools_count,
                 },
             )
             logger.debug(

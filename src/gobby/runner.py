@@ -1290,7 +1290,7 @@ def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
         url = f"http://{host}:{port}/api/admin/health"
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=2) as resp:
-            return bool(resp.status == 200)
+            return resp.status == 200
     except Exception:
         return False
 

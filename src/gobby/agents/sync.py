@@ -156,6 +156,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             result["orphaned"] += 1
 
     # Cascade: soft-delete installed copies of orphaned templates
+    result["cascaded"] = 0
     for name in orphaned_names:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
@@ -164,6 +165,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
         )
         for inst_row in installed_rows:
             manager.delete(inst_row["id"])
+            result["cascaded"] += 1
             logger.info(f"Soft-deleted installed copy of orphaned agent: {name}")
 
     # Ensure all template/installed agents have the "gobby" tag

@@ -175,12 +175,12 @@ def format_status_message(
         skills_total: Total number of loaded skills
         ui_enabled: Whether the web UI is enabled
         ui_mode: UI mode ('production' or 'dev')
-        service_info: OS service installation status (e.g., "launchd installed")
         ui_url: URL where the UI is accessible
         ui_pid: Process ID of the UI dev server (dev mode only)
         neo4j_installed: Whether Neo4j is installed
         neo4j_healthy: Whether Neo4j service is healthy
         neo4j_url: URL for Neo4j service
+        service_info: OS service installation status (e.g., "launchd installed")
 
     Returns:
         Formatted status message string

@@ -282,7 +282,7 @@ _YAML_SPEC = LanguageSpec(
 )
 
 _JSON_SPEC = LanguageSpec(
-    extensions=[".json"],
+    extensions=[".json", ".jsonc"],
     symbol_query="""
         (pair key: (string (string_content) @name)) @definition.property
     """,

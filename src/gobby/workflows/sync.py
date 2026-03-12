@@ -278,6 +278,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
             result["orphaned"] += 1
 
     # Cascade: soft-delete installed copies of orphaned templates
+    result["cascaded"] = 0
     for name in orphaned_names:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
@@ -287,6 +288,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
         )
         for inst_row in installed_rows:
             manager.delete(inst_row["id"])
+            result["cascaded"] += 1
             logger.info(
                 "Soft-deleted installed copy of orphaned workflow", extra={"workflow": name}
             )
@@ -429,7 +431,7 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
         "AND deleted_at IS NULL",
     )
     result["orphaned"] = 0
-    orphaned_names = set()
+    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
@@ -438,6 +440,7 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
             result["orphaned"] += 1
 
     # Cascade: soft-delete installed copies of orphaned templates
+    result["cascaded"] = 0
     for name in orphaned_names:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
@@ -446,6 +449,7 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
         )
         for inst_row in installed_rows:
             manager.delete(inst_row["id"])
+            result["cascaded"] += 1
             logger.info("Soft-deleted installed copy of orphaned rule", extra={"rule": name})
 
     _ensure_gobby_tag_on_installed(manager, "rule")
@@ -828,6 +832,7 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
             result["orphaned"] += 1
 
     # Cascade: soft-delete installed copies of orphaned templates
+    result["cascaded"] = 0
     for name in orphaned_names:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
@@ -836,6 +841,7 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
         )
         for inst_row in installed_rows:
             manager.delete(inst_row["id"])
+            result["cascaded"] += 1
             logger.info(
                 "Soft-deleted installed copy of orphaned variable", extra={"variable": name}
             )

@@ -188,6 +188,7 @@ def install_service_macos(*, verbose: bool = False) -> dict[str, Any]:
     _launchctl_bootout(quiet=True)
 
     plist_file.write_text(plist_content, encoding="utf-8")
+    plist_file.chmod(0o644)
 
     # Bootstrap the service
     uid = os.getuid()
@@ -650,6 +651,16 @@ def _check_linger() -> list[str]:
     warnings = []
     try:
         user = os.environ.get("USER", "")
+        if not user:
+            import getpass
+
+            try:
+                user = getpass.getuser()
+            except Exception:
+                pass
+        if not user:
+            warnings.append("Could not determine username — skipping linger check")
+            return warnings
         result = subprocess.run(  # nosec B603 B607
             ["loginctl", "show-user", user, "--property=Linger"],
             capture_output=True,

@@ -21,5 +21,10 @@ StartLimitBurst=3
 StandardOutput=append:{{ log_file }}
 StandardError=append:{{ error_log_file }}
 
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=%h/.gobby
+
 [Install]
 WantedBy=default.target
