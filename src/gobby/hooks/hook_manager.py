@@ -336,19 +336,24 @@ class HookManager:
         # For all other events: evaluate rules first so block effects can prevent
         # handler execution.
         if event.event_type == HookEventType.SESSION_START:
-            try:
-                response = handler(event)
-            except Exception as e:
-                self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
-                return HookResponse(decision="allow", reason=f"Handler error: {e}")
+            with create_span("hook.session_start.handler"):
+                try:
+                    response = handler(event)
+                except Exception as e:
+                    self.logger.error(
+                        f"Event handler {event.event_type} failed: {e}", exc_info=True
+                    )
+                    return HookResponse(decision="allow", reason=f"Handler error: {e}")
 
-            workflow_context, blocking_response = self._evaluate_workflow_rules(event)
-            if blocking_response:
-                return blocking_response
+            with create_span("hook.session_start.rules"):
+                workflow_context, blocking_response = self._evaluate_workflow_rules(event)
+                if blocking_response:
+                    return blocking_response
 
-            webhook_block = self._evaluate_blocking_webhooks(event)
-            if webhook_block:
-                return webhook_block
+            with create_span("hook.session_start.webhooks"):
+                webhook_block = self._evaluate_blocking_webhooks(event)
+                if webhook_block:
+                    return webhook_block
         else:
             workflow_context, blocking_response = self._evaluate_workflow_rules(event)
             if blocking_response:
@@ -404,10 +409,11 @@ class HookManager:
             except Exception as e:
                 self.logger.warning(f"Output compression failed: {e}")
 
-        try:
-            self._enricher.enrich(event, response, workflow_context=workflow_context)
-        except Exception as e:
-            self.logger.error(f"Response enrichment failed: {e}", exc_info=True)
+        with create_span("hook.enrich"):
+            try:
+                self._enricher.enrich(event, response, workflow_context=workflow_context)
+            except Exception as e:
+                self.logger.error(f"Response enrichment failed: {e}", exc_info=True)
 
         # Broadcast event (fire-and-forget)
         if self.broadcaster:
