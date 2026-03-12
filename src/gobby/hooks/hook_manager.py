@@ -478,7 +478,8 @@ class HookManager:
             blocking_response is non-None if rules blocked/modified the event.
         """
         try:
-            workflow_response = self._workflow_handler.handle(event)
+            with create_span("hook.rules.evaluate"):
+                workflow_response = self._workflow_handler.handle(event)
 
             # Extract and dispatch mcp_calls BEFORE the block check —
             # they're explicit side effects that should fire regardless of decision
@@ -491,7 +492,10 @@ class HookManager:
                 event.metadata.get("_platform_session_id", "unknown"),
             )
 
-            dispatch_results = self._dispatch_mcp_calls(mcp_calls, event) if mcp_calls else []
+            with create_span(
+                "hook.rules.mcp_dispatch", attributes={"mcp_call_count": len(mcp_calls)}
+            ):
+                dispatch_results = self._dispatch_mcp_calls(mcp_calls, event) if mcp_calls else []
 
             # Process auto-heal dispatch results: inject context and block on failure
             extra_context: list[str] = []
