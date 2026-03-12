@@ -144,6 +144,27 @@ class VectorStore:
 
         return [(str(point.id), point.score) for point in results.points]
 
+    async def set_payload(
+        self,
+        memory_id: str,
+        payload: dict[str, Any],
+        collection_name: str | None = None,
+    ) -> None:
+        """Update payload fields on a point without re-embedding.
+
+        Args:
+            memory_id: The point ID to update.
+            payload: Payload fields to set/overwrite.
+            collection_name: Optional collection name override.
+        """
+        client = self._ensure_client()
+        await asyncio.to_thread(
+            client.set_payload,
+            collection_name=collection_name or self._collection_name,
+            payload=payload,
+            points=[memory_id],
+        )
+
     async def delete(
         self,
         memory_id: str | None = None,

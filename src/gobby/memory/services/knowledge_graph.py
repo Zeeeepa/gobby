@@ -175,7 +175,7 @@ class KnowledgeGraphService:
 
         # Step 8: Link entities to source memory via MENTIONED_IN
         if memory_id:
-            await self._link_entities_to_memory(entities, memory_id)
+            await self._link_entities_to_memory(entities, memory_id, project_id=project_id)
 
         # Step 9: Cross-link entities to code symbols via RELATES_TO_CODE
         if project_id and self._vector_store and entity_embeddings:
@@ -281,13 +281,20 @@ class KnowledgeGraphService:
             for r in rows
         ]
 
-    async def _link_entities_to_memory(self, entities: list[Entity], memory_id: str) -> None:
+    async def _link_entities_to_memory(
+        self,
+        entities: list[Entity],
+        memory_id: str,
+        project_id: str | None = None,
+    ) -> None:
         """Create Memory node and MENTIONED_IN relationships from entities."""
         try:
-            # Merge Memory node
+            # Merge Memory node with project_id scoping
             await self._neo4j.query(
-                "MERGE (m:Memory {memory_id: $memory_id})",
-                {"memory_id": memory_id},
+                "MERGE (m:Memory {memory_id: $memory_id}) "
+                "ON CREATE SET m.project_id = $project_id "
+                "ON MATCH SET m.project_id = coalesce($project_id, m.project_id)",
+                {"memory_id": memory_id, "project_id": project_id},
             )
             # Link each entity to the memory
             for entity in entities:
@@ -382,6 +389,7 @@ class KnowledgeGraphService:
         query_embedding: list[float],
         limit: int = 10,
         min_score: float = 0.5,
+        project_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Search entities by vector similarity and return with linked memory IDs.
 
@@ -410,8 +418,10 @@ class KnowledgeGraphService:
                     mem_rows = await self._neo4j.query(
                         "UNWIND $names AS entity_name "
                         "MATCH ({name: entity_name})-[:MENTIONED_IN]->(m:Memory) "
+                        "WHERE m.project_id = $project_id "
+                        "OR ($project_id IS NULL AND m.project_id IS NULL) "
                         "RETURN entity_name, m.memory_id AS memory_id",
-                        {"names": entity_names},
+                        {"names": entity_names, "project_id": project_id},
                     )
                     for r in mem_rows:
                         name = r.get("entity_name", "")
@@ -449,6 +459,7 @@ class KnowledgeGraphService:
         entity_names: list[str],
         max_hops: int = 2,
         limit: int = 20,
+        project_id: str | None = None,
     ) -> list[str]:
         """Traverse from entities through relationships to find related memory IDs.
 
@@ -470,8 +481,10 @@ class KnowledgeGraphService:
                 "UNWIND $names AS name "
                 f"MATCH (start {{name: name}})-[*1..{max_hops}]-(related)"
                 "-[:MENTIONED_IN]->(m:Memory) "
+                "WHERE m.project_id = $project_id "
+                "OR ($project_id IS NULL AND m.project_id IS NULL) "
                 "RETURN DISTINCT m.memory_id AS memory_id LIMIT $limit",
-                {"names": entity_names, "limit": limit},
+                {"names": entity_names, "limit": limit, "project_id": project_id},
             )
             return [r["memory_id"] for r in rows if r.get("memory_id")]
         except Neo4jConnectionError as e:

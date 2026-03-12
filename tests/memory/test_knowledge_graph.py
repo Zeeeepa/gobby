@@ -606,3 +606,111 @@ class TestRelatesToCode:
         mock_vector_store.search.assert_called_once()
         call_kwargs = mock_vector_store.search.call_args.kwargs
         assert call_kwargs["collection_name"] == "code_symbols_my-project"
+
+
+# ===========================================================================
+# Project-ID scoping on Memory nodes
+# ===========================================================================
+
+
+class TestMemoryNodeProjectIdScoping:
+    """Tests for project_id scoping on :Memory nodes."""
+
+    async def test_link_entities_sets_project_id_on_memory_node(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+    ) -> None:
+        """_link_entities_to_memory sets project_id on the Memory node."""
+        entities = [Entity(name="Auth", entity_type="concept")]
+        await service._link_entities_to_memory(entities, "mem-1", project_id="proj-A")
+
+        # First query call is the MERGE for Memory node
+        merge_call = mock_neo4j.query.call_args_list[0]
+        cypher = merge_call.args[0]
+        params = merge_call.args[1]
+        assert "ON CREATE SET m.project_id" in cypher
+        assert "ON MATCH SET m.project_id = coalesce($project_id, m.project_id)" in cypher
+        assert params["project_id"] == "proj-A"
+        assert params["memory_id"] == "mem-1"
+
+    async def test_link_entities_with_none_project_id(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+    ) -> None:
+        """_link_entities_to_memory with project_id=None doesn't overwrite existing value."""
+        entities = [Entity(name="Auth", entity_type="concept")]
+        await service._link_entities_to_memory(entities, "mem-1", project_id=None)
+
+        merge_call = mock_neo4j.query.call_args_list[0]
+        params = merge_call.args[1]
+        # coalesce(NULL, m.project_id) preserves existing value
+        assert params["project_id"] is None
+
+    async def test_add_to_graph_passes_project_id_to_link(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+        mock_llm: AsyncMock,
+    ) -> None:
+        """add_to_graph passes project_id through to _link_entities_to_memory."""
+        mock_llm.generate_json = AsyncMock(
+            side_effect=[
+                {"entities": [{"entity": "Auth", "entity_type": "concept"}]},
+                {"relations": []},
+                {"relations_to_delete": []},
+            ]
+        )
+
+        await service.add_to_graph("auth module", memory_id="mem-1", project_id="proj-B")
+
+        # Find the Memory MERGE query (has ON CREATE SET m.project_id)
+        memory_merges = [
+            c for c in mock_neo4j.query.call_args_list if "ON CREATE SET m.project_id" in str(c)
+        ]
+        assert len(memory_merges) == 1
+        assert memory_merges[0].args[1]["project_id"] == "proj-B"
+
+    async def test_search_entities_by_vector_filters_by_project_id(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+    ) -> None:
+        """search_entities_by_vector passes project_id filter to memory lookup query."""
+        mock_neo4j.vector_search = AsyncMock(
+            return_value=[{"name": "Auth", "labels": ["Concept"], "score": 0.9}]
+        )
+        mock_neo4j.ensure_vector_index = AsyncMock()
+
+        await service.search_entities_by_vector(
+            query_embedding=[0.1, 0.2],
+            project_id="proj-A",
+        )
+
+        # Find the MENTIONED_IN query
+        mem_queries = [c for c in mock_neo4j.query.call_args_list if "MENTIONED_IN" in str(c)]
+        assert len(mem_queries) == 1
+        cypher = mem_queries[0].args[0]
+        params = mem_queries[0].args[1]
+        assert "m.project_id = $project_id" in cypher
+        assert params["project_id"] == "proj-A"
+
+    async def test_find_related_memory_ids_filters_by_project_id(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+    ) -> None:
+        """find_related_memory_ids passes project_id filter to traversal query."""
+        mock_neo4j.query = AsyncMock(return_value=[{"memory_id": "mem-1"}])
+
+        await service.find_related_memory_ids(
+            entity_names=["Auth"],
+            project_id="proj-A",
+        )
+
+        call = mock_neo4j.query.call_args_list[0]
+        cypher = call.args[0]
+        params = call.args[1]
+        assert "m.project_id = $project_id" in cypher
+        assert params["project_id"] == "proj-A"

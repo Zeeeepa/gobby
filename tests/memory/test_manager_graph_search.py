@@ -362,6 +362,113 @@ class TestSearchMemoriesGraphIntegration:
         assert "mem-2" in result_ids
 
 
+class TestGraphSearchProjectIdScoping:
+    """Tests for project_id scoping in graph-augmented search."""
+
+    async def test_search_graph_for_memories_passes_project_id(self) -> None:
+        """_search_graph_for_memories forwards project_id to KG service methods."""
+        llm_service = MagicMock()
+        llm_service.get_default_provider = MagicMock(return_value=AsyncMock())
+
+        manager = _make_manager(
+            neo4j_url="http://localhost:7474",
+            llm_service=llm_service,
+            vector_store=AsyncMock(),
+            embed_fn=AsyncMock(return_value=[0.1]),
+        )
+
+        manager._kg_service.search_entities_by_vector = AsyncMock(
+            return_value=[
+                {"name": "Auth", "labels": [], "score": 0.9, "memory_ids": ["mem-1"]},
+            ]
+        )
+        manager._kg_service.find_related_memory_ids = AsyncMock(return_value=[])
+
+        await manager._search_graph_for_memories(
+            query_embedding=[0.1],
+            project_id="proj-A",
+        )
+
+        # Verify project_id was passed to both KG methods
+        manager._kg_service.search_entities_by_vector.assert_called_once()
+        call_kwargs = manager._kg_service.search_entities_by_vector.call_args.kwargs
+        assert call_kwargs["project_id"] == "proj-A"
+
+        manager._kg_service.find_related_memory_ids.assert_called_once()
+        call_kwargs = manager._kg_service.find_related_memory_ids.call_args.kwargs
+        assert call_kwargs["project_id"] == "proj-A"
+
+    async def test_defense_in_depth_skips_cross_project_memories(self) -> None:
+        """search_memories skips memories whose project_id doesn't match."""
+        llm_service = MagicMock()
+        llm_service.get_default_provider = MagicMock(return_value=AsyncMock())
+
+        vs = AsyncMock()
+        embed_fn = AsyncMock(return_value=[0.1])
+
+        manager = _make_manager(
+            neo4j_url="http://localhost:7474",
+            llm_service=llm_service,
+            vector_store=vs,
+            embed_fn=embed_fn,
+        )
+
+        # Qdrant returns both memories (simulating a leak)
+        vs.search = AsyncMock(return_value=[("mem-1", 0.9), ("mem-2", 0.8)])
+        manager._kg_service.search_entities_by_vector = AsyncMock(return_value=[])
+        manager._kg_service.find_related_memory_ids = AsyncMock(return_value=[])
+
+        # mem-1 belongs to proj-A, mem-2 belongs to proj-B
+        mem_a = _mock_memory("mem-1", "content A")
+        mem_a.project_id = "proj-A"
+        mem_b = _mock_memory("mem-2", "content B")
+        mem_b.project_id = "proj-B"
+
+        manager.storage.get_memory = MagicMock(
+            side_effect=lambda mid: mem_a if mid == "mem-1" else mem_b
+        )
+
+        result = await manager.search_memories(query="test", project_id="proj-A", limit=10)
+
+        result_ids = [m.id for m in result]
+        assert "mem-1" in result_ids
+        assert "mem-2" not in result_ids  # Cross-project memory filtered out
+
+    async def test_defense_in_depth_allows_null_project_memories(self) -> None:
+        """search_memories does NOT skip memories with null project_id (global memories)."""
+        llm_service = MagicMock()
+        llm_service.get_default_provider = MagicMock(return_value=AsyncMock())
+
+        vs = AsyncMock()
+        embed_fn = AsyncMock(return_value=[0.1])
+
+        manager = _make_manager(
+            neo4j_url="http://localhost:7474",
+            llm_service=llm_service,
+            vector_store=vs,
+            embed_fn=embed_fn,
+        )
+
+        vs.search = AsyncMock(return_value=[("mem-1", 0.9), ("mem-2", 0.8)])
+        manager._kg_service.search_entities_by_vector = AsyncMock(return_value=[])
+        manager._kg_service.find_related_memory_ids = AsyncMock(return_value=[])
+
+        mem_a = _mock_memory("mem-1", "content A")
+        mem_a.project_id = "proj-A"
+        mem_global = _mock_memory("mem-2", "global content")
+        mem_global.project_id = None  # Global memory
+
+        manager.storage.get_memory = MagicMock(
+            side_effect=lambda mid: mem_a if mid == "mem-1" else mem_global
+        )
+
+        result = await manager.search_memories(query="test", project_id="proj-A", limit=10)
+
+        result_ids = [m.id for m in result]
+        assert "mem-1" in result_ids
+        assert "mem-2" in result_ids  # Global memory NOT filtered
+
+
 class TestCreateMemoryPassesMemoryId:
     """Tests that create_memory passes memory_id to graph background task."""
 

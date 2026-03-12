@@ -292,11 +292,7 @@ class MemoryManager:
         await self._embed_and_upsert(
             memory.id,
             content,
-            payload={
-                "content": content,
-                "memory_type": memory_type,
-                "project_id": project_id,
-            },
+            payload={"project_id": project_id},
         )
 
         # Auto cross-reference if enabled
@@ -348,7 +344,7 @@ class MemoryManager:
         await self._embed_and_upsert(
             memory.id,
             memory.content,
-            payload={"content": memory.content, "project_id": project_id},
+            payload={"project_id": project_id},
         )
         return memory
 
@@ -375,7 +371,7 @@ class MemoryManager:
         await self._embed_and_upsert(
             memory.id,
             memory.content,
-            payload={"content": memory.content, "project_id": project_id},
+            payload={"project_id": project_id},
         )
         return memory
 
@@ -384,6 +380,7 @@ class MemoryManager:
         query_embedding: list[float],
         limit: int = 10,
         min_score: float = 0.5,
+        project_id: str | None = None,
     ) -> list[str]:
         """Search Neo4j graph for memory IDs via entity vector similarity.
 
@@ -406,6 +403,7 @@ class MemoryManager:
             query_embedding=query_embedding,
             limit=limit,
             min_score=min_score,
+            project_id=project_id,
         )
 
         if not entity_results:
@@ -425,6 +423,7 @@ class MemoryManager:
             entity_names=entity_names,
             max_hops=2,
             limit=limit,
+            project_id=project_id,
         )
 
         # Step 3: Merge — direct first, then traversed (deduped)
@@ -522,6 +521,7 @@ class MemoryManager:
                     query_embedding=query_embedding,
                     limit=limit * 2,
                     min_score=graph_min_score,
+                    project_id=project_id,
                 )
 
                 qdrant_result, graph_result = await asyncio.gather(
@@ -557,6 +557,9 @@ class MemoryManager:
                     try:
                         mem = self.storage.get_memory(memory_id)
                     except ValueError:
+                        continue
+                    # Defense-in-depth: skip cross-project memories that leaked through graph
+                    if project_id and mem.project_id and mem.project_id != project_id:
                         continue
                     if memory_type and mem.memory_type != memory_type:
                         continue
@@ -784,7 +787,7 @@ class MemoryManager:
             await self._embed_and_upsert(
                 memory_id,
                 content,
-                payload={"content": content, "project_id": result.project_id},
+                payload={"project_id": result.project_id},
             )
 
         return result
@@ -806,7 +809,7 @@ class MemoryManager:
             await self._embed_and_upsert(
                 memory_id,
                 content,
-                payload={"content": content, "project_id": memory.project_id},
+                payload={"project_id": memory.project_id},
             )
         return memory
 

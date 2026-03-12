@@ -74,7 +74,7 @@ async def test_create_memory_upserts_to_qdrant(manager, mock_vector_store, mock_
     mock_vector_store.upsert.assert_awaited_once()
     call_args = mock_vector_store.upsert.call_args
     assert call_args[0][0] == memory.id  # memory_id
-    assert "content" in call_args[0][2]  # payload has content
+    assert "project_id" in call_args[0][2]  # payload has project_id
 
 
 @pytest.mark.asyncio
