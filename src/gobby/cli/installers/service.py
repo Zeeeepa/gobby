@@ -85,7 +85,7 @@ def _find_project_from_cwd() -> Path | None:
     return None
 
 
-def _resolve_install_context(*, verbose: bool = False) -> dict[str, str]:
+def _resolve_install_context(*, verbose: bool = False) -> dict[str, str | bool]:
     """Resolve the execution context for service file generation.
 
     Returns dict with: python_executable, working_directory, mode,

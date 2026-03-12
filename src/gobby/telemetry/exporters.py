@@ -62,7 +62,7 @@ def create_exporters(
                 span_exporters.append(
                     OTLPGRPCSpanExporter(
                         endpoint=config.exporter.otlp_endpoint,
-                        headers=headers,  # type: ignore[arg-type]
+                        headers=headers,
                     )
                 )
 
