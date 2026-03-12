@@ -161,10 +161,11 @@ class Neo4jClient:
         Returns:
             Dict with 'entities' and 'relationships' lists
         """
-        # Fetch entities
+        # Fetch entities — ordered by updated_at DESC so the limit prioritizes recent activity
         entity_rows = await self.query(
             "MATCH (n) WHERE n:_Entity OR n:Memory "
-            "RETURN n.name AS name, labels(n) AS labels, properties(n) AS props LIMIT $limit",
+            "RETURN n.name AS name, labels(n) AS labels, properties(n) AS props "
+            "ORDER BY n.updated_at DESC LIMIT $limit",
             {"limit": limit},
         )
 
@@ -342,8 +343,8 @@ class Neo4jClient:
         label_clause = ":" + ":".join(labels) if labels else ""
         cypher = (
             f"MERGE (n{label_clause} {{name: $name}}) "
-            "ON CREATE SET n += $props "
-            "ON MATCH SET n += $props "
+            "ON CREATE SET n += $props, n.created_at = datetime(), n.updated_at = datetime() "
+            "ON MATCH SET n += $props, n.updated_at = datetime() "
             "RETURN n.name AS name"
         )
         return await self.query(cypher, {"name": name, "props": props})
