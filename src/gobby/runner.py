@@ -1275,7 +1275,32 @@ async def run_gobby(config_path: Path | None = None, verbose: bool = False) -> N
     await runner.run()
 
 
+def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
+    """Quick check whether a healthy Gobby daemon is already listening."""
+    import urllib.request
+
+    try:
+        url = f"http://{host}:{port}/api/admin/health"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
 def main(config_path: Path | None = None, verbose: bool = False) -> None:
+    # Fast guard: if a healthy daemon is already serving on our port, exit
+    # cleanly so launchd (KeepAlive.SuccessfulExit=false) won't respawn us.
+    from gobby.config.bootstrap import load_bootstrap
+
+    bootstrap = load_bootstrap(str(config_path) if config_path else None)
+    if _healthy_daemon_running(bootstrap.daemon_port, bootstrap.bind_host):
+        print(
+            f"Gobby daemon already healthy on port {bootstrap.daemon_port}, exiting.",
+            file=sys.stderr,
+        )
+        sys.exit(0)
+
     try:
         asyncio.run(run_gobby(config_path=config_path, verbose=verbose))
     except KeyboardInterrupt:

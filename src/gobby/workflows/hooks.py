@@ -135,8 +135,9 @@ class WorkflowHookHandler:
             if project_path is None and hasattr(event, "metadata"):
                 project_path = event.metadata.get("project_path")
 
+            baseline = set(variables.get("baseline_dirty_files", []))
             eval_context = {
-                "has_dirty_files": LazyBool(lambda: bool(get_dirty_files(project_path)))
+                "has_dirty_files": LazyBool(lambda: bool(get_dirty_files(project_path) - baseline))
             }
 
             # Snapshot BEFORE observers to capture both observer and rule changes in the diff

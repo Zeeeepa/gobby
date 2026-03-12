@@ -76,20 +76,32 @@ def register_action_tools(
         description="Capture current dirty files as baseline for session-aware commit detection.",
     )
     async def capture_baseline_dirty_files_tool(
+        session_id: str = "",
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Capture current dirty files as a baseline.
+        Capture current dirty files as a baseline and persist to session variables.
 
         Args:
+            session_id: Session ID (auto-injected by dispatch)
             project_path: Path to the project directory for git status check
         """
         try:
             dirty_files = get_dirty_files(project_path)
+            baseline = sorted(dirty_files)
+
+            # Persist baseline to session variables so it survives daemon restarts
+            if session_id and db:
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                SessionVariableManager(db).set_variable(
+                    session_id, "baseline_dirty_files", baseline
+                )
+
             return {
                 "success": True,
                 "file_count": len(dirty_files),
-                "files": sorted(dirty_files),
+                "files": baseline,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

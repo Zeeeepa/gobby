@@ -765,6 +765,8 @@ class HookManager:
                 arguments["session_id"] = event.metadata.get("_platform_session_id", "")
             if "prompt_text" not in arguments:
                 arguments["prompt_text"] = event.data.get("prompt") if event.data else None
+            if "project_path" not in arguments:
+                arguments["project_path"] = event.metadata.get("project_path", "")
 
             async def _call(s: str, t: str, args: dict[str, Any]) -> dict[str, Any] | None:
                 try:
