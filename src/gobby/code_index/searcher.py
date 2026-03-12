@@ -57,14 +57,22 @@ class CodeSearcher:
 
         Returns list of dicts with symbol data + score + source info.
         """
-        # Source 1: SQLite name search (always available)
-        name_results = self._storage.search_symbols_by_name(
+        # Source 1: FTS5 full-text search (primary), with LIKE fallback
+        name_results = self._storage.search_symbols_fts(
             query=query,
             project_id=project_id,
             kind=kind,
             file_path=file_path,
             limit=limit * 2,
         )
+        if not name_results:
+            name_results = self._storage.search_symbols_by_name(
+                query=query,
+                project_id=project_id,
+                kind=kind,
+                file_path=file_path,
+                limit=limit * 2,
+            )
 
         # Build score map: symbol_id -> {source: rank}
         score_map: dict[str, dict[str, int]] = {}
@@ -172,11 +180,18 @@ class CodeSearcher:
         file_path: str | None = None,
         limit: int = 20,
     ) -> list[dict[str, Any]]:
-        """Full-text search across symbol names and signatures (SQLite only)."""
-        results = self._storage.search_symbols_by_name(
+        """Full-text search across symbol names, signatures, docstrings, and summaries."""
+        results = self._storage.search_symbols_fts(
             query=query,
             project_id=project_id,
             file_path=file_path,
             limit=limit,
         )
+        if not results:
+            results = self._storage.search_symbols_by_name(
+                query=query,
+                project_id=project_id,
+                file_path=file_path,
+                limit=limit,
+            )
         return [sym.to_brief() for sym in results]

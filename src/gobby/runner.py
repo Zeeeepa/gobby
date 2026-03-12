@@ -285,7 +285,11 @@ class GobbyRunner:
                 ci_config = self.config.code_index
                 ci_storage = CodeIndexStorage(self.database)
                 ci_parser = CodeParser(ci_config)
-                ci_graph = CodeGraph()  # Neo4j client wired later if available
+                # Share Neo4j client from memory_manager if available
+                ci_neo4j = None
+                if self.memory_manager and getattr(self.memory_manager, "_neo4j_client", None):
+                    ci_neo4j = self.memory_manager._neo4j_client
+                ci_graph = CodeGraph(neo4j_client=ci_neo4j)
                 ci_summarizer = (
                     SymbolSummarizer(self.llm_service, ci_config)
                     if self.llm_service and ci_config.summary_enabled

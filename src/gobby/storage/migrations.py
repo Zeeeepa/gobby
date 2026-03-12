@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 154
+BASELINE_VERSION = 155
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -946,6 +946,11 @@ CREATE INDEX idx_cs_qualified ON code_symbols(qualified_name);
 CREATE INDEX idx_cs_kind ON code_symbols(kind);
 CREATE INDEX idx_cs_parent ON code_symbols(parent_symbol_id);
 
+CREATE VIRTUAL TABLE code_symbols_fts USING fts5(
+    name, qualified_name, signature, docstring, summary,
+    content='code_symbols', content_rowid='rowid'
+);
+
 CREATE TABLE spans (
     span_id TEXT PRIMARY KEY,
     trace_id TEXT NOT NULL,
@@ -986,6 +991,42 @@ def _migrate_v147_add_agent_run_columns(db: LocalDatabase) -> None:
     for col_name, col_type in columns:
         if col_name not in existing:
             db.execute(f"ALTER TABLE agent_runs ADD COLUMN {col_name} {col_type}")
+
+
+def _setup_code_symbols_fts(db: LocalDatabase) -> None:
+    """Create FTS5 triggers and populate from existing data.
+
+    The FTS5 virtual table itself is created in BASELINE_SCHEMA (or the
+    migration SQL), but triggers contain semicolons inside BEGIN...END
+    which break the naive ';'-split parser. So we use executescript() here.
+    """
+    conn = db.connection
+    conn.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS code_symbols_fts USING fts5(
+            name, qualified_name, signature, docstring, summary,
+            content='code_symbols', content_rowid='rowid'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS code_symbols_ai AFTER INSERT ON code_symbols BEGIN
+            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring, summary)
+            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring, new.summary);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS code_symbols_ad AFTER DELETE ON code_symbols BEGIN
+            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring, summary)
+            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring, old.summary);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS code_symbols_au AFTER UPDATE ON code_symbols BEGIN
+            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring, summary)
+            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring, old.summary);
+            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring, summary)
+            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring, new.summary);
+        END;
+
+        INSERT OR IGNORE INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring, summary)
+        SELECT rowid, name, qualified_name, signature, docstring, summary FROM code_symbols;
+    """)
 
 
 # Migrations beyond v133.
@@ -1265,6 +1306,11 @@ CREATE TABLE IF NOT EXISTS savings_daily (
 );
 CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
     ),
+    (
+        155,
+        "Add FTS5 virtual table for code symbol full-text search",
+        _setup_code_symbols_fts,
+    ),
 ]
 
 
@@ -1293,6 +1339,9 @@ def _apply_baseline(db: LocalDatabase) -> None:
             "INSERT INTO schema_version (version) VALUES (?)",
             (BASELINE_VERSION,),
         )
+
+    # FTS5 triggers use semicolons in BEGIN...END — can't go through the split
+    _setup_code_symbols_fts(db)
 
     logger.info(f"Baseline schema applied, now at version {BASELINE_VERSION}")
 

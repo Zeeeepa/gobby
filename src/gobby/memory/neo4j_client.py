@@ -452,6 +452,18 @@ class Neo4jClient:
             {"embedding": query_embedding, "limit": limit, "min_score": min_score},
         )
 
+    async def execute_read(
+        self, cypher: str, params: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        """Adapter for CodeGraph compatibility. Delegates to query()."""
+        return await self.query(cypher, params)
+
+    async def execute_write(
+        self, cypher: str, params: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        """Adapter for CodeGraph compatibility. Delegates to query()."""
+        return await self.query(cypher, params)
+
     async def ping(self) -> bool:
         """Check if Neo4j is reachable."""
         try:

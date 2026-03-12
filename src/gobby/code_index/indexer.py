@@ -297,7 +297,7 @@ class CodeIndexer:
         if not symbols or self._embed_fn is None or self._vector_store is None:
             return 0
 
-        # Build text for embedding: name + signature + docstring
+        # Build text for embedding: name + signature + docstring + summary
         texts = []
         ids = []
         for sym in symbols:
@@ -306,6 +306,8 @@ class CodeIndexer:
                 parts.append(sym.signature)
             if sym.docstring:
                 parts.append(sym.docstring[:200])
+            if sym.summary:
+                parts.append(sym.summary)
             texts.append(" ".join(parts))
             ids.append(sym.id)
 
@@ -352,6 +354,21 @@ class CodeIndexer:
             logger.debug(f"Vector upsert failed: {e}")
 
         return count
+
+    async def reembed_symbols(self, symbol_ids: list[str], project_id: str) -> int:
+        """Re-embed specific symbols (e.g. after summary generation).
+
+        Fetches symbols from storage, rebuilds embedding text (now including
+        summary), and upserts to Qdrant.
+        """
+        if not symbol_ids or self._embed_fn is None or self._vector_store is None:
+            return 0
+
+        symbols = self._storage.get_symbols(symbol_ids)
+        if not symbols:
+            return 0
+
+        return await self._embed_symbols(symbols, project_id)
 
     async def _add_graph_data(
         self,
