@@ -22,7 +22,6 @@ VALID_CATEGORIES: frozenset[str] = frozenset(
         "config",  # Configuration file changes
         "docs",  # Documentation tasks
         "test",  # Test infrastructure tasks (fixtures, helpers)
-        "refactor",  # Refactoring tasks (including updating existing tests)
         "research",  # Investigation/exploration tasks
         "planning",  # Design/architecture tasks
         "manual",  # Manual functional testing (observe output)
@@ -90,7 +89,7 @@ class Task:
         "escalated",
     ]
     priority: int
-    task_type: str  # bug, feature, task, epic, chore
+    task_type: str  # bug, feature, task, epic, chore, refactor
     created_at: str
     updated_at: str
     # Optional fields

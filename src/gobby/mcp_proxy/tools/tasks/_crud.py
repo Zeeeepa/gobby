@@ -239,7 +239,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "task_type": {
                     "type": "string",
-                    "description": "Task type (task, bug, feature, epic)",
+                    "description": "Task type (task, bug, feature, epic, chore, refactor)",
                     "default": "task",
                 },
                 "parent_task_id": {
@@ -267,12 +267,12 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "category": {
                     "type": "string",
-                    "description": "Task domain: 'code' (implementation), 'config' (configuration files), 'docs' (documentation), 'test' (test-writing), 'research' (investigation), 'planning' (design/architecture), or 'manual' (manual verification).",
+                    "description": "Task domain: 'code' (implementation — requires validation_criteria), 'config' (configuration files), 'docs' (documentation), 'test' (test-writing), 'research' (investigation), 'planning' (design/architecture), or 'manual' (manual verification).",
                     "enum": ["code", "config", "docs", "test", "research", "planning", "manual"],
                 },
                 "validation_criteria": {
                     "type": "string",
-                    "description": "Acceptance criteria for task completion. Required for code tasks. Describe what 'done' looks like — validate_task checks the diff against this.",
+                    "description": "Acceptance criteria for task completion. REQUIRED when category='code' — creation fails without it. Describe what 'done' looks like — validate_task checks the diff against this.",
                     "default": None,
                 },
                 "session_id": {
