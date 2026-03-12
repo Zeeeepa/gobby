@@ -42,9 +42,6 @@ from gobby.mcp_proxy.tools.workflows._rules import (
     list_rules,
     toggle_rule,
 )
-from gobby.mcp_proxy.tools.workflows._variables import (
-    set_session_variable,
-)
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -140,25 +137,6 @@ def create_workflows_registry(
             session_id,
             instance_manager=_instance_manager,
             session_var_manager=_session_var_manager,
-        )
-
-    @registry.tool(
-        name="set_session_variable",
-        description="Set a session-scoped shared variable (visible to all workflows). Accepts #N, N, UUID, or prefix for session_id.",
-    )
-    def _set_session_variable(
-        name: str,
-        value: str | int | float | bool | None,
-        session_id: str | None = None,
-    ) -> dict[str, Any]:
-        if _session_manager is None or _session_var_manager is None:
-            return {"error": "Workflow tools require database connection"}
-        return set_session_variable(
-            _session_manager,
-            _session_var_manager,
-            name,
-            value,
-            session_id,
         )
 
     @registry.tool(

@@ -216,39 +216,3 @@ def get_variable(
         "variables": variables,
         "scope": "session",
     }
-
-
-def set_session_variable(
-    session_manager: LocalSessionManager,
-    session_var_manager: SessionVariableManager,
-    name: str,
-    value: str | int | float | bool | None,
-    session_id: str | None = None,
-) -> dict[str, Any]:
-    """
-    Set a session-scoped shared variable (visible to all workflows).
-
-    Args:
-        session_manager: LocalSessionManager instance
-        session_var_manager: SessionVariableManager instance
-        name: Variable name
-        value: Variable value
-        session_id: Session reference (accepts #N, N, UUID, or prefix)
-
-    Returns:
-        Success status
-    """
-    if not session_id:
-        return {
-            "success": False,
-            "error": "session_id is required.",
-        }
-
-    try:
-        resolved_session_id = resolve_session_id(session_manager, session_id)
-    except ValueError as e:
-        return {"success": False, "error": str(e)}
-
-    value = _coerce_value(value)
-    session_var_manager.set_variable(resolved_session_id, name, value)
-    return {"success": True, "value": value, "scope": "session"}
