@@ -604,7 +604,8 @@ function ToolResultContent({ call }: { call: ToolCall }) {
 }
 
 const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
-  const [expanded, setExpanded] = useState(true)
+  const isActive = call.status === 'calling' || call.status === 'pending_approval'
+  const [expanded, setExpanded] = useState(isActive)
   const displayName = formatToolName(call.tool_name)
   const summary = useMemo(() => getToolSummary(call), [call])
   const isCompact = summary !== null && COMPACT_HEADER_TOOLS.has(displayName)
@@ -1022,7 +1023,7 @@ export const ToolChainGroup = memo(function ToolChainGroup({ toolCalls, onRespon
   const hasInFlight = toolCalls.some(tc => tc.status === 'calling')
   const hasErrors = toolCalls.some(tc => tc.status === 'error')
   const allCompleted = toolCalls.every(tc => tc.status === 'completed')
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(hasInFlight || !allCompleted)
 
   const summary = useMemo(() => buildChainSummary(toolCalls), [toolCalls])
   const count = toolCalls.length

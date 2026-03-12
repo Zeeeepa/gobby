@@ -1,5 +1,16 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+
+// Mock IntersectionObserver so LazyHighlighter renders SyntaxHighlighter immediately
+vi.stubGlobal('IntersectionObserver', class {
+  constructor(private callback: IntersectionObserverCallback) {}
+  observe() {
+    this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+  }
+  unobserve() {}
+  disconnect() {}
+})
+
 import { Markdown } from '../Markdown'
 
 describe('Markdown', () => {
