@@ -12,7 +12,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 # opentelemetry-api and sdk are in dependencies
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+    OTLPSpanExporter as OTLPGRPCSpanExporter,
+)
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter as OTLPHTTPSpanExporter,
+)
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
@@ -45,15 +50,21 @@ def create_exporters(
             span_exporters.append(ConsoleSpanExporter())
 
         if config.exporter.otlp_endpoint:
-            # We use gRPC as default protocol per TelemetrySettings
-            # Note: OTLPSpanExporter handles protocol via environment or arguments,
-            # but here we follow the config model.
-            span_exporters.append(
-                OTLPSpanExporter(
-                    endpoint=config.exporter.otlp_endpoint,
-                    # insecure=True if http? Usually OTLP gRPC endpoint handles this.
+            headers = config.exporter.otlp_headers or None
+            if config.exporter.otlp_protocol == "http":
+                span_exporters.append(
+                    OTLPHTTPSpanExporter(
+                        endpoint=config.exporter.otlp_endpoint,
+                        headers=headers,
+                    )
                 )
-            )
+            else:
+                span_exporters.append(
+                    OTLPGRPCSpanExporter(
+                        endpoint=config.exporter.otlp_endpoint,
+                        headers=headers,  # type: ignore[arg-type]
+                    )
+                )
 
     # 2. Metric Readers
     if config.metrics_enabled:

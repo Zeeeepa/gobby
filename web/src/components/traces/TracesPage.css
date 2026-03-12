@@ -216,6 +216,16 @@
 .trace-waterfall-bar--ok { fill: #16a34a; }
 .trace-waterfall-bar--error { fill: #dc2626; }
 .trace-waterfall-bar--unset { fill: #737373; }
+.trace-waterfall-bar--llm { fill: #d97706; }
+.trace-waterfall-bar--llm:hover { fill: #b45309; }
+
+/* Token badge on waterfall bars */
+.trace-waterfall-token-badge {
+  font-size: 9px;
+  fill: var(--text-primary);
+  font-family: monospace;
+  opacity: 0.85;
+}
 
 /* TraceDetail styles */
 .trace-detail-content {
@@ -283,4 +293,88 @@
 
 .trace-detail-event-time {
   color: var(--text-secondary);
+}
+
+/* LLM detail panel */
+.llm-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.llm-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.llm-summary-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.llm-summary-value {
+  font-size: 0.85rem;
+  font-family: monospace;
+  color: var(--text-primary);
+}
+
+.llm-token-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary, rgba(255,255,255,0.1));
+  margin-top: 4px;
+}
+
+.llm-token-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #d97706;
+}
+
+.llm-content-block {
+  background: var(--bg-tertiary, rgba(255,255,255,0.05));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.llm-content-block--prompt {
+  border-left: 3px solid var(--accent, #3b82f6);
+}
+
+.llm-content-block--completion {
+  border-left: 3px solid #d97706;
+}
+
+.llm-toggle-raw {
+  float: right;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.llm-toggle-raw:hover {
+  color: var(--text-primary);
+}
+
+/* LLM badge in trace list */
+.trace-llm-badge {
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(217, 119, 6, 0.15);
+  color: #d97706;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
 }

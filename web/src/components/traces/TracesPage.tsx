@@ -3,6 +3,7 @@ import { useTraces, useTraceDetail } from '../../hooks/useTraces'
 import { TraceWaterfall } from './TraceWaterfall'
 import { TraceDetail } from './TraceDetail'
 import { formatTime } from '../workflows/execution-utils'
+import { isLLMSpan, parseLLMAttributes, formatTokenCount } from './llm-utils'
 import './TracesPage.css'
 
 interface TracesPageProps {
@@ -64,6 +65,11 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
 
               {traces.map((trace) => {
                 const isSelected = trace.trace_id === selectedTraceId
+                const llmTokens = isSelected ? spans.filter(isLLMSpan).reduce((sum, s) => {
+                  const a = parseLLMAttributes(s.attributes_json)
+                  return sum + (a ? a.promptTokens + a.completionTokens : 0)
+                }, 0) : 0
+                const hasLLMSpans = isSelected && spans.some(isLLMSpan)
                 return (
                   <div
                     key={trace.trace_id}
@@ -78,6 +84,11 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
                       <span className="trace-name" title={trace.root_span_name || trace.trace_id}>
                         {trace.root_span_name || 'Unknown Span'}
                       </span>
+                      {hasLLMSpans && (
+                        <span className="trace-llm-badge" title={`${formatTokenCount(llmTokens)} tokens`}>
+                          LLM {formatTokenCount(llmTokens)}
+                        </span>
+                      )}
                     </div>
                     <div className="trace-item-meta">
                       <span className="trace-id">{trace.trace_id.slice(0, 8)}...</span>
