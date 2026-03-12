@@ -1,0 +1,98 @@
+name: nightly-fixes
+type: pipeline
+version: "1.0"
+description: |
+  Nightly code quality fix pipeline. Checks for reports from pre-push-test.sh,
+  then dispatches a linter agent (Gemini) followed by a test fixer agent (Claude Opus).
+  Sequential execution ensures lint fixes reduce test failures.
+
+steps:
+  # --- RE-ENTRANCY GUARD ---
+  - id: reentry_check
+    mcp:
+      server: gobby-workflows
+      tool: list_pipeline_executions
+      arguments:
+        pipeline_name: "nightly-fixes"
+        status: "running"
+
+  - id: reentry_gate
+    condition: "${{ len(reentry_check.output.executions) > 1 }}"
+    mcp:
+      server: gobby-workflows
+      tool: fail_pipeline
+      arguments:
+        message: "Skipped: another nightly-fixes execution is already running"
+
+  # --- CHECK REPORTS EXIST ---
+  - id: check_reports
+    exec: "bash -c 'ls reports/ruff-*.txt 2>/dev/null | wc -l'"
+
+  - id: no_reports_gate
+    condition: "${{ steps.check_reports.output.strip() == '0' }}"
+    mcp:
+      server: gobby-workflows
+      tool: fail_pipeline
+      arguments:
+        message: "No reports found — skipping nightly fixes"
+
+  # --- LINTER AGENT (Gemini) ---
+  - id: create_linter_task
+    mcp:
+      server: gobby-tasks
+      tool: create_task
+      arguments:
+        title: "Nightly lint/type/security fixes"
+        description: "Fix ruff, mypy, and bandit errors from latest pre-push-test.sh reports in ./reports/"
+        task_type: "task"
+        category: "code"
+        session_id: "${{ session_id }}"
+
+  - id: spawn_linter
+    mcp:
+      server: gobby-agents
+      tool: spawn_agent
+      arguments:
+        prompt: "Fix lint, type, and security errors from reports in ./reports/"
+        agent: "nightly-linter"
+        task_id: "${{ steps.create_linter_task.output.id }}"
+        provider: "gemini"
+        timeout: 1200
+        parent_session_id: "${{ session_id }}"
+        mode: "terminal"
+
+  - id: wait_linter
+    wait:
+      completion_id: "${{ steps.spawn_linter.output.run_id }}"
+      timeout: 1800
+
+  # --- TEST FIXER AGENT (Claude Opus) ---
+  - id: create_tester_task
+    mcp:
+      server: gobby-tasks
+      tool: create_task
+      arguments:
+        title: "Nightly test failure fixes"
+        description: "Fix pytest test failures from latest pre-push-test.sh report in ./reports/"
+        task_type: "task"
+        category: "code"
+        session_id: "${{ session_id }}"
+
+  - id: spawn_tester
+    mcp:
+      server: gobby-agents
+      tool: spawn_agent
+      arguments:
+        prompt: "Fix test failures from the pytest report in ./reports/"
+        agent: "nightly-test-fixer"
+        task_id: "${{ steps.create_tester_task.output.id }}"
+        provider: "claude"
+        model: "opus"
+        timeout: 1800
+        parent_session_id: "${{ session_id }}"
+        mode: "terminal"
+
+  - id: wait_tester
+    wait:
+      completion_id: "${{ steps.spawn_tester.output.run_id }}"
+      timeout: 2400

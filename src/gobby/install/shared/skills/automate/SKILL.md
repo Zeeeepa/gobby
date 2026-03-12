@@ -662,30 +662,55 @@ call_tool("gobby-cron", "create_cron_job", {
 
 ## Part 5: Installation & Testing
 
+> **CRITICAL: Always create template files.** DB-only definitions created via MCP are
+> ephemeral — they get purged on daemon restart when `sync_bundled_content_to_db` runs.
+> The correct workflow is: write a YAML template file, commit it, then the sync process
+> installs it to the DB automatically. MCP creation tools (`create_pipeline`,
+> `create_agent_definition`) are for **testing and iteration only**, not production use.
+
 ### Installing Pipelines
 
-```python
-# Option 1: Create via MCP (preferred)
-call_tool("gobby-workflows", "create_pipeline", {
-    "name": "my-pipeline",
-    "definition": { ... }  # Pipeline dict
-})
+**Step 1: Write the YAML template file:**
+```bash
+# Save to the shared templates directory
+src/gobby/install/shared/workflows/pipelines/my-pipeline.yaml
+```
 
-# Option 2: Save YAML file, then import
-# Write to .gobby/pipelines/my-pipeline.yaml
-# Then: gobby pipelines import .gobby/pipelines/my-pipeline.yaml
+**Step 2: Sync to DB** (happens automatically on daemon restart, or manually):
+```python
+call_tool("gobby-workflows", "reload_cache", {})
+```
+
+**Step 3: Enable it** (templates are disabled by default):
+```python
+call_tool("gobby-workflows", "update_pipeline", {
+    "name": "my-pipeline",
+    "enabled": true
+})
+```
+
+For quick iteration/testing only (NOT for production — will be lost on restart):
+```python
+call_tool("gobby-workflows", "create_pipeline", {
+    "yaml_content": "..."  # Pipeline YAML string
+})
 ```
 
 ### Installing Agent Definitions
 
-```python
-# Create via MCP
-call_tool("gobby-workflows", "create_agent_definition", {
-    "name": "my-agent",
-    "definition": { ... }  # Agent definition dict
-})
+**Step 1: Write the YAML template file:**
+```bash
+# Save to the shared templates directory
+src/gobby/install/shared/workflows/agents/my-agent.yaml
+```
 
-# Enable it
+**Step 2: Sync to DB** (automatic on restart, or manual):
+```python
+call_tool("gobby-workflows", "reload_cache", {})
+```
+
+**Step 3: Enable it:**
+```python
 call_tool("gobby-workflows", "toggle_agent_definition", {
     "name": "my-agent",
     "enabled": true
