@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useCronJobs } from '../hooks/useCronJobs'
-import type { CronJob, CronRun, CreateCronJobRequest } from '../hooks/useCronJobs'
+import type { CronJob, CronRun, CreateCronJobRequest, UpdateCronJobRequest } from '../hooks/useCronJobs'
+import { SidebarPanel } from './shared/SidebarPanel'
 import './CronJobsPage.css'
 
 // =============================================================================
@@ -221,6 +222,133 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
 }
 
 // =============================================================================
+// Edit Job Sidebar
+// =============================================================================
+
+interface EditJobSidebarProps {
+  job: CronJob
+  onSave: (req: UpdateCronJobRequest) => Promise<void>
+  onClose: () => void
+}
+
+function EditJobSidebar({ job, onSave, onClose }: EditJobSidebarProps) {
+  const [name, setName] = useState(job.name)
+  const [description, setDescription] = useState(job.description || '')
+  const [scheduleType, setScheduleType] = useState(job.schedule_type)
+  const [cronExpr, setCronExpr] = useState(job.cron_expr || '0 7 * * *')
+  const [intervalSeconds, setIntervalSeconds] = useState(String(job.interval_seconds || 300))
+  const [timezone, setTimezone] = useState(job.timezone)
+  const [actionType, setActionType] = useState(job.action_type)
+  const [actionConfigStr, setActionConfigStr] = useState(JSON.stringify(job.action_config, null, 2))
+  const [isSaving, setIsSaving] = useState(false)
+
+  const isFormValid = useMemo(() => {
+    if (!name.trim()) return false
+    try { JSON.parse(actionConfigStr) } catch { return false }
+    if (scheduleType === 'cron' && !cronExpr.trim()) return false
+    if (scheduleType === 'interval') {
+      const parsed = parseInt(intervalSeconds, 10)
+      if (isNaN(parsed) || parsed < 10) return false
+    }
+    return true
+  }, [name, actionConfigStr, scheduleType, cronExpr, intervalSeconds])
+
+  const handleSave = async () => {
+    if (!isFormValid || isSaving) return
+    setIsSaving(true)
+    try {
+      const actionConfig = JSON.parse(actionConfigStr) as Record<string, unknown>
+      const req: UpdateCronJobRequest = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        schedule_type: scheduleType,
+        timezone,
+        action_type: actionType,
+        action_config: actionConfig,
+      }
+      if (scheduleType === 'cron') req.cron_expr = cronExpr
+      if (scheduleType === 'interval') req.interval_seconds = parseInt(intervalSeconds, 10)
+
+      await onSave(req)
+    } catch (e) {
+      console.error('Failed to save job:', e)
+      alert('Failed to save job')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <SidebarPanel
+      isOpen
+      onClose={onClose}
+      title={`Edit: ${job.name}`}
+      width={480}
+      footer={
+        <div className="cron-dialog-actions">
+          <button className="cron-btn" onClick={onClose}>Cancel</button>
+          <button className="cron-btn primary" onClick={handleSave} disabled={!isFormValid || isSaving}>
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      }
+    >
+      <div className="cron-form-group">
+        <label className="cron-form-label">Name</label>
+        <input className="cron-form-input" value={name} onChange={e => setName(e.target.value)} />
+      </div>
+
+      <div className="cron-form-group">
+        <label className="cron-form-label">Description</label>
+        <input className="cron-form-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" />
+      </div>
+
+      <div className="cron-form-group">
+        <label className="cron-form-label">Schedule Type</label>
+        <select className="cron-form-select" value={scheduleType} onChange={e => setScheduleType(e.target.value as CronJob['schedule_type'])}>
+          <option value="cron">Cron Expression</option>
+          <option value="interval">Fixed Interval</option>
+          <option value="once">One-shot</option>
+        </select>
+      </div>
+
+      {scheduleType === 'cron' && (
+        <div className="cron-form-group">
+          <label className="cron-form-label">Cron Expression</label>
+          <input className="cron-form-input" value={cronExpr} onChange={e => setCronExpr(e.target.value)} placeholder="0 7 * * *" />
+        </div>
+      )}
+
+      {scheduleType === 'interval' && (
+        <div className="cron-form-group">
+          <label className="cron-form-label">Interval (seconds)</label>
+          <input className="cron-form-input" type="number" value={intervalSeconds} onChange={e => setIntervalSeconds(e.target.value)} min="10" />
+        </div>
+      )}
+
+      <div className="cron-form-group">
+        <label className="cron-form-label">Timezone</label>
+        <input className="cron-form-input" value={timezone} onChange={e => setTimezone(e.target.value)} />
+      </div>
+
+      <div className="cron-form-group">
+        <label className="cron-form-label">Action Type</label>
+        <select className="cron-form-select" value={actionType} onChange={e => setActionType(e.target.value as CronJob['action_type'])}>
+          <option value="shell">Shell Command</option>
+          <option value="agent_spawn">Agent Spawn</option>
+          <option value="pipeline">Pipeline</option>
+        </select>
+      </div>
+
+      <div className="cron-form-group">
+        <label className="cron-form-label">Action Config (JSON)</label>
+        <textarea className="cron-form-textarea" value={actionConfigStr} onChange={e => setActionConfigStr(e.target.value)} rows={8} />
+      </div>
+    </SidebarPanel>
+  )
+}
+
+// =============================================================================
 // Run History Table
 // =============================================================================
 
@@ -272,10 +400,11 @@ interface JobDetailProps {
   isRunsLoading: boolean
   onToggle: () => void
   onRunNow: () => void
+  onEdit: () => void
   onDelete: () => void
 }
 
-function JobDetail({ job, runs, isRunsLoading, onToggle, onRunNow, onDelete }: JobDetailProps) {
+function JobDetail({ job, runs, isRunsLoading, onToggle, onRunNow, onEdit, onDelete }: JobDetailProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
@@ -287,6 +416,7 @@ function JobDetail({ job, runs, isRunsLoading, onToggle, onRunNow, onDelete }: J
         </div>
         <div className="cron-detail-actions">
           <button className="cron-btn primary" onClick={onRunNow}>Run Now</button>
+          <button className="cron-btn" onClick={onEdit}>Edit</button>
           <button className="cron-btn" onClick={onToggle}>
             {job.enabled ? 'Disable' : 'Enable'}
           </button>
@@ -458,11 +588,12 @@ function MobileCronDrawer({
 export function CronJobsPage() {
   const {
     jobs, selectedJob, selectJob, runs, filters, setFilters,
-    isLoading, isRunsLoading, createJob, deleteJob, toggleJob, runNow, refresh,
+    isLoading, isRunsLoading, createJob, updateJob, deleteJob, toggleJob, runNow, refresh,
   } = useCronJobs()
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [editingJob, setEditingJob] = useState<CronJob | null>(null)
 
   const handleCreate = useCallback(async (req: CreateCronJobRequest) => {
     try {
@@ -494,6 +625,14 @@ export function CronJobsPage() {
       alert('Failed to run job')
     }
   }, [selectedJob, runNow])
+
+  const handleEditSave = useCallback(async (req: UpdateCronJobRequest) => {
+    if (!editingJob) return
+    const updated = await updateJob(editingJob.id, req)
+    if (updated) {
+      setEditingJob(null)
+    }
+  }, [editingJob, updateJob])
 
   const handleDelete = useCallback(async () => {
     try {
@@ -616,6 +755,7 @@ export function CronJobsPage() {
             isRunsLoading={isRunsLoading}
             onToggle={handleToggle}
             onRunNow={handleRunNow}
+            onEdit={() => setEditingJob(selectedJob)}
             onDelete={handleDelete}
           />
         ) : (
@@ -636,6 +776,15 @@ export function CronJobsPage() {
         <CreateJobDialog
           onSubmit={handleCreate}
           onClose={() => setShowCreateDialog(false)}
+        />
+      )}
+
+      {editingJob && (
+        <EditJobSidebar
+          key={editingJob.id}
+          job={editingJob}
+          onSave={handleEditSave}
+          onClose={() => setEditingJob(null)}
         />
       )}
     </div>
