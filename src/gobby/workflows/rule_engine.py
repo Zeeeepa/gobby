@@ -421,6 +421,15 @@ class RuleEngine:
 
                 if span.is_recording():
                     span.set_attribute("final_decision", resp.decision)
+                    span.set_attribute(
+                        "rules.evaluated",
+                        [row.name for row, _ in rules],
+                    )
+                    if mcp_calls:
+                        span.set_attribute(
+                            "rules.mcp_calls",
+                            [f"{c.get('server')}/{c.get('tool')}" for c in mcp_calls],
+                        )
                     if resp.reason:
                         span.set_attribute("block_reason", resp.reason)
                 return resp

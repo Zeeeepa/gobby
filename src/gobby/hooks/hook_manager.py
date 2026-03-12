@@ -493,7 +493,11 @@ class HookManager:
             )
 
             with create_span(
-                "hook.rules.mcp_dispatch", attributes={"mcp_call_count": len(mcp_calls)}
+                "hook.rules.mcp_dispatch",
+                attributes={
+                    "mcp_call_count": len(mcp_calls),
+                    "mcp_calls": [f"{c.get('server')}/{c.get('tool')}" for c in mcp_calls],
+                },
             ):
                 dispatch_results = self._dispatch_mcp_calls(mcp_calls, event) if mcp_calls else []
 
