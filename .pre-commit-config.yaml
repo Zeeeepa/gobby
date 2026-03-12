@@ -32,25 +32,32 @@ repos:
       - id: check-case-conflict
 
   # ==========================================================================
-  # Python linting and formatting (ruff)
+  # Security - secrets detection (pre-commit, read-only)
+  # ==========================================================================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # ==========================================================================
+  # Code quality (pre-push) - agents lint before commit, this is the safety net
+  # Moved from pre-commit to avoid auto-fix interference with concurrent agents
   # ==========================================================================
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.6
     hooks:
-      # Linter - runs first, can auto-fix
+      # Linter - check only, no auto-fix (agents handle formatting)
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi]
-      # Formatter - runs after linter
+        stages: [pre-push]
+      # Formatter - check only
       - id: ruff-format
+        args: [--check]
         types_or: [python, pyi]
+        stages: [pre-push]
 
-  # ==========================================================================
-  # Type checking (mypy)
+  # Type checking (pre-push)
   # Uses `uv run` so mypy sees the full project environment and module graph.
-  # Runs on the entire src/ package (not individual files) to avoid false
-  # positives from missing cross-module type inference.
-  # ==========================================================================
   - repo: local
     hooks:
       - id: mypy
@@ -60,14 +67,7 @@ repos:
         pass_filenames: false
         files: ^src/.*\.py$
         types: [python]
-
-  # ==========================================================================
-  # Security - secrets detection
-  # ==========================================================================
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.21.2
-    hooks:
-      - id: gitleaks
+        stages: [pre-push]
 
   # ==========================================================================
   # Security checks (pre-push) - slower checks that run before pushing
