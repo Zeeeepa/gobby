@@ -406,5 +406,5 @@ class TestCreateMemoryPassesMemoryId:
             await asyncio.wait(manager._background_tasks, timeout=1.0)
 
         manager._kg_service.add_to_graph.assert_called_once_with(
-            "test content", memory_id="test-mem-id"
+            "test content", memory_id="test-mem-id", project_id=None
         )

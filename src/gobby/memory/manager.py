@@ -112,6 +112,9 @@ class MemoryManager:
                         llm_provider=provider,
                         embed_fn=embed_fn,
                         prompt_loader=prompt_loader,
+                        vector_store=vector_store,
+                        code_link_min_score=config.code_link_min_score,
+                        code_symbol_collection_prefix=config.code_symbol_collection_prefix,
                     )
                     logger.debug("KnowledgeGraphService initialized")
             except Exception as e:
@@ -213,18 +216,26 @@ class MemoryManager:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
-    def _fire_background_graph(self, content: str, memory_id: str | None = None) -> None:
+    def _fire_background_graph(
+        self,
+        content: str,
+        memory_id: str | None = None,
+        project_id: str | None = None,
+    ) -> None:
         """Fire a background knowledge graph task (non-blocking).
 
         Extracts entities and relationships from content and merges
         them into the Neo4j knowledge graph. When memory_id is provided,
         creates MENTIONED_IN links from entities to the source memory.
+        When project_id is provided, cross-links entities to code symbols.
         """
 
         async def _run_graph() -> None:
             try:
                 assert self._kg_service is not None  # noqa: S101
-                await self._kg_service.add_to_graph(content, memory_id=memory_id)
+                await self._kg_service.add_to_graph(
+                    content, memory_id=memory_id, project_id=project_id
+                )
             except Exception as e:
                 logger.warning(f"Background graph extraction failed: {e}")
 
@@ -309,7 +320,7 @@ class MemoryManager:
 
         # Fire-and-forget: background knowledge graph task
         if self._kg_service:
-            self._fire_background_graph(content, memory_id=memory.id)
+            self._fire_background_graph(content, memory_id=memory.id, project_id=project_id)
 
         return memory
 

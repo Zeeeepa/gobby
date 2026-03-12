@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from gobby.llm.base import LLMProvider
     from gobby.memory.neo4j_client import Neo4jClient
+    from gobby.memory.vectorstore import VectorStore
     from gobby.prompts.loader import PromptLoader
 
 logger = logging.getLogger(__name__)
@@ -56,18 +57,29 @@ class KnowledgeGraphService:
         llm_provider: LLMProvider,
         embed_fn: Callable[..., Any],
         prompt_loader: PromptLoader,
+        vector_store: VectorStore | None = None,
+        code_link_min_score: float = 0.82,
+        code_symbol_collection_prefix: str = "code_symbols_",
     ):
         self._neo4j = neo4j_client
         self._llm = llm_provider
         self._embed_fn = embed_fn
         self._prompt_loader = prompt_loader
+        self._vector_store = vector_store
+        self._code_link_min_score = code_link_min_score
+        self._code_symbol_collection_prefix = code_symbol_collection_prefix
         self._vector_index_ensured = False
 
     # -----------------------------------------------------------------------
     # Write path
     # -----------------------------------------------------------------------
 
-    async def add_to_graph(self, content: str, memory_id: str | None = None) -> None:
+    async def add_to_graph(
+        self,
+        content: str,
+        memory_id: str | None = None,
+        project_id: str | None = None,
+    ) -> None:
         """Extract entities and relationships from content and merge into Neo4j.
 
         Pipeline:
@@ -79,6 +91,7 @@ class KnowledgeGraphService:
         6. Add _Entity label for vector index compatibility
         7. Set embedding vectors on nodes
         8. Link entities to source memory via MENTIONED_IN
+        9. Cross-link entities to code symbols via RELATES_TO_CODE
         """
         # Step 1: Extract entities
         try:
@@ -144,10 +157,12 @@ class KnowledgeGraphService:
             except Exception as e:
                 logger.warning(f"Failed to merge relationship {rel}: {e}")
 
-        # Step 7: Set embeddings
+        # Step 7: Set embeddings (retain for Step 9 reuse)
+        entity_embeddings: dict[str, list[float]] = {}
         for entity in entities:
             try:
                 embedding = await self._embed_fn(entity.name)
+                entity_embeddings[entity.name] = embedding
                 await self._neo4j.set_node_vector(
                     node_name=entity.name,
                     embedding=embedding,
@@ -161,6 +176,10 @@ class KnowledgeGraphService:
         # Step 8: Link entities to source memory via MENTIONED_IN
         if memory_id:
             await self._link_entities_to_memory(entities, memory_id)
+
+        # Step 9: Cross-link entities to code symbols via RELATES_TO_CODE
+        if project_id and self._vector_store and entity_embeddings:
+            await self._link_entities_to_code(entities, entity_embeddings, project_id)
 
     async def _extract_entities(self, content: str) -> list[Entity]:
         """Extract entities from content using LLM."""
@@ -287,6 +306,64 @@ class KnowledgeGraphService:
             logger.warning(f"Neo4j unreachable during Memory node merge: {e}")
         except Exception as e:
             logger.warning(f"Failed to create Memory node {memory_id}: {e}")
+
+    async def _link_entities_to_code(
+        self,
+        entities: list[Entity],
+        entity_embeddings: dict[str, list[float]],
+        project_id: str,
+    ) -> None:
+        """Cross-link entities to code symbols via RELATES_TO_CODE edges.
+
+        Searches the code symbol Qdrant collection for each entity embedding
+        and writes edges to Neo4j for matches above the similarity threshold.
+        Gracefully no-ops if the collection doesn't exist.
+        """
+        assert self._vector_store is not None  # noqa: S101
+
+        collection = f"{self._code_symbol_collection_prefix}{project_id}"
+        links: list[dict[str, Any]] = []
+
+        for entity in entities:
+            embedding = entity_embeddings.get(entity.name)
+            if not embedding:
+                continue
+            try:
+                results = await self._vector_store.search(
+                    query_embedding=embedding,
+                    collection_name=collection,
+                    limit=3,
+                )
+                for symbol_id, score in results:
+                    if score >= self._code_link_min_score:
+                        links.append(
+                            {
+                                "entity_name": entity.name,
+                                "symbol_id": symbol_id,
+                                "score": score,
+                            }
+                        )
+            except Exception as e:
+                logger.debug(f"Code symbol search failed for entity '{entity.name}': {e}")
+                return  # Collection likely missing — skip remaining entities
+
+        if not links:
+            return
+
+        try:
+            await self._neo4j.query(
+                "UNWIND $links AS link "
+                "MATCH (e:_Entity {name: link.entity_name}) "
+                "MATCH (c:CodeSymbol {id: link.symbol_id, project: $project_id}) "
+                "MERGE (e)-[r:RELATES_TO_CODE]->(c) "
+                "SET r.score = link.score, r.updated_at = datetime()",
+                {"links": links, "project_id": project_id},
+            )
+            logger.debug(f"Wrote {len(links)} RELATES_TO_CODE edges for project {project_id}")
+        except Neo4jConnectionError as e:
+            logger.warning(f"Neo4j unreachable during RELATES_TO_CODE write: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to write RELATES_TO_CODE edges: {e}")
 
     async def _ensure_vector_index(self) -> None:
         """Lazily ensure the entity vector index exists."""

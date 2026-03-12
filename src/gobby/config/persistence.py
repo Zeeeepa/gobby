@@ -114,6 +114,14 @@ class MemoryConfig(BaseModel):
         default=60,
         description="RRF constant for merging Qdrant and graph results (higher = more uniform weighting)",
     )
+    code_link_min_score: float = Field(
+        default=0.82,
+        description="Minimum cosine similarity for RELATES_TO_CODE edges between memory entities and code symbols",
+    )
+    code_symbol_collection_prefix: str = Field(
+        default="code_symbols_",
+        description="Qdrant collection name prefix for code symbol embeddings (must match code_index.qdrant_collection_prefix)",
+    )
 
     @field_validator("crossref_threshold")
     @classmethod
