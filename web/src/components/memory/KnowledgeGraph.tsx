@@ -242,6 +242,9 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
     return buildForceData(graphData)
   }, [graphData])
 
+  // Track whether forces have been applied at least once (skip reheat on first render)
+  const forcesApplied = useRef(false)
+
   // Configure D3 force simulation — applies live when physics sliders change
   useEffect(() => {
     const fg = fgRef.current
@@ -249,7 +252,12 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
     fg.d3Force('charge')?.strength(charge)
     fg.d3Force('link')?.distance(linkDist)
     fg.d3Force('center')?.strength(centerStrength)
-    fg.d3ReheatSimulation()
+
+    // Only reheat after initial render — the simulation isn't created yet on first mount
+    if (forcesApplied.current) {
+      try { fg.d3ReheatSimulation() } catch { /* simulation may not be ready */ }
+    }
+    forcesApplied.current = true
 
     // Cap pixel ratio on mobile — iPhone 16 PM is 3x; capping at 2x cuts framebuffer 9x → 4x
     if (IS_MOBILE) {
