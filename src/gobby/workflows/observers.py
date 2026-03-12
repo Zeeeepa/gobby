@@ -345,6 +345,20 @@ def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], sessio
             )
         return
 
+    # --- No plan-mode markers found: heal stale state ---
+    # If mode_level is 0 (plan) but no CLI injected plan-mode indicators,
+    # the value is stale from a previous session (survived clear/compact).
+    # Reset based on chat_mode, which is always fresh in-memory.
+    if variables.get("mode_level") == 0:
+        chat_mode = variables.get("chat_mode", "bypass")
+        new_level = compute_mode_level(chat_mode)
+        if new_level != 0:
+            variables["mode_level"] = new_level
+            logger.info(
+                f"Session {session_id}: mode_level={new_level} "
+                f"(healed stale plan mode — no markers found, chat_mode='{chat_mode}')"
+            )
+
 
 def reconcile_claimed_tasks(
     variables: dict[str, Any],
