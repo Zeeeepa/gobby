@@ -129,13 +129,13 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
   })
   const [showPhysics, setShowPhysics] = useState(false)
   const [charge, setCharge] = useState(() => {
-    try { const v = localStorage.getItem('gobby-kg-charge'); return v ? Number(v) : DEFAULT_CHARGE } catch { return DEFAULT_CHARGE }
+    try { const v = localStorage.getItem('gobby-kg-charge'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_CHARGE } catch { return DEFAULT_CHARGE }
   })
   const [linkDist, setLinkDist] = useState(() => {
-    try { const v = localStorage.getItem('gobby-kg-link-dist'); return v ? Number(v) : DEFAULT_LINK_DIST } catch { return DEFAULT_LINK_DIST }
+    try { const v = localStorage.getItem('gobby-kg-link-dist'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_LINK_DIST } catch { return DEFAULT_LINK_DIST }
   })
   const [centerStrength, setCenterStrength] = useState(() => {
-    try { const v = localStorage.getItem('gobby-kg-center'); return v ? Number(v) : DEFAULT_CENTER } catch { return DEFAULT_CENTER }
+    try { const v = localStorage.getItem('gobby-kg-center'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_CENTER } catch { return DEFAULT_CENTER }
   })
 
   // Catch async WebGL/Three.js errors that escape React error boundaries

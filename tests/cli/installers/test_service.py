@@ -25,6 +25,8 @@ from gobby.cli.installers.service import (
     uninstall_service,
 )
 
+pytestmark = pytest.mark.unit
+
 
 # ---------------------------------------------------------------------------
 # Template rendering

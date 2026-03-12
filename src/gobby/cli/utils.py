@@ -877,8 +877,8 @@ def stop_daemon(quiet: bool = False) -> bool:
         from gobby.runner_maintenance import write_shutdown_source
 
         write_shutdown_source("cli_stop")
-    except Exception:
-        pass  # Best-effort
+    except Exception as e:
+        logger.debug("Failed to write shutdown source: %s", e)
 
     # If running under launchctl, use bootout instead of SIGTERM to prevent
     # KeepAlive from immediately respawning the process

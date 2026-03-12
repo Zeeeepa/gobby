@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 
 from gobby.code_index.models import (
@@ -125,7 +127,7 @@ def test_symbol_to_brief_includes_parent_id(sample_symbols: list[Symbol]) -> Non
 
 def test_symbol_to_brief_truncates_docstring(sample_symbols: list[Symbol]) -> None:
     """to_brief only includes first line of docstring."""
-    sym = sample_symbols[0]
+    sym = copy.copy(sample_symbols[0])
     sym.docstring = "First line.\nSecond line with more detail."
     b = sym.to_brief()
     assert b["docstring"] == "First line."
@@ -133,7 +135,7 @@ def test_symbol_to_brief_truncates_docstring(sample_symbols: list[Symbol]) -> No
 
 def test_symbol_to_brief_omits_empty_docstring(sample_symbols: list[Symbol]) -> None:
     """to_brief omits docstring key when empty."""
-    sym = sample_symbols[0]
+    sym = copy.copy(sample_symbols[0])
     sym.docstring = None
     b = sym.to_brief()
     assert "docstring" not in b

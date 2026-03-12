@@ -8,6 +8,8 @@ import pytest
 
 from gobby.telemetry.instrumentors import _instrumented, setup_llm_instrumentors
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(autouse=True)
 def _reset_instrumented():
@@ -33,13 +35,7 @@ def test_setup_activates_installed_instrumentor():
     mock_module.AnthropicInstrumentor.return_value = mock_instrumentor
 
     with patch("gobby.telemetry.instrumentors.importlib") as mock_importlib:
-        mock_importlib.import_module.side_effect = lambda name: (
-            mock_module
-            if name == "opentelemetry.instrumentation.anthropic"
-            else MagicMock(side_effect=ImportError)
-        )
 
-        # Make other imports raise ImportError
         def side_effect(name: str) -> MagicMock:
             if name == "opentelemetry.instrumentation.anthropic":
                 return mock_module

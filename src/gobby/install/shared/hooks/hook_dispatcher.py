@@ -582,25 +582,34 @@ async def main() -> int:
                 "source": _detect_source(config),
             }
         )
-        subprocess.Popen(
-            [
-                "curl",
-                "-s",
-                "-X",
-                "POST",
-                f"{daemon_url}/api/hooks/execute",
-                "-H",
-                "Content-Type: application/json",
-                "-d",
-                payload,
-                "--max-time",
-                "90",
-            ],
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-        )
+        try:
+            logger.debug(
+                "Fire-and-forget hook %s → %s (%d bytes)",
+                hook_type,
+                daemon_url,
+                len(payload),
+            )
+            subprocess.Popen(
+                [
+                    "curl",
+                    "-s",
+                    "-X",
+                    "POST",
+                    f"{daemon_url}/api/hooks/execute",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    payload,
+                    "--max-time",
+                    "90",
+                ],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
+        except (FileNotFoundError, OSError) as e:
+            logger.debug("Fire-and-forget spawn failed for %s: %s", hook_type, e)
         return 0
 
     # Call daemon HTTP endpoint

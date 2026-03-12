@@ -281,7 +281,8 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
     for name in orphaned_names:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
-            "WHERE name = ? AND source = 'installed' AND deleted_at IS NULL",
+            "WHERE name = ? AND source = 'installed' "
+            "AND workflow_type IN ('workflow', 'pipeline') AND deleted_at IS NULL",
             (name,),
         )
         for inst_row in installed_rows:

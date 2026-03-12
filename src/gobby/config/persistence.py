@@ -123,7 +123,7 @@ class MemoryConfig(BaseModel):
         description="Qdrant collection name prefix for code symbol embeddings (must match code_index.qdrant_collection_prefix)",
     )
 
-    @field_validator("crossref_threshold")
+    @field_validator("crossref_threshold", "code_link_min_score")
     @classmethod
     def validate_probability(cls, v: float) -> float:
         """Validate value is between 0.0 and 1.0."""

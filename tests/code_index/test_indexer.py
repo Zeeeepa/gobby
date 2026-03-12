@@ -206,7 +206,7 @@ async def test_index_changed_files_cleans_up_external_stores(
     indexer: CodeIndexer, sample_project: Path
 ) -> None:
     """index_changed_files cleans up Qdrant and Neo4j for deleted files."""
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import AsyncMock
 
     # Setup mocks
     mock_vector_store = AsyncMock()

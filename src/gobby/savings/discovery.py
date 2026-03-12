@@ -85,8 +85,10 @@ def record_discovery_savings(
                 },
             )
             logger.debug(
-                f"Recorded discovery savings for session {session_id}: "
-                f"original_chars={original_chars}, actual_chars={actual_chars}"
+                "Recorded discovery savings for session %s: original_chars=%d, actual_chars=%d",
+                session_id,
+                original_chars,
+                actual_chars,
             )
     except Exception as e:
-        logger.warning(f"Failed to calculate discovery savings for session {session_id}: {e}")
+        logger.warning("Failed to calculate discovery savings for session %s: %s", session_id, e)

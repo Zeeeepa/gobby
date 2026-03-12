@@ -62,6 +62,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
         return result
 
     manager = LocalWorkflowDefinitionManager(db)
+    on_disk: set[str] = set()
 
     for yaml_file in sorted(agents_path.glob("*.yaml")):
         try:
@@ -73,6 +74,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                 continue
 
             name = data.get("name", yaml_file.stem)
+            on_disk.add(name)
             data["name"] = name
 
             # Parse directly as AgentDefinitionBody
@@ -139,15 +141,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             result["errors"].append(error_msg)
 
     # Orphan cleanup: soft-delete template agents whose YAML was removed
-    on_disk: set[str] = set()
-    for yf in sorted(agents_path.glob("*.yaml")):
-        try:
-            d = yaml.safe_load(yf.read_text(encoding="utf-8"))
-            if isinstance(d, dict):
-                on_disk.add(d.get("name", yf.stem))
-        except Exception:
-            pass
-
+    # on_disk was built incrementally during the main sync loop above
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
         "WHERE source = 'template' AND workflow_type = 'agent' AND deleted_at IS NULL",

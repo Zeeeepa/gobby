@@ -170,7 +170,6 @@ def start(
 ) -> None:
     """Start the Gobby daemon."""
     # If OS service is installed, delegate to it
-    fallback_to_direct = False
     svc = get_service_status()
     if svc.get("installed"):
         click.echo("Starting via OS service manager...")
@@ -178,13 +177,8 @@ def start(
         if result.get("success"):
             click.echo(f"Daemon started via {svc.get('platform', 'OS')} service")
             return
-        else:
-            click.echo(f"Service start failed: {result.get('error')}", err=True)
-            click.echo("Falling back to direct start...")
-            fallback_to_direct = True
-    if not svc.get("installed") or fallback_to_direct:
-        pass  # Fall through to direct start
-
+        click.echo(f"Service start failed: {result.get('error')}", err=True)
+        click.echo("Falling back to direct start...")
     # Get config object
     config = ctx.obj["config"]
 

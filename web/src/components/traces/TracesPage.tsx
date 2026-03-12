@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTraces, useTraceDetail } from '../../hooks/useTraces'
 import { TraceWaterfall } from './TraceWaterfall'
 import { TraceDetail } from './TraceDetail'
@@ -17,6 +17,18 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
+
+  const llmTokensForSelected = useMemo(() => {
+    if (!selectedTraceId) return 0
+    return spans.filter(isLLMSpan).reduce((sum, s) => {
+      const a = parseLLMAttributes(s.attributes_json)
+      return sum + (a ? a.promptTokens + a.completionTokens : 0)
+    }, 0)
+  }, [selectedTraceId, spans])
+  const hasLLMSpansForSelected = useMemo(
+    () => !!selectedTraceId && spans.some(isLLMSpan),
+    [selectedTraceId, spans],
+  )
 
   useEffect(() => {
     if (initialTraceId && !selectedTraceId) {
@@ -65,11 +77,8 @@ export function TracesPage({ projectId, initialTraceId }: TracesPageProps) {
 
               {traces.map((trace) => {
                 const isSelected = trace.trace_id === selectedTraceId
-                const llmTokens = isSelected ? spans.filter(isLLMSpan).reduce((sum, s) => {
-                  const a = parseLLMAttributes(s.attributes_json)
-                  return sum + (a ? a.promptTokens + a.completionTokens : 0)
-                }, 0) : 0
-                const hasLLMSpans = isSelected && spans.some(isLLMSpan)
+                const llmTokens = isSelected ? llmTokensForSelected : 0
+                const hasLLMSpans = isSelected && hasLLMSpansForSelected
                 return (
                   <div
                     key={trace.trace_id}

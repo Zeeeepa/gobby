@@ -38,11 +38,12 @@ class TestCaptureBaselineDirtyFiles:
     """Tests for capture_baseline_dirty_files persisting to session variables."""
 
     @pytest.fixture
-    def db(self, tmp_path) -> LocalDatabase:
+    def db(self, tmp_path):
         db_path = tmp_path / "test_capture_baseline.db"
         database = LocalDatabase(db_path)
         run_migrations(database)
-        return database
+        yield database
+        database.close()
 
     @patch("gobby.mcp_proxy.tools.sessions._actions.get_dirty_files")
     def test_persists_baseline_to_session_variables(self, mock_dirty, db) -> None:

@@ -7,6 +7,7 @@ systemd on Linux) so the daemon starts automatically on boot.
 
 import logging
 import os
+import re
 import subprocess  # nosec B404 - subprocess needed for launchctl/systemctl
 import sys
 from pathlib import Path
@@ -369,8 +370,6 @@ def _validate_plist_paths(plist_file: Path) -> list[str]:
     try:
         content = plist_file.read_text(encoding="utf-8")
         # Extract ProgramArguments first <string> (python executable)
-        import re
-
         exe_match = re.search(
             r"<key>ProgramArguments</key>\s*<array>\s*<string>([^<]+)</string>",
             content,

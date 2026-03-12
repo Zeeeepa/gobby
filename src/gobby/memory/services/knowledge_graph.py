@@ -345,7 +345,7 @@ class KnowledgeGraphService:
                         )
             except Exception as e:
                 logger.debug(f"Code symbol search failed for entity '{entity.name}': {e}")
-                return  # Collection likely missing — skip remaining entities
+                continue  # Collection likely missing — skip this entity
 
         if not links:
             return

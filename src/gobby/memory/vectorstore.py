@@ -16,6 +16,7 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
+    FilterSelector,
     MatchValue,
     PointIdsList,
     PointStruct,
@@ -152,14 +153,14 @@ class VectorStore:
         """Delete a point by memory ID or filter."""
         client = self._ensure_client()
 
-        selector: PointIdsList | Filter
+        selector: PointIdsList | FilterSelector
         if memory_id:
             selector = PointIdsList(points=[memory_id])
         elif filters:
             conditions = [
                 FieldCondition(key=k, match=MatchValue(value=v)) for k, v in filters.items()
             ]
-            selector = Filter(must=conditions)
+            selector = FilterSelector(filter=Filter(must=conditions))
         else:
             raise ValueError("Must provide either memory_id or filters to delete")
 
