@@ -269,11 +269,26 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
         "WHERE source = 'template' AND workflow_type IN ('workflow', 'pipeline') AND deleted_at IS NULL",
     )
     result["orphaned"] = 0
+    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
+            orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled workflow", extra={"workflow": row["name"]})
             result["orphaned"] += 1
+
+    # Cascade: soft-delete installed copies of orphaned templates
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' AND deleted_at IS NULL",
+            (name,),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            logger.info(
+                "Soft-deleted installed copy of orphaned workflow", extra={"workflow": name}
+            )
 
     _ensure_gobby_tag_on_installed(manager, "workflow")
     _ensure_gobby_tag_on_installed(manager, "pipeline")
@@ -413,11 +428,24 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
         "AND deleted_at IS NULL",
     )
     result["orphaned"] = 0
+    orphaned_names = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
+            orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled rule", extra={"rule": row["name"]})
             result["orphaned"] += 1
+
+    # Cascade: soft-delete installed copies of orphaned templates
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' AND workflow_type = 'rule' AND deleted_at IS NULL",
+            (name,),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            logger.info("Soft-deleted installed copy of orphaned rule", extra={"rule": name})
 
     _ensure_gobby_tag_on_installed(manager, "rule")
 
@@ -790,11 +818,26 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
         "WHERE source = 'template' AND workflow_type = 'variable' AND deleted_at IS NULL",
     )
     result["orphaned"] = 0
+    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
+            orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled variable", extra={"variable": row["name"]})
             result["orphaned"] += 1
+
+    # Cascade: soft-delete installed copies of orphaned templates
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' AND workflow_type = 'variable' AND deleted_at IS NULL",
+            (name,),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            logger.info(
+                "Soft-deleted installed copy of orphaned variable", extra={"variable": name}
+            )
 
     _ensure_gobby_tag_on_installed(manager, "variable")
 

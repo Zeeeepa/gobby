@@ -138,6 +138,40 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
+    # Orphan cleanup: soft-delete template agents whose YAML was removed
+    on_disk: set[str] = set()
+    for yf in sorted(agents_path.glob("*.yaml")):
+        try:
+            d = yaml.safe_load(yf.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                on_disk.add(d.get("name", yf.stem))
+        except Exception:
+            pass
+
+    orphan_rows = db.fetchall(
+        "SELECT id, name FROM workflow_definitions "
+        "WHERE source = 'template' AND workflow_type = 'agent' AND deleted_at IS NULL",
+    )
+    result["orphaned"] = 0
+    orphaned_names: set[str] = set()
+    for row in orphan_rows:
+        if row["name"] not in on_disk:
+            manager.delete(row["id"])
+            orphaned_names.add(row["name"])
+            logger.info(f"Soft-deleted orphaned bundled agent: {row['name']}")
+            result["orphaned"] += 1
+
+    # Cascade: soft-delete installed copies of orphaned templates
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' AND workflow_type = 'agent' AND deleted_at IS NULL",
+            (name,),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            logger.info(f"Soft-deleted installed copy of orphaned agent: {name}")
+
     # Ensure all template/installed agents have the "gobby" tag
     _ensure_gobby_tag_on_installed(manager)
 

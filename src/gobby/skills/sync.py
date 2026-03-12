@@ -342,11 +342,23 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
         "WHERE source = 'template' AND project_id IS NULL "
         "AND deleted_at IS NULL",
     )
+    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             storage.delete_skill(row["id"])
+            orphaned_names.add(row["name"])
             logger.info(f"Soft-deleted orphaned bundled skill: {row['name']}")
             result["orphaned"] += 1
+
+    # Cascade: soft-delete installed copies of orphaned templates
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM skills WHERE name = ? AND source = 'installed' AND deleted_at IS NULL",
+            (name,),
+        )
+        for inst_row in installed_rows:
+            storage.delete_skill(inst_row["id"])
+            logger.info(f"Soft-deleted installed copy of orphaned skill: {name}")
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
