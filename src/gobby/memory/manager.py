@@ -666,13 +666,18 @@ class MemoryManager:
                 logger.warning(f"Failed to update access stats for {memory.id}: {e}")
 
     async def delete_memory(self, memory_id: str) -> bool:
-        """Delete a memory from SQLite and VectorStore."""
+        """Delete a memory from SQLite, VectorStore, and Neo4j."""
         result = self.storage.delete_memory(memory_id)
         if result and self._vector_store:
             try:
                 await self._vector_store.delete(memory_id)
             except Exception as e:
                 logger.warning(f"VectorStore delete failed for {memory_id}: {e}")
+        if result and self._kg_service:
+            try:
+                await self._kg_service.remove_memory_from_graph(memory_id)
+            except Exception as e:
+                logger.warning(f"Graph delete failed for {memory_id}: {e}")
         return result
 
     async def adelete_memory(self, memory_id: str) -> bool:
@@ -683,6 +688,11 @@ class MemoryManager:
                 await self._vector_store.delete(memory_id)
             except Exception as e:
                 logger.warning(f"VectorStore delete failed for {memory_id}: {e}")
+        if result and self._kg_service:
+            try:
+                await self._kg_service.remove_memory_from_graph(memory_id)
+            except Exception as e:
+                logger.warning(f"Graph delete failed for {memory_id}: {e}")
         return result
 
     def count_memories(self, project_id: str | None = None) -> int:

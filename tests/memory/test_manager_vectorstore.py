@@ -155,6 +155,28 @@ async def test_delete_memory_removes_from_qdrant(manager, mock_vector_store):
 
 
 @pytest.mark.asyncio
+async def test_delete_memory_removes_from_graph(manager, mock_vector_store):
+    """delete_memory should remove from Neo4j when kg_service is available."""
+    mock_kg = AsyncMock()
+    mock_kg.remove_memory_from_graph = AsyncMock()
+    manager._kg_service = mock_kg
+
+    memory = await manager.create_memory(content="to delete from graph")
+    await manager.delete_memory(memory.id)
+
+    mock_kg.remove_memory_from_graph.assert_awaited_once_with(memory.id)
+
+
+@pytest.mark.asyncio
+async def test_delete_memory_works_without_kg_service(manager, mock_vector_store):
+    """delete_memory should succeed when _kg_service is None."""
+    manager._kg_service = None
+    memory = await manager.create_memory(content="no graph")
+    result = await manager.delete_memory(memory.id)
+    assert result is True
+
+
+@pytest.mark.asyncio
 async def test_update_memory_re_embeds(manager, mock_vector_store, mock_embed_fn):
     """update_memory should re-embed and upsert to Qdrant when content changes."""
     memory = await manager.create_memory(content="original")

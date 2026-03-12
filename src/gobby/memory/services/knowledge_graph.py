@@ -314,6 +314,18 @@ class KnowledgeGraphService:
         except Exception as e:
             logger.warning(f"Failed to create Memory node {memory_id}: {e}")
 
+    async def remove_memory_from_graph(self, memory_id: str) -> None:
+        """Remove a Memory node and all its MENTIONED_IN edges from Neo4j."""
+        try:
+            await self._neo4j.query(
+                "MATCH (m:Memory {memory_id: $memory_id}) DETACH DELETE m",
+                {"memory_id": memory_id},
+            )
+        except Neo4jConnectionError as e:
+            logger.warning(f"Neo4j unreachable during memory deletion: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to delete Memory node {memory_id} from graph: {e}")
+
     async def _link_entities_to_code(
         self,
         entities: list[Entity],

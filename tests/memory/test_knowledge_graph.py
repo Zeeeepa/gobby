@@ -714,3 +714,42 @@ class TestMemoryNodeProjectIdScoping:
         params = call.args[1]
         assert "m.project_id = $project_id" in cypher
         assert params["project_id"] == "proj-A"
+
+
+class TestRemoveMemoryFromGraph:
+    """Tests for remove_memory_from_graph."""
+
+    async def test_remove_memory_from_graph_deletes_node(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+    ) -> None:
+        """remove_memory_from_graph issues DETACH DELETE on the Memory node."""
+        await service.remove_memory_from_graph("mem-1")
+
+        mock_neo4j.query.assert_awaited_once()
+        cypher = mock_neo4j.query.call_args.args[0]
+        params = mock_neo4j.query.call_args.args[1]
+        assert "DETACH DELETE" in cypher
+        assert "memory_id: $memory_id" in cypher
+        assert params["memory_id"] == "mem-1"
+
+    async def test_remove_memory_from_graph_nonexistent_is_noop(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+    ) -> None:
+        """remove_memory_from_graph on non-existent ID doesn't raise."""
+        mock_neo4j.query.return_value = []
+        await service.remove_memory_from_graph("nonexistent")
+        # No error raised — MATCH...DETACH DELETE is a no-op on zero matches
+
+    async def test_remove_memory_from_graph_neo4j_unreachable(
+        self,
+        service: KnowledgeGraphService,
+        mock_neo4j: AsyncMock,
+    ) -> None:
+        """remove_memory_from_graph logs warning when Neo4j is unreachable."""
+        mock_neo4j.query.side_effect = Neo4jConnectionError("connection refused")
+        # Should not raise
+        await service.remove_memory_from_graph("mem-1")
