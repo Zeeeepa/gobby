@@ -10,10 +10,6 @@ class CodeIndexConfig(BaseModel):
         default=True,
         description="Enable code indexing via tree-sitter AST parsing",
     )
-    auto_index_on_session_start: bool = Field(
-        default=True,
-        description="Auto-index project on session start",
-    )
     auto_index_on_commit: bool = Field(
         default=True,
         description="Auto-reindex changed files on git commit",

@@ -362,31 +362,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.debug(f"Could not check code index availability: {e}")
 
-        _t_code_idx = time.monotonic()
-        # Kick off session-start auto-indexing (fire-and-forget)
-        if session_id and project_id and cwd:
-
-            def _trigger_session_index() -> None:
-                try:
-                    import httpx
-
-                    from gobby.config.bootstrap import load_bootstrap
-
-                    port = load_bootstrap().daemon_port
-                    httpx.post(
-                        f"http://localhost:{port}/api/code-index/session-start",
-                        json={
-                            "project_id": project_id,
-                            "root_path": cwd,
-                            "session_id": session_id,
-                        },
-                        timeout=300,
-                    )
-                except Exception as e:
-                    self.logger.debug(f"Session-start index request failed: {e}")
-
-            threading.Thread(target=_trigger_session_index, daemon=True).start()
-
         # Step 2d: Pipeline workflows are executed by the agent via run_pipeline MCP tool.
         # Agent rules enforce pipeline execution by blocking all tools except
         # progressive discovery and run_pipeline.
@@ -570,14 +545,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
         _t_end = time.monotonic()
         self.logger.info(
             "SESSION_START timing [%s]: pre_check=%dms parent=%dms register=%dms "
-            "code_idx=%dms activate_agent=%dms track=%dms msg_proc=%dms "
+            "activate_agent=%dms track=%dms msg_proc=%dms "
             "handoff=%dms total=%dms",
             session_source,
             _ms(_t0, _t_pre_check),
             _ms(_t_pre_check, _t_parent),
             _ms(_t_parent, _t_register),
-            _ms(_t_register, _t_code_idx),
-            _ms(_t_code_idx, _t_activate),
+            _ms(_t_register, _t_activate),
             _ms(_t_activate, _t_track),
             _ms(_t_track, _t_msg_proc),
             _ms(_t_msg_proc, _t_handoff),
@@ -783,30 +757,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.debug(
                     f"Could not check code index availability for pre-created session: {e}"
                 )
-
-        # Kick off session-start auto-indexing (fire-and-forget)
-        if session_id and existing_session.project_id and cwd:
-
-            def _trigger_session_index() -> None:
-                try:
-                    import httpx
-
-                    from gobby.config.bootstrap import load_bootstrap
-
-                    port = load_bootstrap().daemon_port
-                    httpx.post(
-                        f"http://localhost:{port}/api/code-index/session-start",
-                        json={
-                            "project_id": existing_session.project_id,
-                            "root_path": cwd,
-                            "session_id": session_id,
-                        },
-                        timeout=300,
-                    )
-                except Exception as e:
-                    self.logger.debug(f"Session-start index request failed: {e}")
-
-            threading.Thread(target=_trigger_session_index, daemon=True).start()
 
         # Deep load default agent (rules, skills, variables) for pre-created session
         agent_result: AgentActivationResult | None = None
