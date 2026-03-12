@@ -46,6 +46,7 @@ steps:
         description: "Fix ruff, mypy, and bandit errors from latest pre-push-test.sh reports in ./reports/"
         task_type: "task"
         category: "code"
+        validation_criteria: "All ruff, mypy, and bandit errors from reports are fixed. No new lint/type errors introduced."
         session_id: "${{ session_id }}"
 
   - id: spawn_linter
@@ -76,6 +77,7 @@ steps:
         description: "Fix pytest test failures from latest pre-push-test.sh report in ./reports/"
         task_type: "task"
         category: "code"
+        validation_criteria: "All pytest failures from reports are fixed. No new test failures introduced."
         session_id: "${{ session_id }}"
 
   - id: spawn_tester
