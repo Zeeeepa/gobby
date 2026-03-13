@@ -842,7 +842,9 @@ class MemoryManager:
 
         for mem in memories:
             try:
-                await self._embed_and_upsert(mem.id, mem.content)
+                await self._embed_and_upsert(
+                    mem.id, mem.content, payload={"project_id": mem.project_id}
+                )
                 generated += 1
             except Exception as e:
                 logger.warning(f"Failed to reindex memory {mem.id}: {e}")
