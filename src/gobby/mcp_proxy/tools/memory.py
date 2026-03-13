@@ -617,6 +617,19 @@ def create_memory_registry(
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    @registry.tool(
+        name="reindex_embeddings",
+        description="Regenerate embedding vectors for all stored memories. Useful after changing embedding models or for initial setup.",
+    )
+    async def reindex_embeddings() -> dict[str, Any]:
+        """
+        Regenerate embeddings for all stored memories.
+        """
+        try:
+            return await memory_manager.reindex_embeddings()
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     # ─── Sync & extraction tools (thin wrappers around workflow actions) ───
 
     @registry.tool(
