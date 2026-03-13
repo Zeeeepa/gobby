@@ -482,6 +482,28 @@ class GobbyDaemonTools:
             workflow=None,
         )
 
+    async def save_variable_template(
+        self,
+        name: str,
+        definition: dict[str, Any],
+        *,
+        make_global: bool = False,
+    ) -> dict[str, Any]:
+        """Save a variable definition as a YAML template for persistence. Writes to .gobby/workflows/variables/ (project) or ~/.gobby/workflows/variables/ (global)."""
+        if not self._session_manager or not self._session_manager.db:
+            return {"success": False, "error": "Session manager not available"}
+
+        from gobby.mcp_proxy.tools.workflows._variables import (
+            save_variable_template as _save_var_tmpl,
+        )
+
+        return _save_var_tmpl(
+            self._session_manager.db,
+            name,
+            definition,
+            make_global=make_global,
+        )
+
     # Hook Extension tools migrated to gobby-plugins internal registry
     # (see src/gobby/mcp_proxy/tools/plugins/)
 
@@ -518,6 +540,7 @@ def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
     # Session Variables
     mcp.add_tool(tools_handler.set_variable)
     mcp.add_tool(tools_handler.get_variable)
+    mcp.add_tool(tools_handler.save_variable_template)
 
     # Hook Extension tools are now in gobby-plugins internal registry
 
