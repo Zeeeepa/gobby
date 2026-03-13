@@ -446,7 +446,7 @@ class GobbyDaemonTools:
         self,
         name: str,
         value: str | int | float | bool | None,
-        session_id: str = "",
+        session_id: str,
     ) -> dict[str, Any]:
         """Set a variable. Session-scoped by default. Pass workflow param to scope to a specific workflow instance."""
         if not self._session_manager or not self._session_manager.db:
@@ -466,7 +466,8 @@ class GobbyDaemonTools:
     async def get_variable(
         self,
         name: str | None = None,
-        session_id: str = "",
+        *,
+        session_id: str,
     ) -> dict[str, Any]:
         """Get a variable (or all variables). Session-scoped by default. Pass workflow param to read from a specific workflow instance."""
         if not self._session_manager or not self._session_manager.db:
