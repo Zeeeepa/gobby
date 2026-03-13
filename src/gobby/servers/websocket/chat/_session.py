@@ -247,12 +247,15 @@ class ChatSessionMixin:
 
         session._on_plan_ready = _notify_plan_ready
 
-        # Wire tool approval config if available
+        # Wire config from daemon
         daemon_cfg = getattr(self, "daemon_config", None)
         if daemon_cfg is not None:
             tool_approval_cfg = getattr(daemon_cfg, "tool_approval", None)
             if tool_approval_cfg is not None and tool_approval_cfg.enabled:
                 session._tool_approval_config = tool_approval_cfg
+            ctx_overrides = getattr(daemon_cfg, "context_window_overrides", None)
+            if ctx_overrides:
+                session._context_window_overrides = ctx_overrides
 
         # Apply daemon config default chat mode (lowest priority — overridden below)
         if daemon_cfg is not None:

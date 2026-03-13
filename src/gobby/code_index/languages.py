@@ -79,6 +79,12 @@ _TYPESCRIPT_SPEC = LanguageSpec(
         (type_alias_declaration name: (type_identifier) @name) @definition.type
         (enum_declaration name: (identifier) @name) @definition.type
         (lexical_declaration (variable_declarator name: (identifier) @name value: (arrow_function))) @definition.function
+        (export_statement declaration: (function_declaration name: (identifier) @name)) @definition.function
+        (export_statement declaration: (class_declaration name: (type_identifier) @name)) @definition.class
+        (export_statement declaration: (interface_declaration name: (type_identifier) @name)) @definition.type
+        (export_statement declaration: (type_alias_declaration name: (type_identifier) @name)) @definition.type
+        (export_statement declaration: (enum_declaration name: (identifier) @name)) @definition.type
+        (export_statement declaration: (lexical_declaration (variable_declarator name: (identifier) @name value: (arrow_function)))) @definition.function
     """,
     import_query="""
         (import_statement) @import

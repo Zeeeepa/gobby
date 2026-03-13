@@ -120,6 +120,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     _pending_agent_name: str | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
     _max_history_total_chars: int = field(default=30_000, repr=False)
+    _context_window_overrides: dict[str, int] = field(default_factory=dict, repr=False)
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
     sdk_session_id: str | None = field(default=None, repr=False)
@@ -590,7 +591,11 @@ class ChatSession(ChatSessionPermissionsMixin):
                         output_tokens = usage.get("output_tokens", 0) or 0
 
                         _model_usage = getattr(message, "_model_usage", None)
-                        context_window = resolve_context_window(self._last_model, _model_usage)
+                        context_window = resolve_context_window(
+                            self._last_model,
+                            _model_usage,
+                            overrides=self._context_window_overrides or None,
+                        )
 
                         logger.info(
                             "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
@@ -692,7 +697,9 @@ class ChatSession(ChatSessionPermissionsMixin):
 
     def _resolve_context_window_fallback(self) -> int | None:
         """Resolve context_window from _last_model for error paths."""
-        return resolve_context_window(self._last_model, None)
+        return resolve_context_window(
+            self._last_model, None, overrides=self._context_window_overrides or None
+        )
 
     async def interrupt(self) -> None:
         """Interrupt the current response stream."""

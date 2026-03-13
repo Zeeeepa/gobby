@@ -25,6 +25,7 @@ class CodeIndexConfig(BaseModel):
     exclude_patterns: list[str] = Field(
         default=[
             "node_modules",
+            ".vite",
             ".git",
             "__pycache__",
             ".mypy_cache",

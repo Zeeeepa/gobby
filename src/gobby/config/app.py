@@ -463,6 +463,10 @@ class DaemonConfig(BaseModel):
         default_factory=OutputCompressionConfig,
         description="Output compression for token optimization (RTK-inspired)",
     )
+    context_window_overrides: dict[str, int] = Field(
+        default_factory=dict,
+        description="Override context window sizes by model substring match (e.g., {'opus': 1000000})",
+    )
     code_index: CodeIndexConfig = Field(
         default_factory=CodeIndexConfig,
         description="Native AST-based code indexing configuration",
