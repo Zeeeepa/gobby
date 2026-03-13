@@ -5,8 +5,11 @@ Wraps LocalWorkflowDefinitionManager with workflow_type='rule' filtering.
 Provides list, get, toggle, create, and delete operations for standalone rules.
 """
 
+from __future__ import annotations
+
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from gobby.storage.workflow_definitions import (
@@ -169,16 +172,22 @@ def create_rule(
     def_manager: LocalWorkflowDefinitionManager,
     name: str,
     definition: dict[str, Any],
+    *,
+    project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """
     Create a new rule.
 
     Validates the definition with RuleDefinitionBody before inserting.
+    Auto-exports to YAML for persistence (unless in dev mode).
 
     Args:
         def_manager: Definition storage manager
         name: Rule name (must be unique)
         definition: Rule definition dict (event, effect, optional when/group/match)
+        project_path: Project root for auto-export
+        make_global_template: If True, export to ~/.gobby/workflows/ instead
 
     Returns:
         Dict with success and created rule, or error
@@ -188,6 +197,15 @@ def create_rule(
         RuleDefinitionBody.model_validate(definition)
     except Exception as e:
         return {"success": False, "error": f"Validation failed: {e}"}
+
+    # Name collision check: reject user rules that shadow gobby templates
+    from gobby.mcp_proxy.tools.workflows._auto_export import has_gobby_name_collision
+
+    if has_gobby_name_collision(def_manager.db, name):
+        return {
+            "success": False,
+            "error": f"Rule '{name}' conflicts with a bundled gobby template. Choose a different name.",
+        }
 
     # Check for duplicate name (including templates)
     existing = def_manager.get_by_name(name) or def_manager.get_by_name(
@@ -201,7 +219,7 @@ def create_rule(
     if deleted_row is not None and deleted_row.deleted_at and deleted_row.workflow_type == "rule":
         def_manager.hard_delete(deleted_row.id)
 
-    tags = definition.get("tags")
+    tags = definition.get("tags") or ["user"]
 
     row = def_manager.create(
         name=name,
@@ -213,6 +231,14 @@ def create_rule(
     )
     logger.info("Created rule '%s' (id=%s)", name, row.id)
 
+    # Auto-export to YAML for persistence
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
+
+        auto_export_definition(row, project_path, make_global=make_global_template)
+    except Exception as e:
+        logger.warning("Failed to auto-export rule '%s': %s", name, e)
+
     return {"success": True, "rule": _rule_detail(row)}
 
 
@@ -220,16 +246,20 @@ def delete_rule(
     def_manager: LocalWorkflowDefinitionManager,
     name: str,
     force: bool = False,
+    *,
+    project_path: Path | None = None,
 ) -> dict[str, Any]:
     """
     Delete a rule by name (soft-delete).
 
     Bundled rules are protected unless force=True.
+    Also removes the YAML template file if it exists.
 
     Args:
         def_manager: Definition storage manager
         name: Rule name
         force: Override bundled protection
+        project_path: Project root for YAML cleanup
 
     Returns:
         Dict with success, or error if not found/protected
@@ -250,6 +280,20 @@ def delete_rule(
     deleted = def_manager.delete(row.id)
     if not deleted:
         return {"success": False, "error": f"Failed to delete rule '{name}'"}
+
+    # Remove YAML template file if it exists
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_delete_definition
+
+        is_user = row.tags and "user" in row.tags
+        auto_delete_definition(
+            name,
+            "rule",
+            project_path,
+            delete_global=is_user,
+        )
+    except Exception as e:
+        logger.warning("Failed to delete rule template '%s': %s", name, e)
 
     logger.info("Deleted rule '%s' (id=%s)", name, row.id)
     return {"success": True, "deleted": {"id": row.id, "name": row.name}}

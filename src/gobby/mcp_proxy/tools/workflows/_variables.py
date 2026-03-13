@@ -216,3 +216,54 @@ def get_variable(
         "variables": variables,
         "scope": "session",
     }
+
+
+def save_variable_template(
+    db: DatabaseProtocol,
+    name: str,
+    definition: dict[str, Any],
+    *,
+    make_global: bool = False,
+) -> dict[str, Any]:
+    """Save a variable definition as a YAML template for persistence.
+
+    Writes to .gobby/workflows/variables/ (project) or
+    ~/.gobby/workflows/variables/ (global).
+
+    Args:
+        db: Database connection
+        name: Variable name
+        definition: Variable definition dict (type, default, description)
+        make_global: Write to global ~/.gobby/workflows/ instead of project
+
+    Returns:
+        Dict with success and path to written file
+    """
+    from pathlib import Path
+
+    from gobby.utils.dev import is_dev_mode
+    from gobby.workflows.template_writer import write_variable_template
+
+    project_path = Path.cwd()
+    if is_dev_mode(project_path):
+        return {"success": False, "error": "Auto-export disabled in dev mode"}
+
+    if make_global:
+        from gobby.paths import get_global_variables_dir
+
+        output_dir = get_global_variables_dir()
+    else:
+        from gobby.paths import get_project_variables_dir
+
+        output_dir = get_project_variables_dir(project_path)
+
+    try:
+        path = write_variable_template(
+            name=name,
+            definition=definition,
+            output_dir=output_dir,
+        )
+        logger.info("Saved variable template '%s' to %s", name, path)
+        return {"success": True, "path": str(path)}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to write variable template: {e}"}

@@ -45,7 +45,18 @@ def _is_dev_mode() -> bool:
     1. sys.executable is inside a gobby project directory, OR
     2. CWD is a gobby project directory with a .venv (covers globally
        installed CLI being run from the source checkout)
+
+    Note: Uses a weaker check than utils.dev.is_dev_mode() because service
+    installation needs to work before the source tree is fully built.
     """
+
+    def _is_gobby_pyproject(pyproject: Path) -> bool:
+        try:
+            content = pyproject.read_text(encoding="utf-8")
+            return 'name = "gobby"' in content or "name = 'gobby'" in content
+        except OSError:
+            return False
+
     # Strategy 1: Check if sys.executable is inside a gobby project
     exe = Path(sys.executable).resolve()
     for parent in exe.parents:
@@ -59,21 +70,24 @@ def _is_dev_mode() -> bool:
     return _find_project_from_cwd() is not None
 
 
-def _is_gobby_pyproject(pyproject: Path) -> bool:
-    """Check if a pyproject.toml belongs to the gobby project."""
-    try:
-        content = pyproject.read_text(encoding="utf-8")
-        return 'name = "gobby"' in content or "name = 'gobby'" in content
-    except OSError:
-        return False
-
-
 def _find_project_from_cwd() -> Path | None:
     """Find a gobby project root from CWD (or parents).
 
     Returns the project root if CWD is inside a gobby source checkout
     that has a .venv with a python3 executable. Returns None otherwise.
+
+    Note: Uses a weaker check than is_gobby_project() because service
+    installation needs to work even when src/gobby/install/shared/ doesn't
+    exist yet (e.g., fresh checkout before first build).
     """
+
+    def _is_gobby_pyproject(pyproject: Path) -> bool:
+        try:
+            content = pyproject.read_text(encoding="utf-8")
+            return 'name = "gobby"' in content or "name = 'gobby'" in content
+        except OSError:
+            return False
+
     cwd = Path.cwd().resolve()
     for directory in [cwd, *cwd.parents]:
         pyproject = directory / "pyproject.toml"

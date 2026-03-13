@@ -95,8 +95,23 @@ def create_workflow_definition(
     except Exception as e:
         return {"success": False, "error": f"Import failed: {e}"}
 
+    # Tag as user-created if no tags set
+    if not row.tags:
+        def_manager.update(row.id, tags=["user"])
+        row = def_manager.get(row.id)
+
     loader.clear_cache()
     logger.info("Created workflow definition '%s' (id=%s)", row.name, row.id)
+
+    # Auto-export to YAML for persistence
+    try:
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
+
+        auto_export_definition(row, Path.cwd())
+    except Exception as e:
+        logger.warning("Failed to auto-export definition '%s': %s", row.name, e)
 
     return {
         "success": True,
@@ -260,6 +275,17 @@ def delete_workflow_definition(
     deleted = def_manager.delete(row.id)
     if not deleted:
         return {"success": False, "error": f"Failed to delete definition '{row.name}'"}
+
+    # Remove YAML template file if it exists
+    try:
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_delete_definition
+
+        is_user = row.tags and "user" in row.tags
+        auto_delete_definition(row.name, row.workflow_type, Path.cwd(), delete_global=is_user)
+    except Exception as e:
+        logger.warning("Failed to delete template '%s': %s", row.name, e)
 
     loader.clear_cache()
     logger.info("Deleted workflow definition '%s' (id=%s)", row.name, row.id)

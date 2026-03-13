@@ -140,11 +140,14 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
-    # Orphan cleanup: soft-delete template agents whose YAML was removed
-    # on_disk was built incrementally during the main sync loop above
+    # Orphan cleanup: soft-delete template agents whose YAML was removed.
+    # Scoped by gobby tag to prevent cross-tag cascade damage.
+    tag_filter = '%"gobby"%'
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source = 'template' AND workflow_type = 'agent' AND deleted_at IS NULL",
+        "WHERE source = 'template' AND workflow_type = 'agent' "
+        "AND tags LIKE ? AND deleted_at IS NULL",
+        (tag_filter,),
     )
     result["orphaned"] = 0
     orphaned_names: set[str] = set()
@@ -155,13 +158,15 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             logger.info(f"Soft-deleted orphaned bundled agent: {row['name']}")
             result["orphaned"] += 1
 
-    # Cascade: soft-delete installed copies of orphaned templates
+    # Cascade: soft-delete installed copies of orphaned templates,
+    # scoped by tag to prevent cross-tag cascade damage
     result["cascaded"] = 0
     for name in orphaned_names:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
-            "WHERE name = ? AND source = 'installed' AND workflow_type = 'agent' AND deleted_at IS NULL",
-            (name,),
+            "WHERE name = ? AND source = 'installed' AND workflow_type = 'agent' "
+            "AND tags LIKE ? AND deleted_at IS NULL",
+            (name, tag_filter),
         )
         for inst_row in installed_rows:
             manager.delete(inst_row["id"])

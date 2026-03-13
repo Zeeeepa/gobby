@@ -5,8 +5,11 @@ Wraps LocalWorkflowDefinitionManager with workflow_type='agent' filtering.
 Provides list, get, toggle, create, and delete operations for agent definitions.
 """
 
+from __future__ import annotations
+
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from gobby.storage.workflow_definitions import (
@@ -125,11 +128,15 @@ def create_agent_definition(
     def_manager: LocalWorkflowDefinitionManager,
     name: str,
     definition: dict[str, Any],
+    *,
+    project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """
     Create a new agent definition.
 
     Validates the definition with AgentDefinitionBody before inserting.
+    Auto-exports to YAML for persistence.
 
     Args:
         def_manager: Definition storage manager
@@ -162,8 +169,17 @@ def create_agent_definition(
         description=definition.get("description"),
         enabled=definition.get("enabled", True),
         source="installed",
+        tags=["user"],
     )
     logger.info("Created agent definition '%s' (id=%s)", name, row.id)
+
+    # Auto-export to YAML for persistence
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
+
+        auto_export_definition(row, project_path, make_global=make_global_template)
+    except Exception as e:
+        logger.warning("Failed to auto-export agent '%s': %s", name, e)
 
     return {"success": True, "agent": _agent_detail(row)}
 
@@ -198,6 +214,8 @@ def delete_agent_definition(
     def_manager: LocalWorkflowDefinitionManager,
     name: str,
     force: bool = False,
+    *,
+    project_path: Path | None = None,
 ) -> dict[str, Any]:
     """
     Delete an agent definition by name (soft-delete).
@@ -228,6 +246,15 @@ def delete_agent_definition(
     deleted = def_manager.delete(row.id)
     if not deleted:
         return {"success": False, "error": f"Failed to delete agent definition '{name}'"}
+
+    # Remove YAML template file if it exists
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_delete_definition
+
+        is_user = row.tags and "user" in row.tags
+        auto_delete_definition(name, "agent", project_path, delete_global=is_user)
+    except Exception as e:
+        logger.warning("Failed to delete agent template '%s': %s", name, e)
 
     logger.info("Deleted agent definition '%s' (id=%s)", name, row.id)
     return {"success": True, "deleted": {"id": row.id, "name": row.name}}
