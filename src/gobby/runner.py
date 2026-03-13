@@ -1284,12 +1284,16 @@ async def run_gobby(config_path: Path | None = None, verbose: bool = False) -> N
 
 def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
     """Quick check whether a healthy Gobby daemon is already listening."""
+    import urllib.parse
     import urllib.request
 
     try:
         url = f"http://{host}:{port}/api/admin/health"
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:  # nosec B310
             return resp.status == 200
     except Exception:
         return False
