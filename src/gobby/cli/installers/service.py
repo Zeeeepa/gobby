@@ -46,24 +46,18 @@ def _is_dev_mode() -> bool:
     2. CWD is a gobby project directory with a .venv (covers globally
        installed CLI being run from the source checkout)
 
-    Note: Uses a weaker check than utils.dev.is_dev_mode() because service
-    installation needs to work before the source tree is fully built.
+    Note: Uses has_gobby_pyproject (weaker check) rather than is_dev_mode()
+    because service installation needs to work before the source tree is
+    fully built (e.g., fresh checkout before first build).
     """
-
-    def _is_gobby_pyproject(pyproject: Path) -> bool:
-        try:
-            content = pyproject.read_text(encoding="utf-8")
-            return 'name = "gobby"' in content or "name = 'gobby'" in content
-        except OSError:
-            return False
+    from gobby.utils.dev import has_gobby_pyproject
 
     # Strategy 1: Check if sys.executable is inside a gobby project
     exe = Path(sys.executable).resolve()
     for parent in exe.parents:
-        pyproject = parent / "pyproject.toml"
-        if pyproject.exists():
-            if _is_gobby_pyproject(pyproject):
-                return True
+        if has_gobby_pyproject(parent):
+            return True
+        if (parent / "pyproject.toml").exists():
             break  # Only check the first pyproject.toml we find
 
     # Strategy 2: Check if CWD is a gobby project with a .venv
@@ -76,24 +70,17 @@ def _find_project_from_cwd() -> Path | None:
     Returns the project root if CWD is inside a gobby source checkout
     that has a .venv with a python3 executable. Returns None otherwise.
 
-    Note: Uses a weaker check than is_gobby_project() because service
-    installation needs to work even when src/gobby/install/shared/ doesn't
-    exist yet (e.g., fresh checkout before first build).
+    Note: Uses has_gobby_pyproject (weaker check) rather than
+    is_gobby_project() because service installation needs to work even
+    when src/gobby/install/shared/ doesn't exist yet.
     """
-
-    def _is_gobby_pyproject(pyproject: Path) -> bool:
-        try:
-            content = pyproject.read_text(encoding="utf-8")
-            return 'name = "gobby"' in content or "name = 'gobby'" in content
-        except OSError:
-            return False
+    from gobby.utils.dev import has_gobby_pyproject
 
     cwd = Path.cwd().resolve()
     for directory in [cwd, *cwd.parents]:
-        pyproject = directory / "pyproject.toml"
         venv_python = directory / ".venv" / "bin" / "python3"
-        if pyproject.exists() and venv_python.exists():
-            if _is_gobby_pyproject(pyproject):
+        if (directory / "pyproject.toml").exists() and venv_python.exists():
+            if has_gobby_pyproject(directory):
                 return directory
             break
     return None
