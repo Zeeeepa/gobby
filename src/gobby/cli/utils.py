@@ -882,7 +882,7 @@ def stop_daemon(quiet: bool = False) -> bool:
 
     # If running under launchctl, use bootout instead of SIGTERM to prevent
     # KeepAlive from immediately respawning the process
-    from gobby.cli.installers.service import service_stop
+    from gobby.cli.installers.service import get_service_status, service_stop
 
     svc = get_service_status()
     if svc.get("installed") and svc.get("running"):
