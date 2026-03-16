@@ -62,7 +62,6 @@ async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProc
             tool_result TEXT,
             tool_use_id TEXT,
             timestamp TEXT NOT NULL,
-            raw_json TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(session_id, message_index)
         );

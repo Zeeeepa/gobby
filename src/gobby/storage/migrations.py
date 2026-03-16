@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 155
+BASELINE_VERSION = 156
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -273,7 +273,6 @@ CREATE TABLE session_messages (
     tool_result TEXT,
     tool_use_id TEXT,
     timestamp TEXT NOT NULL,
-    raw_json TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(session_id, message_index)
 );
@@ -1310,6 +1309,11 @@ CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
         155,
         "Add FTS5 virtual table for code symbol full-text search",
         _setup_code_symbols_fts,
+    ),
+    (
+        156,
+        "Drop raw_json column from session_messages (data archived to gzip files)",
+        "ALTER TABLE session_messages DROP COLUMN raw_json",
     ),
 ]
 
