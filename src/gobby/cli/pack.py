@@ -17,6 +17,8 @@ from pathlib import Path
 
 import click
 
+from gobby.cli.utils import stop_daemon
+
 GOBBY_HOME = Path.home() / ".gobby"
 DB_NAME = "gobby-hub.db"
 
@@ -129,6 +131,77 @@ def _import_docker_volume(volume_name: str, archive_path: Path) -> bool:
         return False
 
 
+def _daemon_is_running() -> bool:
+    """Check if the Gobby daemon is currently running."""
+    pid_file = GOBBY_HOME / "gobby.pid"
+    if not pid_file.exists():
+        return False
+    try:
+        pid = int(pid_file.read_text().strip())
+        os.kill(pid, 0)
+        return True
+    except (ValueError, ProcessLookupError, PermissionError):
+        return False
+
+
+def _stop_neo4j_container() -> bool:
+    """Stop the Neo4j Docker container if running."""
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q", "--filter", "name=neo4j"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.stdout.strip():
+            subprocess.run(
+                ["docker", "stop", "neo4j-neo4j-1"],
+                capture_output=True,
+                timeout=30,
+            )
+            return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return False
+
+
+def _start_neo4j_container() -> None:
+    """Start the Neo4j Docker container if a compose file exists."""
+    compose_dir = GOBBY_HOME / "services" / "neo4j"
+    compose_file = compose_dir / "docker-compose.yml"
+    if not compose_file.exists():
+        return
+    try:
+        subprocess.run(
+            ["docker", "compose", "up", "-d"],
+            capture_output=True,
+            cwd=str(compose_dir),
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+
+def _start_daemon() -> None:
+    """Start the Gobby daemon via the service manager."""
+    from gobby.cli.installers.service import get_service_status, service_start
+
+    svc = get_service_status()
+    if svc.get("installed"):
+        service_start()
+    else:
+        # Fallback: direct process start
+        try:
+            subprocess.Popen(
+                [sys.executable, "-m", "gobby.runner"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except FileNotFoundError:
+            pass
+
+
 def _get_pack_size_estimate() -> int:
     """Estimate total size of data to pack."""
     total = 0
@@ -229,6 +302,38 @@ def pack(output: str | None, no_docker: bool, no_transcripts: bool, dry_run: boo
 
     click.echo(f"Packing Gobby data to {output_path}...")
 
+    # Stop daemon for consistent DB snapshot
+    daemon_was_running = _daemon_is_running()
+    if daemon_was_running:
+        click.echo("  Stopping daemon for consistent snapshot...")
+        stop_daemon(quiet=True)
+
+    # Stop Neo4j for consistent volume export
+    neo4j_was_running = False
+    if docker_volumes_to_export:
+        neo4j_was_running = _stop_neo4j_container()
+        if neo4j_was_running:
+            click.echo("  Stopped Neo4j container")
+
+    try:
+        _do_pack(output_path, items, docker_volumes_to_export, missing)
+    finally:
+        # Restart services that were running
+        if neo4j_was_running:
+            click.echo("  Restarting Neo4j container...")
+            _start_neo4j_container()
+        if daemon_was_running:
+            click.echo("  Restarting daemon...")
+            _start_daemon()
+
+
+def _do_pack(
+    output_path: Path,
+    items: list[tuple[str, Path]],
+    docker_volumes_to_export: list[str],
+    missing: list[str],
+) -> None:
+    """Inner pack logic, separated for try/finally lifecycle management."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
 
@@ -333,6 +438,16 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
             click.echo(f"  Source: {manifest.get('hostname', 'unknown')}")
             click.echo(f"  Created: {manifest.get('created_at', 'unknown')}")
 
+        # Stop services before overwriting data
+        daemon_was_running = _daemon_is_running()
+        if daemon_was_running:
+            click.echo("  Stopping daemon...")
+            stop_daemon(quiet=True)
+
+        neo4j_was_running = _stop_neo4j_container()
+        if neo4j_was_running:
+            click.echo("  Stopped Neo4j container")
+
         # Backup existing DB if present
         existing_db = GOBBY_HOME / DB_NAME
         if existing_db.exists():
@@ -410,7 +525,15 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
                                     err=True,
                                 )
 
-    click.echo("\nUnpack complete. Run 'gobby start' to start the daemon.")
+    # Restart services
+    if neo4j_was_running or (not no_docker and docker_archives):
+        click.echo("  Starting Neo4j container...")
+        _start_neo4j_container()
+    if daemon_was_running:
+        click.echo("  Restarting daemon...")
+        _start_daemon()
+
+    click.echo("\nUnpack complete.")
 
 
 def _human_size(size: int) -> str:
