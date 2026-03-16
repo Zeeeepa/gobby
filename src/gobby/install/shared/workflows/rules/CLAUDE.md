@@ -9,7 +9,7 @@ This directory contains 14 bundled rule groups. These are **templates** — they
 | `worker-safety` | `worker-safety/` | 7 | Block git push (global + worker-scoped), force push, destructive git, bash sleep, agent spawn from merge, external GitHub issues |
 | `tool-hygiene` | `tool-hygiene/` | 2 | Require `uv` for Python, track pending memory review |
 | `progressive-discovery` | `progressive-discovery/` | 7 | Enforce MCP discovery order: list_servers → list_tools → get_schema → call_tool |
-| `task-enforcement` | `task-enforcement/` | 10 | Block native task tools, require task before edit, track claims, require commits before close, block validation skip, block needs_review for interactive, require error triage before close/review/approve |
+| `task-enforcement` | `task-enforcement/` | 10 | Block native task tools, require task before edit, track claims, require commits before close, block validation skip, block needs_review and review_approved for interactive, require error triage before close/review/approve |
 | `stop-gates` | `stop-gates/` | 1 | Require task close before stop |
 | `plan-mode` | `plan-mode/` | 3 | Detect enter/exit plan mode, reset on session start |
 | `memory-lifecycle` | `memory-lifecycle/` | 8 | Memory recall, digest, capture, title generation, tracking reset |
