@@ -610,20 +610,6 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
   const summary = useMemo(() => getToolSummary(call), [call])
   const isCompact = summary !== null && COMPACT_HEADER_TOOLS.has(displayName)
   const isFileHeader = FILE_TOOLS.has(displayName)
-
-  if (call.tool_name === 'render_surface') {
-    return <CanvasSurfaceCard call={call} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
-  }
-
-  if (call.tool_name === 'AskUserQuestion') {
-    return <AskUserQuestionCard call={call} onRespond={onRespond} />
-  }
-
-  if (call.status === 'pending_approval') {
-    return <ToolApprovalCard call={call} onRespondToApproval={onRespondToApproval} />
-  }
-
-  const hasDetails = call.arguments || call.result || call.error
   const { openFileAsArtifact } = useArtifactContext()
 
   // Compute artifact info for Read tools to show button in toolbar
@@ -638,6 +624,20 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
     const fileName = pathBasename(filePath)
     return { artifactInfo, parsed, fileName }
   }, [displayName, call.status, call.result, call.arguments])
+
+  if (call.tool_name === 'render_surface') {
+    return <CanvasSurfaceCard call={call} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
+  }
+
+  if (call.tool_name === 'AskUserQuestion') {
+    return <AskUserQuestionCard call={call} onRespond={onRespond} />
+  }
+
+  if (call.status === 'pending_approval') {
+    return <ToolApprovalCard call={call} onRespondToApproval={onRespondToApproval} />
+  }
+
+  const hasDetails = call.arguments || call.result || call.error
 
   return (
     <div className={cn(

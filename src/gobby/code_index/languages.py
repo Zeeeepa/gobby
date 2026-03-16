@@ -282,7 +282,7 @@ _MARKDOWN_SPEC = LanguageSpec(
 _YAML_SPEC = LanguageSpec(
     extensions=[".yaml", ".yml"],
     symbol_query="""
-        (block_mapping_pair key: (flow_node) @name) @definition.property
+        (block_mapping_pair key: (_) @name) @definition.property
     """,
     container_types=["block_mapping_pair"],
 )

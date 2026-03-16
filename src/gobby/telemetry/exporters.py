@@ -50,7 +50,10 @@ def create_exporters(
             span_exporters.append(ConsoleSpanExporter())
 
         if config.exporter.otlp_endpoint:
-            headers = config.exporter.otlp_headers or None
+            raw_headers = config.exporter.otlp_headers
+            headers: dict[str, str] | None = (
+                {str(k): str(v) for k, v in raw_headers.items()} if raw_headers else None
+            )
             if config.exporter.otlp_protocol == "http":
                 span_exporters.append(
                     OTLPHTTPSpanExporter(

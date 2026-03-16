@@ -657,7 +657,7 @@ def _check_linger() -> list[str]:
 
             try:
                 user = getpass.getuser()
-            except Exception:
+            except (KeyError, OSError):
                 pass
         if not user:
             warnings.append("Could not determine username — skipping linger check")

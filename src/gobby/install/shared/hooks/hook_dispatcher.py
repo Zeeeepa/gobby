@@ -61,6 +61,11 @@ class CLIConfig:
     has_source_detection: bool  # Whether to detect source from env vars (Claude only)
 
 
+# Fire-and-forget hooks: spawn a detached curl process and return immediately.
+# This prevents Claude Code from cancelling the hook during /exit — the curl
+# child survives parent death and delivers the payload to the daemon.
+_FIRE_AND_FORGET_HOOKS: frozenset[str] = frozenset({"session-end", "SessionEnd", "sessionEnd"})
+
 CLI_CONFIGS: dict[str, CLIConfig] = {
     "claude": CLIConfig(
         source="claude",
@@ -566,11 +571,6 @@ async def main() -> int:
         print(json.dumps({}))
         return config.json_error_exit_code
 
-    # Fire-and-forget hooks: spawn a detached curl process and return immediately.
-    # This prevents Claude Code from cancelling the hook during /exit — the curl
-    # child survives parent death and delivers the payload to the daemon.
-    _FIRE_AND_FORGET_HOOKS = {"session-end", "SessionEnd", "sessionEnd"}
-
     if hook_type in _FIRE_AND_FORGET_HOOKS:
         import subprocess
 
@@ -589,7 +589,7 @@ async def main() -> int:
                 daemon_url,
                 len(payload),
             )
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 [
                     "curl",
                     "-s",
@@ -599,15 +599,17 @@ async def main() -> int:
                     "-H",
                     "Content-Type: application/json",
                     "-d",
-                    payload,
+                    "@-",
                     "--max-time",
                     "90",
                 ],
                 start_new_session=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
+                stdin=subprocess.PIPE,
             )
+            proc.stdin.write(payload.encode())
+            proc.stdin.close()
         except (FileNotFoundError, OSError) as e:
             logger.debug("Fire-and-forget spawn failed for %s: %s", hook_type, e)
         return 0

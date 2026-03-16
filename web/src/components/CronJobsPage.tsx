@@ -8,6 +8,19 @@ import './CronJobsPage.css'
 // Helpers
 // =============================================================================
 
+function getDefaultActionConfig(actionType: string): string {
+  switch (actionType) {
+    case 'shell':
+      return '{\n  "command": "echo",\n  "args": ["hello"]\n}'
+    case 'agent_spawn':
+      return '{\n  "prompt": "...",\n  "provider": "claude",\n  "model": "sonnet",\n  "mode": "headless"\n}'
+    case 'pipeline':
+      return '{\n  "pipeline_name": "my-pipeline",\n  "inputs": {}\n}'
+    default:
+      return '{}'
+  }
+}
+
 function formatSchedule(job: CronJob): string {
   if (job.schedule_type === 'cron' && job.cron_expr) {
     return job.cron_expr
@@ -185,13 +198,7 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
             value={actionType}
             onChange={e => {
               setActionType(e.target.value)
-              if (e.target.value === 'shell') {
-                setActionConfigStr('{\n  "command": "echo",\n  "args": ["hello"]\n}')
-              } else if (e.target.value === 'agent_spawn') {
-                setActionConfigStr('{\n  "prompt": "...",\n  "provider": "claude",\n  "model": "sonnet",\n  "mode": "headless"\n}')
-              } else {
-                setActionConfigStr('{\n  "pipeline_name": "my-pipeline",\n  "inputs": {}\n}')
-              }
+              setActionConfigStr(getDefaultActionConfig(e.target.value))
             }}
           >
             <option value="shell">Shell Command</option>
@@ -333,7 +340,11 @@ function EditJobSidebar({ job, onSave, onClose }: EditJobSidebarProps) {
 
       <div className="cron-form-group">
         <label className="cron-form-label">Action Type</label>
-        <select className="cron-form-select" value={actionType} onChange={e => setActionType(e.target.value as CronJob['action_type'])}>
+        <select className="cron-form-select" value={actionType} onChange={e => {
+          const newType = e.target.value as CronJob['action_type']
+          setActionType(newType)
+          setActionConfigStr(getDefaultActionConfig(newType))
+        }}>
           <option value="shell">Shell Command</option>
           <option value="agent_spawn">Agent Spawn</option>
           <option value="pipeline">Pipeline</option>
@@ -631,6 +642,8 @@ export function CronJobsPage() {
     const updated = await updateJob(editingJob.id, req)
     if (updated) {
       setEditingJob(null)
+    } else {
+      throw new Error('Failed to save job')
     }
   }, [editingJob, updateJob])
 

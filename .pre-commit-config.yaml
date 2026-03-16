@@ -35,7 +35,7 @@ repos:
   # Security - secrets detection (pre-commit, read-only)
   # ==========================================================================
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.21.2
+    rev: v8.30.0
     hooks:
       - id: gitleaks
 

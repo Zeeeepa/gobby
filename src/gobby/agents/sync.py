@@ -179,7 +179,8 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         f"Agent definition sync complete: {result['synced']} synced, "
-        f"{result['updated']} updated, {result['skipped']} skipped, {total} total"
+        f"{result['updated']} updated, {result['skipped']} skipped, "
+        f"{result['orphaned']} orphaned, {result['cascaded']} cascaded, {total} total"
     )
 
     return result

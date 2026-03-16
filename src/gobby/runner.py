@@ -1287,6 +1287,12 @@ def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
     import urllib.parse
     import urllib.request
 
+    # Normalize wildcard addresses to localhost for health check
+    if host in ("0.0.0.0", "::", ""):
+        host = "localhost"
+    elif ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+
     try:
         url = f"http://{host}:{port}/api/admin/health"
         parsed = urllib.parse.urlparse(url)

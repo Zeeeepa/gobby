@@ -38,6 +38,7 @@ export function parseLLMAttributes(attributesJson: string | null): LLMAttributes
 }
 
 export function formatTokenCount(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '0'
   if (n >= 1000) return (n / 1000).toFixed(1) + 'k'
   return String(n)
 }

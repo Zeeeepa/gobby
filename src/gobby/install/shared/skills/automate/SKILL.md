@@ -49,7 +49,7 @@ inputs:
   param_name: default_value    # Overridden at runtime
 
 outputs:
-  result: "${{ steps.final.output }}"
+  result: "${{ steps.step_two.output }}"
 
 steps:
   - id: step_one
