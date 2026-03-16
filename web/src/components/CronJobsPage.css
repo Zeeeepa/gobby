@@ -310,7 +310,7 @@
 }
 
 .cron-info-value code {
-  font-family: var(--font-mono);
+  font-family: inherit;
   background: var(--bg-primary);
   padding: 2px 6px;
   border-radius: 3px;
@@ -333,7 +333,7 @@
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 12px;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 12px;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -478,7 +478,7 @@
 .cron-form-textarea {
   min-height: 80px;
   resize: vertical;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 12px;
 }
 

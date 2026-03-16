@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
 from gobby.config.code_index import CodeIndexConfig
@@ -463,6 +463,10 @@ class DaemonConfig(BaseModel):
         default_factory=OutputCompressionConfig,
         description="Output compression for token optimization (RTK-inspired)",
     )
+    context_window_overrides: dict[str, int] = Field(
+        default_factory=dict,
+        description="Override context window sizes by model substring match (e.g., {'opus': 1000000})",
+    )
     code_index: CodeIndexConfig = Field(
         default_factory=CodeIndexConfig,
         description="Native AST-based code indexing configuration",
@@ -545,6 +549,18 @@ class DaemonConfig(BaseModel):
         if not (1.0 <= v <= 300.0):
             raise ValueError("daemon_health_check_interval must be between 1.0 and 300.0 seconds")
         return v
+
+    @model_validator(mode="after")
+    def validate_collection_prefix_consistency(self) -> DaemonConfig:
+        """Ensure memory and code_index collection prefixes match."""
+        if self.memory.code_symbol_collection_prefix != self.code_index.qdrant_collection_prefix:
+            raise ValueError(
+                f"memory.code_symbol_collection_prefix "
+                f"({self.memory.code_symbol_collection_prefix!r}) must match "
+                f"code_index.qdrant_collection_prefix "
+                f"({self.code_index.qdrant_collection_prefix!r})"
+            )
+        return self
 
 
 def load_yaml(

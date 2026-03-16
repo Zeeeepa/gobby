@@ -136,6 +136,21 @@ class RunningAgent:
             "has_task": self.task is not None,
         }
 
+    def to_brief(self) -> dict[str, Any]:
+        """Slim representation for list operations."""
+        return {
+            "run_id": self.run_id,
+            "session_id": self.session_id,
+            "parent_session_id": self.parent_session_id,
+            "mode": self.mode,
+            "started_at": self.started_at.isoformat(),
+            "pid": self.pid,
+            "provider": self.provider,
+            "task_id": self.task_id,
+            "stall_status": self.stall_status,
+            "has_task": self.task is not None,
+        }
+
 
 class RunningAgentRegistry:
     """

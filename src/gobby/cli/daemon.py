@@ -5,7 +5,7 @@ Daemon management commands.
 import asyncio
 import logging
 import os
-import subprocess  # nosec B404 - subprocess needed for daemon management
+import subprocess  # nosec B404 # subprocess needed for daemon management
 import sys
 import time
 from pathlib import Path
@@ -17,6 +17,12 @@ import psutil
 
 from gobby.utils.status import fetch_rich_status, format_status_message
 
+from .installers.service import (
+    get_service_status,
+    service_restart,
+    service_start,
+    service_stop,
+)
 from .utils import (
     _is_process_alive,
     find_web_dir,
@@ -63,7 +69,7 @@ def _neo4j_start(gobby_home: Path) -> None:
         logger.warning(f"Could not resolve config for Neo4j: {e}")
 
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "up", "-d"],
             capture_output=True,
             text=True,
@@ -84,7 +90,7 @@ def _neo4j_stop(gobby_home: Path) -> None:
     if not compose_file.exists():
         return
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "down"],
             capture_output=True,
             text=True,
@@ -163,6 +169,16 @@ def start(
     ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, neo4j_flag: bool
 ) -> None:
     """Start the Gobby daemon."""
+    # If OS service is installed, delegate to it
+    svc = get_service_status()
+    if svc.get("installed"):
+        click.echo("Starting via OS service manager...")
+        result = service_start()
+        if result.get("success"):
+            click.echo(f"Daemon started via {svc.get('platform', 'OS')} service")
+            return
+        click.echo(f"Service start failed: {result.get('error')}", err=True)
+        click.echo("Falling back to direct start...")
     # Get config object
     config = ctx.obj["config"]
 
@@ -260,7 +276,7 @@ def start(
 
     try:
         # Start detached subprocess
-        process = subprocess.Popen(  # nosec B603 - cmd built from sys.executable and module path
+        process = subprocess.Popen(  # nosec B603 # cmd built from sys.executable and module path
             cmd,
             stdout=log_f,
             stderr=error_log_f,
@@ -379,10 +395,31 @@ def start(
 @click.pass_context
 def stop(ctx: click.Context, neo4j_flag: bool) -> None:
     """Stop the Gobby daemon."""
+    # If OS service is installed and running, delegate to it
+    neo4j_stopped = False
+    svc = get_service_status()
+    if svc.get("installed") and svc.get("running"):
+        click.echo("Stopping via OS service manager...")
+        result = service_stop()
+        if result.get("success"):
+            click.echo(f"Daemon stopped via {svc.get('platform', 'OS')} service")
+        else:
+            click.echo(f"Service stop failed: {result.get('error')}", err=True)
+            click.echo("Falling back to direct stop...")
+
+        # Stop Neo4j if requested
+        if neo4j_flag:
+            click.echo("Stopping Neo4j containers...")
+            _neo4j_stop(get_gobby_home())
+            neo4j_stopped = True
+
+        if result.get("success"):
+            sys.exit(0)
+
     success = stop_daemon_util(quiet=False)
 
-    # Stop Neo4j containers if requested
-    if neo4j_flag:
+    # Stop Neo4j containers if requested (only if not already stopped above)
+    if neo4j_flag and not neo4j_stopped:
         click.echo("Stopping Neo4j containers...")
         _neo4j_stop(get_gobby_home())
 
@@ -419,6 +456,17 @@ def restart(
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
 
+    # If OS service is installed, delegate to it
+    svc = get_service_status()
+    if svc.get("installed") and svc.get("enabled"):
+        click.echo(f"Restarting via {svc.get('platform', 'OS')} service manager...")
+        result = service_restart()
+        if result.get("success"):
+            click.echo(f"Daemon restarted via {result.get('method', 'service manager')}")
+            return
+        click.echo(f"Service restart failed: {result.get('error')}", err=True)
+        click.echo("Falling back to direct restart...")
+
     click.echo("Restarting Gobby daemon...")
 
     # Stop Neo4j containers if requested (before daemon stop)
@@ -446,19 +494,24 @@ def status(ctx: click.Context) -> None:
     pid_file = get_gobby_home() / "gobby.pid"
     log_dir = Path(config.telemetry.log_file).expanduser().parent
 
-    # Read PID from file
-    if not pid_file.exists():
-        message = format_status_message(running=False)
-        click.echo(message)
-        sys.exit(0)
+    # Read PID from file, falling back to launchctl service detection
+    pid: int | None = None
+    if pid_file.exists():
+        try:
+            with open(pid_file) as f:
+                pid = int(f.read().strip())
+        except Exception:
+            pid = None
 
-    try:
-        with open(pid_file) as f:
-            pid = int(f.read().strip())
-    except Exception:
-        message = format_status_message(running=False)
-        click.echo(message)
-        sys.exit(0)
+    if pid is None:
+        # No PID file — check if running as a launchctl service
+        svc = get_service_status()
+        if svc.get("running") and svc.get("pid"):
+            pid = svc["pid"]
+        else:
+            message = format_status_message(running=False)
+            click.echo(message)
+            sys.exit(0)
 
     # Check if process is actually running
     try:
@@ -533,6 +586,21 @@ def status(ctx: click.Context) -> None:
     # Fetch rich status from daemon API (includes Neo4j status)
     rich_status = asyncio.run(fetch_rich_status(http_port, timeout=2.0))
     status_kwargs.update(rich_status)
+
+    # Add service info
+    svc = get_service_status()
+    if svc.get("installed"):
+        parts = []
+        if svc.get("running"):
+            parts.append("running")
+        elif svc.get("enabled"):
+            parts.append("enabled")
+        else:
+            parts.append("disabled")
+        parts.append(svc.get("platform", "unknown"))
+        if svc.get("mode"):
+            parts.append(f"{svc['mode']} mode")
+        status_kwargs["service_info"] = f"installed ({', '.join(parts)})"
 
     # Format and display status
     message = format_status_message(**status_kwargs)

@@ -646,7 +646,7 @@ class TestSessionMoreCoverage:
             patch.object(handler, "_derive_transcript_path", return_value=None),
             patch.object(handler, "_activate_default_agent", return_value=None),
             patch("time.sleep") as mock_sleep,
-            patch("time.monotonic", side_effect=[0, 1, 2, 3, 4]),
+            patch("time.monotonic", side_effect=list(range(30))),
             patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls,
         ):
             mock_svm_cls.return_value.get_variables.return_value = {}

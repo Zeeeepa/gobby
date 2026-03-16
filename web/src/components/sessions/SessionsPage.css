@@ -196,7 +196,7 @@
 
 .session-detail-model {
   font-size: calc(var(--font-size-base) * 0.75);
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-muted);
   padding: 0.125rem 0.375rem;
   background: var(--bg-tertiary);
@@ -208,7 +208,7 @@
   align-items: center;
   gap: 0.25rem;
   font-size: calc(var(--font-size-base) * 0.75);
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-muted);
   padding: 0.125rem 0.375rem;
   background: var(--bg-tertiary);
@@ -245,7 +245,7 @@
   font-size: calc(var(--font-size-base) * 0.9);
   font-weight: 600;
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .session-detail-edited {
@@ -548,7 +548,7 @@
 
 .session-detail-compact-stats {
   font-size: calc(var(--font-size-base) * 0.75);
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-muted);
   margin-top: 0.375rem;
 }
@@ -675,7 +675,7 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 }
 
 .lineage-node-depth {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.6);
   padding: 0 0.25rem;
   background: var(--bg-primary);
@@ -722,7 +722,7 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 /* Session list metadata badges */
 .session-detail-model-badge {
   font-size: calc(var(--font-size-base) * 0.6);
-  font-family: var(--font-mono);
+  font-family: inherit;
   padding: 0.0625rem 0.25rem;
   background: var(--bg-tertiary);
   color: var(--text-muted);
@@ -732,7 +732,7 @@ details:not([open]) > .session-metadata-toggle .session-metadata-chevron {
 .session-meta-count {
   font-size: calc(var(--font-size-base) * 0.65);
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 /* Mobile: hide sidebar, use top drawer instead */

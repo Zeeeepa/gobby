@@ -118,6 +118,20 @@ def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:
     tool_name = data.get("tool_name", "")
     tool_input = data.get("tool_input", {}) or {}
 
+    # 1a-pre. Normalize single-underscore MCP prefix (Gemini CLI) to canonical
+    # double-underscore form.  Gemini sends mcp_<server>_<tool>; canonical is
+    # mcp__<server>__<tool>.  Server names never contain underscores, so the
+    # first underscore after the "mcp_" prefix delimits the server name.
+    if not tool_name.startswith("mcp__") and tool_name.startswith("mcp_"):
+        suffix = tool_name[len("mcp_") :]  # e.g. "gobby_call_tool"
+        underscore_idx = suffix.find("_")
+        if underscore_idx > 0:
+            server = suffix[:underscore_idx]
+            tool = suffix[underscore_idx + 1 :]
+            canonical = f"mcp__{server}__{tool}"
+            data["tool_name"] = canonical
+            tool_name = canonical
+
     # 1a. Parse mcp__<server>__<tool> prefix for ALL native MCP calls
     if tool_name.startswith("mcp__") and "mcp_tool" not in data:
         parts = tool_name.split("__", 2)  # ["mcp", "server", "tool"]
@@ -126,7 +140,7 @@ def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:
             data.setdefault("mcp_tool", parts[2])
 
     # 1b. Extract MCP info from nested tool_input for call_tool calls
-    if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+    if tool_name in ("call_tool", "mcp__gobby__call_tool", "mcp_gobby_call_tool"):
         inner_server = tool_input.get("server_name")
         inner_tool = tool_input.get("tool_name")
         if tool_name.startswith("mcp__"):

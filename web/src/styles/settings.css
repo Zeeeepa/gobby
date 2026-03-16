@@ -87,7 +87,7 @@
   border-radius: 0.5rem;
   color: var(--text-primary);
   font-size: calc(var(--font-size-base) * 0.9);
-  font-family: var(--font-mono);
+  font-family: inherit;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;

@@ -11,6 +11,23 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
+class LLMTracingConfig(BaseModel):
+    """Configuration for LLM call auto-instrumentation."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable LLM call tracing via OpenLLMetry instrumentors",
+    )
+    capture_content: bool = Field(
+        default=False,
+        description="Capture prompt/completion content in spans (privacy-first default: off)",
+    )
+    providers: list[str] = Field(
+        default_factory=lambda: ["anthropic", "openai", "google-genai"],
+        description="LLM providers to instrument",
+    )
+
+
 class ExporterSettings(BaseModel):
     """Configuration for telemetry exporters."""
 
@@ -21,6 +38,10 @@ class ExporterSettings(BaseModel):
     otlp_protocol: Literal["grpc", "http"] = Field(
         default="grpc",
         description="OTLP transport protocol",
+    )
+    otlp_headers: dict[str, str] = Field(
+        default_factory=dict,
+        description="Headers for OTLP exporter (e.g., Authorization for LangWatch)",
     )
     prometheus_enabled: bool = Field(
         default=True,
@@ -110,6 +131,12 @@ class TelemetrySettings(BaseModel):
     exporter: ExporterSettings = Field(
         default_factory=ExporterSettings,
         description="Telemetry exporter configuration",
+    )
+
+    # LLM tracing settings
+    llm_tracing: LLMTracingConfig = Field(
+        default_factory=LLMTracingConfig,
+        description="LLM call auto-instrumentation via OpenLLMetry",
     )
 
     @field_validator("max_size_mb", "backup_count")

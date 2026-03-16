@@ -139,7 +139,7 @@ class LiteLLMProvider(LLMProvider):
         try:
             from jinja2 import Environment
 
-            env = Environment(autoescape=False)  # nosec B701 - generating text prompts
+            env = Environment(autoescape=False)  # nosec B701 # generating text prompts
             template = env.from_string(prompt_template)
             prompt = template.render(**formatted_context)
         except ImportError:

@@ -9,14 +9,11 @@ import type { MemoryFormData } from './MemoryForm'
 import { MemoryDetail } from './MemoryDetail'
 import { IS_MOBILE, IS_IOS, WEBGL_CAP } from '../../utils/platform'
 
-const DEFAULT_MEMORY_GRAPH_LIMIT = 200
 const DEFAULT_KNOWLEDGE_GRAPH_LIMIT = IS_IOS ? 150 : IS_MOBILE ? 250 : 500
 const GRAPH_LIMIT_MIN = 50
-const GRAPH_LIMIT_MAX = 1000
 const KNOWLEDGE_LIMIT_MAX = IS_IOS ? 300 : IS_MOBILE ? 500 : 5000
 const GRAPH_LIMIT_STEP = 50
 
-const MemoryGraph = lazy(() => import('./MemoryGraph').then(m => ({ default: m.MemoryGraph })))
 const KnowledgeGraph = lazy(() => import('./KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })))
 
 class KnowledgeGraphErrorBoundary extends Component<
@@ -50,7 +47,7 @@ class KnowledgeGraphErrorBoundary extends Component<
                 onClick={this.props.onFallback}
                 style={{ padding: '0.35rem 0.75rem', borderRadius: 4, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
               >
-                Switch to 2D
+                Switch to List
               </button>
             )}
           </div>
@@ -71,18 +68,6 @@ function ListIcon() {
   )
 }
 
-function GraphIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="3" cy="3" r="1.5" />
-      <circle cx="11" cy="3" r="1.5" />
-      <circle cx="7" cy="11" r="1.5" />
-      <line x1="4.2" y1="4" x2="6.2" y2="9.8" />
-      <line x1="9.8" y1="4" x2="7.8" y2="9.8" />
-    </svg>
-  )
-}
-
 function KnowledgeIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -96,7 +81,7 @@ function KnowledgeIcon() {
   )
 }
 
-type ViewMode = 'list' | 'graph' | 'knowledge'
+type ViewMode = 'list' | 'knowledge'
 interface MemoryPageProps {
   projectId?: string | null
 }
@@ -112,7 +97,6 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
     updateMemory,
     deleteMemory,
     refreshMemories,
-    fetchGraphData,
     fetchKnowledgeGraph,
     fetchEntityNeighbors,
   } = useMemory()
@@ -124,7 +108,6 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
   const neo4jStatus = useNeo4jStatus()
 
   // Configurable graph limits (fetched from backend config, overridable per-session)
-  const [memoryGraphLimit, setMemoryGraphLimit] = useState(DEFAULT_MEMORY_GRAPH_LIMIT)
   const [knowledgeGraphLimit, setKnowledgeGraphLimit] = useState(DEFAULT_KNOWLEDGE_GRAPH_LIMIT)
 
   useEffect(() => {
@@ -134,9 +117,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
       .then(data => {
         if (!data) return
         const values = data.values ?? data
-        const memLimit = values?.['ui.memory_graph_limit']
         const kgLimit = values?.['ui.knowledge_graph_limit']
-        if (typeof memLimit === 'number' && memLimit >= 50) setMemoryGraphLimit(memLimit)
         if (typeof kgLimit === 'number' && kgLimit >= 50) setKnowledgeGraphLimit(kgLimit)
       })
       .catch((e) => { if (e.name !== 'AbortError') console.debug('Config fetch failed:', e) })
@@ -146,9 +127,9 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const saved = localStorage.getItem('gobby-memory-view')
-      if (saved === 'knowledge' || saved === 'graph' || saved === 'list') return saved
+      if (saved === 'knowledge' || saved === 'list') return saved
     } catch { /* noop */ }
-    return 'graph'
+    return 'list'
   })
   const [showForm, setShowForm] = useState(false)
 
@@ -156,7 +137,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
   // Skip if 3D previously failed (user can manually re-select knowledge view to retry)
   const autoSwitchedRef = useRef(false)
   useEffect(() => {
-    if (neo4jStatus?.configured && viewMode === 'graph' && !autoSwitchedRef.current) {
+    if (neo4jStatus?.configured && viewMode === 'list' && !autoSwitchedRef.current) {
       try {
         if (!localStorage.getItem('gobby-memory-view') && !localStorage.getItem('gobby-kg-failed')) {
           setViewMode('knowledge')
@@ -181,8 +162,8 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
     setTimeout(() => setErrorMessage(null), 4000)
   }, [])
   const handleKnowledgeGraphError = useCallback(() => {
-    setViewMode('graph')
-    showError('3D knowledge graph unavailable — switched to 2D view')
+    setViewMode('list')
+    showError('3D knowledge graph unavailable — switched to list view')
     try { localStorage.setItem('gobby-kg-failed', 'true') } catch { /* noop */ }
   }, [showError])
 
@@ -280,7 +261,6 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
 
   const viewModes: [ViewMode, React.ComponentType, string][] = [
     ...(neo4jStatus?.configured ? [['knowledge' as ViewMode, KnowledgeIcon, 'Knowledge graph'] as [ViewMode, React.ComponentType, string]] : []),
-    ['graph', GraphIcon, 'Graph view'],
     ['list', ListIcon, 'List view'],
   ]
 
@@ -309,20 +289,18 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
               </button>
             ))}
           </div>
-          {viewMode !== 'list' && (
+          {viewMode === 'knowledge' && (
             <label className="memory-limit-control" title="Max nodes to display">
               Limit
               <input
                 type="number"
                 min={GRAPH_LIMIT_MIN}
-                max={viewMode === 'graph' ? GRAPH_LIMIT_MAX : KNOWLEDGE_LIMIT_MAX}
+                max={KNOWLEDGE_LIMIT_MAX}
                 step={GRAPH_LIMIT_STEP}
-                value={viewMode === 'knowledge' ? knowledgeGraphLimit : memoryGraphLimit}
+                value={knowledgeGraphLimit}
                 onChange={e => {
-                  const sliderMax = viewMode === 'graph' ? GRAPH_LIMIT_MAX : KNOWLEDGE_LIMIT_MAX
-                  const v = Math.max(GRAPH_LIMIT_MIN, Math.min(sliderMax, Number(e.target.value) || GRAPH_LIMIT_MIN))
-                  if (viewMode === 'knowledge') setKnowledgeGraphLimit(v)
-                  else setMemoryGraphLimit(v)
+                  const v = Math.max(GRAPH_LIMIT_MIN, Math.min(KNOWLEDGE_LIMIT_MAX, Number(e.target.value) || GRAPH_LIMIT_MIN))
+                  setKnowledgeGraphLimit(v)
                 }}
               />
             </label>
@@ -363,10 +341,10 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
             <div style={{ padding: '2rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
               <div>WebGL is not available on this device.</div>
               <button
-                onClick={() => setViewMode('graph')}
+                onClick={() => setViewMode('list')}
                 style={{ marginTop: '0.75rem', padding: '0.35rem 0.75rem', borderRadius: 4, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
               >
-                Switch to 2D
+                Switch to List
               </button>
             </div>
           ) : (
@@ -381,14 +359,6 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
             </Suspense>
           </KnowledgeGraphErrorBoundary>
           )
-        ) : viewMode === 'graph' ? (
-          <Suspense fallback={<div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Loading graph...</div>}>
-            <MemoryGraph
-              fetchGraphData={fetchGraphData}
-              onSelect={handleSelect}
-              memoryLimit={memoryGraphLimit}
-            />
-          </Suspense>
         ) : (
           <MemoryTable
             memories={filteredMemories}

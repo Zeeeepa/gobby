@@ -13,10 +13,15 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Default context window for all Claude models (200K tokens).
+# Model family substring -> context window size (tokens).
 # litellm incorrectly returns 1M for some Claude models (the beta
 # context-1m-2025-08-07 window), so we never trust litellm for Claude.
-CLAUDE_DEFAULT_CONTEXT_WINDOW = 200_000
+_CLAUDE_CONTEXT_WINDOWS: dict[str, int] = {
+    "opus": 1_000_000,
+    "sonnet": 200_000,
+    "haiku": 200_000,
+}
+CLAUDE_DEFAULT_CONTEXT_WINDOW = 200_000  # fallback for unknown Claude models
 
 # Substrings that identify a model as Claude.
 # This list is used to identify Claude model variants and should be extended
@@ -28,17 +33,20 @@ _CLAUDE_IDENTIFIERS = ("opus", "sonnet", "haiku", "claude")
 def resolve_context_window(
     model: str | None,
     model_usage: dict[str, Any] | None,
+    overrides: dict[str, int] | None = None,
 ) -> int | None:
     """Resolve the context window size for a model.
 
     Priority order:
     1. SDK-reported ``contextWindow`` from ``model_usage`` (authoritative from CLI)
-    2. Static 200K for Claude models — never trust litellm for these
+    2. Model-specific context windows for Claude (config overrides > built-in map)
     3. litellm lookup for non-Claude models only
 
     Args:
         model: Model name (e.g. "claude-opus-4-6", "gemini-2.0-flash").
         model_usage: The ``_model_usage`` dict stashed by sdk_compat, or None.
+        overrides: Optional config-driven overrides mapping model substring to
+            context window size (e.g. ``{"opus": 1_000_000}``).
 
     Returns:
         Context window size in tokens, or None if unknown.
@@ -54,8 +62,16 @@ def resolve_context_window(
 
     model_lower = model.lower()
 
-    # 2. Static 200K for Claude models
+    # 2. Model-specific context windows for Claude
     if any(k in model_lower for k in _CLAUDE_IDENTIFIERS):
+        # Config overrides first
+        for substr, window in (overrides or {}).items():
+            if substr in model_lower:
+                return window
+        # Then built-in map
+        for family, window in _CLAUDE_CONTEXT_WINDOWS.items():
+            if family in model_lower:
+                return window
         return CLAUDE_DEFAULT_CONTEXT_WINDOW
 
     # 3. litellm for non-Claude models only

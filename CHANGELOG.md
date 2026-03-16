@@ -8,6 +8,108 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.29]
+
+### Features
+
+#### Semantic Code Search
+- Added FTS5 full-text search, Neo4j wiring, and embedding enrichment for code symbols (#10297)
+- Added Symbol.to_brief() for slim search results (#10232)
+- Extended code index parser to support markdown, yaml, and json (#10218)
+- Added orchestrator rule to block grep/glob on indexed file types (#10218)
+
+#### Observability & Tracing
+- Added LLM call tracing via OpenLLMetry + trace viewer UI enhancements (#10248)
+- Added OTel child spans to session_start hook for timing breakdown (#10244)
+- Added child spans inside _evaluate_workflow_rules (#10245)
+- Added rule names and mcp_call tools to OTel span attributes (#10249)
+- Added token usage/cost breakdown by source and model (#10202)
+- Implemented progressive discovery token savings calculation (#10220, #10221)
+
+#### Knowledge Graph
+- Bridge memory and code graphs via RELATES_TO_CODE edges (#10246)
+- Added temporality to 3D knowledge graph entity ordering (#10251)
+- Added live physics controls to 3D knowledge graph (#10254)
+
+#### Dashboard & Web UI
+- Made dashboard time range selectors functional on all cards (#10335)
+- Added edit sidebar to CronJobsPage (#10281)
+- Virtualized chat messages, lazy highlighting, collapsible tool results (#10302)
+- Fixed dashboard savings card and uptime display (#10237, #10238)
+- Removed font-mono from UI text, deleted MCP overview cards (#10327)
+- Removed 2D memory graph from Memory UI (#10250)
+
+#### Infrastructure & CLI
+- Added `gobby service install/uninstall/status/enable/disable` commands (#10222)
+- Added setup wizard Integrations step for GitHub/Linear API keys (#10325)
+- Normalized Gemini single-underscore MCP tool names to canonical double-underscore format (#10326)
+- Made session_id required on set_variable/get_variable MCP schema (#10298)
+- Registered save_variable_template as MCP tool (#10292)
+- CLI reindex-embeddings delegates to daemon HTTP API (#10311)
+- Exposed reindex_embeddings via MCP tool and HTTP API (#10310)
+- Slim MCP tool list/search responses with to_brief() methods
+
+#### Automation & Skills
+- Added nightly code quality fix pipeline with template files (#10258, #10259)
+- Replaced build-pipeline and agents skills with unified automate skill (#10235)
+- Made automate skill always-apply with full injection (#10240)
+- Added frontend-design skill to bundled templates
+- Support Gemini CLI in bash output compression rule template
+
+#### Rules & Workflows
+- Exclude spawned agents from output compression and interactive-only rules (#10332, #10333)
+- Block mark_task_review_approved for interactive sessions (#10337)
+- User template persistence: auto-export, tag-aware sync, cascade safety (#10282)
+- Cascade orphan cleanup to installed copies for all definition types (#10243)
+
+### Fixes
+- Fix gobby compress crash when command arrives as single quoted string (#10332)
+- Fix 22s session_start latency from redundant JSONL sync rules (#10242)
+- Fix session start performance: timing instrumentation, indexer contention reduction (#10305)
+- Fix launchctl bootstrap I/O error with stale service entry (#10296)
+- Fix stop_daemon to use launchctl bootout under KeepAlive (#10229)
+- Fix daemon detection for launchctl-managed processes (#10228)
+- Fix launchctl status parsing for nested state lines (#10225)
+- Fix dev mode detection for global CLI in project directory (#10224)
+- Fix High severity bandit findings: B602 shell=True, B701 autoescape (#10328)
+- Fix B310 bandit finding: validate URL scheme in _healthy_daemon_running (#10314)
+- Fix Code Indexer not cleaning up vectors and relationships on file deletion (#10216)
+- Fix agents not using code_index searches (#10203)
+- Fix delete_memory to clean up Neo4j Memory nodes and MENTIONED_IN edges (#10307)
+- Fix Neo4j Memory node project-ID scoping (#10306)
+- Fix neo4j installer to bind-mount conf directory (#10227)
+- Fix stale plan mode state surviving session clear/compact (#10295)
+- Fix category/task_type taxonomy: move refactor to task_type, improve schema discoverability (#10303)
+- Fix edit-write-recovery rule looping on rule-blocked edits (#10293)
+- Fix 3D knowledge graph crash — defer d3ReheatSimulation until simulation exists (#10255)
+- Fix nodes disappearing on limit change — separate reheat from force config (#10256)
+- Fix baseline dirty files lost on daemon restart (#10239)
+- Fix savings dashboard accuracy — gate to valid categories only (#10241)
+- Fix missing get_service_status import in stop_daemon (#10312)
+- Fix plan mode support for non-Claude CLIs (#10219)
+- Fix nightly pipeline missing validation_criteria and cron scheduler race condition (#10267)
+- Fix e2e sandbox escape detector for production daemon artifacts (#10231)
+- Fix code-index rules blocking subagents without MCP access
+- Fix nightly test failures in TestMemoryReindexCommand (#10331)
+- Fix nightly lint/type/security errors (#10330)
+- Model-specific context windows, .vite exclusion, TS export_statement fix (#10317, #10318, #10319)
+- Fix mypy errors and MockMessage missing to_brief() (#10265, #10266)
+- CodeRabbit triage: findings across hooks, config, health check, and more (#10321, #10313, #10261, #10262, #10263, #10257)
+- Remove redundant set_session_variable, improve set/get_variable schemas (#10300)
+
+### Refactoring
+- Move ruff/mypy from pre-commit to pre-push stage (#10264)
+- Simplify block-grep-on-indexed-files rule to block all Grep/Glob (#10230)
+- Consolidate has_gobby_pyproject into utils/dev.py (#10283)
+- Remove session-start auto-indexing (#10308)
+- Fire-and-forget session-end/stop hooks in dispatcher (#10223)
+
+### Docs
+- Add UI design audit report and screenshots (#10294)
+- Reorganize plan files into abandoned/completed subdirectories
+
+---
+
 ## [0.2.28]
 
 ### Features

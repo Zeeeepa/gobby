@@ -453,7 +453,7 @@ def create_agents_registry(
 
         return {
             "success": True,
-            "agents": [agent.to_dict() for agent in agents],
+            "agents": [agent.to_brief() for agent in agents],
             "count": len(agents),
         }
 

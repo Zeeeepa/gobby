@@ -298,6 +298,51 @@ class TestIsPlanFile:
         assert is_plan_file("/project/.gobby/plans/x.md", "claude_code") is True
         assert is_plan_file("/project/.gobby/plans/x.md", None) is True
 
+    def test_gemini_deep_tmp_plan(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.gemini/tmp/abc123/plans/design.md") is True
+
+    def test_gemini_notes_md(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.gemini/notes.md") is True
+
+    def test_codex_plans_md(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.codex/plans/plan.md") is True
+
+    def test_cursor_plans_md(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.cursor/plans/plan.md") is True
+
+    def test_windsurf_plans_md(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.windsurf/plans/plan.md") is True
+
+    def test_copilot_plans_md(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.copilot/plans/plan.md") is True
+
+    def test_gemini_config_json_rejected(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.gemini/config.json") is False
+
+    def test_codex_config_toml_rejected(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.codex/config.toml") is False
+
+    def test_cursor_hooks_json_rejected(self) -> None:
+        from gobby.workflows.enforcement.blocking import is_plan_file
+
+        assert is_plan_file("/home/user/.cursor/hooks.json") is False
+
 
 class TestRequireCommitBeforeStatus:
     """Verify require-commit-before-status requires commit before status transitions."""

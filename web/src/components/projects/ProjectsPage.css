@@ -166,7 +166,7 @@
 .projects-overview-count {
   font-size: 24px;
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .projects-overview-card--total .projects-overview-count {
@@ -262,7 +262,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .projects-card-stats {
@@ -322,7 +322,7 @@
   flex: 1;
   font-size: calc(var(--font-size-base) * 0.8);
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -523,7 +523,7 @@
 .projects-summary-stat-value {
   font-size: 20px;
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--accent);
 }
 

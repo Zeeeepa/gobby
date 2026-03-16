@@ -1682,3 +1682,46 @@ class TestEditWritePending:
         assert response.decision == "allow"
         assert variables["edit_write_pending"] is False
         assert variables["edit_write_stop_blocks"] == 0
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_cleared_when_blocked_by_rule(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Edit blocked by a declarative rule should clear edit_write_pending.
+
+        Regression test: when require-task-before-edit blocks an Edit,
+        edit_write_pending stayed True, causing edit-write-recovery to
+        loop on every stop attempt.
+        """
+        # Install a rule that blocks Edit on before_tool
+        _insert_rule(
+            manager,
+            "block-edit-rule",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                tools=["Edit"],
+                effects=[RuleEffect(type="block", reason="No task claimed")],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+
+        # Fire before_tool for Edit — rule blocks it
+        edit_event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        response = await engine.evaluate(edit_event, session_id="sess-1", variables=variables)
+        assert response.decision == "block"
+
+        # edit_write_pending should be cleared since the edit was rule-blocked
+        assert variables.get("edit_write_pending") is False
+
+        # First stop blocked by tool_block_pending (self-clearing)
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, session_id="sess-1", variables=variables)
+        assert response.decision == "block"
+        assert "tool-failure-recovery" in response.reason
+
+        # Second stop should be allowed — no edit-write-recovery loop
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, session_id="sess-1", variables=variables)
+        assert response.decision == "allow"

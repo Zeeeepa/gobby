@@ -196,7 +196,7 @@
 }
 
 .reports-cell--id {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-muted);
 }
@@ -208,7 +208,7 @@
 }
 
 .reports-cell--duration {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-muted);
 }
@@ -301,7 +301,7 @@
 }
 
 .reports-detail-id {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.8);
   color: var(--text-muted);
 }
@@ -367,7 +367,7 @@
 }
 
 .reports-detail-mono {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.8);
 }
 
@@ -377,7 +377,7 @@
   border: 1px solid var(--border);
   border-radius: 0.375rem;
   padding: 0.75rem;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);
   overflow-x: auto;
@@ -432,7 +432,7 @@
   font-size: calc(var(--font-size-base) * 0.9);
   font-weight: 600;
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .reports-detail-stat-value--cost {
@@ -563,7 +563,7 @@
 }
 
 .reports-detail-command-payload {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.7);
   color: var(--text-muted);
   overflow: hidden;

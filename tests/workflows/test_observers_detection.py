@@ -91,9 +91,25 @@ class TestDetectPlanModeFromContext:
 
     def test_does_not_change_when_already_in_plan_mode(self, variables) -> None:
         variables["mode_level"] = 0
-        prompt = "Plan mode is active"
+        prompt = "<system-reminder>Plan mode is active</system-reminder>"
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") == 0
+
+    def test_heals_stale_plan_mode_when_no_markers(self, variables) -> None:
+        """After clear/compact, mode_level=0 persists but no CLI injects markers."""
+        variables["mode_level"] = 0
+        variables["chat_mode"] = "bypass"
+        prompt = "Please fix the bug in the code."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 2  # reset to Full Auto
+
+    def test_no_heal_when_chat_mode_is_plan(self, variables) -> None:
+        """Don't reset mode_level if chat_mode is genuinely plan (edge case)."""
+        variables["mode_level"] = 0
+        variables["chat_mode"] = "plan"
+        prompt = "Please fix the bug in the code."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 0  # chat_mode=plan → stay at 0
 
     def test_ignores_prompt_without_indicators(self, variables) -> None:
         prompt = "Please fix the bug in the code."
@@ -138,6 +154,60 @@ class TestDetectPlanModeFromContext:
         )
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") == 0
+
+    # --- Gemini CLI detection ---
+
+    def test_detects_gemini_active_approval_mode_plan(self, variables) -> None:
+        prompt = "# Active Approval Mode: Plan\nPlease analyze the codebase."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 0
+
+    def test_detects_gemini_operating_in_plan_mode(self, variables) -> None:
+        prompt = "You are operating in **Plan Mode**. Research only."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 0
+
+    def test_detects_gemini_exit_via_execute_mode(self, variables) -> None:
+        variables["mode_level"] = 0
+        variables["chat_mode"] = "bypass"
+        prompt = "# Active Approval Mode: Execute\nNow implement."
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 2
+
+    def test_gemini_markers_inside_conversation_history_ignored(self, variables) -> None:
+        prompt = (
+            "<conversation-history>\n"
+            "# Active Approval Mode: Plan\n"
+            "You are operating in **Plan Mode**.\n"
+            "</conversation-history>\n"
+            "Now do something else."
+        )
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert "mode_level" not in variables
+
+    # --- Gobby <plan-mode> tag detection ---
+
+    def test_detects_plan_mode_active_tag(self, variables) -> None:
+        prompt = '<plan-mode status="active">\nYou are in PLAN MODE.\n</plan-mode>'
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 0
+
+    def test_detects_plan_mode_approved_tag(self, variables) -> None:
+        variables["mode_level"] = 0
+        variables["chat_mode"] = "bypass"
+        prompt = '<plan-mode status="approved">\nPlan approved.\n</plan-mode>'
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert variables.get("mode_level") == 2
+
+    def test_plan_mode_active_tag_inside_conversation_history_ignored(self, variables) -> None:
+        prompt = (
+            "<conversation-history>\n"
+            '<plan-mode status="active">\nOld plan mode.\n</plan-mode>\n'
+            "</conversation-history>\n"
+            "Continue working."
+        )
+        detect_plan_mode_from_context(prompt, variables, SESSION_ID)
+        assert "mode_level" not in variables
 
 
 # =============================================================================

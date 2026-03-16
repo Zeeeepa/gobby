@@ -301,7 +301,7 @@
   background: var(--bg-tertiary);
   padding: 0.0625rem 0.375rem;
   border-radius: 0.25rem;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 /* File toolbar (edit/save) */
@@ -321,7 +321,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .files-toolbar-actions {

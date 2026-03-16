@@ -11,3 +11,6 @@ rules:
       - type: set_variable
         variable: plan_mode
         value: false
+      - type: set_variable
+        variable: mode_level
+        value: 2

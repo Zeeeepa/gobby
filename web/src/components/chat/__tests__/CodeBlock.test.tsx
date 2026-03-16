@@ -2,6 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+// Mock IntersectionObserver so LazyHighlighter renders SyntaxHighlighter immediately
+vi.stubGlobal('IntersectionObserver', class {
+  constructor(private callback: IntersectionObserverCallback) {}
+  observe() {
+    // Fire synchronously so the component re-renders within the same act() cycle
+    this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+  }
+  unobserve() {}
+  disconnect() {}
+})
+
 // Mock react-syntax-highlighter
 vi.mock('react-syntax-highlighter', () => ({
   Prism: ({ children, language }: { children: string; language: string }) => (

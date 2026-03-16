@@ -8,7 +8,7 @@ import asyncio
 import logging
 import os
 import re
-import subprocess  # nosec B404 - subprocess needed for git commit counting
+import subprocess  # nosec B404 # subprocess needed for git commit counting
 import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -133,7 +133,7 @@ def _get_commit_count(db: "DatabaseProtocol", session: Any) -> int:
             f"--until={until_str}",
             "HEAD",
         ]
-        result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+        result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
             cmd,
             capture_output=True,
             text=True,
@@ -337,6 +337,22 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(
                 status_code=500, detail="Internal server error while registering session"
             ) from e
+
+    @router.get("/usage")
+    async def get_usage_breakdown(
+        days: int = Query(1, ge=1, le=365, description="Number of days to look back"),
+        project_id: str | None = Query(None, description="Filter by project ID"),
+    ) -> dict[str, Any]:
+        """Get token usage and cost breakdown by source and model.
+
+        Returns aggregated usage statistics including per-model and
+        per-source (CLI adapter) breakdowns.
+        """
+        from gobby.sessions.token_tracker import SessionTokenTracker
+
+        sm = _get_session_manager()
+        tracker = SessionTokenTracker(session_storage=sm)
+        return tracker.get_usage_summary(days=days, project_id=project_id)
 
     @router.get("")
     async def list_sessions(

@@ -475,15 +475,24 @@ def reindex_embeddings(ctx: click.Context) -> None:
     Generates embedding vectors for all stored memories using the configured
     embedding model. Useful after changing models or for initial setup.
 
+    Requires the Gobby daemon to be running (delegates via HTTP API).
+
     Examples:
 
         gobby memory reindex-embeddings
     """
-    manager = get_memory_manager(ctx)
+    client = _get_daemon_client(ctx)
     click.echo("Reindexing memory embeddings...")
-    result = asyncio.run(manager.reindex_embeddings())
+    try:
+        response = client.call_http_api(
+            "/api/memories/embeddings/reindex", method="POST", timeout=300.0
+        )
+        result = response.json()
+    except Exception as e:
+        click.echo(f"Error: Could not reach daemon — is it running? ({e})")
+        raise SystemExit(1) from e
 
-    if result["success"]:
+    if result.get("success", True):
         total = result.get("total_memories", 0)
         generated = result.get("embeddings_generated", 0)
         click.echo(f"Reindexed {generated}/{total} memory embeddings.")

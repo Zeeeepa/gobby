@@ -62,6 +62,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
         return result
 
     manager = LocalWorkflowDefinitionManager(db)
+    on_disk: set[str] = set()
 
     for yaml_file in sorted(agents_path.glob("*.yaml")):
         try:
@@ -73,6 +74,7 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
                 continue
 
             name = data.get("name", yaml_file.stem)
+            on_disk.add(name)
             data["name"] = name
 
             # Parse directly as AgentDefinitionBody
@@ -138,13 +140,47 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
+    # Orphan cleanup: soft-delete template agents whose YAML was removed.
+    # Scoped by gobby tag to prevent cross-tag cascade damage.
+    tag_filter = '%"gobby"%'
+    orphan_rows = db.fetchall(
+        "SELECT id, name FROM workflow_definitions "
+        "WHERE source = 'template' AND workflow_type = 'agent' "
+        "AND tags LIKE ? AND deleted_at IS NULL",
+        (tag_filter,),
+    )
+    result["orphaned"] = 0
+    orphaned_names: set[str] = set()
+    for row in orphan_rows:
+        if row["name"] not in on_disk:
+            manager.delete(row["id"])
+            orphaned_names.add(row["name"])
+            logger.info(f"Soft-deleted orphaned bundled agent: {row['name']}")
+            result["orphaned"] += 1
+
+    # Cascade: soft-delete installed copies of orphaned templates,
+    # scoped by tag to prevent cross-tag cascade damage
+    result["cascaded"] = 0
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' AND workflow_type = 'agent' "
+            "AND tags LIKE ? AND deleted_at IS NULL",
+            (name, tag_filter),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            result["cascaded"] += 1
+            logger.info(f"Soft-deleted installed copy of orphaned agent: {name}")
+
     # Ensure all template/installed agents have the "gobby" tag
     _ensure_gobby_tag_on_installed(manager)
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         f"Agent definition sync complete: {result['synced']} synced, "
-        f"{result['updated']} updated, {result['skipped']} skipped, {total} total"
+        f"{result['updated']} updated, {result['skipped']} skipped, "
+        f"{result['orphaned']} orphaned, {result['cascaded']} cascaded, {total} total"
     )
 
     return result

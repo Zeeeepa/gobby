@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import type { SpanRecord } from '../../hooks/useTraces'
+import { isLLMSpan, parseLLMAttributes, formatTokenCount } from './llm-utils'
 
 interface TraceWaterfallProps {
   spans: SpanRecord[]
@@ -22,7 +23,7 @@ interface SpanRow {
 function buildRows(spans: SpanRecord[]): SpanRow[] {
   const childrenMap = new Map<string, SpanRecord[]>()
   const rootSpans: SpanRecord[] = []
-  
+
   for (const span of spans) {
     if (!span.parent_id) {
       rootSpans.push(span)
@@ -126,11 +127,17 @@ export function TraceWaterfall({ spans, onSelectSpan, selectedSpanId }: TraceWat
           {rows.map(({ span, depth, row }) => {
             const y = rowToY(row)
             const isSelected = selectedSpanId === span.span_id
-            
+
             const x = timeToX(span.start_time_ns)
             const w = Math.max(timeToX(span.end_time_ns) - x, 2)
-            
-            const statusClass = `trace-waterfall-bar--${span.status.toLowerCase()}`
+
+            const llm = isLLMSpan(span)
+            const llmAttrs = llm ? parseLLMAttributes(span.attributes_json) : null
+            const statusClass = llm ? 'trace-waterfall-bar--llm' : `trace-waterfall-bar--${span.status.toLowerCase()}`
+            const label = llmAttrs ? llmAttrs.model : span.name
+            const tokenBadge = llmAttrs && (llmAttrs.promptTokens > 0 || llmAttrs.completionTokens > 0)
+              ? `${formatTokenCount(llmAttrs.promptTokens)}\u2192${formatTokenCount(llmAttrs.completionTokens)}`
+              : null
 
             return (
               <g key={span.span_id}>
@@ -138,14 +145,14 @@ export function TraceWaterfall({ spans, onSelectSpan, selectedSpanId }: TraceWat
                 {row % 2 === 0 && (
                   <rect x={0} y={y} width={svgWidth} height={ROW_HEIGHT} className="trace-waterfall-row-stripe" />
                 )}
-                
+
                 {/* Label */}
                 <text
                   x={8 + depth * 12}
                   y={y + ROW_HEIGHT / 2 + 4}
                   className="trace-waterfall-row-label"
                 >
-                  {span.name.length > 25 ? span.name.slice(0, 25) + '...' : span.name}
+                  {label.length > 25 ? label.slice(0, 25) + '...' : label}
                 </text>
 
                 {/* Bar */}
@@ -157,6 +164,17 @@ export function TraceWaterfall({ spans, onSelectSpan, selectedSpanId }: TraceWat
                 >
                   <title>{span.name} ({formatNsToMs(span.end_time_ns - span.start_time_ns)})</title>
                 </rect>
+
+                {/* Token badge */}
+                {tokenBadge && (
+                  <text
+                    x={Math.min(x + w + 4, LABEL_WIDTH + TIMELINE_WIDTH - 60)}
+                    y={y + ROW_HEIGHT / 2 + 3}
+                    className="trace-waterfall-token-badge"
+                  >
+                    {tokenBadge}
+                  </text>
+                )}
               </g>
             )
           })}

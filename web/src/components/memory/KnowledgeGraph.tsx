@@ -112,6 +112,10 @@ function buildForceData(data: KnowledgeGraphData): { nodes: GraphNode[]; links: 
   return { nodes, links }
 }
 
+const DEFAULT_CHARGE = -120
+const DEFAULT_LINK_DIST = 60
+const DEFAULT_CENTER = 0.05
+
 export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limit, onError }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -122,6 +126,16 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [animateIdle, setAnimateIdle] = useState(() => {
     try { return localStorage.getItem('gobby-kg-animate') === 'true' } catch { return false }
+  })
+  const [showPhysics, setShowPhysics] = useState(false)
+  const [charge, setCharge] = useState(() => {
+    try { const v = localStorage.getItem('gobby-kg-charge'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_CHARGE } catch { return DEFAULT_CHARGE }
+  })
+  const [linkDist, setLinkDist] = useState(() => {
+    try { const v = localStorage.getItem('gobby-kg-link-dist'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_LINK_DIST } catch { return DEFAULT_LINK_DIST }
+  })
+  const [centerStrength, setCenterStrength] = useState(() => {
+    try { const v = localStorage.getItem('gobby-kg-center'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_CENTER } catch { return DEFAULT_CENTER }
   })
 
   // Catch async WebGL/Three.js errors that escape React error boundaries
@@ -228,13 +242,13 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
     return buildForceData(graphData)
   }, [graphData])
 
-  // Configure D3 force simulation for better node spread + mobile pixel ratio cap
+  // Apply force parameters whenever data or physics values change
   useEffect(() => {
     const fg = fgRef.current
     if (!fg) return
-    fg.d3Force('charge')?.strength(-120)
-    fg.d3Force('link')?.distance(60)
-    fg.d3Force('center')?.strength(0.05)
+    fg.d3Force('charge')?.strength(charge)
+    fg.d3Force('link')?.distance(linkDist)
+    fg.d3Force('center')?.strength(centerStrength)
 
     // Cap pixel ratio on mobile — iPhone 16 PM is 3x; capping at 2x cuts framebuffer 9x → 4x
     if (IS_MOBILE) {
@@ -242,7 +256,19 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
         fg.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2))
       } catch { /* renderer may not be ready */ }
     }
-  }, [forceData])
+  }, [forceData, charge, linkDist, centerStrength])
+
+  // Reheat simulation only when physics sliders change (not on data load)
+  const physicsInitialized = useRef(false)
+  useEffect(() => {
+    if (!physicsInitialized.current) {
+      physicsInitialized.current = true
+      return
+    }
+    const fg = fgRef.current
+    if (!fg) return
+    try { fg.d3ReheatSimulation() } catch { /* simulation may not be ready */ }
+  }, [charge, linkDist, centerStrength])
 
   // Search
   const searchLower = searchQuery.toLowerCase()
@@ -490,7 +516,86 @@ export function KnowledgeGraph({ fetchKnowledgeGraph, fetchEntityNeighbors, limi
             </svg>
           )}
         </button>
+        <button
+          className={`knowledge-graph-ctrl-btn${showPhysics ? ' active' : ''}`}
+          onClick={() => setShowPhysics(p => !p)}
+          title="Physics controls"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
       </div>
+
+      {/* Physics controls panel */}
+      {showPhysics && (
+        <div className="knowledge-graph-physics">
+          <label className="knowledge-graph-physics-row">
+            <span className="knowledge-graph-physics-label">Repulsion</span>
+            <input
+              type="range"
+              min={-500}
+              max={-20}
+              step={10}
+              value={charge}
+              onChange={e => {
+                const v = Number(e.target.value)
+                setCharge(v)
+                try { localStorage.setItem('gobby-kg-charge', String(v)) } catch { /* noop */ }
+              }}
+            />
+            <span className="knowledge-graph-physics-value">{charge}</span>
+          </label>
+          <label className="knowledge-graph-physics-row">
+            <span className="knowledge-graph-physics-label">Link dist</span>
+            <input
+              type="range"
+              min={10}
+              max={200}
+              step={5}
+              value={linkDist}
+              onChange={e => {
+                const v = Number(e.target.value)
+                setLinkDist(v)
+                try { localStorage.setItem('gobby-kg-link-dist', String(v)) } catch { /* noop */ }
+              }}
+            />
+            <span className="knowledge-graph-physics-value">{linkDist}</span>
+          </label>
+          <label className="knowledge-graph-physics-row">
+            <span className="knowledge-graph-physics-label">Gravity</span>
+            <input
+              type="range"
+              min={0.005}
+              max={0.15}
+              step={0.005}
+              value={centerStrength}
+              onChange={e => {
+                const v = Number(e.target.value)
+                setCenterStrength(v)
+                try { localStorage.setItem('gobby-kg-center', String(v)) } catch { /* noop */ }
+              }}
+            />
+            <span className="knowledge-graph-physics-value">{centerStrength.toFixed(3)}</span>
+          </label>
+          <button
+            className="knowledge-graph-physics-reset"
+            onClick={() => {
+              setCharge(DEFAULT_CHARGE)
+              setLinkDist(DEFAULT_LINK_DIST)
+              setCenterStrength(DEFAULT_CENTER)
+              try {
+                localStorage.removeItem('gobby-kg-charge')
+                localStorage.removeItem('gobby-kg-link-dist')
+                localStorage.removeItem('gobby-kg-center')
+              } catch { /* noop */ }
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      )}
     </div>
   )
 }

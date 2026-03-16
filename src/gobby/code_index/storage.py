@@ -142,6 +142,71 @@ class CodeIndexStorage:
         )
         return [Symbol.from_row(r) for r in rows]
 
+    @staticmethod
+    def _sanitize_fts_query(query: str) -> str:
+        """Sanitize user input for FTS5 queries.
+
+        Strips FTS5 special characters and joins tokens with implicit AND.
+        """
+        # Remove FTS5 operators and special chars
+        cleaned = ""
+        for ch in query:
+            if ch.isalnum() or ch in (" ", "_"):
+                cleaned += ch
+        # Split into tokens, filter empty, join with implicit AND
+        tokens = [t.strip() for t in cleaned.split() if t.strip()]
+        if not tokens:
+            return ""
+        # Quote each token to avoid FTS5 syntax issues
+        return " ".join(f'"{t}"' for t in tokens)
+
+    def search_symbols_fts(
+        self,
+        query: str,
+        project_id: str,
+        kind: str | None = None,
+        file_path: str | None = None,
+        limit: int = 50,
+    ) -> list[Symbol]:
+        """Full-text search across symbol names, signatures, docstrings, and summaries.
+
+        Uses FTS5 for relevance-ranked results. Falls back gracefully if the
+        FTS5 table doesn't exist (pre-v155 databases).
+        """
+        fts_query = self._sanitize_fts_query(query)
+        if not fts_query:
+            return []
+
+        conditions = ["cs.project_id = ?"]
+        params: list[Any] = [project_id]
+
+        if kind:
+            conditions.append("cs.kind = ?")
+            params.append(kind)
+        if file_path:
+            conditions.append("cs.file_path = ?")
+            params.append(file_path)
+
+        where = " AND ".join(conditions)
+        params.append(limit)
+
+        sql = f"""
+            SELECT cs.* FROM code_symbols_fts fts
+            JOIN code_symbols cs ON cs.rowid = fts.rowid
+            WHERE code_symbols_fts MATCH ? AND {where}
+            ORDER BY rank
+            LIMIT ?
+        """
+        # MATCH param goes first
+        all_params = [fts_query] + params
+
+        try:
+            rows = self.db.fetchall(sql, tuple(all_params))
+            return [Symbol.from_row(r) for r in rows]
+        except Exception as e:
+            logger.debug(f"FTS5 search failed (table may not exist): {e}")
+            return []
+
     def delete_symbols_for_file(self, project_id: str, file_path: str) -> int:
         """Delete all symbols for a file. Returns count."""
         with self.db.transaction() as conn:
@@ -245,6 +310,27 @@ class CodeIndexStorage:
             conn.execute("DROP TABLE IF EXISTS _current_hashes")
 
         return [row[0] for row in rows]
+
+    def get_orphan_files(self, project_id: str, current_paths: set[str]) -> list[str]:
+        """Find indexed files that are no longer in the candidate set.
+
+        These are files that were previously indexed but are now excluded
+        (e.g., by new exclude_patterns) or deleted from disk.
+
+        Args:
+            project_id: Project to check.
+            current_paths: Set of file paths currently eligible for indexing.
+
+        Returns:
+            List of orphan file paths to clean up.
+        """
+        with self.db.transaction() as conn:
+            rows = conn.execute(
+                "SELECT file_path FROM code_indexed_files WHERE project_id = ?",
+                (project_id,),
+            ).fetchall()
+
+        return [row[0] for row in rows if row[0] not in current_paths]
 
     def delete_file(self, project_id: str, file_path: str) -> None:
         """Delete a file record (symbols deleted separately)."""

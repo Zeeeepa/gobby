@@ -513,7 +513,7 @@
 }
 
 .agent-def-prop-value {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-weight: 500;
   color: var(--text-primary);
   font-size: calc(var(--font-size-base) * 0.75);
@@ -552,7 +552,7 @@
   padding: 8px;
   margin: 0;
   overflow-x: auto;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 /* Workflow list */
@@ -572,7 +572,7 @@
 
 .agent-def-workflow-name {
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-primary);
 }
 
@@ -588,7 +588,7 @@
   color: var(--text-secondary);
 }
 .agent-def-source-info code {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 11px;
   color: var(--text-muted);
   word-break: break-all;

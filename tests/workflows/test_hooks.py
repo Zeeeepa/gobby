@@ -847,3 +847,126 @@ class TestVariablePersistence:
         assert variables.get("task_claimed") is True
         # Rule change
         assert variables.get("tool_counter") == 1
+
+
+class TestBaselineDirtyFilesSubtraction:
+    """Verify has_dirty_files subtracts baseline_dirty_files from session variables.
+
+    When baseline_dirty_files is stored in session variables (captured at session
+    start), has_dirty_files should only be True when there are NEW dirty files
+    beyond the baseline.
+    """
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = tmp_path / "test_baseline.db"
+        database = LocalDatabase(db_path)
+        run_migrations(database)
+        return database
+
+    @pytest.fixture
+    def rule_engine(self, db):
+        from gobby.workflows.rule_engine import RuleEngine
+
+        return RuleEngine(db=db)
+
+    @pytest.fixture
+    def session_var_manager(self, db):
+        from gobby.workflows.state_manager import SessionVariableManager
+
+        return SessionVariableManager(db=db)
+
+    @pytest.fixture
+    def handler(self, rule_engine):
+        return WorkflowHookHandler(rule_engine=rule_engine)
+
+    def _make_event(self, session_id: str = "test-session") -> HookEvent:
+        return HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id=session_id,
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(),
+            data={"tool_name": "some_tool"},
+            metadata={"_platform_session_id": session_id, "project_path": "/tmp"},
+        )
+
+    def _insert_block_on_dirty_rule(self, db) -> None:
+        """Insert a rule that blocks when has_dirty_files is true."""
+        definition = {
+            "event": "before_tool",
+            "priority": 10,
+            "when": "has_dirty_files",
+            "effects": [
+                {"type": "block", "tools": ["some_tool"], "reason": "dirty files detected"},
+            ],
+        }
+        db.execute(
+            "INSERT INTO workflow_definitions (name, workflow_type, definition_json, enabled, source) "
+            "VALUES (?, 'rule', ?, 1, 'test')",
+            ("test-dirty-block", json.dumps(definition)),
+        )
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_not_blocked_when_all_files_in_baseline(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Should not block when all dirty files are in the baseline."""
+        mock_get_dirty.return_value = {"file_a.py", "file_b.py"}
+        session_var_manager.set_variable(
+            "test-session", "baseline_dirty_files", ["file_a.py", "file_b.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_blocked_when_new_files_beyond_baseline(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Should block when there are files not in the baseline."""
+        mock_get_dirty.return_value = {"file_a.py", "file_b.py", "new_file.py"}
+        session_var_manager.set_variable(
+            "test-session", "baseline_dirty_files", ["file_a.py", "file_b.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_blocked_when_no_baseline(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Should block when no baseline is stored (backwards compat)."""
+        mock_get_dirty.return_value = {"file_a.py"}
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_not_blocked_when_no_dirty_files(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Should not block when there are no dirty files at all."""
+        mock_get_dirty.return_value = set()
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        assert response.decision == "allow"

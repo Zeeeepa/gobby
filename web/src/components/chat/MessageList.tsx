@@ -1,6 +1,6 @@
-import { useEffect, useImperativeHandle, useMemo, useRef, forwardRef } from 'react'
+import { useCallback, useImperativeHandle, useRef, forwardRef } from 'react'
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ChatMessage } from '../../types/chat'
-import { ScrollArea } from './ui/ScrollArea'
 import { MessageItem } from './MessageItem'
 import { MessageErrorBoundary } from './MessageErrorBoundary'
 import { PlanApprovalBar } from './PlanApprovalBar'
@@ -25,89 +25,76 @@ export interface MessageListHandle {
 }
 
 export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({ messages, isStreaming, isThinking, isLoadingMessages, onRespondToQuestion, onRespondToApproval, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }, ref) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const virtuosoRef = useRef<VirtuosoHandle>(null)
   const userScrolledUpRef = useRef(false)
 
   useImperativeHandle(ref, () => ({
     scrollToBottom() {
       userScrolledUpRef.current = false
-      const el = scrollRef.current
-      if (el) el.scrollTop = el.scrollHeight
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
     },
   }))
 
-  // Compute a fingerprint that changes when messages are added OR mutated
-  // (e.g. tool_status updates that modify toolCalls on existing messages)
-  const messageFingerprint = useMemo(() => messages.reduce((acc, m) => {
-    const toolCount = m.toolCalls?.length ?? 0
-    const lastStatus = m.toolCalls?.[toolCount - 1]?.status ?? ''
-    const contentLen = m.content?.length ?? 0
-    const blockCount = m.contentBlocks?.length ?? 0
-    const thinkingLen = m.thinkingContent?.length ?? 0
-    return acc + m.id + ':' + toolCount + ':' + lastStatus + ':' + contentLen + ':' + blockCount + ':' + thinkingLen + '|'
-  }, ''), [messages])
-
-  // Track whether user has manually scrolled away from bottom
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const handleScroll = () => {
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      userScrolledUpRef.current = distanceFromBottom > 150
-    }
-    el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => el.removeEventListener('scroll', handleScroll)
+  const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+    userScrolledUpRef.current = !atBottom
   }, [])
 
-  // Auto-scroll when content changes (new messages, tool updates, streaming)
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el && !userScrolledUpRef.current) {
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight
-      })
-    }
-  }, [messageFingerprint, isThinking, isStreaming])
+  const Footer = useCallback(() => (
+    <>
+      {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
+        <ThinkingIndicator />
+      )}
+      {planPendingApproval && onApprovePlan && onRequestPlanChanges && (
+        <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
+      )}
+    </>
+  ), [isThinking, messages, planPendingApproval, onApprovePlan, onRequestPlanChanges])
+
+  // Stable reference for itemContent to avoid Virtuoso re-renders
+  const itemContent = useCallback((index: number, message: ChatMessage) => (
+    <MessageErrorBoundary key={message.id} messageId={message.id}>
+      <MessageItem
+        message={message}
+        isStreaming={isStreaming && index === messages.length - 1}
+        isThinking={isThinking && index === messages.length - 1}
+        onRespondToQuestion={onRespondToQuestion}
+        onRespondToApproval={onRespondToApproval}
+        canvasSurfaces={canvasSurfaces}
+        onCanvasInteraction={onCanvasInteraction}
+      />
+    </MessageErrorBoundary>
+  ), [isStreaming, isThinking, messages.length, onRespondToQuestion, onRespondToApproval, canvasSurfaces, onCanvasInteraction])
+
+  if (messages.length === 0 && !isThinking) {
+    return (
+      <div className="chat-scaled flex-1 min-h-0 flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          {isLoadingMessages ? (
+            <p className="text-sm animate-pulse">Loading messages...</p>
+          ) : (
+            <>
+              <div className="text-lg mb-1">Chat</div>
+              <p className="text-sm">Start a conversation with Gobby</p>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <ScrollArea ref={scrollRef} className="chat-scaled flex-1 min-h-0 overflow-x-hidden">
-      {messages.length === 0 && !isThinking ? (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center text-muted-foreground">
-            {isLoadingMessages ? (
-              <p className="text-sm animate-pulse">Loading messages...</p>
-            ) : (
-              <>
-                <div className="text-lg mb-1">Chat</div>
-                <p className="text-sm">Start a conversation with Gobby</p>
-              </>
-            )}
-          </div>
-        </div>
-      ) : (
-        <>
-          {messages.map((message, i) => (
-            <MessageErrorBoundary key={message.id} messageId={message.id}>
-              <MessageItem
-                message={message}
-                isStreaming={isStreaming && i === messages.length - 1}
-                isThinking={isThinking && i === messages.length - 1}
-                onRespondToQuestion={onRespondToQuestion}
-                onRespondToApproval={onRespondToApproval}
-                canvasSurfaces={canvasSurfaces}
-                onCanvasInteraction={onCanvasInteraction}
-              />
-            </MessageErrorBoundary>
-          ))}
-          {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
-            <ThinkingIndicator />
-          )}
-          {planPendingApproval && onApprovePlan && onRequestPlanChanges && (
-            <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
-          )}
-        </>
-      )}
-    </ScrollArea>
+    <Virtuoso
+      ref={virtuosoRef}
+      className="chat-scaled flex-1 min-h-0 overflow-x-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]"
+      data={messages}
+      itemContent={itemContent}
+      followOutput="smooth"
+      atBottomThreshold={150}
+      atBottomStateChange={handleAtBottomStateChange}
+      overscan={400}
+      increaseViewportBy={200}
+      components={{ Footer }}
+    />
   )
 })
 

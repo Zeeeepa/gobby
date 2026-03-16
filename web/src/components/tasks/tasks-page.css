@@ -280,7 +280,7 @@
 }
 
 .tasks-ref {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-muted);
 }

@@ -5,6 +5,7 @@ import logging
 import re
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -171,6 +172,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         Register session and execute session-handoff workflow.
         """
+        _t0 = time.monotonic()
         external_id = event.session_id
         input_data = event.data
         transcript_path = input_data.get("transcript_path")
@@ -187,6 +189,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Always use Gobby's machine_id for cross-CLI consistency
         machine_id = self._get_machine_id()
 
+        _t_pre_check = time.monotonic()
         self.logger.debug(
             f"SESSION_START: cli={cli_source}, project={project_id}, source={session_source}"
         )
@@ -251,6 +254,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 except Exception as e:
                     self.logger.debug(f"No pre-created session found by gobby_session_id: {e}")
 
+        _t_parent = time.monotonic()
         # Step 1: Find parent session
         # Check env vars first (spawned agent case), then handoff (source='clear')
         parent_session_id = input_data.get("parent_session_id")
@@ -274,8 +278,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 # so the old session may still be active when we look for handoff_ready.
                 # SESSION_END is fast (just sets status), so a short backoff suffices.
                 if not parent and session_source in ("clear", "compact"):
-                    import time
-
                     deadline = time.monotonic() + 15  # 15s — session_end is fast now
                     while time.monotonic() < deadline:
                         time.sleep(2)
@@ -312,6 +314,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Error finding parent session: {e}")
 
+        _t_register = time.monotonic()
         # Step 2: Register new session with parent if found
         # terminal_context already extracted in Step 0
         # Parse agent_depth as int if provided
@@ -346,42 +349,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to mark parent session as expired: {e}")
 
         # Step 2c: Set code_index_available if project has an index
-        if session_id and project_id and self._session_storage:
-            try:
-                from gobby.code_index.storage import CodeIndexStorage
-                from gobby.workflows.state_manager import SessionVariableManager
-
-                cis = CodeIndexStorage(self._session_storage.db)
-                stats = cis.get_project_stats(project_id)
-                if stats and stats.total_symbols > 0:
-                    sv_mgr = SessionVariableManager(self._session_storage.db)
-                    sv_mgr.set_variable(session_id, "code_index_available", True)
-            except Exception as e:
-                self.logger.debug(f"Could not check code index availability: {e}")
-
-        # Kick off session-start auto-indexing (fire-and-forget)
-        if session_id and project_id and cwd:
-
-            def _trigger_session_index() -> None:
-                try:
-                    import httpx
-
-                    from gobby.config.bootstrap import load_bootstrap
-
-                    port = load_bootstrap().daemon_port
-                    httpx.post(
-                        f"http://localhost:{port}/api/code-index/session-start",
-                        json={
-                            "project_id": project_id,
-                            "root_path": cwd,
-                            "session_id": session_id,
-                        },
-                        timeout=300,
-                    )
-                except Exception as e:
-                    self.logger.debug(f"Session-start index request failed: {e}")
-
-            threading.Thread(target=_trigger_session_index, daemon=True).start()
+        self._setup_code_index(session_id, project_id)
 
         # Step 2d: Pipeline workflows are executed by the agent via run_pipeline MCP tool.
         # Agent rules enforce pipeline execution by blocking all tools except
@@ -392,6 +360,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 extra={"workflow_name": workflow_name, "session_id": session_id},
             )
 
+        _t_activate = time.monotonic()
         # Step 2e: Deep load default agent (rules, skills, variables) for new session
         agent_result: AgentActivationResult | None = None
         if session_id:
@@ -406,6 +375,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.error(f"Failed to activate default agent: {e}", exc_info=True)
 
+        _t_track = time.monotonic()
         # Step 3: Track registered session
         if transcript_path and self._session_coordinator:
             try:
@@ -418,6 +388,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if parent_session_id:
             event.metadata["_parent_session_id"] = parent_session_id
 
+        _t_msg_proc = time.monotonic()
         # Step 5: Register with Message Processor
         if self._message_processor and transcript_path and session_id:
             try:
@@ -427,6 +398,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
+        _t_handoff = time.monotonic()
         # Build additional context (agent AI context + task context)
         additional_context: list[str] = []
         if agent_result and agent_result.context:
@@ -555,6 +527,25 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Fetch claimed task info for system_message tree display
         claimed_tasks_info = self._get_claimed_task_info(session_id, project_id)
+
+        def _ms(a: float, b: float) -> int:
+            return int((b - a) * 1000)
+
+        _t_end = time.monotonic()
+        self.logger.info(
+            "SESSION_START timing [%s]: pre_check=%dms parent=%dms register=%dms "
+            "activate_agent=%dms track=%dms msg_proc=%dms "
+            "handoff=%dms total=%dms",
+            session_source,
+            _ms(_t0, _t_pre_check),
+            _ms(_t_pre_check, _t_parent),
+            _ms(_t_parent, _t_register),
+            _ms(_t_register, _t_activate),
+            _ms(_t_activate, _t_track),
+            _ms(_t_track, _t_msg_proc),
+            _ms(_t_msg_proc, _t_handoff),
+            _ms(_t0, _t_end),
+        )
 
         return self._compose_session_response(
             session=session_obj,
@@ -740,6 +731,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 extra={"workflow_name": existing_session.workflow_name, "session_id": session_id},
             )
 
+        # Set code_index_available if project has an index
+        self._setup_code_index(session_id, existing_session.project_id)
+
         # Deep load default agent (rules, skills, variables) for pre-created session
         agent_result: AgentActivationResult | None = None
         input_data = event.data if event else {}
@@ -890,6 +884,22 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         return changes, active_rules, active_skills
 
+    def _setup_code_index(self, session_id: str | None, project_id: str | None) -> None:
+        """Set code_index_available session variable if the project has an index."""
+        if not session_id or not project_id or not self._session_storage:
+            return
+        try:
+            from gobby.code_index.storage import CodeIndexStorage
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            cis = CodeIndexStorage(self._session_storage.db)
+            stats = cis.get_project_stats(project_id)
+            if stats and stats.total_symbols > 0:
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv_mgr.set_variable(session_id, "code_index_available", True)
+        except Exception as e:
+            self.logger.debug(f"Could not check code index availability: {e}")
+
     def _activate_default_agent(
         self,
         session_id: str,
@@ -905,10 +915,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if not self._session_manager or not self._session_storage:
             return None
 
+        _ta0 = time.monotonic()
         default_agent_name = self._resolve_agent_name(session_id, agent_name_override)
         if default_agent_name == "none":
             return None
 
+        _ta_resolve = time.monotonic()
         from gobby.workflows.agent_resolver import AgentResolutionError, resolve_agent
 
         try:
@@ -924,6 +936,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
             return None
 
         # Fetch rules, skills, and variables from DB
+        _ta_queries = time.monotonic()
         from gobby.skills.manager import SkillManager
         from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
@@ -933,6 +946,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         all_skills = SkillManager(self._session_storage.db).list_skills()
 
         # Build and persist session variables
+        _ta_build = time.monotonic()
         changes, active_rules, active_skills = self._build_agent_changes(
             agent_body, session_id, enabled_rules, all_skills, enabled_variables
         )
@@ -958,9 +972,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 k: v for k, v in changes.items() if k in _ALWAYS_REAPPLY or k not in existing
             }
 
+        _ta_vars = time.monotonic()
         sv_mgr.merge_variables(session_id, changes)
 
         # Build injection context
+        _ta_format = time.monotonic()
         context_parts: list[str] = []
         preamble = agent_body.build_prompt_preamble()
         if preamble:
@@ -979,6 +995,22 @@ class SessionEventHandlerMixin(EventHandlersBase):
             "_skill_format",
         }
         variables_count = len([k for k in changes if k not in internal_keys])
+
+        def _ms(a: float, b: float) -> int:
+            return int((b - a) * 1000)
+
+        _ta_end = time.monotonic()
+        self.logger.info(
+            "_activate_default_agent timing: resolve_name=%dms resolve_agent=%dms "
+            "db_queries=%dms build_changes=%dms merge_vars=%dms format=%dms total=%dms",
+            _ms(_ta0, _ta_resolve),
+            _ms(_ta_resolve, _ta_queries),
+            _ms(_ta_queries, _ta_build),
+            _ms(_ta_build, _ta_vars),
+            _ms(_ta_vars, _ta_format),
+            _ms(_ta_format, _ta_end),
+            _ms(_ta0, _ta_end),
+        )
 
         return AgentActivationResult(
             context="\n\n".join(context_parts) if context_parts else None,

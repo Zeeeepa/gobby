@@ -14,6 +14,7 @@ import { NetworkSecurity } from "./steps/NetworkSecurity.js";
 import { Tailscale } from "./steps/Tailscale.js";
 import { ProjectDiscovery } from "./steps/ProjectDiscovery.js";
 import { CliHooks } from "./steps/CliHooks.js";
+import { Integrations } from "./steps/Integrations.js";
 import { Services } from "./steps/Services.js";
 import { PersonalWorkspace } from "./steps/PersonalWorkspace.js";
 import { Launch } from "./steps/Launch.js";
@@ -48,6 +49,7 @@ const STEPS: StepDef[] = [
   },
   { id: "projects", label: "Project Discovery", component: ProjectDiscovery },
   { id: "hooks", label: "CLI Hooks", component: CliHooks },
+  { id: "integrations", label: "Integrations", component: Integrations },
   {
     id: "services",
     label: "Services",

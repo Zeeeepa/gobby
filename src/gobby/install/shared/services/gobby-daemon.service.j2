@@ -1,0 +1,30 @@
+[Unit]
+Description=Gobby Daemon - Local-first AI coding assistant platform
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={{ python_executable }} -m gobby.runner{% if verbose %} --verbose{% endif %}
+
+WorkingDirectory={{ working_directory }}
+Environment=HOME={{ home_dir }}
+Environment=PATH={{ path_env }}
+{% if gobby_home %}
+Environment=GOBBY_HOME={{ gobby_home }}
+{% endif %}
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+StandardOutput=append:{{ log_file }}
+StandardError=append:{{ error_log_file }}
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=%h/.gobby
+
+[Install]
+WantedBy=default.target

@@ -61,6 +61,11 @@ class CLIConfig:
     has_source_detection: bool  # Whether to detect source from env vars (Claude only)
 
 
+# Fire-and-forget hooks: spawn a detached curl process and return immediately.
+# This prevents Claude Code from cancelling the hook during /exit — the curl
+# child survives parent death and delivers the payload to the daemon.
+_FIRE_AND_FORGET_HOOKS: frozenset[str] = frozenset({"session-end", "SessionEnd", "sessionEnd"})
+
 CLI_CONFIGS: dict[str, CLIConfig] = {
     "claude": CLIConfig(
         source="claude",
@@ -565,6 +570,50 @@ async def main() -> int:
             logger.error(f"JSON decode error: {e}")
         print(json.dumps({}))
         return config.json_error_exit_code
+
+    if hook_type in _FIRE_AND_FORGET_HOOKS:
+        import subprocess
+
+        daemon_url = await get_daemon_url()
+        payload = json.dumps(
+            {
+                "hook_type": hook_type,
+                "input_data": input_data,
+                "source": _detect_source(config),
+            }
+        )
+        try:
+            logger.debug(
+                "Fire-and-forget hook %s → %s (%d bytes)",
+                hook_type,
+                daemon_url,
+                len(payload),
+            )
+            proc = subprocess.Popen(
+                [
+                    "curl",
+                    "-s",
+                    "-X",
+                    "POST",
+                    f"{daemon_url}/api/hooks/execute",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    "@-",
+                    "--max-time",
+                    "90",
+                ],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.PIPE,
+            )
+            if proc.stdin is not None:
+                proc.stdin.write(payload.encode())
+                proc.stdin.close()
+        except (FileNotFoundError, OSError) as e:
+            logger.debug("Fire-and-forget spawn failed for %s: %s", hook_type, e)
+        return 0
 
     # Call daemon HTTP endpoint
     import httpx
