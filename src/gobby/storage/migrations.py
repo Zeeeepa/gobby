@@ -992,6 +992,17 @@ def _migrate_v147_add_agent_run_columns(db: LocalDatabase) -> None:
             db.execute(f"ALTER TABLE agent_runs ADD COLUMN {col_name} {col_type}")
 
 
+def _drop_raw_json_column(db: LocalDatabase) -> None:
+    """Drop raw_json column if it still exists (may have been removed manually)."""
+    conn = db.connection
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(session_messages)").fetchall()]
+    if "raw_json" in columns:
+        conn.execute("ALTER TABLE session_messages DROP COLUMN raw_json")
+        logger.info("Dropped raw_json column from session_messages")
+    else:
+        logger.info("raw_json column already absent from session_messages, skipping")
+
+
 def _setup_code_symbols_fts(db: LocalDatabase) -> None:
     """Create FTS5 triggers and populate from existing data.
 
@@ -1313,7 +1324,7 @@ CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
     (
         156,
         "Drop raw_json column from session_messages (data archived to gzip files)",
-        "ALTER TABLE session_messages DROP COLUMN raw_json",
+        _drop_raw_json_column,
     ),
 ]
 
