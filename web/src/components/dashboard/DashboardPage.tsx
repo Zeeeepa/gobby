@@ -39,12 +39,12 @@ export function DashboardPage() {
           <div className="dash-grid">
             {/* Row 1: System + donut cards */}
             <SystemHealthCard data={data} />
-            <TasksCard tasks={data.tasks} />
-            <SessionsCard sessions={data.sessions} />
+            <TasksCard />
+            <SessionsCard />
 
-            {/* Row 2: Savings + Memory (spans 2) */}
-            <SavingsCard savings={data.savings} />
-            <MemoryCard memory={data.memory} />
+            {/* Row 2: Savings + Memory */}
+            <SavingsCard />
+            <MemoryCard />
 
             {/* Row 3: Metrics charts (full width) */}
             <MetricsChartsCard />
