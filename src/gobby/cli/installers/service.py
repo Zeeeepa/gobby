@@ -242,6 +242,11 @@ def enable_service_macos() -> dict[str, Any]:
             "error": "Service not installed. Run `gobby service install` first.",
         }
 
+    # Bootout any stale service entry before bootstrapping.
+    # Without this, bootstrap fails with error 5 (I/O error) when a
+    # previous service entry exists but the process is dead.
+    _launchctl_bootout(quiet=True)
+
     uid = os.getuid()
     result = subprocess.run(  # nosec B603 B607
         ["launchctl", "bootstrap", f"gui/{uid}", str(plist_file)],
@@ -396,7 +401,12 @@ def _validate_plist_paths(plist_file: Path) -> list[str]:
 
 
 def _macos_restart() -> dict[str, Any]:
-    """Restart the macOS service using launchctl kickstart -k."""
+    """Restart the macOS service using launchctl kickstart -k.
+
+    Falls back to bootout + bootstrap if kickstart fails (e.g. stale
+    service entry where the process is dead but launchd still has
+    the registration).
+    """
     uid = os.getuid()
     try:
         result = subprocess.run(  # nosec B603 B607
@@ -405,12 +415,44 @@ def _macos_restart() -> dict[str, Any]:
             text=True,
             timeout=30,
         )
-        if result.returncode != 0:
+        if result.returncode == 0:
+            return {"success": True, "platform": "macos", "method": "launchctl kickstart -k"}
+
+        # kickstart failed — try bootout + bootstrap as recovery.
+        # This handles stale service entries (error 5: I/O error)
+        # where the process died but launchd kept the registration.
+        logger.debug(
+            f"launchctl kickstart failed (rc={result.returncode}), "
+            f"attempting bootout + bootstrap recovery"
+        )
+        _launchctl_bootout(quiet=True)
+
+        plist_file = _plist_path()
+        if not plist_file.exists():
             return {
                 "success": False,
                 "error": f"launchctl kickstart failed: {result.stderr or result.stdout}",
             }
-        return {"success": True, "platform": "macos", "method": "launchctl kickstart -k"}
+
+        boot_result = subprocess.run(  # nosec B603 B607
+            ["launchctl", "bootstrap", f"gui/{uid}", str(plist_file)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if boot_result.returncode != 0 and "37:" not in (boot_result.stderr or ""):
+            return {
+                "success": False,
+                "error": (
+                    f"launchctl kickstart failed: {result.stderr or result.stdout}; "
+                    f"bootstrap recovery also failed: {boot_result.stderr or boot_result.stdout}"
+                ),
+            }
+        return {
+            "success": True,
+            "platform": "macos",
+            "method": "launchctl bootout + bootstrap (recovery)",
+        }
     except (subprocess.TimeoutExpired, OSError) as e:
         return {"success": False, "error": str(e)}
 
