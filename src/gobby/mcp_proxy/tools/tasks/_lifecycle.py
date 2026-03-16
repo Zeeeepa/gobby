@@ -869,7 +869,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "review_approved")
         except Exception:
-            pass  # nosec B110 - best-effort linking
+            pass  # nosec B110 # best-effort linking
 
         return {}
 
@@ -960,7 +960,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "needs_review")
         except Exception:
-            pass  # nosec B110 - best-effort linking
+            pass  # nosec B110 # best-effort linking
 
         return {}
 

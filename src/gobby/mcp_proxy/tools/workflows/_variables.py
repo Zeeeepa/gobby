@@ -218,37 +218,52 @@ def get_variable(
     }
 
 
-def set_session_variable(
-    session_manager: LocalSessionManager,
-    session_var_manager: SessionVariableManager,
+def save_variable_template(
+    db: DatabaseProtocol,
     name: str,
-    value: str | int | float | bool | None,
-    session_id: str | None = None,
+    definition: dict[str, Any],
+    *,
+    make_global: bool = False,
 ) -> dict[str, Any]:
-    """
-    Set a session-scoped shared variable (visible to all workflows).
+    """Save a variable definition as a YAML template for persistence.
+
+    Writes to .gobby/workflows/variables/ (project) or
+    ~/.gobby/workflows/variables/ (global).
 
     Args:
-        session_manager: LocalSessionManager instance
-        session_var_manager: SessionVariableManager instance
+        db: Database connection
         name: Variable name
-        value: Variable value
-        session_id: Session reference (accepts #N, N, UUID, or prefix)
+        definition: Variable definition dict (type, default, description)
+        make_global: Write to global ~/.gobby/workflows/ instead of project
 
     Returns:
-        Success status
+        Dict with success and path to written file
     """
-    if not session_id:
-        return {
-            "success": False,
-            "error": "session_id is required.",
-        }
+    from pathlib import Path
+
+    from gobby.utils.dev import is_dev_mode
+    from gobby.workflows.template_writer import write_variable_template
+
+    project_path = Path.cwd()
+    if is_dev_mode(project_path):
+        return {"success": False, "error": "Auto-export disabled in dev mode"}
+
+    if make_global:
+        from gobby.paths import get_global_variables_dir
+
+        output_dir = get_global_variables_dir()
+    else:
+        from gobby.paths import get_project_variables_dir
+
+        output_dir = get_project_variables_dir(project_path)
 
     try:
-        resolved_session_id = resolve_session_id(session_manager, session_id)
-    except ValueError as e:
-        return {"success": False, "error": str(e)}
-
-    value = _coerce_value(value)
-    session_var_manager.set_variable(resolved_session_id, name, value)
-    return {"success": True, "value": value, "scope": "session"}
+        path = write_variable_template(
+            name=name,
+            definition=definition,
+            output_dir=output_dir,
+        )
+        logger.info("Saved variable template '%s' to %s", name, path)
+        return {"success": True, "path": str(path)}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to write variable template: {e}"}

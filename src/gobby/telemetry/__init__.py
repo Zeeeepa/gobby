@@ -70,6 +70,21 @@ def init_telemetry(config: TelemetrySettings) -> None:
     Args:
         config: TelemetrySettings instance.
     """
+    # 0. LLM instrumentors (must run before LLM client instantiation)
+    if config.llm_tracing.enabled:
+        try:
+            from gobby.telemetry.instrumentors import setup_llm_instrumentors
+
+            setup_llm_instrumentors(
+                capture_content=config.llm_tracing.capture_content,
+                providers=config.llm_tracing.providers,
+            )
+        except Exception:
+            logging.getLogger(__name__).warning(
+                "Failed to setup LLM instrumentors — tracing will be incomplete",
+                exc_info=True,
+            )
+
     # 1. Tracing
     tracer_provider = get_tracer_provider(config)
     trace.set_tracer_provider(tracer_provider)

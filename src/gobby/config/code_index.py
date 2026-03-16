@@ -10,10 +10,6 @@ class CodeIndexConfig(BaseModel):
         default=True,
         description="Enable code indexing via tree-sitter AST parsing",
     )
-    auto_index_on_session_start: bool = Field(
-        default=True,
-        description="Auto-index project on session start",
-    )
     auto_index_on_commit: bool = Field(
         default=True,
         description="Auto-reindex changed files on git commit",
@@ -29,8 +25,14 @@ class CodeIndexConfig(BaseModel):
     exclude_patterns: list[str] = Field(
         default=[
             "node_modules",
+            ".vite",
             ".git",
             "__pycache__",
+            ".mypy_cache",
+            ".ruff_cache",
+            ".pytest_cache",
+            ".tox",
+            ".eggs",
             "vendor",
             "build",
             "dist",

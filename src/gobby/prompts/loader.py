@@ -141,7 +141,7 @@ class PromptLoader:
         try:
             from jinja2 import Environment, StrictUndefined, UndefinedError
 
-            env = Environment(  # nosec B701 - generating raw text prompts, not HTML
+            env = Environment(  # nosec B701 # generating raw text prompts, not HTML
                 autoescape=False,
                 undefined=StrictUndefined,
                 extensions=[],

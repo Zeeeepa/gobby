@@ -73,6 +73,14 @@ class TestDockerComposeNeo4j:
         env_str = str(env)
         assert "apoc" in env_str.lower()
 
+    def test_compose_has_conf_volume_mount(self) -> None:
+        """Neo4j service bind-mounts ./conf for APOC config persistence."""
+        from gobby.cli.installers.neo4j import _COMPOSE_SRC
+
+        data = yaml.safe_load(_COMPOSE_SRC.read_text())
+        volumes = data["services"]["neo4j"]["volumes"]
+        assert "./conf:/var/lib/neo4j/conf" in volumes
+
 
 # ---------------------------------------------------------------------------
 # Installer function tests
@@ -110,6 +118,48 @@ class TestInstallNeo4j:
         assert result["success"] is True
         compose_dest = tmp_path / "services" / "neo4j" / "docker-compose.yml"
         assert compose_dest.exists()
+
+    def test_install_neo4j_creates_conf_directory(self, tmp_path: Path) -> None:
+        """install_neo4j creates conf/neo4j.conf with APOC config."""
+        from gobby.cli.installers.neo4j import install_neo4j
+
+        with (
+            patch.object(shutil, "which", return_value="/usr/bin/docker"),
+            patch("gobby.cli.installers.neo4j.subprocess") as mock_subprocess,
+            patch("gobby.cli.installers.neo4j._wait_for_health", return_value=True),
+            patch("gobby.cli.installers.neo4j._update_config"),
+        ):
+            mock_subprocess.run.return_value = MagicMock(returncode=0)
+            mock_subprocess.TimeoutExpired = TimeoutError
+
+            install_neo4j(gobby_home=tmp_path)
+
+        conf_file = tmp_path / "services" / "neo4j" / "conf" / "neo4j.conf"
+        assert conf_file.exists()
+        content = conf_file.read_text()
+        assert "dbms.security.procedures.unrestricted=apoc.*" in content
+
+    def test_install_neo4j_does_not_overwrite_existing_conf(self, tmp_path: Path) -> None:
+        """install_neo4j preserves existing conf/neo4j.conf."""
+        from gobby.cli.installers.neo4j import install_neo4j
+
+        conf_dir = tmp_path / "services" / "neo4j" / "conf"
+        conf_dir.mkdir(parents=True)
+        conf_file = conf_dir / "neo4j.conf"
+        conf_file.write_text("# user customized config\n")
+
+        with (
+            patch.object(shutil, "which", return_value="/usr/bin/docker"),
+            patch("gobby.cli.installers.neo4j.subprocess") as mock_subprocess,
+            patch("gobby.cli.installers.neo4j._wait_for_health", return_value=True),
+            patch("gobby.cli.installers.neo4j._update_config"),
+        ):
+            mock_subprocess.run.return_value = MagicMock(returncode=0)
+            mock_subprocess.TimeoutExpired = TimeoutError
+
+            install_neo4j(gobby_home=tmp_path)
+
+        assert conf_file.read_text() == "# user customized config\n"
 
     def test_install_neo4j_calls_docker_compose_up(self, tmp_path: Path) -> None:
         """install_neo4j runs docker compose up -d."""

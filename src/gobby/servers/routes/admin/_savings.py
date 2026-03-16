@@ -43,6 +43,14 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
         if not category:
             return {"success": False, "error": "category is required"}
 
+        from gobby.savings.tracker import VALID_CATEGORIES
+
+        if category not in VALID_CATEGORIES:
+            return {
+                "success": False,
+                "error": f"Invalid category {category!r}. Valid: {sorted(VALID_CATEGORIES)}",
+            }
+
         # Support both chars and tokens
         if "original_tokens" in body:
             tracker.record_tokens(

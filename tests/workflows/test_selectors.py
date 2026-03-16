@@ -306,9 +306,9 @@ def test_resolve_rules_tag_exclude_sync() -> None:
     default_rule.tags = ["default", "gobby"]
     default_rule.definition_json = None
 
-    # A sync-tagged rule (should be excluded despite also having default)
+    # An excluded-tagged rule (should be excluded despite also having default)
     sync_rule = MagicMock()
-    sync_rule.name = "task-sync-import-on-start"
+    sync_rule.name = "some-excluded-rule"
     sync_rule.tags = ["sync", "default", "gobby"]
     sync_rule.definition_json = None
 
@@ -321,7 +321,7 @@ def test_resolve_rules_tag_exclude_sync() -> None:
     result = resolve_rules_for_agent(agent, [default_rule, sync_rule, safety_rule])
     assert "require-task-before-edit" in result
     assert "block-git-push" in result
-    assert "task-sync-import-on-start" not in result
+    assert "some-excluded-rule" not in result
 
 
 def test_resolve_variables_with_exclude() -> None:

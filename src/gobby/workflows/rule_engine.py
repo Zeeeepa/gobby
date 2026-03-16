@@ -203,6 +203,10 @@ class RuleEngine:
                     if step_block is not None:
                         variables["tool_block_pending"] = True
                         variables["_last_blocked_tool"] = _get_tool_identity(event.data)
+                        # Blocked edit/write never executed — nothing to recover
+                        tool_name_lower = event.data.get("tool_name", "").lower()
+                        if tool_name_lower in EDIT_TOOLS:
+                            _clear_edit_write_state(variables)
                         if span.is_recording():
                             span.set_attribute("final_decision", step_block.decision)
                             span.set_attribute("block_reason", step_block.reason)
@@ -367,6 +371,10 @@ class RuleEngine:
                             if rule_event == RuleEvent.BEFORE_TOOL:
                                 variables["tool_block_pending"] = True
                                 variables["_last_blocked_tool"] = _get_tool_identity(event.data)
+                                # Blocked edit/write never executed — nothing to recover
+                                tool_name_lower = event.data.get("tool_name", "").lower()
+                                if tool_name_lower in EDIT_TOOLS:
+                                    _clear_edit_write_state(variables)
                             # First block wins — stop evaluating
                             break
 
@@ -421,6 +429,15 @@ class RuleEngine:
 
                 if span.is_recording():
                     span.set_attribute("final_decision", resp.decision)
+                    span.set_attribute(
+                        "rules.evaluated",
+                        [row.name for row, _ in rules],
+                    )
+                    if mcp_calls:
+                        span.set_attribute(
+                            "rules.mcp_calls",
+                            [f"{c.get('server')}/{c.get('tool')}" for c in mcp_calls],
+                        )
                     if resp.reason:
                         span.set_attribute("block_reason", resp.reason)
                 return resp
@@ -922,7 +939,7 @@ class RuleEngine:
             )
 
         # Check MCP tool restrictions (for call_tool)
-        if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+        if tool_name in ("call_tool", "mcp__gobby__call_tool", "mcp_gobby_call_tool"):
             tool_input = event.data.get("tool_input") or {}
             if isinstance(tool_input, dict):
                 mcp_server = tool_input.get("server_name", "")

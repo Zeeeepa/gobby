@@ -53,6 +53,8 @@ class CodeIndexer:
         self._config = config or CodeIndexConfig()
         # Set by runner.py after creation for http.py registry wiring
         self.searcher: Any | None = None
+        # Cache collections known to be missing to avoid repeated failed HTTP roundtrips
+        self._missing_collections: set[str] = set()
 
     @property
     def storage(self) -> CodeIndexStorage:
@@ -122,6 +124,17 @@ class CodeIndexer:
         else:
             stale = None  # Index everything
 
+        # Clean up orphan files no longer in candidates (e.g., newly excluded dirs)
+        if incremental and current_hashes:
+            try:
+                orphans = self._storage.get_orphan_files(project_id, set(current_hashes.keys()))
+                for orphan_path in orphans:
+                    await self._delete_file_data(project_id, orphan_path)
+                if orphans:
+                    logger.info(f"Cleaned up {len(orphans)} orphan indexed files")
+            except Exception as e:
+                logger.debug(f"Orphan cleanup failed: {e}")
+
         # Index each file
         for path in candidates:
             try:
@@ -164,6 +177,33 @@ class CodeIndexer:
         )
         return result
 
+    async def _delete_file_data(self, project_id: str, file_path: str) -> None:
+        """Remove all data for a file from SQLite, Qdrant, and Neo4j."""
+        self._storage.delete_symbols_for_file(project_id, file_path)
+        self._storage.delete_file(project_id, file_path)
+
+        if self._graph is not None and self._graph.available:
+            await self._graph.delete_file(file_path=file_path, project_id=project_id)
+
+        if self._vector_store is not None:
+            collection = f"{self._config.qdrant_collection_prefix}{project_id}"
+            if collection not in self._missing_collections:
+                try:
+                    await self._vector_store.delete(
+                        filters={"file_path": file_path, "project_id": project_id},
+                        collection_name=collection,
+                    )
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "not found" in err_str or "doesn't exist" in err_str:
+                        self._missing_collections.add(collection)
+                        logger.debug(
+                            f"Qdrant collection {collection} not found, "
+                            f"skipping future deletes this run"
+                        )
+                    else:
+                        logger.debug(f"Vector delete failed for {file_path}: {e}")
+
     async def index_file(
         self,
         file_path: str,
@@ -172,6 +212,17 @@ class CodeIndexer:
     ) -> list[Symbol] | None:
         """Index a single file. Returns symbols or None if skipped."""
         parse_result = self._parser.parse_file(file_path, project_id, root_path)
+
+        root = Path(root_path).resolve()
+        path = Path(file_path).resolve()
+        try:
+            rel_path = str(path.relative_to(root))
+        except ValueError:
+            rel_path = str(path)
+
+        # Always clear old data first before re-indexing to prevent ghosts
+        await self._delete_file_data(project_id, rel_path)
+
         if parse_result is None:
             return None
 
@@ -181,14 +232,6 @@ class CodeIndexer:
 
         # Store symbols
         self._storage.upsert_symbols(symbols)
-
-        # Store file record
-        root = Path(root_path).resolve()
-        path = Path(file_path).resolve()
-        try:
-            rel_path = str(path.relative_to(root))
-        except ValueError:
-            rel_path = str(path)
 
         language = detect_language(file_path) or "unknown"
         try:
@@ -240,9 +283,8 @@ class CodeIndexer:
             # Resolve relative to root
             abs_path = Path(root_path) / fp if not Path(fp).is_absolute() else Path(fp)
             if not abs_path.exists():
-                # File was deleted — clean up
-                self._storage.delete_symbols_for_file(project_id, fp)
-                self._storage.delete_file(project_id, fp)
+                # File was deleted — clean up everywhere
+                await self._delete_file_data(project_id, fp)
                 continue
 
             symbols = await self.index_file(str(abs_path), project_id, root_path)
@@ -277,7 +319,7 @@ class CodeIndexer:
         if not symbols or self._embed_fn is None or self._vector_store is None:
             return 0
 
-        # Build text for embedding: name + signature + docstring
+        # Build text for embedding: name + signature + docstring + summary
         texts = []
         ids = []
         for sym in symbols:
@@ -286,6 +328,8 @@ class CodeIndexer:
                 parts.append(sym.signature)
             if sym.docstring:
                 parts.append(sym.docstring[:200])
+            if sym.summary:
+                parts.append(sym.summary)
             texts.append(" ".join(parts))
             ids.append(sym.id)
 
@@ -306,32 +350,49 @@ class CodeIndexer:
         collection = f"{self._config.qdrant_collection_prefix}{project_id}"
         count = 0
         try:
-            points = []
+            items = []
             for i, emb in enumerate(embeddings):
                 if emb is not None:
-                    points.append(
-                        {
-                            "id": ids[i],
-                            "vector": emb,
-                            "payload": {
+                    items.append(
+                        (
+                            ids[i],
+                            emb,
+                            {
                                 "name": symbols[i].name,
                                 "kind": symbols[i].kind,
                                 "file_path": symbols[i].file_path,
                                 "project_id": project_id,
                             },
-                        }
+                        )
                     )
 
-            if points:
+            if items:
                 await self._vector_store.batch_upsert(
+                    items=items,
                     collection_name=collection,
-                    points=points,
                 )
-                count = len(points)
+                count = len(items)
+                # Collection exists now — clear from missing cache
+                self._missing_collections.discard(collection)
         except Exception as e:
             logger.debug(f"Vector upsert failed: {e}")
 
         return count
+
+    async def reembed_symbols(self, symbol_ids: list[str], project_id: str) -> int:
+        """Re-embed specific symbols (e.g. after summary generation).
+
+        Fetches symbols from storage, rebuilds embedding text (now including
+        summary), and upserts to Qdrant.
+        """
+        if not symbol_ids or self._embed_fn is None or self._vector_store is None:
+            return 0
+
+        symbols = self._storage.get_symbols(symbol_ids)
+        if not symbols:
+            return 0
+
+        return await self._embed_symbols(symbols, project_id)
 
     async def _add_graph_data(
         self,

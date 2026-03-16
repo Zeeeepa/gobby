@@ -9,5 +9,6 @@ rules:
     when: >
       event.data.get('tool_name') in ('call_tool', 'mcp__gobby__call_tool')
       and len(str(event.data.get('tool_output', ''))) > 2000
+      and not variables.get('is_spawned_agent')
     effects:
       - type: compress_output

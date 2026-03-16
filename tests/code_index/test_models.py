@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 
 from gobby.code_index.models import (
@@ -88,6 +90,55 @@ def test_symbol_parent_in_dict(sample_symbols: list[Symbol]) -> None:
     method = sample_symbols[2]  # add method
     d = method.to_dict()
     assert d["parent_symbol_id"] == sample_symbols[1].id  # Calculator class
+
+
+# ── Symbol.to_brief ─────────────────────────────────────────────────────
+
+
+def test_symbol_to_brief_has_minimal_fields(sample_symbols: list[Symbol]) -> None:
+    """to_brief returns only fields needed for search results."""
+    sym = sample_symbols[0]
+    b = sym.to_brief()
+
+    assert set(b.keys()) <= {
+        "id", "name", "qualified_name", "kind", "file_path",
+        "line_start", "signature", "docstring", "parent_id",
+    }
+    assert b["id"] == sym.id
+    assert b["name"] == sym.name
+    assert b["kind"] == sym.kind
+    assert b["file_path"] == sym.file_path
+    assert b["line_start"] == sym.line_start
+    assert b["signature"] == sym.signature
+    # Should NOT contain heavy fields
+    assert "content_hash" not in b
+    assert "created_at" not in b
+    assert "updated_at" not in b
+    assert "byte_start" not in b
+    assert "project_id" not in b
+
+
+def test_symbol_to_brief_includes_parent_id(sample_symbols: list[Symbol]) -> None:
+    """to_brief includes parent_id for methods."""
+    method = sample_symbols[2]  # add method
+    b = method.to_brief()
+    assert b["parent_id"] == sample_symbols[1].id
+
+
+def test_symbol_to_brief_truncates_docstring(sample_symbols: list[Symbol]) -> None:
+    """to_brief only includes first line of docstring."""
+    sym = copy.copy(sample_symbols[0])
+    sym.docstring = "First line.\nSecond line with more detail."
+    b = sym.to_brief()
+    assert b["docstring"] == "First line."
+
+
+def test_symbol_to_brief_omits_empty_docstring(sample_symbols: list[Symbol]) -> None:
+    """to_brief omits docstring key when empty."""
+    sym = copy.copy(sample_symbols[0])
+    sym.docstring = None
+    b = sym.to_brief()
+    assert "docstring" not in b
 
 
 # ── IndexedFile.make_id ─────────────────────────────────────────────────

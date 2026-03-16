@@ -327,7 +327,7 @@ def create_cron_registry(
             runs = cron_storage.list_runs(job_id, limit=limit)
             return {
                 "success": True,
-                "runs": [r.to_dict() for r in runs],
+                "runs": [r.to_brief() for r in runs],
                 "count": len(runs),
             }
         except Exception as e:

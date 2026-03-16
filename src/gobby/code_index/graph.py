@@ -174,8 +174,38 @@ class CodeGraph:
 
         try:
             await self._client.execute_write(
-                """MATCH (n {project: $project}) DETACH DELETE n""",
+                """MATCH (n {project: $project})
+                   WHERE n:CodeFile OR n:CodeSymbol OR n:CodeModule
+                   DETACH DELETE n""",
                 {"project": project_id},
             )
         except Exception as e:
             logger.warning(f"Graph clear_project failed: {e}")
+
+    async def delete_file(self, file_path: str, project_id: str) -> None:
+        """Remove all graph data for a specific file."""
+        if not self.available:
+            return
+
+        try:
+            # Delete the CodeFile node itself (cascades to relationships)
+            # Delete CodeSymbols defined in this file
+            await self._client.execute_write(
+                """
+                MATCH (f:CodeFile {path: $file_path, project: $project})
+                OPTIONAL MATCH (f)-[:DEFINES]->(s:CodeSymbol)
+                DETACH DELETE f, s
+                """,
+                {"file_path": file_path, "project": project_id},
+            )
+            # Also clean up any orphaned CodeModule nodes
+            await self._client.execute_write(
+                """
+                MATCH (m:CodeModule {project: $project})
+                WHERE NOT (m)<-[:IMPORTS]-()
+                DETACH DELETE m
+                """,
+                {"project": project_id},
+            )
+        except Exception as e:
+            logger.warning(f"Graph delete_file failed: {e}")

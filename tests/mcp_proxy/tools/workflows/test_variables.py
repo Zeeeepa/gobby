@@ -115,30 +115,6 @@ class TestSetVariableScoped:
         assert "unknown" in result["error"]
 
 
-class TestSetSessionVariable:
-    """Tests for set_session_variable tool."""
-
-    def test_set_session_variable_writes_to_session_variables(self) -> None:
-        """set_session_variable() writes to session_variables table."""
-        from gobby.mcp_proxy.tools.workflows._variables import set_session_variable
-
-        mocks = _make_mocks()
-
-        result = set_session_variable(
-            mocks["session_manager"],
-            mocks["session_var_manager"],
-            name="shared_flag",
-            value=True,
-            session_id="#1",
-        )
-
-        assert result["success"] is True
-        assert result["value"] is True
-        mocks["session_var_manager"].set_variable.assert_called_once_with(
-            "uuid-session-1", "shared_flag", True
-        )
-
-
 class TestGetVariableScoped:
     """Tests for get_variable with workflow scoping."""
 

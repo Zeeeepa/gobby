@@ -79,6 +79,12 @@ _TYPESCRIPT_SPEC = LanguageSpec(
         (type_alias_declaration name: (type_identifier) @name) @definition.type
         (enum_declaration name: (identifier) @name) @definition.type
         (lexical_declaration (variable_declarator name: (identifier) @name value: (arrow_function))) @definition.function
+        (export_statement declaration: (function_declaration name: (identifier) @name)) @definition.function
+        (export_statement declaration: (class_declaration name: (type_identifier) @name)) @definition.class
+        (export_statement declaration: (interface_declaration name: (type_identifier) @name)) @definition.type
+        (export_statement declaration: (type_alias_declaration name: (type_identifier) @name)) @definition.type
+        (export_statement declaration: (enum_declaration name: (identifier) @name)) @definition.type
+        (export_statement declaration: (lexical_declaration (variable_declarator name: (identifier) @name value: (arrow_function)))) @definition.function
     """,
     import_query="""
         (import_statement) @import
@@ -264,6 +270,31 @@ _RUBY_SPEC = LanguageSpec(
     container_types=["class", "module"],
 )
 
+_MARKDOWN_SPEC = LanguageSpec(
+    extensions=[".md", ".markdown"],
+    symbol_query="""
+        (atx_heading heading_content: (_) @name) @definition.section
+        (setext_heading heading_content: (_) @name) @definition.section
+    """,
+    container_types=[],
+)
+
+_YAML_SPEC = LanguageSpec(
+    extensions=[".yaml", ".yml"],
+    symbol_query="""
+        (block_mapping_pair key: (_) @name) @definition.property
+    """,
+    container_types=["block_mapping_pair"],
+)
+
+_JSON_SPEC = LanguageSpec(
+    extensions=[".json", ".jsonc"],
+    symbol_query="""
+        (pair key: (string (string_content) @name)) @definition.property
+    """,
+    container_types=["pair"],
+)
+
 
 # ── Registry ─────────────────────────────────────────────────────────────
 
@@ -281,6 +312,9 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
     "cpp": _CPP_SPEC,
     "elixir": _ELIXIR_SPEC,
     "ruby": _RUBY_SPEC,
+    "markdown": _MARKDOWN_SPEC,
+    "yaml": _YAML_SPEC,
+    "json": _JSON_SPEC,
 }
 
 

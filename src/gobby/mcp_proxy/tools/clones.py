@@ -259,7 +259,7 @@ def create_clones_registry(
 
         return {
             "success": True,
-            "clones": [c.to_dict() for c in clones],
+            "clones": [c.to_brief() for c in clones],
             "count": len(clones),
         }
 

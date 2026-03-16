@@ -1,10 +1,6 @@
 import { useState } from 'react'
-import type { AdminStatus } from '../../hooks/useDashboard'
+import { useTimeStats, rangeToDays } from '../../hooks/useTimeStats'
 import { TimeRangePills, type TimeRange } from './TimeRangePills'
-
-interface Props {
-  memory: AdminStatus['memory']
-}
 
 const TYPE_COLORS: Record<string, { label: string; color: string }> = {
   fact: { label: 'Facts', color: '#3b82f6' },
@@ -21,8 +17,11 @@ const STROKE = 18
 const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-export function MemoryCard({ memory }: Props) {
+export function MemoryCard() {
   const [range, setRange] = useState<TimeRange>('all')
+  const { data } = useTimeStats(rangeToDays(range))
+
+  const memory = data?.memory ?? { count: 0, by_type: {}, recent_count: 0 }
 
   const byType = memory.by_type ?? {}
   const allSegments = Object.entries(byType)

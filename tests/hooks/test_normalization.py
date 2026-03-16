@@ -45,6 +45,80 @@ class TestMcpPrefixParsing:
         assert "mcp_tool" not in result
 
 
+class TestSingleUnderscoreNormalization:
+    """Tests for mcp_<server>_<tool> → mcp__<server>__<tool> normalization (Step 1a-pre)."""
+
+    def test_single_underscore_call_tool(self) -> None:
+        data = {"tool_name": "mcp_gobby_call_tool"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp__gobby__call_tool"
+
+    def test_single_underscore_list_tools(self) -> None:
+        data = {"tool_name": "mcp_gobby_list_tools"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp__gobby__list_tools"
+
+    def test_single_underscore_list_mcp_servers(self) -> None:
+        data = {"tool_name": "mcp_gobby_list_mcp_servers"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp__gobby__list_mcp_servers"
+
+    def test_single_underscore_get_tool_schema(self) -> None:
+        data = {"tool_name": "mcp_gobby_get_tool_schema"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp__gobby__get_tool_schema"
+
+    def test_single_underscore_sets_mcp_server_and_tool(self) -> None:
+        """After normalization, the prefix parsing should extract mcp_server/mcp_tool."""
+        data = {"tool_name": "mcp_gobby_call_tool"}
+        result = normalize_mcp_fields(data)
+        assert result["mcp_server"] == "gobby"
+        assert result["mcp_tool"] == "call_tool"
+
+    def test_double_underscore_unchanged(self) -> None:
+        data = {"tool_name": "mcp__gobby__call_tool"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp__gobby__call_tool"
+
+    def test_non_mcp_prefix_unchanged(self) -> None:
+        data = {"tool_name": "Read"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "Read"
+
+    def test_bare_mcp_underscore_no_tool(self) -> None:
+        """mcp_ with no further underscore should be left alone."""
+        data = {"tool_name": "mcp_gobby"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp_gobby"
+
+    def test_single_underscore_non_gobby_server(self) -> None:
+        data = {"tool_name": "mcp_context7_get_docs"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp__context7__get_docs"
+
+    def test_single_underscore_call_tool_inner_extraction(self) -> None:
+        """Single-underscore call_tool should still extract inner server/tool."""
+        data = {
+            "tool_name": "mcp_gobby_call_tool",
+            "tool_input": {"server_name": "gobby-tasks", "tool_name": "create_task"},
+        }
+        result = normalize_mcp_fields(data)
+        assert result["tool_name"] == "mcp__gobby__call_tool"
+        assert result["mcp_server"] == "gobby-tasks"
+        assert result["mcp_tool"] == "create_task"
+
+    def test_full_pipeline_gemini_single_underscore(self) -> None:
+        """End-to-end: Gemini-style single underscore through normalize_tool_fields."""
+        data = {
+            "function_name": "mcp_gobby_call_tool",
+            "parameters": {"server_name": "gobby-memory", "tool_name": "create_memory"},
+        }
+        normalize_tool_fields(data)
+        assert data["tool_name"] == "mcp__gobby__call_tool"
+        assert data["mcp_server"] == "gobby-memory"
+        assert data["mcp_tool"] == "create_memory"
+
+
 class TestCallToolExtraction:
     """Tests for call_tool / mcp__gobby__call_tool inner extraction (Step 1b)."""
 

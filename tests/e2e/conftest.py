@@ -883,7 +883,7 @@ def _production_daemon_running() -> bool:
 
 
 # Known daemon artifacts that the production daemon may create/touch
-_DAEMON_ARTIFACTS = {"gobby.pid", "ui.pid", "watchdog.pid"}
+_DAEMON_ARTIFACTS = {"gobby.pid", "ui.pid", "watchdog.pid", "shutdown_source.json"}
 
 
 @pytest.fixture(autouse=True)
@@ -924,6 +924,8 @@ def assert_no_external_writes() -> Generator[None]:
             if prod_running and (
                 basename in _DAEMON_ARTIFACTS
                 or rel_path.startswith("logs/")
+                or rel_path.startswith("session_summaries/")
+                or rel_path.startswith("session_transcripts/")
                 or basename.endswith(".pid")
             ):
                 continue  # Known production daemon artifact

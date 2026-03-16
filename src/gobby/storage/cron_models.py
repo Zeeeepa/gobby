@@ -158,3 +158,16 @@ class CronRun:
             "pipeline_execution_id": self.pipeline_execution_id,
             "created_at": self.created_at,
         }
+
+    def to_brief(self) -> dict[str, Any]:
+        """Slim representation for list operations."""
+        return {
+            "id": self.id,
+            "cron_job_id": self.cron_job_id,
+            "status": self.status,
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+            "error": self.error,
+            "agent_run_id": self.agent_run_id,
+            "pipeline_execution_id": self.pipeline_execution_id,
+        }

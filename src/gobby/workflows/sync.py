@@ -253,8 +253,8 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
             result["errors"].append(error_msg)
 
     # Orphan cleanup: soft-delete template workflows whose YAML was removed.
-    # Collects names from disk, then marks any DB rows with source='template'
-    # that aren't in the set.  This handles workflows moved to deprecated/.
+    # Scoped by gobby tag to prevent cross-tag cascade damage.
+    tag_filter = '%"gobby"%'
     on_disk = set()
     for yf in sorted(workflows_path.glob("*.yaml")):
         try:
@@ -266,17 +266,39 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source = 'template' AND workflow_type IN ('workflow', 'pipeline') AND deleted_at IS NULL",
+        "WHERE source = 'template' AND workflow_type IN ('workflow', 'pipeline') "
+        "AND tags LIKE ? AND deleted_at IS NULL",
+        (tag_filter,),
     )
     result["orphaned"] = 0
+    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
+            orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled workflow", extra={"workflow": row["name"]})
             result["orphaned"] += 1
 
-    _ensure_gobby_tag_on_installed(manager, "workflow")
-    _ensure_gobby_tag_on_installed(manager, "pipeline")
+    # Cascade: soft-delete installed copies of orphaned templates,
+    # scoped by tag to prevent cross-tag cascade damage
+    result["cascaded"] = 0
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' "
+            "AND workflow_type IN ('workflow', 'pipeline') "
+            "AND tags LIKE ? AND deleted_at IS NULL",
+            (name, tag_filter),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            result["cascaded"] += 1
+            logger.info(
+                "Soft-deleted installed copy of orphaned workflow", extra={"workflow": name}
+            )
+
+    _ensure_tag_on_installed(manager, "workflow")
+    _ensure_tag_on_installed(manager, "pipeline")
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
@@ -293,7 +315,11 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
     return result
 
 
-def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> dict[str, Any]:
+def sync_bundled_rules(
+    db: DatabaseProtocol,
+    rules_path: Path | None = None,
+    tag: str = "gobby",
+) -> dict[str, Any]:
     """Sync rule YAML files to workflow_definitions table with workflow_type='rule'.
 
     Rule YAML files use the new format with a top-level `rules:` dict where each
@@ -303,6 +329,8 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
     Args:
         db: Database connection.
         rules_path: Path to rules directory. Defaults to bundled rules path.
+        tag: Tag to apply to synced rules. Defaults to "gobby" for bundled.
+             Use "user" for user-created templates.
 
     Returns:
         Dict with success status and counts.
@@ -363,14 +391,30 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
             dir_group = rel_parts[0] if len(rel_parts) > 1 else None
             file_group = data.get("group") or dir_group
             file_tags = data.get("tags") or []
-            if "gobby" not in file_tags:
-                file_tags = [*file_tags, "gobby"]
+            if tag not in file_tags:
+                file_tags = [*file_tags, tag]
             file_sources = data.get("sources")
 
             for rule_name, rule_data in rules_dict.items():
                 if not isinstance(rule_data, dict):
                     result["errors"].append(f"Rule '{rule_name}' in {yaml_file.name} is not a dict")
                     continue
+
+                # Name collision prevention: user templates can't shadow gobby templates
+                if tag != "gobby":
+                    gobby_row = db.fetchone(
+                        "SELECT id FROM workflow_definitions "
+                        "WHERE name = ? AND source = 'template' AND tags LIKE '%\"gobby\"%' "
+                        "AND deleted_at IS NULL",
+                        (rule_name,),
+                    )
+                    if gobby_row:
+                        logger.debug(
+                            "Skipping user rule that collides with gobby template",
+                            extra={"rule": rule_name},
+                        )
+                        result["skipped"] += 1
+                        continue
 
                 try:
                     _sync_single_rule(
@@ -392,10 +436,10 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
-    # Orphan cleanup: soft-delete bundled rules whose YAML was removed.
-    # Collects rule names from disk, then marks any DB rows with source='bundled'
-    # (or 'template' after rename) that aren't in the set. This handles rules
-    # moved to deprecated/ or removed entirely.
+    # Orphan cleanup: soft-delete rules whose YAML was removed.
+    # Scoped by tag to prevent gobby orphan cleanup from affecting user templates
+    # and vice versa.
+    tag_filter = f'%"{tag}"%'
     on_disk: set[str] = set()
     for yf in sorted(rules_path.rglob("*.yaml")):
         if "deprecated" in yf.relative_to(rules_path).parts:
@@ -410,16 +454,34 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
         "WHERE source = 'template' AND workflow_type = 'rule' "
-        "AND deleted_at IS NULL",
+        "AND tags LIKE ? AND deleted_at IS NULL",
+        (tag_filter,),
     )
     result["orphaned"] = 0
+    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
-            logger.info("Soft-deleted orphaned bundled rule", extra={"rule": row["name"]})
+            orphaned_names.add(row["name"])
+            logger.info("Soft-deleted orphaned rule", extra={"rule": row["name"], "tag": tag})
             result["orphaned"] += 1
 
-    _ensure_gobby_tag_on_installed(manager, "rule")
+    # Cascade: soft-delete installed copies of orphaned templates,
+    # scoped by tag to prevent cross-tag cascade damage
+    result["cascaded"] = 0
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' AND workflow_type = 'rule' "
+            "AND tags LIKE ? AND deleted_at IS NULL",
+            (name, tag_filter),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            result["cascaded"] += 1
+            logger.info("Soft-deleted installed copy of orphaned rule", extra={"rule": name})
+
+    _ensure_tag_on_installed(manager, "rule", tag)
 
     # Propagate tags from templates to installed copies where they've drifted
     # (fixes bug #9657: create_rule doesn't propagate definition_json tags to row-level tags)
@@ -452,17 +514,31 @@ def sync_bundled_rules(db: DatabaseProtocol, rules_path: Path | None = None) -> 
     return result
 
 
-def _ensure_gobby_tag_on_installed(
+def _ensure_tag_on_installed(
     manager: LocalWorkflowDefinitionManager,
     workflow_type: str,
+    tag: str = "gobby",
 ) -> None:
-    """Ensure all template/installed rows of a given type have the 'gobby' tag."""
+    """Ensure template/installed rows of a given type have the specified tag.
+
+    Only touches rows that don't already have a different owner tag
+    (e.g., won't add 'gobby' to 'user'-tagged rows).
+    """
+    _OWNER_TAGS = {"gobby", "user"}
     rows = manager.list_all(workflow_type=workflow_type, include_deleted=False)
     for row in rows:
         if row.source in ("template", "installed"):
             tags = row.tags or []
-            if "gobby" not in tags:
-                manager.update(row.id, tags=[*tags, "gobby"])
+            if tag not in tags:
+                # Skip rows that already belong to a different owner
+                existing_owners = set(tags) & _OWNER_TAGS
+                if existing_owners and tag not in existing_owners:
+                    continue
+                manager.update(row.id, tags=[*tags, tag])
+
+
+# Backwards-compatible alias
+_ensure_gobby_tag_on_installed = _ensure_tag_on_installed
 
 
 def _propagate_to_installed(
@@ -701,8 +777,12 @@ def get_bundled_variables_path() -> Path:
     return get_install_dir() / "shared" / "workflows" / "variables"
 
 
-def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
-    """Sync bundled variable definitions from install/shared/workflows/variables/ to the database.
+def sync_bundled_variables(
+    db: DatabaseProtocol,
+    variables_path: Path | None = None,
+    tag: str = "gobby",
+) -> dict[str, Any]:
+    """Sync variable definitions from YAML files to the database.
 
     Variable YAML files use a ``variables:`` dict where each key is the variable
     name and the value contains ``value`` and optional ``description``.  File-level
@@ -710,11 +790,14 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
 
     Args:
         db: Database connection.
+        variables_path: Path to variables directory. Defaults to bundled path.
+        tag: Tag to apply. Defaults to "gobby" for bundled, "user" for user-created.
 
     Returns:
         Dict with success status and counts.
     """
-    variables_path = get_bundled_variables_path()
+    if variables_path is None:
+        variables_path = get_bundled_variables_path()
 
     result: dict[str, Any] = {
         "success": True,
@@ -746,8 +829,8 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
                 continue
 
             file_tags = data.get("tags") or []
-            if "gobby" not in file_tags:
-                file_tags = [*file_tags, "gobby"]
+            if tag not in file_tags:
+                file_tags = [*file_tags, tag]
 
             for var_name, var_data in variables_dict.items():
                 if not isinstance(var_data, dict):
@@ -776,6 +859,8 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
 
     # Orphan cleanup: collect all variable names from disk, soft-delete DB rows
     # whose names are no longer present on disk.
+    # Scoped by gobby tag to prevent cross-tag cascade damage.
+    tag_filter = '%"gobby"%'
     on_disk: set[str] = set()
     for yf in sorted(variables_path.glob("*.yaml")):
         try:
@@ -787,16 +872,37 @@ def sync_bundled_variables(db: DatabaseProtocol) -> dict[str, Any]:
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source = 'template' AND workflow_type = 'variable' AND deleted_at IS NULL",
+        "WHERE source = 'template' AND workflow_type = 'variable' "
+        "AND tags LIKE ? AND deleted_at IS NULL",
+        (tag_filter,),
     )
     result["orphaned"] = 0
+    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
+            orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled variable", extra={"variable": row["name"]})
             result["orphaned"] += 1
 
-    _ensure_gobby_tag_on_installed(manager, "variable")
+    # Cascade: soft-delete installed copies of orphaned templates,
+    # scoped by tag to prevent cross-tag cascade damage
+    result["cascaded"] = 0
+    for name in orphaned_names:
+        installed_rows = db.fetchall(
+            "SELECT id FROM workflow_definitions "
+            "WHERE name = ? AND source = 'installed' AND workflow_type = 'variable' "
+            "AND tags LIKE ? AND deleted_at IS NULL",
+            (name, tag_filter),
+        )
+        for inst_row in installed_rows:
+            manager.delete(inst_row["id"])
+            result["cascaded"] += 1
+            logger.info(
+                "Soft-deleted installed copy of orphaned variable", extra={"variable": name}
+            )
+
+    _ensure_tag_on_installed(manager, "variable")
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(

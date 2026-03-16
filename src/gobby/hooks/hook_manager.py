@@ -336,19 +336,24 @@ class HookManager:
         # For all other events: evaluate rules first so block effects can prevent
         # handler execution.
         if event.event_type == HookEventType.SESSION_START:
-            try:
-                response = handler(event)
-            except Exception as e:
-                self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
-                return HookResponse(decision="allow", reason=f"Handler error: {e}")
+            with create_span("hook.session_start.handler"):
+                try:
+                    response = handler(event)
+                except Exception as e:
+                    self.logger.error(
+                        f"Event handler {event.event_type} failed: {e}", exc_info=True
+                    )
+                    return HookResponse(decision="allow", reason=f"Handler error: {e}")
 
-            workflow_context, blocking_response = self._evaluate_workflow_rules(event)
-            if blocking_response:
-                return blocking_response
+            with create_span("hook.session_start.rules"):
+                workflow_context, blocking_response = self._evaluate_workflow_rules(event)
+                if blocking_response:
+                    return blocking_response
 
-            webhook_block = self._evaluate_blocking_webhooks(event)
-            if webhook_block:
-                return webhook_block
+            with create_span("hook.session_start.webhooks"):
+                webhook_block = self._evaluate_blocking_webhooks(event)
+                if webhook_block:
+                    return webhook_block
         else:
             workflow_context, blocking_response = self._evaluate_workflow_rules(event)
             if blocking_response:
@@ -404,10 +409,11 @@ class HookManager:
             except Exception as e:
                 self.logger.warning(f"Output compression failed: {e}")
 
-        try:
-            self._enricher.enrich(event, response, workflow_context=workflow_context)
-        except Exception as e:
-            self.logger.error(f"Response enrichment failed: {e}", exc_info=True)
+        with create_span("hook.enrich"):
+            try:
+                self._enricher.enrich(event, response, workflow_context=workflow_context)
+            except Exception as e:
+                self.logger.error(f"Response enrichment failed: {e}", exc_info=True)
 
         # Broadcast event (fire-and-forget)
         if self.broadcaster:
@@ -472,7 +478,8 @@ class HookManager:
             blocking_response is non-None if rules blocked/modified the event.
         """
         try:
-            workflow_response = self._workflow_handler.handle(event)
+            with create_span("hook.rules.evaluate"):
+                workflow_response = self._workflow_handler.handle(event)
 
             # Extract and dispatch mcp_calls BEFORE the block check —
             # they're explicit side effects that should fire regardless of decision
@@ -485,7 +492,14 @@ class HookManager:
                 event.metadata.get("_platform_session_id", "unknown"),
             )
 
-            dispatch_results = self._dispatch_mcp_calls(mcp_calls, event) if mcp_calls else []
+            with create_span(
+                "hook.rules.mcp_dispatch",
+                attributes={
+                    "mcp_call_count": len(mcp_calls),
+                    "mcp_calls": [f"{c.get('server')}/{c.get('tool')}" for c in mcp_calls],
+                },
+            ):
+                dispatch_results = self._dispatch_mcp_calls(mcp_calls, event) if mcp_calls else []
 
             # Process auto-heal dispatch results: inject context and block on failure
             extra_context: list[str] = []
@@ -751,6 +765,8 @@ class HookManager:
                 arguments["session_id"] = event.metadata.get("_platform_session_id", "")
             if "prompt_text" not in arguments:
                 arguments["prompt_text"] = event.data.get("prompt") if event.data else None
+            if "project_path" not in arguments:
+                arguments["project_path"] = event.metadata.get("project_path", "")
 
             async def _call(s: str, t: str, args: dict[str, Any]) -> dict[str, Any] | None:
                 try:

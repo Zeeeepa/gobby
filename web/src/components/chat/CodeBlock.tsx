@@ -23,6 +23,56 @@ const customTheme = {
 
 const MIN_ARTIFACT_LINES = 15
 
+/** Renders a plain <pre> until the element scrolls into view, then swaps in SyntaxHighlighter. */
+function LazyHighlighter({ language, children, ...props }: React.ComponentProps<typeof SyntaxHighlighter>) {
+  const [isVisible, setIsVisible] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  if (!isVisible) {
+    return (
+      <div ref={containerRef}>
+        <pre
+          style={{
+            background: '#0d0d0d',
+            margin: 0,
+            padding: '1rem',
+            fontSize: '0.9em',
+            fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
+            color: '#abb2bf',
+            overflow: 'auto',
+            borderRadius: 0,
+            ...(props.customStyle as React.CSSProperties || {}),
+          }}
+        >
+          <code>{children}</code>
+        </pre>
+      </div>
+    )
+  }
+
+  return (
+    <SyntaxHighlighter language={language} {...props}>
+      {children}
+    </SyntaxHighlighter>
+  )
+}
+
 interface CodeProps {
   children?: React.ReactNode
   className?: string
@@ -94,7 +144,7 @@ function CodeBlockInner({ children, className }: CodeProps) {
           </button>
         </div>
       </div>
-      <SyntaxHighlighter
+      <LazyHighlighter
         style={customTheme}
         language={language || 'text'}
         PreTag="div"
@@ -109,7 +159,7 @@ function CodeBlockInner({ children, className }: CodeProps) {
         customStyle={{ margin: 0, borderRadius: 0 }}
       >
         {codeString}
-      </SyntaxHighlighter>
+      </LazyHighlighter>
     </div>
   )
 }
@@ -150,6 +200,8 @@ function Anchor({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnc
     </a>
   )
 }
+
+export { LazyHighlighter }
 
 export const codeBlockComponents: Partial<Components> = {
   code: CodeBlockInner as Components['code'],

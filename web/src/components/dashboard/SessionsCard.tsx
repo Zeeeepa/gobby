@@ -1,10 +1,6 @@
 import { useState } from 'react'
-import type { AdminStatus } from '../../hooks/useDashboard'
+import { useTimeStats, rangeToDays } from '../../hooks/useTimeStats'
 import { TimeRangePills, type TimeRange } from './TimeRangePills'
-
-interface Props {
-  sessions: AdminStatus['sessions']
-}
 
 const SEGMENTS: { key: string; label: string; color: string }[] = [
   { key: 'active', label: 'Active', color: '#22c55e' },
@@ -17,8 +13,11 @@ const STROKE = 18
 const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-export function SessionsCard({ sessions }: Props) {
+export function SessionsCard() {
   const [range, setRange] = useState<TimeRange>('all')
+  const { data } = useTimeStats(rangeToDays(range))
+
+  const sessions = data?.sessions ?? { active: 0, paused: 0, handoff_ready: 0, total: 0 }
 
   const other = Math.max(
     0,

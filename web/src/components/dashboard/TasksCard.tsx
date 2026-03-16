@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import type { AdminStatus } from '../../hooks/useDashboard'
+import { useTimeStats, rangeToDays } from '../../hooks/useTimeStats'
 import { TimeRangePills, type TimeRange } from './TimeRangePills'
 
-interface Props {
-  tasks: AdminStatus['tasks']
+type TaskStats = {
+  open: number; in_progress: number; closed: number
+  needs_review: number; review_approved: number; escalated: number
+  ready: number; blocked: number; closed_24h: number
 }
 
-const SEGMENTS: { key: keyof AdminStatus['tasks']; label: string; color: string; dimmed?: boolean }[] = [
+const SEGMENTS: { key: keyof TaskStats; label: string; color: string; dimmed?: boolean }[] = [
   { key: 'ready', label: 'Ready', color: '#8b5cf6' },
   { key: 'in_progress', label: 'In Progress', color: '#f59e0b' },
   { key: 'blocked', label: 'Blocked', color: '#ef4444' },
@@ -21,8 +23,15 @@ const STROKE = 18
 const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-export function TasksCard({ tasks }: Props) {
+export function TasksCard() {
   const [range, setRange] = useState<TimeRange>('all')
+  const { data } = useTimeStats(rangeToDays(range))
+
+  const tasks = data?.tasks ?? {
+    open: 0, in_progress: 0, closed: 0,
+    needs_review: 0, review_approved: 0, escalated: 0,
+    ready: 0, blocked: 0, closed_24h: 0,
+  }
 
   const activeTotal = tasks.open + tasks.in_progress + tasks.needs_review +
     tasks.review_approved + tasks.escalated

@@ -247,6 +247,16 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to rebuild knowledge graph: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/embeddings/reindex")
+    async def reindex_embeddings() -> dict[str, Any]:
+        """Regenerate embedding vectors for all stored memories."""
+        try:
+            result = await server.memory_manager.reindex_embeddings()
+            return result  # type: ignore[no-any-return]
+        except Exception as e:
+            logger.error(f"Failed to reindex embeddings: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.get("/{memory_id}")
     def get_memory(memory_id: str) -> Any:
         """Get a specific memory by ID."""

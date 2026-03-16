@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-import subprocess  # nosec B404 - subprocess needed for daemon restart
+import subprocess  # nosec B404 # subprocess needed for daemon restart
 import sys
 import time
 from typing import TYPE_CHECKING, Any

@@ -5,7 +5,7 @@ Executes configured verification commands (lint, typecheck, tests, etc.) for git
 
 import logging
 import os
-import subprocess  # nosec B404 - subprocess needed for verification commands
+import subprocess  # nosec B404 # subprocess needed for verification commands
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -89,7 +89,7 @@ def run_command(
     try:
         result = subprocess.run(
             command,
-            shell=True,  # nosec B602 - user-configured verification commands require shell features
+            shell=True,  # nosec B602 # user-configured verification commands require shell features
             capture_output=True,
             text=True,
             timeout=timeout,

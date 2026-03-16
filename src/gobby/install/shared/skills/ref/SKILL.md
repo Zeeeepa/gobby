@@ -37,7 +37,7 @@ Create a refactoring task with the provided title and optional description. For 
 Create a refactoring task with the following parameters:
 
 - `title`: The refactoring title from user input
-- `task_type`: "chore"
+- `task_type`: "refactor"
 - `labels`: ["refactor"]
 - `priority`: 3 (low - important but not urgent)
 
@@ -52,7 +52,7 @@ call_tool(
     arguments={
         "title": "<parsed title>",
         "description": "<parsed description if any>",
-        "task_type": "chore",
+        "task_type": "refactor",
         "labels": ["refactor"],
         "priority": 3,
         "session_id": "<session_id>"  # Required - from session context

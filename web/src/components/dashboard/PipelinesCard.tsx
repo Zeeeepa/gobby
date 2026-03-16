@@ -71,7 +71,7 @@ export function PipelinesCard({ pipelines }: Props) {
               fill="var(--text-primary)"
               fontSize="16"
               fontWeight="600"
-              fontFamily="var(--font-mono)"
+              fontFamily="var(--font-sans)"
             >
               {total}
             </text>

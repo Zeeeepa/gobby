@@ -116,6 +116,76 @@ class TestInterSessionMessageDataclass:
         assert d["read_at"] == "2026-01-19T12:35:00Z"
 
 
+class TestInterSessionMessageToBrief:
+    """Tests for InterSessionMessage.to_brief() slim representation."""
+
+    def test_to_brief_has_fewer_fields_than_to_dict(self) -> None:
+        """to_brief returns fewer fields than to_dict."""
+        from gobby.storage.inter_session_messages import InterSessionMessage
+
+        msg = InterSessionMessage(
+            id="msg-brief",
+            from_session="session-1",
+            to_session="session-2",
+            content="Hello",
+            priority="normal",
+            sent_at="2026-01-19T12:00:00Z",
+            read_at=None,
+            message_type="message",
+            metadata_json='{"key": "value"}',
+            delivered_at="2026-01-19T12:05:00Z",
+        )
+
+        brief = msg.to_brief()
+        full = msg.to_dict()
+        assert len(brief) < len(full)
+
+    def test_to_brief_essential_fields_present(self) -> None:
+        """to_brief includes essential messaging fields."""
+        from gobby.storage.inter_session_messages import InterSessionMessage
+
+        msg = InterSessionMessage(
+            id="msg-brief2",
+            from_session="session-a",
+            to_session="session-b",
+            content="Important message",
+            priority="urgent",
+            sent_at="2026-01-19T12:00:00Z",
+            read_at="2026-01-19T12:05:00Z",
+            message_type="command_result",
+        )
+
+        brief = msg.to_brief()
+        assert brief["id"] == "msg-brief2"
+        assert brief["from_session"] == "session-a"
+        assert brief["to_session"] == "session-b"
+        assert brief["content"] == "Important message"
+        assert brief["priority"] == "urgent"
+        assert brief["message_type"] == "command_result"
+        assert brief["sent_at"] == "2026-01-19T12:00:00Z"
+        assert brief["read_at"] == "2026-01-19T12:05:00Z"
+
+    def test_to_brief_excludes_internal_fields(self) -> None:
+        """to_brief omits metadata_json and delivered_at."""
+        from gobby.storage.inter_session_messages import InterSessionMessage
+
+        msg = InterSessionMessage(
+            id="msg-brief3",
+            from_session="session-1",
+            to_session="session-2",
+            content="Test",
+            priority="normal",
+            sent_at="2026-01-19T12:00:00Z",
+            read_at=None,
+            metadata_json='{"foo": "bar"}',
+            delivered_at="2026-01-19T12:01:00Z",
+        )
+
+        brief = msg.to_brief()
+        assert "metadata_json" not in brief
+        assert "delivered_at" not in brief
+
+
 class TestInterSessionMessageManagerImport:
     """TDD tests for InterSessionMessageManager import and instantiation."""
 

@@ -311,7 +311,7 @@ body {
   font-size: calc(var(--font-size-base) * 0.8);
   padding: 0.25rem 0.5rem;
   cursor: pointer;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .agent-select:focus {
@@ -687,7 +687,7 @@ body {
 .session-pid {
   font-size: 0.625rem;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .session-kill-btn {

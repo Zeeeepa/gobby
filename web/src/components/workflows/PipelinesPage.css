@@ -78,7 +78,7 @@
 .pipeline-step-timing {
   font-size: calc(var(--font-size-base) * 0.7);
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-variant-numeric: tabular-nums;
 }
 
@@ -239,7 +239,7 @@
 }
 
 .pipeline-id {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-muted);
 }
@@ -408,7 +408,7 @@
 }
 
 .pipeline-step-index {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-muted);
 }
@@ -424,7 +424,7 @@
 }
 
 .pipeline-step-output pre {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.8);
   white-space: pre-wrap;
   word-break: break-word;
@@ -462,7 +462,7 @@
 }
 
 .pipeline-outputs pre {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.8);
   background: var(--code-bg);
   padding: 0.75rem;
@@ -535,7 +535,7 @@
 }
 
 .reporting-stat-chip-count {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.65);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -664,14 +664,14 @@
 
 .reporting-cell--id {
   width: 100px;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-muted);
 }
 
 .reporting-cell--time {
   width: 90px;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-muted);
   text-align: right;
@@ -680,7 +680,7 @@
 
 .reporting-cell--duration {
   width: 80px;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);
   text-align: right;
@@ -754,7 +754,7 @@
 }
 
 .reporting-meta-value {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.8);
   color: var(--text-primary);
 }
@@ -787,7 +787,7 @@
 }
 
 .reporting-code-block pre {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   background: color-mix(in srgb, var(--bg-tertiary) 60%, black);
   border-left: 2px solid var(--border);
@@ -815,7 +815,7 @@
 
 /* Refined badge for provider/model/mode */
 .reporting-tag {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.65);
   font-weight: 500;
   letter-spacing: 0.03em;
@@ -870,7 +870,7 @@
 }
 
 .reporting-stat-value {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.9);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -900,7 +900,7 @@
 }
 
 .reporting-command-type {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-weight: 600;
   font-size: calc(var(--font-size-base) * 0.7);
   color: var(--text-primary);
@@ -908,14 +908,14 @@
 }
 
 .reporting-command-time {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.65);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .reporting-command-payload {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.7);
   color: var(--text-secondary);
   white-space: nowrap;
@@ -960,7 +960,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);
   background: rgba(251, 191, 36, 0.06);

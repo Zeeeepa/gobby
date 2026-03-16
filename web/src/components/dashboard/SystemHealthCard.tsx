@@ -8,7 +8,7 @@ function formatUptime(seconds: number | null): string {
   if (d > 0) return `${d}d ${h}h`
   if (h > 0) return `${h}h ${m}m`
   if (m > 0) return `${m}m`
-  return `${seconds}s`
+  return `${Math.round(seconds)}s`
 }
 
 interface Props {

@@ -8,7 +8,7 @@ These are enforced by hooks, rules and workflows.
 
 1. **ALWAYS use progressive tool discovery.** Do not try to call one step through another (e.g., don't use call_tool to invoke get_tool_schema).
 2. **NEVER create or leave monoliths.** Keep files under 1,000 lines. Decompose if larger.
-3. **ALWAYS create or claim a task before editing a file.**
+3. **ALWAYS create or claim a task before editing a file.** This applies to file edits only — no task needed for plan mode, research, investigation, or answering questions unless the user explicitly requests one.
 4. **Validation runs when closing with a commit.** `skip_validation` is silently stripped when commits are attached.
 5. **NEVER close a task without a commit if there are diffs.** If you changed something, you have to commit it.
 6. **NEVER stop while you have a claimed task in progress.** Task must be closed before stopping. If you claim a task, you close a task.

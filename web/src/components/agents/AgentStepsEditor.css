@@ -31,7 +31,7 @@
 }
 
 .step-name-badge {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
   font-weight: 600;
   color: var(--accent, #6366f1);
@@ -136,7 +136,7 @@
   border-radius: 10px;
   padding: 1px 6px 1px 8px;
   font-size: calc(var(--font-size-base) * 0.6875);
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-primary);
 }
 
@@ -191,7 +191,7 @@
   min-width: 0;
   font-size: calc(var(--font-size-base) * 0.75) !important;
   padding: 4px 6px !important;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 /* Advanced toggle */
@@ -223,7 +223,7 @@
 
 /* JSON editor */
 .step-json-editor {
-  font-family: var(--font-mono) !important;
+  font-family: inherit !important;
   font-size: calc(var(--font-size-base) * 0.6875) !important;
   min-height: 60px;
 }

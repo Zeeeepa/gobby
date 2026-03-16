@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import subprocess  # nosec B404 - subprocess needed for git worktree operations
+import subprocess  # nosec B404 # subprocess needed for git worktree operations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -92,7 +92,7 @@ class WorktreeGitManager:
         logger.debug(f"Running: {' '.join(cmd)} in {cwd}")
 
         try:
-            result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+            result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
                 cmd,
                 cwd=cwd,
                 capture_output=True,

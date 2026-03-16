@@ -7,7 +7,7 @@ These are pure utility functions with no ActionContext dependency.
 from __future__ import annotations
 
 import logging
-import subprocess  # nosec B404 - subprocess needed for git commands
+import subprocess  # nosec B404 # subprocess needed for git commands
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ def get_git_status() -> str:
         Short git status output, or error message if not a git repo.
     """
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "status", "--short"],
             capture_output=True,
             text=True,
@@ -45,7 +45,7 @@ def get_recent_git_commits(max_commits: int = 10) -> list[dict[str, str]]:
         List of dicts with 'hash' and 'message' keys
     """
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "log", f"-{max_commits}", "--format=%H|%s"],
             capture_output=True,
             text=True,
@@ -72,7 +72,7 @@ def get_file_changes() -> str:
     """
     try:
         # Get changed files with status
-        diff_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+        diff_result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "diff", "HEAD", "--name-status"],
             capture_output=True,
             text=True,
@@ -80,7 +80,7 @@ def get_file_changes() -> str:
         )
 
         # Get untracked files
-        untracked_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+        untracked_result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "ls-files", "--others", "--exclude-standard"],
             capture_output=True,
             text=True,
@@ -119,7 +119,7 @@ def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None)
     """
     try:
         # Get stat overview
-        stat_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+        stat_result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "diff", "HEAD", "--stat"],
             capture_output=True,
             text=True,
@@ -129,7 +129,7 @@ def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None)
         stat_output = stat_result.stdout.strip()
 
         # Get actual diff content
-        diff_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+        diff_result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "diff", "HEAD"],
             capture_output=True,
             text=True,
@@ -140,7 +140,7 @@ def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None)
 
         # Fall back to staged changes if HEAD diff is empty
         if not diff_output:
-            diff_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+            diff_result = subprocess.run(  # nosec B603 B607 # hardcoded git command
                 ["git", "diff", "--cached"],
                 capture_output=True,
                 text=True,
@@ -149,7 +149,7 @@ def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None)
             )
             diff_output = diff_result.stdout.strip()
             if not stat_output:
-                stat_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+                stat_result = subprocess.run(  # nosec B603 B607 # hardcoded git command
                     ["git", "diff", "--cached", "--stat"],
                     capture_output=True,
                     text=True,
@@ -199,7 +199,7 @@ def get_dirty_files(project_path: str | None = None) -> set[str]:
         )
 
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "status", "--porcelain"],
             cwd=project_path,
             capture_output=True,

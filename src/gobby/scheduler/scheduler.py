@@ -134,8 +134,13 @@ class CronScheduler:
                             )
                             continue
 
-                # Create run and dispatch
+                # Create run and advance next_run_at immediately to prevent re-dispatch
                 run = self.storage.create_run(job.id)
+                next_run = compute_next_run(job)
+                self.storage.update_job(
+                    job.id,
+                    next_run_at=next_run.isoformat() if next_run else None,
+                )
                 logger.info(f"Dispatching cron job {job.id} ({job.name}), run {run.id}")
 
                 # Track background task to prevent GC and await on stop
@@ -160,25 +165,21 @@ class CronScheduler:
             # Update job status
             now = datetime.now(UTC).isoformat()
             if result.status == "completed":
-                # Reset failure counter and compute next run
-                next_run = compute_next_run(job)
+                # Reset failure counter (next_run_at already set before dispatch)
                 self.storage.update_job(
                     job.id,
                     last_run_at=now,
                     last_status="completed",
                     consecutive_failures=0,
-                    next_run_at=next_run.isoformat() if next_run else None,
                 )
             else:
-                # Increment failure counter
+                # Increment failure counter (next_run_at already set before dispatch)
                 failures = job.consecutive_failures + 1
-                next_run = compute_next_run(job)
                 self.storage.update_job(
                     job.id,
                     last_run_at=now,
                     last_status="failed",
                     consecutive_failures=failures,
-                    next_run_at=next_run.isoformat() if next_run else None,
                 )
                 logger.warning(
                     f"Cron job {job.id} ({job.name}) failed ({failures} consecutive failures)"

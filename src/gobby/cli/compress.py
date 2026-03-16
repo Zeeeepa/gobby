@@ -4,6 +4,7 @@ Runs a command and compresses its output for LLM consumption.
 Used by PreToolUse hook rewriting to reduce token usage.
 """
 
+import shlex
 import subprocess
 import sys
 
@@ -19,11 +20,16 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
 
     Usage: gobby compress -- git status
     """
-    cmd = " ".join(command)
+    # When called via hook rewrite with shlex_quote, the entire command arrives
+    # as a single string (e.g. 'uv run pytest -v').  Split it so subprocess
+    # can find the actual binary.
+    cmd_list = list(command)
+    if len(cmd_list) == 1 and " " in cmd_list[0]:
+        cmd_list = shlex.split(cmd_list[0])
+    cmd = " ".join(cmd_list)
 
-    result = subprocess.run(
-        cmd,
-        shell=True,
+    result = subprocess.run(  # nosec B603 # command comes from CLI args, not user input
+        cmd_list,
         capture_output=True,
         text=True,
     )

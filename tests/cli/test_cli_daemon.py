@@ -460,12 +460,14 @@ class TestStopCommand:
         assert result.exit_code == 0
         assert "Stop the Gobby daemon" in result.output
 
+    @patch("gobby.cli.daemon.get_service_status", return_value={"installed": False})
     @patch("gobby.cli.daemon.stop_daemon_util")
     @patch("gobby.cli.load_config")
     def test_stop_success(
         self,
         mock_load_config: MagicMock,
         mock_stop_daemon: MagicMock,
+        mock_get_service_status: MagicMock,
         runner: CliRunner,
     ) -> None:
         """Test successful daemon stop."""
@@ -477,12 +479,14 @@ class TestStopCommand:
         assert result.exit_code == 0
         mock_stop_daemon.assert_called_once_with(quiet=False)
 
+    @patch("gobby.cli.daemon.get_service_status", return_value={"installed": False})
     @patch("gobby.cli.daemon.stop_daemon_util")
     @patch("gobby.cli.load_config")
     def test_stop_failure(
         self,
         mock_load_config: MagicMock,
         mock_stop_daemon: MagicMock,
+        mock_get_service_status: MagicMock,
         runner: CliRunner,
     ) -> None:
         """Test stop command fails when stop_daemon returns False."""
@@ -656,12 +660,14 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "Show Gobby daemon status" in result.output
 
+    @patch("gobby.cli.daemon.get_service_status", return_value={"installed": False})
     @patch("gobby.cli.daemon.get_gobby_home")
     @patch("gobby.cli.load_config")
     def test_status_no_pid_file(
         self,
         mock_load_config: MagicMock,
         mock_get_gobby_home: MagicMock,
+        mock_get_service_status: MagicMock,
         runner: CliRunner,
         mock_daemon_config: MagicMock,
         temp_dir: Path,
@@ -680,12 +686,14 @@ class TestStatusCommand:
             assert result.exit_code == 0
             assert "Stopped" in result.output
 
+    @patch("gobby.cli.daemon.get_service_status", return_value={"installed": False})
     @patch("gobby.cli.daemon.get_gobby_home")
     @patch("gobby.cli.load_config")
     def test_status_invalid_pid_file(
         self,
         mock_load_config: MagicMock,
         mock_get_gobby_home: MagicMock,
+        mock_get_service_status: MagicMock,
         runner: CliRunner,
         mock_daemon_config: MagicMock,
         temp_dir: Path,

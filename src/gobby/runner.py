@@ -285,7 +285,11 @@ class GobbyRunner:
                 ci_config = self.config.code_index
                 ci_storage = CodeIndexStorage(self.database)
                 ci_parser = CodeParser(ci_config)
-                ci_graph = CodeGraph()  # Neo4j client wired later if available
+                # Share Neo4j client from memory_manager if available
+                ci_neo4j = None
+                if self.memory_manager and getattr(self.memory_manager, "_neo4j_client", None):
+                    ci_neo4j = self.memory_manager._neo4j_client
+                ci_graph = CodeGraph(neo4j_client=ci_neo4j)
                 ci_summarizer = (
                     SymbolSummarizer(self.llm_service, ci_config)
                     if self.llm_service and ci_config.summary_enabled
@@ -849,6 +853,17 @@ class GobbyRunner:
         try:
             setup_signal_handlers(lambda: setattr(self, "_shutdown_requested", True))
 
+            # Write PID file (ensures it exists regardless of how the runner
+            # was started — CLI `gobby start`, launchctl, or direct invocation)
+            from gobby.cli.utils import get_gobby_home
+
+            pid_file = get_gobby_home() / "gobby.pid"
+            try:
+                pid_file.write_text(str(os.getpid()))
+                logger.info(f"Wrote PID file: {pid_file} (PID {os.getpid()})")
+            except OSError as e:
+                logger.warning(f"Could not write PID file {pid_file}: {e}")
+
             # Connect MCP servers
             try:
                 await asyncio.wait_for(self.mcp_proxy.connect_all(), timeout=10.0)
@@ -1267,7 +1282,42 @@ async def run_gobby(config_path: Path | None = None, verbose: bool = False) -> N
     await runner.run()
 
 
+def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
+    """Quick check whether a healthy Gobby daemon is already listening."""
+    import urllib.parse
+    import urllib.request
+
+    # Normalize wildcard addresses to localhost for health check
+    if host in ("0.0.0.0", "::", ""):
+        host = "localhost"
+    elif ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+
+    try:
+        url = f"http://{host}:{port}/api/admin/health"
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=2) as resp:  # nosec B310
+            return bool(resp.status == 200)
+    except Exception:
+        return False
+
+
 def main(config_path: Path | None = None, verbose: bool = False) -> None:
+    # Fast guard: if a healthy daemon is already serving on our port, exit
+    # cleanly so launchd (KeepAlive.SuccessfulExit=false) won't respawn us.
+    from gobby.config.bootstrap import load_bootstrap
+
+    bootstrap = load_bootstrap(str(config_path) if config_path else None)
+    if _healthy_daemon_running(bootstrap.daemon_port, bootstrap.bind_host):
+        print(
+            f"Gobby daemon already healthy on port {bootstrap.daemon_port}, exiting.",
+            file=sys.stderr,
+        )
+        sys.exit(0)
+
     try:
         asyncio.run(run_gobby(config_path=config_path, verbose=verbose))
     except KeyboardInterrupt:

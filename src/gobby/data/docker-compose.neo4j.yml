@@ -13,6 +13,7 @@ services:
       - NEO4J_PLUGINS=["apoc"]
     volumes:
       - gobby_neo4j_data:/data
+      - ./conf:/var/lib/neo4j/conf
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${GOBBY_NEO4J_PASSWORD:-gobbyneo4j} 'RETURN 1'"]
       interval: 10s

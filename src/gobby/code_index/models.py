@@ -96,6 +96,25 @@ class Symbol:
             "updated_at": self.updated_at,
         }
 
+    def to_brief(self) -> dict[str, Any]:
+        """Minimal representation for search results — just enough to decide what to retrieve."""
+        result: dict[str, Any] = {
+            "id": self.id,
+            "name": self.name,
+            "qualified_name": self.qualified_name,
+            "kind": self.kind,
+            "file_path": self.file_path,
+            "line_start": self.line_start,
+            "signature": self.signature,
+        }
+        if self.docstring:
+            first_line = self.docstring.split("\n", 1)[0].strip()
+            if first_line:
+                result["docstring"] = first_line
+        if self.parent_symbol_id:
+            result["parent_id"] = self.parent_symbol_id
+        return result
+
 
 @dataclass
 class IndexedFile:

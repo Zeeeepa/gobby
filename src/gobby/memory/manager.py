@@ -112,6 +112,9 @@ class MemoryManager:
                         llm_provider=provider,
                         embed_fn=embed_fn,
                         prompt_loader=prompt_loader,
+                        vector_store=vector_store,
+                        code_link_min_score=config.code_link_min_score,
+                        code_symbol_collection_prefix=config.code_symbol_collection_prefix,
                     )
                     logger.debug("KnowledgeGraphService initialized")
             except Exception as e:
@@ -213,18 +216,26 @@ class MemoryManager:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
-    def _fire_background_graph(self, content: str, memory_id: str | None = None) -> None:
+    def _fire_background_graph(
+        self,
+        content: str,
+        memory_id: str | None = None,
+        project_id: str | None = None,
+    ) -> None:
         """Fire a background knowledge graph task (non-blocking).
 
         Extracts entities and relationships from content and merges
         them into the Neo4j knowledge graph. When memory_id is provided,
         creates MENTIONED_IN links from entities to the source memory.
+        When project_id is provided, cross-links entities to code symbols.
         """
 
         async def _run_graph() -> None:
             try:
                 assert self._kg_service is not None  # noqa: S101
-                await self._kg_service.add_to_graph(content, memory_id=memory_id)
+                await self._kg_service.add_to_graph(
+                    content, memory_id=memory_id, project_id=project_id
+                )
             except Exception as e:
                 logger.warning(f"Background graph extraction failed: {e}")
 
@@ -281,11 +292,7 @@ class MemoryManager:
         await self._embed_and_upsert(
             memory.id,
             content,
-            payload={
-                "content": content,
-                "memory_type": memory_type,
-                "project_id": project_id,
-            },
+            payload={"project_id": project_id},
         )
 
         # Auto cross-reference if enabled
@@ -309,7 +316,7 @@ class MemoryManager:
 
         # Fire-and-forget: background knowledge graph task
         if self._kg_service:
-            self._fire_background_graph(content, memory_id=memory.id)
+            self._fire_background_graph(content, memory_id=memory.id, project_id=project_id)
 
         return memory
 
@@ -337,7 +344,7 @@ class MemoryManager:
         await self._embed_and_upsert(
             memory.id,
             memory.content,
-            payload={"content": memory.content, "project_id": project_id},
+            payload={"project_id": project_id},
         )
         return memory
 
@@ -364,7 +371,7 @@ class MemoryManager:
         await self._embed_and_upsert(
             memory.id,
             memory.content,
-            payload={"content": memory.content, "project_id": project_id},
+            payload={"project_id": project_id},
         )
         return memory
 
@@ -373,6 +380,7 @@ class MemoryManager:
         query_embedding: list[float],
         limit: int = 10,
         min_score: float = 0.5,
+        project_id: str | None = None,
     ) -> list[str]:
         """Search Neo4j graph for memory IDs via entity vector similarity.
 
@@ -395,6 +403,7 @@ class MemoryManager:
             query_embedding=query_embedding,
             limit=limit,
             min_score=min_score,
+            project_id=project_id,
         )
 
         if not entity_results:
@@ -414,6 +423,7 @@ class MemoryManager:
             entity_names=entity_names,
             max_hops=2,
             limit=limit,
+            project_id=project_id,
         )
 
         # Step 3: Merge — direct first, then traversed (deduped)
@@ -511,6 +521,7 @@ class MemoryManager:
                     query_embedding=query_embedding,
                     limit=limit * 2,
                     min_score=graph_min_score,
+                    project_id=project_id,
                 )
 
                 qdrant_result, graph_result = await asyncio.gather(
@@ -546,6 +557,9 @@ class MemoryManager:
                     try:
                         mem = self.storage.get_memory(memory_id)
                     except ValueError:
+                        continue
+                    # Defense-in-depth: skip cross-project memories that leaked through graph
+                    if project_id and mem.project_id and mem.project_id != project_id:
                         continue
                     if memory_type and mem.memory_type != memory_type:
                         continue
@@ -652,13 +666,18 @@ class MemoryManager:
                 logger.warning(f"Failed to update access stats for {memory.id}: {e}")
 
     async def delete_memory(self, memory_id: str) -> bool:
-        """Delete a memory from SQLite and VectorStore."""
+        """Delete a memory from SQLite, VectorStore, and Neo4j."""
         result = self.storage.delete_memory(memory_id)
         if result and self._vector_store:
             try:
                 await self._vector_store.delete(memory_id)
             except Exception as e:
                 logger.warning(f"VectorStore delete failed for {memory_id}: {e}")
+        if result and self._kg_service:
+            try:
+                await self._kg_service.remove_memory_from_graph(memory_id)
+            except Exception as e:
+                logger.warning(f"Graph delete failed for {memory_id}: {e}")
         return result
 
     async def adelete_memory(self, memory_id: str) -> bool:
@@ -669,6 +688,11 @@ class MemoryManager:
                 await self._vector_store.delete(memory_id)
             except Exception as e:
                 logger.warning(f"VectorStore delete failed for {memory_id}: {e}")
+        if result and self._kg_service:
+            try:
+                await self._kg_service.remove_memory_from_graph(memory_id)
+            except Exception as e:
+                logger.warning(f"Graph delete failed for {memory_id}: {e}")
         return result
 
     def count_memories(self, project_id: str | None = None) -> int:
@@ -773,7 +797,7 @@ class MemoryManager:
             await self._embed_and_upsert(
                 memory_id,
                 content,
-                payload={"content": content, "project_id": result.project_id},
+                payload={"project_id": result.project_id},
             )
 
         return result
@@ -795,7 +819,7 @@ class MemoryManager:
             await self._embed_and_upsert(
                 memory_id,
                 content,
-                payload={"content": content, "project_id": memory.project_id},
+                payload={"project_id": memory.project_id},
             )
         return memory
 
@@ -818,7 +842,9 @@ class MemoryManager:
 
         for mem in memories:
             try:
-                await self._embed_and_upsert(mem.id, mem.content)
+                await self._embed_and_upsert(
+                    mem.id, mem.content, payload={"project_id": mem.project_id}
+                )
                 generated += 1
             except Exception as e:
                 logger.warning(f"Failed to reindex memory {mem.id}: {e}")

@@ -129,20 +129,26 @@ def is_server_listed(
     return server in variables.get("listed_servers", [])
 
 
-# Plan file directories that are exempt from task-before-edit enforcement.
-# .gobby/plans/ is universal; ~/.claude/plans/ is Claude Code specific.
-_PLAN_DIR_SEGMENTS = (
-    f"{os.sep}.gobby{os.sep}plans{os.sep}",
-    f"{os.sep}.claude{os.sep}plans{os.sep}",
+# CLI config directories whose .md files are exempt from task-before-edit
+# enforcement (plan files, notes, specs).  Any .md file under these dirs
+# qualifies — no "/plans/" subdirectory requirement.
+_CLI_DIR_SEGMENTS = (
+    f"{os.sep}.gobby{os.sep}",
+    f"{os.sep}.claude{os.sep}",
+    f"{os.sep}.gemini{os.sep}",
+    f"{os.sep}.codex{os.sep}",
+    f"{os.sep}.cursor{os.sep}",
+    f"{os.sep}.windsurf{os.sep}",
+    f"{os.sep}.copilot{os.sep}",
 )
 
 
 def is_plan_file(file_path: str, source: str | None = None) -> bool:
     """Check if a file is a plan file that may be edited without a task.
 
-    Plan files live in ``.gobby/plans/`` (any adapter) or
-    ``~/.claude/plans/`` (Claude Code).  Only ``.md`` files in those
-    directories qualify.
+    Any ``.md`` file under a recognised CLI config directory is treated as
+    a plan file.  Recognised directories: ``.gobby/``, ``.claude/``,
+    ``.gemini/``, ``.codex/``, ``.cursor/``, ``.windsurf/``, ``.copilot/``.
 
     Args:
         file_path: Absolute or relative path to the file being edited.
@@ -161,7 +167,4 @@ def is_plan_file(file_path: str, source: str | None = None) -> bool:
     if not normalised.endswith(".md"):
         return False
 
-    # Append a trailing separator so the segment search can match the
-    # directory itself when the file sits directly inside it.
-    check = normalised + os.sep
-    return any(seg in check for seg in _PLAN_DIR_SEGMENTS)
+    return any(seg in normalised for seg in _CLI_DIR_SEGMENTS)

@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import subprocess  # nosec B404 - subprocess needed for git clone operations
+import subprocess  # nosec B404 # subprocess needed for git clone operations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -113,7 +113,7 @@ class CloneGitManager:
             run_env = {**os.environ, **env}
 
         try:
-            result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+            result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
                 cmd,
                 cwd=cwd,
                 capture_output=True,
@@ -202,7 +202,7 @@ class CloneGitManager:
             safe_cmd[safe_cmd.index(remote_url)] = _sanitize_url(remote_url)
             logger.debug(f"Running: {' '.join(safe_cmd)}")
 
-            result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+            result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
                 cmd,
                 capture_output=True,
                 text=True,
@@ -287,7 +287,7 @@ class CloneGitManager:
             safe_cmd[safe_cmd.index(remote_url)] = _sanitize_url(remote_url)
             logger.debug(f"Running: {' '.join(safe_cmd)}")
 
-            result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+            result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
                 cmd,
                 capture_output=True,
                 text=True,
