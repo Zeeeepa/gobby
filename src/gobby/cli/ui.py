@@ -3,7 +3,7 @@ CLI commands for Gobby web UI management and development.
 """
 
 import os
-import subprocess  # nosec B404 - subprocess needed for npm commands
+import subprocess  # nosec B404 # subprocess needed for npm commands
 import sys
 from pathlib import Path
 

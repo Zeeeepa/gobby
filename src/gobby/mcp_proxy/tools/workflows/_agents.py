@@ -251,7 +251,7 @@ def delete_agent_definition(
     try:
         from gobby.mcp_proxy.tools.workflows._auto_export import auto_delete_definition
 
-        is_user = row.tags and "user" in row.tags
+        is_user = bool(row.tags and "user" in row.tags)
         auto_delete_definition(name, "agent", project_path, delete_global=is_user)
     except Exception as e:
         logger.warning("Failed to delete agent template '%s': %s", name, e)

@@ -21,7 +21,7 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
     """
     cmd = " ".join(command)
 
-    result = subprocess.run(  # nosec B603 - command comes from CLI args, not user input
+    result = subprocess.run(  # nosec B603 # command comes from CLI args, not user input
         list(command),
         capture_output=True,
         text=True,

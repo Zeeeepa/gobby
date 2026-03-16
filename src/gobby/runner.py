@@ -1300,7 +1300,7 @@ def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
             return False
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=2) as resp:  # nosec B310
-            return resp.status == 200
+            return bool(resp.status == 200)
     except Exception:
         return False
 

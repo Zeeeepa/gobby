@@ -14,7 +14,7 @@ Each handler implements the IsolationHandler ABC to provide:
 
 import asyncio
 import logging
-import subprocess  # nosec B404 - needed for git error handling
+import subprocess  # nosec B404 # needed for git error handling
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

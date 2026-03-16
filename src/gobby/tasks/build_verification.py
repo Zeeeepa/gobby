@@ -4,7 +4,7 @@ Provides build/test command detection and execution before LLM validation.
 """
 
 import logging
-import subprocess  # nosec B404 - subprocess needed for build commands
+import subprocess  # nosec B404 # subprocess needed for build commands
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -111,7 +111,7 @@ def run_build_check(
     try:
         result = subprocess.run(
             command,
-            shell=True,  # nosec B602 - build/test commands require shell features
+            shell=True,  # nosec B602 # build/test commands require shell features
             capture_output=True,
             text=True,
             timeout=timeout,

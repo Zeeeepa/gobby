@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess  # nosec B404 - subprocess needed to run bundled Node app
+import subprocess  # nosec B404 # subprocess needed to run bundled Node app
 import sys
 from pathlib import Path
 

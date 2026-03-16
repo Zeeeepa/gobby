@@ -608,8 +608,9 @@ async def main() -> int:
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.PIPE,
             )
-            proc.stdin.write(payload.encode())
-            proc.stdin.close()
+            if proc.stdin is not None:
+                proc.stdin.write(payload.encode())
+                proc.stdin.close()
         except (FileNotFoundError, OSError) as e:
             logger.debug("Fire-and-forget spawn failed for %s: %s", hook_type, e)
         return 0

@@ -8,7 +8,7 @@ import asyncio
 import logging
 import os
 import re
-import subprocess  # nosec B404 - subprocess needed for git commit counting
+import subprocess  # nosec B404 # subprocess needed for git commit counting
 import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -133,7 +133,7 @@ def _get_commit_count(db: "DatabaseProtocol", session: Any) -> int:
             f"--until={until_str}",
             "HEAD",
         ]
-        result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+        result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
             cmd,
             capture_output=True,
             text=True,

@@ -62,7 +62,7 @@ def register_commits_tools(
         Returns:
             Session ID, list of commits, and count
         """
-        import subprocess  # nosec B404 - subprocess needed for git commands
+        import subprocess  # nosec B404 # subprocess needed for git commands
         from datetime import datetime
         from pathlib import Path
 
@@ -115,7 +115,7 @@ def register_commits_tools(
                 "--format=%H|%s|%aI",  # hash|subject|author-date-iso
             ]
 
-            result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
+            result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
                 cmd,
                 capture_output=True,
                 text=True,

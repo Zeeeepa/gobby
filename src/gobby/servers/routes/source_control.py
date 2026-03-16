@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-import subprocess  # nosec B404 - subprocess needed for git operations
+import subprocess  # nosec B404 # subprocess needed for git operations
 import threading
 import time
 from typing import TYPE_CHECKING, Any, cast

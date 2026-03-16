@@ -9,7 +9,7 @@ import logging
 import os
 import secrets
 import shutil
-import subprocess  # nosec B404 - subprocess needed for docker compose management
+import subprocess  # nosec B404 # subprocess needed for docker compose management
 from pathlib import Path
 from typing import Any
 
@@ -107,7 +107,7 @@ def install_neo4j(
 
     # Run docker compose up -d
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
             ["docker", "compose", "-f", str(dest), "up", "-d", "--remove-orphans"],
             capture_output=True,
             text=True,
@@ -173,7 +173,7 @@ def uninstall_neo4j(
             cmd.append("-v")
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 - hardcoded docker command
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 # hardcoded docker command
             if result.returncode != 0:
                 logger.warning(f"Docker compose down failed: {result.stderr or result.stdout}")
         except subprocess.TimeoutExpired:

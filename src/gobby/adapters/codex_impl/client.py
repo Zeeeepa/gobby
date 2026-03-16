@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import subprocess  # nosec B404 - subprocess needed for Codex app-server process
+import subprocess  # nosec B404 # subprocess needed for Codex app-server process
 import threading
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -127,7 +127,7 @@ class CodexAppServerClient:
 
         try:
             # Start the subprocess
-            self._process = subprocess.Popen(  # nosec B603 - hardcoded argument list
+            self._process = subprocess.Popen(  # nosec B603 # hardcoded argument list
                 [self._codex_command, "app-server"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,

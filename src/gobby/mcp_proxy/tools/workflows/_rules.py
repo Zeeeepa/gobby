@@ -285,7 +285,7 @@ def delete_rule(
     try:
         from gobby.mcp_proxy.tools.workflows._auto_export import auto_delete_definition
 
-        is_user = row.tags and "user" in row.tags
+        is_user = bool(row.tags and "user" in row.tags)
         auto_delete_definition(
             name,
             "rule",

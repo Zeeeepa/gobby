@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import signal
-import subprocess  # nosec B404 - subprocess needed for daemon restart
+import subprocess  # nosec B404 # subprocess needed for daemon restart
 import sys
 import time
 from collections import deque

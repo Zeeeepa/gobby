@@ -5,7 +5,7 @@ Daemon management commands.
 import asyncio
 import logging
 import os
-import subprocess  # nosec B404 - subprocess needed for daemon management
+import subprocess  # nosec B404 # subprocess needed for daemon management
 import sys
 import time
 from pathlib import Path
@@ -69,7 +69,7 @@ def _neo4j_start(gobby_home: Path) -> None:
         logger.warning(f"Could not resolve config for Neo4j: {e}")
 
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "up", "-d"],
             capture_output=True,
             text=True,
@@ -90,7 +90,7 @@ def _neo4j_stop(gobby_home: Path) -> None:
     if not compose_file.exists():
         return
     try:
-        result = subprocess.run(  # nosec B603 B607 - hardcoded docker command
+        result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
             ["docker", "compose", "-f", str(compose_file), "down"],
             capture_output=True,
             text=True,
@@ -276,7 +276,7 @@ def start(
 
     try:
         # Start detached subprocess
-        process = subprocess.Popen(  # nosec B603 - cmd built from sys.executable and module path
+        process = subprocess.Popen(  # nosec B603 # cmd built from sys.executable and module path
             cmd,
             stdout=log_f,
             stderr=error_log_f,

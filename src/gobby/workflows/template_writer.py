@@ -143,7 +143,7 @@ def read_template(path: Path) -> dict[str, Any]:
     Returns:
         Parsed YAML data
     """
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    return yaml.safe_load(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
 def _write_yaml(name: str, data: dict[str, Any], output_dir: Path) -> Path:

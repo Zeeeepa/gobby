@@ -8,7 +8,7 @@ systemd on Linux) so the daemon starts automatically on boot.
 import logging
 import os
 import re
-import subprocess  # nosec B404 - subprocess needed for launchctl/systemctl
+import subprocess  # nosec B404 # subprocess needed for launchctl/systemctl
 import sys
 from pathlib import Path
 from typing import Any

@@ -282,7 +282,7 @@ def delete_workflow_definition(
 
         from gobby.mcp_proxy.tools.workflows._auto_export import auto_delete_definition
 
-        is_user = row.tags and "user" in row.tags
+        is_user = bool(row.tags and "user" in row.tags)
         auto_delete_definition(row.name, row.workflow_type, Path.cwd(), delete_global=is_user)
     except Exception as e:
         logger.warning("Failed to delete template '%s': %s", row.name, e)

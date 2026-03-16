@@ -252,7 +252,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Regenerate embedding vectors for all stored memories."""
         try:
             result = await server.memory_manager.reindex_embeddings()
-            return result
+            return result  # type: ignore[no-any-return]
         except Exception as e:
             logger.error(f"Failed to reindex embeddings: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
