@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.3.0"
+version = "0.2.29"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "Apache-2.0"
@@ -53,6 +53,10 @@ dependencies = [
     # faster-whisper for voice STT
     "faster-whisper>=1.0.0",
     "cisco-ai-skill-scanner>=0.1.1",
+    # pyjwt <2.12.0 has CVE-2026-32597 (transitive via mcp)
+    "pyjwt>=2.12.0",
+    # diskcache 5.6.3 has CVE-2025-69872 (no fix version available)
+    "diskcache>=5.6.3",
     # tree-sitter AST parsing for code indexing (gobby-code)
     "tree-sitter-language-pack>=0.13.0",
     # Native SDK executors for autonomous mode
@@ -224,7 +228,7 @@ exclude = '''
 [dependency-groups]
 dev = [
     "bandit>=1.8.0",
-    "black>=24.0.0",
+    "black>=26.3.1",  # CVE-2026-32274
     "mypy>=1.8.0",
     "pip>=26.0",  # CVE-2026-1703
     "pip-audit>=2.7.0",
