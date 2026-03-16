@@ -30,6 +30,7 @@ def _render_template(template_name: str, **context: Any) -> str:
     """Render a Jinja2 template from the services directory."""
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+        autoescape=True,
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,

@@ -92,7 +92,7 @@
   gap: 4px;
   font-size: calc(var(--font-size-base) * 0.75);
   color: var(--text-secondary);
-  font-family: var(--font-mono);
+  font-family: inherit;
   white-space: nowrap;
 }
 
@@ -104,7 +104,7 @@
   border-radius: 4px;
   color: var(--text-primary);
   font-size: calc(var(--font-size-base) * 0.75);
-  font-family: var(--font-mono);
+  font-family: inherit;
   text-align: right;
 }
 
@@ -395,7 +395,7 @@
 }
 
 .memory-card-id {
-  font-family: var(--font-mono, monospace);
+  font-family: inherit;
 }
 
 .memory-card-access {
@@ -532,7 +532,7 @@
 }
 
 .memory-detail-mono {
-  font-family: var(--font-mono, monospace);
+  font-family: inherit;
   font-size: calc(var(--font-size-base) * 0.75);
 }
 
@@ -968,7 +968,7 @@
   font-size: calc(var(--font-size-base) * 0.7);
   color: var(--text-secondary);
   min-width: 56px;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .knowledge-graph-physics-row input[type="range"] {
@@ -982,7 +982,7 @@
   font-size: calc(var(--font-size-base) * 0.65);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: inherit;
   min-width: 36px;
   text-align: right;
 }
@@ -997,7 +997,7 @@
   border-radius: 4px;
   cursor: pointer;
   align-self: flex-end;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .knowledge-graph-physics-reset:hover {

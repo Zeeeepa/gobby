@@ -2,12 +2,10 @@ import { useState, useCallback, useMemo } from 'react'
 import { useMcp } from '../../hooks/useMcp'
 import type { McpToolSchema } from '../../hooks/useMcp'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
-import { McpOverview } from './McpOverview'
 import { McpToolDetail } from './McpToolDetail'
 import { McpAddServerModal, McpImportModal } from './McpServerForm'
 import './McpPage.css'
 
-type OverviewFilter = 'total' | 'connected' | 'tools' | 'internal' | null
 
 const TRANSPORTS = ['internal', 'http', 'stdio', 'websocket', 'sse'] as const
 
@@ -18,7 +16,6 @@ export function McpPage() {
     toolsByServer,
     status,
     isLoading,
-    totalToolCount,
     addServer,
     importServer,
     removeServer,
@@ -29,7 +26,6 @@ export function McpPage() {
     setSearchText,
   } = useMcp()
 
-  const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
   const [transportFilter, setTransportFilter] = useState<string | null>(null)
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
   const [selectedTool, setSelectedTool] = useState<{ server: string; tool: string } | null>(null)
@@ -83,13 +79,6 @@ export function McpPage() {
   const filteredServers = useMemo(() => {
     let result = servers
 
-    // Overview filter
-    if (overviewFilter === 'connected') {
-      result = result.filter(s => s.connected)
-    } else if (overviewFilter === 'internal') {
-      result = result.filter(s => s.transport === 'internal')
-    }
-
     // Transport chip filter
     if (transportFilter) {
       result = result.filter(s => s.transport === transportFilter)
@@ -109,7 +98,7 @@ export function McpPage() {
     }
 
     return result
-  }, [servers, overviewFilter, transportFilter, searchText, toolsByServer])
+  }, [servers, transportFilter, searchText, toolsByServer])
 
   // Filter tools within a server based on search
   const getFilteredTools = useCallback((serverName: string) => {
@@ -171,15 +160,6 @@ export function McpPage() {
           </button>
         </div>
       </div>
-
-      {/* Overview cards */}
-      <McpOverview
-        servers={servers}
-        status={status}
-        totalToolCount={totalToolCount}
-        activeFilter={overviewFilter}
-        onFilter={f => setOverviewFilter(f as OverviewFilter)}
-      />
 
       {/* Transport filter chips */}
       <div className="mcp-filter-bar">

@@ -99,5 +99,5 @@
 }
 
 .expr-builder .rule-edit-mono {
-  font-family: var(--font-mono);
+  font-family: inherit;
 }

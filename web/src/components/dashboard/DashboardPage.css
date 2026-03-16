@@ -137,7 +137,7 @@
 .dash-stat-value {
   font-size: 20px;
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: inherit;
   line-height: 1.2;
 }
 
@@ -181,7 +181,7 @@
 }
 
 .dash-legend-value {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-weight: 500;
 }
 
@@ -229,7 +229,7 @@
 }
 
 .dash-bar-label-value {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-weight: 500;
 }
 
@@ -237,7 +237,7 @@
 .dash-big-stat {
   font-size: 28px;
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: inherit;
   margin-bottom: 8px;
 }
 
@@ -317,7 +317,7 @@
 .dash-two-col-value {
   font-size: 28px;
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: inherit;
 }
 
 .dash-two-col-label {
@@ -348,7 +348,7 @@
 }
 
 .dash-breakdown-value {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-weight: 500;
 }
 
@@ -381,7 +381,7 @@
 }
 
 .dash-status-row-value {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-weight: 500;
   min-width: 32px;
   text-align: right;
@@ -400,7 +400,7 @@
   background: transparent;
   color: var(--text-secondary);
   font-size: 10px;
-  font-family: var(--font-mono);
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
 }
