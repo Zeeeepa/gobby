@@ -105,6 +105,15 @@ class GeminiAdapter(BaseAdapter):
         "get_tool_schema": "mcp__gobby__get_tool_schema",
         "search_tools": "mcp__gobby__search_tools",
         "recommend_tools": "mcp__gobby__recommend_tools",
+        # MCP tools — single-underscore variants (Gemini native MCP prefix)
+        "mcp_gobby_call_tool": "mcp__gobby__call_tool",
+        "mcp_gobby_list_mcp_servers": "mcp__gobby__list_mcp_servers",
+        "mcp_gobby_list_tools": "mcp__gobby__list_tools",
+        "mcp_gobby_get_tool_schema": "mcp__gobby__get_tool_schema",
+        "mcp_gobby_search_tools": "mcp__gobby__search_tools",
+        "mcp_gobby_recommend_tools": "mcp__gobby__recommend_tools",
+        "mcp_gobby_set_variable": "mcp__gobby__set_variable",
+        "mcp_gobby_get_variable": "mcp__gobby__get_variable",
         # Skill and agent tools
         "activate_skill": "Skill",
         "delegate_to_agent": "Task",

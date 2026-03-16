@@ -939,7 +939,7 @@ class RuleEngine:
             )
 
         # Check MCP tool restrictions (for call_tool)
-        if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+        if tool_name in ("call_tool", "mcp__gobby__call_tool", "mcp_gobby_call_tool"):
             tool_input = event.data.get("tool_input") or {}
             if isinstance(tool_input, dict):
                 mcp_server = tool_input.get("server_name", "")
