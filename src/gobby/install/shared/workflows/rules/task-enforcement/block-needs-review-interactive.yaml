@@ -6,6 +6,7 @@ rules:
     event: before_tool
     enabled: false
     priority: 32
+    when: "not variables.get('is_spawned_agent')"
     effects:
       - type: block
         mcp_tools: ["gobby-tasks:mark_task_needs_review"]
