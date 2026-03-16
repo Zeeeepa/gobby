@@ -6,7 +6,6 @@ import { McpToolDetail } from './McpToolDetail'
 import { McpAddServerModal, McpImportModal } from './McpServerForm'
 import './McpPage.css'
 
-
 const TRANSPORTS = ['internal', 'http', 'stdio', 'websocket', 'sse'] as const
 
 export function McpPage() {
