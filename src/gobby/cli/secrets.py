@@ -50,13 +50,25 @@ def secrets() -> None:
     help="Secret category.",
 )
 @click.option("--description", "-d", default=None, help="Human-readable description.")
-def set_secret(name: str, category: str, description: str | None) -> None:
+@click.option(
+    "--stdin",
+    "from_stdin",
+    is_flag=True,
+    default=False,
+    help="Read value from stdin (non-interactive, for scripting).",
+)
+def set_secret(name: str, category: str, description: str | None, from_stdin: bool) -> None:
     """Store a secret. Value is prompted interactively (never passed as an argument).
 
     NAME is the secret identifier (e.g. anthropic_api_key). Reference it
     elsewhere as $secret:NAME.
     """
-    value = click.prompt("Secret value", hide_input=True)
+    if from_stdin:
+        import sys
+
+        value = sys.stdin.read().strip()
+    else:
+        value = click.prompt("Secret value", hide_input=True)
     if not value.strip():
         click.echo("Error: Secret value cannot be empty.", err=True)
         raise SystemExit(1)

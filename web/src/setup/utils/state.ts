@@ -15,6 +15,7 @@ export interface SetupState {
   projects: string[];
   firewall_configured: boolean;
   tailscale_configured: boolean;
+  secrets_configured: string[];
   neo4j_installed: boolean;
   neo4j_password_set: boolean;
   personal_dir_created: boolean;
@@ -35,6 +36,7 @@ function createDefaultState(): SetupState {
   projects: [],
   firewall_configured: false,
   tailscale_configured: false,
+  secrets_configured: [],
   neo4j_installed: false,
   neo4j_password_set: false,
   personal_dir_created: false,
