@@ -40,6 +40,8 @@ interface AgentDefInfo {
     steps?: WorkflowStep[] | null
     step_variables?: Record<string, unknown> | null
     exit_condition?: string | null
+    blocked_tools?: string[] | null
+    blocked_mcp_tools?: string[] | null
   }
   source: string
   source_path: string | null
@@ -177,6 +179,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   const [editVariables, setEditVariables] = useState<Record<string, unknown>>({})
   const [editSkills, setEditSkills] = useState<string[]>([])
   const [editSteps, setEditSteps] = useState<WorkflowStep[]>([])
+  const [editBlockedTools, setEditBlockedTools] = useState<string[]>([])
+  const [editBlockedMcpTools, setEditBlockedMcpTools] = useState<string[]>([])
 
   // Sidebar view state (form vs YAML)
   const [sidebarView, setSidebarView] = useState<'form' | 'yaml'>('form')
@@ -226,6 +230,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       setEditVariables({})
       setEditSkills([])
       setEditSteps([])
+      setEditBlockedTools([])
+      setEditBlockedMcpTools([])
       setSelectedAgent(null)
       setSidebarView('form')
       setSidebarYamlContent(yaml.dump({
@@ -370,6 +376,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       }
       if (Object.keys(workflows).length > 0) body.workflows = workflows
       if (editSteps.length > 0) body.steps = editSteps
+      if (editBlockedTools.length > 0) body.blocked_tools = editBlockedTools
+      if (editBlockedMcpTools.length > 0) body.blocked_mcp_tools = editBlockedMcpTools
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions`, {
         method: 'POST',
@@ -410,6 +418,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     })
     setEditingId(item.db_id)
     setEditSteps(((d as Record<string, unknown>).steps as WorkflowStep[]) || [])
+    setEditBlockedTools(((d as Record<string, unknown>).blocked_tools as string[]) || [])
+    setEditBlockedMcpTools(((d as Record<string, unknown>).blocked_mcp_tools as string[]) || [])
     setEditRules((d.workflows?.rules as string[]) || [])
     const rs = d.workflows?.rule_selectors as { include: string[]; exclude: string[] } | undefined
     setEditRuleSelectors(rs || null)
@@ -458,6 +468,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       }
       if (Object.keys(workflows).length > 0) body.workflows = workflows
       if (editSteps.length > 0) body.steps = editSteps
+      if (editBlockedTools.length > 0) body.blocked_tools = editBlockedTools
+      if (editBlockedMcpTools.length > 0) body.blocked_mcp_tools = editBlockedMcpTools
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
         method: 'PUT',
@@ -990,6 +1002,10 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         onSkillsChange={setEditSkills}
         steps={editSteps}
         onStepsChange={setEditSteps}
+        blockedTools={editBlockedTools}
+        onBlockedToolsChange={setEditBlockedTools}
+        blockedMcpTools={editBlockedMcpTools}
+        onBlockedMcpToolsChange={setEditBlockedMcpTools}
       />
     </div>
   )

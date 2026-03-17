@@ -882,6 +882,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 except json.JSONDecodeError:
                     self.logger.debug("Failed to parse variable definition for %s", var_row.name)
 
+        # Agent-level tool restrictions
+        if agent_body.blocked_tools:
+            changes["_agent_blocked_tools"] = agent_body.blocked_tools
+        if agent_body.blocked_mcp_tools:
+            changes["_agent_blocked_mcp_tools"] = agent_body.blocked_mcp_tools
+
         return changes, active_rules, active_skills
 
     def _setup_code_index(self, session_id: str | None, project_id: str | None) -> None:
@@ -966,6 +972,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 "_active_rule_names",
                 "_active_skill_names",
                 "_skill_format",
+                "_agent_blocked_tools",
+                "_agent_blocked_mcp_tools",
                 "is_spawned_agent",
             }
             changes = {
