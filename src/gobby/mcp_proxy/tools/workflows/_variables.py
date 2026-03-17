@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def _coerce_value(
-    value: str | int | float | bool | list | dict | None,
-) -> str | int | float | bool | list | dict | None:
+    value: str | int | float | bool | list[Any] | dict[str, Any] | None,
+) -> str | int | float | bool | list[Any] | dict[str, Any] | None:
     """Coerce string representations of booleans/null/numbers to native types.
 
     MCP schema collapses union types (str|int|float|bool|None) to "string",
@@ -51,7 +51,7 @@ def set_variable(
     session_manager: LocalSessionManager,
     db: DatabaseProtocol,
     name: str,
-    value: str | int | float | bool | list | dict | None,
+    value: str | int | float | bool | list[Any] | dict[str, Any] | None,
     session_id: str | None = None,
     workflow: str | None = None,
     instance_manager: WorkflowInstanceManager | None = None,
