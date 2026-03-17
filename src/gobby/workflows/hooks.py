@@ -135,9 +135,23 @@ class WorkflowHookHandler:
             if project_path is None and hasattr(event, "metadata"):
                 project_path = event.metadata.get("project_path")
 
+            session_edited = set(variables.get("session_edited_files", []))
             baseline = set(variables.get("baseline_dirty_files", []))
+
+            def _check_dirty(
+                _edited: set[str] = session_edited,
+                _base: set[str] = baseline,
+                _path: str | None = project_path,
+            ) -> bool:
+                dirty = get_dirty_files(_path)
+                if _edited:
+                    # Precise: only files this session touched that are still dirty
+                    return bool(_edited & dirty)
+                # Legacy fallback: no per-session tracking, baseline subtraction
+                return bool(dirty - _base)
+
             eval_context = {
-                "has_dirty_files": LazyBool(lambda: bool(get_dirty_files(project_path) - baseline))
+                "has_dirty_files": LazyBool(_check_dirty)
             }
 
             # Snapshot BEFORE observers to capture both observer and rule changes in the diff
