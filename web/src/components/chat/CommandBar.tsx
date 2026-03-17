@@ -1,0 +1,227 @@
+import { useState, useCallback } from 'react'
+import type { SessionObservationMeta } from '../../types/chat'
+import type { AgentDefInfo } from '../../hooks/useAgentDefinitions'
+import { AgentPickerDropdown } from './AgentPickerDropdown'
+
+interface RunningAgent {
+  run_id: string
+  provider: string
+  pid?: number
+  mode?: string
+  started_at?: string
+  session_id?: string
+}
+
+interface CommandBarProps {
+  sessionRef: string | null
+  title: string | null
+  viewingMeta?: SessionObservationMeta | null
+  isAttached?: boolean
+  onAttach?: () => void
+  onDetach?: () => void
+  onOpenPalette: () => void
+  onOpenActiveSessions: () => void
+  onNewChat: (agentName?: string) => void
+  onTogglePanel: () => void
+  agents: RunningAgent[]
+  agentDefinitions?: AgentDefInfo[]
+  agentGlobalDefs?: AgentDefInfo[]
+  agentProjectDefs?: AgentDefInfo[]
+  agentShowScopeToggle?: boolean
+  agentHasGlobal?: boolean
+  agentHasProject?: boolean
+  isPanelPinned: boolean
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  claude_code: 'Claude Code',
+  gemini_cli: 'Gemini CLI',
+  codex: 'Codex',
+  windsurf: 'Windsurf',
+  cursor: 'Cursor',
+  copilot: 'Copilot',
+}
+
+const SOURCE_DOT_COLORS: Record<string, string> = {
+  claude_code: 'bg-purple-400',
+  gemini_cli: 'bg-green-400',
+  codex: 'bg-blue-400',
+  windsurf: 'bg-sky-400',
+  cursor: 'bg-pink-400',
+  copilot: 'bg-indigo-400',
+}
+
+export function CommandBar({
+  sessionRef,
+  title,
+  viewingMeta,
+  isAttached,
+  onAttach,
+  onDetach,
+  onOpenPalette,
+  onOpenActiveSessions,
+  onNewChat,
+  onTogglePanel,
+  agents,
+  agentDefinitions = [],
+  agentGlobalDefs = [],
+  agentProjectDefs = [],
+  agentShowScopeToggle = false,
+  agentHasGlobal = false,
+  agentHasProject = false,
+  isPanelPinned,
+}: CommandBarProps) {
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
+  const isObserving = !!viewingMeta
+  const activeAgentCount = agents.length
+
+  const handleNewChat = useCallback(() => {
+    if (agentDefinitions.length <= 1) {
+      onNewChat()
+    } else {
+      setShowAgentPicker(true)
+    }
+  }, [agentDefinitions.length, onNewChat])
+
+  return (
+    <div className="command-bar">
+      {/* Left cluster — Session context */}
+      <div className="command-bar-left">
+        <button
+          type="button"
+          className="command-bar-btn command-bar-new"
+          onClick={handleNewChat}
+          title="New Chat"
+        >
+          <PlusIcon />
+          <span className="command-bar-btn-label">New</span>
+        </button>
+
+        {showAgentPicker && (
+          <AgentPickerDropdown
+            definitions={agentDefinitions}
+            globalDefs={agentGlobalDefs}
+            projectDefs={agentProjectDefs}
+            showScopeToggle={agentShowScopeToggle}
+            hasGlobal={agentHasGlobal}
+            hasProject={agentHasProject}
+            onSelect={(name) => {
+              onNewChat(name)
+              setShowAgentPicker(false)
+            }}
+            onClose={() => setShowAgentPicker(false)}
+          />
+        )}
+
+        {isObserving && viewingMeta ? (
+          <ObservationSegment
+            sessionRef={sessionRef}
+            viewingMeta={viewingMeta}
+            isAttached={!!isAttached}
+            onAttach={onAttach}
+            onDetach={onDetach}
+          />
+        ) : (
+          <button
+            type="button"
+            className="command-bar-session"
+            onClick={onOpenPalette}
+            title="Switch session (Cmd+K)"
+          >
+            {sessionRef && (
+              <span className="command-bar-ref">{sessionRef}</span>
+            )}
+            <span className="command-bar-title">
+              {title ?? 'New conversation'}
+            </span>
+            <span className="command-bar-caret">&#9662;</span>
+          </button>
+        )}
+      </div>
+
+      {/* Right cluster — Live activity */}
+      <div className="command-bar-right">
+        {activeAgentCount > 0 && (
+          <button
+            type="button"
+            className="command-bar-pill"
+            onClick={onOpenActiveSessions}
+            title="Active sessions (Cmd+Shift+A)"
+          >
+            <span className="command-bar-pill-dot" />
+            <span>{activeAgentCount} Session{activeAgentCount !== 1 ? 's' : ''}</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="command-bar-btn"
+          onClick={onTogglePanel}
+          title={isPanelPinned ? 'Unpin panel (Cmd+`)' : 'Pin panel (Cmd+`)'}
+        >
+          <PanelIcon pinned={isPanelPinned} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ObservationSegment({
+  sessionRef,
+  viewingMeta,
+  isAttached,
+  onAttach,
+  onDetach,
+}: {
+  sessionRef: string | null
+  viewingMeta: SessionObservationMeta
+  isAttached: boolean
+  onAttach?: () => void
+  onDetach?: () => void
+}) {
+  const sourceLabel = SOURCE_LABELS[viewingMeta.source] ?? viewingMeta.source
+  const sourceDot = SOURCE_DOT_COLORS[viewingMeta.source] ?? 'bg-neutral-400'
+  const isLive = viewingMeta.status === 'active'
+
+  return (
+    <div className="command-bar-observation">
+      {sessionRef && (
+        <span className="command-bar-ref">{sessionRef}</span>
+      )}
+      <span className="command-bar-title">
+        {viewingMeta.title ?? 'Terminal session'}
+      </span>
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${sourceDot}`} />
+      <span className="text-muted-foreground text-[11px]">{sourceLabel}</span>
+      <span className="text-muted-foreground/60 text-[11px]">&middot;</span>
+      <span className="text-muted-foreground text-[11px]">
+        {isAttached ? 'Attached' : 'Observing'}
+        {isLive && !isAttached && ' (live)'}
+      </span>
+      {isAttached && onDetach ? (
+        <button className="command-bar-obs-btn" onClick={onDetach}>Detach</button>
+      ) : !isAttached && onAttach ? (
+        <button className="command-bar-obs-btn command-bar-obs-btn--attach" onClick={onAttach}>Attach</button>
+      ) : null}
+    </div>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function PanelIcon({ pinned }: { pinned: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="15" y1="3" x2="15" y2="21" />
+      {pinned && <line x1="18" y1="9" x2="21" y2="9" opacity="0.5" />}
+    </svg>
+  )
+}

@@ -17,6 +17,7 @@ export const COMMANDS: CommandInfo[] = [
   { name: 'resume', description: 'Resume a previous session', action: 'resume_session' },
   { name: 'settings', description: 'Open settings panel', action: 'open_settings' },
   { name: 'skills', description: 'Browse and run skills', action: 'open_skills' },
+  { name: 'panel', description: 'Toggle activity panel', action: 'toggle_panel' },
 ]
 
 export function useSlashCommands() {
