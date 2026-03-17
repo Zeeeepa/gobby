@@ -462,16 +462,56 @@
   color: var(--text-primary);
 }
 
-/* Neo4j status in system health */
-.dash-neo4j-status {
+/* Global toolbar filters */
+.dash-toolbar-filters {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.dash-project-toggle {
+  display: flex;
+  gap: 2px;
+}
+
+/* Services status (Qdrant, Neo4j) */
+.dash-services-status {
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dash-service-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* External MCPs section */
+.dash-external-mcps {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.dash-external-mcps-header {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Model name monospace in breakdown */
+.dash-breakdown-label--mono {
+  font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+  font-size: 11px;
 }
 
 /* Loading / error */

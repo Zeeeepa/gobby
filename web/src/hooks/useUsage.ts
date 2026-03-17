@@ -1,34 +1,33 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
-export interface TimeStats {
-  days: number
-  hours: number | null
-  tasks: {
-    open: number; in_progress: number; closed: number
-    needs_review: number; review_approved: number; escalated: number
-    ready: number; blocked: number; closed_24h: number
-  }
-  sessions: {
-    active: number; paused: number; handoff_ready: number; total: number
-    by_source: Record<string, Record<string, number>>
-  }
-  memory: {
-    count: number; by_type: Record<string, number>; recent_count: number
-  }
+export interface UsageTotals {
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+  cost_usd: number
+  session_count: number
 }
 
-export function useTimeStats(hours: number, projectId?: string) {
-  const [data, setData] = useState<TimeStats | null>(null)
+export interface UsageData {
+  hours: number
+  totals: UsageTotals
+  by_source: Record<string, UsageTotals>
+  by_model: Record<string, UsageTotals>
+}
+
+export function useUsage(hours: number, projectId?: string) {
+  const [data, setData] = useState<UsageData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const fetchStats = useCallback(async () => {
+  const fetchUsage = useCallback(async () => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
     try {
-      let url = `/api/admin/stats?hours=${hours}`
+      let url = `/api/admin/usage?hours=${hours}`
       if (projectId) url += `&project_id=${encodeURIComponent(projectId)}`
       const resp = await fetch(url, { signal: controller.signal })
       if (resp.ok) {
@@ -47,13 +46,13 @@ export function useTimeStats(hours: number, projectId?: string) {
 
   useEffect(() => {
     setIsLoading(true)
-    fetchStats().then(() => setIsLoading(false))
-    const interval = setInterval(fetchStats, 30_000)
+    fetchUsage().then(() => setIsLoading(false))
+    const interval = setInterval(fetchUsage, 30_000)
     return () => {
       clearInterval(interval)
       abortRef.current?.abort()
     }
-  }, [fetchStats])
+  }, [fetchUsage])
 
   return { data, isLoading, error }
 }

@@ -1,6 +1,4 @@
-import { useState } from 'react'
-import { useTimeStats, rangeToDays } from '../../hooks/useTimeStats'
-import { TimeRangePills, type TimeRange } from './TimeRangePills'
+import { useTimeStats } from '../../hooks/useTimeStats'
 
 type TaskStats = {
   open: number; in_progress: number; closed: number
@@ -23,9 +21,13 @@ const STROKE = 18
 const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-export function TasksCard() {
-  const [range, setRange] = useState<TimeRange>('all')
-  const { data } = useTimeStats(rangeToDays(range))
+interface Props {
+  hours: number
+  projectId?: string
+}
+
+export function TasksCard({ hours, projectId }: Props) {
+  const { data } = useTimeStats(hours, projectId)
 
   const tasks = data?.tasks ?? {
     open: 0, in_progress: 0, closed: 0,
@@ -33,8 +35,8 @@ export function TasksCard() {
     ready: 0, blocked: 0, closed_24h: 0,
   }
 
-  const activeTotal = tasks.open + tasks.in_progress + tasks.needs_review +
-    tasks.review_approved + tasks.escalated
+  const openTotal = tasks.ready + tasks.in_progress + tasks.blocked +
+    tasks.needs_review + tasks.review_approved + tasks.escalated
   const segments = SEGMENTS.map(s => ({ ...s, value: tasks[s.key] ?? 0 }))
   const total = segments.reduce((sum, s) => sum + s.value, 0)
 
@@ -53,7 +55,6 @@ export function TasksCard() {
     <div className="dash-card">
       <div className="dash-card-header">
         <h3 className="dash-card-title">Tasks</h3>
-        <TimeRangePills value={range} onChange={setRange} />
       </div>
       <div className="dash-card-body" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
         <svg width={SIZE} height={SIZE} style={{ flexShrink: 0 }}>
@@ -71,9 +72,9 @@ export function TasksCard() {
             ))
           )}
           <text x={SIZE / 2} y={SIZE / 2 - 6} textAnchor="middle" fill="#e5e5e5"
-            fontSize="22" fontWeight="bold">{activeTotal}</text>
+            fontSize="22" fontWeight="bold">{openTotal}</text>
           <text x={SIZE / 2} y={SIZE / 2 + 12} textAnchor="middle" fill="#a3a3a3"
-            fontSize="10">active</text>
+            fontSize="10">open</text>
         </svg>
         <div className="dash-status-list" style={{ flex: 1, minWidth: 0 }}>
           {segments.map(({ key, label, color, value, dimmed }) => (

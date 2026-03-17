@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { TimeRange } from '../components/dashboard/TimeRangePills'
 
 export interface SavingsData {
   days: number
@@ -13,18 +12,7 @@ export interface SavingsData {
   }>
 }
 
-const RANGE_TO_DAYS: Record<TimeRange, number> = {
-  '24h': 1,
-  '7d': 7,
-  '30d': 30,
-  'all': 36500,
-}
-
-export function savingsRangeToDays(range: TimeRange): number {
-  return RANGE_TO_DAYS[range]
-}
-
-export function useSavings(days: number) {
+export function useSavings(hours: number, projectId?: string) {
   const [data, setData] = useState<SavingsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +23,9 @@ export function useSavings(days: number) {
     const controller = new AbortController()
     abortRef.current = controller
     try {
-      const resp = await fetch(`/api/admin/savings?days=${days}`, { signal: controller.signal })
+      let url = `/api/admin/savings?hours=${hours}`
+      if (projectId) url += `&project_id=${encodeURIComponent(projectId)}`
+      const resp = await fetch(url, { signal: controller.signal })
       if (resp.ok) {
         setData(await resp.json())
         setError(null)
@@ -48,7 +38,7 @@ export function useSavings(days: number) {
       setError(String(e))
       setData(null)
     }
-  }, [days])
+  }, [hours, projectId])
 
   useEffect(() => {
     setIsLoading(true)
