@@ -354,6 +354,41 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         tracker = SessionTokenTracker(session_storage=sm)
         return tracker.get_usage_summary(days=days, project_id=project_id)
 
+    @router.post("/statusline")
+    async def statusline_update(request: Request) -> dict[str, Any]:
+        """Receive usage data from the Claude Code statusline handler.
+
+        This is the primary path for accurate cost tracking — Claude Code
+        computes total_cost_usd internally and we just store it.
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON") from None
+
+        external_id = body.get("session_id")
+        if not external_id:
+            raise HTTPException(status_code=400, detail="Missing session_id") from None
+
+        sm = _get_session_manager()
+        session = sm.find_active_by_external_id(external_id, source="claude")
+        if not session:
+            # Session may not be registered yet (first ~1s of updates)
+            return {"status": "ok", "warning": "session_not_found"}
+
+        sm.update_usage(
+            session_id=session.id,
+            input_tokens=body.get("input_tokens", 0),
+            output_tokens=body.get("output_tokens", 0),
+            cache_creation_tokens=body.get("cache_creation_tokens", 0),
+            cache_read_tokens=body.get("cache_read_tokens", 0),
+            total_cost_usd=body.get("total_cost_usd", 0.0),
+            context_window=body.get("context_window_size"),
+            model=body.get("model_id"),
+        )
+
+        return {"status": "ok"}
+
     @router.get("")
     async def list_sessions(
         project_id: str | None = None,

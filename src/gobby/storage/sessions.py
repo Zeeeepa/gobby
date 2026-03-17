@@ -202,6 +202,34 @@ class LocalSessionManager:
         )
         return Session.from_row(row) if row else None
 
+    def find_active_by_external_id(
+        self,
+        external_id: str,
+        source: str,
+    ) -> Session | None:
+        """Find an active session by external_id and source (relaxed lookup).
+
+        Unlike find_by_external_id, this does not require machine_id or project_id,
+        making it suitable for the statusline handler which only knows the session_id.
+
+        Args:
+            external_id: External session identifier (e.g., Claude Code session ID)
+            source: CLI source (claude, gemini, etc.)
+
+        Returns:
+            Most recently updated matching session, or None.
+        """
+        row = self.db.fetchone(
+            """
+            SELECT * FROM sessions
+            WHERE external_id = ? AND source = ? AND status = 'active'
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (external_id, source),
+        )
+        return Session.from_row(row) if row else None
+
     def find_parent(
         self,
         machine_id: str,

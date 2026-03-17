@@ -43,6 +43,71 @@ _GOBBY_HOOK_TYPES = [
 ]
 
 
+_STATUSLINE_MARKER = "statusline_handler.py"
+
+
+def _configure_statusline(settings: dict[str, Any], hooks_dir: Path) -> None:
+    """Configure statusLine to use Gobby's middleware, preserving any downstream.
+
+    If statusLine already points to our handler, re-wrap to update paths.
+    If it points to something else, wrap it as GOBBY_STATUSLINE_DOWNSTREAM.
+    """
+    handler_path = str((hooks_dir / "statusline_handler.py").resolve())
+    existing = settings.get("statusLine")
+
+    downstream: str | None = None
+
+    if existing and isinstance(existing, dict):
+        existing_cmd = existing.get("command", "")
+        if _STATUSLINE_MARKER in existing_cmd:
+            # Already ours — extract downstream if present
+            downstream = _extract_downstream(existing_cmd)
+        else:
+            # Foreign command — save as downstream
+            downstream = existing_cmd
+    elif existing and isinstance(existing, str):
+        if _STATUSLINE_MARKER in existing:
+            downstream = _extract_downstream(existing)
+        else:
+            downstream = existing
+
+    if downstream:
+        # Shell-escape single quotes in downstream command
+        escaped = downstream.replace("'", "'\\''")
+        command = f"GOBBY_STATUSLINE_DOWNSTREAM='{escaped}' python3 {handler_path}"
+    else:
+        command = f"python3 {handler_path}"
+
+    settings["statusLine"] = {"type": "command", "command": command}
+
+
+def _extract_downstream(command: str) -> str | None:
+    """Extract the downstream command from GOBBY_STATUSLINE_DOWNSTREAM='...'."""
+    import re
+
+    match = re.search(r"GOBBY_STATUSLINE_DOWNSTREAM='([^']*(?:\\'[^']*)*)'", command)
+    if match:
+        return match.group(1).replace("\\'", "'")
+    return None
+
+
+def _restore_statusline(settings: dict[str, Any]) -> None:
+    """On uninstall, restore the original statusLine or remove it."""
+    existing = settings.get("statusLine")
+    if not existing:
+        return
+
+    cmd = existing.get("command", "") if isinstance(existing, dict) else str(existing)
+    if _STATUSLINE_MARKER not in cmd:
+        return  # Not ours
+
+    downstream = _extract_downstream(cmd)
+    if downstream:
+        settings["statusLine"] = {"type": "command", "command": downstream}
+    else:
+        del settings["statusLine"]
+
+
 def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
     """Install Gobby integration for Claude Code (hooks, workflows).
 
@@ -222,6 +287,9 @@ def install_claude(project_path: Path, mode: str = "global") -> dict[str, Any]:
         result["error"] = f"Failed to write settings.json: {e}"
         return result
 
+    # Configure statusLine for cost tracking middleware
+    _configure_statusline(existing_settings, hooks_dir)
+
     # Configure MCP server in global settings (~/.claude.json)
     # Note: Claude Code uses ~/.claude.json for user-scoped MCP servers
     global_settings = Path.home() / ".claude.json"
@@ -293,6 +361,9 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
         logger.error(f"Failed to read settings.json: {e}")
         result["error"] = f"Failed to read settings.json: {e}"
         return result
+
+    # Restore original statusLine (or remove if no downstream)
+    _restore_statusline(settings)
 
     if "hooks" in settings:
         for hook_type in _GOBBY_HOOK_TYPES:

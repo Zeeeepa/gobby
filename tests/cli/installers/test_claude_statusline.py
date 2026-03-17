@@ -1,0 +1,144 @@
+"""Tests for statusLine configuration in Claude Code installer."""
+
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from gobby.cli.installers.claude import (
+    _configure_statusline,
+    _extract_downstream,
+    _restore_statusline,
+)
+
+pytestmark = pytest.mark.unit
+
+
+class TestConfigureStatusline:
+    """Tests for _configure_statusline."""
+
+    def test_sets_statusline_when_none(self, tmp_path: Path) -> None:
+        settings: dict[str, Any] = {}
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "statusline_handler.py").touch()
+
+        _configure_statusline(settings, hooks_dir)
+
+        assert "statusLine" in settings
+        assert settings["statusLine"]["type"] == "command"
+        assert "statusline_handler.py" in settings["statusLine"]["command"]
+        assert "GOBBY_STATUSLINE_DOWNSTREAM" not in settings["statusLine"]["command"]
+
+    def test_wraps_existing_command(self, tmp_path: Path) -> None:
+        settings: dict[str, Any] = {
+            "statusLine": {"type": "command", "command": "cship --color"}
+        }
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "statusline_handler.py").touch()
+
+        _configure_statusline(settings, hooks_dir)
+
+        cmd = settings["statusLine"]["command"]
+        assert "statusline_handler.py" in cmd
+        assert "GOBBY_STATUSLINE_DOWNSTREAM='cship --color'" in cmd
+
+    def test_idempotent_rewrap(self, tmp_path: Path) -> None:
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "statusline_handler.py").touch()
+
+        # First install with downstream
+        settings: dict[str, Any] = {
+            "statusLine": {"type": "command", "command": "cship"}
+        }
+        _configure_statusline(settings, hooks_dir)
+
+        # Second install (idempotent)
+        _configure_statusline(settings, hooks_dir)
+        second_cmd = settings["statusLine"]["command"]
+
+        assert "statusline_handler.py" in second_cmd
+        assert "GOBBY_STATUSLINE_DOWNSTREAM='cship'" in second_cmd
+        # Paths may differ due to resolve(), but downstream is preserved
+        assert "cship" in second_cmd
+
+    def test_handles_string_statusline(self, tmp_path: Path) -> None:
+        settings: dict[str, Any] = {"statusLine": "some-command --flag"}
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "statusline_handler.py").touch()
+
+        _configure_statusline(settings, hooks_dir)
+
+        cmd = settings["statusLine"]["command"]
+        assert "statusline_handler.py" in cmd
+        assert "GOBBY_STATUSLINE_DOWNSTREAM='some-command --flag'" in cmd
+
+    def test_escapes_single_quotes(self, tmp_path: Path) -> None:
+        settings: dict[str, Any] = {
+            "statusLine": {"type": "command", "command": "cmd 'with quotes'"}
+        }
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "statusline_handler.py").touch()
+
+        _configure_statusline(settings, hooks_dir)
+
+        cmd = settings["statusLine"]["command"]
+        assert "statusline_handler.py" in cmd
+        # Single quotes should be escaped
+        assert "GOBBY_STATUSLINE_DOWNSTREAM=" in cmd
+
+
+class TestExtractDownstream:
+    """Tests for _extract_downstream."""
+
+    def test_extracts_simple_command(self) -> None:
+        cmd = "GOBBY_STATUSLINE_DOWNSTREAM='cship' python3 /path/to/statusline_handler.py"
+        assert _extract_downstream(cmd) == "cship"
+
+    def test_extracts_command_with_flags(self) -> None:
+        cmd = "GOBBY_STATUSLINE_DOWNSTREAM='cship --color --theme=dark' python3 /path/handler.py"
+        assert _extract_downstream(cmd) == "cship --color --theme=dark"
+
+    def test_returns_none_without_env_var(self) -> None:
+        cmd = "python3 /path/to/statusline_handler.py"
+        assert _extract_downstream(cmd) is None
+
+
+class TestRestoreStatusline:
+    """Tests for _restore_statusline."""
+
+    def test_restores_downstream(self) -> None:
+        settings: dict[str, Any] = {
+            "statusLine": {
+                "type": "command",
+                "command": "GOBBY_STATUSLINE_DOWNSTREAM='cship' python3 /path/statusline_handler.py",
+            }
+        }
+        _restore_statusline(settings)
+        assert settings["statusLine"] == {"type": "command", "command": "cship"}
+
+    def test_removes_when_no_downstream(self) -> None:
+        settings: dict[str, Any] = {
+            "statusLine": {
+                "type": "command",
+                "command": "python3 /path/statusline_handler.py",
+            }
+        }
+        _restore_statusline(settings)
+        assert "statusLine" not in settings
+
+    def test_no_op_for_foreign_statusline(self) -> None:
+        settings: dict[str, Any] = {
+            "statusLine": {"type": "command", "command": "cship"}
+        }
+        _restore_statusline(settings)
+        assert settings["statusLine"] == {"type": "command", "command": "cship"}
+
+    def test_no_op_when_missing(self) -> None:
+        settings: dict[str, Any] = {}
+        _restore_statusline(settings)
+        assert "statusLine" not in settings
