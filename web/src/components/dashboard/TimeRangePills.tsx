@@ -1,3 +1,5 @@
+import { cn } from '../../lib/utils'
+
 export type TimeRange = '1h' | '24h' | '7d' | '30d' | 'all'
 
 const RANGES: { value: TimeRange; label: string }[] = [
@@ -15,11 +17,18 @@ interface Props {
 
 export function TimeRangePills({ value, onChange }: Props) {
   return (
-    <div className="dash-time-range">
-      {RANGES.map(r => (
+    <div className="flex rounded-md border border-border text-xs">
+      {RANGES.map((r, i) => (
         <button
           key={r.value}
-          className={`dash-time-range-btn${value === r.value ? ' dash-time-range-btn--active' : ''}`}
+          className={cn(
+            'px-2 py-1 transition-colors',
+            i === 0 && 'rounded-l-md',
+            i === RANGES.length - 1 && 'rounded-r-md',
+            value === r.value
+              ? 'bg-accent text-accent-foreground'
+              : 'text-muted-foreground hover:bg-muted',
+          )}
           onClick={() => onChange(r.value)}
         >
           {r.label}

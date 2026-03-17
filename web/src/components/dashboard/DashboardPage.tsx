@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDashboard } from '../../hooks/useDashboard'
+import { cn } from '../../lib/utils'
 import { SystemHealthCard } from './SystemHealthCard'
 import { TasksCard } from './TasksCard'
 import { SessionsCard } from './SessionsCard'
@@ -30,16 +31,26 @@ export function DashboardPage() {
           <h2 className="dash-toolbar-title">Dashboard</h2>
         </div>
         <div className="dash-toolbar-right">
-          <div className="dash-toolbar-filters">
-            <div className="dash-project-toggle">
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-md border border-border text-xs">
               <button
-                className={`dash-time-range-btn${projectScope === 'current' ? ' dash-time-range-btn--active' : ''}`}
+                className={cn(
+                  'px-2 py-1 rounded-l-md transition-colors',
+                  projectScope === 'current'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-muted',
+                )}
                 onClick={() => setProjectScope('current')}
               >
                 Current Project
               </button>
               <button
-                className={`dash-time-range-btn${projectScope === 'all' ? ' dash-time-range-btn--active' : ''}`}
+                className={cn(
+                  'px-2 py-1 rounded-r-md transition-colors',
+                  projectScope === 'all'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-muted',
+                )}
                 onClick={() => setProjectScope('all')}
               >
                 All Projects

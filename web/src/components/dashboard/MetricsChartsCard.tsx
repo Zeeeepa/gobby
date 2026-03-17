@@ -121,11 +121,18 @@ export function MetricsChartsCard() {
     <div className="dash-card dash-card--full">
       <div className="dash-card-header">
         <h3 className="dash-card-title">Metrics</h3>
-        <div className="dash-time-range">
-          {TIME_RANGES.map(({ value, label }) => (
+        <div className="flex rounded-md border border-border text-xs">
+          {TIME_RANGES.map(({ value, label }, i) => (
             <button
               key={value}
-              className={`dash-time-range-btn${hours === value ? ' dash-time-range-btn--active' : ''}`}
+              className={[
+                'px-2 py-1 transition-colors',
+                i === 0 ? 'rounded-l-md' : '',
+                i === TIME_RANGES.length - 1 ? 'rounded-r-md' : '',
+                hours === value
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-muted',
+              ].filter(Boolean).join(' ')}
               onClick={() => setHours(value)}
             >
               {label}

@@ -387,34 +387,6 @@
   text-align: right;
 }
 
-/* Time range pills */
-.dash-time-range {
-  display: flex;
-  gap: 2px;
-}
-
-.dash-time-range-btn {
-  padding: 2px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.dash-time-range-btn:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.05));
-}
-
-.dash-time-range-btn--active {
-  background: var(--text-primary);
-  color: var(--bg-primary, #0a0a0a);
-  border-color: var(--text-primary);
-}
-
 /* Chart grid (2x2) */
 .dash-chart-grid {
   display: grid;
@@ -460,18 +432,6 @@
 
 .dash-mcp-toggle:hover {
   color: var(--text-primary);
-}
-
-/* Global toolbar filters */
-.dash-toolbar-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.dash-project-toggle {
-  display: flex;
-  gap: 2px;
 }
 
 /* Services status (Qdrant, Neo4j) */
