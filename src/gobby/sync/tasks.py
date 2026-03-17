@@ -492,7 +492,7 @@ class TaskSyncManager:
     ) -> dict[str, Any]:
         """
         Import open issues from a GitHub repository as tasks.
-        Uses GitHub CLI (gh) for reliable API access.
+        Uses GitHub MCP server when available, falls back to gh CLI.
 
         Args:
             repo_url: URL of the GitHub repository (e.g., https://github.com/owner/repo)
@@ -503,7 +503,6 @@ class TaskSyncManager:
             Result with imported issue IDs
         """
         import re
-        import subprocess  # nosec B404 # subprocess needed for gh CLI
 
         try:
             # Parse repo from URL
@@ -517,56 +516,13 @@ class TaskSyncManager:
             owner, repo = match.groups()
             repo = repo.rstrip(".git")  # Handle .git suffix
 
-            # Check if gh CLI is available
-            try:
-                subprocess.run(["gh", "--version"], capture_output=True, check=True)  # nosec B603 B607
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                return {
-                    "success": False,
-                    "error": "GitHub CLI (gh) not found. Install from https://cli.github.com/",
-                }
-
-            # Fetch issues using gh CLI
-            cmd = [
-                "gh",
-                "issue",
-                "list",
-                "--repo",
-                f"{owner}/{repo}",
-                "--state",
-                "open",
-                "--limit",
-                str(limit),
-                "--json",
-                "number,title,body,labels,createdAt",
-            ]
-
-            result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603 # hardcoded gh arguments
-            if result.returncode != 0:
-                return {
-                    "success": False,
-                    "error": f"gh command failed: {result.stderr}",
-                }
-
-            issues = json.loads(result.stdout)
-
-            if not issues:
-                return {
-                    "success": True,
-                    "message": "No open issues found",
-                    "imported": [],
-                    "count": 0,
-                }
-
             # Resolve project ID if not provided
             if not project_id:
-                # Try to find project by github_url
                 row = self.db.fetchone("SELECT id FROM projects WHERE github_url = ?", (repo_url,))
                 if row:
                     project_id = row["id"]
 
             if not project_id:
-                # Try current project context
                 from gobby.utils.project_context import get_project_context
 
                 ctx = get_project_context()
@@ -577,6 +533,26 @@ class TaskSyncManager:
                 return {
                     "success": False,
                     "error": "Could not determine project ID. Run from within a gobby project.",
+                }
+
+            # Try GitHub MCP first
+            issues = await self._fetch_github_issues_mcp(owner, repo, limit)
+            if issues is None:
+                # Fallback to gh CLI
+                issues = self._fetch_github_issues_cli(owner, repo, repo_url, limit)
+                if issues is None:
+                    return {
+                        "success": False,
+                        "error": "GitHub MCP unavailable and gh CLI not found. "
+                        "Install from https://cli.github.com/",
+                    }
+
+            if not issues:
+                return {
+                    "success": True,
+                    "message": "No open issues found",
+                    "imported": [],
+                    "count": 0,
                 }
 
             imported = []
@@ -591,26 +567,21 @@ class TaskSyncManager:
                     task_id = f"gh-{issue_num}"
                     title = issue.get("title", "Untitled Issue")
                     body = issue.get("body") or ""
-                    # Add link to original issue
                     desc = f"{body}\n\nSource: {repo_url}/issues/{issue_num}".strip()
 
-                    # Extract label names
                     labels = [lbl.get("name") for lbl in issue.get("labels", []) if lbl.get("name")]
                     labels_json = json.dumps(labels) if labels else None
 
-                    created_at = issue.get("createdAt", datetime.now(UTC).isoformat())
+                    created_at = issue.get("createdAt") or issue.get("created_at") or datetime.now(UTC).isoformat()
                     updated_at = datetime.now(UTC).isoformat()
 
-                    # Check if exists
                     exists = self.db.fetchone("SELECT 1 FROM tasks WHERE id = ?", (task_id,))
                     if exists:
-                        # Update existing
                         conn.execute(
                             "UPDATE tasks SET title=?, description=?, labels=?, updated_at=? WHERE id=?",
                             (title, desc, labels_json, updated_at, task_id),
                         )
                     else:
-                        # Insert new
                         conn.execute(
                             """
                             INSERT INTO tasks (
@@ -632,8 +603,75 @@ class TaskSyncManager:
             }
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse gh output: {e}")
+            logger.error(f"Failed to parse GitHub response: {e}")
             return {"success": False, "error": f"Failed to parse GitHub response: {e}"}
         except Exception as e:
             logger.error(f"Failed to import from GitHub: {e}")
             return {"success": False, "error": str(e)}
+
+    async def _fetch_github_issues_mcp(
+        self, owner: str, repo: str, limit: int
+    ) -> list[dict[str, Any]] | None:
+        """Fetch issues using GitHub MCP server. Returns None if unavailable."""
+        try:
+            from gobby.app_context import get_app_context
+            from gobby.integrations.github import GitHubIntegration
+
+            ctx = get_app_context()
+            if not ctx or not ctx.mcp_manager:
+                return None
+
+            gh = GitHubIntegration(ctx.mcp_manager)
+            if not gh.is_available():
+                return None
+
+            session = await ctx.mcp_manager.get_client_session("github")
+            result = await session.call_tool(
+                "list_issues",
+                {
+                    "owner": owner,
+                    "repo": repo,
+                    "state": "open",
+                    "per_page": min(limit, 100),
+                },
+            )
+
+            # Parse MCP response
+            if hasattr(result, "content") and result.content:
+                for item in result.content:
+                    if hasattr(item, "text"):
+                        try:
+                            data = json.loads(item.text)
+                            return data if isinstance(data, list) else []
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+            return []
+        except Exception as e:
+            logger.debug(f"GitHub MCP issue fetch failed: {e}")
+            return None
+
+    def _fetch_github_issues_cli(
+        self, owner: str, repo: str, repo_url: str, limit: int
+    ) -> list[dict[str, Any]] | None:
+        """Fetch issues using gh CLI. Returns None if gh is not available."""
+        import subprocess  # nosec B404
+
+        try:
+            subprocess.run(["gh", "--version"], capture_output=True, check=True)  # nosec B603 B607
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return None
+
+        cmd = [
+            "gh", "issue", "list",
+            "--repo", f"{owner}/{repo}",
+            "--state", "open",
+            "--limit", str(limit),
+            "--json", "number,title,body,labels,createdAt",
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603
+        if result.returncode != 0:
+            logger.warning(f"gh CLI failed: {result.stderr}")
+            return []
+
+        return json.loads(result.stdout)

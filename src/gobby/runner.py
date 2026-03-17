@@ -672,6 +672,41 @@ class GobbyRunner:
                 except Exception as e:
                     logger.error("Failed to initialize conductor: %s", e)
 
+            # Register Linear sync handler (for projects with Linear integration)
+            try:
+                from gobby.storage.projects import LocalProjectManager
+                from gobby.sync.linear import create_linear_sync_handler
+
+                pm = LocalProjectManager(self.database)
+                for project in pm.list():
+                    if project.linear_team_id:
+                        handler = create_linear_sync_handler(
+                            mcp_manager=self.mcp_client_manager,
+                            task_manager=self.task_manager,
+                            project_id=project.id,
+                            team_id=project.linear_team_id,
+                        )
+                        handler_name = f"linear_sync:{project.id}"
+                        cron_executor.register_handler(handler_name, handler)
+
+                        job_name = f"gobby:linear-sync:{project.id}"
+                        existing = self.cron_storage.get_job_by_name(job_name)
+                        if not existing:
+                            self.cron_storage.create_job(
+                                project_id=project.id,
+                                name=job_name,
+                                description=f"Bidirectional Linear sync for project {project.name}",
+                                schedule_type="interval",
+                                interval_seconds=300,
+                                action_type="handler",
+                                action_config={"handler": handler_name},
+                                enabled=True,
+                            )
+                            logger.info(f"Created system cron job: {job_name}")
+                logger.debug("Linear sync handlers registered")
+            except Exception as e:
+                logger.error(f"Failed to register Linear sync handlers: {e}")
+
             self.cron_scheduler = CronScheduler(
                 storage=self.cron_storage,
                 executor=cron_executor,
@@ -1336,4 +1371,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main(config_path=args.config, verbose=args.verbose)
- 
+

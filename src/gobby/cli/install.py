@@ -136,6 +136,111 @@ def _is_copilot_cli_installed() -> bool:
     return shutil.which("gh") is not None or shutil.which("github-copilot-cli") is not None
 
 
+_API_KEY_PROMPTS = [
+    {
+        "secret_name": "github_personal_access_token",
+        "env_var": "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "label": "GitHub Personal Access Token",
+        "category": "mcp_server",
+        "description": "GitHub MCP server authentication",
+    },
+    {
+        "secret_name": "linear_api_key",
+        "env_var": "LINEAR_API_KEY",
+        "label": "Linear API Key",
+        "category": "mcp_server",
+        "description": "Linear MCP server authentication",
+    },
+    {
+        "secret_name": "openai_api_key",
+        "env_var": "OPENAI_API_KEY",
+        "label": "OpenAI API Key",
+        "category": "llm",
+        "description": "OpenAI embeddings and LLM execution",
+    },
+    {
+        "secret_name": "context7_api_key",
+        "env_var": "CONTEXT7_API_KEY",
+        "label": "Context7 API Key",
+        "category": "mcp_server",
+        "description": "Context7 library docs (private repos)",
+    },
+]
+
+
+def _prompt_api_keys(no_interactive: bool = False) -> dict[str, Any]:
+    """Prompt for API keys and store them in the secret store.
+
+    Skips keys that are already stored or found in environment variables.
+    In non-interactive mode, skips all prompts.
+
+    Returns:
+        Dict with stored, skipped, env_found counts.
+    """
+    result: dict[str, Any] = {"stored": 0, "skipped": 0, "env_found": 0, "already_configured": 0}
+
+    if no_interactive:
+        return result
+
+    try:
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.secrets import SecretStore
+
+        db = LocalDatabase()
+        store = SecretStore(db)
+    except Exception as e:
+        click.echo(f"  Warning: Could not initialize secret store: {e}")
+        return result
+
+    click.echo("")
+    click.echo("-" * 40)
+    click.echo("API Keys (optional)")
+    click.echo("-" * 40)
+    click.echo("These enable external integrations. Press Enter to skip any.")
+    click.echo("")
+
+    for key_info in _API_KEY_PROMPTS:
+        secret_name = key_info["secret_name"]
+        env_var = key_info["env_var"]
+        label = key_info["label"]
+
+        # Check if already stored in secret store
+        if store.exists(secret_name):
+            click.echo(f"  {label}: (already configured)")
+            result["already_configured"] += 1
+            continue
+
+        # Check if set in environment
+        if os.environ.get(env_var):
+            click.echo(f"  {label}: (found in environment)")
+            result["env_found"] += 1
+            continue
+
+        # Prompt for value
+        try:
+            value = click.prompt(f"  {label}", default="", hide_input=True, show_default=False)
+        except (click.Abort, EOFError):
+            click.echo("")
+            break
+
+        if value.strip():
+            try:
+                store.set(
+                    name=secret_name,
+                    plaintext_value=value.strip(),
+                    category=key_info["category"],
+                    description=key_info["description"],
+                )
+                click.echo(f"    Stored {secret_name}")
+                result["stored"] += 1
+            except Exception as e:
+                click.echo(f"    Warning: Failed to store {secret_name}: {e}")
+        else:
+            result["skipped"] += 1
+
+    return result
+
+
 @click.command("install")
 @click.option(
     "--claude",
@@ -212,6 +317,12 @@ def _is_copilot_cli_installed() -> bool:
     help="Install hooks per-project instead of globally (legacy behavior)",
 )
 @click.option(
+    "--no-interactive",
+    "no_interactive_flag",
+    is_flag=True,
+    help="Skip interactive prompts (for CI/automation)",
+)
+@click.option(
     "-C",
     "--path",
     "working_dir",
@@ -232,6 +343,7 @@ def install(
     neo4j_flag: bool,
     neo4j_password: str | None,
     project_flag: bool,
+    no_interactive_flag: bool,
     working_dir: Path | None,
 ) -> None:
     """Install Gobby hooks to AI coding CLIs and Git.
@@ -591,22 +703,17 @@ def install(
     click.echo("  2. Start a new session in your AI coding CLI")
     click.echo("  3. Your sessions will now be tracked locally")
 
-    # Show MCP server API key instructions
-    click.echo("\nMCP Servers (via Gobby proxy):")
-    click.echo("  The following MCP servers are available through the Gobby proxy.")
-    click.echo("  Configure API keys to enable them:")
-    click.echo("")
-    click.echo("  GitHub (issues, PRs, repos):")
-    click.echo("    export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...")
-    click.echo("")
-    click.echo("  Linear (issue tracking):")
-    click.echo("    export LINEAR_API_KEY=lin_api_...")
-    click.echo("")
-    click.echo("  Context7 (library docs, optional for private repos):")
-    click.echo("    export CONTEXT7_API_KEY=...  # from context7.com/dashboard")
-    click.echo("")
-    click.echo("  Add these to your shell profile (~/.zshrc, ~/.bashrc) for persistence.")
-    click.echo("  Restart the daemon after setting: gobby restart")
+    # Prompt for API keys (interactive) or show instructions (non-interactive)
+    api_key_result = _prompt_api_keys(no_interactive=no_interactive_flag)
+    if no_interactive_flag or (api_key_result["stored"] == 0 and api_key_result["already_configured"] == 0 and api_key_result["env_found"] == 0):
+        click.echo("\nMCP Servers (via Gobby proxy):")
+        click.echo("  Configure API keys to enable external integrations:")
+        click.echo("    gobby secrets set github_personal_access_token")
+        click.echo("    gobby secrets set linear_api_key")
+        click.echo("    gobby secrets set openai_api_key")
+        click.echo("    gobby secrets set context7_api_key")
+        click.echo("  Or set environment variables (GITHUB_PERSONAL_ACCESS_TOKEN, etc.)")
+        click.echo("  Restart the daemon after setting: gobby restart")
 
     if not all_success:
         sys.exit(1)

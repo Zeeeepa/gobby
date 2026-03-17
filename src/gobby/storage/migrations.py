@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 156
+BASELINE_VERSION = 157
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -56,6 +56,7 @@ CREATE TABLE projects (
     github_url TEXT,
     github_repo TEXT,
     linear_team_id TEXT,
+    linear_synced_at TEXT,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1325,6 +1326,11 @@ CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
         156,
         "Drop raw_json column from session_messages (data archived to gzip files)",
         _drop_raw_json_column,
+    ),
+    (
+        157,
+        "Add linear_synced_at column to projects for bidirectional sync cursor",
+        "ALTER TABLE projects ADD COLUMN linear_synced_at TEXT",
     ),
 ]
 

@@ -39,12 +39,13 @@ def get_linear_deps() -> tuple[LocalTaskManager, MCPClientManager, LocalProjectM
 
 def get_sync_service(team_id: str | None = None) -> LinearSyncService:
     """Create LinearSyncService for CLI commands."""
-    task_manager, mcp_manager, _, project_id = get_linear_deps()
+    task_manager, mcp_manager, project_manager, project_id = get_linear_deps()
     return LinearSyncService(
         mcp_manager=mcp_manager,
         task_manager=task_manager,
         project_id=project_id,
         linear_team_id=team_id,
+        project_manager=project_manager,
     )
 
 
@@ -197,7 +198,7 @@ def linear_import(
 def linear_sync(task_id: str, json_format: bool) -> None:
     """Sync a task to its linked Linear issue.
 
-    Updates the Linear issue title and description to match the task.
+    Updates the Linear issue title, description, status, and priority to match the task.
     """
     try:
         task_manager, _, _, _ = get_linear_deps()
@@ -217,6 +218,107 @@ def linear_sync(task_id: str, json_format: bool) -> None:
         raise
     except ValueError as e:
         raise click.ClickException(str(e)) from None
+    except Exception as e:
+        raise click.ClickException(str(e)) from None
+
+
+@linear.command("sync-all")
+@click.argument("team_id", required=False)
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def linear_sync_all(team_id: str | None, json_format: bool) -> None:
+    """Bidirectional sync between gobby and Linear.
+
+    Pulls updates from Linear first, then pushes dirty gobby tasks back.
+    If TEAM_ID is not specified, uses the linked team.
+    """
+    try:
+        _, _, project_manager, project_id = get_linear_deps()
+
+        if not team_id:
+            project = project_manager.get(project_id)
+            team_id = project.linear_team_id if project else None
+            if not team_id:
+                raise click.ClickException(
+                    "No team specified and project not linked to a Linear team. "
+                    "Use 'gobby linear link <team_id>' first or specify the team."
+                )
+
+        service = get_sync_service(team_id)
+        result = asyncio.run(service.sync_all(team_id=team_id))
+
+        pull = result["pull"]
+        push = result["push"]
+
+        if json_format:
+            click.echo(json.dumps(result, indent=2))
+        else:
+            click.echo("✓ Linear sync complete")
+            click.echo(
+                f"  Pull: {pull['updated']} updated, "
+                f"{pull['skipped']} skipped, "
+                f"{pull['errors']} errors"
+            )
+            click.echo(
+                f"  Push: {push['pushed']} pushed, "
+                f"{push['skipped']} skipped, "
+                f"{push['errors']} errors"
+            )
+
+    except click.ClickException:
+        raise
+    except Exception as e:
+        raise click.ClickException(str(e)) from None
+
+
+@linear.command("auto-sync")
+@click.option("--interval", default=300, show_default=True, help="Sync interval in seconds")
+@click.option("--disable", is_flag=True, help="Disable the existing auto-sync job")
+def linear_auto_sync(interval: int, disable: bool) -> None:
+    """Create or manage a cron job for periodic Linear sync.
+
+    Creates an interval-based cron job named 'gobby:linear-sync' that triggers
+    bidirectional sync on the given interval. Use --disable to turn it off.
+    """
+    from gobby.storage.cron import CronJobStorage
+
+    try:
+        _, _, _, project_id = get_linear_deps()
+        db = LocalDatabase()
+        cron_storage = CronJobStorage(db)
+
+        existing = cron_storage.get_job_by_name("gobby:linear-sync")
+
+        if disable:
+            if not existing:
+                raise click.ClickException("No auto-sync job found to disable.")
+            cron_storage.update_job(existing.id, enabled=0)
+            click.echo("✓ Disabled Linear auto-sync job")
+            return
+
+        if existing:
+            cron_storage.update_job(
+                existing.id,
+                interval_seconds=interval,
+                enabled=1,
+            )
+            click.echo(
+                f"✓ Updated Linear auto-sync job: interval={interval}s (id={existing.id})"
+            )
+        else:
+            job = cron_storage.create_job(
+                project_id=project_id,
+                name="gobby:linear-sync",
+                description="Periodic bidirectional sync with Linear",
+                schedule_type="interval",
+                interval_seconds=interval,
+                action_type="handler",
+                action_config={"handler": "linear_sync"},
+                enabled=True,
+            )
+            click.echo(f"✓ Created Linear auto-sync job: interval={interval}s (id={job.id})")
+
+    except click.ClickException:
+        raise
     except Exception as e:
         raise click.ClickException(str(e)) from None
 
