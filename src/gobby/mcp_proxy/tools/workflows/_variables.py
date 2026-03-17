@@ -19,13 +19,18 @@ from gobby.workflows.state_manager import (
 logger = logging.getLogger(__name__)
 
 
-def _coerce_value(value: str | int | float | bool | None) -> str | int | float | bool | None:
+def _coerce_value(
+    value: str | int | float | bool | list | dict | None,
+) -> str | int | float | bool | list | dict | None:
     """Coerce string representations of booleans/null/numbers to native types.
 
     MCP schema collapses union types (str|int|float|bool|None) to "string",
     so agents send "true"/"false" as strings. Without coercion, "false" is
     truthy and breaks workflow gate conditions like pending_memory_review.
     """
+    # Lists and dicts pass through without coercion
+    if isinstance(value, (list, dict)):
+        return value
     if isinstance(value, str):
         stripped = value.strip().lower()
         if stripped in ("true", "false"):
@@ -46,7 +51,7 @@ def set_variable(
     session_manager: LocalSessionManager,
     db: DatabaseProtocol,
     name: str,
-    value: str | int | float | bool | None,
+    value: str | int | float | bool | list | dict | None,
     session_id: str | None = None,
     workflow: str | None = None,
     instance_manager: WorkflowInstanceManager | None = None,
