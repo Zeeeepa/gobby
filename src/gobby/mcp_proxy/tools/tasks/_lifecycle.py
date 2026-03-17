@@ -134,16 +134,45 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "message": commit_result.message,
                 }
 
-        # Auto-skip validation for certain close reasons
-        should_skip = skip_validation or reason.lower() in SKIP_REASONS
-
-        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        # Resolve session_id to UUID early (needed for skip_validation checks)
         resolved_session_id = session_id
         if session_id:
             try:
                 resolved_session_id = ctx.resolve_session_id(session_id)
             except ValueError:
                 pass  # Fall back to raw value if resolution fails
+
+        # Enforce skip_validation constraints:
+        # - Cannot skip if a commit_sha is provided (you did real work, validate it)
+        # - Cannot skip if the task was claimed by this session (you own it, validate it)
+        # - Cannot skip without override_justification
+        if skip_validation:
+            if commit_sha:
+                return {
+                    "success": False,
+                    "error": "skip_validation_with_commit",
+                    "message": "Cannot skip validation when a commit_sha is provided. "
+                    "If you're linking a commit, you did real work — let validation verify it.",
+                }
+            if not override_justification:
+                return {
+                    "success": False,
+                    "error": "skip_validation_no_justification",
+                    "message": "override_justification is required when skip_validation=True. "
+                    "Explain why validation should be skipped.",
+                }
+            # Check if task was claimed by the calling session
+            if resolved_session_id and task.assignee == resolved_session_id:
+                return {
+                    "success": False,
+                    "error": "skip_validation_own_task",
+                    "message": "Cannot skip validation on a task you claimed. "
+                    "You own this work — let validation verify it. "
+                    "Write a detailed changes_summary instead.",
+                }
+
+        # Auto-skip validation for certain close reasons
+        should_skip = skip_validation or reason.lower() in SKIP_REASONS
 
         # Enforce commits if session had edits
         # Only skip for explicit skip_validation, NOT for close reasons like out_of_repo
