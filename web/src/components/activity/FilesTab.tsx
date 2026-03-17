@@ -7,59 +7,98 @@ interface FilesTabProps {
 interface FileEntry {
   name: string
   path: string
-  type: 'file' | 'directory'
+  is_dir: boolean
+  size?: number
+  extension?: string
   children?: FileEntry[]
+  loaded?: boolean
 }
 
 export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
-  const [tree, setTree] = useState<FileEntry[]>([])
+  const [rootEntries, setRootEntries] = useState<FileEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
+  const [childrenMap, setChildrenMap] = useState<Map<string, FileEntry[]>>(new Map())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
 
+  // Fetch root directory
   useEffect(() => {
+    if (!projectId) {
+      setRootEntries([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-    const params = new URLSearchParams()
-    if (projectId) params.set('project_id', projectId)
-    fetch(`${baseUrl}/api/files?${params}`)
-      .then((res) => (res.ok ? res.json() : { entries: [] }))
-      .then((data) => setTree(data.entries ?? []))
-      .catch(() => setTree([]))
+    fetch(`${baseUrl}/api/files/tree?project_id=${encodeURIComponent(projectId)}&path=`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setRootEntries(Array.isArray(data) ? data : []))
+      .catch(() => setRootEntries([]))
       .finally(() => setLoading(false))
   }, [projectId])
+
+  const loadChildren = useCallback((dirPath: string) => {
+    if (!projectId || childrenMap.has(dirPath)) return
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    fetch(`${baseUrl}/api/files/tree?project_id=${encodeURIComponent(projectId)}&path=${encodeURIComponent(dirPath)}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        setChildrenMap((prev) => {
+          const next = new Map(prev)
+          next.set(dirPath, Array.isArray(data) ? data : [])
+          return next
+        })
+      })
+      .catch(() => {
+        setChildrenMap((prev) => {
+          const next = new Map(prev)
+          next.set(dirPath, [])
+          return next
+        })
+      })
+  }, [projectId, childrenMap])
 
   const toggleDir = useCallback((path: string) => {
     setExpandedPaths((prev) => {
       const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+        loadChildren(path)
+      }
       return next
     })
-  }, [])
+  }, [loadChildren])
 
   const openFile = useCallback((path: string) => {
+    if (!projectId) return
     setSelectedFile(path)
     setFileLoading(true)
     setFileContent(null)
     const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-    fetch(`${baseUrl}/api/files/content?path=${encodeURIComponent(path)}`)
-      .then((res) => (res.ok ? res.text() : 'Failed to load file'))
-      .then(setFileContent)
+    fetch(`${baseUrl}/api/files/read?project_id=${encodeURIComponent(projectId)}&path=${encodeURIComponent(path)}`)
+      .then((res) => (res.ok ? res.json() : { content: 'Failed to load file' }))
+      .then((data) => setFileContent(data.content ?? data.error ?? 'No content'))
       .catch(() => setFileContent('Error loading file'))
       .finally(() => setFileLoading(false))
-  }, [])
+  }, [projectId])
 
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading files...</p></div>
   }
 
+  if (!projectId) {
+    return <div className="activity-tab-empty"><p>No project selected</p></div>
+  }
+
   const renderEntry = (entry: FileEntry, depth: number) => {
-    const isDir = entry.type === 'directory'
+    const isDir = entry.is_dir
     const isExpanded = expandedPaths.has(entry.path)
     const isSelected = entry.path === selectedFile
+    const children = childrenMap.get(entry.path)
 
     return (
       <div key={entry.path}>
@@ -77,8 +116,18 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
           )}
           <span className="text-xs shrink-0">{isDir ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}</span>
           <span className="text-foreground truncate">{entry.name}</span>
+          {!isDir && entry.size != null && (
+            <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+              {entry.size < 1024 ? `${entry.size}B` : entry.size < 1048576 ? `${(entry.size / 1024).toFixed(0)}K` : `${(entry.size / 1048576).toFixed(1)}M`}
+            </span>
+          )}
         </div>
-        {isDir && isExpanded && entry.children?.map((c) => renderEntry(c, depth + 1))}
+        {isDir && isExpanded && children?.map((c) => renderEntry(c, depth + 1))}
+        {isDir && isExpanded && !children && (
+          <div style={{ paddingLeft: `${22 + depth * 14}px` }} className="text-xs text-muted-foreground py-1">
+            Loading...
+          </div>
+        )}
       </div>
     )
   }
@@ -87,10 +136,10 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
     <div className="flex flex-col h-full">
       {/* File tree */}
       <div className={`overflow-y-auto ${selectedFile ? 'max-h-[40%] border-b border-border' : 'flex-1'}`}>
-        {tree.length === 0 ? (
+        {rootEntries.length === 0 ? (
           <div className="activity-tab-empty"><p>No files</p></div>
         ) : (
-          tree.map((e) => renderEntry(e, 0))
+          rootEntries.map((e) => renderEntry(e, 0))
         )}
       </div>
 
@@ -100,7 +149,7 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/30">
             <span className="text-xs text-foreground font-mono truncate">{selectedFile}</span>
             <button
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs text-muted-foreground hover:text-foreground shrink-0 ml-2"
               onClick={() => { setSelectedFile(null); setFileContent(null) }}
             >
               Close

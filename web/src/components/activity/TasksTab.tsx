@@ -38,12 +38,14 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
+    if (!showClosed) params.set('status', 'open')
+    params.set('limit', '200')
     fetch(`${baseUrl}/api/tasks?${params}`)
       .then((res) => (res.ok ? res.json() : { tasks: [] }))
       .then((data) => setTasks(data.tasks ?? []))
       .catch(() => setTasks([]))
       .finally(() => setLoading(false))
-  }, [projectId])
+  }, [projectId, showClosed])
 
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading tasks...</p></div>
