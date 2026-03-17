@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from gobby.search import SearchConfig
 from gobby.skills.search import SearchFilters, SkillSearch, SkillSearchResult
 from gobby.storage.skills import (
     ChangeEvent,
@@ -60,12 +61,16 @@ class SkillManager:
         self,
         db: DatabaseProtocol,
         project_id: str | None = None,
+        search_config: SearchConfig | None = None,
     ):
         """Initialize the skill manager.
 
         Args:
             db: Database connection for storage
             project_id: Optional default project scope
+            search_config: Optional search config with embedding_api_key
+                for embedding-based skill search. Falls back to TF-IDF
+                when None or when the key is unavailable.
         """
         self._project_id = project_id
 
@@ -76,8 +81,8 @@ class SkillManager:
         # Initialize storage with notifier
         self._storage = LocalSkillManager(db, notifier=self._notifier)
 
-        # Initialize search
-        self._search = SkillSearch()
+        # Initialize search with config (propagates embedding API key)
+        self._search = SkillSearch(config=search_config)
 
     @property
     def storage(self) -> LocalSkillManager:

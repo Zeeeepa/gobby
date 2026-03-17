@@ -381,6 +381,7 @@ def setup_internal_registries(
             db=db,
             project_id=project_id,
             hub_manager=hub_manager,
+            search_config=_config.get_search_config() if _config else None,
         )
         manager.add_registry(skills_registry)
         logger.debug("Skills registry initialized")

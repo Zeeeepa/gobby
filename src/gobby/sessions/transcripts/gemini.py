@@ -117,7 +117,7 @@ class GeminiTranscriptParser:
         try:
             data = json.loads(line)
         except json.JSONDecodeError:
-            self.logger.warning(f"Invalid JSON at line {index}")
+            self.logger.debug(f"Invalid JSON at line {index}")
             return None
 
         # Ensure data is a dict (JSON could be a string, number, etc.)

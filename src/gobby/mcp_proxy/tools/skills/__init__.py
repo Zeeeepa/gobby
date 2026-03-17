@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.search import SearchConfig
 from gobby.skills.hubs.manager import HubManager
 from gobby.skills.loader import SkillLoader, SkillLoadError
 from gobby.skills.search import SearchFilters, SkillSearch
@@ -46,6 +47,7 @@ def create_skills_registry(
     db: DatabaseProtocol,
     project_id: str | None = None,
     hub_manager: HubManager | None = None,
+    search_config: SearchConfig | None = None,
 ) -> SkillsToolRegistry:
     """
     Create a skills management tool registry.
@@ -241,7 +243,7 @@ def create_skills_registry(
     # --- search_skills tool ---
 
     # Initialize search and index skills
-    search = SkillSearch()
+    search = SkillSearch(config=search_config)
     # Expose search instance on registry for testing/manual indexing
     registry.search = search
 

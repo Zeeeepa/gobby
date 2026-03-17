@@ -125,6 +125,34 @@ class TestSessionMemoryExtractor:
         candidates = extractor._parse_llm_response(response)
         assert len(candidates) == 0
 
+    def test_parse_llm_response_jsonl_fallback(self, extractor) -> None:
+        """Test JSONL fallback when objects lack commas between them."""
+        response = """[
+  {"content": "First memory", "memory_type": "fact", "tags": ["a"]}
+  {"content": "Second memory", "memory_type": "pattern", "tags": ["b"]}
+]"""
+        candidates = extractor._parse_llm_response(response)
+        assert len(candidates) == 2
+        assert candidates[0].content == "First memory"
+        assert candidates[0].memory_type == "fact"
+        assert candidates[1].content == "Second memory"
+        assert candidates[1].memory_type == "pattern"
+
+    def test_parse_jsonl_fallback_method(self, extractor) -> None:
+        """Test _parse_jsonl_fallback directly with various formats."""
+        # Compact JSONL (no outer brackets)
+        json_str = '{"content": "One", "tags": []}\n{"content": "Two", "tags": []}'
+        candidates = extractor._parse_jsonl_fallback(json_str)
+        assert len(candidates) == 2
+
+    def test_parse_jsonl_fallback_with_invalid_fragments(self, extractor) -> None:
+        """Test JSONL fallback skips invalid fragments gracefully."""
+        # One valid object followed by a malformed one
+        json_str = '[{"content": "Valid", "tags": []}\n{"broken: invalid json}]'
+        candidates = extractor._parse_jsonl_fallback(json_str)
+        assert len(candidates) == 1
+        assert candidates[0].content == "Valid"
+
     def test_parse_llm_response_normalizes_types(self, extractor) -> None:
         """Test that invalid memory types are normalized to 'fact'."""
         response = '[{"content": "Test", "memory_type": "invalid"}]'
