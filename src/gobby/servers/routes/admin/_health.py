@@ -187,7 +187,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
                 vector_store = getattr(server.memory_manager, "_vector_store", None)
                 qdrant_configured = vector_store is not None
                 qdrant_healthy = False
-                if qdrant_configured:
+                if vector_store is not None:
                     qdrant_client = getattr(vector_store, "_client", None)
                     if qdrant_client is not None:
                         try:

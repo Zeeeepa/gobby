@@ -219,7 +219,7 @@ def create_skills_registry(
                     pass  # Best-effort tracking; don't fail the skill lookup
 
             # Build response
-            skill_data = {
+            skill_data: dict[str, Any] = {
                 "id": skill.id,
                 "name": skill.name,
                 "description": skill.description,

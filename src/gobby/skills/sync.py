@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.skills import LocalSkillManager, Skill, SkillFile
 
-__all__ = ["sync_bundled_skills", "get_bundled_skills_path"]
+__all__: list[str] = ["sync_bundled_skills", "get_bundled_skills_path"]
 
 logger = logging.getLogger(__name__)
 

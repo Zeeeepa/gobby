@@ -687,4 +687,5 @@ class TaskSyncManager:
             logger.warning(f"gh CLI failed: {result.stderr}")
             return []
 
-        return json.loads(result.stdout)
+        parsed: list[dict[str, Any]] = json.loads(result.stdout)
+        return parsed

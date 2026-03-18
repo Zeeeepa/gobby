@@ -24,6 +24,7 @@ import subprocess  # nosec B404
 import sys
 import threading
 import urllib.request  # nosec B404
+from typing import Any
 
 _DEFAULT_PORT = 60887
 _BOOTSTRAP_PATH = os.path.expanduser("~/.gobby/bootstrap.yaml")
@@ -56,7 +57,7 @@ def _post_to_daemon(port: int, payload: bytes) -> None:
         pass  # Silent — must never break Claude Code's display
 
 
-def _extract_payload(data: dict) -> dict | None:
+def _extract_payload(data: dict[str, Any]) -> dict[str, Any] | None:
     """Extract the fields we care about from Claude Code's statusline JSON."""
     session_id = data.get("session_id")
     if not session_id:

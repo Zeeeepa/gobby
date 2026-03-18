@@ -497,7 +497,7 @@ class LocalSkillManager:
                 "SELECT id, path, content_hash, deleted_at FROM skill_files WHERE skill_id = ?",
                 (skill_id,),
             ).fetchall()
-            existing_by_path: dict[str, dict] = {
+            existing_by_path: dict[str, dict[str, Any]] = {
                 row["path"]: {
                     "id": row["id"],
                     "hash": row["content_hash"],
