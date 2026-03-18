@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
-import { StatusBadge, StepDisplay, formatTime, type StepData } from '../workflows/execution-utils'
+import { PipelineStatusDot, StepDisplay, formatDateTime, formatDuration, type StepData } from '../workflows/execution-utils'
 
 interface PipelinesTabProps {
   projectId?: string | null
@@ -125,9 +125,8 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
                 <span className="text-sm text-foreground truncate">{exec.pipeline_name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge status={exec.status} />
                 {exec.started_at && (
-                  <span className="text-[10px] text-muted-foreground shrink-0">{formatTime(exec.started_at)}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{formatDateTime(exec.started_at)}</span>
                 )}
               </div>
             </div>
@@ -140,8 +139,13 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/30">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-xs text-foreground truncate">{detailExec.pipeline_name}</span>
-              <StatusBadge status={detailExec.status} />
+              <PipelineStatusDot status={detailExec.status} />
+              <span className="text-xs font-medium text-foreground truncate">{detailExec.pipeline_name}</span>
+              {detailExec.started_at && detailExec.completed_at && (
+                <span className="text-[10px] text-muted-foreground">
+                  {formatDuration(detailExec.started_at, detailExec.completed_at)}
+                </span>
+              )}
             </div>
             <button
               className="text-xs text-muted-foreground hover:text-foreground shrink-0"
@@ -150,13 +154,16 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
               Close
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="flex-1 overflow-y-auto">
             {detailExec.steps && detailExec.steps.length > 0 ? (
-              <div className="space-y-1">
-                {detailExec.steps.map((step, i) => (
-                  <StepDisplay key={step.step_id ?? i} step={step} index={i} />
-                ))}
-              </div>
+              <>
+                <StepSummaryBar steps={detailExec.steps} />
+                <div className="pipeline-steps-timeline">
+                  {detailExec.steps.map((step, i) => (
+                    <StepDisplay key={step.step_id ?? i} step={step} index={i} />
+                  ))}
+                </div>
+              </>
             ) : (
               <p className="text-xs text-muted-foreground p-2">No steps available</p>
             )}
@@ -166,6 +173,18 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
     </div>
   )
 })
+
+function StepSummaryBar({ steps }: { steps: StepData[] }) {
+  const completed = steps.filter((s) => s.status === 'completed' || s.status === 'success').length
+  const failed = steps.filter((s) => s.status === 'failed' || s.status === 'error').length
+  return (
+    <div className="flex items-center gap-3 px-3 py-1.5 text-[10px] text-muted-foreground border-b border-border">
+      <span>{steps.length} step{steps.length !== 1 ? 's' : ''}</span>
+      {completed > 0 && <span className="text-green-400">{completed} passed</span>}
+      {failed > 0 && <span className="text-red-400">{failed} failed</span>}
+    </div>
+  )
+}
 
 function ExecutionStatusIcon({ status }: { status: string }) {
   if (status === 'completed' || status === 'success') {
