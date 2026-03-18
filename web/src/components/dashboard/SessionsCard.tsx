@@ -1,18 +1,30 @@
 import { useTimeStats } from '../../hooks/useTimeStats'
 
-const STATUS_SEGMENTS: { key: string; label: string; color: string }[] = [
-  { key: 'active', label: 'Active', color: '#22c55e' },
-  { key: 'paused', label: 'Paused', color: '#f59e0b' },
-  { key: 'handoff_ready', label: 'Handoff Ready', color: '#8b5cf6' },
-]
-
 const SOURCE_COLORS: Record<string, string> = {
-  claude_code: '#f97316',
+  claude: '#f97316',
   gemini: '#3b82f6',
   cursor: '#06b6d4',
   windsurf: '#10b981',
   copilot: '#8b5cf6',
+  claude_sdk: '#f59e0b',
+  claude_sdk_web_chat: '#ec4899',
+  pipeline: '#737373',
+  cron: '#a3a3a3',
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  claude: 'Claude',
+  gemini: 'Gemini',
+  cursor: 'Cursor',
+  windsurf: 'Windsurf',
+  copilot: 'Copilot',
+  claude_sdk: 'Claude SDK',
+  claude_sdk_web_chat: 'Web Chat',
+  pipeline: 'Pipeline',
+  cron: 'Cron',
+}
+
+const FALLBACK_COLOR = '#525252'
 
 const SIZE = 120
 const STROKE = 18
@@ -28,38 +40,29 @@ export function SessionsCard({ hours, projectId }: Props) {
   const { data } = useTimeStats(hours, projectId)
 
   const sessions = data?.sessions ?? { active: 0, paused: 0, handoff_ready: 0, total: 0, by_source: {} }
+  const bySource = sessions.by_source ?? {}
 
-  const other = Math.max(
-    0,
-    sessions.total - sessions.active - sessions.paused - sessions.handoff_ready
-  )
-
-  const segments = [
-    ...STATUS_SEGMENTS.map(s => ({ ...s, value: sessions[s.key as keyof typeof sessions] as number })),
-    ...(other > 0 ? [{ key: 'other', label: 'Expired/Closed', color: '#737373', value: other }] : []),
-  ]
+  // Build segments from source data, filter out zeros
+  const segments = Object.entries(bySource)
+    .map(([src, statuses]) => ({
+      key: src,
+      label: SOURCE_LABELS[src] ?? src,
+      color: SOURCE_COLORS[src] ?? FALLBACK_COLOR,
+      value: Object.values(statuses).reduce((sum, n) => sum + n, 0),
+    }))
+    .filter(s => s.value > 0)
+    .sort((a, b) => b.value - a.value)
 
   const total = segments.reduce((sum, s) => sum + s.value, 0)
 
   let offset = 0
-  const arcs = segments
-    .filter(s => s.value > 0)
-    .map(s => {
-      const fraction = total > 0 ? s.value / total : 0
-      const dashLen = fraction * CIRCUMFERENCE
-      const arc = { ...s, dashLen, dashOffset: -offset }
-      offset += dashLen
-      return arc
-    })
-
-  // Source breakdown from by_source data
-  const bySource = sessions.by_source ?? {}
-  const sourceEntries = Object.entries(bySource)
-    .map(([src, statuses]) => ({
-      source: src,
-      total: Object.values(statuses).reduce((sum, n) => sum + n, 0),
-    }))
-    .sort((a, b) => b.total - a.total)
+  const arcs = segments.map(s => {
+    const fraction = total > 0 ? s.value / total : 0
+    const dashLen = fraction * CIRCUMFERENCE
+    const arc = { ...s, dashLen, dashOffset: -offset }
+    offset += dashLen
+    return arc
+  })
 
   return (
     <div className="dash-card">
@@ -82,38 +85,18 @@ export function SessionsCard({ hours, projectId }: Props) {
             ))
           )}
           <text x={SIZE / 2} y={SIZE / 2 - 6} textAnchor="middle" fill="#e5e5e5"
-            fontSize="22" fontWeight="bold">{sessions.total}</text>
+            fontSize="22" fontWeight="bold">{total}</text>
           <text x={SIZE / 2} y={SIZE / 2 + 12} textAnchor="middle" fill="#a3a3a3"
             fontSize="10">total</text>
         </svg>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="dash-status-list">
-            {segments.map(({ key, label, color, value }) => (
-              <div key={key} className={`dash-status-row${key === 'other' ? ' dash-status-row--dimmed' : ''}`}>
-                <span className="dash-legend-dot" style={{ background: color }} />
-                <span className="dash-status-row-label">{label}</span>
-                <span className="dash-status-row-value">{value}</span>
-              </div>
-            ))}
-          </div>
-          {sourceEntries.length > 0 && (
-            <div className="dash-breakdown">
-              {sourceEntries.map(({ source, total: cnt }) => (
-                <div key={source} className="dash-breakdown-row">
-                  <span className="dash-breakdown-label">
-                    <span className="dash-legend-dot" style={{
-                      background: SOURCE_COLORS[source] ?? '#737373',
-                      display: 'inline-block',
-                      marginRight: 6,
-                      verticalAlign: 'middle',
-                    }} />
-                    {source.replace(/_/g, ' ')}
-                  </span>
-                  <span className="dash-breakdown-value">{cnt}</span>
-                </div>
-              ))}
+        <div className="dash-status-list" style={{ flex: 1, minWidth: 0 }}>
+          {segments.map(({ key, label, color, value }) => (
+            <div key={key} className="dash-status-row">
+              <span className="dash-legend-dot" style={{ background: color }} />
+              <span className="dash-status-row-label">{label}</span>
+              <span className="dash-status-row-value">{value}</span>
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>

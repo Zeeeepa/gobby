@@ -73,9 +73,9 @@ export function DashboardPage() {
             <TasksCard hours={hours} projectId={projectId} />
             <SessionsCard hours={hours} projectId={projectId} />
 
-            {/* Row 2: Savings + Usage + Memory */}
-            <SavingsCard hours={hours} projectId={projectId} />
+            {/* Row 2: Usage + Savings + Memory */}
             <UsageCard hours={hours} projectId={projectId} />
+            <SavingsCard hours={hours} projectId={projectId} />
             <MemoryCard hours={hours} projectId={projectId} />
 
             {/* Row 3: Metrics charts (full width) */}

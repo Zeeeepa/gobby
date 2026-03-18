@@ -15,7 +15,10 @@ function formatUsd(value: number): string {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
+  claude: 'Claude',
   claude_code: 'Claude Code',
+  claude_sdk: 'Claude SDK',
+  claude_sdk_web_chat: 'Web Chat',
   gemini: 'Gemini',
   cursor: 'Cursor',
   windsurf: 'Windsurf',
@@ -39,7 +42,14 @@ export function UsageCard({ hours, projectId }: Props) {
   const bySource = data?.by_source ?? {}
   const byModel = data?.by_model ?? {}
 
+  // Filter out sources with no usage
+  const sourceEntries = Object.entries(bySource)
+    .filter(([, u]) => u.input_tokens + u.output_tokens > 0)
+    .sort(([, a], [, b]) => (b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens))
+
+  // Filter out unknown/synthetic models and zero-usage models
   const topModels = Object.entries(byModel)
+    .filter(([model, u]) => model !== 'unknown' && model !== '<synthetic>' && (u.input_tokens + u.output_tokens) > 0)
     .sort(([, a], [, b]) => (b.input_tokens + b.output_tokens) - (a.input_tokens + a.output_tokens))
     .slice(0, 5)
 
@@ -68,9 +78,9 @@ export function UsageCard({ hours, projectId }: Props) {
           </div>
         </div>
 
-        {Object.keys(bySource).length > 0 && (
+        {sourceEntries.length > 0 && (
           <div className="dash-breakdown">
-            {Object.entries(bySource).map(([src, usage]) => (
+            {sourceEntries.map(([src, usage]) => (
               <div key={src} className="dash-breakdown-row">
                 <span className="dash-breakdown-label">
                   {SOURCE_LABELS[src] ?? src}

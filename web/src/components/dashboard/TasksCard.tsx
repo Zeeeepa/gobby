@@ -6,7 +6,7 @@ type TaskStats = {
   ready: number; blocked: number; closed_24h: number
 }
 
-const SEGMENTS: { key: keyof TaskStats; label: string; color: string; dimmed?: boolean }[] = [
+const PIE_SEGMENTS: { key: keyof TaskStats; label: string; color: string }[] = [
   { key: 'ready', label: 'Ready', color: '#8b5cf6' },
   { key: 'in_progress', label: 'In Progress', color: '#f59e0b' },
   { key: 'blocked', label: 'Blocked', color: '#ef4444' },
@@ -36,19 +36,18 @@ export function TasksCard({ hours, projectId }: Props) {
 
   const openTotal = tasks.ready + tasks.in_progress + tasks.blocked +
     tasks.needs_review + tasks.review_approved + tasks.escalated
-  const segments = SEGMENTS.map(s => ({ ...s, value: tasks[s.key] ?? 0 }))
+  const segments = PIE_SEGMENTS.map(s => ({ ...s, value: tasks[s.key] ?? 0 }))
+    .filter(s => s.value > 0)
   const total = segments.reduce((sum, s) => sum + s.value, 0)
 
   let offset = 0
-  const arcs = segments
-    .filter(s => s.value > 0)
-    .map(s => {
-      const fraction = total > 0 ? s.value / total : 0
-      const dashLen = fraction * CIRCUMFERENCE
-      const arc = { ...s, dashLen, dashOffset: -offset }
-      offset += dashLen
-      return arc
-    })
+  const arcs = segments.map(s => {
+    const fraction = total > 0 ? s.value / total : 0
+    const dashLen = fraction * CIRCUMFERENCE
+    const arc = { ...s, dashLen, dashOffset: -offset }
+    offset += dashLen
+    return arc
+  })
 
   return (
     <div className="dash-card">
@@ -76,13 +75,19 @@ export function TasksCard({ hours, projectId }: Props) {
             fontSize="10">open</text>
         </svg>
         <div className="dash-status-list" style={{ flex: 1, minWidth: 0 }}>
-          {segments.map(({ key, label, color, value, dimmed }) => (
-            <div key={key} className={`dash-status-row${dimmed ? ' dash-status-row--dimmed' : ''}`}>
+          {segments.map(({ key, label, color, value }) => (
+            <div key={key} className="dash-status-row">
               <span className="dash-legend-dot" style={{ background: color }} />
               <span className="dash-status-row-label">{label}</span>
               <span className="dash-status-row-value">{value}</span>
             </div>
           ))}
+          {tasks.closed > 0 && (
+            <div className="dash-status-row dash-status-row--dimmed" style={{ marginTop: 4 }}>
+              <span className="dash-status-row-label">Closed</span>
+              <span className="dash-status-row-value">{tasks.closed}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

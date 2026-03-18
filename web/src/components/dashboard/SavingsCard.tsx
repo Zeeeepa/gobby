@@ -57,7 +57,9 @@ export function SavingsCard({ hours, projectId }: Props) {
         </div>
         {Object.keys(categories).length > 0 && (
           <div className="dash-breakdown">
-            {Object.entries(categories).map(([cat, catData]) => (
+            {Object.entries(categories)
+              .filter(([, catData]) => catData.tokens_saved > 0)
+              .map(([cat, catData]) => (
               <div key={cat} className="dash-breakdown-row">
                 <span className="dash-breakdown-label">
                   {CATEGORY_LABELS[cat] ?? cat}
