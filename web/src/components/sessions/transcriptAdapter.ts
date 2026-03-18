@@ -54,11 +54,12 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
     const content = msg.content?.trim() ?? ''
 
     // Tool-use messages: create ToolCall and attach to last assistant message
-    if (msg.tool_name) {
+    if (msg.tool_name || msg.content_type === 'tool_use') {
+      const toolName = msg.tool_name || 'unknown'
       const toolCall: ToolCall = {
         id: msg.tool_use_id || `tool-${msg.id}`,
-        tool_name: msg.tool_name,
-        server_name: extractServerName(msg.tool_name),
+        tool_name: toolName,
+        server_name: extractServerName(toolName),
         status: 'completed',
         arguments: tryParseJson(msg.tool_input),
         result: tryParseResult(msg.tool_result),
@@ -67,6 +68,32 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
         lastAssistant.toolCalls = lastAssistant.toolCalls || []
         lastAssistant.toolCalls.push(toolCall)
         appendToolBlock(lastAssistant, toolCall)
+      }
+      continue
+    }
+
+    // Tool result messages: attach to the pending tool call on the last assistant
+    if (msg.content_type === 'tool_result' || (msg.role === 'tool') || (msg.role === 'user' && msg.tool_use_id)) {
+      if (lastAssistant?.toolCalls) {
+        const match = msg.tool_use_id
+          ? lastAssistant.toolCalls.find((tc) => tc.id === msg.tool_use_id)
+          : lastAssistant.toolCalls.find((tc) => tc.status !== 'completed')
+        if (match) {
+          match.result = tryParseResult(content || msg.tool_result)
+          match.status = 'completed'
+          // Update in contentBlocks too
+          if (lastAssistant.contentBlocks) {
+            for (const block of lastAssistant.contentBlocks) {
+              if (block.type === 'tool_chain') {
+                const tcMatch = block.calls.find((c) => c.id === match.id)
+                if (tcMatch) {
+                  tcMatch.result = match.result
+                  tcMatch.status = 'completed'
+                }
+              }
+            }
+          }
+        }
       }
       continue
     }
