@@ -1,6 +1,9 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { markdownComponents } from '../shared/MarkdownComponents'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 
 // Custom theme matching the app (same as FilesPage)
@@ -374,6 +377,12 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
                 onChange={setEditContent}
                 onSave={handleSaveEdit}
               />
+            ) : language === 'markdown' ? (
+              <div className="files-markdown-viewer">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {fileContent ?? ''}
+                </ReactMarkdown>
+              </div>
             ) : (
               <SyntaxHighlighter
                 language={language}

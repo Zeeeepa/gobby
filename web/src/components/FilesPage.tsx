@@ -3,6 +3,9 @@ import './FilesPage.css'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { CodeMirrorEditor } from './shared/CodeMirrorEditor'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { markdownComponents } from './shared/MarkdownComponents'
 import { undo, redo } from '@codemirror/commands'
 import type { EditorView } from '@codemirror/view'
 import type { FileEntry, OpenFile, Project, GitStatus } from '../hooks/useFiles'
@@ -501,6 +504,18 @@ function FileContent({ file, getImageUrl, onContentChange, onSave, editorViewRef
           onSave={onSave}
           editorViewRef={editorViewRef}
         />
+      </div>
+    )
+  }
+
+  if (file.language === 'markdown') {
+    return (
+      <div className="files-code-viewer">
+        <div className="files-markdown-viewer">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {file.content}
+          </ReactMarkdown>
+        </div>
       </div>
     )
   }

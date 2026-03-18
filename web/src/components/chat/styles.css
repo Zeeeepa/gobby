@@ -2482,6 +2482,15 @@
   font-style: italic;
 }
 
+/* Markdown viewer */
+.files-markdown-viewer {
+  padding: 1rem 1.5rem;
+  font-size: calc(var(--font-size-base) * 0.875);
+  line-height: 1.7;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+}
+
 /* File context menu */
 .file-ctx-backdrop {
   position: fixed;
