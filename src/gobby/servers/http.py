@@ -603,9 +603,7 @@ class HTTPServer:
                     dispatch_summaries_fn=getattr(
                         app.state.hook_manager, "_dispatch_session_summaries", None
                     ),
-                    message_processor=getattr(
-                        app.state.hook_manager, "_message_processor", None
-                    ),
+                    message_processor=getattr(app.state.hook_manager, "_message_processor", None),
                 )
                 app.state.liveness_monitor = liveness_monitor
                 await liveness_monitor.start()

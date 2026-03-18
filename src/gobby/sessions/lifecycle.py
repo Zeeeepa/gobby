@@ -240,8 +240,7 @@ class SessionLifecycleManager:
                 logger.debug(f"Processed transcript for session {session.id}")
             else:
                 logger.info(
-                    f"Deferring transcript_processed for {session.id} "
-                    f"— summaries not yet generated"
+                    f"Deferring transcript_processed for {session.id} — summaries not yet generated"
                 )
 
             # Step 5: Best-effort backup of the transcript archive

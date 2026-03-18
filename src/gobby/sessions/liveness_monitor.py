@@ -76,12 +76,8 @@ class SessionLivenessMonitor:
         """Start the background polling task."""
         if self._task is not None:
             return
-        self._task = asyncio.create_task(
-            self._poll_loop(), name="session-liveness-monitor"
-        )
-        logger.info(
-            "SessionLivenessMonitor started (interval=%.0fs)", self._poll_interval
-        )
+        self._task = asyncio.create_task(self._poll_loop(), name="session-liveness-monitor")
+        logger.info("SessionLivenessMonitor started (interval=%.0fs)", self._poll_interval)
 
     async def stop(self) -> None:
         """Cancel the background polling task."""
@@ -123,9 +119,7 @@ class SessionLivenessMonitor:
         # 1. Prune expired entries from recently-handled set
         now = time.monotonic()
         expired = [
-            sid
-            for sid, ts in self._recently_handled.items()
-            if now - ts > _RECENTLY_HANDLED_TTL
+            sid for sid, ts in self._recently_handled.items() if now - ts > _RECENTLY_HANDLED_TTL
         ]
         for sid in expired:
             del self._recently_handled[sid]
