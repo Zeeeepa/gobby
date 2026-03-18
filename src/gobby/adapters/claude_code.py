@@ -242,6 +242,13 @@ class ClaudeCodeAdapter(BaseAdapter):
                         context_lines.append(f"machine_id: {response.metadata['machine_id']}")
                     if response.metadata.get("project_id"):
                         context_lines.append(f"project_id: {response.metadata['project_id']}")
+                    # Add assigned task for agent sessions (disambiguate from session ref)
+                    task_id = response.metadata.get("task_id")
+                    if task_id:
+                        context_lines.append(
+                            f"Assigned Task: {task_id}"
+                            " (use this for task operations, NOT the session ID above)"
+                        )
                     # Add terminal context (non-null values only)
                     if response.metadata.get("terminal_term_program"):
                         context_lines.append(
