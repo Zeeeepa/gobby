@@ -1754,7 +1754,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 0.75rem;
-  height: 36px;
+  height: 40px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -2087,14 +2087,13 @@
 .activity-panel-tab {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.625rem;
+  justify-content: center;
+  padding: 0 0.75rem;
+  height: 40px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: calc(var(--font-size-base) * 0.75);
-  white-space: nowrap;
   transition: color 0.1s, background 0.1s;
   border-bottom: 2px solid transparent;
 }
@@ -2110,17 +2109,9 @@
 }
 
 .activity-panel-tab-icon {
-  font-size: calc(var(--font-size-base) * 0.7);
-}
-
-.activity-panel-tab-label {
-  display: none;
-}
-
-@media (min-width: 1200px) {
-  .activity-panel-tab-label {
-    display: inline;
-  }
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .activity-panel-pin {
