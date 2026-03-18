@@ -2,6 +2,7 @@ import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import type { GobbySession } from '../../hooks/useSessions'
 import { useSessionDetail } from '../../hooks/useSessionDetail'
+import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { sessionMessagesToChatMessages } from '../sessions/transcriptAdapter'
 import { MessageItem } from '../chat/MessageItem'
 import { ArtifactContext } from '../chat/artifacts/ArtifactContext'
@@ -33,6 +34,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSess
   const [topHeight, setTopHeight] = useState(35)
   const [expiringIds, setExpiringIds] = useState<Set<string>>(new Set())
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { confirm, ConfirmDialogElement } = useConfirmDialog()
 
   // No-op artifact context for MessageItem rendering
   const noopArtifactCtx = useMemo(() => ({
@@ -126,8 +128,16 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSess
     setSelectedSessionId((prev) => (prev === id ? null : id))
   }, [])
 
-  const handleExpire = useCallback((entry: SessionEntry) => {
-    if (!window.confirm('Expire this session?')) return
+  const handleExpire = useCallback(async (entry: SessionEntry) => {
+    const confirmed = await confirm({
+      title: 'Expire session',
+      description: entry.type === 'agent'
+        ? 'This will cancel the agent and terminate its session.'
+        : 'This will expire the session and kill any associated terminal.',
+      confirmLabel: 'Expire',
+      destructive: true,
+    })
+    if (!confirmed) return
     setExpiringIds((prev) => new Set(prev).add(entry.id))
     setSelectedSessionId((prev) => (prev === entry.id ? null : prev))
     if (entry.type === 'agent' && entry.runId) {
@@ -135,7 +145,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSess
     } else {
       onExpireSession?.(entry.id)
     }
-  }, [onKillAgent, onExpireSession])
+  }, [onKillAgent, onExpireSession, confirm])
 
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading sessions...</p></div>
@@ -158,6 +168,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSess
 
   return (
     <div className="flex flex-col h-full">
+      {ConfirmDialogElement}
       {/* Session list */}
       <div className={`overflow-y-auto ${selectedSessionId ? 'border-b border-border' : 'flex-1'}`} style={selectedSessionId ? { height: `${topHeight}%` } : undefined}>
         {entries.map((entry) => {
