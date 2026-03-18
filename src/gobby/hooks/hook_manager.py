@@ -767,6 +767,9 @@ class HookManager:
                 arguments["prompt_text"] = event.data.get("prompt") if event.data else None
             if "project_path" not in arguments:
                 arguments["project_path"] = event.metadata.get("project_path", "")
+            # Map prompt_text to query for tools that expect it (e.g., search_memories)
+            if "query" not in arguments and arguments.get("prompt_text"):
+                arguments["query"] = arguments["prompt_text"]
 
             async def _call(s: str, t: str, args: dict[str, Any]) -> dict[str, Any] | None:
                 try:
@@ -919,6 +922,18 @@ class HookManager:
             name = tool_info.get("name", "")
             desc = tool_info.get("description", "")
             return f"**Schema for {name}:**\n{desc}\n```json\n{json.dumps(schema, indent=2)}\n```"
+
+        elif tool == "search_memories":
+            memories = result.get("memories", [])
+            if not memories:
+                return ""
+            lines = ["<project-memory>"]
+            for m in memories:
+                content = m.get("content", "").strip()
+                if content:
+                    lines.append(f"- {content}")
+            lines.append("</project-memory>")
+            return "\n".join(lines)
 
         else:
             return f"**{tool} result:**\n```json\n{json.dumps(result, indent=2, default=str)}\n```"

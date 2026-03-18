@@ -13,3 +13,4 @@ rules:
         arguments:
           limit: 5
         background: false
+        inject_result: true
