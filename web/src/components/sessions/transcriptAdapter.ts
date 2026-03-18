@@ -72,6 +72,9 @@ function pythonReprToJson(s: string): string {
     }
   }
   return out
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+    .replace(/\bNone\b/g, 'null')
 }
 
 /**

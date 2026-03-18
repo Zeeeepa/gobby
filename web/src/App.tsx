@@ -888,7 +888,8 @@ export default function App() {
       { id: 'restart', label: 'Restart Daemon', icon: '\u21BB', category: 'action', onSelect: () => {
         addSystemMessage("Restarting daemon...");
         const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-        fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch(() => {
+        fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch((err) => {
+          console.error("Restart request failed:", err);
           addSystemMessage("Failed to restart daemon");
         });
       }},

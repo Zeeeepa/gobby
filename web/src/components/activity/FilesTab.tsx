@@ -1,29 +1,11 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
 import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { markdownComponents } from '../shared/MarkdownComponents'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
-
-// Custom theme matching the app (same as FilesPage)
-const codeTheme = {
-  ...oneDark,
-  'pre[class*="language-"]': {
-    ...oneDark['pre[class*="language-"]'],
-    background: '#0a0a0a',
-    margin: '0',
-    padding: '1rem',
-    borderRadius: '0',
-    fontSize: '0.9em',
-  },
-  'code[class*="language-"]': {
-    ...oneDark['code[class*="language-"]'],
-    background: 'transparent',
-    fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
-  },
-}
+import { codeTheme } from '../shared/codeTheme'
 
 interface FilesTabProps {
   projectId?: string | null
@@ -204,7 +186,10 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: entry.path }),
     })
-    if (!response.ok) return
+    if (!response.ok) {
+      console.error(`Delete failed (${response.status}):`, await response.text().catch(() => ''))
+      return
+    }
     // Refresh parent directory
     const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
@@ -230,7 +215,11 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: renaming.path, new_path: newPath }),
     })
-    if (!response.ok) { setRenaming(null); return }
+    if (!response.ok) {
+      console.error(`Rename failed (${response.status}):`, await response.text().catch(() => ''))
+      setRenaming(null)
+      return
+    }
     setRenaming(null)
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
     loadChildren(parentPath)
@@ -247,7 +236,10 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: entry.path, new_path: newPath }),
     })
-    if (!response.ok) return
+    if (!response.ok) {
+      console.error(`Move failed (${response.status}):`, await response.text().catch(() => ''))
+      return
+    }
     const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
     loadChildren(parentPath)
@@ -261,7 +253,10 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: selectedFile, content: editContent }),
     })
-    if (!response.ok) return
+    if (!response.ok) {
+      console.error(`Save failed (${response.status}):`, await response.text().catch(() => ''))
+      return
+    }
     setFileContent(editContent)
     setIsEditing(false)
   }, [projectId, selectedFile, editContent])

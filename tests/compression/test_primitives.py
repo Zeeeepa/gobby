@@ -189,8 +189,8 @@ class TestGroupLines:
         result = group_lines(lines, mode="by_extension")
         text = "".join(result)
         assert ".py (2 files)" in text
-        assert ".js (1 files)" in text
-        assert ".md (1 files)" in text
+        assert ".js (1 file)" in text
+        assert ".md (1 file)" in text
 
     def test_by_extension_no_extension(self) -> None:
         """Files without extension are grouped as (no ext)."""
@@ -221,14 +221,14 @@ class TestGroupLines:
         result = group_lines(lines, mode="by_directory")
         text = "".join(result)
         assert "src/ (2 items)" in text
-        assert "tests/ (1 items)" in text
+        assert "tests/ (1 item)" in text
 
     def test_by_directory_no_slash(self) -> None:
         """Paths without slash are grouped under '.'."""
         lines = ["file.py\n"]
         result = group_lines(lines, mode="by_directory")
         text = "".join(result)
-        assert "./ (1 items)" in text
+        assert "./ (1 item)" in text
 
     def test_by_directory_empty_input(self) -> None:
         """Empty input returns original lines."""

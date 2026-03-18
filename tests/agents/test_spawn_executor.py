@@ -958,12 +958,14 @@ class TestExecuteSpawnErrorPaths:
         ):
             result = await execute_spawn(request)
 
-        assert result.success is True
-        assert result.status == "running"
-        assert result.child_session_id == "child-sess"
-        # Cancel the background task
-        if result.process:
-            result.process.cancel()
+        try:
+            assert result.success is True
+            assert result.status == "running"
+            assert result.child_session_id == "child-sess"
+        finally:
+            # Cancel the background task
+            if result.process:
+                result.process.cancel()
 
     @pytest.mark.asyncio
     async def test_autonomous_spawn_success(self) -> None:
@@ -1002,12 +1004,14 @@ class TestExecuteSpawnErrorPaths:
         ):
             result = await execute_spawn(request)
 
-        assert result.success is True
-        assert result.status == "running"
-        assert result.run_id == "run-auto"
-        # Cancel the background task
-        if result.process:
-            result.process.cancel()
+        try:
+            assert result.success is True
+            assert result.status == "running"
+            assert result.run_id == "run-auto"
+        finally:
+            # Cancel the background task
+            if result.process:
+                result.process.cancel()
 
     @pytest.mark.asyncio
     async def test_claude_terminal_passes_machine_id_env(self) -> None:

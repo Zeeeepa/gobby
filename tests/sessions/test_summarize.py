@@ -420,7 +420,7 @@ class TestExtractDigestTurns:
         long_content = "X" * 2000
         text = f"### Turn 1\n{long_content}\n### Turn 2\n{long_content}\n"
         first, recent = _extract_digest_turns(text)
-        assert len(first) <= 810  # 800 + "..."
+        assert len(first) <= 810  # 800 + up to 10 chars for "..." suffix
         assert len(recent) <= 1510
 
 

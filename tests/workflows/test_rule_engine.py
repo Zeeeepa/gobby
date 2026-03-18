@@ -2101,8 +2101,8 @@ class TestSessionOverridesExtended:
 
         # Add session override to disable this rule
         db.execute(
-            "INSERT INTO rule_overrides (session_id, rule_name, enabled) VALUES (?, ?, ?)",
-            ("sess-override", "block-everything", False),
+            "INSERT INTO rule_overrides (id, session_id, rule_name, enabled) VALUES (?, ?, ?, ?)",
+            ("override-1", "sess-override", "block-everything", False),
         )
 
         engine = RuleEngine(db)

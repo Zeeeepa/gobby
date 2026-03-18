@@ -34,14 +34,14 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
   const PAGE_SIZE = 50
 
   // Fetch executions
-  const fetchExecutions = useCallback((appendOffset?: number) => {
+  const fetchExecutions = useCallback((appendOffset?: number, signal?: AbortSignal) => {
     const baseUrl = getBaseUrl()
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
     if (statusFilter !== 'all') params.set('status', statusFilter)
     params.set('limit', String(PAGE_SIZE))
     if (appendOffset) params.set('offset', String(appendOffset))
-    return fetch(`${baseUrl}/api/pipelines/executions?${params}`)
+    return fetch(`${baseUrl}/api/pipelines/executions?${params}`, { signal })
       .then((res) => (res.ok ? res.json() : { executions: [] }))
       .then((data) => {
         const fetched = data.executions ?? []
@@ -52,7 +52,10 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
         }
         setHasMore(fetched.length === PAGE_SIZE)
       })
-      .catch(() => { if (!appendOffset) setExecutions([]) })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (!appendOffset) setExecutions([])
+      })
   }, [projectId, statusFilter])
 
   // Reset offset and reload when filter changes
@@ -60,7 +63,7 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
     const controller = new AbortController()
     setOffset(0)
     setLoading(true)
-    fetchExecutions().finally(() => {
+    fetchExecutions(undefined, controller.signal).finally(() => {
       if (!controller.signal.aborted) setLoading(false)
     })
     return () => controller.abort()

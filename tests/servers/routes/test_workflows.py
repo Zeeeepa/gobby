@@ -264,7 +264,7 @@ class TestImportWorkflow:
             "/api/workflows/import",
             json={"yaml_content": "not: valid: yaml: [[["},
         )
-        assert resp.status_code in (400, 500)
+        assert resp.status_code == 500  # yaml.ScannerError not caught as client error
 
 
 # ---------------------------------------------------------------------------
@@ -362,8 +362,8 @@ class TestMoveWorkflow:
             "/api/workflows/nonexistent/move-to-project",
             json={"project_id": "proj-1"},
         )
-        assert resp.status_code in (400, 404)
+        assert resp.status_code == 404
 
     def test_move_to_global_not_found(self, client: TestClient) -> None:
         resp = client.post("/api/workflows/nonexistent/move-to-global")
-        assert resp.status_code in (400, 404)
+        assert resp.status_code == 404

@@ -7,6 +7,7 @@ import type {
   VoiceProps,
 } from "../../types/chat";
 import type { AgentDefInfo } from "../../hooks/useAgentDefinitions";
+import type { PaletteItem } from "../../hooks/useColonAutocomplete";
 import type { ArtifactType } from "../../types/artifacts";
 import { useArtifacts } from "../../hooks/useArtifacts";
 import { ArtifactContext } from "./artifacts/ArtifactContext";
@@ -88,6 +89,12 @@ export function ChatPage({
   }, [chat.canvasPanel, canvas.openCanvas, canvas.closeCanvas]);
 
   const planArtifactIdRef = useRef<string | null>(null);
+  // Local plan-pending state — kept in ChatPage (same scope as artifact
+  // creation) so React batches both state updates into a single render.
+  // The prop from useChat (chat.planPendingApproval) passes through App.tsx
+  // and may arrive in a separate render cycle, causing the ArtifactPanel
+  // to render the plan content WITHOUT the approval bar.
+  const [planPendingLocal, setPlanPendingLocal] = useState(false);
 
   const openCodeAsArtifact = useCallback(
     (language: string, content: string, title?: string) => {
@@ -105,7 +112,7 @@ export function ChatPage({
     [createArtifact, activity.showTab],
   );
 
-  // Wire plan content to artifact panel when ExitPlanMode fires
+  // Wire plan content to artifact panel when plan_pending_approval arrives
   const onPlanReady = useCallback(
     (content: string | null) => {
       if (content) {
@@ -116,6 +123,7 @@ export function ChatPage({
           "Implementation Plan",
         );
         planArtifactIdRef.current = id;
+        setPlanPendingLocal(true);
         activity.showTab('artifacts');
       }
     },
@@ -142,6 +150,15 @@ export function ChatPage({
     chat.setOnArtifactEvent?.(onArtifactEvent);
   }, [chat.setOnArtifactEvent, onArtifactEvent]);
 
+  // Intercept toggle_panel palette action before forwarding to App.tsx
+  const handlePaletteSelect = useCallback((item: PaletteItem) => {
+    if (item.kind === 'command' && item.action === 'toggle_panel') {
+      activity.togglePanel()
+      return
+    }
+    chat.onPaletteSelect?.(item)
+  }, [activity, chat])
+
   // Add file to chat from Files tab (right-click "Add to chat")
   const handleAddFileToChat = useCallback((filePath: string) => {
     chat.onSend(`Read and reference this file: ${filePath}`)
@@ -149,11 +166,13 @@ export function ChatPage({
 
   // Plan approval — in tabbed model, don't close the panel
   const handleApprovePlan = useCallback(() => {
+    setPlanPendingLocal(false);
     chat.onApprovePlan?.();
   }, [chat.onApprovePlan]);
 
   const handleRequestPlanChanges = useCallback(
     (feedback: string) => {
+      setPlanPendingLocal(false);
       chat.onRequestPlanChanges?.(feedback);
     },
     [chat.onRequestPlanChanges],
@@ -256,7 +275,7 @@ export function ChatPage({
             viewingSession={!!chat.viewingSessionId && !chat.attachedSessionId}
             onInputChange={chat.onInputChange}
             paletteItems={chat.paletteItems}
-            onPaletteSelect={chat.onPaletteSelect}
+            onPaletteSelect={handlePaletteSelect}
             mode={chat.mode}
             onModeChange={chat.onModeChange}
             contextUsage={chat.contextUsage}
@@ -297,7 +316,7 @@ export function ChatPage({
         onCloseArtifact={closeArtifactPanel}
         onUpdateArtifactContent={updateArtifact}
         onSetArtifactVersion={setVersion}
-        planPendingApproval={chat.planPendingApproval}
+        planPendingApproval={planPendingLocal || chat.planPendingApproval}
         onApprovePlan={handleApprovePlan}
         onRequestPlanChanges={handleRequestPlanChanges}
         canvasState={canvas.activeCanvas}

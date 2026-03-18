@@ -12,32 +12,31 @@ from gobby.storage.session_models import Session
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture
+def mock_db():
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_config():
+    config = MagicMock(spec=SessionLifecycleConfig)
+    config.expire_check_interval_minutes = 1
+    config.transcript_processing_interval_minutes = 1
+    config.active_session_pause_minutes = 30
+    config.stale_session_timeout_hours = 24
+    config.transcript_processing_batch_size = 10
+    return config
+
+
+@pytest.fixture
+def manager(mock_db, mock_config):
+    with patch("gobby.sessions.lifecycle.LocalSessionManager"):
+        with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
+            return SessionLifecycleManager(mock_db, mock_config)
+
+
 class TestSessionLifecycleManager:
     """Tests for SessionLifecycleManager."""
-
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        """Create manager with mocked dependencies."""
-        with patch("gobby.sessions.lifecycle.LocalSessionManager") as MockSessionManager:
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager") as MockMessageManager:
-                manager = SessionLifecycleManager(mock_db, mock_config)
-                manager.session_manager = MockSessionManager.return_value
-                manager.message_manager = MockMessageManager.return_value
-                return manager
 
     @pytest.mark.asyncio
     async def test_start_creates_background_tasks(self, manager):
@@ -223,30 +222,6 @@ class TestSessionLifecycleManager:
 class TestBackgroundLoops:
     """Tests for infinite background loops."""
 
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        """Create manager with mocked dependencies."""
-        with patch("gobby.sessions.lifecycle.LocalSessionManager") as MockSessionManager:
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager") as MockMessageManager:
-                manager = SessionLifecycleManager(mock_db, mock_config)
-                manager.session_manager = MockSessionManager.return_value
-                manager.message_manager = MockMessageManager.return_value
-                return manager
-
     @pytest.mark.asyncio
     async def test_expire_loop_runs_and_calls_delegate(self, manager):
         """Test expire loop calls delegate and sleeps."""
@@ -319,26 +294,6 @@ class TestBackgroundLoops:
 
 class TestPromptFileCleanup:
     """Tests for _cleanup_prompt_files (#7389)."""
-
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        with patch("gobby.sessions.lifecycle.LocalSessionManager"):
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
-                return SessionLifecycleManager(mock_db, mock_config)
 
     def test_removes_old_prompt_files(self, tmp_path, manager):
         """Old prompt files are deleted."""
@@ -416,26 +371,6 @@ class TestPromptFileCleanup:
 class TestExtractMemoriesIfNeeded:
     """Tests for _extract_memories_if_needed."""
 
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        with patch("gobby.sessions.lifecycle.LocalSessionManager"):
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
-                return SessionLifecycleManager(mock_db, mock_config)
-
     @pytest.mark.asyncio
     async def test_no_memory_manager(self, manager):
         """Skips when memory_manager is None."""
@@ -508,28 +443,6 @@ class TestExtractMemoriesIfNeeded:
 class TestGenerateSummariesIfNeeded:
     """Tests for _generate_summaries_if_needed."""
 
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        with patch("gobby.sessions.lifecycle.LocalSessionManager") as MockSM:
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
-                mgr = SessionLifecycleManager(mock_db, mock_config)
-                mgr.session_manager = MockSM.return_value
-                return mgr
-
     @pytest.mark.asyncio
     async def test_no_llm_service(self, manager):
         """Skips when llm_service is None."""
@@ -600,26 +513,6 @@ class TestGenerateSummariesIfNeeded:
 class TestPurgeSoftDeletedDefinitions:
     """Tests for _purge_soft_deleted_definitions."""
 
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        with patch("gobby.sessions.lifecycle.LocalSessionManager"):
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
-                return SessionLifecycleManager(mock_db, mock_config)
-
     @pytest.mark.asyncio
     async def test_success(self, manager):
         """Purge runs without error."""
@@ -642,29 +535,6 @@ class TestPurgeSoftDeletedDefinitions:
 
 class TestProcessSessionTranscriptParsers:
     """Tests for _process_session_transcript parser selection."""
-
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        with patch("gobby.sessions.lifecycle.LocalSessionManager") as MockSM:
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager") as MockMM:
-                mgr = SessionLifecycleManager(mock_db, mock_config)
-                mgr.session_manager = MockSM.return_value
-                mgr.message_manager = MockMM.return_value
-                return mgr
 
     @pytest.mark.asyncio
     async def test_gemini_parser_selected(self, tmp_path, manager):
@@ -709,9 +579,9 @@ class TestProcessSessionTranscriptParsers:
         with patch("gobby.sessions.lifecycle.ClaudeTranscriptParser") as MockParser:
             MockParser.return_value.parse_lines.return_value = []
             await manager._process_session_transcript("s1", str(jsonl_path))
-            # ClaudeTranscriptParser is the default, so it's constructed once
-            # as the default and the antigravity branch also creates one (2 total)
-            assert MockParser.call_count >= 1
+            # ClaudeTranscriptParser is constructed for both the default path
+            # and the antigravity branch (2 total)
+            assert MockParser.call_count >= 2
 
     @pytest.mark.asyncio
     async def test_session_not_found_returns_early(self, tmp_path, manager):
@@ -732,30 +602,6 @@ class TestProcessSessionTranscriptParsers:
 
 class TestProcessPendingTranscriptsArchive:
     """Tests for transcript archive and message purge logic."""
-
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        config.transcript_archive_dir = None
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        with patch("gobby.sessions.lifecycle.LocalSessionManager") as MockSM:
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager") as MockMM:
-                mgr = SessionLifecycleManager(mock_db, mock_config)
-                mgr.session_manager = MockSM.return_value
-                mgr.message_manager = MockMM.return_value
-                return mgr
 
     @pytest.mark.asyncio
     async def test_archive_success_purges_messages(self, manager):
@@ -831,26 +677,6 @@ class TestProcessPendingTranscriptsArchive:
 
 class TestStartStopIdempotent:
     """Tests for start/stop idempotency."""
-
-    @pytest.fixture
-    def mock_db(self):
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_config(self):
-        config = MagicMock(spec=SessionLifecycleConfig)
-        config.expire_check_interval_minutes = 1
-        config.transcript_processing_interval_minutes = 1
-        config.active_session_pause_minutes = 30
-        config.stale_session_timeout_hours = 24
-        config.transcript_processing_batch_size = 10
-        return config
-
-    @pytest.fixture
-    def manager(self, mock_db, mock_config):
-        with patch("gobby.sessions.lifecycle.LocalSessionManager"):
-            with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
-                return SessionLifecycleManager(mock_db, mock_config)
 
     @pytest.mark.asyncio
     async def test_double_start_is_noop(self, manager):

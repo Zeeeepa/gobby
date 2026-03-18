@@ -12,12 +12,14 @@ import { createMockFetch, type MockFetchInstance } from '../../test/mocks/fetch'
 let mockWs: { instances: MockWebSocketInstance[]; MockWebSocket: typeof WebSocket; restore: () => void }
 let mockFetch: MockFetchInstance
 let useChat: typeof import('../useChat').useChat
+let originalLocalStorage: Storage
 
 beforeEach(() => {
   mockWs = createMockWebSocket()
   mockFetch = createMockFetch()
   // Mock localStorage — jsdom's localStorage doesn't delegate to Storage.prototype,
   // so vi.spyOn(Storage.prototype, ...) won't intercept calls. Replace the object directly.
+  originalLocalStorage = globalThis.localStorage
   const store: Record<string, string> = {}
   const mockStorage = {
     getItem: vi.fn((key: string) => store[key] ?? null),
@@ -33,6 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   mockWs.restore()
   mockFetch.restore()
+  Object.defineProperty(globalThis, 'localStorage', { value: originalLocalStorage, writable: true, configurable: true })
   vi.restoreAllMocks()
 })
 

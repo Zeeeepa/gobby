@@ -97,6 +97,7 @@ export function useSessionDetail(sessionId: string | null) {
       message_index: msg.index as number | undefined,
     }
 
+    let added = false
     setMessages((prev) => {
       // Deduplicate by id or message_index
       if (newMessage.message_index !== undefined &&
@@ -104,9 +105,10 @@ export function useSessionDetail(sessionId: string | null) {
         return prev
       }
       if (prev.some((m) => m.id === newMessage.id)) return prev
+      added = true
       return [...prev, newMessage]
     })
-    setTotalMessages((prev) => prev + 1)
+    if (added) setTotalMessages((prev) => prev + 1)
   }, []))
 
   const hasMore = false
