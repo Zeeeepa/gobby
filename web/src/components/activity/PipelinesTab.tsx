@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
 import { PipelineStatusDot, StepDisplay, formatDateTime, formatDuration, type StepData } from '../workflows/execution-utils'
+import '../workflows/PipelinesPage.css'
 
 interface PipelinesTabProps {
   projectId?: string | null
@@ -9,7 +10,7 @@ interface PipelineExecution {
   id: string
   pipeline_name: string
   status: string
-  started_at: string
+  created_at: string
   completed_at?: string | null
   steps?: StepData[]
 }
@@ -125,9 +126,9 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
                 <span className="text-sm text-foreground truncate">{exec.pipeline_name}</span>
               </div>
               <div className="flex items-center gap-2">
-                {exec.started_at && (
-                  <span className="text-[10px] text-muted-foreground shrink-0">{formatDateTime(exec.started_at)}</span>
-                )}
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {formatDateTime(exec.created_at)}
+                </span>
               </div>
             </div>
           ))
@@ -141,9 +142,9 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
             <div className="flex items-center gap-2 min-w-0">
               <PipelineStatusDot status={detailExec.status} />
               <span className="text-xs font-medium text-foreground truncate">{detailExec.pipeline_name}</span>
-              {detailExec.started_at && detailExec.completed_at && (
+              {detailExec.completed_at && (
                 <span className="text-[10px] text-muted-foreground">
-                  {formatDuration(detailExec.started_at, detailExec.completed_at)}
+                  {formatDuration(detailExec.created_at, detailExec.completed_at)}
                 </span>
               )}
             </div>
