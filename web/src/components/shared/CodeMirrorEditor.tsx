@@ -12,6 +12,9 @@ import { css } from '@codemirror/lang-css'
 import { html } from '@codemirror/lang-html'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml } from '@codemirror/lang-yaml'
+import { StreamLanguage } from '@codemirror/language'
+import { shell } from '@codemirror/legacy-modes/mode/shell'
+import { toml } from '@codemirror/legacy-modes/mode/toml'
 
 interface CodeMirrorEditorProps {
   content: string
@@ -46,6 +49,12 @@ function getLanguageExtension(lang: string) {
     case 'yaml':
     case 'yml':
       return yaml()
+    case 'bash':
+    case 'sh':
+    case 'zsh':
+      return StreamLanguage.define(shell)
+    case 'toml':
+      return StreamLanguage.define(toml)
     default:
       return null
   }
