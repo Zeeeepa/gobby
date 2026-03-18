@@ -1,6 +1,6 @@
 name: nightly-fixes
 type: pipeline
-version: "1.0"
+version: "1.2"
 description: |
   Nightly code quality fix pipeline. Checks for reports from pre-push-test.sh,
   then dispatches a linter agent (Gemini) followed by a test fixer agent (Claude Opus).
@@ -23,6 +23,10 @@ steps:
       tool: fail_pipeline
       arguments:
         message: "Skipped: another nightly-fixes execution is already running"
+
+  # --- ENSURE REPORTS DIR ---
+  - id: ensure_reports_dir
+    exec: "mkdir -p ./reports"
 
   # --- CHECK REPORTS EXIST ---
   - id: check_reports
@@ -67,6 +71,14 @@ steps:
       completion_id: "${{ steps.spawn_linter.output.run_id }}"
       timeout: 1800
 
+  - id: linter_failed
+    condition: "${{ steps.wait_linter.output.status != 'success' }}"
+    mcp:
+      server: gobby-workflows
+      tool: fail_pipeline
+      arguments:
+        message: "Linter agent failed (status: ${{ steps.wait_linter.output.status }})"
+
   # --- TEST FIXER AGENT (Claude Opus) ---
   - id: create_tester_task
     mcp:
@@ -98,3 +110,11 @@ steps:
     wait:
       completion_id: "${{ steps.spawn_tester.output.run_id }}"
       timeout: 2400
+
+  - id: tester_failed
+    condition: "${{ steps.wait_tester.output.status != 'success' }}"
+    mcp:
+      server: gobby-workflows
+      tool: fail_pipeline
+      arguments:
+        message: "Test fixer agent failed (status: ${{ steps.wait_tester.output.status }})"
