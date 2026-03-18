@@ -16,8 +16,14 @@ interface Props {
 }
 
 export function SystemHealthCard({ data }: Props) {
-  const { server, process, background_tasks, status, memory } = data
+  const { server, process, background_tasks, status, memory, mcp_servers } = data
   const neo4j = memory?.neo4j
+  const qdrant = memory?.qdrant
+
+  // External MCP servers summary
+  const externalMcps = Object.entries(mcp_servers ?? {}).filter(([, info]) => !info.internal)
+  const externalHealthy = externalMcps.filter(([, info]) => info.health === 'healthy' || info.connected).length
+  const externalTotal = externalMcps.length
 
   return (
     <div className="dash-card">
@@ -45,19 +51,40 @@ export function SystemHealthCard({ data }: Props) {
             </span>
             <span className="dash-stat-label">CPU</span>
           </div>
-          <div className="dash-stat">
-            <span className="dash-stat-value">{background_tasks.active}</span>
-            <span className="dash-stat-label">Background Tasks</span>
-          </div>
+          {background_tasks.active > 0 && (
+            <div className="dash-stat">
+              <span className="dash-stat-value">{background_tasks.active}</span>
+              <span className="dash-stat-label">Background Tasks</span>
+            </div>
+          )}
         </div>
-        {neo4j && (
-          <div className="dash-neo4j-status">
-            <span
-              className={`dash-health-dot dash-health-dot--${neo4j.healthy ? 'healthy' : neo4j.configured ? 'unhealthy' : 'unknown'}`}
-            />
-            <span>Neo4j {neo4j.healthy ? 'connected' : neo4j.configured ? 'disconnected' : 'not configured'}</span>
-          </div>
-        )}
+
+        <div className="dash-services-status">
+          {qdrant && (
+            <div className="dash-service-row">
+              <span
+                className={`dash-health-dot dash-health-dot--${qdrant.healthy ? 'healthy' : qdrant.configured ? 'unhealthy' : 'unknown'}`}
+              />
+              <span>Qdrant {qdrant.healthy ? 'connected' : qdrant.configured ? 'disconnected' : 'not configured'}</span>
+            </div>
+          )}
+          {neo4j && (
+            <div className="dash-service-row">
+              <span
+                className={`dash-health-dot dash-health-dot--${neo4j.healthy ? 'healthy' : neo4j.configured ? 'unhealthy' : 'unknown'}`}
+              />
+              <span>Neo4j {neo4j.healthy ? 'connected' : neo4j.configured ? 'disconnected' : 'not configured'}</span>
+            </div>
+          )}
+          {externalTotal > 0 && (
+            <div className="dash-service-row">
+              <span
+                className={`dash-health-dot dash-health-dot--${externalHealthy === externalTotal ? 'healthy' : externalHealthy > 0 ? 'degraded' : 'unhealthy'}`}
+              />
+              <span>External MCPs {externalHealthy}/{externalTotal} connected</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

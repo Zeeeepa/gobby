@@ -89,7 +89,7 @@ export function useSessions() {
           ? data.sessions
           : [];
         const HIDDEN_STATUSES = new Set(["deleted", "handoff_ready", "expired"]);
-        setSessions(fetched.filter((s) => !HIDDEN_STATUSES.has(s.status)));
+        setSessions(fetched.filter((s) => !HIDDEN_STATUSES.has(s.status) && s.source !== "pipeline"));
       } else {
         throw new Error(`Failed to fetch sessions: ${response.status}`);
       }

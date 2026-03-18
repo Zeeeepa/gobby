@@ -445,7 +445,7 @@ class GobbyDaemonTools:
     async def set_variable(
         self,
         name: str,
-        value: str | int | float | bool | None,
+        value: str | int | float | bool | list[Any] | dict[str, Any] | None,
         session_id: str,
     ) -> dict[str, Any]:
         """Set a variable. Session-scoped by default. Pass workflow param to scope to a specific workflow instance."""

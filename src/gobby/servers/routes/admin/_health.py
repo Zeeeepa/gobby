@@ -182,6 +182,30 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
             except Exception as e:
                 logger.warning(f"Failed to get memory stats: {e}")
 
+            # Qdrant vector store status
+            try:
+                vector_store = getattr(server.memory_manager, "_vector_store", None)
+                qdrant_configured = vector_store is not None
+                qdrant_healthy = False
+                if vector_store is not None:
+                    qdrant_client = getattr(vector_store, "_client", None)
+                    if qdrant_client is not None:
+                        try:
+                            await asyncio.to_thread(
+                                qdrant_client.count, vector_store._collection_name
+                            )
+                            qdrant_healthy = True
+                        except Exception:
+                            logger.debug("Qdrant health check failed", exc_info=True)
+                            qdrant_healthy = False
+                memory_stats["qdrant"] = {
+                    "configured": qdrant_configured,
+                    "healthy": qdrant_healthy,
+                }
+            except Exception as e:
+                logger.warning(f"Failed to check Qdrant status: {e}")
+                memory_stats["qdrant"] = {"configured": False, "healthy": False}
+
             # Neo4j knowledge graph status
             try:
                 from gobby.cli.services import is_neo4j_healthy, is_neo4j_installed
@@ -266,6 +290,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
         return {
             "status": "healthy" if server._running else "degraded",
             "dev_mode": getattr(server.services, "dev_mode", False),
+            "project_id": getattr(server.services, "project_id", None),
             "server": {
                 "port": server.port,
                 "test_mode": server.test_mode,

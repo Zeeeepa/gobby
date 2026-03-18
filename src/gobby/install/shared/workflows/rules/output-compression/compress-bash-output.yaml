@@ -8,6 +8,7 @@ rules:
     priority: 50
     when: >
       event.data.get('tool_name') in ('Bash', 'run_shell_command')
+      and not str(event.data.get('tool_input', {}).get('command', '')).lstrip().startswith('git ')
       and any(p in str(event.data.get('tool_input', {}).get('command', ''))
               for p in ['pytest', 'vitest', 'jest ', 'mocha ',
                         'cargo test', 'cargo build',
@@ -21,5 +22,5 @@ rules:
     effects:
       - type: rewrite_input
         input_updates:
-          command: "gobby compress -- {{ event.data.tool_input.command | shlex_quote }}"
+          command: "{{ gobby_bin }} compress -- {{ event.data.tool_input.command | shlex_quote }}"
         auto_approve: true

@@ -255,6 +255,12 @@ class TestTmuxSessionManager:
                 "%42",
                 "My Title",
                 ";",
+                "select-pane",
+                "-t",
+                "%42",
+                "-T",
+                "My Title",
+                ";",
                 "set-option",
                 "-w",
                 "-t",
@@ -574,3 +580,257 @@ class TestTmuxSpawner:
 
             assert result.success is False
             assert "tmux not found" in result.error
+
+
+# =============================================================================
+# TmuxSessionManager additional coverage
+# =============================================================================
+
+
+class TestTmuxSessionManagerExtended:
+    """Additional tests for TmuxSessionManager uncovered methods."""
+
+    @pytest.mark.asyncio
+    async def test_health_check_healthy(self) -> None:
+        """health_check returns True when tmux socket is responsive."""
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "is_available", return_value=True),
+            patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run,
+        ):
+            mock_run.return_value = (0, "session1: 1 windows\n", "")
+            result = await mgr.health_check()
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_health_check_no_server_is_ok(self) -> None:
+        """health_check returns True when no server running (rc=1 with message)."""
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "is_available", return_value=True),
+            patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run,
+        ):
+            mock_run.return_value = (1, "", "no server running on /tmp/tmux-123/gobby")
+            result = await mgr.health_check()
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_health_check_unavailable(self) -> None:
+        """health_check returns False when tmux is not available."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "is_available", return_value=False):
+            result = await mgr.health_check()
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_health_check_timeout_kills_server(self) -> None:
+        """health_check kills stale server on timeout and returns True."""
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "is_available", return_value=True),
+            patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run,
+        ):
+            # First call times out, second call (kill-server) succeeds
+            mock_run.side_effect = [
+                TimeoutError("socket stuck"),
+                (0, "", ""),
+            ]
+            result = await mgr.health_check()
+        assert result is True
+        assert mock_run.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_health_check_timeout_kill_fails(self) -> None:
+        """health_check returns False when kill-server also fails."""
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "is_available", return_value=True),
+            patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run,
+        ):
+            mock_run.side_effect = [
+                TimeoutError("socket stuck"),
+                RuntimeError("kill failed too"),
+            ]
+            result = await mgr.health_check()
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_health_check_generic_error_kills_server(self) -> None:
+        """health_check attempts kill-server on generic error."""
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "is_available", return_value=True),
+            patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run,
+        ):
+            mock_run.side_effect = [
+                RuntimeError("unexpected"),
+                (0, "", ""),
+            ]
+            result = await mgr.health_check()
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_list_pane_ids(self) -> None:
+        """list_pane_ids returns set of pane IDs."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "%0\n%5\n%12\n", "")
+            result = await mgr.list_pane_ids()
+        assert result == {"%0", "%5", "%12"}
+
+    @pytest.mark.asyncio
+    async def test_list_pane_ids_failure(self) -> None:
+        """list_pane_ids returns empty set on failure."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (1, "", "no server")
+            result = await mgr.list_pane_ids()
+        assert result == set()
+
+    @pytest.mark.asyncio
+    async def test_create_session_already_exists_raises(self) -> None:
+        """create_session raises TmuxSessionError if session already exists."""
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "is_available", return_value=True),
+            patch.object(mgr, "has_session", new_callable=AsyncMock, return_value=True),
+            pytest.raises(TmuxSessionError, match="already exists"),
+        ):
+            await mgr.create_session(name="existing")
+
+    @pytest.mark.asyncio
+    async def test_create_session_with_list_command(self) -> None:
+        """create_session accepts command as list."""
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "is_available", return_value=True),
+            patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run,
+        ):
+            mock_run.side_effect = [
+                (1, "", ""),  # has_session
+                (0, "", ""),  # new-session
+                (0, "999\n", ""),  # display-message for pane_pid
+            ]
+            info = await mgr.create_session(
+                name="test",
+                command=["claude", "--session-id=abc"],
+                cwd="/tmp",
+                env={"MY_VAR": "value"},
+            )
+        assert info.name == "test"
+        assert info.pane_pid == 999
+
+    @pytest.mark.asyncio
+    async def test_capture_pane_success(self) -> None:
+        """capture_pane returns captured output."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "line 1\nline 2\n", "")
+            result = await mgr.capture_pane("my-session", lines=2)
+        assert result == "line 1\nline 2\n"
+
+    @pytest.mark.asyncio
+    async def test_capture_pane_failure(self) -> None:
+        """capture_pane returns None on failure."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (1, "", "no such session")
+            result = await mgr.capture_pane("missing")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_send_keys_with_newline(self) -> None:
+        """send_keys with trailing newline sends Enter separately."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "", "")
+            result = await mgr.send_keys("test-sess", "hello\n")
+        assert result is True
+        assert mock_run.call_count == 2  # one for text, one for Enter
+
+    @pytest.mark.asyncio
+    async def test_send_keys_without_newline(self) -> None:
+        """send_keys without trailing newline only sends text."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "", "")
+            result = await mgr.send_keys("test-sess", "hello")
+        assert result is True
+        assert mock_run.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_send_keys_text_failure(self) -> None:
+        """send_keys returns False when send-keys fails."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (1, "", "no such session")
+            result = await mgr.send_keys("missing", "text")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_send_keys_enter_failure(self) -> None:
+        """send_keys returns False when Enter send fails."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = [
+                (0, "", ""),  # text succeeds
+                (1, "", "error"),  # Enter fails
+            ]
+            result = await mgr.send_keys("test", "text\n")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_get_pane_pid_invalid_output(self) -> None:
+        """get_pane_pid returns None when output is not a valid integer."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "not-a-number\n", "")
+            result = await mgr.get_pane_pid("test")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_skips_blank_lines(self) -> None:
+        """list_sessions skips blank lines in output."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (
+                0,
+                "session1\t100\t%1\tzsh\t\t0\n\n\nsession2\t200\n",
+                "",
+            )
+            result = await mgr.list_sessions()
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_pane_dead_flag(self) -> None:
+        """list_sessions correctly parses pane_dead flag."""
+        mgr = TmuxSessionManager()
+        with patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (
+                0,
+                "dead-session\t100\t%1\tzsh\tTitle\t1\n",
+                "",
+            )
+            result = await mgr.list_sessions()
+        assert len(result) == 1
+        assert result[0].pane_dead is True
+        assert result[0].pane_title == "Title"
+
+    @pytest.mark.asyncio
+    async def test_kill_session_with_pids(self) -> None:
+        """kill_session sends SIGTERM and SIGKILL to pane PIDs."""
+
+        mgr = TmuxSessionManager()
+        with (
+            patch.object(mgr, "_run", new_callable=AsyncMock) as mock_run,
+            patch("os.killpg") as mock_killpg,
+            patch("os.getpgid", return_value=12345),
+        ):
+            mock_run.side_effect = [
+                (0, "12345\n", ""),  # list-panes for PIDs
+                (0, "", ""),  # kill-session
+            ]
+            result = await mgr.kill_session("test")
+        assert result is True
+        # Should have called killpg with SIGTERM then SIGKILL
+        assert mock_killpg.call_count >= 2

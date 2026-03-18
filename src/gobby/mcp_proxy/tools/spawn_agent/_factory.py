@@ -214,8 +214,11 @@ def create_spawn_agent_registry(
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
         # Compose prompt with preamble from agent definition
+        # For terminal-mode agents, hooks inject instructions via session_start —
+        # only prepend preamble for autonomous/headless modes that lack hook injection.
+        effective_mode = mode or (agent_body.mode if agent_body else "terminal")
         effective_prompt = prompt
-        if agent_body:
+        if agent_body and effective_mode != "terminal":
             preamble = agent_body.build_prompt_preamble()
             if preamble:
                 effective_prompt = f"{preamble}\n\n---\n\n{prompt}"

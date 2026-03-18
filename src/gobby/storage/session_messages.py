@@ -49,13 +49,12 @@ class LocalSessionMessageManager:
                 # Convert dicts to JSON strings for storage
                 tool_input = json.dumps(msg.tool_input) if msg.tool_input is not None else None
                 tool_result = json.dumps(msg.tool_result) if msg.tool_result is not None else None
-                raw_json = json.dumps(msg.raw_json) if msg.raw_json is not None else None
 
                 query = """
                 INSERT INTO session_messages (
                     session_id, message_index, role, content, content_type,
-                    tool_name, tool_input, tool_result, tool_use_id, timestamp, raw_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    tool_name, tool_input, tool_result, tool_use_id, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(session_id, message_index) DO UPDATE SET
                     content=excluded.content,
                     content_type=excluded.content_type,
@@ -63,8 +62,7 @@ class LocalSessionMessageManager:
                     tool_input=excluded.tool_input,
                     tool_result=excluded.tool_result,
                     tool_use_id=excluded.tool_use_id,
-                    timestamp=excluded.timestamp,
-                    raw_json=excluded.raw_json
+                    timestamp=excluded.timestamp
                 """
 
                 self.db.execute(
@@ -80,7 +78,6 @@ class LocalSessionMessageManager:
                         tool_result,
                         msg.tool_use_id,
                         msg.timestamp.isoformat(),
-                        raw_json,
                     ),
                 )
                 count += 1

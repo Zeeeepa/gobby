@@ -1725,3 +1725,418 @@ class TestEditWritePending:
         stop_event = _make_event(HookEventType.STOP)
         response = await engine.evaluate(stop_event, session_id="sess-1", variables=variables)
         assert response.decision == "allow"
+
+
+class TestRuleEngineHelpers:
+    """Tests for internal helper methods of RuleEngine."""
+
+    def test_get_tool_identity_regular_tool(self) -> None:
+        """Regular tool name is returned as-is."""
+        from gobby.workflows.rule_engine import _get_tool_identity
+
+        assert _get_tool_identity({"tool_name": "Edit"}) == "Edit"
+        assert _get_tool_identity({"tool_name": "Read"}) == "Read"
+
+    def test_get_tool_identity_mcp_call_tool(self) -> None:
+        """MCP call_tool returns 'server:tool' identity."""
+        from gobby.workflows.rule_engine import _get_tool_identity
+
+        result = _get_tool_identity({
+            "tool_name": "call_tool",
+            "tool_input": {"server_name": "gobby-tasks", "tool_name": "list_tasks"},
+        })
+        assert result == "gobby-tasks:list_tasks"
+
+    def test_get_tool_identity_mcp_gobby_call_tool(self) -> None:
+        """mcp__gobby__call_tool returns 'server:tool' identity."""
+        from gobby.workflows.rule_engine import _get_tool_identity
+
+        result = _get_tool_identity({
+            "tool_name": "mcp__gobby__call_tool",
+            "tool_input": {"server_name": "gobby-memory", "tool_name": "store"},
+        })
+        assert result == "gobby-memory:store"
+
+    def test_get_tool_identity_mcp_missing_fields(self) -> None:
+        """MCP call_tool without server/tool returns tool_name."""
+        from gobby.workflows.rule_engine import _get_tool_identity
+
+        result = _get_tool_identity({
+            "tool_name": "call_tool",
+            "tool_input": {},
+        })
+        assert result == "call_tool"
+
+    def test_get_tool_identity_mcp_non_dict_input(self) -> None:
+        """MCP call_tool with non-dict tool_input returns tool_name."""
+        from gobby.workflows.rule_engine import _get_tool_identity
+
+        result = _get_tool_identity({
+            "tool_name": "call_tool",
+            "tool_input": "not a dict",
+        })
+        assert result == "call_tool"
+
+    def test_mcp_tool_matches_exact(self) -> None:
+        """Exact MCP tool key match."""
+        assert RuleEngine._mcp_tool_matches("gobby-tasks:list", ["gobby-tasks:list"]) is True
+
+    def test_mcp_tool_matches_wildcard(self) -> None:
+        """Wildcard 'server:*' match."""
+        assert RuleEngine._mcp_tool_matches("gobby-tasks:list", ["gobby-tasks:*"]) is True
+
+    def test_mcp_tool_no_match(self) -> None:
+        """No match returns False."""
+        assert RuleEngine._mcp_tool_matches("gobby-tasks:list", ["other:*"]) is False
+        assert RuleEngine._mcp_tool_matches("gobby-tasks:list", ["other:list"]) is False
+
+    def test_is_expression_true(self) -> None:
+        """Expression-like strings should be detected."""
+        engine = RuleEngine.__new__(RuleEngine)
+        assert engine._is_expression("variables.get('x')") is True
+        assert engine._is_expression("len(items)") is True
+        assert engine._is_expression("a + b") is True
+        assert engine._is_expression("x and y") is True
+        assert engine._is_expression("x not y") is True
+
+    def test_is_expression_false(self) -> None:
+        """Literal strings should not be detected as expressions."""
+        engine = RuleEngine.__new__(RuleEngine)
+        assert engine._is_expression("hello world") is False
+        assert engine._is_expression("42") is False
+        assert engine._is_expression("true") is False
+
+    def test_coerce_rendered_value(self) -> None:
+        """Test _coerce_rendered_value for bool, int, float, string."""
+        assert RuleEngine._coerce_rendered_value("true") is True
+        assert RuleEngine._coerce_rendered_value("True") is True
+        assert RuleEngine._coerce_rendered_value("false") is False
+        assert RuleEngine._coerce_rendered_value("42") == 42
+        assert RuleEngine._coerce_rendered_value("3.14") == 3.14
+        assert RuleEngine._coerce_rendered_value("hello") == "hello"
+        assert RuleEngine._coerce_rendered_value("  True  ") is True
+
+    def test_render_template_no_braces(self, db: LocalDatabase) -> None:
+        """Template without {{ }} is returned as-is."""
+        engine = RuleEngine(db)
+        result = engine._render_template("plain text", {}, {})
+        assert result == "plain text"
+
+    def test_has_pending_messages_empty_session(self, db: LocalDatabase) -> None:
+        """_has_pending_messages returns False for empty session_id."""
+        engine = RuleEngine(db)
+        assert engine._has_pending_messages("") is False
+
+    def test_pending_message_count_empty_session(self, db: LocalDatabase) -> None:
+        """_pending_message_count returns 0 for empty session_id."""
+        engine = RuleEngine(db)
+        assert engine._pending_message_count("") == 0
+
+    def test_has_pending_messages_no_messages(self, db: LocalDatabase) -> None:
+        """_has_pending_messages returns False when no messages exist."""
+        engine = RuleEngine(db)
+        result = engine._has_pending_messages("sess-nonexistent")
+        assert result is False
+
+    def test_pending_message_count_no_messages(self, db: LocalDatabase) -> None:
+        """_pending_message_count returns 0 when no messages exist."""
+        engine = RuleEngine(db)
+        result = engine._pending_message_count("sess-nonexistent")
+        assert result == 0
+
+
+class TestCatastrophicFailure:
+    """Tests for catastrophic failure detection."""
+
+    @pytest.mark.asyncio
+    async def test_catastrophic_failure_sets_force_allow_stop(
+        self, db: LocalDatabase
+    ) -> None:
+        """Catastrophic failure in tool output should set force_allow_stop."""
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Bash", "tool_output": "Error: rate limit exceeded"},
+        )
+        event.metadata["is_failure"] = True
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("force_allow_stop") is True
+
+    @pytest.mark.asyncio
+    async def test_non_catastrophic_failure_no_force_allow(
+        self, db: LocalDatabase
+    ) -> None:
+        """Non-catastrophic failure should NOT set force_allow_stop."""
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(
+            HookEventType.AFTER_TOOL,
+            data={"tool_name": "Edit", "tool_output": "File not found"},
+        )
+        event.metadata["is_failure"] = True
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables.get("force_allow_stop") is not True
+
+    @pytest.mark.asyncio
+    async def test_catastrophic_patterns(self, db: LocalDatabase) -> None:
+        """All catastrophic patterns should be detected."""
+        engine = RuleEngine(db)
+        for pattern in ["out of usage", "quota exceeded", "billing", "account suspended"]:
+            variables: dict[str, Any] = {}
+            event = _make_event(
+                HookEventType.AFTER_TOOL,
+                data={"tool_name": "Bash", "tool_output": f"Error: {pattern}"},
+            )
+            event.metadata["is_failure"] = True
+            await engine.evaluate(event, session_id="sess-1", variables=variables)
+            assert variables.get("force_allow_stop") is True, f"Pattern '{pattern}' not detected"
+
+
+class TestStopAttempts:
+    """Tests for automatic stop_attempts counter."""
+
+    @pytest.mark.asyncio
+    async def test_stop_attempts_increments(self, db: LocalDatabase) -> None:
+        """stop_attempts should increment on each STOP event."""
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+
+        for i in range(3):
+            event = _make_event(HookEventType.STOP)
+            await engine.evaluate(event, session_id="sess-1", variables=variables)
+            assert variables["stop_attempts"] == i + 1
+
+    @pytest.mark.asyncio
+    async def test_stop_attempts_resets_on_before_agent(self, db: LocalDatabase) -> None:
+        """stop_attempts should reset on BEFORE_AGENT."""
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"stop_attempts": 5}
+
+        event = _make_event(HookEventType.BEFORE_AGENT)
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+        assert variables["stop_attempts"] == 0
+
+
+class TestEnforcementToggle:
+    """Tests for global enforcement toggle."""
+
+    @pytest.mark.asyncio
+    async def test_enforcement_disabled_allows_everything(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """When enforcement is globally disabled, all events are allowed."""
+        from gobby.storage.config_store import ConfigStore
+
+        _insert_rule(
+            manager,
+            "should-block",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effects=[RuleEffect(type="block", reason="blocked")],
+            ),
+        )
+
+        config_store = ConfigStore(db)
+        config_store.set("rules.enforcement_enabled", False)
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        response = await engine.evaluate(event, session_id="sess-1", variables={})
+
+        assert response.decision == "allow"
+
+        # Clean up
+        config_store.set("rules.enforcement_enabled", None)
+
+
+class TestUnmappedEventType:
+    """Tests for unmapped event types."""
+
+    @pytest.mark.asyncio
+    async def test_unmapped_event_type_allows(self, db: LocalDatabase) -> None:
+        """Event types not in _EVENT_TYPE_MAP should be allowed."""
+        engine = RuleEngine(db)
+        # Use a custom event type that's not mapped
+        event = _make_event(HookEventType.BEFORE_TOOL)
+        # Manually set to an unmapped type
+        event.event_type = "custom_unmapped_type"  # type: ignore
+        response = await engine.evaluate(event, session_id="sess-1", variables={})
+        assert response.decision == "allow"
+
+
+class TestAgentScope:
+    """Tests for agent_scope filtering."""
+
+    @pytest.mark.asyncio
+    async def test_agent_scope_wildcard_matches_any(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Rules with agent_scope=['*'] should match any agent type."""
+        _insert_rule(
+            manager,
+            "wildcard-scope",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                agent_scope=["*"],
+                effects=[RuleEffect(type="set_variable", variable="matched", value=True)],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"_agent_type": "researcher"}
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+        assert variables.get("matched") is True
+
+    @pytest.mark.asyncio
+    async def test_agent_scope_no_agent_type_excludes(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Rules with agent_scope should be excluded when no _agent_type is set."""
+        _insert_rule(
+            manager,
+            "scoped-rule",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                agent_scope=["researcher"],
+                effects=[RuleEffect(type="set_variable", variable="matched", value=True)],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+        assert variables.get("matched") is None
+
+
+class TestObserveEffectExtended:
+    """Tests for observe effect type."""
+
+    @pytest.mark.asyncio
+    async def test_observe_effect_records_observation(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """observe effect should record an observation in variables."""
+        _insert_rule(
+            manager,
+            "observer-rule",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effects=[
+                    RuleEffect(
+                        type="observe",
+                        message="Tool completed",
+                        category="tool_usage",
+                    ),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        obs = variables.get("_observations", [])
+        assert len(obs) == 1
+        assert obs[0]["category"] == "tool_usage"
+        assert obs[0]["message"] == "Tool completed"
+        assert obs[0]["rule"] == "observer-rule"
+
+
+class TestConsecutiveBlockDifferentTool:
+    """Tests for consecutive block counter reset on different tool."""
+
+    @pytest.mark.asyncio
+    async def test_different_tool_resets_counter(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Using a different tool should reset consecutive_tool_blocks counter."""
+        _insert_rule(
+            manager,
+            "block-all",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effects=[RuleEffect(type="block", reason="All blocked")],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {
+            "tool_block_pending": True,
+            "consecutive_tool_blocks": 1,
+            "_last_blocked_tool": "Edit",
+        }
+
+        # Try a different tool — counter should reset to 0
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Read"})
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        # Counter was reset because the tool changed
+        assert variables["consecutive_tool_blocks"] == 0
+        # But the tool is still blocked by the rule
+        assert response.decision == "block"
+
+
+class TestSessionOverridesExtended:
+    """Tests for session-scoped rule overrides."""
+
+    @pytest.mark.asyncio
+    async def test_override_disables_rule(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Session override can disable a specific rule."""
+        _insert_rule(
+            manager,
+            "block-everything",
+            RuleDefinitionBody(
+                event=RuleEvent.BEFORE_TOOL,
+                effects=[RuleEffect(type="block", reason="blocked")],
+            ),
+        )
+
+        # Add session override to disable this rule
+        db.execute(
+            "INSERT INTO rule_overrides (session_id, rule_name, enabled) VALUES (?, ?, ?)",
+            ("sess-override", "block-everything", False),
+        )
+
+        engine = RuleEngine(db)
+        event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Edit"})
+        response = await engine.evaluate(event, session_id="sess-override", variables={})
+        assert response.decision == "allow"
+
+
+class TestCompressOutputEffect:
+    """Tests for compress_output effect type."""
+
+    @pytest.mark.asyncio
+    async def test_compress_output_sets_metadata(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """compress_output effect should set compression metadata in response."""
+        _insert_rule(
+            manager,
+            "compress-rule",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effects=[
+                    RuleEffect(type="compress_output", strategy="tail", max_lines=50),
+                ],
+            ),
+        )
+
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Bash"})
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        compression = response.metadata.get("compression")
+        assert compression is not None
+        assert compression["strategy"] == "tail"
+        assert compression["max_lines"] == 50

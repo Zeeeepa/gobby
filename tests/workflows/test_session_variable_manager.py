@@ -209,3 +209,53 @@ def test_complex_variable_types(db) -> None:
     assert result["dict_val"] == {"nested": {"deep": True}}
     assert result["null_val"] is None
     assert result["bool_val"] is False
+
+
+# --- append_to_set_variable tests ---
+
+
+def test_append_to_set_variable_creates_new(db) -> None:
+    """Creates row and initializes list when session has no variables."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+    mgr.append_to_set_variable("new-session", "session_edited_files", ["a.py"])
+
+    result = mgr.get_variables("new-session")
+    assert result["session_edited_files"] == ["a.py"]
+
+
+def test_append_to_set_variable_deduplicates(db) -> None:
+    """Duplicate values are ignored, result is sorted."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+    mgr.append_to_set_variable("s1", "files", ["b.py", "a.py"])
+    mgr.append_to_set_variable("s1", "files", ["a.py", "c.py"])
+
+    result = mgr.get_variables("s1")
+    assert result["files"] == ["a.py", "b.py", "c.py"]
+
+
+def test_append_to_set_variable_preserves_other_vars(db) -> None:
+    """Appending to a list variable doesn't clobber other session variables."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+    mgr.set_variable("s1", "baseline_dirty_files", ["x.py"])
+    mgr.append_to_set_variable("s1", "session_edited_files", ["a.py"])
+
+    result = mgr.get_variables("s1")
+    assert result["baseline_dirty_files"] == ["x.py"]
+    assert result["session_edited_files"] == ["a.py"]
+
+
+def test_append_to_set_variable_noop_on_empty(db) -> None:
+    """Empty values list is a no-op — doesn't create a row."""
+    from gobby.workflows.state_manager import SessionVariableManager
+
+    mgr = SessionVariableManager(db)
+    mgr.append_to_set_variable("no-row", "files", [])
+
+    result = mgr.get_variables("no-row")
+    assert result == {}

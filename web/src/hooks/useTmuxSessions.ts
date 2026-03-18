@@ -70,7 +70,7 @@ export function useTmuxSessions(): TmuxSessionsResult {
     ws.onopen = () => {
       ws.send(JSON.stringify({
         type: 'subscribe',
-        events: ['terminal_output', 'tmux_session_event'],
+        events: ['terminal_output', 'tmux_session_event', 'session_event'],
       }))
       // Fetch session list on connect
       ws.send(JSON.stringify({ type: 'tmux_list_sessions', request_id: 'init' }))
@@ -142,6 +142,13 @@ export function useTmuxSessions(): TmuxSessionsResult {
       case 'tmux_session_event':
         // Refresh on any session lifecycle change
         refreshSessions()
+        break
+
+      case 'session_event':
+        // Refresh when session titles or metadata change
+        if (data.event === 'session_updated') {
+          refreshSessions()
+        }
         break
 
       case 'terminal_output':

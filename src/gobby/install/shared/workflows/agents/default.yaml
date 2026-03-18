@@ -38,6 +38,12 @@ instructions: |
   - Be concise — respect the reader's attention.
   - If you don't know something, say so and go find out.
 
+# Interactive sessions should not use pipeline-only status transitions.
+# Agents should create, claim, close, or escalate tasks — not manage review gates.
+blocked_mcp_tools:
+  - "gobby-tasks:mark_task_needs_review"
+  - "gobby-tasks:mark_task_review_approved"
+
 workflows:
   rule_selectors:
     include:

@@ -173,6 +173,49 @@ class SessionVariableManager:
                 )
         return True
 
+    def append_to_set_variable(self, session_id: str, name: str, values: list[str]) -> bool:
+        """Atomically append values to a list variable (deduped, sorted).
+
+        Uses BEGIN IMMEDIATE to serialize the read-modify-write, preventing
+        concurrent AFTER_TOOL events from clobbering each other.
+
+        Args:
+            session_id: Session ID to scope the variable to.
+            name: Variable name (the list to append to).
+            values: New values to add (duplicates are ignored).
+
+        Returns:
+            True always (creates row if needed).
+        """
+        if not values:
+            return True
+        now = datetime.now(UTC).isoformat()
+        with self.db.transaction_immediate() as conn:
+            row = conn.execute(
+                "SELECT variables FROM session_variables WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            current_vars = json.loads(row["variables"]) if row and row["variables"] else {}
+            stored = current_vars.get(name, [])
+            if not isinstance(stored, list):
+                stored = [stored] if stored else []
+            existing = set(stored)
+            existing.update(values)
+            current_vars[name] = sorted(existing)
+            if row:
+                conn.execute(
+                    "UPDATE session_variables SET variables = ?, updated_at = ? "
+                    "WHERE session_id = ?",
+                    (json.dumps(current_vars), now, session_id),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO session_variables (session_id, variables, updated_at) "
+                    "VALUES (?, ?, ?)",
+                    (session_id, json.dumps(current_vars), now),
+                )
+        return True
+
     def delete_variables(self, session_id: str) -> None:
         """Delete all session variables for a session."""
         self.db.execute(

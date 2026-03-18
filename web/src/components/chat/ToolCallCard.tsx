@@ -692,7 +692,7 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
             <div>
               <div className="text-destructive-foreground mb-1 font-medium">Error</div>
               <pre className="bg-destructive/30 rounded p-2 overflow-x-auto text-destructive-foreground">
-                {call.error}
+                {call.error.replace(/<\/?tool_use_error>/g, '').trim()}
               </pre>
             </div>
           )}
@@ -915,7 +915,7 @@ function CanvasSurfaceCard({ call, canvasSurfaces, onCanvasInteraction }: { call
             <div>
               <div className="text-destructive-foreground mb-1 font-medium mt-2">Error</div>
               <pre className="bg-destructive/30 rounded p-2 overflow-x-auto text-destructive-foreground">
-                {call.error}
+                {call.error.replace(/<\/?tool_use_error>/g, '').trim()}
               </pre>
             </div>
           )}

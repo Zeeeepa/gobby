@@ -6,6 +6,8 @@ the bundled install/shared/workflows/ directory tree.
 
 import json
 import logging
+import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -573,6 +575,26 @@ def _propagate_to_installed(
             )
 
 
+def _resolve_sync_placeholders(definition_json: str) -> str:
+    """Replace sync-time placeholders in a rule definition.
+
+    Currently supports:
+    - ``{{ gobby_bin }}``: resolved to the absolute path of the ``gobby``
+      binary via ``shutil.which``, falling back to
+      ``<sys.executable> -m gobby`` when the binary isn't on PATH.
+
+    Called once per rule during sync so the DB always stores a concrete path
+    that works regardless of whether ``gobby`` is on the CLI's PATH.
+    """
+    if "{{ gobby_bin }}" not in definition_json:
+        return definition_json
+
+    gobby_bin = shutil.which("gobby")
+    if not gobby_bin:
+        gobby_bin = f"{sys.executable} -m gobby"
+    return definition_json.replace("{{ gobby_bin }}", gobby_bin)
+
+
 def _sync_single_rule(
     manager: LocalWorkflowDefinitionManager,
     rule_name: str,
@@ -614,7 +636,7 @@ def _sync_single_rule(
     except ValidationError as ve:
         raise ValueError(f"Invalid rule definition: {ve}") from ve
 
-    definition_json = json.dumps(body_dict)
+    definition_json = _resolve_sync_placeholders(json.dumps(body_dict))
     priority = rule_data.get("priority", 100)
     description = rule_data.get("description")
     enabled = rule_data.get("enabled", False)

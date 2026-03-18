@@ -697,7 +697,7 @@ class TestImportFromGitHubIssues:
             result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
 
             assert result["success"] is False
-            assert "GitHub CLI (gh) not found" in result["error"]
+            assert "gh CLI not found" in result["error"]
 
     @pytest.mark.asyncio
     @pytest.mark.integration

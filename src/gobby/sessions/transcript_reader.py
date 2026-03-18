@@ -77,7 +77,7 @@ def _parse_lines_to_dicts(
                 "tool_result": msg.tool_result,
                 "tool_use_id": msg.tool_use_id,
                 "timestamp": msg.timestamp.isoformat() if msg.timestamp else None,
-                "raw_json": msg.raw_json,
+                "raw_json": msg.raw_json,  # kept for archive writes, not stored in DB
             }
         )
     return results

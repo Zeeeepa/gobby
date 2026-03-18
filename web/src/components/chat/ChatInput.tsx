@@ -79,6 +79,7 @@ export function ChatInput({
   onScrollToBottom,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
+  const [isDragOver, setIsDragOver] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -217,7 +218,30 @@ export function ChatInput({
   const hasInput = input.trim().length > 0 || queuedFiles.length > 0
 
   return (
-    <div className="border-t border-border bg-background px-4 py-3">
+    <div
+      className={`border-t border-border bg-background px-4 py-3${isDragOver ? ' ring-2 ring-accent ring-inset bg-accent/5' : ''}`}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('application/x-gobby-file')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+          setIsDragOver(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragOver(false)
+        }
+      }}
+      onDrop={(e) => {
+        const filePath = e.dataTransfer.getData('application/x-gobby-file')
+        if (filePath) {
+          e.preventDefault()
+          setInput((prev) => prev ? `${prev} ${filePath}` : filePath)
+          textareaRef.current?.focus()
+        }
+        setIsDragOver(false)
+      }}
+    >
       <div className="max-w-3xl mx-auto relative">
         {/* Command palette */}
         {showPalette && (

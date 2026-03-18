@@ -942,7 +942,7 @@ class TestSpawnAgentPromptPreamble:
             name="dev",
             role="Backend developer",
             instructions="Write clean code.",
-            mode="terminal",
+            mode="autonomous",
         )
 
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
@@ -1400,3 +1400,382 @@ class TestSpawnAgentDedup:
         assert result["skipped"] is True
         assert result["run_id"] == "existing-run-456"
         assert "already running" in result["message"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# spawn_agent_impl error branches
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestSpawnAgentImplErrorBranches:
+    """Tests for spawn_agent_impl error paths not covered by factory tests."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_mode_returns_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        result = await spawn_agent_impl(
+            prompt="test",
+            runner=runner,
+            mode="invalid_mode",
+        )
+        assert result["success"] is False
+        assert "Invalid mode" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_mode_self_no_workflow_no_agent_body_errors(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        result = await spawn_agent_impl(
+            prompt="test",
+            runner=runner,
+            mode="self",
+            parent_session_id="sess-1",
+        )
+        assert result["success"] is False
+        assert "workflow" in result["error"].lower() or "persona" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_mode_self_no_parent_session_errors(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        result = await spawn_agent_impl(
+            prompt="test",
+            runner=runner,
+            mode="self",
+            workflow="some-workflow",
+        )
+        assert result["success"] is False
+        assert "parent_session_id" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_mode_self_with_workflow_returns_removed_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        result = await spawn_agent_impl(
+            prompt="test",
+            runner=runner,
+            mode="self",
+            workflow="some-workflow",
+            parent_session_id="sess-1",
+        )
+        assert result["success"] is False
+        assert "removed" in result["error"].lower() or "pipeline" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_no_project_context_returns_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+        runner._child_session_manager = MagicMock()
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value=None,
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+            )
+            assert result["success"] is False
+            assert "project context" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_no_project_id_returns_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value={"project_path": "/path"},
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+            )
+            assert result["success"] is False
+            assert "project_id" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_no_parent_session_id_returns_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/path"},
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+            )
+            assert result["success"] is False
+            assert "parent_session_id" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_cannot_spawn_returns_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (False, "Max depth reached", 5)
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/path"},
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+            )
+            assert result["success"] is False
+            assert "Max depth" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_worktree_id_not_found_returns_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+        runner._child_session_manager = MagicMock()
+
+        worktree_storage = MagicMock()
+        worktree_storage.get.return_value = None
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/path"},
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+                worktree_id="wt-missing",
+                worktree_storage=worktree_storage,
+            )
+            assert result["success"] is False
+            assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_worktree_dir_missing_cleans_up(self, tmp_path) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+        runner._child_session_manager = MagicMock()
+
+        mock_wt = MagicMock()
+        mock_wt.id = "wt-1"
+        mock_wt.worktree_path = str(tmp_path / "nonexistent_dir")
+        mock_wt.branch_name = "test-branch"
+
+        worktree_storage = MagicMock()
+        worktree_storage.get.return_value = mock_wt
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/path"},
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+                worktree_id="wt-1",
+                worktree_storage=worktree_storage,
+            )
+            assert result["success"] is False
+            assert "missing" in result["error"].lower()
+            worktree_storage.delete.assert_called_once_with("wt-1")
+
+    @pytest.mark.asyncio
+    async def test_clone_id_not_found_returns_error(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+        runner._child_session_manager = MagicMock()
+
+        clone_storage = MagicMock()
+        clone_storage.get.return_value = None
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/path"},
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+                clone_id="clone-missing",
+                clone_storage=clone_storage,
+            )
+            assert result["success"] is False
+            assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_clone_dir_missing_cleans_up(self, tmp_path) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+        runner._child_session_manager = MagicMock()
+
+        mock_clone = MagicMock()
+        mock_clone.id = "clone-1"
+        mock_clone.clone_path = str(tmp_path / "nonexistent_clone")
+        mock_clone.branch_name = "test-branch"
+
+        clone_storage = MagicMock()
+        clone_storage.get.return_value = mock_clone
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/path"},
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+                clone_id="clone-1",
+                clone_storage=clone_storage,
+            )
+            assert result["success"] is False
+            assert "missing" in result["error"].lower()
+            clone_storage.delete.assert_called_once_with("clone-1")
+
+    @pytest.mark.asyncio
+    async def test_prepare_environment_failure(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+        runner._child_session_manager = MagicMock()
+
+        mock_handler = MagicMock()
+        mock_handler.prepare_environment = AsyncMock(
+            side_effect=RuntimeError("git error")
+        )
+        mock_handler.cleanup_environment = AsyncMock()
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+                return_value={"id": "proj-1", "project_path": "/path"},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler",
+                return_value=mock_handler,
+            ),
+        ):
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+            )
+            assert result["success"] is False
+            assert "prepare environment" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_timeout_zero_treated_as_none(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "ok", 0)
+        runner._child_session_manager = MagicMock()
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context",
+                return_value={"id": "proj-1", "project_path": "/path"},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_handler_fn,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
+            ),
+        ):
+            handler = MagicMock()
+            handler.prepare_environment = AsyncMock(
+                return_value=IsolationContext(cwd="/path")
+            )
+            handler.build_context_prompt.return_value = "test"
+            mock_handler_fn.return_value = handler
+
+            mock_execute.return_value = MagicMock(
+                success=True, child_session_id="c-1", status="ok",
+                pid=1, terminal_type=None, tmux_session_name=None,
+                message="ok", process=None,
+            )
+
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="terminal",
+                parent_session_id="sess-1",
+                timeout=0,
+            )
+            assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_mode_self_persona_delegation(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        agent_body = AgentDefinitionBody(
+            name="persona-agent",
+            instructions="Be helpful",
+        )
+
+        with patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation._handle_self_persona",
+            new_callable=AsyncMock,
+            return_value={"success": True, "message": "persona activated"},
+        ) as mock_persona:
+            result = await spawn_agent_impl(
+                prompt="test",
+                runner=runner,
+                mode="self",
+                agent_body=agent_body,
+                parent_session_id="sess-1",
+            )
+            assert result["success"] is True
+            mock_persona.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_mode_self_no_agent_body_errors(self) -> None:
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = MagicMock()
+        result = await spawn_agent_impl(
+            prompt="test",
+            runner=runner,
+            mode="self",
+            parent_session_id="sess-1",
+            agent_body=None,
+        )
+        assert result["success"] is False
+        assert "workflow" in result["error"].lower() or "persona" in result["error"].lower()

@@ -110,18 +110,21 @@ class TestLLMProvidersConfigDefaults:
         from gobby.config.llm_providers import LLMProvidersConfig
 
         config = LLMProvidersConfig()
-        assert config.claude is None
+        # Claude is enabled by default for fresh installs
+        assert config.claude is not None
+        assert config.claude.models == "haiku,sonnet,opus"
+        assert config.claude.auth_mode == "subscription"
         assert config.codex is None
         assert config.gemini is None
         assert config.litellm is None
         assert config.api_keys == {}
 
-    def test_no_enabled_providers_by_default(self) -> None:
-        """Test no providers enabled by default."""
+    def test_claude_enabled_by_default(self) -> None:
+        """Test Claude provider is enabled by default."""
         from gobby.config.llm_providers import LLMProvidersConfig
 
         config = LLMProvidersConfig()
-        assert config.get_enabled_providers() == []
+        assert config.get_enabled_providers() == ["claude"]
 
 
 class TestLLMProvidersConfigWithProviders:

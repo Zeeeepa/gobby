@@ -71,6 +71,7 @@ export function useArtifacts() {
 
   const closePanel = useCallback(() => {
     setIsPanelOpen(false)
+    setActiveArtifactId(null)
   }, [])
 
   const setVersion = useCallback((id: string, index: number) => {

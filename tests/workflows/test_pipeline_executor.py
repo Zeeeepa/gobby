@@ -2362,3 +2362,506 @@ class TestBuildOutputs:
 
         outputs = executor._build_outputs(pipeline, context)
         assert outputs["count"] == 2
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Additional coverage: _coerce_rendered_value
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestCoerceRenderedValue:
+    """Tests for _coerce_rendered_value type coercion."""
+
+    def test_coerce_true(self) -> None:
+        from gobby.workflows.pipeline_executor import _coerce_rendered_value
+
+        assert _coerce_rendered_value("True") is True
+        assert _coerce_rendered_value("  true  ") is True
+
+    def test_coerce_false(self) -> None:
+        from gobby.workflows.pipeline_executor import _coerce_rendered_value
+
+        assert _coerce_rendered_value("False") is False
+        assert _coerce_rendered_value("  FALSE  ") is False
+
+    def test_coerce_none(self) -> None:
+        from gobby.workflows.pipeline_executor import _coerce_rendered_value
+
+        assert _coerce_rendered_value("None") is None
+        assert _coerce_rendered_value("  none  ") is None
+
+    def test_coerce_integer(self) -> None:
+        from gobby.workflows.pipeline_executor import _coerce_rendered_value
+
+        assert _coerce_rendered_value("42") == 42
+        assert _coerce_rendered_value("-1") == -1
+
+    def test_coerce_float(self) -> None:
+        from gobby.workflows.pipeline_executor import _coerce_rendered_value
+
+        assert _coerce_rendered_value("3.14") == 3.14
+        assert _coerce_rendered_value("-0.5") == -0.5
+
+    def test_coerce_passthrough_string(self) -> None:
+        from gobby.workflows.pipeline_executor import _coerce_rendered_value
+
+        assert _coerce_rendered_value("hello") == "hello"
+
+    def test_coerce_non_string_passthrough(self) -> None:
+        from gobby.workflows.pipeline_executor import _coerce_rendered_value
+
+        assert _coerce_rendered_value(42) == 42
+        assert _coerce_rendered_value([1, 2]) == [1, 2]
+        assert _coerce_rendered_value(None) is None
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Additional coverage: _emit_event error handling
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestEmitEvent:
+    """Tests for _emit_event error suppression."""
+
+    @pytest.mark.asyncio
+    async def test_emit_event_no_callback(self, mock_db, mock_execution_manager, mock_llm_service) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        # No event_callback - should not raise
+        await executor._emit_event("test", "pe-1")
+
+    @pytest.mark.asyncio
+    async def test_emit_event_callback_error_suppressed(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        callback = AsyncMock(side_effect=RuntimeError("callback failed"))
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            event_callback=callback,
+        )
+        # Should not raise
+        await executor._emit_event("test", "pe-1")
+
+    @pytest.mark.asyncio
+    async def test_emit_event_calls_callback(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        callback = AsyncMock()
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            event_callback=callback,
+        )
+        await executor._emit_event("pipeline_started", "pe-1", step_count=3)
+        callback.assert_called_once_with("pipeline_started", "pe-1", step_count=3)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Additional coverage: _notify_completion
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestNotifyCompletion:
+    """Tests for _notify_completion."""
+
+    @pytest.mark.asyncio
+    async def test_no_registry_does_nothing(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        # No completion_registry - should not raise
+        await executor._notify_completion("pe-1", "completed", "test-pipe")
+
+    @pytest.mark.asyncio
+    async def test_notify_with_outputs(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        registry = AsyncMock()
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            completion_registry=registry,
+        )
+        await executor._notify_completion(
+            "pe-1", "completed", "test-pipe", outputs={"result": "ok"}
+        )
+        registry.notify.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_notify_with_orchestration_complete(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        registry = AsyncMock()
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            completion_registry=registry,
+        )
+        outputs = {
+            "orchestration_complete": "true",
+            "session_task": "#42",
+            "iteration": 3,
+        }
+        await executor._notify_completion("pe-1", "completed", "test-pipe", outputs=outputs)
+        call_args = registry.notify.call_args
+        assert "Orchestration complete" in call_args.kwargs.get("message", "")
+
+    @pytest.mark.asyncio
+    async def test_notify_error_suppressed(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        registry = AsyncMock()
+        registry.notify.side_effect = RuntimeError("boom")
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            completion_registry=registry,
+        )
+        # Should not raise
+        await executor._notify_completion("pe-1", "failed", "test-pipe", error="oops")
+
+    @pytest.mark.asyncio
+    async def test_notify_with_error_field(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        registry = AsyncMock()
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            completion_registry=registry,
+        )
+        await executor._notify_completion("pe-1", "failed", "test-pipe", error="step failed")
+        call_args = registry.notify.call_args
+        result = call_args[0][1]
+        assert result["error"] == "step failed"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Additional coverage: _close_pipeline_session
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestClosePipelineSession:
+    """Tests for _close_pipeline_session."""
+
+    def test_no_session_id_does_nothing(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        # Should not raise
+        executor._close_pipeline_session(None, "caller-1")
+
+    def test_same_session_does_nothing(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        sm = MagicMock()
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            session_manager=sm,
+        )
+        executor._close_pipeline_session("sess-1", "sess-1")
+        sm.update_status.assert_not_called()
+
+    def test_closes_different_session(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        sm = MagicMock()
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            session_manager=sm,
+        )
+        executor._close_pipeline_session("pipeline-sess", "caller-sess")
+        sm.update_status.assert_called_once_with("pipeline-sess", "deleted")
+
+    def test_close_session_error_suppressed(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        sm = MagicMock()
+        sm.update_status.side_effect = RuntimeError("DB error")
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            session_manager=sm,
+        )
+        # Should not raise
+        executor._close_pipeline_session("pipeline-sess", "caller-sess")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Additional coverage: execute error handling and terminal status
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestExecuteErrorHandling:
+    """Tests for error handling in execute()."""
+
+    @pytest.mark.asyncio
+    async def test_execute_nonexistent_execution_id(
+        self, mock_db, mock_execution_manager, mock_llm_service, simple_pipeline
+    ) -> None:
+        """Resuming nonexistent execution raises ValueError."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_execution_manager.get_execution.return_value = None
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ValueError, match="not found"):
+            await executor.execute(
+                pipeline=simple_pipeline,
+                inputs={},
+                project_id="proj-1",
+                execution_id="pe-gone",
+            )
+
+    @pytest.mark.asyncio
+    async def test_nesting_depth_limit(
+        self, mock_db, mock_execution_manager, mock_llm_service, simple_pipeline
+    ) -> None:
+        """Pipeline nesting depth should be enforced."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(RuntimeError, match="depth limit"):
+            await executor.execute(
+                pipeline=simple_pipeline,
+                inputs={},
+                project_id="proj-1",
+                _depth=999,
+            )
+
+    @pytest.mark.asyncio
+    async def test_cross_pipeline_cycle_detected(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Cross-pipeline cycles should be detected."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline_a = PipelineDefinition(
+            name="pipeline-a",
+            steps=[PipelineStep(id="s1", exec="echo")],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(RuntimeError, match="cycle detected"):
+            await executor.execute(
+                pipeline=pipeline_a,
+                inputs={},
+                project_id="proj-1",
+                _depth=2,
+                _pipeline_stack=frozenset({"pipeline-b", "pipeline-a"}),
+            )
+
+    @pytest.mark.asyncio
+    async def test_exec_step_failure_marks_step_failed(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Non-zero exit code from exec step should fail the pipeline."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline = PipelineDefinition(
+            name="fail-pipeline",
+            steps=[PipelineStep(id="fail_step", exec="exit 1")],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(RuntimeError, match="exit code"):
+            await executor.execute(
+                pipeline=pipeline,
+                inputs={},
+                project_id="proj-1",
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Additional coverage: _execute_wait_step
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestExecuteWaitStep:
+    """Tests for _execute_wait_step."""
+
+    @pytest.mark.asyncio
+    async def test_wait_step_no_completion_id_raises(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            completion_registry=MagicMock(),
+        )
+
+        rendered = MagicMock()
+        rendered.id = "wait-step"
+        rendered.wait = {"timeout": 60}
+
+        with pytest.raises(ValueError, match="completion_id"):
+            await executor._execute_wait_step(rendered, {})
+
+    @pytest.mark.asyncio
+    async def test_wait_step_no_registry_raises(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        rendered = MagicMock()
+        rendered.id = "wait-step"
+        rendered.wait = {"completion_id": "cid-1", "timeout": 60}
+
+        with pytest.raises(RuntimeError, match="completion_registry"):
+            await executor._execute_wait_step(rendered, {})
+
+    @pytest.mark.asyncio
+    async def test_wait_step_invalid_timeout_defaults(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        registry = AsyncMock()
+        registry.wait.return_value = {"result": "done"}
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            completion_registry=registry,
+        )
+
+        rendered = MagicMock()
+        rendered.id = "wait-step"
+        rendered.wait = {"completion_id": "cid-1", "timeout": "not-a-number"}
+
+        result = await executor._execute_wait_step(rendered, {})
+        assert result == {"result": "done"}
+        # Should use 600.0 default
+        registry.wait.assert_called_once_with("cid-1", timeout=600.0)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Additional coverage: approve and reject
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestApproveReject:
+    """Tests for approve() and reject() methods."""
+
+    @pytest.mark.asyncio
+    async def test_approve_without_loader(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_exec = MagicMock()
+        mock_exec.id = "pe-1"
+        mock_exec.pipeline_name = "test"
+
+        approval_mgr = AsyncMock()
+        approval_mgr.approve_step.return_value = mock_exec
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        executor.approval_manager = approval_mgr
+
+        result = await executor.approve("tok-1")
+        assert result.id == "pe-1"
+
+    @pytest.mark.asyncio
+    async def test_reject_delegates_to_approval_manager(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_exec = MagicMock()
+        mock_exec.id = "pe-1"
+        mock_exec.status = ExecutionStatus.CANCELLED
+
+        approval_mgr = AsyncMock()
+        approval_mgr.reject_step.return_value = mock_exec
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        executor.approval_manager = approval_mgr
+
+        result = await executor.reject("tok-1")
+        assert result.status == ExecutionStatus.CANCELLED

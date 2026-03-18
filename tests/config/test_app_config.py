@@ -325,10 +325,10 @@ class TestLLMProviderConfig:
 class TestLLMProvidersConfig:
     """Tests for LLMProvidersConfig."""
 
-    def test_default_empty(self) -> None:
-        """Test default config has no providers."""
+    def test_default_has_claude(self) -> None:
+        """Test default config has Claude provider enabled."""
         config = LLMProvidersConfig()
-        assert config.get_enabled_providers() == []
+        assert config.get_enabled_providers() == ["claude"]
 
     def test_enabled_providers(self) -> None:
         """Test listing enabled providers."""

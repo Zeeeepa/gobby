@@ -293,3 +293,325 @@ class TestMemoryStats:
         response = client.get("/api/memories/stats", params={"project_id": "proj-1"})
         assert response.status_code == 200
         mock_server.memory_manager.get_stats.assert_called_once_with(project_id="proj-1")
+
+    def test_stats_server_error(self, client, mock_server) -> None:
+        """GET /memories/stats returns 500 on error."""
+        mock_server.memory_manager.get_stats.side_effect = RuntimeError("DB error")
+        response = client.get("/api/memories/stats")
+        assert response.status_code == 500
+
+
+# =============================================================================
+# GET /memories/graph - memory graph
+# =============================================================================
+
+
+class TestMemoryGraph:
+    """Test GET /memories/graph endpoint."""
+
+    def test_graph_returns_data(self, client, mock_server) -> None:
+        """GET /memories/graph returns memories and crossrefs."""
+        mock_server.memory_manager.list_memories.return_value = [
+            _make_memory(id="mm-1"),
+            _make_memory(id="mm-2"),
+        ]
+        mock_crossref = MagicMock()
+        mock_crossref.source_id = "mm-1"
+        mock_crossref.target_id = "mm-2"
+        mock_crossref.to_dict.return_value = {
+            "source_id": "mm-1",
+            "target_id": "mm-2",
+            "similarity": 0.9,
+        }
+        mock_server.memory_manager.storage.get_all_crossrefs.return_value = [mock_crossref]
+        response = client.get("/api/memories/graph")
+        assert response.status_code == 200
+        data = response.json()
+        assert "memories" in data
+        assert "crossrefs" in data
+        assert len(data["memories"]) == 2
+        assert len(data["crossrefs"]) == 1
+
+    def test_graph_filters_by_project(self, client, mock_server) -> None:
+        """GET /memories/graph respects project_id filter."""
+        mock_server.memory_manager.list_memories.return_value = []
+        mock_server.memory_manager.storage.get_all_crossrefs.return_value = []
+        response = client.get("/api/memories/graph", params={"project_id": "proj-1"})
+        assert response.status_code == 200
+        mock_server.memory_manager.list_memories.assert_called_once_with(
+            project_id="proj-1", limit=200
+        )
+
+    def test_graph_server_error(self, client, mock_server) -> None:
+        """GET /memories/graph returns 500 on error."""
+        mock_server.memory_manager.list_memories.side_effect = RuntimeError("DB error")
+        response = client.get("/api/memories/graph")
+        assert response.status_code == 500
+
+    def test_graph_filters_crossrefs_by_visible_memories(self, client, mock_server) -> None:
+        """GET /memories/graph only includes crossrefs for visible memories."""
+        mock_server.memory_manager.list_memories.return_value = [_make_memory(id="mm-1")]
+        # Crossref references an invisible memory
+        mock_crossref = MagicMock()
+        mock_crossref.source_id = "mm-1"
+        mock_crossref.target_id = "mm-invisible"
+        mock_server.memory_manager.storage.get_all_crossrefs.return_value = [mock_crossref]
+        response = client.get("/api/memories/graph")
+        assert response.status_code == 200
+        assert len(response.json()["crossrefs"]) == 0
+
+
+# =============================================================================
+# POST /memories/crossrefs/rebuild
+# =============================================================================
+
+
+class TestRebuildCrossrefs:
+    """Test POST /memories/crossrefs/rebuild endpoint."""
+
+    def test_rebuild_crossrefs(self, client, mock_server) -> None:
+        """POST /memories/crossrefs/rebuild processes memories."""
+        mock_server.memory_manager.list_memories.return_value = [
+            _make_memory(id="mm-1"),
+            _make_memory(id="mm-2"),
+        ]
+        mock_server.memory_manager.rebuild_crossrefs_for_memory = AsyncMock(return_value=1)
+        response = client.post("/api/memories/crossrefs/rebuild")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["memories_processed"] == 2
+        assert data["crossrefs_created"] == 2
+
+    def test_rebuild_crossrefs_partial_failure(self, client, mock_server) -> None:
+        """POST /memories/crossrefs/rebuild handles per-memory failures."""
+        mock_server.memory_manager.list_memories.return_value = [
+            _make_memory(id="mm-1"),
+            _make_memory(id="mm-2"),
+        ]
+        mock_server.memory_manager.rebuild_crossrefs_for_memory = AsyncMock(
+            side_effect=[RuntimeError("fail"), 1]
+        )
+        response = client.post("/api/memories/crossrefs/rebuild")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["memories_processed"] == 2
+        assert data["crossrefs_created"] == 1
+
+    def test_rebuild_crossrefs_server_error(self, client, mock_server) -> None:
+        """POST /memories/crossrefs/rebuild returns 500 on total failure."""
+        mock_server.memory_manager.list_memories.side_effect = RuntimeError("DB error")
+        response = client.post("/api/memories/crossrefs/rebuild")
+        assert response.status_code == 500
+
+
+# =============================================================================
+# POST /memories/embeddings/reindex
+# =============================================================================
+
+
+class TestReindexEmbeddings:
+    """Test POST /memories/embeddings/reindex endpoint."""
+
+    def test_reindex(self, client, mock_server) -> None:
+        """POST /memories/embeddings/reindex returns result."""
+        mock_server.memory_manager.reindex_embeddings = AsyncMock(
+            return_value={"success": True, "total_memories": 5, "embeddings_generated": 5}
+        )
+        response = client.post("/api/memories/embeddings/reindex")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["total_memories"] == 5
+
+    def test_reindex_server_error(self, client, mock_server) -> None:
+        """POST /memories/embeddings/reindex returns 500 on error."""
+        mock_server.memory_manager.reindex_embeddings = AsyncMock(
+            side_effect=RuntimeError("No vectorstore")
+        )
+        response = client.post("/api/memories/embeddings/reindex")
+        assert response.status_code == 500
+
+
+# =============================================================================
+# GET /memories/graph/entities - entity graph
+# =============================================================================
+
+
+class TestEntityGraph:
+    """Test GET /memories/graph/entities endpoint."""
+
+    def test_entity_graph_no_neo4j(self, client, mock_server) -> None:
+        """GET /memories/graph/entities returns 404 when no Neo4j."""
+        mock_server.memory_manager._neo4j_client = None
+        response = client.get("/api/memories/graph/entities")
+        assert response.status_code == 404
+
+    def test_entity_graph_success(self, client, mock_server) -> None:
+        """GET /memories/graph/entities returns graph data."""
+        mock_server.memory_manager._neo4j_client = MagicMock()
+        mock_server.memory_manager.get_entity_graph = AsyncMock(
+            return_value={"nodes": [], "edges": []}
+        )
+        response = client.get("/api/memories/graph/entities")
+        assert response.status_code == 200
+        assert "nodes" in response.json()
+
+    def test_entity_graph_unreachable(self, client, mock_server) -> None:
+        """GET /memories/graph/entities returns 502 when Neo4j unreachable."""
+        mock_server.memory_manager._neo4j_client = MagicMock()
+        mock_server.memory_manager.get_entity_graph = AsyncMock(return_value=None)
+        response = client.get("/api/memories/graph/entities")
+        assert response.status_code == 502
+
+    def test_entity_graph_server_error(self, client, mock_server) -> None:
+        """GET /memories/graph/entities returns 500 on error."""
+        mock_server.memory_manager._neo4j_client = MagicMock()
+        mock_server.memory_manager.get_entity_graph = AsyncMock(
+            side_effect=RuntimeError("Neo4j error")
+        )
+        response = client.get("/api/memories/graph/entities")
+        assert response.status_code == 500
+
+    def test_entity_graph_none_manager(self, client, mock_server) -> None:
+        """GET /memories/graph/entities returns 404 when memory_manager is None."""
+        mock_server.memory_manager = None
+        response = client.get("/api/memories/graph/entities")
+        assert response.status_code == 404
+
+
+# =============================================================================
+# GET /memories/graph/entities/{name}/neighbors
+# =============================================================================
+
+
+class TestEntityNeighbors:
+    """Test GET /memories/graph/entities/{name}/neighbors endpoint."""
+
+    def test_neighbors_no_neo4j(self, client, mock_server) -> None:
+        """GET /memories/graph/entities/{name}/neighbors returns 404 when no Neo4j."""
+        mock_server.memory_manager._neo4j_client = None
+        response = client.get("/api/memories/graph/entities/test-entity/neighbors")
+        assert response.status_code == 404
+
+    def test_neighbors_success(self, client, mock_server) -> None:
+        """GET /memories/graph/entities/{name}/neighbors returns neighbors."""
+        mock_server.memory_manager._neo4j_client = MagicMock()
+        mock_server.memory_manager.get_entity_neighbors = AsyncMock(
+            return_value={"neighbors": []}
+        )
+        response = client.get("/api/memories/graph/entities/test-entity/neighbors")
+        assert response.status_code == 200
+        assert "neighbors" in response.json()
+
+    def test_neighbors_unreachable(self, client, mock_server) -> None:
+        """GET /memories/graph/entities/{name}/neighbors returns 502 when unreachable."""
+        mock_server.memory_manager._neo4j_client = MagicMock()
+        mock_server.memory_manager.get_entity_neighbors = AsyncMock(return_value=None)
+        response = client.get("/api/memories/graph/entities/test-entity/neighbors")
+        assert response.status_code == 502
+
+    def test_neighbors_server_error(self, client, mock_server) -> None:
+        """GET /memories/graph/entities/{name}/neighbors returns 500 on error."""
+        mock_server.memory_manager._neo4j_client = MagicMock()
+        mock_server.memory_manager.get_entity_neighbors = AsyncMock(
+            side_effect=RuntimeError("Neo4j error")
+        )
+        response = client.get("/api/memories/graph/entities/test-entity/neighbors")
+        assert response.status_code == 500
+
+
+# =============================================================================
+# POST /memories/graph/rebuild - knowledge graph rebuild
+# =============================================================================
+
+
+class TestRebuildKnowledgeGraph:
+    """Test POST /memories/graph/rebuild endpoint."""
+
+    def test_no_kg_service(self, client, mock_server) -> None:
+        """POST /memories/graph/rebuild returns 400 when no KG service."""
+        mock_server.memory_manager.kg_service = None
+        response = client.post("/api/memories/graph/rebuild")
+        assert response.status_code == 400
+
+    def test_rebuild_success(self, client, mock_server) -> None:
+        """POST /memories/graph/rebuild processes memories."""
+        mock_kg = MagicMock()
+        mock_kg.add_to_graph = AsyncMock()
+        mock_server.memory_manager.kg_service = mock_kg
+        mock_server.memory_manager.list_memories.return_value = [
+            _make_memory(id="mm-1"),
+        ]
+        response = client.post("/api/memories/graph/rebuild")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["memories_extracted"] == 1
+        assert data["errors"] == 0
+
+    def test_rebuild_partial_error(self, client, mock_server) -> None:
+        """POST /memories/graph/rebuild handles per-memory errors."""
+        mock_kg = MagicMock()
+        mock_kg.add_to_graph = AsyncMock(side_effect=[None, RuntimeError("fail")])
+        mock_server.memory_manager.kg_service = mock_kg
+        mock_server.memory_manager.list_memories.return_value = [
+            _make_memory(id="mm-1"),
+            _make_memory(id="mm-2"),
+        ]
+        response = client.post("/api/memories/graph/rebuild")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["memories_extracted"] == 1
+        assert data["errors"] == 1
+
+    def test_rebuild_server_error(self, client, mock_server) -> None:
+        """POST /memories/graph/rebuild returns 500 on total failure."""
+        mock_kg = MagicMock()
+        mock_server.memory_manager.kg_service = mock_kg
+        mock_server.memory_manager.list_memories.side_effect = RuntimeError("DB error")
+        response = client.post("/api/memories/graph/rebuild")
+        assert response.status_code == 500
+
+
+# =============================================================================
+# Error path tests
+# =============================================================================
+
+
+class TestErrorPaths:
+    """Test error handling across endpoints."""
+
+    def test_list_server_error(self, client, mock_server) -> None:
+        """GET /memories returns 500 on error."""
+        mock_server.memory_manager.list_memories.side_effect = RuntimeError("DB error")
+        response = client.get("/api/memories")
+        assert response.status_code == 500
+
+    def test_get_memory_server_error(self, client, mock_server) -> None:
+        """GET /memories/{id} returns 500 on error."""
+        mock_server.memory_manager.get_memory.side_effect = RuntimeError("DB error")
+        response = client.get("/api/memories/mm-abc123")
+        assert response.status_code == 500
+
+    def test_update_server_error(self, client, mock_server) -> None:
+        """PUT /memories/{id} returns 500 on generic error."""
+        mock_server.memory_manager.update_memory = AsyncMock(
+            side_effect=RuntimeError("DB error")
+        )
+        response = client.put("/api/memories/mm-abc123", json={"content": "new"})
+        assert response.status_code == 500
+
+    def test_delete_server_error(self, client, mock_server) -> None:
+        """DELETE /memories/{id} returns 500 on error."""
+        mock_server.memory_manager.delete_memory = AsyncMock(
+            side_effect=RuntimeError("DB error")
+        )
+        response = client.delete("/api/memories/mm-abc123")
+        assert response.status_code == 500
+
+    def test_search_server_error(self, client, mock_server) -> None:
+        """GET /memories/search returns 500 on error."""
+        mock_server.memory_manager.search_memories = AsyncMock(
+            side_effect=RuntimeError("Search error")
+        )
+        response = client.get("/api/memories/search", params={"q": "test"})
+        assert response.status_code == 500

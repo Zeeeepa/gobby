@@ -22,9 +22,17 @@ function stableHash(s: string): string {
   return (h >>> 0).toString(36)
 }
 
+/** Strip protocol tags not meant for display */
+function stripProtocolTags(text: string): string {
+  return text
+    .replace(/<\/?command-name>/g, '')
+    .replace(/<\/?command-message>/g, '')
+}
+
 export function Markdown({ content, id }: { content: string; id: string }) {
   const blocks = useMemo(() => {
-    const tokens = marked.lexer(content)
+    const cleaned = stripProtocolTags(content)
+    const tokens = marked.lexer(cleaned)
     return tokens.map((token) => token.raw)
   }, [content])
 

@@ -1,8 +1,6 @@
 """Tests for template_writer.py — YAML write/read/delete for user templates."""
 
 import yaml
-import pytest
-from pathlib import Path
 
 
 class TestWriteRuleTemplate:

@@ -6,12 +6,13 @@ and retrieving skills from SQLite, following the Agent Skills specification
 """
 
 from gobby.storage.skills._manager import LocalSkillManager
-from gobby.storage.skills._models import ChangeEvent, Skill, SkillSourceType
+from gobby.storage.skills._models import ChangeEvent, Skill, SkillFile, SkillSourceType
 from gobby.storage.skills._notifier import SkillChangeNotifier
 
 __all__ = [
     "ChangeEvent",
     "Skill",
+    "SkillFile",
     "SkillSourceType",
     "SkillChangeNotifier",
     "LocalSkillManager",

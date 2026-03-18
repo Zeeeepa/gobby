@@ -40,7 +40,7 @@ class LLMProvidersConfig(BaseModel):
     llm_providers:
       json_strict: true  # Strict JSON validation for LLM responses (default)
       claude:
-        models: claude-3-5-haiku-latest,claude-sonnet-4-0,claude-opus-4-0
+        models: haiku,sonnet,opus
       codex:
         models: gpt-4o-mini,gpt-5-mini,gpt-5
         auth_mode: subscription
@@ -68,7 +68,10 @@ class LLMProvidersConfig(BaseModel):
         "Can be overridden per-workflow via llm_json_strict variable.",
     )
     claude: LLMProviderConfig | None = Field(
-        default=None,
+        default_factory=lambda: LLMProviderConfig(
+            models="haiku,sonnet,opus",
+            auth_mode="subscription",
+        ),
         description="Claude provider configuration",
     )
     codex: LLMProviderConfig | None = Field(

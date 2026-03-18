@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.2.29"
+version = "0.2.30"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "Apache-2.0"
@@ -143,6 +143,13 @@ filterwarnings = [
     "ignore:unclosed database:ResourceWarning",
     # Ignore fork() deprecation warning from embedded spawner tests (expected on macOS)
     "ignore:This process.*is multi-threaded.*use of fork:DeprecationWarning",
+    # Ignore third-party deprecation warnings (litellm, google-genai, oletools)
+    "ignore::DeprecationWarning:litellm",
+    "ignore::DeprecationWarning:litellm.*",
+    "ignore::DeprecationWarning:google.genai",
+    "ignore::DeprecationWarning:google.genai.*",
+    "ignore::DeprecationWarning:oletools",
+    "ignore::DeprecationWarning:oletools.*",
 ]
 
 [tool.ruff]

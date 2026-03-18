@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import logging
+import os
+
 from gobby.hooks.event_handlers._base import EventHandlersBase
 from gobby.hooks.events import HookEvent, HookResponse
+
+logger = logging.getLogger(__name__)
 
 EDIT_TOOLS = {
     "write_file",
@@ -62,6 +67,12 @@ class ToolEventHandlerMixin(EventHandlersBase):
                     is_internal = file_path and ".gobby/" in str(file_path)
 
                     if not is_internal:
+                        # Track repo-relative file path in session variables
+                        # (independent of task-claim gate — rules need this
+                        # for per-session has_dirty_files scoping)
+                        if file_path:
+                            self._track_session_edited_file(session_id, str(file_path), event.cwd)
+
                         # Check if session has any claimed tasks before marking had_edits
                         has_claimed_task = False
                         if self._task_manager:
@@ -83,6 +94,32 @@ class ToolEventHandlerMixin(EventHandlersBase):
             self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")
 
         return HookResponse(decision="allow")
+
+    def _track_session_edited_file(self, session_id: str, file_path: str, cwd: str | None) -> None:
+        """Record a repo-relative file path in session_edited_files variable.
+
+        Used to scope ``has_dirty_files`` to only files this session touched,
+        preventing bleed across concurrent sessions sharing a working directory.
+        """
+        try:
+            if cwd:
+                rel_path = os.path.normpath(os.path.relpath(file_path, cwd))
+            else:
+                rel_path = os.path.normpath(file_path)
+
+            # Skip paths that escape the repo (e.g. /tmp files)
+            if rel_path.startswith(".."):
+                return
+
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            db = getattr(self._session_storage, "db", None)
+            if db:
+                SessionVariableManager(db).append_to_set_variable(
+                    session_id, "session_edited_files", [rel_path]
+                )
+        except Exception as e:
+            logger.debug(f"Failed to track session edited file: {e}")
 
     def handle_before_tool_selection(self, event: HookEvent) -> HookResponse:
         """Handle BEFORE_TOOL_SELECTION event (Gemini only)."""

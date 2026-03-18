@@ -1,6 +1,4 @@
-import { useState } from 'react'
-import { useTimeStats, rangeToDays } from '../../hooks/useTimeStats'
-import { TimeRangePills, type TimeRange } from './TimeRangePills'
+import { useTimeStats } from '../../hooks/useTimeStats'
 
 const TYPE_COLORS: Record<string, { label: string; color: string }> = {
   fact: { label: 'Facts', color: '#3b82f6' },
@@ -17,9 +15,31 @@ const STROKE = 18
 const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-export function MemoryCard() {
-  const [range, setRange] = useState<TimeRange>('all')
-  const { data } = useTimeStats(rangeToDays(range))
+interface Props {
+  hours: number
+  projectId?: string
+}
+
+export function MemoryCard({ hours, projectId }: Props) {
+  const { data, isLoading, error } = useTimeStats(hours, projectId)
+
+  if (isLoading) {
+    return (
+      <div className="dash-card">
+        <div className="dash-card-header"><h3 className="dash-card-title">Memory</h3></div>
+        <div className="dash-card-body"><p className="text-xs text-muted-foreground">Loading...</p></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="dash-card">
+        <div className="dash-card-header"><h3 className="dash-card-title">Memory</h3></div>
+        <div className="dash-card-body"><p className="text-xs text-muted-foreground">Failed to load memory data</p></div>
+      </div>
+    )
+  }
 
   const memory = data?.memory ?? { count: 0, by_type: {}, recent_count: 0 }
 
@@ -51,12 +71,11 @@ export function MemoryCard() {
   })
 
   return (
-    <div className="dash-card dash-card--span-2">
+    <div className="dash-card">
       <div className="dash-card-header">
         <h3 className="dash-card-title">Memory</h3>
-        <TimeRangePills value={range} onChange={setRange} />
       </div>
-      <div className="dash-card-body" style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+      <div className="dash-card-body dash-card-body--row">
         <svg width={SIZE} height={SIZE} style={{ flexShrink: 0 }}>
           {total === 0 ? (
             <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}
@@ -76,22 +95,14 @@ export function MemoryCard() {
           <text x={SIZE / 2} y={SIZE / 2 + 12} textAnchor="middle" fill="#a3a3a3"
             fontSize="10">total</text>
         </svg>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="dash-status-list">
-            {segments.map(({ key, label, color, value }) => (
-              <div key={key} className={`dash-status-row${key === '_other' ? ' dash-status-row--dimmed' : ''}`}>
-                <span className="dash-legend-dot" style={{ background: color }} />
-                <span className="dash-status-row-label">{label}</span>
-                <span className="dash-status-row-value">{value}</span>
-              </div>
-            ))}
-          </div>
-          {memory.recent_count > 0 && (
-            <div className="dash-status-row dash-status-row--dimmed" style={{ marginTop: 8 }}>
-              <span className="dash-status-row-label">Created (24h)</span>
-              <span className="dash-status-row-value">{memory.recent_count}</span>
+        <div className="dash-status-list" style={{ flex: 1, minWidth: 0 }}>
+          {segments.map(({ key, label, color, value }) => (
+            <div key={key} className={`dash-status-row${key === '_other' ? ' dash-status-row--dimmed' : ''}`}>
+              <span className="dash-legend-dot" style={{ background: color }} />
+              <span className="dash-status-row-label">{label}</span>
+              <span className="dash-status-row-value">{value}</span>
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>

@@ -12,6 +12,7 @@ import {
   formatDuration,
   formatJson,
 } from "./execution-utils";
+import { cn } from "../../lib/utils";
 import "./reports-page.css";
 
 // =============================================================================
@@ -533,15 +534,25 @@ export function ReportsPage({
       <div className="reports-toolbar">
         <div className="reports-toolbar-left">
           <h2 className="reports-title">Reports</h2>
-          <div className="reports-subtabs">
+          <div className="flex rounded-md border border-border text-xs">
             <button
-              className={`reports-subtab ${subTab === "pipelines" ? "active" : ""}`}
+              className={cn(
+                "px-2 py-1 rounded-l-md transition-colors",
+                subTab === "pipelines"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
               onClick={() => setSubTab("pipelines")}
             >
               Pipeline Executions
             </button>
             <button
-              className={`reports-subtab ${subTab === "agents" ? "active" : ""}`}
+              className={cn(
+                "px-2 py-1 rounded-r-md transition-colors",
+                subTab === "agents"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
               onClick={() => setSubTab("agents")}
             >
               Agent Runs

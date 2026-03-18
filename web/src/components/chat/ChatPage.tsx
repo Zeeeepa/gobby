@@ -8,16 +8,14 @@ import type {
 } from "../../types/chat";
 import type { AgentDefInfo } from "../../hooks/useAgentDefinitions";
 import type { ArtifactType } from "../../types/artifacts";
-import { ConversationPicker } from "./ConversationPicker";
 import { useArtifacts } from "../../hooks/useArtifacts";
 import { ArtifactContext } from "./artifacts/ArtifactContext";
-import { ArtifactPanel } from "./artifacts/ArtifactPanel";
-import { ResizeHandle } from "./artifacts/ResizeHandle";
 import { MessageList, type MessageListHandle } from "./MessageList";
 import { ChatInput } from "./ChatInput";
-import { MobileChatDrawer } from "./MobileChatDrawer";
-import { SessionStatusBar } from "./SessionStatusBar";
-import { CanvasPanel } from "../canvas/CanvasPanel";
+import { CommandBar } from "./CommandBar";
+import { CommandPalette, type CommandPaletteAction } from "./CommandPalette";
+import { ActiveSessionsModal } from "./ActiveSessionsModal";
+import { ActivityPanel, useActivityPanel } from "../activity/ActivityPanel";
 import { useCanvasPanel } from "../canvas/hooks/useCanvasPanel";
 
 interface ChatPageProps {
@@ -32,6 +30,10 @@ interface ChatPageProps {
   agentShowScopeToggle?: boolean;
   agentHasGlobal?: boolean;
   agentHasProject?: boolean;
+  // Command palette actions from App.tsx
+  paletteActions?: CommandPaletteAction[];
+  // Active sessions modal
+  onViewAgent?: (agent: { run_id: string; session_id?: string; mode?: string }) => void;
 }
 
 export function ChatPage({
@@ -46,6 +48,8 @@ export function ChatPage({
   agentShowScopeToggle = false,
   agentHasGlobal = false,
   agentHasProject = false,
+  paletteActions = [],
+  onViewAgent,
 }: ChatPageProps) {
   const messageListRef = useRef<MessageListHandle>(null);
   const activeSession = conversations.sessions.find(
@@ -58,35 +62,26 @@ export function ChatPage({
 
   const {
     activeArtifact,
-    isPanelOpen,
-    panelWidth,
     createArtifact,
     updateArtifact,
     openArtifact,
-    closePanel,
+    closePanel: closeArtifactPanel,
     setVersion,
-    setPanelWidth,
   } = useArtifacts();
 
   const isMobile = useIsMobile();
   const canvas = useCanvasPanel();
+  const activity = useActivityPanel();
 
-  // Track container width for dynamic artifact panel max
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [contentWidth, setContentWidth] = useState(0)
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const obs = new ResizeObserver(([entry]) => setContentWidth(entry.contentRect.width))
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
-  const MIN_CHAT_WIDTH = 320
-  const maxPanelWidth = contentWidth > 0 ? contentWidth - MIN_CHAT_WIDTH : 800
+  // Modals
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showActiveSessions, setShowActiveSessions] = useState(false);
 
   useEffect(() => {
     if (chat.canvasPanel) {
       canvas.openCanvas(chat.canvasPanel);
+      // Auto-switch to canvas tab
+      activity.showTab('canvas');
     } else {
       canvas.closeCanvas();
     }
@@ -97,15 +92,17 @@ export function ChatPage({
   const openCodeAsArtifact = useCallback(
     (language: string, content: string, title?: string) => {
       createArtifact("code", content, language, title);
+      activity.showTab('artifacts');
     },
-    [createArtifact],
+    [createArtifact, activity.showTab],
   );
 
   const openFileAsArtifact = useCallback(
     (type: ArtifactType, language: string, content: string, title?: string) => {
       createArtifact(type, content, language, title);
+      activity.showTab('artifacts');
     },
-    [createArtifact],
+    [createArtifact, activity.showTab],
   );
 
   // Wire plan content to artifact panel when ExitPlanMode fires
@@ -119,9 +116,10 @@ export function ChatPage({
           "Implementation Plan",
         );
         planArtifactIdRef.current = id;
+        activity.showTab('artifacts');
       }
     },
-    [createArtifact],
+    [createArtifact, activity.showTab],
   );
 
   useEffect(() => {
@@ -134,27 +132,31 @@ export function ChatPage({
     (type: string, content: string, language?: string, title?: string) => {
       if (validArtifactTypes.has(type)) {
         createArtifact(type as ArtifactType, content, language, title);
+        activity.showTab('artifacts');
       }
     },
-    [createArtifact],
+    [createArtifact, activity.showTab],
   );
 
   useEffect(() => {
     chat.setOnArtifactEvent?.(onArtifactEvent);
   }, [chat.setOnArtifactEvent, onArtifactEvent]);
 
-  // Wrap approve/reject to also close the artifact panel
+  // Add file to chat from Files tab (right-click "Add to chat")
+  const handleAddFileToChat = useCallback((filePath: string) => {
+    chat.onSend(`Read and reference this file: ${filePath}`)
+  }, [chat.onSend])
+
+  // Plan approval — in tabbed model, don't close the panel
   const handleApprovePlan = useCallback(() => {
     chat.onApprovePlan?.();
-    closePanel();
-  }, [chat.onApprovePlan, closePanel]);
+  }, [chat.onApprovePlan]);
 
   const handleRequestPlanChanges = useCallback(
     (feedback: string) => {
       chat.onRequestPlanChanges?.(feedback);
-      closePanel();
     },
-    [chat.onRequestPlanChanges, closePanel],
+    [chat.onRequestPlanChanges],
   );
 
   // Expose callback for /plan command to reopen plan artifact
@@ -163,165 +165,174 @@ export function ChatPage({
       showPlanRef.current = () => {
         if (planArtifactIdRef.current) {
           openArtifact(planArtifactIdRef.current);
+          activity.showTab('artifacts');
         }
       };
     }
     return () => {
       if (showPlanRef) showPlanRef.current = null;
     };
-  }, [showPlanRef, openArtifact]);
+  }, [showPlanRef, openArtifact, activity.showTab]);
+
+  // Listen for palette open event from App.tsx Cmd+K handler
+  useEffect(() => {
+    const handler = () => setShowCommandPalette(true)
+    window.addEventListener('gobby:open-command-palette', handler)
+    return () => window.removeEventListener('gobby:open-command-palette', handler)
+  }, [])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K — Command Palette (handled in App.tsx chord, but also direct)
+      // Cmd+Shift+A — Active Sessions
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'A') {
+        e.preventDefault();
+        setShowActiveSessions(true);
+        return;
+      }
+      // Cmd+` — Toggle Activity Panel
+      if ((e.metaKey || e.ctrlKey) && e.key === '`') {
+        e.preventDefault();
+        activity.togglePanel();
+        return;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activity.togglePanel]);
 
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">
-      <ConversationPicker
-        sessions={conversations.sessions}
-        activeSessionId={conversations.activeSessionId}
-        deletingIds={conversations.deletingIds}
-        onNewChat={conversations.onNewChat}
-        onSelectSession={conversations.onSelectSession}
-        onDeleteSession={conversations.onDeleteSession}
-        onRenameSession={conversations.onRenameSession}
-        agents={conversations.agents}
-        onNavigateToAgent={conversations.onNavigateToAgent}
-        onKillAgent={conversations.onKillAgent}
-        cliSessions={conversations.cliSessions}
-        viewingSessionId={conversations.viewingSessionId}
-        attachedSessionId={conversations.attachedSessionId}
-        onViewCliSession={conversations.onViewCliSession}
-        onDetachFromSession={conversations.onDetachFromSession}
-        agentDefinitions={agentDefinitions}
-        agentGlobalDefs={agentGlobalDefs}
-        agentProjectDefs={agentProjectDefs}
-        agentShowScopeToggle={agentShowScopeToggle}
-        agentHasGlobal={agentHasGlobal}
-        agentHasProject={agentHasProject}
-      />
-
-      <div className="flex flex-col flex-1 min-w-0">
-        <MobileChatDrawer
-          sessions={conversations.sessions}
-          activeSessionId={conversations.activeSessionId}
+      {/* Main chat column */}
+      <div className="flex flex-col flex-1 min-w-[400px]">
+        {/* Command Bar */}
+        <CommandBar
           sessionRef={effectiveSessionRef}
           title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
+          viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
+          isAttached={!!chat.attachedSessionId}
+          onAttach={chat.onAttachToViewed}
+          onDetach={chat.onDetachFromSession}
+          onOpenPalette={() => setShowCommandPalette(true)}
+          onOpenActiveSessions={() => setShowActiveSessions(true)}
           onNewChat={conversations.onNewChat}
-          onSelectSession={conversations.onSelectSession}
-          onDeleteSession={conversations.onDeleteSession}
+          onTogglePanel={activity.togglePanel}
+          agents={conversations.agents ?? []}
           agentDefinitions={agentDefinitions}
           agentGlobalDefs={agentGlobalDefs}
           agentProjectDefs={agentProjectDefs}
           agentShowScopeToggle={agentShowScopeToggle}
           agentHasGlobal={agentHasGlobal}
           agentHasProject={agentHasProject}
+          isPanelPinned={activity.isPinned}
         />
+
         <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
-          <div className="flex flex-col flex-1 min-h-0">
-            {/* Status bar */}
-            <div className={`session-status-desktop${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}>
-              <SessionStatusBar
-                sessionRef={effectiveSessionRef}
-                title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
-                viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
-                isAttached={!!chat.attachedSessionId}
-                onAttach={chat.onAttachToViewed}
-                onDetach={chat.onDetachFromSession}
-              />
-            </div>
-
-            {/* Messages + Panel row */}
-            <div ref={contentRef} className="flex flex-1 min-h-0">
-              {/* Messages column — hidden on mobile when panel is open */}
-              <div
-                className={`flex flex-col flex-1 min-w-0${isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? " hidden" : ""}`}
-                style={!isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? { minWidth: MIN_CHAT_WIDTH } : undefined}
-              >
-                <MessageList
-                  ref={messageListRef}
-                  messages={chat.messages}
-                  isStreaming={chat.isStreaming}
-                  isThinking={chat.isThinking}
-                  isLoadingMessages={chat.isLoadingMessages}
-                  onRespondToQuestion={chat.onRespondToQuestion}
-                  onRespondToApproval={chat.onRespondToApproval}
-                  planPendingApproval={!isPanelOpen && chat.planPendingApproval}
-                  onApprovePlan={handleApprovePlan}
-                  onRequestPlanChanges={handleRequestPlanChanges}
-                  canvasSurfaces={chat.canvasSurfaces}
-                  onCanvasInteraction={chat.onCanvasInteraction}
-                />
-              </div>
-
-              {/* Artifact or Canvas panel */}
-              {canvas.isPanelOpen && canvas.activeCanvas ? (
-                <CanvasPanel
-                  state={canvas.activeCanvas}
-                  panelWidth={canvas.panelWidth}
-                  onResize={canvas.setPanelWidth}
-                  onClose={canvas.closeCanvas}
-                  isMobile={isMobile}
-                />
-              ) : isPanelOpen && activeArtifact ? (
-                <>
-                  {!isMobile && (
-                    <ResizeHandle
-                      onResize={setPanelWidth}
-                      panelWidth={panelWidth}
-                      maxWidth={maxPanelWidth}
-                    />
-                  )}
-                  <ArtifactPanel
-                    artifact={activeArtifact}
-                    width={isMobile ? undefined : panelWidth}
-                    onClose={closePanel}
-                    onUpdateContent={updateArtifact}
-                    onSetVersion={setVersion}
-                    planPendingApproval={chat.planPendingApproval}
-                    onApprovePlan={handleApprovePlan}
-                    onRequestPlanChanges={handleRequestPlanChanges}
-                  />
-                </>
-              ) : null}
-            </div>
-
-            {/* Chat input — full width below messages + panel, hidden on mobile when panel is open */}
-            <div className={isMobile && ((isPanelOpen && activeArtifact) || (canvas.isPanelOpen && canvas.activeCanvas)) ? "hidden" : ""}>
-              <ChatInput
-                onSend={chat.onSend}
-                onStop={chat.onStop}
-                isStreaming={chat.isStreaming}
-                disabled={!chat.isConnected || (!!chat.viewingSessionId && !chat.attachedSessionId)}
-                viewingSession={!!chat.viewingSessionId && !chat.attachedSessionId}
-                onInputChange={chat.onInputChange}
-                paletteItems={chat.paletteItems}
-                onPaletteSelect={chat.onPaletteSelect}
-                mode={chat.mode}
-                onModeChange={chat.onModeChange}
-                contextUsage={chat.contextUsage}
-                currentBranch={chat.currentBranch}
-                worktreePath={chat.worktreePath}
-                projectId={projectId ?? null}
-                onWorktreeChange={chat.onWorktreeChange}
-                agentName={chat.activeAgent}
-                onAgentChange={chat.onAgentChange}
-                agentDefinitions={agentDefinitions}
-                agentGlobalDefs={agentGlobalDefs}
-                agentProjectDefs={agentProjectDefs}
-                agentShowScopeToggle={agentShowScopeToggle}
-                agentHasGlobal={agentHasGlobal}
-                agentHasProject={agentHasProject}
-                voiceMode={voice.voiceMode}
-                voiceAvailable={voice.voiceAvailable}
-                isListening={voice.isListening}
-                isSpeechDetected={voice.isSpeechDetected}
-                isTranscribing={voice.isTranscribing}
-                voiceError={voice.voiceError}
-                onToggleVoice={voice.onToggleVoice}
-                isMobile={isMobile}
-                onScrollToBottom={() => messageListRef.current?.scrollToBottom()}
-              />
-            </div>
+          {/* Messages */}
+          <div className="grid flex-1 min-h-0">
+            <MessageList
+              ref={messageListRef}
+              messages={chat.messages}
+              isStreaming={chat.isStreaming}
+              isThinking={chat.isThinking}
+              isLoadingMessages={chat.isLoadingMessages}
+              onRespondToQuestion={chat.onRespondToQuestion}
+              onRespondToApproval={chat.onRespondToApproval}
+              planPendingApproval={chat.planPendingApproval}
+              onApprovePlan={handleApprovePlan}
+              onRequestPlanChanges={handleRequestPlanChanges}
+              canvasSurfaces={chat.canvasSurfaces}
+              onCanvasInteraction={chat.onCanvasInteraction}
+            />
           </div>
+
+          {/* Chat input */}
+          <ChatInput
+            onSend={chat.onSend}
+            onStop={chat.onStop}
+            isStreaming={chat.isStreaming}
+            disabled={!chat.isConnected || (!!chat.viewingSessionId && !chat.attachedSessionId)}
+            viewingSession={!!chat.viewingSessionId && !chat.attachedSessionId}
+            onInputChange={chat.onInputChange}
+            paletteItems={chat.paletteItems}
+            onPaletteSelect={chat.onPaletteSelect}
+            mode={chat.mode}
+            onModeChange={chat.onModeChange}
+            contextUsage={chat.contextUsage}
+            currentBranch={chat.currentBranch}
+            worktreePath={chat.worktreePath}
+            projectId={projectId ?? null}
+            onWorktreeChange={chat.onWorktreeChange}
+            agentName={chat.activeAgent}
+            onAgentChange={chat.onAgentChange}
+            agentDefinitions={agentDefinitions}
+            agentGlobalDefs={agentGlobalDefs}
+            agentProjectDefs={agentProjectDefs}
+            agentShowScopeToggle={agentShowScopeToggle}
+            agentHasGlobal={agentHasGlobal}
+            agentHasProject={agentHasProject}
+            voiceMode={voice.voiceMode}
+            voiceAvailable={voice.voiceAvailable}
+            isListening={voice.isListening}
+            isSpeechDetected={voice.isSpeechDetected}
+            isTranscribing={voice.isTranscribing}
+            voiceError={voice.voiceError}
+            onToggleVoice={voice.onToggleVoice}
+            isMobile={isMobile}
+            onScrollToBottom={() => messageListRef.current?.scrollToBottom()}
+          />
         </ArtifactContext.Provider>
       </div>
+
+      {/* Activity Panel */}
+      <ActivityPanel
+        isPinned={activity.isPinned}
+        onPinnedChange={activity.setIsPinned}
+        panelWidth={activity.panelWidth}
+        onWidthChange={activity.setPanelWidth}
+        activeTab={activity.activeTab}
+        onTabChange={activity.setActiveTab}
+        activeArtifact={activeArtifact}
+        onCloseArtifact={closeArtifactPanel}
+        onUpdateArtifactContent={updateArtifact}
+        onSetArtifactVersion={setVersion}
+        planPendingApproval={chat.planPendingApproval}
+        onApprovePlan={handleApprovePlan}
+        onRequestPlanChanges={handleRequestPlanChanges}
+        canvasState={canvas.activeCanvas}
+        onCloseCanvas={canvas.closeCanvas}
+        projectId={projectId}
+        onKillAgent={conversations.onKillAgent}
+        onAddFileToChat={handleAddFileToChat}
+        isMobile={isMobile}
+      />
+
+      {/* Command Palette Modal */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        sessions={conversations.sessions}
+        activeSessionId={conversations.activeSessionId}
+        onSelectSession={conversations.onSelectSession}
+        onDeleteSession={conversations.onDeleteSession}
+        onRenameSession={conversations.onRenameSession}
+        actions={paletteActions}
+      />
+
+      {/* Active Sessions Modal */}
+      <ActiveSessionsModal
+        isOpen={showActiveSessions}
+        onClose={() => setShowActiveSessions(false)}
+        agents={conversations.agents ?? []}
+        cliSessions={conversations.cliSessions}
+        onViewAgent={(agent) => {
+          onViewAgent?.(agent);
+          setShowActiveSessions(false);
+        }}
+        onKillAgent={conversations.onKillAgent}
+        onViewCliSession={conversations.onViewCliSession}
+      />
     </div>
   );
 }

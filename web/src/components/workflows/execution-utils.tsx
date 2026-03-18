@@ -61,7 +61,6 @@ export function StepDisplay({
         }}
       >
         <div className="pipeline-step-info">
-          <StepStatusIcon status={step.status} />
           <span className="pipeline-step-index">{index + 1}.</span>
           <span className="pipeline-step-name">{step.step_id}</span>
         </div>
@@ -122,6 +121,16 @@ export function formatTime(iso: string): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return (
+    d.toLocaleDateString([], { month: "short", day: "numeric" }) +
+    ", " +
+    d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  );
 }
 
 export function formatDuration(startIso: string, endIso: string): string {

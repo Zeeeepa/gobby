@@ -65,6 +65,12 @@ instructions: |
   - Format responses for web readability — use markdown headers, lists,
     and code blocks. Avoid terminal-centric formatting assumptions.
 
+# Interactive sessions should not use pipeline-only status transitions.
+# Agents should create, claim, close, or escalate tasks — not manage review gates.
+blocked_mcp_tools:
+  - "gobby-tasks:mark_task_needs_review"
+  - "gobby-tasks:mark_task_review_approved"
+
 workflows:
   rule_selectors:
     include:

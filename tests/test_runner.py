@@ -1795,3 +1795,133 @@ class TestResolveEmbeddingApiKey:
         runner.secret_store.get = MagicMock(return_value=None)
         key = runner._resolve_embedding_api_key("text-embedding-3-small")
         assert key is None
+
+
+class TestGobbyRunnerShutdownExtended:
+    """Tests for GobbyRunner shutdown behavior."""
+
+    @pytest.mark.asyncio
+    async def test_run_calls_disconnect_on_shutdown(self, mock_config):
+        """Test that run always disconnects MCP on shutdown."""
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch("gobby.runner_maintenance.setup_signal_handlers"):
+                    await runner.run()
+
+            # Disconnect should always be called (cleanup)
+            mock_mcp_manager.disconnect_all.assert_called_once()
+
+
+
+class TestGobbyRunnerInitEdgeCases:
+    """Edge case tests for GobbyRunner initialization."""
+
+    def test_init_with_no_llm_service(self, mock_config) -> None:
+        """Test init when LLM service creation returns None."""
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.llm_service is None
+
+    def test_init_llm_service_exception(self, mock_config) -> None:
+        """Test init when LLM service creation raises."""
+        patches = create_base_patches(mock_config=mock_config)
+        # Replace create_llm_service patch with one that raises
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches.append(
+            patch("gobby.runner.create_llm_service", side_effect=Exception("LLM init error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            # Should not raise - error is logged
+            runner = GobbyRunner()
+
+            assert runner.llm_service is None
+
+    def test_init_with_verbose_false(self, mock_config) -> None:
+        """Test init with verbose=False (default)."""
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.verbose is False
+
+    def test_shutdown_requested_initially_false(self, mock_config) -> None:
+        """Test that _shutdown_requested is False on init."""
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner._shutdown_requested is False
+
+
+class TestMainFunctionExtended:
+    """Tests for the main() entry point function."""
+
+    def test_main_calls_run_gobby(self) -> None:
+        """Test that main() calls asyncio.run when no daemon is running."""
+        with (
+            patch("gobby.runner._healthy_daemon_running", return_value=False),
+            patch("asyncio.run") as mock_asyncio_run,
+        ):
+            main()
+            mock_asyncio_run.assert_called_once()
+
+    def test_main_exits_when_daemon_running(self) -> None:
+        """Test that main() exits with code 0 when daemon already running."""
+        with (
+            patch("gobby.runner._healthy_daemon_running", return_value=True),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 0
+
+    def test_main_handles_keyboard_interrupt(self) -> None:
+        """Test that main() handles KeyboardInterrupt gracefully."""
+        with (
+            patch("gobby.runner._healthy_daemon_running", return_value=False),
+            patch("asyncio.run", side_effect=KeyboardInterrupt),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 0
+
+    def test_main_handles_fatal_error(self) -> None:
+        """Test that main() exits with code 1 on fatal error."""
+        with (
+            patch("gobby.runner._healthy_daemon_running", return_value=False),
+            patch("asyncio.run", side_effect=RuntimeError("Fatal")),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 1

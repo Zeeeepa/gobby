@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from gobby.integrations.github import GitHubIntegration
+from gobby.integrations.github_helper import parse_github_repo
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -193,7 +194,7 @@ class GitHubSyncService:
                 f"Task {task_id} has no github_repo set and no default repo configured."
             )
 
-        owner, repo_name = repo.split("/")
+        owner, repo_name = parse_github_repo(repo)
 
         result = await self.mcp_manager.call_tool(
             server_name="github",
@@ -250,7 +251,7 @@ class GitHubSyncService:
                 f"Task {task_id} has no github_repo set and no default repo configured."
             )
 
-        owner, repo_name = repo.split("/")
+        owner, repo_name = parse_github_repo(repo)
 
         # Create PR via GitHub MCP
         result = await self.mcp_manager.call_tool(
@@ -305,6 +306,53 @@ class GitHubSyncService:
                 github_labels.append(label)
 
         return github_labels
+
+    async def push_files_to_remote(
+        self,
+        branch: str,
+        files: list[dict[str, str]],
+        message: str,
+    ) -> dict[str, Any]:
+        """Push files directly to a remote branch via GitHub MCP.
+
+        Creates a commit on the remote without requiring local git operations.
+        Useful for automated JSONL sync export, config updates, etc.
+
+        Args:
+            branch: Target branch name.
+            files: List of dicts with 'path' and 'content' keys.
+            message: Commit message.
+
+        Returns:
+            Result from GitHub MCP push_files call.
+
+        Raises:
+            RuntimeError: If GitHub MCP server is unavailable.
+            ValueError: If no github_repo configured.
+        """
+        self.github.require_available()
+
+        repo = self.github_repo
+        if not repo:
+            raise ValueError("No github_repo configured for push_files_to_remote.")
+
+        owner, repo_name = parse_github_repo(repo)
+
+        result = await self.mcp_manager.call_tool(
+            server_name="github",
+            tool_name="push_files",
+            arguments={
+                "owner": owner,
+                "repo": repo_name,
+                "branch": branch,
+                "files": files,
+                "message": message,
+            },
+        )
+
+        result_dict = cast(dict[str, Any], result)
+        logger.info(f"Pushed {len(files)} files to {repo}:{branch}")
+        return result_dict
 
     def map_github_labels_to_gobby(
         self,

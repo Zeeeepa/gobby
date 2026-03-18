@@ -424,12 +424,71 @@
 }
 
 .pipeline-step-output pre {
-  font-family: inherit;
-  font-size: calc(var(--font-size-base) * 0.8);
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: calc(var(--font-size-base) * 0.75);
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-secondary);
   margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+/* ── Pipeline steps timeline (activity panel detail view) ── */
+
+.pipeline-steps-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+}
+
+.pipeline-steps-timeline .pipeline-step {
+  position: relative;
+  margin-left: 0.75rem;
+  border-left: 2px solid var(--border);
+  padding-left: 0.75rem;
+  border-radius: 0;
+  background: transparent;
+}
+
+.pipeline-steps-timeline .pipeline-step:last-child {
+  border-left-color: transparent;
+}
+
+.pipeline-steps-timeline .pipeline-step::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 0.75rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.pipeline-steps-timeline .pipeline-step--completed::before,
+.pipeline-steps-timeline .pipeline-step--success::before {
+  background: #4ade80;
+}
+
+.pipeline-steps-timeline .pipeline-step--failed::before,
+.pipeline-steps-timeline .pipeline-step--error::before {
+  background: #f87171;
+}
+
+.pipeline-steps-timeline .pipeline-step--running::before {
+  background: #60a5fa;
+  animation: pipeline-pulse 1.5s ease-in-out infinite;
+}
+
+.pipeline-steps-timeline .pipeline-step--waiting_approval::before {
+  background: #fbbf24;
+}
+
+.pipeline-steps-timeline .pipeline-step--skipped::before {
+  background: var(--text-muted);
 }
 
 .pipeline-step-error {

@@ -53,7 +53,6 @@ class TestIsDevMode:
         assert is_dev_mode(tmp_path) is False
 
     def test_defaults_to_cwd(self, monkeypatch: "pytest.MonkeyPatch", tmp_path: Path) -> None:
-        import pytest  # noqa: F811
 
         monkeypatch.chdir(tmp_path)
         assert is_dev_mode() is False

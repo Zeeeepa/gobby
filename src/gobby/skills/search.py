@@ -108,7 +108,9 @@ class SkillSearch:
         """Initialize skill search.
 
         Args:
-            config: Search configuration (defaults to auto mode)
+            config: Search configuration (defaults to auto mode).
+                Pass a SearchConfig with embedding_api_key set to enable
+                embedding-based search.
             refit_threshold: Number of updates before automatic refit
         """
         if config is None:

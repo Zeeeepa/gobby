@@ -197,7 +197,21 @@ class RuleEngine:
                 if span.is_recording():
                     span.set_attribute("rule_count", len(rules))
 
-                # 4b. Step-level tool enforcement (preempts declarative rules)
+                # 4b. Agent-level tool enforcement (broadest scope, preempts everything)
+                if rule_event == RuleEvent.BEFORE_TOOL:
+                    agent_block = self._check_agent_tool_enforcement(event, session_id, variables)
+                    if agent_block is not None:
+                        variables["tool_block_pending"] = True
+                        variables["_last_blocked_tool"] = _get_tool_identity(event.data)
+                        tool_name_lower = event.data.get("tool_name", "").lower()
+                        if tool_name_lower in EDIT_TOOLS:
+                            _clear_edit_write_state(variables)
+                        if span.is_recording():
+                            span.set_attribute("final_decision", agent_block.decision)
+                            span.set_attribute("block_reason", agent_block.reason)
+                        return agent_block
+
+                # 4c. Step-level tool enforcement (preempts declarative rules)
                 if rule_event == RuleEvent.BEFORE_TOOL:
                     step_block = self._check_step_tool_enforcement(event, session_id)
                     if step_block is not None:
@@ -898,6 +912,62 @@ class RuleEngine:
             if step is not None:
                 return step, instance, definition
         return None, None, None
+
+    def _check_agent_tool_enforcement(
+        self, event: HookEvent, session_id: str, variables: dict[str, Any]
+    ) -> HookResponse | None:
+        """Check agent-level tool restrictions. Returns block response or None to continue."""
+        blocked_tools: list[str] = variables.get("_agent_blocked_tools") or []
+        blocked_mcp_tools: list[str] = variables.get("_agent_blocked_mcp_tools") or []
+        if not blocked_tools and not blocked_mcp_tools:
+            return None
+
+        tool_name = event.data.get("tool_name", "")
+        agent_type = variables.get("_agent_type", "unknown")
+
+        # Discovery/infrastructure tools always pass
+        if tool_name.startswith("mcp__gobby__"):
+            mcp_suffix = tool_name[len("mcp__gobby__") :]
+            if is_discovery_tool(mcp_suffix) or is_infrastructure_tool(mcp_suffix):
+                return None
+
+        # Check native tool block-list
+        if blocked_tools and tool_name in blocked_tools:
+            return HookResponse(
+                decision="block",
+                reason=(
+                    f"Rule enforced by Gobby: [agent-enforcement:{agent_type}]\n"
+                    f"Tool '{tool_name}' is blocked for the '{agent_type}' agent."
+                ),
+            )
+
+        # Check MCP tool restrictions (for call_tool)
+        if blocked_mcp_tools and tool_name in (
+            "call_tool",
+            "mcp__gobby__call_tool",
+            "mcp_gobby_call_tool",
+        ):
+            tool_input = event.data.get("tool_input") or {}
+            if isinstance(tool_input, dict):
+                mcp_server = tool_input.get("server_name", "")
+                mcp_tool_name = tool_input.get("tool_name", "")
+
+                # Discovery MCP tools always pass
+                if is_discovery_tool(mcp_tool_name):
+                    return None
+
+                mcp_key = f"{mcp_server}:{mcp_tool_name}" if mcp_server and mcp_tool_name else ""
+
+                if mcp_key and self._mcp_tool_matches(mcp_key, blocked_mcp_tools):
+                    return HookResponse(
+                        decision="block",
+                        reason=(
+                            f"Rule enforced by Gobby: [agent-enforcement:{agent_type}]\n"
+                            f"MCP tool '{mcp_key}' is blocked for the '{agent_type}' agent."
+                        ),
+                    )
+
+        return None
 
     def _check_step_tool_enforcement(
         self, event: HookEvent, session_id: str

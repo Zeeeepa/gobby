@@ -31,6 +31,7 @@ import { QuickCaptureTask } from "./components/tasks/QuickCaptureTask";
 import { SlashCommandModal } from "./components/command-browser/SlashCommandModal";
 import { ResumeSessionModal } from "./components/chat/ResumeSessionModal";
 import type { GobbySession } from "./hooks/useSessions";
+import type { CommandPaletteAction } from "./components/chat/CommandPalette";
 
 // Lazy-load non-default page components for code splitting
 const SessionsPage = lazy(() =>
@@ -389,38 +390,43 @@ export default function App() {
     titleSynthesisCountRef.current = 0;
   }, [conversationId]);
 
-  // Global keyboard chord: Cmd+K → t opens quick capture task creation
+  // Global keyboard: Cmd+K opens command palette (or chord Cmd+K → t for quick capture)
   const chordPendingRef = useRef(false);
   const chordTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger when typing in inputs/textareas (unless quick capture is closed)
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
+        // If already in chord mode, cancel it
+        if (chordPendingRef.current) {
+          chordPendingRef.current = false;
+          if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
+        }
+        // Start chord timer — if no follow-up key, open palette
         chordPendingRef.current = true;
-        if (chordTimeoutRef.current)
-          window.clearTimeout(chordTimeoutRef.current);
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
         chordTimeoutRef.current = window.setTimeout(() => {
           chordPendingRef.current = false;
-        }, 1000);
+          if (activeTab === "chat") {
+            window.dispatchEvent(new CustomEvent('gobby:open-command-palette'));
+          }
+        }, 300);
         return;
       }
 
       if (chordPendingRef.current && e.key === "t") {
         e.preventDefault();
         chordPendingRef.current = false;
-        if (chordTimeoutRef.current)
-          window.clearTimeout(chordTimeoutRef.current);
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
         setQuickCaptureOpen(true);
       } else if (chordPendingRef.current) {
-        // Any other key cancels the chord
         chordPendingRef.current = false;
-        if (chordTimeoutRef.current)
-          window.clearTimeout(chordTimeoutRef.current);
+        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
+        // No recognized chord key — open palette immediately
+        if (activeTab === "chat") {
+          window.dispatchEvent(new CustomEvent('gobby:open-command-palette'));
+        }
       }
     };
 
@@ -429,7 +435,7 @@ export default function App() {
       window.removeEventListener("keydown", handleKeyDown);
       if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
     };
-  }, []);
+  }, [activeTab]);
 
   // Build project options for the selector (exclude internal system projects)
   const projectOptions = useMemo(
@@ -871,6 +877,49 @@ export default function App() {
     ],
   );
 
+  // Build command palette actions for ChatPage
+  const commandPaletteActions = useMemo<CommandPaletteAction[]>(() => {
+    const actions: CommandPaletteAction[] = [
+      { id: 'new-chat', label: 'New Chat', icon: '+', category: 'action', onSelect: () => startNewChat() },
+      { id: 'resume', label: 'Resume Session', icon: '\u21BA', category: 'action', onSelect: () => setResumeModalOpen(true) },
+      { id: 'settings', label: 'Settings', icon: '\u2699', category: 'action', onSelect: () => setSettingsOpen(true) },
+      { id: 'clear', label: 'Clear History', icon: '\u2715', category: 'action', onSelect: () => clearHistory() },
+      { id: 'compact', label: 'Compact Conversation', icon: '\u2026', category: 'action', onSelect: () => sendMessage("/compact", settings.model, undefined, effectiveProjectId) },
+      { id: 'restart', label: 'Restart Daemon', icon: '\u21BB', category: 'action', onSelect: () => {
+        addSystemMessage("Restarting daemon...");
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+        fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch(() => {
+          addSystemMessage("Failed to restart daemon");
+        });
+      }},
+    ];
+    // Navigation items
+    const navPages: Array<{ id: string; label: string }> = [
+      { id: 'dashboard', label: 'Dashboard' },
+      { id: 'sessions', label: 'Sessions' },
+      { id: 'tasks', label: 'Tasks' },
+      { id: 'workflows', label: 'Workflows' },
+      { id: 'reports', label: 'Reports' },
+      { id: 'source-control', label: 'GitHub' },
+      { id: 'cron', label: 'Cron Jobs' },
+      { id: 'traces', label: 'Traces' },
+      { id: 'memory', label: 'Memory' },
+      { id: 'skills', label: 'Skills' },
+      { id: 'mcp', label: 'MCP' },
+      { id: 'configuration', label: 'Configuration' },
+    ];
+    for (const page of navPages) {
+      actions.push({
+        id: `nav-${page.id}`,
+        label: page.label,
+        icon: '\u2192',
+        category: 'navigate',
+        onSelect: () => setActiveTab(page.id),
+      });
+    }
+    return actions;
+  }, [startNewChat, clearHistory, sendMessage, settings.model, effectiveProjectId, addSystemMessage]);
+
   // Auth guard — shown after all hooks (React rules)
   if (authLoading) {
     return (
@@ -1067,6 +1116,8 @@ export default function App() {
               agentShowScopeToggle={agentDefs.showScopeToggle}
               agentHasGlobal={agentDefs.hasGlobal}
               agentHasProject={agentDefs.hasProject}
+              paletteActions={commandPaletteActions}
+              onViewAgent={handleNavigateToAgent}
               voice={{
                 voiceMode: voice.voiceMode,
                 voiceAvailable: voice.voiceAvailable,

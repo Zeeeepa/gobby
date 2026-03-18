@@ -306,12 +306,33 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
         project_id: str | None = None,
         limit: int = 20,
     ) -> dict[str, Any]:
-        """List recent commits on a branch."""
+        """List recent commits on a branch.
+
+        Uses GitHub MCP when available for richer data (author avatar, URL),
+        falls back to git log.
+        """
         _validate_git_ref(branch_name, "branch_name")
-        repo_path, _ = _resolve_project(server, project_id)
+        repo_path, github_repo = _resolve_project(server, project_id)
         if not repo_path:
             return {"commits": []}
 
+        # Try GitHub MCP for richer commit data
+        if github_repo and server.services.mcp_manager:
+            try:
+                from gobby.integrations.github_helper import GitHubMCPHelper
+
+                helper = GitHubMCPHelper(
+                    mcp_manager=server.services.mcp_manager,
+                    repo_path=repo_path,
+                    github_repo=github_repo,
+                )
+                commits = await helper.list_commits(branch_name, limit=limit)
+                if commits:
+                    return {"commits": commits}
+            except Exception as e:
+                logger.debug(f"GitHubMCPHelper list_commits failed, falling back: {e}")
+
+        # Fallback: git log
         commits = []
         try:
             r = await _run_git(

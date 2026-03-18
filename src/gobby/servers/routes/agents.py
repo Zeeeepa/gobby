@@ -42,6 +42,8 @@ class CreateAgentDefinitionRequest(BaseModel):
     workflows: dict[str, Any] | None = None
     lifecycle_variables: dict[str, Any] | None = None
     default_variables: dict[str, Any] | None = None
+    blocked_tools: list[str] | None = None
+    blocked_mcp_tools: list[str] | None = None
 
 
 class UpdateAgentDefinitionRequest(BaseModel):
@@ -70,6 +72,8 @@ class UpdateAgentDefinitionRequest(BaseModel):
     step_variables: dict[str, Any] | None = None
     exit_condition: str | None = None
     enabled: bool | None = None
+    blocked_tools: list[str] | None = None
+    blocked_mcp_tools: list[str] | None = None
 
 
 async def _batch_load_session_info(
@@ -264,6 +268,8 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 timeout=request.timeout,
                 max_turns=request.max_turns,
                 workflows=workflows,
+                blocked_tools=request.blocked_tools or [],
+                blocked_mcp_tools=request.blocked_mcp_tools or [],
             )
 
             manager = _get_manager()
@@ -328,7 +334,13 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 body_dict["lifecycle_variables"] = fields["lifecycle_variables"]
             if "default_variables" in fields:
                 body_dict["default_variables"] = fields["default_variables"]
-            for key in ("steps", "step_variables", "exit_condition"):
+            for key in (
+                "steps",
+                "step_variables",
+                "exit_condition",
+                "blocked_tools",
+                "blocked_mcp_tools",
+            ):
                 if key in fields:
                     body_dict[key] = fields[key]
 

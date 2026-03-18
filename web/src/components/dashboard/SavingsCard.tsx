@@ -1,13 +1,4 @@
-import { useState } from 'react'
-import { useSavings, savingsRangeToDays } from '../../hooks/useSavings'
-import { TimeRangePills, type TimeRange } from './TimeRangePills'
-
-const RANGE_LABELS: Record<TimeRange, string> = {
-  '24h': 'Last 24h',
-  '7d': 'Last 7d',
-  '30d': 'Last 30d',
-  'all': 'All Time',
-}
+import { useSavings } from '../../hooks/useSavings'
 
 function formatUsd(value: number): string {
   if (value >= 1) return `$${value.toFixed(2)}`
@@ -28,18 +19,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   discovery: 'Discovery',
 }
 
-export function SavingsCard() {
-  const [range, setRange] = useState<TimeRange>('24h')
-  const { data } = useSavings(savingsRangeToDays(range))
+interface Props {
+  hours: number
+  projectId?: string
+}
+
+export function SavingsCard({ hours, projectId }: Props) {
+  const { data } = useSavings(hours, projectId)
 
   const categories = data?.categories ?? {}
-  const hasSavings = (data?.total_events ?? 0) > 0
 
   return (
     <div className="dash-card">
       <div className="dash-card-header">
         <h3 className="dash-card-title">Savings</h3>
-        <TimeRangePills value={range} onChange={setRange} />
       </div>
       <div className="dash-card-body">
         <div className="dash-stat-grid">
@@ -47,7 +40,7 @@ export function SavingsCard() {
             <span className="dash-stat-value">
               {formatUsd(data?.total_cost_saved_usd ?? 0)}
             </span>
-            <span className="dash-stat-label">Saved ({RANGE_LABELS[range]})</span>
+            <span className="dash-stat-label">Cost Saved</span>
           </div>
           <div className="dash-stat">
             <span className="dash-stat-value">
@@ -62,14 +55,11 @@ export function SavingsCard() {
             <span className="dash-stat-label">Events</span>
           </div>
         </div>
-        {hasSavings && (
-          <span className="dash-status-badge dash-status-badge--healthy" style={{ marginTop: 8 }}>
-            active
-          </span>
-        )}
         {Object.keys(categories).length > 0 && (
           <div className="dash-breakdown">
-            {Object.entries(categories).map(([cat, catData]) => (
+            {Object.entries(categories)
+              .filter(([, catData]) => catData.tokens_saved > 0)
+              .map(([cat, catData]) => (
               <div key={cat} className="dash-breakdown-row">
                 <span className="dash-breakdown-label">
                   {CATEGORY_LABELS[cat] ?? cat}

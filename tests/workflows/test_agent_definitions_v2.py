@@ -110,7 +110,7 @@ class TestAgentDefinitionBodyModel:
         from gobby.workflows.definitions import AgentDefinitionBody
 
         fields = AgentDefinitionBody.model_fields
-        assert len(fields) == 19, f"Expected 19 fields, got {len(fields)}: {list(fields.keys())}"
+        assert len(fields) == 21, f"Expected 21 fields, got {len(fields)}: {list(fields.keys())}"
 
     def test_workflows_default_empty(self) -> None:
         """Workflows defaults to empty AgentWorkflows."""

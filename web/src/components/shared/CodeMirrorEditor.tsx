@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } from '@codemirror/language'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
-import { oneDark } from '@codemirror/theme-one-dark'
+import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
 import { javascript } from '@codemirror/lang-javascript'
 import { python } from '@codemirror/lang-python'
 import { json } from '@codemirror/lang-json'
@@ -80,7 +80,7 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
       indentOnInput(),
       highlightSelectionMatches(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      oneDark,
+      syntaxHighlighting(oneDarkHighlightStyle),
       keymap.of([
         ...defaultKeymap,
         ...historyKeymap,
@@ -97,13 +97,14 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
         '&': {
           height: '100%',
           fontSize: '14px',
+          backgroundColor: '#0a0a0a',
         },
         '.cm-scroller': {
           fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
           overflow: 'auto',
         },
         '.cm-gutters': {
-          background: '#0a0a0a',
+          backgroundColor: '#0a0a0a',
           borderRight: '1px solid #262626',
           color: '#555',
         },
@@ -157,5 +158,5 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
     }
   }, [content])
 
-  return <div ref={containerRef} className="codemirror-container" />
+  return <div ref={containerRef} className="codemirror-container" style={{ background: '#0a0a0a', height: '100%' }} />
 }

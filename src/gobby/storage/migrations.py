@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 155
+BASELINE_VERSION = 158
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -56,6 +56,7 @@ CREATE TABLE projects (
     github_url TEXT,
     github_repo TEXT,
     linear_team_id TEXT,
+    linear_synced_at TEXT,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -273,7 +274,6 @@ CREATE TABLE session_messages (
     tool_result TEXT,
     tool_use_id TEXT,
     timestamp TEXT NOT NULL,
-    raw_json TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(session_id, message_index)
 );
@@ -626,6 +626,22 @@ CREATE INDEX idx_skills_always_apply ON skills(always_apply);
 CREATE UNIQUE INDEX idx_skills_name_project_source
     ON skills(name, COALESCE(project_id, '__global__'), source);
 CREATE INDEX idx_skills_deleted_at ON skills(deleted_at);
+
+CREATE TABLE skill_files (
+    id TEXT PRIMARY KEY,
+    skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(skill_id, path)
+);
+CREATE INDEX idx_skill_files_skill_id ON skill_files(skill_id);
+CREATE INDEX idx_skill_files_type ON skill_files(file_type);
 
 CREATE TABLE clones (
     id TEXT PRIMARY KEY,
@@ -993,6 +1009,17 @@ def _migrate_v147_add_agent_run_columns(db: LocalDatabase) -> None:
             db.execute(f"ALTER TABLE agent_runs ADD COLUMN {col_name} {col_type}")
 
 
+def _drop_raw_json_column(db: LocalDatabase) -> None:
+    """Drop raw_json column if it still exists (may have been removed manually)."""
+    conn = db.connection
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(session_messages)").fetchall()]
+    if "raw_json" in columns:
+        conn.execute("ALTER TABLE session_messages DROP COLUMN raw_json")
+        logger.info("Dropped raw_json column from session_messages")
+    else:
+        logger.info("raw_json column already absent from session_messages, skipping")
+
+
 def _setup_code_symbols_fts(db: LocalDatabase) -> None:
     """Create FTS5 triggers and populate from existing data.
 
@@ -1310,6 +1337,35 @@ CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
         155,
         "Add FTS5 virtual table for code symbol full-text search",
         _setup_code_symbols_fts,
+    ),
+    (
+        156,
+        "Drop raw_json column from session_messages (data archived to gzip files)",
+        _drop_raw_json_column,
+    ),
+    (
+        157,
+        "Add linear_synced_at column to projects for bidirectional sync cursor",
+        "ALTER TABLE projects ADD COLUMN linear_synced_at TEXT",
+    ),
+    (
+        158,
+        "Add skill_files table for multi-file skill support",
+        """CREATE TABLE IF NOT EXISTS skill_files (
+    id TEXT PRIMARY KEY,
+    skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(skill_id, path)
+);
+CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id ON skill_files(skill_id);
+CREATE INDEX IF NOT EXISTS idx_skill_files_type ON skill_files(file_type)""",
     ),
 ]
 

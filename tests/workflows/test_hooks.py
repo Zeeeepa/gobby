@@ -970,3 +970,115 @@ class TestBaselineDirtyFilesSubtraction:
         response = await handler._evaluate_rules(event)
 
         assert response.decision == "allow"
+
+    # --- Session-scoped has_dirty_files tests ---
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_scoped_to_session_edits_ignores_other_dirty(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Should block only when session's own edited files are dirty."""
+        mock_get_dirty.return_value = {"a.py", "b.py", "c.py"}
+        session_var_manager.set_variable(
+            "test-session", "session_edited_files", ["c.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        # c.py is in both session_edited_files AND dirty → block
+        assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_other_session_files_not_visible(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Should allow when session's edited files are not dirty (committed)."""
+        mock_get_dirty.return_value = {"a.py", "b.py"}
+        session_var_manager.set_variable(
+            "test-session", "session_edited_files", ["c.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        # c.py was committed, not in dirty set → allow
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_session_edits_override_baseline(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Should block when session edited a file that was already in baseline."""
+        mock_get_dirty.return_value = {"a.py"}
+        session_var_manager.merge_variables(
+            "test-session",
+            {
+                "baseline_dirty_files": ["a.py"],
+                "session_edited_files": ["a.py"],
+            },
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        # Session touched a.py → it owns it, even though it was in baseline
+        assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_concurrent_sessions_isolated(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Two sessions sharing a repo should only see their own edits."""
+        mock_get_dirty.return_value = {"a.py", "b.py"}
+
+        # Session A edited a.py, Session B edited b.py
+        session_var_manager.set_variable(
+            "session-a", "session_edited_files", ["a.py"]
+        )
+        session_var_manager.set_variable(
+            "session-b", "session_edited_files", ["b.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        # Session A should be blocked (a.py dirty & in its edits)
+        event_a = self._make_event(session_id="session-a")
+        response_a = await handler._evaluate_rules(event_a)
+        assert response_a.decision == "block"
+
+        # Session B should be blocked (b.py dirty & in its edits)
+        event_b = self._make_event(session_id="session-b")
+        response_b = await handler._evaluate_rules(event_b)
+        assert response_b.decision == "block"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_concurrent_session_not_blocked_by_other(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Session should not be blocked by files only another session edited."""
+        mock_get_dirty.return_value = {"a.py", "b.py"}
+
+        # Session A edited a.py only
+        session_var_manager.set_variable(
+            "session-a", "session_edited_files", ["a.py"]
+        )
+        # Session B edited b.py only
+        session_var_manager.set_variable(
+            "session-b", "session_edited_files", ["b.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        # Now check: if we ONLY look at session-a's files,
+        # and a.py gets committed (removed from dirty), session-a should allow
+        mock_get_dirty.return_value = {"b.py"}
+        event_a = self._make_event(session_id="session-a")
+        response_a = await handler._evaluate_rules(event_a)
+        assert response_a.decision == "allow"  # a.py committed, b.py is not session-a's

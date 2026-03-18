@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -374,10 +375,82 @@ class SessionMemoryExtractor:
                     )
                 )
 
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse LLM response as JSON: {e}")
+        except json.JSONDecodeError:
+            # Fallback: try JSONL parsing (objects without commas)
+            candidates = self._parse_jsonl_fallback(json_str)
+            if not candidates:
+                logger.warning("Failed to parse LLM response as JSON or JSONL")
         except Exception as e:
             logger.warning(f"Error parsing LLM response: {e}")
+
+        return candidates
+
+    def _parse_jsonl_fallback(self, json_str: str) -> list[MemoryCandidate]:
+        """Parse JSONL-style response where objects lack commas between them.
+
+        Handles LLM output like:
+            [
+              {"content": "...", ...}
+              {"content": "...", ...}
+            ]
+
+        Args:
+            json_str: The string that failed standard JSON parsing
+
+        Returns:
+            List of memory candidates parsed from individual objects
+        """
+        candidates: list[MemoryCandidate] = []
+
+        # Strip outer brackets and whitespace
+        inner = json_str.strip()
+        if inner.startswith("["):
+            inner = inner[1:]
+        if inner.endswith("]"):
+            inner = inner[:-1]
+
+        # Split on boundaries between adjacent JSON objects: } followed by {
+        fragments = re.split(r"\}\s*\n\s*\{", inner.strip())
+
+        for frag in fragments:
+            # Re-add braces stripped by the split
+            frag = frag.strip()
+            if not frag.startswith("{"):
+                frag = "{" + frag
+            if not frag.endswith("}"):
+                frag = frag + "}"
+
+            try:
+                item = json.loads(frag)
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(item, dict):
+                continue
+
+            content = item.get("content", "").strip()
+            if not content:
+                continue
+
+            memory_type = item.get("memory_type", "fact")
+            if memory_type not in ("fact", "pattern", "preference", "context"):
+                memory_type = "fact"
+
+            tags = item.get("tags", [])
+            if not isinstance(tags, list):
+                tags = []
+            tags = [str(t) for t in tags]
+
+            candidates.append(
+                MemoryCandidate(
+                    content=content,
+                    memory_type=memory_type,
+                    tags=tags,
+                )
+            )
+
+        if candidates:
+            logger.debug(f"JSONL fallback parsed {len(candidates)} memories")
 
         return candidates
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   ResponsiveContainer,
   LineChart,
@@ -12,14 +12,6 @@ import {
   Legend,
 } from 'recharts'
 import { useMetricSnapshots, type MetricSnapshot } from '../../hooks/useMetrics'
-
-type TimeRange = 1 | 6 | 12 | 24
-const TIME_RANGES: { value: TimeRange; label: string }[] = [
-  { value: 1, label: '1h' },
-  { value: 6, label: '6h' },
-  { value: 12, label: '12h' },
-  { value: 24, label: '24h' },
-]
 
 interface ChartPoint {
   time: string
@@ -110,9 +102,14 @@ function EmptyChart() {
   )
 }
 
-export function MetricsChartsCard() {
-  const [hours, setHours] = useState<TimeRange>(1)
-  const { data: snapshots, isLoading } = useMetricSnapshots(hours)
+interface Props {
+  hours: number
+}
+
+export function MetricsChartsCard({ hours }: Props) {
+  // Metrics snapshots max out at 24h of data, clamp accordingly
+  const metricsHours = hours === 0 ? 24 : Math.min(hours, 24)
+  const { data: snapshots, isLoading } = useMetricSnapshots(metricsHours)
   const chartData = useMemo(() => buildChartData(snapshots), [snapshots])
 
   const hasData = chartData.length > 0
@@ -121,17 +118,6 @@ export function MetricsChartsCard() {
     <div className="dash-card dash-card--full">
       <div className="dash-card-header">
         <h3 className="dash-card-title">Metrics</h3>
-        <div className="dash-time-range">
-          {TIME_RANGES.map(({ value, label }) => (
-            <button
-              key={value}
-              className={`dash-time-range-btn${hours === value ? ' dash-time-range-btn--active' : ''}`}
-              onClick={() => setHours(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
       <div className="dash-card-body">
         {isLoading && !hasData ? (

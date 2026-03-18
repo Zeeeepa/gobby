@@ -5,6 +5,7 @@ import { AgentRulesEditor } from './AgentRulesEditor'
 import { AgentVariablesEditor } from './AgentVariablesEditor'
 import { AgentSkillsEditor } from './AgentSkillsEditor'
 import { AgentStepsEditor } from './AgentStepsEditor'
+import { AgentToolBlocksEditor } from './AgentToolBlocksEditor'
 import type { WorkflowStep } from './AgentStepsEditor'
 
 export interface AgentFormData {
@@ -54,6 +55,8 @@ export interface AgentItemForPanel {
     steps?: WorkflowStep[] | null
     step_variables?: Record<string, unknown> | null
     exit_condition?: string | null
+    blocked_tools?: string[] | null
+    blocked_mcp_tools?: string[] | null
   }
   source: string
   source_path: string | null
@@ -96,6 +99,10 @@ interface AgentEditFormProps {
   onSkillsChange?: (skills: string[]) => void
   steps?: WorkflowStep[]
   onStepsChange?: (steps: WorkflowStep[]) => void
+  blockedTools?: string[]
+  onBlockedToolsChange?: (tools: string[]) => void
+  blockedMcpTools?: string[]
+  onBlockedMcpToolsChange?: (tools: string[]) => void
 }
 
 function FormInput({ label, value, onChange, placeholder, required }: {
@@ -159,6 +166,8 @@ export function AgentEditForm({
   pipelines,
   editSkills, onSkillsChange,
   steps, onStepsChange,
+  blockedTools, onBlockedToolsChange,
+  blockedMcpTools, onBlockedMcpToolsChange,
 }: AgentEditFormProps) {
   const [customModelInput, setCustomModelInput] = useState(false)
   const [customBranchInput, setCustomBranchInput] = useState(false)
@@ -365,6 +374,28 @@ export function AgentEditForm({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {((rd.blocked_tools && rd.blocked_tools.length > 0) || (rd.blocked_mcp_tools && rd.blocked_mcp_tools.length > 0)) && (
+            <div className="agent-edit-section">
+              <h4 className="agent-edit-section-title">Tool Restrictions</h4>
+              {rd.blocked_tools && rd.blocked_tools.length > 0 && (
+                <div className="agent-edit-field">
+                  <span className="agent-edit-label">Blocked Tools</span>
+                  <div className="step-chips">
+                    {rd.blocked_tools.map(t => <span key={t} className="step-chip">{t}</span>)}
+                  </div>
+                </div>
+              )}
+              {rd.blocked_mcp_tools && rd.blocked_mcp_tools.length > 0 && (
+                <div className="agent-edit-field">
+                  <span className="agent-edit-label">Blocked MCP Tools</span>
+                  <div className="step-chips">
+                    {rd.blocked_mcp_tools.map(t => <span key={t} className="step-chip">{t}</span>)}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -602,6 +633,19 @@ export function AgentEditForm({
                 definitionId={editingId}
                 variables={variables}
                 onVariablesChange={onVariablesChange}
+              />
+            </div>
+          )}
+
+          {/* Tool Restrictions */}
+          {(onBlockedToolsChange || onBlockedMcpToolsChange) && (
+            <div className="agent-edit-section">
+              <h4 className="agent-edit-section-title">Tool Restrictions</h4>
+              <AgentToolBlocksEditor
+                blockedTools={blockedTools || []}
+                onBlockedToolsChange={onBlockedToolsChange}
+                blockedMcpTools={blockedMcpTools || []}
+                onBlockedMcpToolsChange={onBlockedMcpToolsChange}
               />
             </div>
           )}

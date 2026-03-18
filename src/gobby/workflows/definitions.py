@@ -250,6 +250,9 @@ class AgentDefinitionBody(BaseModel):
     # Orchestration
     workflows: AgentWorkflows = Field(default_factory=AgentWorkflows)
     enabled: bool = True
+    # Agent-level tool restrictions (applied regardless of step workflow)
+    blocked_tools: list[str] = Field(default_factory=list)
+    blocked_mcp_tools: list[str] = Field(default_factory=list)
     # Inline step workflow (replaces external step workflow YAML files)
     steps: list[WorkflowStep] | None = None
     step_variables: dict[str, Any] = Field(default_factory=dict)

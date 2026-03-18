@@ -1,7 +1,6 @@
 """Tests for OS-level service installation."""
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch

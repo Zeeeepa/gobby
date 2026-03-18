@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
@@ -70,9 +71,43 @@ class ModelCostStore:
                 "cache_creation_cost_per_token, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
+            # Apply Anthropic's known pricing as overrides to guard against stale LiteLLM data
+            self._apply_anthropic_overrides(conn)
 
         logger.info(f"Populated model_costs table with {len(rows)} models from LiteLLM")
         return len(rows)
+
+    def _apply_anthropic_overrides(self, conn: DatabaseProtocol | sqlite3.Connection | None = None) -> None:
+        """Override LiteLLM pricing with Anthropic's known current rates.
+
+        Guards against stale or missing entries in the LiteLLM registry.
+        Prices are per-token (USD).
+
+        Args:
+            conn: Optional database connection to use (for transactional consistency).
+        """
+        executor = conn if conn is not None else self.db
+        # fmt: off
+        overrides: list[tuple[str, float, float, float, float]] = [
+            # (model_prefix, input, output, cache_read, cache_creation)
+            ("claude-opus-4", 15e-6, 75e-6, 1.5e-6, 18.75e-6),
+            ("claude-sonnet-4", 3e-6, 15e-6, 0.3e-6, 3.75e-6),
+            ("claude-haiku-4", 0.8e-6, 4e-6, 0.08e-6, 1e-6),
+        ]
+        # fmt: on
+        for prefix, inp, out, cr, cc in overrides:
+            executor.execute(
+                """
+                UPDATE model_costs
+                SET input_cost_per_token = ?,
+                    output_cost_per_token = ?,
+                    cache_read_cost_per_token = ?,
+                    cache_creation_cost_per_token = ?,
+                    source = 'anthropic_override'
+                WHERE model LIKE ? || '%'
+                """,
+                (inp, out, cr, cc, prefix),
+            )
 
     def get_all(self) -> dict[str, ModelCost]:
         """Return all cached costs as {model: ModelCost}."""

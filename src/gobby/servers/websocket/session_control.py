@@ -860,6 +860,7 @@ class SessionControlMixin:
                         "tool_name": m.get("tool_name"),
                         "tool_input": m.get("tool_input"),
                         "tool_result": m.get("tool_result"),
+                        "tool_use_id": m.get("tool_use_id"),
                         "timestamp": m.get("timestamp", ""),
                         "message_index": m.get("message_index"),
                     }

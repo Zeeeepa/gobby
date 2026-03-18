@@ -4,12 +4,15 @@ Runs a command and compresses its output for LLM consumption.
 Used by PreToolUse hook rewriting to reduce token usage.
 """
 
+import re
 import shlex
 import subprocess
 import sys
 
 import click
 import httpx
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
 
 @click.command()
@@ -38,7 +41,15 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
     if result.stderr:
         raw_output += result.stderr
 
-    if not raw_output:
+    # Strip ANSI escape codes — they break compression pattern matching
+    # and serve no purpose for LLM consumption
+    raw_output = _ANSI_RE.sub("", raw_output)
+
+    if not raw_output.strip():
+        if result.returncode == 0:
+            click.echo("No errors.")
+        else:
+            click.echo(f"Command failed with exit code {result.returncode} (no output).")
         sys.exit(result.returncode)
 
     from gobby.compression import OutputCompressor

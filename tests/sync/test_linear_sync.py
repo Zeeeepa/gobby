@@ -31,6 +31,9 @@ def mock_task_manager():
     manager.update_task = MagicMock()
     manager.get_task = MagicMock()
     manager.list_tasks = MagicMock(return_value=[])
+    # Default: no existing tasks (dedup check returns None)
+    manager.db.fetchone.return_value = None
+    manager.db.fetchall.return_value = []
     return manager
 
 
@@ -212,6 +215,8 @@ class TestLinearSyncServiceSync:
         mock_task.linear_team_id = "team-123"
         mock_task.title = "Updated Title"
         mock_task.description = "Updated description"
+        mock_task.status = "in_progress"
+        mock_task.priority = 2
 
         sync_service.task_manager.get_task.return_value = mock_task
         mock_mcp_manager.call_tool.return_value = {"success": True}
@@ -243,6 +248,7 @@ class TestLinearSyncServiceCreate:
         mock_task.description = "Adds a cool feature"
         mock_task.linear_team_id = "team-123"
         mock_task.id = "test-task-id"
+        mock_task.priority = 2
 
         sync_service.task_manager.get_task.return_value = mock_task
         mock_mcp_manager.call_tool.return_value = {
@@ -265,6 +271,7 @@ class TestLinearSyncServiceCreate:
         mock_task.description = "Description"
         mock_task.linear_team_id = None
         mock_task.id = "test-task-id"
+        mock_task.priority = 2
 
         mock_task_manager.get_task.return_value = mock_task
         mock_mcp_manager.call_tool.return_value = {"id": "lin-456"}
@@ -361,6 +368,9 @@ class TestLinearSyncIntegration:
         mock_task.linear_team_id = "team-123"
         mock_task.title = "Updated Title"
         mock_task.description = "Updated description"
+        mock_task.status = "in_progress"
+        mock_task.priority = 2
+        mock_task.to_dict.return_value = {"id": "gt-test123", "title": "Updated Title"}
         mock_task_manager.create_task.return_value = mock_task
         mock_task_manager.get_task.return_value = mock_task
 
@@ -444,6 +454,8 @@ class TestLinearSyncErrorHandling:
         mock_task.linear_team_id = "team-123"
         mock_task.title = "Test"
         mock_task.description = "Test desc"
+        mock_task.status = "open"
+        mock_task.priority = 2
         mock_task_manager.get_task.return_value = mock_task
 
         service = LinearSyncService(

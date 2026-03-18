@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { TimeRange } from '../components/dashboard/TimeRangePills'
 
 export interface TimeStats {
   days: number
+  hours: number | null
   tasks: {
     open: number; in_progress: number; closed: number
     needs_review: number; review_approved: number; escalated: number
@@ -10,24 +10,14 @@ export interface TimeStats {
   }
   sessions: {
     active: number; paused: number; handoff_ready: number; total: number
+    by_source: Record<string, Record<string, number>>
   }
   memory: {
     count: number; by_type: Record<string, number>; recent_count: number
   }
 }
 
-const RANGE_TO_DAYS: Record<TimeRange, number> = {
-  '24h': 1,
-  '7d': 7,
-  '30d': 30,
-  'all': 0,
-}
-
-export function rangeToDays(range: TimeRange): number {
-  return RANGE_TO_DAYS[range]
-}
-
-export function useTimeStats(days: number) {
+export function useTimeStats(hours: number, projectId?: string) {
   const [data, setData] = useState<TimeStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +28,9 @@ export function useTimeStats(days: number) {
     const controller = new AbortController()
     abortRef.current = controller
     try {
-      const resp = await fetch(`/api/admin/stats?days=${days}`, { signal: controller.signal })
+      let url = `/api/admin/stats?hours=${hours}`
+      if (projectId) url += `&project_id=${encodeURIComponent(projectId)}`
+      const resp = await fetch(url, { signal: controller.signal })
       if (resp.ok) {
         setData(await resp.json())
         setError(null)
@@ -51,7 +43,7 @@ export function useTimeStats(days: number) {
       setError(String(e))
       setData(null)
     }
-  }, [days])
+  }, [hours, projectId])
 
   useEffect(() => {
     setIsLoading(true)

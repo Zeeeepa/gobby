@@ -13,12 +13,32 @@ logger = logging.getLogger(__name__)
 
 def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
     @router.get("/savings")
-    async def get_savings(days: int = 1, project_id: str | None = None) -> dict[str, Any]:
-        """Get savings summary for the specified time window."""
+    async def get_savings(
+        days: int = 1,
+        hours: int | None = None,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Get savings summary for the specified time window.
+
+        Args:
+            days: Time window in days. Used when hours is not set.
+            hours: Time window in hours. Takes precedence over days.
+                   0 = all time (maps to a large days value).
+            project_id: Filter to a specific project.
+        """
         tracker = _get_tracker(server)
         if tracker is None:
             return {"error": "Savings tracker not available", "days": days}
-        result: dict[str, Any] = tracker.get_summary(days=days, project_id=project_id)
+        # Convert hours to days for the tracker
+        if hours is not None:
+            if hours == 0:
+                effective_days = 36500  # all time
+            else:
+                # Round up to at least 1 day for sub-day granularity
+                effective_days = max(1, -(-hours // 24))  # ceiling division
+        else:
+            effective_days = days
+        result: dict[str, Any] = tracker.get_summary(days=effective_days, project_id=project_id)
         return result
 
     @router.get("/savings/cumulative")

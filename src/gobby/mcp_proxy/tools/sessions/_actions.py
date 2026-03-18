@@ -94,8 +94,9 @@ def register_action_tools(
             if session_id and db:
                 from gobby.workflows.state_manager import SessionVariableManager
 
-                SessionVariableManager(db).set_variable(
-                    session_id, "baseline_dirty_files", baseline
+                SessionVariableManager(db).merge_variables(
+                    session_id,
+                    {"baseline_dirty_files": baseline, "session_edited_files": []},
                 )
 
             return {
