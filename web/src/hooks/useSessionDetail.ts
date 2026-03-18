@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { GobbySession } from './useSessions'
+import { useWebSocketEvent } from './useWebSocketEvent'
 
 export interface SessionMessage {
   id: string
@@ -70,6 +71,43 @@ export function useSessionDetail(sessionId: string | null) {
     fetchDetail()
     return () => { cancelled = true }
   }, [sessionId])
+
+  // Track current sessionId in a ref for the WebSocket handler
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
+
+  // Subscribe to real-time session_message events via WebSocket
+  useWebSocketEvent('session_message', useCallback((data: Record<string, unknown>) => {
+    const msgSessionId = data.session_id as string | undefined
+    if (!msgSessionId || msgSessionId !== sessionIdRef.current) return
+
+    const msg = data.message as Record<string, unknown> | undefined
+    if (!msg) return
+
+    const newMessage: SessionMessage = {
+      id: String(msg.id ?? msg.index ?? `ws-${Date.now()}`),
+      role: (msg.role as string) ?? 'assistant',
+      content: (msg.content as string) ?? '',
+      content_type: msg.content_type as string | undefined,
+      tool_name: msg.tool_name as string | undefined,
+      tool_input: msg.tool_input as string | undefined,
+      tool_result: msg.tool_result as string | undefined,
+      tool_use_id: msg.tool_use_id as string | undefined,
+      timestamp: (msg.timestamp as string) ?? new Date().toISOString(),
+      message_index: msg.index as number | undefined,
+    }
+
+    setMessages((prev) => {
+      // Deduplicate by id or message_index
+      if (newMessage.message_index !== undefined &&
+          prev.some((m) => m.message_index === newMessage.message_index)) {
+        return prev
+      }
+      if (prev.some((m) => m.id === newMessage.id)) return prev
+      return [...prev, newMessage]
+    })
+    setTotalMessages((prev) => prev + 1)
+  }, []))
 
   const hasMore = false
 
