@@ -1,9 +1,11 @@
 import { cn } from '../../lib/utils'
 
-export type TimeRange = '1h' | '24h' | '7d' | '30d' | 'all'
+export type TimeRange = '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | 'all'
 
 const RANGES: { value: TimeRange; label: string }[] = [
   { value: '1h', label: '1h' },
+  { value: '6h', label: '6h' },
+  { value: '12h', label: '12h' },
   { value: '24h', label: '24h' },
   { value: '7d', label: '7d' },
   { value: '30d', label: '30d' },
@@ -41,6 +43,8 @@ export function TimeRangePills({ value, onChange }: Props) {
 export function rangeToHours(range: TimeRange): number {
   const map: Record<TimeRange, number> = {
     '1h': 1,
+    '6h': 6,
+    '12h': 12,
     '24h': 24,
     '7d': 168,
     '30d': 720,

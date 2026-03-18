@@ -79,7 +79,7 @@ export function DashboardPage() {
             <MemoryCard hours={hours} projectId={projectId} />
 
             {/* Row 3: Metrics charts (full width) */}
-            <MetricsChartsCard />
+            <MetricsChartsCard hours={hours} />
           </div>
         ) : null}
       </div>
