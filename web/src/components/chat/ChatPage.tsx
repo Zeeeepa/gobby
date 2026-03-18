@@ -225,7 +225,7 @@ export function ChatPage({
 
         <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
           {/* Messages */}
-          <div className="flex flex-col flex-1 min-h-0">
+          <div className="grid flex-1 min-h-0">
             <MessageList
               ref={messageListRef}
               messages={chat.messages}
