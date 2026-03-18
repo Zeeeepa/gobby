@@ -97,6 +97,7 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
         '&': {
           height: '100%',
           fontSize: '14px',
+          background: '#0a0a0a',
         },
         '.cm-scroller': {
           fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",

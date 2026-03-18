@@ -63,6 +63,42 @@ function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || ''
 }
 
+function getFileIconColor(ext: string): string {
+  const e = ext.toLowerCase()
+  if (['ts', 'tsx'].includes(e)) return '#3178c6'
+  if (['js', 'jsx'].includes(e)) return '#f7df1e'
+  if (e === 'py') return '#3776ab'
+  if (e === 'rs') return '#ce422b'
+  if (e === 'go') return '#00add8'
+  if (['json', 'yaml', 'yml', 'toml'].includes(e)) return '#cb8742'
+  if (['md', 'txt', 'rst'].includes(e)) return '#737373'
+  if (['css', 'scss', 'less'].includes(e)) return '#563d7c'
+  if (['html', 'htm'].includes(e)) return '#e34c26'
+  if (['sh', 'bash', 'zsh'].includes(e)) return '#4eaa25'
+  if (['sql'].includes(e)) return '#e38c00'
+  if (['rb'].includes(e)) return '#cc342d'
+  return '#a3a3a3'
+}
+
+function FolderIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#facc15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      {open && <line x1="9" y1="14" x2="15" y2="14" />}
+    </svg>
+  )
+}
+
+function FileIconSvg({ extension }: { extension: string }) {
+  const color = getFileIconColor(extension)
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+      <polyline points="13 2 13 9 20 9" />
+    </svg>
+  )
+}
+
 export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: FilesTabProps) {
   const [rootEntries, setRootEntries] = useState<FileEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -227,21 +263,52 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
     const isSelected = entry.path === selectedFile
     const children = childrenMap.get(entry.path)
     const isRenaming = renaming?.path === entry.path
+    const ext = entry.name.split('.').pop() ?? ''
+
+    if (isDir) {
+      return (
+        <div key={entry.path}>
+          <div
+            className={`files-tree-item${isSelected ? ' file-tree-entry--active' : ''}`}
+            style={{ paddingLeft: `${depth * 16 + 4}px` }}
+            onClick={() => toggleDir(entry.path)}
+            onContextMenu={(e) => handleContextMenu(e, entry)}
+          >
+            <span className="files-tree-arrow">{isExpanded ? '\u25BE' : '\u25B8'}</span>
+            <FolderIcon open={isExpanded} />
+            {isRenaming ? (
+              <input
+                ref={renameInputRef}
+                className="file-tree-rename-input"
+                defaultValue={renaming.name}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitRename()
+                  if (e.key === 'Escape') setRenaming(null)
+                }}
+                onBlur={submitRename}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className="files-tree-name">{entry.name}</span>
+            )}
+          </div>
+          {isExpanded && children?.map((c) => renderEntry(c, depth + 1))}
+          {isExpanded && !children && (
+            <div className="files-tree-loading" style={{ paddingLeft: `${(depth + 1) * 16 + 4}px` }}>Loading...</div>
+          )}
+        </div>
+      )
+    }
 
     return (
       <div key={entry.path}>
         <div
-          className={`file-tree-entry${isSelected ? ' file-tree-entry--active' : ''}`}
-          style={{ paddingLeft: `${8 + depth * 14}px` }}
-          onClick={() => isDir ? toggleDir(entry.path) : openFile(entry.path)}
+          className={`files-tree-item files-tree-file${isSelected ? ' file-tree-entry--active' : ''}`}
+          style={{ paddingLeft: `${depth * 16 + 20}px` }}
+          onClick={() => openFile(entry.path)}
           onContextMenu={(e) => handleContextMenu(e, entry)}
         >
-          {isDir ? (
-            <span className="file-tree-chevron">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-          ) : (
-            <span className="file-tree-chevron file-tree-chevron--leaf" />
-          )}
-          <span className="text-xs shrink-0">{isDir ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}</span>
+          <FileIconSvg extension={ext} />
           {isRenaming ? (
             <input
               ref={renameInputRef}
@@ -255,18 +322,14 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="text-foreground truncate">{entry.name}</span>
+            <span className="files-tree-name">{entry.name}</span>
           )}
-          {!isDir && entry.size != null && (
-            <span className="file-tree-size">
+          {entry.size != null && (
+            <span className="files-tree-size">
               {entry.size < 1024 ? `${entry.size}B` : entry.size < 1048576 ? `${(entry.size / 1024).toFixed(0)}K` : `${(entry.size / 1048576).toFixed(1)}M`}
             </span>
           )}
         </div>
-        {isDir && isExpanded && children?.map((c) => renderEntry(c, depth + 1))}
-        {isDir && isExpanded && !children && (
-          <div style={{ paddingLeft: `${22 + depth * 14}px` }} className="text-xs text-muted-foreground py-1">Loading...</div>
-        )}
       </div>
     )
   }
