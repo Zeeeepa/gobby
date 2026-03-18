@@ -7,6 +7,8 @@ Provides CRUD endpoints for managing workflow definitions in the database.
 import logging
 from typing import TYPE_CHECKING, Any
 
+import yaml
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -165,7 +167,7 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             row = manager.import_from_yaml(request.yaml_content, project_id=request.project_id)
             await _broadcast_workflow("workflow_created", row.id)
             return {"status": "success", "definition": row.to_dict()}
-        except ValueError as e:
+        except (ValueError, yaml.YAMLError) as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
             logger.error(f"Error importing workflow definition: {e}", exc_info=True)

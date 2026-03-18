@@ -264,7 +264,7 @@ class TestImportWorkflow:
             "/api/workflows/import",
             json={"yaml_content": "not: valid: yaml: [[["},
         )
-        assert resp.status_code == 500  # yaml.ScannerError not caught as client error
+        assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------
