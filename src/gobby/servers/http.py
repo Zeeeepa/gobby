@@ -593,6 +593,26 @@ class HTTPServer:
                 except Exception as e:
                     logger.warning(f"Failed to start TmuxPaneMonitor: {e}")
 
+            # Start SessionLivenessMonitor (detects dead CLI sessions via PID checks)
+            try:
+                from gobby.sessions.liveness_monitor import SessionLivenessMonitor
+
+                session_storage = app.state.hook_manager._session_storage
+                liveness_monitor = SessionLivenessMonitor(
+                    session_storage=session_storage,
+                    dispatch_summaries_fn=getattr(
+                        app.state.hook_manager, "_dispatch_session_summaries", None
+                    ),
+                    message_processor=getattr(
+                        app.state.hook_manager, "_message_processor", None
+                    ),
+                )
+                app.state.liveness_monitor = liveness_monitor
+                await liveness_monitor.start()
+                logger.debug("SessionLivenessMonitor started")
+            except Exception as e:
+                logger.warning(f"Failed to start SessionLivenessMonitor: {e}")
+
             # If MCP app exists, wrap its lifespan
             if mcp_app is not None:
                 # Use router.lifespan_context for stable FastMCP version
@@ -616,6 +636,15 @@ class HTTPServer:
                     logger.debug("CodexAppServerClient stopped")
                 except Exception as e:
                     logger.warning(f"Failed to stop CodexAppServerClient: {e}")
+
+            # Stop SessionLivenessMonitor
+            if hasattr(app.state, "liveness_monitor") and app.state.liveness_monitor:
+                try:
+                    await app.state.liveness_monitor.stop()
+                    app.state.liveness_monitor = None
+                    logger.debug("SessionLivenessMonitor stopped")
+                except Exception as e:
+                    logger.warning(f"Failed to stop SessionLivenessMonitor: {e}")
 
             # Stop TmuxPaneMonitor
             try:

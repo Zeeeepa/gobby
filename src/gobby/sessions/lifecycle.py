@@ -194,7 +194,14 @@ class SessionLifecycleManager:
             logger.error(f"Failed to purge soft-deleted definitions: {e}")
 
     async def _process_pending_transcripts(self) -> int:
-        """Process transcripts for expired sessions."""
+        """Process transcripts for expired sessions.
+
+        Runs memory extraction and summary generation as separate steps
+        OUTSIDE _process_session_transcript so they execute even when the
+        JSONL file has already been deleted.  transcript_processed is only
+        set when summaries have been generated (or LLM is unavailable),
+        allowing retry on the next cycle if summary generation fails.
+        """
         sessions = self.session_manager.get_pending_transcript_sessions(
             limit=self.config.transcript_processing_batch_size
         )
@@ -206,37 +213,60 @@ class SessionLifecycleManager:
 
         processed = 0
         for session in sessions:
+            # Step 1: Process transcript (reads JSONL, stores messages, aggregates usage)
             try:
                 await self._process_session_transcript(session.id, session.jsonl_path)
+            except Exception as e:
+                logger.error(f"Failed to process transcript for {session.id}: {e}")
+
+            # Step 2: Extract memories (best-effort, independent of transcript success)
+            try:
+                await self._extract_memories_if_needed(session.id)
+            except Exception as e:
+                logger.warning(f"Memory extraction failed for {session.id}: {e}")
+
+            # Step 3: Generate summaries (best-effort, independent of transcript success)
+            try:
+                await self._generate_summaries_if_needed(session.id)
+            except Exception as e:
+                logger.warning(f"Summary generation failed for {session.id}: {e}")
+
+            # Step 4: Only mark as processed if summaries succeeded or LLM is unavailable.
+            # This allows retry on the next cycle if summary generation failed.
+            refreshed = self.session_manager.get(session.id)
+            if refreshed and (refreshed.summary_markdown or not self.llm_service):
                 self.session_manager.mark_transcript_processed(session.id)
                 processed += 1
                 logger.debug(f"Processed transcript for session {session.id}")
+            else:
+                logger.info(
+                    f"Deferring transcript_processed for {session.id} "
+                    f"— summaries not yet generated"
+                )
 
-                # Best-effort backup of the transcript archive
-                # On success, purge DB messages (gzip is now the source of truth)
-                if session.jsonl_path and session.external_id:
-                    try:
-                        archive_path = await asyncio.to_thread(
-                            backup_transcript,
-                            session.external_id,
-                            session.jsonl_path,
-                            archive_dir,
+            # Step 5: Best-effort backup of the transcript archive
+            # On success, purge DB messages (gzip is now the source of truth)
+            if session.jsonl_path and session.external_id:
+                try:
+                    archive_path = await asyncio.to_thread(
+                        backup_transcript,
+                        session.external_id,
+                        session.jsonl_path,
+                        archive_dir,
+                    )
+                    if archive_path:
+                        await self.message_manager.purge(session.id)
+                        logger.debug(
+                            f"Purged DB messages for session {session.id} "
+                            f"(archived to {archive_path})"
                         )
-                        if archive_path:
-                            await self.message_manager.purge(session.id)
-                            logger.debug(
-                                f"Purged DB messages for session {session.id} "
-                                f"(archived to {archive_path})"
-                            )
-                        else:
-                            logger.warning(
-                                f"Transcript backup returned None for {session.id}, "
-                                f"retaining DB messages"
-                            )
-                    except Exception as e:
-                        logger.warning(f"Transcript backup failed for {session.id}: {e}")
-            except Exception as e:
-                logger.error(f"Failed to process transcript for {session.id}: {e}")
+                    else:
+                        logger.warning(
+                            f"Transcript backup returned None for {session.id}, "
+                            f"retaining DB messages"
+                        )
+                except Exception as e:
+                    logger.warning(f"Transcript backup failed for {session.id}: {e}")
 
         if processed > 0:
             logger.info(f"Processed {processed} session transcripts")
@@ -423,8 +453,7 @@ class SessionLifecycleManager:
             message_index=messages[-1].index,
         )
 
-        # Extract memories from transcript (ungraceful exit fallback)
-        await self._extract_memories_if_needed(session_id)
-
-        # Generate summaries if missing (ungraceful exit safety net)
-        await self._generate_summaries_if_needed(session_id)
+        # NOTE: Memory extraction and summary generation are now called from
+        # _process_pending_transcripts (the caller), not here.  This ensures
+        # they run even when the JSONL file has already been deleted and this
+        # method returns early at the file-existence check.

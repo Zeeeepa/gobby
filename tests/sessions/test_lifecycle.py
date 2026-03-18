@@ -105,16 +105,21 @@ class TestSessionLifecycleManager:
         session = MagicMock(spec=Session)
         session.id = "s1"
         session.jsonl_path = str(tmp_path / "transcript.jsonl")
+        session.external_id = "ext-s1"
 
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
+
+        # manager.session_manager.get() must return a session with summary_markdown
+        # so that mark_transcript_processed is called (gated on summary presence)
+        refreshed = MagicMock()
+        refreshed.summary_markdown = "summary content"
+        manager.session_manager.get.return_value = refreshed
 
         # Create real file content
         with open(session.jsonl_path, "w") as f:
             f.write('{"type": "message", "content": "hello"}\n')
 
         # Mock _process_session_transcript to avoid complex parsing logic
-        # OR mock the components inside it.
-        # Let's mock _process_session_transcript to focus on the loop logic first.
         with patch.object(
             manager, "_process_session_transcript", new_callable=AsyncMock
         ) as mock_process:
@@ -202,19 +207,44 @@ class TestSessionLifecycleManager:
 
     @pytest.mark.asyncio
     async def test_process_pending_transcripts_individual_error(self, manager):
-        """Test error handling for individual session processing."""
+        """Test error handling for individual session processing.
+
+        Even when transcript processing fails for a session, summary/memory
+        extraction still runs.  mark_transcript_processed is gated on
+        summary_markdown presence: sessions with summaries are marked done,
+        those without are deferred for retry.
+        """
         s1 = MagicMock(id="s1")
         s2 = MagicMock(id="s2")
         manager.session_manager.get_pending_transcript_sessions.return_value = [s1, s2]
 
-        # Mock _process_session_transcript to fail for first, succeed for second
-        with patch.object(
-            manager, "_process_session_transcript", new_callable=AsyncMock
-        ) as mock_proc:
+        # Enable llm_service so the summary-gating logic activates
+        manager.llm_service = MagicMock()
+
+        # s1 has no summary (will be deferred), s2 has summary (will be processed)
+        s1_refreshed = MagicMock()
+        s1_refreshed.summary_markdown = None
+        s2_refreshed = MagicMock()
+        s2_refreshed.summary_markdown = "summary content"
+        manager.session_manager.get.side_effect = [s1_refreshed, s2_refreshed]
+
+        # Mock helper methods to isolate loop logic
+        with (
+            patch.object(
+                manager, "_process_session_transcript", new_callable=AsyncMock
+            ) as mock_proc,
+            patch.object(
+                manager, "_extract_memories_if_needed", new_callable=AsyncMock
+            ),
+            patch.object(
+                manager, "_generate_summaries_if_needed", new_callable=AsyncMock
+            ),
+        ):
             mock_proc.side_effect = [Exception("Fail"), None]
 
             processed = await manager._process_pending_transcripts()
 
+            # s1 deferred (no summary), s2 processed (has summary)
             assert processed == 1
             assert mock_proc.call_count == 2
 
