@@ -376,8 +376,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       }
       if (Object.keys(workflows).length > 0) body.workflows = workflows
       if (editSteps.length > 0) body.steps = editSteps
-      if (editBlockedTools.length > 0) body.blocked_tools = editBlockedTools
-      if (editBlockedMcpTools.length > 0) body.blocked_mcp_tools = editBlockedMcpTools
+      body.blocked_tools = editBlockedTools
+      body.blocked_mcp_tools = editBlockedMcpTools
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions`, {
         method: 'POST',
@@ -468,8 +468,8 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       }
       if (Object.keys(workflows).length > 0) body.workflows = workflows
       if (editSteps.length > 0) body.steps = editSteps
-      if (editBlockedTools.length > 0) body.blocked_tools = editBlockedTools
-      if (editBlockedMcpTools.length > 0) body.blocked_mcp_tools = editBlockedMcpTools
+      body.blocked_tools = editBlockedTools
+      body.blocked_mcp_tools = editBlockedMcpTools
 
       const res = await fetch(`${getBaseUrl()}/api/agents/definitions/${editingId}`, {
         method: 'PUT',

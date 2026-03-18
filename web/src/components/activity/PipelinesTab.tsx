@@ -40,8 +40,12 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
   }, [projectId, showCompleted])
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetchExecutions().finally(() => setLoading(false))
+    fetchExecutions().finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
   }, [fetchExecutions])
 
   // Fetch detail for selected execution
@@ -53,7 +57,7 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
         if (data?.execution) setDetailExec(data.execution)
         else if (data?.id) setDetailExec(data)
       })
-      .catch(() => {})
+      .catch((err) => { console.error('Failed to fetch pipeline detail:', err) })
   }, [])
 
   // Poll running executions

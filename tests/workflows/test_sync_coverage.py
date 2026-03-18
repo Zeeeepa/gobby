@@ -164,9 +164,8 @@ class TestResolveSyncPlaceholders:
     def test_falls_back_to_sys_executable(self) -> None:
         with (
             patch("gobby.workflows.sync.shutil.which", return_value=None),
-            patch("gobby.workflows.sync.sys") as mock_sys,
+            patch("gobby.workflows.sync.sys.executable", "/home/user/.venv/bin/python3"),
         ):
-            mock_sys.executable = "/home/user/.venv/bin/python3"
             result = _resolve_sync_placeholders('{"cmd": "{{ gobby_bin }} compress"}')
         assert result == '{"cmd": "/home/user/.venv/bin/python3 -m gobby compress"}'
 

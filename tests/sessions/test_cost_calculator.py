@@ -180,6 +180,25 @@ class TestCostCalculator:
         expected = 100_000 * 3e-6 + 1000 * 15e-6
         assert cost == pytest.approx(expected)
 
+    def test_no_long_context_surcharge_at_exact_threshold(self) -> None:
+        """No surcharge when total input is exactly 200k (threshold is >200k)."""
+        calc = self._make_calculator(
+            {
+                "claude-sonnet-4-20250514": ModelCost(
+                    input=3e-6, output=15e-6, cache_read=0.3e-6, cache_creation=3.75e-6
+                ),
+            }
+        )
+        cost = calc.calculate(
+            model="claude-sonnet-4-20250514",
+            input_tokens=200_000,
+            output_tokens=1000,
+        )
+        assert cost is not None
+        # Exactly at threshold — no surcharge
+        expected = 200_000 * 3e-6 + 1000 * 15e-6
+        assert cost == pytest.approx(expected)
+
     def test_no_long_context_surcharge_for_opus(self) -> None:
         """Opus models don't get long-context surcharge."""
         calc = self._make_calculator(

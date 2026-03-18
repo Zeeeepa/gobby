@@ -21,7 +21,25 @@ interface Props {
 }
 
 export function MemoryCard({ hours, projectId }: Props) {
-  const { data } = useTimeStats(hours, projectId)
+  const { data, isLoading, error } = useTimeStats(hours, projectId)
+
+  if (isLoading) {
+    return (
+      <div className="dash-card">
+        <div className="dash-card-header"><h3 className="dash-card-title">Memory</h3></div>
+        <div className="dash-card-body"><p className="text-xs text-muted-foreground">Loading...</p></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="dash-card">
+        <div className="dash-card-header"><h3 className="dash-card-title">Memory</h3></div>
+        <div className="dash-card-body"><p className="text-xs text-muted-foreground">Failed to load memory data</p></div>
+      </div>
+    )
+  }
 
   const memory = data?.memory ?? { count: 0, by_type: {}, recent_count: 0 }
 
@@ -57,7 +75,7 @@ export function MemoryCard({ hours, projectId }: Props) {
       <div className="dash-card-header">
         <h3 className="dash-card-title">Memory</h3>
       </div>
-      <div className="dash-card-body" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+      <div className="dash-card-body dash-card-body--row">
         <svg width={SIZE} height={SIZE} style={{ flexShrink: 0 }}>
           {total === 0 ? (
             <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}

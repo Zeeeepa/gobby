@@ -17,6 +17,11 @@ LONG_CONTEXT_THRESHOLDS: dict[str, tuple[int, float]] = {
 }
 
 
+def _strip_provider_prefix(model: str) -> str:
+    """Strip provider prefix (e.g., 'anthropic/claude-opus-4-6' -> 'claude-opus-4-6')."""
+    return model.split("/", 1)[1] if "/" in model else model
+
+
 class CostCalculator:
     """Compute USD cost from token counts + model using ModelCostStore.
 
@@ -29,9 +34,7 @@ class CostCalculator:
 
     def _resolve_model(self, model: str) -> str | None:
         """Resolve model name using exact match then longest prefix match."""
-        # Strip provider prefix (e.g., "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
-        if "/" in model:
-            model = model.split("/", 1)[1]
+        model = _strip_provider_prefix(model)
 
         if model in self._costs:
             return model
@@ -51,8 +54,7 @@ class CostCalculator:
 
         Returns the input rate multiplier if applicable, None otherwise.
         """
-        # Strip provider prefix for matching
-        bare = model.split("/", 1)[-1] if "/" in model else model
+        bare = _strip_provider_prefix(model)
         for prefix, (threshold, multiplier) in LONG_CONTEXT_THRESHOLDS.items():
             if bare.startswith(prefix) and total_input_tokens > threshold:
                 return multiplier

@@ -196,7 +196,10 @@ class SessionVariableManager:
                 (session_id,),
             ).fetchone()
             current_vars = json.loads(row["variables"]) if row and row["variables"] else {}
-            existing = set(current_vars.get(name, []))
+            stored = current_vars.get(name, [])
+            if not isinstance(stored, list):
+                stored = [stored] if stored else []
+            existing = set(stored)
             existing.update(values)
             current_vars[name] = sorted(existing)
             if row:

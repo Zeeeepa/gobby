@@ -209,7 +209,7 @@ export function useActivityPanel() {
       const stored = localStorage.getItem(STORAGE_KEY_WIDTH)
       if (stored) {
         const w = parseInt(stored, 10)
-        if (w >= 280 && w <= 800) return w
+        if (w >= 280 && w <= 1200) return w
       }
     } catch { /* ignore */ }
     return 360

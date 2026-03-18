@@ -186,11 +186,12 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
     const ok = window.confirm(`Delete "${entry.name}"?`)
     if (!ok) return
     const baseUrl = getBaseUrl()
-    await fetch(`${baseUrl}/api/files/delete`, {
+    const response = await fetch(`${baseUrl}/api/files/delete`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: entry.path }),
     })
+    if (!response.ok) return
     // Refresh parent directory
     const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
@@ -211,11 +212,12 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
     const baseUrl = getBaseUrl()
     const parentPath = renaming.path.includes('/') ? renaming.path.substring(0, renaming.path.lastIndexOf('/')) : ''
     const newPath = parentPath ? `${parentPath}/${newName}` : newName
-    await fetch(`${baseUrl}/api/files/rename`, {
+    const response = await fetch(`${baseUrl}/api/files/rename`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: renaming.path, new_path: newPath }),
     })
+    if (!response.ok) { setRenaming(null); return }
     setRenaming(null)
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
     loadChildren(parentPath)
@@ -227,11 +229,12 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
     const newPath = window.prompt('Move to path:', entry.path)
     if (!newPath || newPath === entry.path) return
     const baseUrl = getBaseUrl()
-    await fetch(`${baseUrl}/api/files/move`, {
+    const response = await fetch(`${baseUrl}/api/files/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: entry.path, new_path: newPath }),
     })
+    if (!response.ok) return
     const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
     loadChildren(parentPath)
@@ -240,11 +243,12 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
   const handleSaveEdit = useCallback(async () => {
     if (!projectId || !selectedFile) return
     const baseUrl = getBaseUrl()
-    await fetch(`${baseUrl}/api/files/write`, {
+    const response = await fetch(`${baseUrl}/api/files/write`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: selectedFile, content: editContent }),
     })
+    if (!response.ok) return
     setFileContent(editContent)
     setIsEditing(false)
   }, [projectId, selectedFile, editContent])

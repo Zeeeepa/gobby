@@ -46,7 +46,9 @@ export function useUsage(hours: number, projectId?: string) {
 
   useEffect(() => {
     setIsLoading(true)
-    fetchUsage().then(() => setIsLoading(false))
+    fetchUsage()
+      .catch(() => {})
+      .finally(() => setIsLoading(false))
     const interval = setInterval(fetchUsage, 30_000)
     return () => {
       clearInterval(interval)

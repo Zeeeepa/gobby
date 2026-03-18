@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from gobby.integrations.github import GitHubIntegration
+from gobby.integrations.github_helper import parse_github_repo
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -193,7 +194,7 @@ class GitHubSyncService:
                 f"Task {task_id} has no github_repo set and no default repo configured."
             )
 
-        owner, repo_name = repo.split("/")
+        owner, repo_name = parse_github_repo(repo)
 
         result = await self.mcp_manager.call_tool(
             server_name="github",
@@ -250,7 +251,7 @@ class GitHubSyncService:
                 f"Task {task_id} has no github_repo set and no default repo configured."
             )
 
-        owner, repo_name = repo.split("/")
+        owner, repo_name = parse_github_repo(repo)
 
         # Create PR via GitHub MCP
         result = await self.mcp_manager.call_tool(
@@ -335,7 +336,7 @@ class GitHubSyncService:
         if not repo:
             raise ValueError("No github_repo configured for push_files_to_remote.")
 
-        owner, repo_name = repo.split("/")
+        owner, repo_name = parse_github_repo(repo)
 
         result = await self.mcp_manager.call_tool(
             server_name="github",

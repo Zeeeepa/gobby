@@ -33,22 +33,13 @@ interface CommandBarProps {
   isPanelPinned: boolean
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  claude_code: 'Claude Code',
-  gemini_cli: 'Gemini CLI',
-  codex: 'Codex',
-  windsurf: 'Windsurf',
-  cursor: 'Cursor',
-  copilot: 'Copilot',
-}
-
-const SOURCE_DOT_COLORS: Record<string, string> = {
-  claude_code: 'bg-purple-400',
-  gemini_cli: 'bg-green-400',
-  codex: 'bg-blue-400',
-  windsurf: 'bg-sky-400',
-  cursor: 'bg-pink-400',
-  copilot: 'bg-indigo-400',
+const SOURCE_CONFIG: Record<string, { label: string; dot: string }> = {
+  claude_code: { label: 'Claude Code', dot: 'bg-purple-400' },
+  gemini_cli: { label: 'Gemini CLI', dot: 'bg-green-400' },
+  codex: { label: 'Codex', dot: 'bg-blue-400' },
+  windsurf: { label: 'Windsurf', dot: 'bg-sky-400' },
+  cursor: { label: 'Cursor', dot: 'bg-pink-400' },
+  copilot: { label: 'Copilot', dot: 'bg-indigo-400' },
 }
 
 export function CommandBar({
@@ -178,8 +169,9 @@ function ObservationSegment({
   onAttach?: () => void
   onDetach?: () => void
 }) {
-  const sourceLabel = SOURCE_LABELS[viewingMeta.source] ?? viewingMeta.source
-  const sourceDot = SOURCE_DOT_COLORS[viewingMeta.source] ?? 'bg-neutral-400'
+  const sourceConf = SOURCE_CONFIG[viewingMeta.source]
+  const sourceLabel = sourceConf?.label ?? viewingMeta.source
+  const sourceDot = sourceConf?.dot ?? 'bg-neutral-400'
   const isLive = viewingMeta.status === 'active'
 
   return (
@@ -197,11 +189,11 @@ function ObservationSegment({
         {isAttached ? 'Attached' : 'Observing'}
         {isLive && !isAttached && ' (live)'}
       </span>
-      {isAttached && onDetach ? (
-        <button className="command-bar-obs-btn" onClick={onDetach}>Detach</button>
-      ) : !isAttached && onAttach ? (
-        <button className="command-bar-obs-btn command-bar-obs-btn--attach" onClick={onAttach}>Attach</button>
-      ) : null}
+      {(() => {
+        if (isAttached && onDetach) return <button className="command-bar-obs-btn" onClick={onDetach}>Detach</button>
+        if (!isAttached && onAttach) return <button className="command-bar-obs-btn command-bar-obs-btn--attach" onClick={onAttach}>Attach</button>
+        return null
+      })()}
     </div>
   )
 }

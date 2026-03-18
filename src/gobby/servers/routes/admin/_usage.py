@@ -1,6 +1,7 @@
 """Token usage aggregation endpoint."""
 
 import logging
+import sqlite3
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Query
@@ -69,7 +70,7 @@ def register_usage_routes(router: APIRouter, server: "HTTPServer") -> None:
                     "cost_usd": round(float(r["cost_usd"]), 6),
                     "session_count": r["session_count"],
                 }
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.warning(f"Failed to get usage totals: {e}")
 
         # By source
@@ -97,7 +98,7 @@ def register_usage_routes(router: APIRouter, server: "HTTPServer") -> None:
                     "cost_usd": round(float(r["cost_usd"]), 6),
                     "session_count": r["session_count"],
                 }
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.warning(f"Failed to get usage by source: {e}")
 
         # By model
@@ -126,7 +127,7 @@ def register_usage_routes(router: APIRouter, server: "HTTPServer") -> None:
                     "cost_usd": round(float(r["cost_usd"]), 6),
                     "session_count": r["session_count"],
                 }
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.warning(f"Failed to get usage by model: {e}")
 
         return {

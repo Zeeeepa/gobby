@@ -7,6 +7,8 @@ Local-only operations (status, diff, merge, checkout) remain as git subprocess.
 
 from __future__ import annotations
 
+import asyncio
+import binascii
 import json
 import logging
 import subprocess  # nosec B404 # subprocess needed for git fallback
@@ -17,7 +19,7 @@ from gobby.integrations.github import GitHubIntegration
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
 
-__all__ = ["GitHubMCPHelper"]
+__all__ = ["GitHubMCPHelper", "parse_github_repo"]
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,8 @@ def parse_github_repo(github_repo: str) -> tuple[str, str]:
     if "/" not in github_repo:
         raise ValueError(f"Invalid github_repo format: {github_repo!r}, expected 'owner/repo'")
     parts = github_repo.split("/", 1)
+    if not parts[0] or not parts[1]:
+        raise ValueError(f"Invalid github_repo format: {github_repo!r}, expected 'owner/repo'")
     return parts[0], parts[1]
 
 
@@ -108,6 +112,14 @@ class GitHubMCPHelper:
             timeout=timeout,
         )
 
+    async def _run_git_async(
+        self,
+        args: list[str],
+        timeout: int = 30,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a git command as fallback, off the event loop."""
+        return await asyncio.to_thread(self._run_git, args, timeout)
+
     async def list_commits(
         self,
         branch: str,
@@ -155,11 +167,11 @@ class GitHubMCPHelper:
                             }
                         )
                 return commits
-            except Exception as e:
-                logger.debug(f"GitHub MCP list_commits failed, falling back to git: {e}")
+            except Exception:
+                logger.debug("GitHub MCP list_commits failed, falling back to git", exc_info=True)
 
         # Fallback: git log
-        return self._list_commits_git(branch, limit)
+        return await asyncio.to_thread(self._list_commits_git, branch, limit)
 
     def _list_commits_git(self, branch: str, limit: int) -> list[dict[str, Any]]:
         """List commits using git log as fallback."""
@@ -224,7 +236,10 @@ class GitHubMCPHelper:
                 if isinstance(data, dict) and "content" in data:
                     import base64
 
-                    return base64.b64decode(data["content"]).decode("utf-8")
+                    try:
+                        return base64.b64decode(data["content"]).decode("utf-8")
+                    except (binascii.Error, UnicodeDecodeError):
+                        logger.debug("base64 decode failed, falling back to git", exc_info=True)
                 if isinstance(data, str):
                     return data
             except Exception as e:
@@ -233,7 +248,7 @@ class GitHubMCPHelper:
         # Fallback: git show
         ref = branch or "HEAD"
         try:
-            r = self._run_git(["show", f"{ref}:{path}"], timeout=10)
+            r = await self._run_git_async(["show", f"{ref}:{path}"], timeout=10)
             if r.returncode == 0:
                 return r.stdout
             raise FileNotFoundError(f"File not found: {path} at {ref}")
@@ -273,8 +288,13 @@ class GitHubMCPHelper:
 
         # Fallback: git push
         try:
+            if not name or any(c in name for c in [" ", "..", "~", "^", ":", "\\", "\x00"]):
+                logger.warning("Invalid branch name: %r", name)
+                return False
             base = from_branch or "HEAD"
-            r = self._run_git(["push", "origin", f"{base}:refs/heads/{name}"], timeout=60)
+            r = await self._run_git_async(
+                ["push", "origin", f"{base}:refs/heads/{name}"], timeout=60
+            )
             return r.returncode == 0
         except Exception as e:
             logger.warning(f"git push fallback for create_branch failed: {e}")

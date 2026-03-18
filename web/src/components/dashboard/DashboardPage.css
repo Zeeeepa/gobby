@@ -104,6 +104,12 @@
   padding: 0 16px 16px;
 }
 
+.dash-card-body--row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
 /* Status badge */
 .dash-status-badge {
   font-size: 10px;

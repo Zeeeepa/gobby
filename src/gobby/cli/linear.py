@@ -282,9 +282,8 @@ def linear_auto_sync(interval: int, disable: bool) -> None:
     from gobby.storage.cron import CronJobStorage
 
     try:
-        _, _, _, project_id = get_linear_deps()
-        db = LocalDatabase()
-        cron_storage = CronJobStorage(db)
+        task_manager, _, _, project_id = get_linear_deps()
+        cron_storage = CronJobStorage(task_manager.db)
 
         existing = cron_storage.get_job_by_name("gobby:linear-sync")
 

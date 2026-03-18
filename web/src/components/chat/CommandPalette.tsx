@@ -151,7 +151,18 @@ export function CommandPalette({
     else olderSessions.push(s)
   }
 
-  let itemIndex = 0
+  // Precompute index maps so we don't mutate during render
+  const { sessionIndexMap, actionIndexMap } = useMemo(() => {
+    const sessionIndexMap = new Map<string, number>()
+    const actionIndexMap = new Map<string, number>()
+    let idx = 0
+    for (const s of todaySessions) sessionIndexMap.set(s.id, idx++)
+    for (const s of weekSessions) sessionIndexMap.set(s.id, idx++)
+    for (const s of olderSessions) sessionIndexMap.set(s.id, idx++)
+    for (const a of filteredActions.filter((a) => a.category === 'action')) actionIndexMap.set(a.id, idx++)
+    for (const a of filteredActions.filter((a) => a.category === 'navigate')) actionIndexMap.set(a.id, idx++)
+    return { sessionIndexMap, actionIndexMap }
+  }, [todaySessions, weekSessions, olderSessions, filteredActions])
 
   return (
     <>
@@ -182,7 +193,7 @@ export function CommandPalette({
             <>
               <div className="command-palette-group-label">Today</div>
               {todaySessions.map((s) => {
-                const idx = itemIndex++
+                const idx = sessionIndexMap.get(s.id)!
                 return (
                   <SessionItem
                     key={s.id}
@@ -200,7 +211,7 @@ export function CommandPalette({
             <>
               <div className="command-palette-group-label">This Week</div>
               {weekSessions.map((s) => {
-                const idx = itemIndex++
+                const idx = sessionIndexMap.get(s.id)!
                 return (
                   <SessionItem
                     key={s.id}
@@ -218,7 +229,7 @@ export function CommandPalette({
             <>
               <div className="command-palette-group-label">Older</div>
               {olderSessions.map((s) => {
-                const idx = itemIndex++
+                const idx = sessionIndexMap.get(s.id)!
                 return (
                   <SessionItem
                     key={s.id}
@@ -240,7 +251,7 @@ export function CommandPalette({
               {filteredActions
                 .filter((a) => a.category === 'action')
                 .map((a) => {
-                  const idx = itemIndex++
+                  const idx = actionIndexMap.get(a.id)!
                   return (
                     <ActionItem
                       key={a.id}
@@ -261,7 +272,7 @@ export function CommandPalette({
               {filteredActions
                 .filter((a) => a.category === 'navigate')
                 .map((a) => {
-                  const idx = itemIndex++
+                  const idx = actionIndexMap.get(a.id)!
                   return (
                     <ActionItem
                       key={a.id}

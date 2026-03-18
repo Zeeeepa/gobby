@@ -25,6 +25,14 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   escalated: '#ef4444',
 }
 
+const PRIORITY_LABELS: Record<number, string> = {
+  0: 'Critical',
+  1: 'High',
+  2: 'Medium',
+  3: 'Low',
+  4: 'Backlog',
+}
+
 const PRIORITY_TEXT_COLORS: Record<number, string> = {
   0: 'var(--status-escalated, #ef4444)',  // critical
   1: 'var(--status-escalated, #ef4444)',  // high
@@ -48,29 +56,33 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
 
   // Fetch tasks — only non-closed by default
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
     const baseUrl = getBaseUrl()
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
     if (!showClosed) params.set('status', 'open')
     params.set('limit', '500')
-    fetch(`${baseUrl}/api/tasks?${params}`)
+    fetch(`${baseUrl}/api/tasks?${params}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : { tasks: [] }))
       .then((data) => setTasks(data.tasks ?? []))
-      .catch(() => setTasks([]))
-      .finally(() => setLoading(false))
+      .catch((err) => { if (err.name !== 'AbortError') setTasks([]) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
   }, [projectId, showClosed])
 
   // Fetch task detail when expanded
   useEffect(() => {
     if (!expandedId) { setTaskDetail(null); return }
+    const controller = new AbortController()
     setDetailLoading(true)
     const baseUrl = getBaseUrl()
-    fetch(`${baseUrl}/api/tasks/${expandedId}`)
+    fetch(`${baseUrl}/api/tasks/${expandedId}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setTaskDetail(data?.id ? data : (data?.task ?? null)))
-      .catch(() => setTaskDetail(null))
-      .finally(() => setDetailLoading(false))
+      .catch((err) => { if (err.name !== 'AbortError') setTaskDetail(null) })
+      .finally(() => { if (!controller.signal.aborted) setDetailLoading(false) })
+    return () => controller.abort()
   }, [expandedId])
 
   const toggleExpand = useCallback((id: string) => {
@@ -171,7 +183,7 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
 })
 
 function TaskAccordionDetail({ task }: { task: GobbyTaskDetail }) {
-  const priorityLabel = task.priority === 0 ? 'Critical' : task.priority === 1 ? 'High' : task.priority === 2 ? 'Medium' : task.priority === 3 ? 'Low' : 'Backlog'
+  const priorityLabel = PRIORITY_LABELS[task.priority ?? 4] ?? 'Backlog'
 
   return (
     <div className="paneltask-accordion-content">

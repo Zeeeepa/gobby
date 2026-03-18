@@ -196,6 +196,7 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
                             )
                             qdrant_healthy = True
                         except Exception:
+                            logger.debug("Qdrant health check failed", exc_info=True)
                             qdrant_healthy = False
                 memory_stats["qdrant"] = {
                     "configured": qdrant_configured,

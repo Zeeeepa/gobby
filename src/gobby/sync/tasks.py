@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import UTC, datetime
@@ -539,7 +540,9 @@ class TaskSyncManager:
             issues = await self._fetch_github_issues_mcp(owner, repo, limit)
             if issues is None:
                 # Fallback to gh CLI
-                issues = self._fetch_github_issues_cli(owner, repo, repo_url, limit)
+                issues = await asyncio.to_thread(
+                    self._fetch_github_issues_cli, owner, repo, repo_url, limit
+                )
                 if issues is None:
                     return {
                         "success": False,

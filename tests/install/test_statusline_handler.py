@@ -94,22 +94,19 @@ class TestReadDaemonPort:
 class TestMain:
     """Test main() function."""
 
-    def test_parses_valid_json_and_posts(self) -> None:
+    def test_parses_valid_json_and_posts(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {
             "session_id": "sess-123",
             "cost": {"total_cost_usd": 0.05, "input_tokens": 100, "output_tokens": 50},
             "model": {"id": "claude-opus-4-6"},
         }
+        monkeypatch.delenv("GOBBY_STATUSLINE_DOWNSTREAM", raising=False)
         with (
             patch("sys.stdin") as mock_stdin,
             patch("gobby.install.shared.hooks.statusline_handler._post_to_daemon") as mock_post,
             patch("gobby.install.shared.hooks.statusline_handler._read_daemon_port", return_value=60887),
-            patch.dict("os.environ", {}, clear=False),
         ):
             mock_stdin.read.return_value = json.dumps(data)
-            # Remove downstream env var if set
-            import os
-            os.environ.pop("GOBBY_STATUSLINE_DOWNSTREAM", None)
             result = main()
 
         assert result == 0
@@ -152,16 +149,14 @@ class TestMain:
         mock_fwd.assert_called_once()
         assert mock_fwd.call_args[0][0] == "cship"
 
-    def test_no_post_without_session_id(self) -> None:
+    def test_no_post_without_session_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {"cost": {"total_cost_usd": 0.01}}
+        monkeypatch.delenv("GOBBY_STATUSLINE_DOWNSTREAM", raising=False)
         with (
             patch("sys.stdin") as mock_stdin,
             patch("gobby.install.shared.hooks.statusline_handler._post_to_daemon") as mock_post,
-            patch.dict("os.environ", {}, clear=False),
         ):
             mock_stdin.read.return_value = json.dumps(data)
-            import os
-            os.environ.pop("GOBBY_STATUSLINE_DOWNSTREAM", None)
             result = main()
 
         assert result == 0

@@ -80,8 +80,12 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
                     task_stats[status] = row["cnt"]
 
             # Ready = open tasks with no unresolved blocking deps
-            tf_aliased = time_filter.replace("created_at", "t.created_at").replace(
-                "project_id", "t.project_id"
+            tf_aliased, _ = _build_filters(
+                hours,
+                days,
+                project_id,
+                created_col="t.created_at",
+                project_col="t.project_id",
             )
             ready_rows = db.fetchall(
                 "SELECT COUNT(*) as cnt FROM tasks t "

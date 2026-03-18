@@ -92,6 +92,21 @@ class TestConfigureStatusline:
         assert "GOBBY_STATUSLINE_DOWNSTREAM=" in cmd
 
 
+    def test_round_trip_configure_extract(self, tmp_path: Path) -> None:
+        """Configure with downstream, then extract — should recover original command."""
+        original_downstream = "cship --color --theme=dark"
+        settings: dict[str, Any] = {
+            "statusLine": {"type": "command", "command": original_downstream}
+        }
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "statusline_handler.py").touch()
+
+        _configure_statusline(settings, hooks_dir)
+        extracted = _extract_downstream(settings["statusLine"]["command"])
+        assert extracted == original_downstream
+
+
 class TestExtractDownstream:
     """Tests for _extract_downstream."""
 

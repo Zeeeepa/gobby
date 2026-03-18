@@ -8,12 +8,17 @@ Templates are created with source='template' and enabled=False.
 install_all_templates() creates installed copies with enabled=True.
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.skills.loader import SkillLoader
 from gobby.skills.parser import ParsedSkill
+
+if TYPE_CHECKING:
+    from gobby.skills.loader import LoadedSkillFile
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.skills import LocalSkillManager, Skill, SkillFile
 
@@ -22,7 +27,9 @@ __all__ = ["sync_bundled_skills", "get_bundled_skills_path"]
 logger = logging.getLogger(__name__)
 
 
-def _loaded_to_skill_files(skill_id: str, loaded_files: list | None) -> list[SkillFile]:
+def _loaded_to_skill_files(
+    skill_id: str, loaded_files: list[LoadedSkillFile] | None
+) -> list[SkillFile]:
     """Convert LoadedSkillFile list from loader to SkillFile list for storage."""
     if not loaded_files:
         return []
@@ -38,6 +45,17 @@ def _loaded_to_skill_files(skill_id: str, loaded_files: list | None) -> list[Ski
         )
         for lf in loaded_files
     ]
+
+
+def _persist_skill_files(
+    storage: LocalSkillManager,
+    skill_id: str,
+    loaded_files: list[LoadedSkillFile] | None,
+) -> None:
+    """Convert loaded files and persist to storage."""
+    skill_files = _loaded_to_skill_files(skill_id, loaded_files)
+    if skill_files:
+        storage.set_skill_files(skill_id, skill_files)
 
 
 def get_bundled_skills_path() -> Path:
@@ -91,9 +109,7 @@ def _propagate_to_installed(
         )
         logger.info(f"Propagated changes to installed copy: {skill_name}")
         # Propagate files to installed copy
-        if parsed.loaded_files:
-            skill_files = _loaded_to_skill_files(installed.id, parsed.loaded_files)
-            storage.set_skill_files(installed.id, skill_files)
+        _persist_skill_files(storage, installed.id, parsed.loaded_files)
 
 
 def _sync_single_skill(
@@ -144,9 +160,7 @@ def _sync_single_skill(
         source="template",
     )
     # Persist skill files
-    skill_files = _loaded_to_skill_files(new_skill.id, parsed.loaded_files)
-    if skill_files:
-        storage.set_skill_files(new_skill.id, skill_files)
+    _persist_skill_files(storage, new_skill.id, parsed.loaded_files)
     result["synced"] += 1
 
 
@@ -175,9 +189,7 @@ def _handle_existing_template(
         )
         logger.info(f"Restored soft-deleted bundled skill: {parsed.name}")
         # Sync files for restored template
-        skill_files = _loaded_to_skill_files(existing.id, parsed.loaded_files)
-        if skill_files:
-            storage.set_skill_files(existing.id, skill_files)
+        _persist_skill_files(storage, existing.id, parsed.loaded_files)
         result["updated"] += 1
         return
 
@@ -215,9 +227,7 @@ def _handle_existing_template(
     # Propagate to installed copy
     _propagate_to_installed(storage, parsed.name, parsed)
     # Sync files for template
-    skill_files = _loaded_to_skill_files(existing.id, parsed.loaded_files)
-    if skill_files:
-        storage.set_skill_files(existing.id, skill_files)
+    _persist_skill_files(storage, existing.id, parsed.loaded_files)
     result["updated"] += 1
 
 
@@ -255,9 +265,7 @@ def _handle_installed_shadows_template(
                 injection_format=parsed.injection_format,
             )
             logger.info(f"Restored soft-deleted template behind installed copy: {parsed.name}")
-            skill_files = _loaded_to_skill_files(template.id, parsed.loaded_files)
-            if skill_files:
-                storage.set_skill_files(template.id, skill_files)
+            _persist_skill_files(storage, template.id, parsed.loaded_files)
             result["updated"] += 1
         else:
             needs_update = (
@@ -288,9 +296,7 @@ def _handle_installed_shadows_template(
                 # Propagate to the installed copy
                 if existing.source == "installed":
                     _propagate_to_installed(storage, parsed.name, parsed)
-                skill_files = _loaded_to_skill_files(template.id, parsed.loaded_files)
-                if skill_files:
-                    storage.set_skill_files(template.id, skill_files)
+                _persist_skill_files(storage, template.id, parsed.loaded_files)
                 result["updated"] += 1
             else:
                 result["skipped"] += 1
@@ -314,9 +320,7 @@ def _handle_installed_shadows_template(
             injection_format=parsed.injection_format,
             source="template",
         )
-        skill_files = _loaded_to_skill_files(new_template.id, parsed.loaded_files)
-        if skill_files:
-            storage.set_skill_files(new_template.id, skill_files)
+        _persist_skill_files(storage, new_template.id, parsed.loaded_files)
         logger.info(f"Created missing template row behind installed copy: {parsed.name}")
         result["synced"] += 1
 

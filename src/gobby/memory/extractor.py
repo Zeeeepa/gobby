@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -399,8 +400,6 @@ class SessionMemoryExtractor:
         Returns:
             List of memory candidates parsed from individual objects
         """
-        import re
-
         candidates: list[MemoryCandidate] = []
 
         # Strip outer brackets and whitespace

@@ -70,19 +70,22 @@ class ModelCostStore:
                 "cache_creation_cost_per_token, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
-
-        # Apply Anthropic's known pricing as overrides to guard against stale LiteLLM data
-        self._apply_anthropic_overrides()
+            # Apply Anthropic's known pricing as overrides to guard against stale LiteLLM data
+            self._apply_anthropic_overrides(conn)
 
         logger.info(f"Populated model_costs table with {len(rows)} models from LiteLLM")
         return len(rows)
 
-    def _apply_anthropic_overrides(self) -> None:
+    def _apply_anthropic_overrides(self, conn: DatabaseProtocol | None = None) -> None:
         """Override LiteLLM pricing with Anthropic's known current rates.
 
         Guards against stale or missing entries in the LiteLLM registry.
         Prices are per-token (USD).
+
+        Args:
+            conn: Optional database connection to use (for transactional consistency).
         """
+        executor = conn if conn is not None else self.db
         # fmt: off
         overrides: list[tuple[str, float, float, float, float]] = [
             # (model_prefix, input, output, cache_read, cache_creation)
@@ -92,7 +95,7 @@ class ModelCostStore:
         ]
         # fmt: on
         for prefix, inp, out, cr, cc in overrides:
-            self.db.execute(
+            executor.execute(
                 """
                 UPDATE model_costs
                 SET input_cost_per_token = ?,

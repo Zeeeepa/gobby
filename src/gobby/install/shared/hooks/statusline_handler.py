@@ -96,7 +96,7 @@ def _forward_downstream(command: str, raw_json: str) -> None:
         if stdout:
             sys.stdout.buffer.write(stdout)
             sys.stdout.buffer.flush()
-    except Exception:
+    except (subprocess.TimeoutExpired, OSError):
         pass  # Silent — must never break Claude Code's display
 
 

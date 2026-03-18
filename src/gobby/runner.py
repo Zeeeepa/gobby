@@ -681,7 +681,7 @@ class GobbyRunner:
                 for project in pm.list():
                     if project.linear_team_id:
                         handler = create_linear_sync_handler(
-                            mcp_manager=self.mcp_client_manager,
+                            mcp_manager=self.mcp_proxy,
                             task_manager=self.task_manager,
                             project_id=project.id,
                             team_id=project.linear_team_id,

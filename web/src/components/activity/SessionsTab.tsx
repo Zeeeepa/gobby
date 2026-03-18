@@ -54,6 +54,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
   const [agents, setAgents] = useState<RunningAgent[]>([])
   const [cliSessions, setCliSessions] = useState<GobbySession[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -76,8 +77,10 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
       const active = (activeRes.sessions ?? activeRes ?? []).filter((s: any) => s.source !== "pipeline")
       const paused = (pausedRes.sessions ?? pausedRes ?? []).filter((s: any) => s.source !== "pipeline")
       setCliSessions([...active, ...paused])
-    } catch {
-      // Keep existing data on error
+      setFetchError(null)
+    } catch (err) {
+      console.error('Failed to fetch sessions:', err)
+      setFetchError('Failed to load sessions')
     } finally {
       setLoading(false)
     }
@@ -148,6 +151,10 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
 
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading sessions...</p></div>
+  }
+
+  if (fetchError && entries.length === 0) {
+    return <div className="activity-tab-empty"><p>{fetchError}</p></div>
   }
 
   if (entries.length === 0) {

@@ -29,10 +29,15 @@ Instructions for the skill...
 ```
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.skills.loader import LoadedSkillFile
 
 import yaml
 
@@ -109,7 +114,7 @@ class ParsedSkill:
     scripts: list[str] | None = None
     references: list[str] | None = None
     assets: list[str] | None = None
-    loaded_files: list[Any] | None = None  # list[LoadedSkillFile] from loader
+    loaded_files: list[LoadedSkillFile] | None = None
     always_apply: bool = False
     injection_format: str = "summary"
     triggers: list[str] | None = None
