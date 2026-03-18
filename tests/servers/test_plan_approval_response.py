@@ -1,3 +1,7 @@
+"""Tests for plan_approval_response WebSocket handler.
+
+Verified for task #10454: Backend must emit mode_changed for request_changes (non-ExitPlanMode path).
+"""
 import json
 from unittest.mock import AsyncMock, MagicMock
 
