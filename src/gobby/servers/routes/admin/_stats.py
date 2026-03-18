@@ -25,10 +25,10 @@ def _build_filters(
 
     # Time filter: hours takes precedence over days
     if hours is not None and hours > 0:
-        clauses.append(f"AND {created_col} >= datetime('now', ?)")
+        clauses.append(f"AND {created_col} >= strftime('%Y-%m-%dT%H:%M:%S', 'now', ?)")
         params.append(f"-{hours} hours")
     elif hours is None and days > 0:
-        clauses.append(f"AND {created_col} >= datetime('now', ?)")
+        clauses.append(f"AND {created_col} >= strftime('%Y-%m-%dT%H:%M:%S', 'now', ?)")
         params.append(f"-{days} days")
     # hours=0 or days=0 means all time — no filter
 
@@ -113,7 +113,7 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
             # Closed in last 24h (always relative to now, intersected with window)
             closed_24h_rows = db.fetchall(
                 "SELECT COUNT(*) as cnt FROM tasks "
-                f"WHERE closed_at >= datetime('now', '-1 days') {time_filter}",
+                f"WHERE closed_at >= strftime('%Y-%m-%dT%H:%M:%S', 'now', '-1 days') {time_filter}",
                 tuple(params),
             )
             task_stats["closed_24h"] = closed_24h_rows[0]["cnt"] if closed_24h_rows else 0
@@ -181,7 +181,7 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
             # Recent = created in last 24h (within the filtered set)
             recent_rows = db.fetchall(
                 "SELECT COUNT(*) as cnt FROM memories "
-                f"WHERE created_at >= datetime('now', '-1 days') {time_filter}",
+                f"WHERE created_at >= strftime('%Y-%m-%dT%H:%M:%S', 'now', '-1 days') {time_filter}",
                 tuple(params),
             )
             memory_stats["recent_count"] = recent_rows[0]["cnt"] if recent_rows else 0
