@@ -13,7 +13,6 @@ const SEGMENTS: { key: keyof TaskStats; label: string; color: string; dimmed?: b
   { key: 'needs_review', label: 'Needs Review', color: '#06b6d4' },
   { key: 'review_approved', label: 'Approved', color: '#10b981' },
   { key: 'escalated', label: 'Escalated', color: '#f97316' },
-  { key: 'closed_24h', label: 'Closed (24h)', color: '#737373', dimmed: true },
 ]
 
 const SIZE = 120

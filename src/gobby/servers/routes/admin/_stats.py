@@ -89,7 +89,7 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
                 f"{tf_aliased} "
                 "AND NOT EXISTS ("
                 "  SELECT 1 FROM task_dependencies td "
-                "  JOIN tasks blocker ON td.depends_on_task_id = blocker.id "
+                "  JOIN tasks blocker ON td.depends_on = blocker.id "
                 "  WHERE td.task_id = t.id AND blocker.status != 'closed'"
                 ")",
                 tuple(params),
@@ -103,7 +103,7 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
                 f"{tf_aliased} "
                 "AND EXISTS ("
                 "  SELECT 1 FROM task_dependencies td "
-                "  JOIN tasks blocker ON td.depends_on_task_id = blocker.id "
+                "  JOIN tasks blocker ON td.depends_on = blocker.id "
                 "  WHERE td.task_id = t.id AND blocker.status != 'closed'"
                 ")",
                 tuple(params),
