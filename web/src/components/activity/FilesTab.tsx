@@ -114,7 +114,18 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
   const [editContent, setEditContent] = useState<string>('')
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
   const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null)
+  const [gitStatus, setGitStatus] = useState<Record<string, string>>({})
   const renameInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch git status
+  useEffect(() => {
+    if (!projectId) return
+    const baseUrl = getBaseUrl()
+    fetch(`${baseUrl}/api/files/git-status?project_id=${encodeURIComponent(projectId)}`)
+      .then((res) => (res.ok ? res.json() : { files: {} }))
+      .then((data) => setGitStatus(data.files ?? {}))
+      .catch(() => setGitStatus({}))
+  }, [projectId])
 
   // Fetch root directory
   useEffect(() => {
@@ -296,7 +307,7 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span className="files-tree-name">{entry.name}</span>
+              <span className={`files-tree-name${getDirStatus(entry.path) ? ' files-tree-name--modified' : ''}`}>{entry.name}</span>
             )}
           </div>
           {isExpanded && children?.map((c) => renderEntry(c, depth + 1))}
@@ -334,8 +345,13 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="files-tree-name">{entry.name}</span>
+            <span className={`files-tree-name${getFileStatus(entry.path) ? ` files-tree-name--${getFileStatus(entry.path)?.replace('?', 'untracked')}` : ''}`}>{entry.name}</span>
           )}
+          {(() => {
+            const status = getFileStatus(entry.path)
+            if (status) return <GitStatusBadge status={status} />
+            return null
+          })()}
           {entry.size != null && (
             <span className="files-tree-size">
               {entry.size < 1024 ? `${entry.size}B` : entry.size < 1048576 ? `${(entry.size / 1024).toFixed(0)}K` : `${(entry.size / 1048576).toFixed(1)}M`}
@@ -344,6 +360,13 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
         </div>
       </div>
     )
+  }
+
+  // Git status helpers
+  const getFileStatus = (path: string): string | null => gitStatus[path] ?? null
+  const getDirStatus = (dirPath: string): boolean => {
+    const prefix = dirPath ? dirPath + '/' : ''
+    return Object.keys(gitStatus).some((p) => p.startsWith(prefix))
   }
 
   const language = selectedFile ? detectLanguage(selectedFile) : 'text'
@@ -437,3 +460,26 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
     </div>
   )
 })
+
+const GIT_STATUS_COLORS: Record<string, string> = {
+  M: '#e5c07b',   // modified — yellow
+  A: '#4ade80',   // added — green
+  D: '#f87171',   // deleted — red
+  R: '#60a5fa',   // renamed — blue
+  '?': '#737373', // untracked — gray
+  '??': '#737373',
+}
+
+function GitStatusBadge({ status }: { status: string }) {
+  const label = status === '??' ? '?' : status.charAt(0)
+  const color = GIT_STATUS_COLORS[status] ?? GIT_STATUS_COLORS[label] ?? '#737373'
+  return (
+    <span
+      className="files-git-badge"
+      style={{ color }}
+      title={status === 'M' ? 'Modified' : status === 'A' ? 'Added' : status === 'D' ? 'Deleted' : status === 'R' ? 'Renamed' : 'Untracked'}
+    >
+      {label}
+    </span>
+  )
+}

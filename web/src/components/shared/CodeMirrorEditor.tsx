@@ -97,14 +97,14 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
         '&': {
           height: '100%',
           fontSize: '14px',
-          background: 'transparent',
+          backgroundColor: '#0a0a0a',
         },
         '.cm-scroller': {
           fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
           overflow: 'auto',
         },
         '.cm-gutters': {
-          background: 'transparent',
+          backgroundColor: '#0a0a0a',
           borderRight: '1px solid #262626',
           color: '#555',
         },
@@ -158,5 +158,5 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
     }
   }, [content])
 
-  return <div ref={containerRef} className="codemirror-container" />
+  return <div ref={containerRef} className="codemirror-container" style={{ background: '#0a0a0a', height: '100%' }} />
 }
