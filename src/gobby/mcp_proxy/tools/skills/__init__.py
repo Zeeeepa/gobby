@@ -4,6 +4,7 @@ Internal MCP tools for Skill management.
 Exposes functionality for:
 - list_skills(): List all skills with lightweight metadata
 - get_skill(): Get skill by ID or name with full content
+- get_skill_file(): Get a single file's content from a multi-file skill
 - search_skills(): Search skills by query with relevance ranking
 - update_skill(): Update an existing skill by refreshing from source
 - install_skill(): Install skill from local path, GitHub URL, or ZIP archive
@@ -217,25 +218,90 @@ def create_skills_registry(
                 except Exception:
                     pass  # Best-effort tracking; don't fail the skill lookup
 
-            # Return full skill data
+            # Build response
+            skill_data = {
+                "id": skill.id,
+                "name": skill.name,
+                "description": skill.description,
+                "content": skill.content,
+                "version": skill.version,
+                "license": skill.license,
+                "compatibility": skill.compatibility,
+                "allowed_tools": skill.allowed_tools,
+                "metadata": skill.metadata,
+                "enabled": skill.enabled,
+                "source": skill.source,
+                "source_path": skill.source_path,
+                "source_type": skill.source_type,
+                "source_ref": skill.source_ref,
+            }
+
+            # Include file metadata if files exist
+            try:
+                skill_files = storage.get_skill_files(skill.id)
+                if skill_files:
+                    skill_data["files"] = [f.to_dict() for f in skill_files]
+            except Exception:
+                pass  # Table may not exist during migration
+
             return {
                 "success": True,
-                "skill": {
-                    "id": skill.id,
-                    "name": skill.name,
-                    "description": skill.description,
-                    "content": skill.content,
-                    "version": skill.version,
-                    "license": skill.license,
-                    "compatibility": skill.compatibility,
-                    "allowed_tools": skill.allowed_tools,
-                    "metadata": skill.metadata,
-                    "enabled": skill.enabled,
-                    "source": skill.source,
-                    "source_path": skill.source_path,
-                    "source_type": skill.source_type,
-                    "source_ref": skill.source_ref,
-                },
+                "skill": skill_data,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- get_skill_file tool ---
+
+    @registry.tool(
+        name="get_skill_file",
+        description="Get a single file's content from a multi-file skill. Use after get_skill() shows available files.",
+    )
+    async def get_skill_file_tool(
+        path: str,
+        name: str | None = None,
+        skill_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Fetch a single file from a skill on demand.
+
+        Progressive disclosure: get_skill() shows file metadata (path, type, size),
+        this tool fetches the actual content for a specific file.
+
+        Args:
+            path: Relative file path within the skill (e.g. "references/api.md")
+            name: Skill name (used if skill_id not provided)
+            skill_id: Skill ID (takes precedence over name)
+
+        Returns:
+            Dict with success status and file content
+        """
+        try:
+            if not path:
+                return {"success": False, "error": "path is required"}
+            if not skill_id and not name:
+                return {"success": False, "error": "Either name or skill_id is required"}
+
+            # Resolve skill
+            skill = None
+            if skill_id:
+                try:
+                    skill = storage.get_skill(skill_id)
+                except ValueError:
+                    pass
+            if skill is None and name:
+                skill = storage.get_by_name(name, project_id=project_id)
+            if skill is None:
+                return {"success": False, "error": f"Skill not found: {skill_id or name}"}
+
+            # Get the file
+            skill_file = storage.get_skill_file(skill.id, path)
+            if skill_file is None:
+                return {"success": False, "error": f"File not found: {path}"}
+
+            return {
+                "success": True,
+                "file": skill_file.to_dict(include_content=True),
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -824,6 +890,23 @@ def create_skills_registry(
                 enabled=True,
             )
             # Notifier triggers re-indexing automatically via create_skill
+
+            # Persist skill files if loaded
+            if hasattr(parsed_skill, 'loaded_files') and parsed_skill.loaded_files:
+                from gobby.storage.skills import SkillFile
+                skill_files = [
+                    SkillFile(
+                        id="",
+                        skill_id=skill.id,
+                        path=lf.path,
+                        file_type=lf.file_type,
+                        content=lf.content,
+                        content_hash=lf.content_hash,
+                        size_bytes=lf.size_bytes,
+                    )
+                    for lf in parsed_skill.loaded_files
+                ]
+                storage.set_skill_files(skill.id, skill_files)
 
             return {
                 "success": True,

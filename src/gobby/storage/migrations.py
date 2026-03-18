@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 157
+BASELINE_VERSION = 158
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -626,6 +626,22 @@ CREATE INDEX idx_skills_always_apply ON skills(always_apply);
 CREATE UNIQUE INDEX idx_skills_name_project_source
     ON skills(name, COALESCE(project_id, '__global__'), source);
 CREATE INDEX idx_skills_deleted_at ON skills(deleted_at);
+
+CREATE TABLE skill_files (
+    id TEXT PRIMARY KEY,
+    skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(skill_id, path)
+);
+CREATE INDEX idx_skill_files_skill_id ON skill_files(skill_id);
+CREATE INDEX idx_skill_files_type ON skill_files(file_type);
 
 CREATE TABLE clones (
     id TEXT PRIMARY KEY,
@@ -1331,6 +1347,25 @@ CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
         157,
         "Add linear_synced_at column to projects for bidirectional sync cursor",
         "ALTER TABLE projects ADD COLUMN linear_synced_at TEXT",
+    ),
+    (
+        158,
+        "Add skill_files table for multi-file skill support",
+        """CREATE TABLE IF NOT EXISTS skill_files (
+    id TEXT PRIMARY KEY,
+    skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(skill_id, path)
+);
+CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id ON skill_files(skill_id);
+CREATE INDEX IF NOT EXISTS idx_skill_files_type ON skill_files(file_type)""",
     ),
 ]
 

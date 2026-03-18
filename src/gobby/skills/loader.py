@@ -10,6 +10,7 @@ This module provides the SkillLoader class for loading skills from:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import shutil
@@ -57,6 +58,99 @@ class GitHubRef:
         """Get a unique key for caching this repo/branch combo."""
         branch_part = self.branch or "HEAD"
         return f"{self.owner}/{self.repo}/{branch_part}"
+
+
+@dataclass
+class LoadedSkillFile:
+    """A file loaded from a skill directory with content and metadata.
+
+    Attributes:
+        path: Relative path from skill root (e.g. "references/api.md" or "forms.md")
+        file_type: Classification: "script", "reference", "asset", "license", "resource"
+        content: File text content
+        content_hash: SHA-256 hex digest of content
+        size_bytes: File size in bytes
+    """
+
+    path: str
+    file_type: str
+    content: str
+    content_hash: str
+    size_bytes: int
+
+
+# File extensions considered binary (skip these during loading)
+_BINARY_EXTENSIONS = frozenset({
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg",
+    ".webp", ".mp3", ".mp4", ".wav", ".ogg", ".webm",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+    ".pyc", ".pyo", ".so", ".dylib", ".dll", ".exe",
+    ".class", ".jar", ".o", ".a",
+})
+
+# Directories to skip during recursive scan
+_SKIP_DIRS = frozenset({
+    "__pycache__", "node_modules", ".git", ".svn", ".hg",
+    ".DS_Store", "__MACOSX",
+})
+
+# Files to skip (SKILL.md is handled separately as main content)
+_SKIP_FILES = frozenset({"SKILL.md"})
+
+# License file names (stored as type "license", not surfaced to agents)
+_LICENSE_FILES = frozenset({"LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "LICENCE.txt", "LICENCE.md"})
+
+
+def _classify_file(rel_path: str, filename: str) -> str:
+    """Classify a file by its location in the skill directory.
+
+    Args:
+        rel_path: Relative path from skill root (e.g. "scripts/build.sh")
+        filename: Just the filename (e.g. "build.sh")
+
+    Returns:
+        File type: "script", "reference", "asset", "license", or "resource"
+    """
+    if filename in _LICENSE_FILES:
+        return "license"
+
+    # Classify by parent directory
+    parts = rel_path.split("/")
+    if len(parts) > 1:
+        top_dir = parts[0].lower()
+        if top_dir == "scripts":
+            return "script"
+        if top_dir in ("references", "reference"):
+            return "reference"
+        if top_dir == "assets":
+            return "asset"
+
+    return "resource"
+
+
+def _is_binary_file(file_path: Path) -> bool:
+    """Check if a file is likely binary.
+
+    Uses extension check first, then null-byte detection in first 8KB.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        True if file appears to be binary
+    """
+    if file_path.suffix.lower() in _BINARY_EXTENSIONS:
+        return True
+
+    # Check for null bytes in first 8KB
+    try:
+        with open(file_path, "rb") as f:
+            chunk = f.read(8192)
+            return b"\x00" in chunk
+    except OSError:
+        return True  # Can't read = skip
 
 
 def parse_github_url(url: str) -> GitHubRef:
@@ -439,6 +533,9 @@ class SkillLoader:
             skill.references = self._scan_subdirectory(path, "references")
             skill.assets = self._scan_subdirectory(path, "assets")
 
+            # Load all files with content for multi-file support
+            skill.loaded_files = self._load_skill_files(path)
+
         # Set source tracking
         skill.source_path = str(skill_file)
         skill.source_type = self._default_source_type
@@ -483,6 +580,81 @@ class SkillLoader:
                 files.append(str(rel_path))
 
         return sorted(files) if files else None
+
+    def _load_skill_files(self, skill_dir: Path) -> list[LoadedSkillFile]:
+        """Recursively scan a skill directory and load all non-binary files.
+
+        Classifies files by location:
+        - scripts/** → "script"
+        - references/** or reference/** → "reference"
+        - assets/** → "asset"
+        - LICENSE/LICENSE.txt/LICENSE.md → "license"
+        - Everything else → "resource"
+
+        Skips SKILL.md (content stored in skills.content), binary files,
+        dotfiles, __pycache__, node_modules.
+
+        Args:
+            skill_dir: Path to the skill directory
+
+        Returns:
+            List of LoadedSkillFile with content and hashes
+        """
+        skill_dir_resolved = skill_dir.resolve()
+        files: list[LoadedSkillFile] = []
+
+        for file_path in skill_dir.rglob("*"):
+            if not file_path.is_file():
+                continue
+
+            # Skip symlinks
+            if file_path.is_symlink():
+                continue
+
+            # Skip dotfiles
+            if any(part.startswith(".") for part in file_path.relative_to(skill_dir).parts):
+                continue
+
+            # Skip excluded directories
+            rel_parts = file_path.relative_to(skill_dir).parts
+            if any(part in _SKIP_DIRS for part in rel_parts[:-1]):
+                continue
+
+            # Skip SKILL.md and other excluded files
+            if file_path.name in _SKIP_FILES:
+                continue
+
+            # Security: verify resolved path stays within skill directory
+            try:
+                resolved = file_path.resolve()
+                resolved.relative_to(skill_dir_resolved)
+            except (OSError, ValueError):
+                continue
+
+            # Skip binary files
+            if _is_binary_file(file_path):
+                continue
+
+            # Read content
+            rel_path = str(file_path.relative_to(skill_dir))
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                logger.debug(f"Skipping unreadable file: {rel_path}")
+                continue
+
+            content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            file_type = _classify_file(rel_path, file_path.name)
+
+            files.append(LoadedSkillFile(
+                path=rel_path,
+                file_type=file_type,
+                content=content,
+                content_hash=content_hash,
+                size_bytes=len(content.encode("utf-8")),
+            ))
+
+        return sorted(files, key=lambda f: f.path)
 
     def load_directory(
         self,

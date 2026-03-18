@@ -109,6 +109,7 @@ class ParsedSkill:
     scripts: list[str] | None = None
     references: list[str] | None = None
     assets: list[str] | None = None
+    loaded_files: list[Any] | None = None  # list[LoadedSkillFile] from loader
     always_apply: bool = False
     injection_format: str = "summary"
     triggers: list[str] | None = None

@@ -307,12 +307,12 @@ class SkillUpdater:
         if not source_path.exists():
             raise SkillLoadError("Source path not found", source_path)
 
-        # Load from directory or file
+        # Use loader for directory loads to capture all files
         if source_path.is_dir():
-            skill_file = source_path / "SKILL.md"
-            if not skill_file.exists():
-                raise SkillLoadError("SKILL.md not found in source directory", source_path)
-            return parse_skill_file(skill_file)
+            return self._loader.load_skill(source_path, validate=False, check_dir_name=False)
+        elif source_path.name == "SKILL.md" and source_path.parent.is_dir():
+            # Source path points to SKILL.md — load the parent directory
+            return self._loader.load_skill(source_path.parent, validate=False, check_dir_name=False)
         else:
             return parse_skill_file(source_path)
 
@@ -352,16 +352,21 @@ class SkillUpdater:
                 skill_file = skill_path / "SKILL.md"
 
         if skill_file.is_dir():
-            skill_file = skill_file / "SKILL.md"
+            # Use loader for directory loads to capture all files
+            return self._loader.load_skill(skill_file, validate=False, check_dir_name=False)
 
         if not skill_file.exists():
             raise SkillLoadError("SKILL.md not found in repository", repo_path)
+
+        # If pointing to a SKILL.md, load parent directory to get files
+        if skill_file.name == "SKILL.md" and skill_file.parent.is_dir():
+            return self._loader.load_skill(skill_file.parent, validate=False, check_dir_name=False)
 
         return parse_skill_file(skill_file)
 
     def _has_changes(self, skill: Skill, parsed: ParsedSkill) -> bool:
         """Check if the parsed skill differs from current."""
-        return (
+        if (
             skill.description != parsed.description
             or skill.content != parsed.content
             or skill.version != parsed.version
@@ -369,7 +374,24 @@ class SkillUpdater:
             or skill.compatibility != parsed.compatibility
             or skill.allowed_tools != parsed.allowed_tools
             or skill.metadata != parsed.metadata
-        )
+        ):
+            return True
+
+        # Check file hashes
+        if parsed.loaded_files:
+            try:
+                existing_files = self._storage.get_skill_files(
+                    skill.id, include_content=False, exclude_license=False
+                )
+                existing_hashes = {f.path: f.content_hash for f in existing_files}
+                incoming_hashes = {lf.path: lf.content_hash for lf in parsed.loaded_files}
+                if existing_hashes != incoming_hashes:
+                    return True
+            except Exception:
+                # Table may not exist yet during migration
+                return True
+
+        return False
 
     def _apply_update(self, skill: Skill, parsed: ParsedSkill) -> None:
         """Apply parsed skill data to storage."""
@@ -383,3 +405,21 @@ class SkillUpdater:
             allowed_tools=parsed.allowed_tools,
             metadata=parsed.metadata,
         )
+
+        # Update files if loader provided them
+        if parsed.loaded_files:
+            from gobby.storage.skills import SkillFile
+
+            skill_files = [
+                SkillFile(
+                    id="",
+                    skill_id=skill.id,
+                    path=lf.path,
+                    file_type=lf.file_type,
+                    content=lf.content,
+                    content_hash=lf.content_hash,
+                    size_bytes=lf.size_bytes,
+                )
+                for lf in parsed.loaded_files
+            ]
+            self._storage.set_skill_files(skill.id, skill_files)

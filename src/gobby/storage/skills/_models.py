@@ -219,6 +219,67 @@ class Skill:
         return bool(skillport.get("alwaysApply", False))
 
 
+@dataclass
+class SkillFile:
+    """A file belonging to a multi-file skill.
+
+    Attributes:
+        id: Unique identifier (prefixed with 'skf-')
+        skill_id: Parent skill ID
+        path: Relative path from skill root (e.g. "references/api.md")
+        file_type: Classification: "script", "reference", "asset", "license", "resource"
+        content: File text content
+        content_hash: SHA-256 hex digest of content
+        size_bytes: File size in bytes
+        deleted_at: Soft delete timestamp
+        created_at: ISO format creation timestamp
+        updated_at: ISO format last update timestamp
+    """
+
+    id: str
+    skill_id: str
+    path: str
+    file_type: str
+    content: str
+    content_hash: str
+    size_bytes: int = 0
+    deleted_at: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> "SkillFile":
+        """Create a SkillFile from a database row."""
+        return cls(
+            id=row["id"],
+            skill_id=row["skill_id"],
+            path=row["path"],
+            file_type=row["file_type"],
+            content=row["content"],
+            content_hash=row["content_hash"],
+            size_bytes=row["size_bytes"],
+            deleted_at=row["deleted_at"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    def to_dict(self, include_content: bool = False) -> dict[str, Any]:
+        """Convert to dictionary representation.
+
+        Args:
+            include_content: If True, include file content in output.
+        """
+        result: dict[str, Any] = {
+            "path": self.path,
+            "file_type": self.file_type,
+            "size_bytes": self.size_bytes,
+            "content_hash": self.content_hash,
+        }
+        if include_content:
+            result["content"] = self.content
+        return result
+
+
 # Change event types
 ChangeEventType = Literal["create", "update", "delete"]
 
