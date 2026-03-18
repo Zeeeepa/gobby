@@ -28,6 +28,69 @@ function tryParseResult(str: string | undefined): unknown {
   }
 }
 
+/**
+ * Detect if a user message is hook feedback (stop hook, rule enforcement, etc.)
+ * These should be rendered as system messages, not "You" messages.
+ */
+function isHookFeedback(content: string): boolean {
+  return /^Stop hook feedback:/.test(content) ||
+    /^(Pre|Post)ToolUse hook/.test(content) ||
+    /^UserPromptSubmit hook/.test(content)
+}
+
+/**
+ * Extract user-visible text from content that may be a serialized content block array.
+ *
+ * Claude API stores user messages as arrays of content blocks, e.g.:
+ *   [{"type":"text","text":"actual prompt"}, {"type":"text","text":"<hook_context>..."}]
+ * or Python repr:
+ *   [{'text': 'actual prompt'}, {'text': '<hook_context>...'}]
+ *
+ * This extracts only the user-visible text, stripping hook_context, system-reminder,
+ * and other injected blocks.
+ */
+function extractUserText(content: string): string | null {
+  // Quick check: does this look like a serialized array?
+  if (!content.startsWith('[') || !content.endsWith(']')) return null
+
+  // Try JSON parse first
+  let blocks: Array<{ type?: string; text?: string; content?: string }> | null = null
+  try {
+    const parsed = JSON.parse(content)
+    if (Array.isArray(parsed)) blocks = parsed
+  } catch {
+    // Try Python-style repr: single quotes → double quotes (simple heuristic)
+    try {
+      // Replace Python single-quoted keys/values with double quotes
+      // Handle: {'text': 'value'} and {"text": "value"} mixed
+      const jsonified = content
+        .replace(/'/g, '"')
+        // Fix escaped apostrophes that became double-escaped
+        .replace(/\\"/g, "\\'")
+      const parsed = JSON.parse(jsonified)
+      if (Array.isArray(parsed)) blocks = parsed
+    } catch {
+      // Not a parseable content block array
+    }
+  }
+
+  if (!blocks || blocks.length === 0) return null
+
+  // Extract text from blocks, filtering out injected context
+  const texts: string[] = []
+  for (const block of blocks) {
+    const text = block.text ?? block.content ?? ''
+    if (!text) continue
+    // Skip injected hook/system context
+    if (text.includes('<hook_context>') || text.includes('</hook_context>')) continue
+    if (text.includes('<system-reminder>') || text.includes('</system-reminder>')) continue
+    if (text.includes('<system_instructions>') || text.includes('</system_instructions>')) continue
+    texts.push(text)
+  }
+
+  return texts.length > 0 ? texts.join('\n\n') : null
+}
+
 /** Helper: append a tool call to the current tool_chain block, or start a new one. */
 function appendToolBlock(msg: ChatMessage, tc: ToolCall) {
   if (!msg.contentBlocks) msg.contentBlocks = []
@@ -101,6 +164,32 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
     // Skip tool_result protocol messages (user-role messages containing tool_result JSON arrays)
     if (msg.role === 'user' && content.startsWith('[{') && content.includes('tool_result')) {
       continue
+    }
+
+    // Hook feedback messages → render as system instead of "You"
+    if (msg.role === 'user' && isHookFeedback(content)) {
+      result.push({
+        id: String(msg.id),
+        role: 'system',
+        content,
+        timestamp: new Date(msg.timestamp),
+      })
+      continue
+    }
+
+    // User messages with serialized content block arrays → extract user text
+    if (msg.role === 'user' && content.startsWith('[')) {
+      const extracted = extractUserText(content)
+      if (extracted !== null) {
+        if (!extracted.trim()) continue // All blocks were injected context, skip
+        result.push({
+          id: String(msg.id),
+          role: 'user',
+          content: extracted,
+          timestamp: new Date(msg.timestamp),
+        })
+        continue
+      }
     }
 
     // Assistant messages that are JSON arrays of tool_use blocks

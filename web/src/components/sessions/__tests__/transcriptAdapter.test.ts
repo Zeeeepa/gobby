@@ -234,6 +234,73 @@ describe('sessionMessagesToChatMessages', () => {
     expect(result).toHaveLength(0)
   })
 
+  it('renders stop hook feedback as system message instead of user', () => {
+    const result = sessionMessagesToChatMessages([
+      msg({
+        id: '1',
+        role: 'user',
+        content: 'Stop hook feedback: [uv run python "/Users/josh/.gobby/hooks/hook_dispatcher.py" --cli=claude --cli-type=stop]: Rule enforced by Gobby: [require-task-close] Tasks still in_progress: #10413. Commit and close_task().',
+      }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0].role).toBe('system')
+  })
+
+  it('renders PreToolUse hook feedback as system message', () => {
+    const result = sessionMessagesToChatMessages([
+      msg({
+        id: '1',
+        role: 'user',
+        content: 'PreToolUse hook error: some error message',
+      }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0].role).toBe('system')
+  })
+
+  it('extracts user text from JSON content block arrays', () => {
+    const content = JSON.stringify([
+      { type: 'text', text: 'Fix lint errors in reports/' },
+      { type: 'text', text: '<hook_context>If the user just told you something worth remembering...</hook_context>' },
+    ])
+    const result = sessionMessagesToChatMessages([
+      msg({ id: '1', role: 'user', content }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0].role).toBe('user')
+    expect(result[0].content).toBe('Fix lint errors in reports/')
+  })
+
+  it('extracts user text from Python-style content block arrays', () => {
+    const content = "[{'text': 'Fix lint errors'}, {'text': '<hook_context>session info</hook_context>'}]"
+    const result = sessionMessagesToChatMessages([
+      msg({ id: '1', role: 'user', content }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0].role).toBe('user')
+    expect(result[0].content).toBe('Fix lint errors')
+  })
+
+  it('skips user messages where all content blocks are injected context', () => {
+    const content = JSON.stringify([
+      { type: 'text', text: '<hook_context>session info</hook_context>' },
+      { type: 'text', text: '<system-reminder>reminder text</system-reminder>' },
+    ])
+    const result = sessionMessagesToChatMessages([
+      msg({ id: '1', role: 'user', content }),
+    ])
+    expect(result).toHaveLength(0)
+  })
+
+  it('does not mangle user messages that happen to start with [', () => {
+    const result = sessionMessagesToChatMessages([
+      msg({ id: '1', role: 'user', content: '[URGENT] fix the build' }),
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toBe('[URGENT] fix the build')
+    expect(result[0].role).toBe('user')
+  })
+
   it('parses tool_input that is a JSON primitive (not object)', () => {
     const result = sessionMessagesToChatMessages([
       msg({ id: '1', role: 'assistant', content: 'calling' }),
