@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useCallback } from 'react'
 import { TaskTree } from '../tasks/TaskTree'
+import '../tasks/task-execution.css'
 import type { GobbyTask } from '../../hooks/useTasks'
 import { Markdown } from '../chat/Markdown'
 
