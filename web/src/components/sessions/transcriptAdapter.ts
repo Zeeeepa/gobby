@@ -120,7 +120,10 @@ function extractUserText(content: string): string | null {
     texts.push(text)
   }
 
-  return texts.length > 0 ? texts.join('\n\n') : null
+  // Return joined text, or empty string if all blocks were injected context.
+  // null means "not a parseable content block array" (caller falls through).
+  // Empty string means "parsed OK but nothing user-visible" (caller skips).
+  return texts.length > 0 ? texts.join('\n\n') : ''
 }
 
 /** Helper: append a tool call to the current tool_chain block, or start a new one. */
@@ -198,14 +201,32 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
       continue
     }
 
-    // Hook feedback messages → render as system instead of "You"
+    // Hook feedback messages → attach to last tool call if possible, else render as system
     if (msg.role === 'user' && isHookFeedback(content)) {
-      result.push({
-        id: String(msg.id),
-        role: 'system',
-        content,
-        timestamp: new Date(msg.timestamp),
-      })
+      if (lastAssistant?.toolCalls?.length) {
+        const lastTc = lastAssistant.toolCalls[lastAssistant.toolCalls.length - 1]
+        lastTc.error = content
+        lastTc.status = 'error'
+        // Update contentBlocks too
+        if (lastAssistant.contentBlocks) {
+          for (const block of lastAssistant.contentBlocks) {
+            if (block.type === 'tool_chain') {
+              const match = block.calls.find((c) => c.id === lastTc.id)
+              if (match) {
+                match.error = content
+                match.status = 'error'
+              }
+            }
+          }
+        }
+      } else {
+        result.push({
+          id: String(msg.id),
+          role: 'system',
+          content,
+          timestamp: new Date(msg.timestamp),
+        })
+      }
       continue
     }
 

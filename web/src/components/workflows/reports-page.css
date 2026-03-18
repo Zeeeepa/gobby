@@ -45,40 +45,6 @@
   color: var(--text-muted);
 }
 
-/* Subtab toggle — matches task-group-tabs */
-.reports-subtabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  background: var(--bg-secondary);
-  border-radius: 6px;
-  padding: 2px;
-  margin-left: 8px;
-}
-
-.reports-subtab {
-  padding: 3px 10px;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  color: var(--text-muted);
-  font-size: calc(var(--font-size-base) * 0.7);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-
-.reports-subtab:hover {
-  color: var(--text-primary);
-}
-
-.reports-subtab.active {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
 /* Search — matches tasks-search */
 .reports-search {
   padding: 0.35rem 0.6rem;

@@ -97,14 +97,14 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
         '&': {
           height: '100%',
           fontSize: '14px',
-          background: '#0a0a0a',
+          background: 'transparent',
         },
         '.cm-scroller': {
           fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
           overflow: 'auto',
         },
         '.cm-gutters': {
-          background: '#0a0a0a',
+          background: 'transparent',
           borderRight: '1px solid #262626',
           color: '#555',
         },
