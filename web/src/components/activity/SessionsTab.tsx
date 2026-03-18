@@ -82,7 +82,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
       startedAt: a.started_at,
     })),
     ...cliSessions.map((s): SessionEntry => ({
-      id: s.external_id ?? s.id,
+      id: s.id,
       type: 'cli',
       label: s.title ?? `CLI ${s.ref}`,
       provider: s.source ?? 'unknown',
