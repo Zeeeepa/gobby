@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
+import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import { PipelineStatusDot, StepDisplay, formatDateTime, formatDuration, type StepData } from '../workflows/execution-utils'
 import '../workflows/PipelinesPage.css'
 
@@ -22,32 +23,57 @@ function getBaseUrl(): string {
 export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesTabProps) {
   const [executions, setExecutions] = useState<PipelineExecution[]>([])
   const [loading, setLoading] = useState(true)
-  const [showCompleted, setShowCompleted] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'running' | 'all' | 'completed' | 'failed'>('running')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [topHeight, setTopHeight] = useState(40)
   const [detailExec, setDetailExec] = useState<PipelineExecution | null>(null)
+  const [offset, setOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const PAGE_SIZE = 50
 
   // Fetch executions
-  const fetchExecutions = useCallback(() => {
+  const fetchExecutions = useCallback((appendOffset?: number) => {
     const baseUrl = getBaseUrl()
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
-    if (!showCompleted) params.set('status', 'running')
-    params.set('limit', '50')
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    params.set('limit', String(PAGE_SIZE))
+    if (appendOffset) params.set('offset', String(appendOffset))
     return fetch(`${baseUrl}/api/pipelines/executions?${params}`)
       .then((res) => (res.ok ? res.json() : { executions: [] }))
-      .then((data) => setExecutions(data.executions ?? []))
-      .catch(() => setExecutions([]))
-  }, [projectId, showCompleted])
+      .then((data) => {
+        const fetched = data.executions ?? []
+        if (appendOffset) {
+          setExecutions((prev) => [...prev, ...fetched])
+        } else {
+          setExecutions(fetched)
+        }
+        setHasMore(fetched.length === PAGE_SIZE)
+      })
+      .catch(() => { if (!appendOffset) setExecutions([]) })
+  }, [projectId, statusFilter])
 
+  // Reset offset and reload when filter changes
   useEffect(() => {
     const controller = new AbortController()
+    setOffset(0)
     setLoading(true)
     fetchExecutions().finally(() => {
       if (!controller.signal.aborted) setLoading(false)
     })
     return () => controller.abort()
   }, [fetchExecutions])
+
+  const handleLoadMore = useCallback(() => {
+    const nextOffset = offset + PAGE_SIZE
+    setLoadingMore(true)
+    fetchExecutions(nextOffset).finally(() => {
+      setOffset(nextOffset)
+      setLoadingMore(false)
+    })
+  }, [offset, fetchExecutions])
 
   // Fetch detail for selected execution
   const fetchDetail = useCallback((id: string) => {
@@ -91,49 +117,66 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showCompleted}
-            onChange={(e) => setShowCompleted(e.target.checked)}
-            className="rounded"
-          />
-          Show completed
-        </label>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+          className="text-xs bg-transparent border border-border rounded px-1.5 py-0.5 text-foreground cursor-pointer"
+        >
+          <option value="running">Running</option>
+          <option value="all">All</option>
+          <option value="completed">Completed</option>
+          <option value="failed">Failed</option>
+        </select>
         <span className="text-xs text-muted-foreground ml-auto">
           {executions.length} execution{executions.length !== 1 ? 's' : ''}
         </span>
       </div>
 
       {/* Execution list */}
-      <div className={`overflow-y-auto ${selectedId ? 'max-h-[40%] border-b border-border' : 'flex-1'}`}>
+      <div className={`overflow-y-auto ${selectedId ? 'border-b border-border' : 'flex-1'}`} style={selectedId ? { height: `${topHeight}%` } : undefined}>
         {executions.length === 0 ? (
           <div className="activity-tab-empty">
-            <p>{showCompleted ? 'No pipeline executions' : 'No running pipelines'}</p>
+            <p>No {statusFilter === 'all' ? '' : statusFilter + ' '}pipelines</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {showCompleted ? 'Pipeline runs will appear here' : 'Toggle "Show completed" to see past runs'}
+              Pipeline runs will appear here
             </p>
           </div>
         ) : (
-          executions.map((exec) => (
-            <div
-              key={exec.id}
-              className={`pipeline-exec-row${selectedId === exec.id ? ' pipeline-exec-row--active' : ''}`}
-              onClick={() => handleSelect(exec.id)}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <ExecutionStatusIcon status={exec.status} />
-                <span className="text-sm text-foreground truncate">{exec.pipeline_name}</span>
+          <>
+            {executions.map((exec) => (
+              <div
+                key={exec.id}
+                className={`pipeline-exec-row${selectedId === exec.id ? ' pipeline-exec-row--active' : ''}`}
+                onClick={() => handleSelect(exec.id)}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <ExecutionStatusIcon status={exec.status} />
+                  <span className="text-sm text-foreground truncate">{exec.pipeline_name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {formatDateTime(exec.created_at)}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground shrink-0">
-                  {formatDateTime(exec.created_at)}
-                </span>
-              </div>
-            </div>
-          ))
+            ))}
+            {hasMore && (
+              <button
+                className="w-full py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? 'Loading...' : 'Load more'}
+              </button>
+            )}
+          </>
         )}
       </div>
+
+      {/* Resize handle */}
+      {selectedId && detailExec && (
+        <ResizeHandle direction="vertical" onResize={setTopHeight} panelHeight={topHeight} minHeight={15} maxHeight={80} />
+      )}
 
       {/* Detail pane */}
       {selectedId && detailExec && (

@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
+import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import ReactMarkdown from 'react-markdown'
@@ -108,6 +109,7 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [childrenMap, setChildrenMap] = useState<Map<string, FileEntry[]>>(new Map())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [topHeight, setTopHeight] = useState(40)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -374,13 +376,18 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
   return (
     <div className="flex flex-col h-full">
       {/* File tree */}
-      <div className={`overflow-y-auto ${selectedFile ? 'max-h-[40%] border-b border-border' : 'flex-1'}`}>
+      <div className={`overflow-y-auto ${selectedFile ? 'border-b border-border' : 'flex-1'}`} style={selectedFile ? { height: `${topHeight}%` } : undefined}>
         {rootEntries.length === 0 ? (
           <div className="activity-tab-empty"><p>No files</p></div>
         ) : (
           rootEntries.map((e) => renderEntry(e, 0))
         )}
       </div>
+
+      {/* Resize handle */}
+      {selectedFile && (
+        <ResizeHandle direction="vertical" onResize={setTopHeight} panelHeight={topHeight} minHeight={15} maxHeight={80} />
+      )}
 
       {/* File viewer */}
       {selectedFile && (

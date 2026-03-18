@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import type { GobbySession } from '../../hooks/useSessions'
 import { useSessionDetail } from '../../hooks/useSessionDetail'
 import { sessionMessagesToChatMessages } from '../sessions/transcriptAdapter'
@@ -28,6 +29,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [topHeight, setTopHeight] = useState(35)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // No-op artifact context for MessageItem rendering
@@ -147,7 +149,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
   return (
     <div className="flex flex-col h-full">
       {/* Session list */}
-      <div className={`overflow-y-auto ${selectedSessionId ? 'max-h-[35%] border-b border-border' : 'flex-1'}`}>
+      <div className={`overflow-y-auto ${selectedSessionId ? 'border-b border-border' : 'flex-1'}`} style={selectedSessionId ? { height: `${topHeight}%` } : undefined}>
         {entries.map((entry) => {
           const isSelected = entry.id === selectedSessionId
           const isPaused = entry.status === 'paused'
@@ -183,6 +185,11 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
           )
         })}
       </div>
+
+      {/* Resize handle */}
+      {selectedSessionId && (
+        <ResizeHandle direction="vertical" onResize={setTopHeight} panelHeight={topHeight} minHeight={15} maxHeight={80} />
+      )}
 
       {/* Message area */}
       {selectedSessionId && (

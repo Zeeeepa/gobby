@@ -137,22 +137,19 @@ export function CommandPalette({
     [allItems, selectedIndex, handleSelect, onClose, query, onDeleteSession],
   )
 
-  if (!isOpen) return null
+  // Group sessions by recency + precompute index maps (must be above early return to avoid hook ordering issues)
+  const { sessionIndexMap, actionIndexMap, todaySessions, weekSessions, olderSessions } = useMemo(() => {
+    const now = Date.now()
+    const todaySessions: GobbySession[] = []
+    const weekSessions: GobbySession[] = []
+    const olderSessions: GobbySession[] = []
+    for (const s of filteredSessions) {
+      const age = now - new Date(s.updated_at).getTime()
+      if (age < 86400000) todaySessions.push(s)
+      else if (age < 604800000) weekSessions.push(s)
+      else olderSessions.push(s)
+    }
 
-  // Group sessions by recency
-  const now = Date.now()
-  const todaySessions: GobbySession[] = []
-  const weekSessions: GobbySession[] = []
-  const olderSessions: GobbySession[] = []
-  for (const s of filteredSessions) {
-    const age = now - new Date(s.updated_at).getTime()
-    if (age < 86400000) todaySessions.push(s)
-    else if (age < 604800000) weekSessions.push(s)
-    else olderSessions.push(s)
-  }
-
-  // Precompute index maps so we don't mutate during render
-  const { sessionIndexMap, actionIndexMap } = useMemo(() => {
     const sessionIndexMap = new Map<string, number>()
     const actionIndexMap = new Map<string, number>()
     let idx = 0
@@ -161,8 +158,10 @@ export function CommandPalette({
     for (const s of olderSessions) sessionIndexMap.set(s.id, idx++)
     for (const a of filteredActions.filter((a) => a.category === 'action')) actionIndexMap.set(a.id, idx++)
     for (const a of filteredActions.filter((a) => a.category === 'navigate')) actionIndexMap.set(a.id, idx++)
-    return { sessionIndexMap, actionIndexMap }
-  }, [todaySessions, weekSessions, olderSessions, filteredActions])
+    return { sessionIndexMap, actionIndexMap, todaySessions, weekSessions, olderSessions }
+  }, [filteredSessions, filteredActions])
+
+  if (!isOpen) return null
 
   return (
     <>

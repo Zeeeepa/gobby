@@ -2,33 +2,62 @@ import { useCallback, useEffect, useRef } from 'react'
 import { cn } from '../../../lib/utils'
 
 interface ResizeHandleProps {
-  onResize: (width: number) => void
-  panelWidth: number
+  onResize: (value: number) => void
+  panelWidth?: number
+  panelHeight?: number
   minWidth?: number
   maxWidth?: number
+  minHeight?: number
+  maxHeight?: number
+  direction?: 'horizontal' | 'vertical'
 }
 
-export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 1400 }: ResizeHandleProps) {
+export function ResizeHandle({
+  onResize,
+  panelWidth,
+  panelHeight,
+  minWidth = 300,
+  maxWidth = 1400,
+  minHeight = 20,
+  maxHeight = 80,
+  direction = 'horizontal',
+}: ResizeHandleProps) {
+  const isVertical = direction === 'vertical'
+  const currentValue = isVertical ? (panelHeight ?? 40) : (panelWidth ?? 600)
+  const minVal = isVertical ? minHeight : minWidth
+  const maxVal = isVertical ? maxHeight : maxWidth
+
   const isDragging = useRef(false)
-  const startX = useRef(0)
-  const startWidth = useRef(0)
+  const startPos = useRef(0)
+  const startValue = useRef(0)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const cleanupRef = useRef<(() => void) | null>(null)
 
-  const startDrag = useCallback((clientX: number) => {
+  const startDrag = useCallback((clientPos: number) => {
     isDragging.current = true
-    startX.current = clientX
-    startWidth.current = panelWidth
+    startPos.current = clientPos
+    startValue.current = currentValue
 
-    const handleMove = (x: number) => {
+    const handleMove = (pos: number) => {
       if (!isDragging.current) return
-      const delta = startX.current - x
-      const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth.current + delta))
-      onResize(newWidth)
+      if (isVertical) {
+        // For vertical: compute percentage delta relative to parent height
+        const parent = containerRef.current?.parentElement
+        if (!parent) return
+        const parentHeight = parent.getBoundingClientRect().height
+        const deltaPercent = ((pos - startPos.current) / parentHeight) * 100
+        const newHeight = Math.max(minVal, Math.min(maxVal, startValue.current + deltaPercent))
+        onResize(newHeight)
+      } else {
+        const delta = startPos.current - pos
+        const newWidth = Math.max(minVal, Math.min(maxVal, startValue.current + delta))
+        onResize(newWidth)
+      }
     }
 
-    const handleMouseMove = (ev: MouseEvent) => handleMove(ev.clientX)
-    const handleTouchMove = (ev: TouchEvent) => { ev.preventDefault(); handleMove(ev.touches[0].clientX) }
+    const handleMouseMove = (ev: MouseEvent) => handleMove(isVertical ? ev.clientY : ev.clientX)
+    const handleTouchMove = (ev: TouchEvent) => { ev.preventDefault(); handleMove(isVertical ? ev.touches[0].clientY : ev.touches[0].clientX) }
 
     const handleEnd = () => {
       isDragging.current = false
@@ -45,7 +74,7 @@ export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 
     document.addEventListener('mouseup', handleEnd)
     document.addEventListener('touchmove', handleTouchMove, { passive: false })
     document.addEventListener('touchend', handleEnd)
-  }, [onResize, panelWidth, minWidth, maxWidth])
+  }, [onResize, currentValue, minVal, maxVal, isVertical])
 
   // Cleanup drag listeners if component unmounts mid-drag
   useEffect(() => {
@@ -54,24 +83,32 @@ export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    startDrag(e.clientX)
-  }, [startDrag])
+    startDrag(isVertical ? e.clientY : e.clientX)
+  }, [startDrag, isVertical])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault()
-    startDrag(e.touches[0].clientX)
-  }, [startDrag])
+    startDrag(isVertical ? e.touches[0].clientY : e.touches[0].clientX)
+  }, [startDrag, isVertical])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const step = e.shiftKey ? 50 : 10
-    if (e.key === 'ArrowLeft') { e.preventDefault(); onResize(Math.min(maxWidth, panelWidth + step)) }
-    if (e.key === 'ArrowRight') { e.preventDefault(); onResize(Math.max(minWidth, panelWidth - step)) }
-  }, [onResize, panelWidth, minWidth, maxWidth])
+    const step = e.shiftKey ? (isVertical ? 10 : 50) : (isVertical ? 2 : 10)
+    if (isVertical) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); onResize(Math.min(maxVal, currentValue + step)) }
+      if (e.key === 'ArrowUp') { e.preventDefault(); onResize(Math.max(minVal, currentValue - step)) }
+    } else {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); onResize(Math.min(maxVal, currentValue + step)) }
+      if (e.key === 'ArrowRight') { e.preventDefault(); onResize(Math.max(minVal, currentValue - step)) }
+    }
+  }, [onResize, currentValue, minVal, maxVal, isVertical])
 
   return (
     <div
+      ref={containerRef}
       className={cn(
-        'w-1 cursor-col-resize hover:bg-accent/50 active:bg-accent transition-colors shrink-0',
+        isVertical
+          ? 'h-1 cursor-row-resize hover:bg-accent/50 active:bg-accent transition-colors shrink-0'
+          : 'w-1 cursor-col-resize hover:bg-accent/50 active:bg-accent transition-colors shrink-0',
         'relative group',
         'focus-visible:outline-none focus-visible:bg-accent'
       )}
@@ -80,13 +117,16 @@ export function ResizeHandle({ onResize, panelWidth, minWidth = 300, maxWidth = 
       onKeyDown={handleKeyDown}
       tabIndex={0}
       role="separator"
-      aria-orientation="vertical"
-      aria-valuenow={panelWidth}
-      aria-valuemin={minWidth}
-      aria-valuemax={maxWidth}
+      aria-orientation={isVertical ? 'horizontal' : 'vertical'}
+      aria-valuenow={currentValue}
+      aria-valuemin={minVal}
+      aria-valuemax={maxVal}
       aria-label="Resize panel"
     >
-      <div className="absolute inset-y-0 -left-1 -right-1" />
+      {isVertical
+        ? <div className="absolute inset-x-0 -top-1 -bottom-1" />
+        : <div className="absolute inset-y-0 -left-1 -right-1" />
+      }
     </div>
   )
 }
