@@ -9,7 +9,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.code_index.models import IndexedFile, IndexedProject, Symbol
+from gobby.code_index.models import ContentChunk, IndexedFile, IndexedProject, Symbol
 from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
@@ -426,3 +426,127 @@ class CodeIndexStorage:
             (project_id,),
         )
         return row["cnt"] if row else 0
+
+    # ── Content Chunks ──────────────────────────────────────────────
+
+    def upsert_content_chunks(self, chunks: list[ContentChunk]) -> int:
+        """Insert or update content chunks. Returns count of upserted rows."""
+        if not chunks:
+            return 0
+
+        rows = [
+            (
+                chunk.id,
+                chunk.project_id,
+                chunk.file_path,
+                chunk.chunk_index,
+                chunk.line_start,
+                chunk.line_end,
+                chunk.content,
+                chunk.language,
+                chunk.created_at,
+            )
+            for chunk in chunks
+        ]
+        with self.db.transaction() as conn:
+            conn.executemany(
+                """INSERT INTO code_content_chunks (
+                    id, project_id, file_path, chunk_index,
+                    line_start, line_end, content, language, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    content = excluded.content,
+                    line_start = excluded.line_start,
+                    line_end = excluded.line_end
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def delete_content_chunks_for_file(self, project_id: str, file_path: str) -> None:
+        """Delete all content chunks for a file."""
+        self.db.execute(
+            "DELETE FROM code_content_chunks WHERE project_id = ? AND file_path = ?",
+            (project_id, file_path),
+        )
+
+    def delete_content_chunks_for_project(self, project_id: str) -> None:
+        """Delete all content chunks for a project."""
+        self.db.execute(
+            "DELETE FROM code_content_chunks WHERE project_id = ?",
+            (project_id,),
+        )
+
+    def search_content_fts(
+        self,
+        query: str,
+        project_id: str,
+        file_path: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Full-text search across file content chunks.
+
+        Returns dicts with file_path, line_start, line_end, snippet, language.
+        """
+        if not query.strip():
+            return []
+
+        # Escape FTS5 special characters for safe querying
+        safe_query = query.replace('"', '""')
+
+        try:
+            if file_path:
+                rows = self.db.fetchall(
+                    """SELECT
+                        c.file_path, c.line_start, c.line_end, c.language,
+                        snippet(code_content_fts, 0, '>>>', '<<<', '...', 40) as snippet
+                    FROM code_content_fts fts
+                    JOIN code_content_chunks c ON c.rowid = fts.rowid
+                    WHERE code_content_fts MATCH ?
+                      AND c.project_id = ?
+                      AND c.file_path = ?
+                    ORDER BY rank
+                    LIMIT ?""",
+                    (f'"{safe_query}"', project_id, file_path, limit),
+                )
+            else:
+                rows = self.db.fetchall(
+                    """SELECT
+                        c.file_path, c.line_start, c.line_end, c.language,
+                        snippet(code_content_fts, 0, '>>>', '<<<', '...', 40) as snippet
+                    FROM code_content_fts fts
+                    JOIN code_content_chunks c ON c.rowid = fts.rowid
+                    WHERE code_content_fts MATCH ?
+                      AND c.project_id = ?
+                    ORDER BY rank
+                    LIMIT ?""",
+                    (f'"{safe_query}"', project_id, limit),
+                )
+        except Exception as e:
+            logger.debug(f"Content FTS search failed, falling back to LIKE: {e}")
+            # Fallback to LIKE search
+            like_query = f"%{query}%"
+            params: list[Any] = [project_id, like_query]
+            sql = """SELECT file_path, line_start, line_end, language,
+                        substr(content, max(1, instr(content, ?) - 60), 120) as snippet
+                     FROM code_content_chunks
+                     WHERE project_id = ? AND content LIKE ?"""
+            if file_path:
+                sql += " AND file_path = ?"
+                params = [query, project_id, like_query, file_path]
+            else:
+                params = [query, project_id, like_query]
+            sql += " LIMIT ?"
+            params.append(limit)
+            rows = self.db.fetchall(sql, tuple(params))
+
+        return [
+            {
+                "file_path": row["file_path"],
+                "line_start": row["line_start"],
+                "line_end": row["line_end"],
+                "snippet": row["snippet"],
+                "language": row["language"],
+            }
+            for row in rows
+        ]

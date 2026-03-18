@@ -74,16 +74,16 @@ def is_binary(path: Path, check_bytes: int = 8192) -> bool:
 
 
 def should_exclude(path: Path, patterns: list[str]) -> bool:
-    """Check if path matches any exclusion pattern."""
-    path_str = str(path)
+    """Check if any path component matches an exclusion pattern.
+
+    Only checks individual path components (directory/file names), not
+    substrings of the full path. E.g. pattern "build" excludes
+    "build/output.js" but NOT "tree_builder.py".
+    """
     for pattern in patterns:
-        # Check each component of the path
         for part in path.parts:
             if fnmatch.fnmatch(part, pattern):
                 return True
-        # Also check the full path
-        if fnmatch.fnmatch(path_str, f"*{pattern}*"):
-            return True
     return False
 
 

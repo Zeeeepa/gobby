@@ -198,6 +198,30 @@ class IndexedProject:
 
 
 @dataclass
+class ContentChunk:
+    """A chunk of file content for full-text search."""
+
+    id: str
+    project_id: str
+    file_path: str
+    chunk_index: int
+    line_start: int
+    line_end: int
+    content: str
+    language: str | None = None
+    created_at: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.created_at:
+            self.created_at = _now_iso()
+
+    @staticmethod
+    def make_id(project_id: str, file_path: str, chunk_index: int) -> str:
+        key = f"{project_id}:{file_path}:chunk:{chunk_index}"
+        return str(uuid.uuid5(CODE_INDEX_UUID_NAMESPACE, key))
+
+
+@dataclass
 class ImportRelation:
     """An import statement linking files."""
 

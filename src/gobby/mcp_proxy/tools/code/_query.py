@@ -190,6 +190,30 @@ def create_query_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
             limit=limit,
         )
 
+    @registry.tool(
+        description=(
+            "Full-text search across file content. "
+            "Finds any text in indexed files — comments, string literals, "
+            "config values, JSX, imports, etc. "
+            "Complements search_symbols (which searches symbol names) and "
+            "search_text (which searches symbol signatures/docstrings)."
+        )
+    )
+    def search_content(
+        query: str,
+        project_id: str = "",
+        file_path: str = "",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Search file content for arbitrary text."""
+        pid = project_id or ctx.project_id or "default"
+        return ctx.searcher.search_content(
+            query=query,
+            project_id=pid,
+            file_path=file_path or None,
+            limit=limit,
+        )
+
     def _trigger_async_reindex(project_id: str, stale_files: list[str]) -> None:
         """Fire-and-forget incremental re-index of stale files."""
 

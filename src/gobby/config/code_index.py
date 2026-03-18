@@ -83,6 +83,19 @@ class CodeIndexConfig(BaseModel):
             "cpp",
             "elixir",
             "ruby",
+            "markdown",
+            "yaml",
+            "json",
         ],
         description="Languages to index",
+    )
+    content_extensions: list[str] = Field(
+        default=[
+            ".html", ".css", ".scss", ".less", ".toml", ".cfg", ".ini",
+            ".sh", ".bash", ".zsh", ".fish",
+            ".sql", ".graphql", ".proto",
+            ".txt", ".rst", ".csv",
+            ".gitignore", ".editorconfig",
+        ],
+        description="Additional file extensions to index for content search only (no AST parsing)",
     )

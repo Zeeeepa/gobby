@@ -7,12 +7,14 @@ for individual files and full directories.
 from __future__ import annotations
 
 import logging
+import subprocess
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from gobby.code_index.chunker import chunk_file_content
 from gobby.code_index.graph import CodeGraph
 from gobby.code_index.hasher import file_content_hash
 from gobby.code_index.languages import detect_language, get_extensions_map
@@ -29,6 +31,46 @@ from gobby.code_index.summarizer import SymbolSummarizer
 from gobby.config.code_index import CodeIndexConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _get_git_files(root: Path) -> set[str] | None:
+    """Get git-visible files (tracked + untracked-but-not-ignored).
+
+    Returns relative paths, or None if not a git repo / git unavailable.
+    """
+    try:
+        # Tracked files
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return None
+
+        files: set[str] = set()
+        for line in result.stdout.strip().splitlines():
+            if line:
+                files.add(line)
+
+        # Untracked but not ignored
+        result2 = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result2.returncode == 0:
+            for line in result2.stdout.strip().splitlines():
+                if line:
+                    files.add(line)
+
+        return files
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
 
 class CodeIndexer:
@@ -98,17 +140,43 @@ class CodeIndexer:
 
         ext_map = get_extensions_map()
         supported_extensions = set(ext_map.keys())
+        content_extensions = set(self._config.content_extensions)
+        all_extensions = supported_extensions | content_extensions
 
-        # Collect candidate files
+        # Collect candidate files using git-aware discovery
+        git_files = _get_git_files(root)
         candidates: list[Path] = []
-        for path in root.rglob("*"):
-            if not path.is_file():
-                continue
-            if path.suffix.lower() not in supported_extensions:
-                continue
-            if should_exclude(path, self._config.exclude_patterns):
-                continue
-            candidates.append(path)
+        content_only_candidates: list[Path] = []
+
+        if git_files is not None:
+            # Git-aware: only index files git knows about
+            for rel_path in git_files:
+                path = root / rel_path
+                if not path.is_file():
+                    continue
+                suffix = path.suffix.lower()
+                if suffix not in all_extensions:
+                    continue
+                if should_exclude(path, self._config.exclude_patterns):
+                    continue
+                if suffix in supported_extensions:
+                    candidates.append(path)
+                else:
+                    content_only_candidates.append(path)
+        else:
+            # Fallback: rglob for non-git repos
+            for path in root.rglob("*"):
+                if not path.is_file():
+                    continue
+                suffix = path.suffix.lower()
+                if suffix not in all_extensions:
+                    continue
+                if should_exclude(path, self._config.exclude_patterns):
+                    continue
+                if suffix in supported_extensions:
+                    candidates.append(path)
+                else:
+                    content_only_candidates.append(path)
 
         # Build hash map for incremental check
         current_hashes: dict[str, str] = {}
@@ -135,7 +203,7 @@ class CodeIndexer:
             except Exception as e:
                 logger.debug(f"Orphan cleanup failed: {e}")
 
-        # Index each file
+        # Index each file (symbols + content chunks)
         for path in candidates:
             try:
                 rel = str(path.resolve().relative_to(root))
@@ -152,6 +220,14 @@ class CodeIndexer:
                 result.symbols_found += len(symbols)
             else:
                 result.files_skipped += 1
+
+        # Index content-only files (no AST parsing, just content chunks)
+        for path in content_only_candidates:
+            try:
+                rel = str(path.resolve().relative_to(root))
+            except ValueError:
+                continue
+            await self._index_content_only(path, project_id, root_path)
 
         # Update project stats
         elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -181,6 +257,7 @@ class CodeIndexer:
         """Remove all data for a file from SQLite, Qdrant, and Neo4j."""
         self._storage.delete_symbols_for_file(project_id, file_path)
         self._storage.delete_file(project_id, file_path)
+        self._storage.delete_content_chunks_for_file(project_id, file_path)
 
         if self._graph is not None and self._graph.available:
             await self._graph.delete_file(file_path=file_path, project_id=project_id)
@@ -253,6 +330,20 @@ class CodeIndexer:
             )
         )
 
+        # Index content chunks for full-text content search
+        try:
+            source = path.read_bytes()
+            chunks = chunk_file_content(
+                source=source,
+                rel_path=rel_path,
+                project_id=project_id,
+                language=language,
+            )
+            if chunks:
+                self._storage.upsert_content_chunks(chunks)
+        except Exception as e:
+            logger.debug(f"Content chunk indexing failed for {file_path}: {e}")
+
         # Embed symbols (async, non-blocking on failure)
         if self._vector_store is not None and self._embed_fn is not None:
             try:
@@ -295,10 +386,49 @@ class CodeIndexer:
         result.duration_ms = int((time.monotonic() - start) * 1000)
         return result
 
+    async def _index_content_only(
+        self, path: Path, project_id: str, root_path: str
+    ) -> None:
+        """Index a non-tree-sitter file for content search only."""
+        root = Path(root_path).resolve()
+        resolved = path.resolve()
+        try:
+            rel_path = str(resolved.relative_to(root))
+        except ValueError:
+            return
+
+        try:
+            size = path.stat().st_size
+            if size == 0 or size > self._config.max_file_size_bytes:
+                return
+        except OSError:
+            return
+
+        try:
+            source = path.read_bytes()
+            # Skip binary files
+            if b"\x00" in source[:8192]:
+                return
+        except OSError:
+            return
+
+        # Clear old chunks
+        self._storage.delete_content_chunks_for_file(project_id, rel_path)
+
+        chunks = chunk_file_content(
+            source=source,
+            rel_path=rel_path,
+            project_id=project_id,
+            language=path.suffix.lstrip(".") or None,
+        )
+        if chunks:
+            self._storage.upsert_content_chunks(chunks)
+
     async def invalidate(self, project_id: str) -> None:
         """Clear all index data for a project."""
         self._storage.delete_symbols_for_project(project_id)
         self._storage.delete_files_for_project(project_id)
+        self._storage.delete_content_chunks_for_project(project_id)
 
         # Clear graph
         if self._graph is not None:

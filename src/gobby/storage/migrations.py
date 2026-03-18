@@ -1056,6 +1056,40 @@ def _setup_code_symbols_fts(db: LocalDatabase) -> None:
     """)
 
 
+def _setup_code_content_fts(db: LocalDatabase) -> None:
+    """Create FTS5 virtual table and triggers for code content chunks.
+
+    Follows the same pattern as _setup_code_symbols_fts.
+    """
+    conn = db.connection
+    conn.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS code_content_fts USING fts5(
+            content, file_path, language,
+            content='code_content_chunks', content_rowid='rowid'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS code_content_ai AFTER INSERT ON code_content_chunks BEGIN
+            INSERT INTO code_content_fts(rowid, content, file_path, language)
+            VALUES (new.rowid, new.content, new.file_path, new.language);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS code_content_ad AFTER DELETE ON code_content_chunks BEGIN
+            INSERT INTO code_content_fts(code_content_fts, rowid, content, file_path, language)
+            VALUES ('delete', old.rowid, old.content, old.file_path, old.language);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS code_content_au AFTER UPDATE ON code_content_chunks BEGIN
+            INSERT INTO code_content_fts(code_content_fts, rowid, content, file_path, language)
+            VALUES ('delete', old.rowid, old.content, old.file_path, old.language);
+            INSERT INTO code_content_fts(rowid, content, file_path, language)
+            VALUES (new.rowid, new.content, new.file_path, new.language);
+        END;
+
+        INSERT OR IGNORE INTO code_content_fts(rowid, content, file_path, language)
+        SELECT rowid, content, file_path, language FROM code_content_chunks;
+    """)
+
+
 # Migrations beyond v133.
 # Add new migrations here. Do not modify the baseline schema above.
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
@@ -1366,6 +1400,29 @@ CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
 );
 CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id ON skill_files(skill_id);
 CREATE INDEX IF NOT EXISTS idx_skill_files_type ON skill_files(file_type)""",
+    ),
+    (
+        159,
+        "Add code_content_chunks table and FTS5 virtual table for full-text content search",
+        """CREATE TABLE IF NOT EXISTS code_content_chunks (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    line_start INTEGER NOT NULL,
+    line_end INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    language TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(project_id, file_path, chunk_index)
+);
+CREATE INDEX IF NOT EXISTS idx_ccc_project ON code_content_chunks(project_id);
+CREATE INDEX IF NOT EXISTS idx_ccc_file ON code_content_chunks(project_id, file_path)""",
+    ),
+    (
+        160,
+        "Add FTS5 triggers for code_content_chunks",
+        _setup_code_content_fts,
     ),
 ]
 
