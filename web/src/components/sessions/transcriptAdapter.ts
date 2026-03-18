@@ -39,6 +39,42 @@ function isHookFeedback(content: string): boolean {
 }
 
 /**
+ * Convert Python repr single-quoted strings to JSON double-quoted strings.
+ * Handles apostrophes inside values (e.g., "It's") by tracking string boundaries.
+ */
+function pythonReprToJson(s: string): string {
+  let out = '', i = 0
+  while (i < s.length) {
+    if (s[i] === "'") {
+      // Opening single-quote delimiter — convert to double quote
+      out += '"'
+      i++
+      // Read string contents until closing single quote
+      while (i < s.length && s[i] !== "'") {
+        if (s[i] === '\\' && i + 1 < s.length && s[i + 1] === "'") {
+          // Escaped apostrophe \' → just '
+          out += "'"
+          i += 2
+        } else if (s[i] === '"') {
+          // Escape existing double quotes inside the string
+          out += '\\"'
+          i++
+        } else {
+          out += s[i]
+          i++
+        }
+      }
+      out += '"' // closing quote
+      i++ // skip closing '
+    } else {
+      out += s[i]
+      i++
+    }
+  }
+  return out
+}
+
+/**
  * Extract user-visible text from content that may be a serialized content block array.
  *
  * Claude API stores user messages as arrays of content blocks, e.g.:
@@ -59,14 +95,10 @@ function extractUserText(content: string): string | null {
     const parsed = JSON.parse(content)
     if (Array.isArray(parsed)) blocks = parsed
   } catch {
-    // Try Python-style repr: single quotes → double quotes (simple heuristic)
+    // Try Python-style repr: single-quoted strings → double-quoted
+    // Uses a character-by-character parser to handle apostrophes in values (e.g., "It's")
     try {
-      // Replace Python single-quoted keys/values with double quotes
-      // Handle: {'text': 'value'} and {"text": "value"} mixed
-      const jsonified = content
-        .replace(/'/g, '"')
-        // Fix escaped apostrophes that became double-escaped
-        .replace(/\\"/g, "\\'")
+      const jsonified = pythonReprToJson(content)
       const parsed = JSON.parse(jsonified)
       if (Array.isArray(parsed)) blocks = parsed
     } catch {

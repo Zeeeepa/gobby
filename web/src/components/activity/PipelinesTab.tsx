@@ -51,7 +51,7 @@ export const PipelinesTab = memo(function PipelinesTab({ projectId }: PipelinesT
   // Fetch detail for selected execution
   const fetchDetail = useCallback((id: string) => {
     const baseUrl = getBaseUrl()
-    fetch(`${baseUrl}/api/pipelines/executions/${id}`)
+    fetch(`${baseUrl}/api/pipelines/${id}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.execution) setDetailExec(data.execution)

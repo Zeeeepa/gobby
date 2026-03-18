@@ -142,6 +142,11 @@ export function ChatPage({
     chat.setOnArtifactEvent?.(onArtifactEvent);
   }, [chat.setOnArtifactEvent, onArtifactEvent]);
 
+  // Add file to chat from Files tab (right-click "Add to chat")
+  const handleAddFileToChat = useCallback((filePath: string) => {
+    chat.onSend(`Read and reference this file: ${filePath}`)
+  }, [chat.onSend])
+
   // Plan approval — in tabbed model, don't close the panel
   const handleApprovePlan = useCallback(() => {
     chat.onApprovePlan?.();
@@ -299,6 +304,7 @@ export function ChatPage({
         onCloseCanvas={canvas.closeCanvas}
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
+        onAddFileToChat={handleAddFileToChat}
         isMobile={isMobile}
       />
 

@@ -314,6 +314,11 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
           style={{ paddingLeft: `${depth * 16 + 20}px` }}
           onClick={() => openFile(entry.path)}
           onContextMenu={(e) => handleContextMenu(e, entry)}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('application/x-gobby-file', entry.path)
+            e.dataTransfer.effectAllowed = 'copy'
+          }}
         >
           <FileIconSvg extension={ext} />
           {isRenaming ? (

@@ -48,7 +48,6 @@ function getBaseUrl(): string {
 export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
   const [tasks, setTasks] = useState<GobbyTask[]>([])
   const [loading, setLoading] = useState(true)
-  const [showClosed, setShowClosed] = useState(false)
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [taskDetail, setTaskDetail] = useState<GobbyTaskDetail | null>(null)
@@ -61,7 +60,7 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
     const baseUrl = getBaseUrl()
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
-    if (!showClosed) params.set('status', 'open')
+    params.set('status', 'open')
     params.set('limit', '500')
     fetch(`${baseUrl}/api/tasks?${params}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : { tasks: [] }))
@@ -69,7 +68,7 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
       .catch((err) => { if (err.name !== 'AbortError') setTasks([]) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [projectId, showClosed])
+  }, [projectId])
 
   // Fetch task detail when expanded
   useEffect(() => {
@@ -93,7 +92,7 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
   const q = search.toLowerCase().trim()
   const filtered = tasks
     .filter((t) => {
-      if (!showClosed && CLOSED_STATUSES.has(t.status)) return false
+      if (CLOSED_STATUSES.has(t.status)) return false
       if (!q) return true
       return t.title.toLowerCase().includes(q) || t.ref.toLowerCase().includes(q)
     })
@@ -121,18 +120,13 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <label className="paneltask-toggle">
-          <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
-          Closed
-        </label>
-        <span className="paneltask-count">{filtered.length}</span>
       </div>
 
       {/* Flat task list */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="activity-tab-empty">
-            <p>No {showClosed ? '' : 'open '}tasks</p>
+            <p>No open tasks</p>
           </div>
         ) : (
           filtered.map((task) => {
@@ -155,9 +149,6 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
                   {ref && <span className="paneltask-ref">{ref}</span>}
                   <span className="paneltask-row-title" style={{ color: textColor }}>
                     {task.title}
-                  </span>
-                  <span className={`paneltask-row-arrow${isExpanded ? ' paneltask-row-arrow--open' : ''}`}>
-                    {'\u203A'}
                   </span>
                 </div>
 

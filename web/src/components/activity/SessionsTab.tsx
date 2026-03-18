@@ -74,8 +74,8 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
         fetch(`${baseUrl}/api/sessions?status=paused&limit=20`).then((r) => (r.ok ? r.json() : { sessions: [] })),
       ])
       setAgents(agentsRes.agents ?? agentsRes ?? [])
-      const active = (activeRes.sessions ?? activeRes ?? []).filter((s: any) => s.source !== "pipeline")
-      const paused = (pausedRes.sessions ?? pausedRes ?? []).filter((s: any) => s.source !== "pipeline")
+      const active = (activeRes.sessions ?? activeRes ?? []).filter((s: any) => s.source !== "pipeline" && s.source !== "cron")
+      const paused = (pausedRes.sessions ?? pausedRes ?? []).filter((s: any) => s.source !== "pipeline" && s.source !== "cron")
       setCliSessions([...active, ...paused])
       setFetchError(null)
     } catch (err) {
@@ -114,6 +114,8 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
         status: 'active' as const,
         runId: a.run_id,
         startedAt: a.started_at,
+        seqNum: matchedSession?.seq_num,
+        sessionMode: 'autonomous',
       }
     })
 
@@ -126,6 +128,8 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
         provider: s.source ?? 'unknown',
         status: (s.status === 'paused' ? 'paused' : 'active') as 'active' | 'paused',
         startedAt: s.updated_at,
+        seqNum: s.seq_num,
+        sessionMode: ((s.agent_depth ?? 0) > 0 ? 'autonomous' : 'interactive') as 'interactive' | 'autonomous',
       }))
 
     return [...agentEntries, ...sessionEntries]
@@ -173,10 +177,9 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
       {/* Session list */}
       <div className={`overflow-y-auto ${selectedSessionId ? 'max-h-[35%] border-b border-border' : 'flex-1'}`}>
         {entries.map((entry) => {
-          const dotColor = SOURCE_DOT_COLORS[entry.provider] ?? 'bg-neutral-400'
-          const providerLabel = SOURCE_LABELS[entry.provider] ?? entry.provider
           const isSelected = entry.id === selectedSessionId
           const isPaused = entry.status === 'paused'
+          const displayLabel = entry.seqNum ? `#${entry.seqNum}: ${entry.label}` : entry.label
 
           return (
             <div
@@ -185,17 +188,15 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
               onClick={() => handleSelect(entry.id)}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}${!isPaused ? ' session-dot-pulse' : ''}`} />
-                <span className="text-sm text-foreground truncate">{entry.label}</span>
-                <span className="text-[10px] text-muted-foreground shrink-0">{providerLabel}</span>
+                <span className="text-sm text-foreground truncate">{displayLabel}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                {entry.type === 'agent' && (
-                  <span className="session-type-badge">agent</span>
-                )}
-                {isPaused && (
-                  <span className="session-type-badge">paused</span>
-                )}
+                <span className="session-type-badge">
+                  {entry.sessionMode === 'autonomous' ? 'Autonomous' : 'Interactive'}
+                </span>
+                <span className="session-type-badge">
+                  {isPaused ? 'Paused' : 'Active'}
+                </span>
                 {isSelected && entry.type === 'agent' && entry.runId && onKillAgent && (
                   <button
                     className="session-kill-btn"
@@ -256,4 +257,6 @@ interface SessionEntry {
   status: 'active' | 'paused'
   runId?: string
   startedAt?: string
+  seqNum?: number | null
+  sessionMode?: 'interactive' | 'autonomous'
 }
