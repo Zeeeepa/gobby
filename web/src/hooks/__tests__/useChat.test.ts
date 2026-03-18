@@ -16,11 +16,18 @@ let useChat: typeof import('../useChat').useChat
 beforeEach(() => {
   mockWs = createMockWebSocket()
   mockFetch = createMockFetch()
-  // Mock localStorage
+  // Mock localStorage — jsdom's localStorage doesn't delegate to Storage.prototype,
+  // so vi.spyOn(Storage.prototype, ...) won't intercept calls. Replace the object directly.
   const store: Record<string, string> = {}
-  vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => store[key] ?? null)
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => { store[key] = value })
-  vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key) => { delete store[key] })
+  const mockStorage = {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value }),
+    removeItem: vi.fn((key: string) => { delete store[key] }),
+    clear: vi.fn(() => { Object.keys(store).forEach(k => delete store[k]) }),
+    key: vi.fn((_index: number) => null),
+    get length() { return Object.keys(store).length },
+  }
+  Object.defineProperty(globalThis, 'localStorage', { value: mockStorage, writable: true, configurable: true })
 })
 
 afterEach(() => {
