@@ -2,9 +2,8 @@
 
 from pathlib import Path
 
-import pytest
 
-from gobby.skills.loader import LoadedSkillFile, SkillLoader, _classify_file, _is_binary_file
+from gobby.skills.loader import SkillLoader, _classify_file
 
 
 # ===========================================================================

@@ -1,9 +1,7 @@
 """Tests for SkillFile model and skill file CRUD operations."""
 
 import hashlib
-import sqlite3
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 

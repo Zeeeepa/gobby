@@ -1,11 +1,8 @@
 """Tests for auto-export to YAML and make_global_template in MCP tools."""
 
 import json
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-import yaml
 
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.template_writer import read_template
