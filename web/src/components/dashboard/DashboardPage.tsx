@@ -19,10 +19,10 @@ function formatTime(date: Date | null): string {
 export function DashboardPage() {
   const { data, isLoading, error, lastUpdated } = useDashboard()
   const [timeRange, setTimeRange] = useState<TimeRange>('all')
-  const [projectScope, setProjectScope] = useState<'current' | 'all'>('all')
+  const [showAllProjects, setShowAllProjects] = useState(true)
 
   const hours = rangeToHours(timeRange)
-  const projectId = projectScope === 'current' ? data?.project_id : undefined
+  const projectId = showAllProjects ? undefined : data?.project_id
 
   return (
     <main className="dash-page">
@@ -31,31 +31,26 @@ export function DashboardPage() {
           <h2 className="dash-toolbar-title">Dashboard</h2>
         </div>
         <div className="dash-toolbar-right">
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-md border border-border text-xs">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
               <button
+                role="switch"
+                aria-checked={showAllProjects}
+                onClick={() => setShowAllProjects(!showAllProjects)}
                 className={cn(
-                  'px-2 py-1 rounded-l-md transition-colors',
-                  projectScope === 'current'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-muted',
+                  'relative inline-flex h-4 w-7 shrink-0 rounded-full border border-border transition-colors',
+                  showAllProjects ? 'bg-accent' : 'bg-muted',
                 )}
-                onClick={() => setProjectScope('current')}
               >
-                Current Project
+                <span
+                  className={cn(
+                    'pointer-events-none block h-3 w-3 rounded-full bg-white shadow-sm transition-transform',
+                    showAllProjects ? 'translate-x-3' : 'translate-x-0',
+                  )}
+                />
               </button>
-              <button
-                className={cn(
-                  'px-2 py-1 rounded-r-md transition-colors',
-                  projectScope === 'all'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-muted',
-                )}
-                onClick={() => setProjectScope('all')}
-              >
-                All Projects
-              </button>
-            </div>
+              All Projects
+            </label>
             <TimeRangePills value={timeRange} onChange={setTimeRange} />
           </div>
           {lastUpdated && (
