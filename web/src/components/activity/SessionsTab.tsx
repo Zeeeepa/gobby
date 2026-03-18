@@ -18,34 +18,6 @@ interface SessionsTabProps {
   onKillAgent?: (runId: string) => void
 }
 
-const SOURCE_DOT_COLORS: Record<string, string> = {
-  claude_code: 'bg-purple-400',
-  claude: 'bg-purple-400',
-  claude_sdk_web_chat: 'bg-purple-400',
-  gemini_cli: 'bg-green-400',
-  gemini: 'bg-green-400',
-  codex: 'bg-blue-400',
-  windsurf: 'bg-sky-400',
-  cursor: 'bg-pink-400',
-  copilot: 'bg-indigo-400',
-  pipeline: 'bg-amber-400',
-  cron: 'bg-amber-400',
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  claude_code: 'Claude',
-  claude: 'Claude',
-  claude_sdk_web_chat: 'Web Chat',
-  gemini_cli: 'Gemini',
-  gemini: 'Gemini',
-  codex: 'Codex',
-  windsurf: 'Windsurf',
-  cursor: 'Cursor',
-  copilot: 'Copilot',
-  pipeline: 'Pipeline',
-  cron: 'Cron',
-}
-
 function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || ''
 }

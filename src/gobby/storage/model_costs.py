@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
@@ -76,7 +77,7 @@ class ModelCostStore:
         logger.info(f"Populated model_costs table with {len(rows)} models from LiteLLM")
         return len(rows)
 
-    def _apply_anthropic_overrides(self, conn: DatabaseProtocol | None = None) -> None:
+    def _apply_anthropic_overrides(self, conn: DatabaseProtocol | sqlite3.Connection | None = None) -> None:
         """Override LiteLLM pricing with Anthropic's known current rates.
 
         Guards against stale or missing entries in the LiteLLM registry.
