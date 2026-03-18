@@ -263,7 +263,7 @@ class DaemonProxy:
         self,
         name: str,
         value: str | int | float | bool | None,
-        session_id: str | None = None,
+        session_id: str,
     ) -> dict[str, Any]:
         """Set a session-scoped variable."""
         return await self._request(
@@ -275,7 +275,8 @@ class DaemonProxy:
     async def get_variable(
         self,
         name: str | None = None,
-        session_id: str | None = None,
+        *,
+        session_id: str,
     ) -> dict[str, Any]:
         """Get session-scoped variable(s)."""
         return await self._request(
