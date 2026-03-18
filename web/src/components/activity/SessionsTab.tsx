@@ -55,7 +55,6 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
   const [cliSessions, setCliSessions] = useState<GobbySession[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
-  const [mode, setMode] = useState<'observe' | 'attach'>('observe')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // No-op artifact context for MessageItem rendering
@@ -208,20 +207,9 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
       {/* Message area */}
       {selectedSessionId && (
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Mode bar */}
+          {/* Session header */}
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/30">
-            <button
-              className={`session-mode-btn${mode === 'observe' ? ' session-mode-btn--active' : ''}`}
-              onClick={() => setMode('observe')}
-            >
-              Observe
-            </button>
-            <button
-              className={`session-mode-btn${mode === 'attach' ? ' session-mode-btn--active' : ''}`}
-              onClick={() => setMode('attach')}
-            >
-              Attach
-            </button>
+            <span className="text-xs text-muted-foreground">Watching session</span>
             <button
               className="text-xs text-muted-foreground hover:text-foreground ml-auto"
               onClick={() => setSelectedSessionId(null)}
