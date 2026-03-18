@@ -3,7 +3,6 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ChatMessage } from '../../types/chat'
 import { MessageItem } from './MessageItem'
 import { MessageErrorBoundary } from './MessageErrorBoundary'
-import { PlanApprovalBar } from './PlanApprovalBar'
 import type { A2UISurfaceState, UserAction } from '../canvas'
 
 interface MessageListProps {
@@ -13,9 +12,6 @@ interface MessageListProps {
   isLoadingMessages?: boolean
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
   onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
-  planPendingApproval?: boolean
-  onApprovePlan?: () => void
-  onRequestPlanChanges?: (feedback: string) => void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
@@ -24,7 +20,7 @@ export interface MessageListHandle {
   scrollToBottom: () => void
 }
 
-export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({ messages, isStreaming, isThinking, isLoadingMessages, onRespondToQuestion, onRespondToApproval, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }, ref) {
+export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({ messages, isStreaming, isThinking, isLoadingMessages, onRespondToQuestion, onRespondToApproval, canvasSurfaces, onCanvasInteraction }, ref) {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const userScrolledUpRef = useRef(false)
 
@@ -44,11 +40,8 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
       {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
         <ThinkingIndicator />
       )}
-      {planPendingApproval && onApprovePlan && onRequestPlanChanges && (
-        <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
-      )}
     </>
-  ), [isThinking, messages, planPendingApproval, onApprovePlan, onRequestPlanChanges])
+  ), [isThinking, messages])
 
   // Stable reference for itemContent to avoid Virtuoso re-renders
   const itemContent = useCallback((index: number, message: ChatMessage) => (

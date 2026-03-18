@@ -258,9 +258,6 @@ export function ChatPage({
               isLoadingMessages={chat.isLoadingMessages}
               onRespondToQuestion={chat.onRespondToQuestion}
               onRespondToApproval={chat.onRespondToApproval}
-              planPendingApproval={chat.planPendingApproval}
-              onApprovePlan={handleApprovePlan}
-              onRequestPlanChanges={handleRequestPlanChanges}
               canvasSurfaces={chat.canvasSurfaces}
               onCanvasInteraction={chat.onCanvasInteraction}
             />
