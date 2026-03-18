@@ -304,10 +304,13 @@ def create_agents_registry(
         tmux_session_name = agent.tmux_session_name if agent else None
 
         # Database fallback: if not in registry, look up from DB
-        if agent_session_id is None:
+        if agent_session_id is None or tmux_session_name is None:
             db_run = runner.get_run(run_id)
-            if db_run and db_run.child_session_id:
-                agent_session_id = db_run.child_session_id
+            if db_run:
+                if agent_session_id is None and db_run.child_session_id:
+                    agent_session_id = db_run.child_session_id
+                if tmux_session_name is None and getattr(db_run, "tmux_session_name", None):
+                    tmux_session_name = db_run.tmux_session_name
 
         # Default: full cleanup. debug=True preserves state/terminal for inspection.
         close_terminal = not debug
@@ -318,11 +321,10 @@ def create_agents_registry(
             close_terminal=close_terminal,
         )
 
-        # Agent already exited — nothing to clean up
-        if result.get("already_completed"):
-            return result
+        # Agent already exited — still need tmux/session cleanup below
+        already_completed = result.get("already_completed", False)
 
-        if result.get("success"):
+        if result.get("success") or already_completed:
             # Self-termination (session_id path) → default success
             # Parent-initiated kill (run_id path) → default cancelled
             # Caller can override with explicit status
@@ -335,15 +337,16 @@ def create_agents_registry(
                 if caller_session_id and caller_session_id == agent_session_id:
                     is_self_termination = True
             effective_status = status or ("success" if is_self_termination else "cancelled")
-            if effective_status == "success":
-                runner.complete_run(run_id)
-            elif effective_status == "cancelled":
-                runner.cancel_run(run_id)
-            elif effective_status == "error":
-                runner.run_storage.fail(run_id, error="Agent self-reported error")
-            else:
-                runner.cancel_run(run_id)
-                effective_status = "cancelled"
+            if not already_completed:
+                if effective_status == "success":
+                    runner.complete_run(run_id)
+                elif effective_status == "cancelled":
+                    runner.cancel_run(run_id)
+                elif effective_status == "error":
+                    runner.run_storage.fail(run_id, error="Agent self-reported error")
+                else:
+                    runner.cancel_run(run_id)
+                    effective_status = "cancelled"
 
             # Notify completion registry so pipeline wait steps unblock
             if completion_registry and run_id:
