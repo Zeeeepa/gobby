@@ -160,6 +160,7 @@ export interface ConversationState {
     tmux_session_name?: string;
   }) => void;
   onKillAgent?: (runId: string) => void;
+  onExpireSession?: (sessionId: string) => void;
   cliSessions?: GobbySession[];
   viewingSessionId?: string | null;
   attachedSessionId?: string | null;

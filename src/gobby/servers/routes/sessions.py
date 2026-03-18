@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from gobby.servers.models import SessionRegisterRequest
+from gobby.sessions.terminal_kill import kill_terminal_session
 from gobby.sessions.transcript_archive import get_archive_dir, restore_transcript
 from gobby.telemetry.instruments import inc_counter
 
@@ -790,6 +791,42 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Update session status error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{session_id}/expire")
+    async def expire_session(session_id: str) -> dict[str, Any]:
+        """Expire a session, killing any associated terminal/tmux pane."""
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            if session.status == "expired":
+                return {"status": "already_expired", "session_id": session_id}
+
+            # Kill tmux pane / terminal process if present
+            terminal_killed = False
+            if session.terminal_context:
+                terminal_killed = await kill_terminal_session(
+                    session.terminal_context, session_id
+                )
+
+            server.session_manager.update_status(session_id, "expired")
+            await _broadcast_session("session_expired", session_id)
+
+            return {
+                "status": "expired",
+                "session_id": session_id,
+                "terminal_killed": terminal_killed,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Expire session error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/update_summary")

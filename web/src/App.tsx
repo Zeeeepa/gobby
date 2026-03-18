@@ -733,6 +733,24 @@ export default function App() {
     [showToast],
   );
 
+  /* Expire a session (CLI sessions — kills tmux + marks expired) */
+  const handleExpireSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        const res = await fetch(
+          `/api/sessions/${encodeURIComponent(sessionId)}/expire`,
+          { method: "POST" },
+        );
+        if (!res.ok) {
+          showToast("Failed to expire session");
+        }
+      } catch {
+        showToast("Failed to expire session");
+      }
+    },
+    [showToast],
+  );
+
   /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback(
     (context: string) => {
@@ -1103,6 +1121,7 @@ export default function App() {
                 agents,
                 onNavigateToAgent: handleNavigateToAgent,
                 onKillAgent: handleKillAgent,
+                onExpireSession: handleExpireSession,
                 // cliSessions hidden — agent-spawned terminals bleed into list (#9219).
                 // Backend code intact; re-enable by uncommenting and passing cliSessions.
                 // See commits: 65433c67, 401f2751, 206b27d1, 2769d980, 46ad405b

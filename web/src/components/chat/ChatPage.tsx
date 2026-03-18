@@ -323,6 +323,7 @@ export function ChatPage({
         onCloseCanvas={canvas.closeCanvas}
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
+        onExpireSession={conversations.onExpireSession}
         onAddFileToChat={handleAddFileToChat}
         isMobile={isMobile}
       />

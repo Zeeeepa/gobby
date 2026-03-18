@@ -50,6 +50,7 @@ interface ActivityPanelProps {
   onAddFileToChat?: (filePath: string) => void
   // Sessions tab
   onKillAgent?: (runId: string) => void
+  onExpireSession?: (sessionId: string) => void
   isMobile?: boolean
 }
 
@@ -72,6 +73,7 @@ export function ActivityPanel({
   projectId,
   onAddFileToChat,
   onKillAgent,
+  onExpireSession,
   isMobile = false,
 }: ActivityPanelProps) {
   if (!isPinned) return null
@@ -82,7 +84,7 @@ export function ActivityPanel({
   const tabContent = () => {
     switch (activeTab) {
       case 'sessions':
-        return <SessionsTab onKillAgent={onKillAgent} />
+        return <SessionsTab onKillAgent={onKillAgent} onExpireSession={onExpireSession} />
       case 'pipelines':
         return <PipelinesTab projectId={projectId} />
       case 'tasks':

@@ -17,19 +17,21 @@ interface RunningAgent {
 
 interface SessionsTabProps {
   onKillAgent?: (runId: string) => void
+  onExpireSession?: (sessionId: string) => void
 }
 
 function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || ''
 }
 
-export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTabProps) {
+export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSession }: SessionsTabProps) {
   const [agents, setAgents] = useState<RunningAgent[]>([])
   const [cliSessions, setCliSessions] = useState<GobbySession[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [topHeight, setTopHeight] = useState(35)
+  const [expiringIds, setExpiringIds] = useState<Set<string>>(new Set())
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // No-op artifact context for MessageItem rendering
@@ -51,6 +53,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
       const active = (activeRes.sessions ?? activeRes ?? []).filter((s: any) => s.source !== "pipeline" && s.source !== "cron")
       const paused = (pausedRes.sessions ?? pausedRes ?? []).filter((s: any) => s.source !== "pipeline" && s.source !== "cron")
       setCliSessions([...active, ...paused])
+      setExpiringIds(new Set())
       setFetchError(null)
     } catch (err) {
       console.error('Failed to fetch sessions:', err)
@@ -106,8 +109,9 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
         sessionMode: ((s.agent_depth ?? 0) > 0 ? 'autonomous' : 'interactive') as 'interactive' | 'autonomous',
       }))
 
-    return [...agentEntries, ...sessionEntries]
-  }, [agents, cliSessions])
+    // Filter out entries being expired
+    return [...agentEntries, ...sessionEntries].filter((e) => !expiringIds.has(e.id))
+  }, [agents, cliSessions, expiringIds])
 
   // Fetch selected session messages
   const { messages, isLoading } = useSessionDetail(selectedSessionId)
@@ -122,10 +126,16 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
     setSelectedSessionId((prev) => (prev === id ? null : id))
   }, [])
 
-  const handleKill = useCallback((runId: string) => {
-    if (!window.confirm('Kill this agent session?')) return
-    onKillAgent?.(runId)
-  }, [onKillAgent])
+  const handleExpire = useCallback((entry: SessionEntry) => {
+    if (!window.confirm('Expire this session?')) return
+    setExpiringIds((prev) => new Set(prev).add(entry.id))
+    setSelectedSessionId((prev) => (prev === entry.id ? null : prev))
+    if (entry.type === 'agent' && entry.runId) {
+      onKillAgent?.(entry.runId)
+    } else {
+      onExpireSession?.(entry.id)
+    }
+  }, [onKillAgent, onExpireSession])
 
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading sessions...</p></div>
@@ -171,15 +181,16 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
                 <span className="session-type-badge">
                   {isPaused ? 'Paused' : 'Active'}
                 </span>
-                {isSelected && entry.type === 'agent' && entry.runId && onKillAgent && (
-                  <button
-                    className="session-kill-btn"
-                    onClick={(e) => { e.stopPropagation(); handleKill(entry.runId!) }}
-                    title="Kill agent"
-                  >
-                    {'\u2717'}
-                  </button>
-                )}
+                <button
+                  className="session-expire-btn"
+                  onClick={(e) => { e.stopPropagation(); handleExpire(entry) }}
+                  title="Expire session"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                </button>
               </div>
             </div>
           )
