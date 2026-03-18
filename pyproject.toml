@@ -143,6 +143,13 @@ filterwarnings = [
     "ignore:unclosed database:ResourceWarning",
     # Ignore fork() deprecation warning from embedded spawner tests (expected on macOS)
     "ignore:This process.*is multi-threaded.*use of fork:DeprecationWarning",
+    # Ignore third-party deprecation warnings (litellm, google-genai, oletools)
+    "ignore::DeprecationWarning:litellm",
+    "ignore::DeprecationWarning:litellm.*",
+    "ignore::DeprecationWarning:google.genai",
+    "ignore::DeprecationWarning:google.genai.*",
+    "ignore::DeprecationWarning:oletools",
+    "ignore::DeprecationWarning:oletools.*",
 ]
 
 [tool.ruff]

@@ -964,3 +964,654 @@ class TestCheckTrustPrompts:
 
         # State should be cleared after cleanup
         assert monitor._prompt_detector.was_dismissed(run.id) is False
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage tests
+# ---------------------------------------------------------------------------
+
+
+class TestCheckExpiredAgents:
+    """Tests for check_expired_agents."""
+
+    @pytest.mark.asyncio
+    async def test_no_agents_returns_zero(
+        self,
+        monitor: AgentLifecycleMonitor,
+    ) -> None:
+        """Returns 0 when no agents in registry."""
+        cleaned = await monitor.check_expired_agents()
+        assert cleaned == 0
+
+    @pytest.mark.asyncio
+    async def test_agent_without_timeout_skipped(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Agents without timeout set are not killed."""
+        agent = RunningAgent(
+            run_id="run-no-timeout",
+            session_id="sess-1",
+            parent_session_id="sess-parent",
+            mode="terminal",
+            tmux_session_name="gobby-no-timeout",
+            timeout_seconds=None,
+        )
+        registry.add(agent)
+        cleaned = await monitor.check_expired_agents()
+        assert cleaned == 0
+
+    @pytest.mark.asyncio
+    async def test_agent_within_timeout_skipped(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Agents within their timeout are not killed."""
+        agent = RunningAgent(
+            run_id="run-not-expired",
+            session_id="sess-1",
+            parent_session_id="sess-parent",
+            mode="terminal",
+            tmux_session_name="gobby-not-expired",
+            started_at=datetime.now(UTC),
+            timeout_seconds=3600,
+        )
+        registry.add(agent)
+        cleaned = await monitor.check_expired_agents()
+        assert cleaned == 0
+
+    @pytest.mark.asyncio
+    async def test_expired_agent_killed(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Expired agent is killed and marked as failed."""
+        from datetime import timedelta
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-expired",
+        )
+        agent_run_manager.start(run.id)
+
+        agent = RunningAgent(
+            run_id=run.id,
+            session_id="sess-expired",
+            parent_session_id=sample_session["id"],
+            mode="terminal",
+            tmux_session_name="gobby-expired",
+            started_at=datetime.now(UTC) - timedelta(seconds=600),
+            timeout_seconds=300,
+        )
+        registry.add(agent)
+
+        with patch.object(
+            registry, "kill", new_callable=AsyncMock, return_value={"killed": True}
+        ):
+            cleaned = await monitor.check_expired_agents()
+
+        assert cleaned == 1
+        updated = agent_run_manager.get(run.id)
+        assert updated is not None
+        assert updated.status == "error"
+        assert "timeout" in (updated.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_expired_agent_releases_worktrees(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Expired agent cleanup releases worktrees."""
+        from datetime import timedelta
+
+        mock_coordinator = MagicMock()
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            session_coordinator=mock_coordinator,
+        )
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-exp-wt",
+        )
+        agent_run_manager.start(run.id)
+
+        agent = RunningAgent(
+            run_id=run.id,
+            session_id="sess-exp-wt",
+            parent_session_id=sample_session["id"],
+            mode="terminal",
+            tmux_session_name="gobby-exp-wt",
+            started_at=datetime.now(UTC) - timedelta(seconds=600),
+            timeout_seconds=300,
+        )
+        registry.add(agent)
+
+        with patch.object(
+            registry, "kill", new_callable=AsyncMock, return_value={"killed": True}
+        ):
+            await mon.check_expired_agents()
+
+        mock_coordinator.release_session_worktrees.assert_called_once_with(agent.session_id)
+
+    @pytest.mark.asyncio
+    async def test_expired_agent_releases_clones(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Expired agent cleanup releases clones."""
+        from datetime import timedelta
+
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.release = MagicMock()
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-exp-cl",
+        )
+        agent_run_manager.start(run.id)
+
+        agent = RunningAgent(
+            run_id=run.id,
+            session_id="sess-exp-cl",
+            parent_session_id=sample_session["id"],
+            mode="terminal",
+            tmux_session_name="gobby-exp-cl",
+            started_at=datetime.now(UTC) - timedelta(seconds=600),
+            timeout_seconds=300,
+            clone_id="clone-456",
+        )
+        registry.add(agent)
+
+        with patch.object(
+            registry, "kill", new_callable=AsyncMock, return_value={"killed": True}
+        ):
+            await mon.check_expired_agents()
+
+        mock_clone_storage.release.assert_called_once_with("clone-456")
+
+
+class TestCheckProviderStalls:
+    """Tests for check_provider_stalls."""
+
+    @pytest.mark.asyncio
+    async def test_no_agents_returns_zero(
+        self,
+        monitor: AgentLifecycleMonitor,
+    ) -> None:
+        """Returns 0 when no agents in registry."""
+        stalled = await monitor.check_provider_stalls()
+        assert stalled == 0
+
+    @pytest.mark.asyncio
+    async def test_healthy_agent_not_counted(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Healthy agent is not counted as stalled."""
+        _make_terminal_agent(registry, run_id="run-healthy", tmux_session_name="gobby-healthy")
+
+        with patch.object(
+            monitor._tmux,
+            "capture_pane",
+            new_callable=AsyncMock,
+            return_value="Working on task...\n",
+        ):
+            stalled = await monitor.check_provider_stalls()
+
+        assert stalled == 0
+
+    @pytest.mark.asyncio
+    async def test_capture_pane_error_handled(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Error during capture_pane is handled gracefully."""
+        _make_terminal_agent(registry, run_id="run-stall-err", tmux_session_name="gobby-stall-err")
+
+        with patch.object(
+            monitor._tmux,
+            "capture_pane",
+            new_callable=AsyncMock,
+            side_effect=OSError("tmux error"),
+        ):
+            stalled = await monitor.check_provider_stalls()
+
+        assert stalled == 0
+
+
+class TestCheckLoopPrompts:
+    """Tests for loop prompt detection and auto-dismissal."""
+
+    @pytest.mark.asyncio
+    async def test_dismisses_loop_prompt(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Loop prompt is dismissed by sending keys."""
+        _make_terminal_agent(registry, run_id="run-loop", tmux_session_name="gobby-loop")
+
+        loop_output = "It looks like you may be stuck in a loop. Continue? (y/n)\n"
+
+        with (
+            patch.object(
+                monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value=loop_output,
+            ),
+            patch.object(
+                monitor._tmux, "send_keys", new_callable=AsyncMock, return_value=True
+            ) as mock_send,
+            patch.object(
+                monitor._prompt_detector,
+                "detect_loop_prompt",
+                return_value=True,
+            ),
+        ):
+            handled = await monitor.check_loop_prompts()
+
+        assert handled == 1
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_loop_prompt(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Normal output does not trigger loop prompt dismissal."""
+        _make_terminal_agent(registry, run_id="run-noloop", tmux_session_name="gobby-noloop")
+
+        with (
+            patch.object(
+                monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value="Working...\n",
+            ),
+            patch.object(monitor._tmux, "send_keys", new_callable=AsyncMock) as mock_send,
+        ):
+            handled = await monitor.check_loop_prompts()
+
+        assert handled == 0
+        mock_send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_non_terminal_agents(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Non-terminal agents are skipped for loop prompt check."""
+        _make_autonomous_agent(registry, run_id="run-auto-loop")
+        handled = await monitor.check_loop_prompts()
+        assert handled == 0
+
+    @pytest.mark.asyncio
+    async def test_error_during_loop_check(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+    ) -> None:
+        """Error during loop prompt check is handled gracefully."""
+        _make_terminal_agent(registry, run_id="run-loop-err", tmux_session_name="gobby-loop-err")
+
+        with patch.object(
+            monitor._tmux,
+            "capture_pane",
+            new_callable=AsyncMock,
+            side_effect=OSError("tmux gone"),
+        ):
+            handled = await monitor.check_loop_prompts()
+
+        assert handled == 0
+
+
+class TestRecoverTaskFromFailedAgent:
+    """Tests for _recover_task_from_failed_agent."""
+
+    @pytest.mark.asyncio
+    async def test_no_task_manager_is_noop(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+    ) -> None:
+        """Without task_manager, recovery does nothing."""
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            task_manager=None,
+        )
+        # Should not raise
+        await mon._recover_task_from_failed_agent("nonexistent-run")
+
+    @pytest.mark.asyncio
+    async def test_no_db_run_is_noop(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+    ) -> None:
+        """When DB run not found, recovery does nothing."""
+        mock_task_manager = MagicMock()
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            task_manager=mock_task_manager,
+        )
+        await mon._recover_task_from_failed_agent("nonexistent-run")
+        mock_task_manager.update_task.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_recover_task_from_registry_fallback(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Task ID from in-memory registry is used when DB run has no task_id."""
+        mock_task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.status = "in_progress"
+        mock_task.seq_num = 1
+        mock_task_manager.get_task.return_value = mock_task
+        mock_task_manager.list_tasks.return_value = []
+
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            task_manager=mock_task_manager,
+        )
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-recov-reg",
+        )
+        agent_run_manager.start(run.id)
+
+        # Register agent with task_id in registry
+        agent = RunningAgent(
+            run_id=run.id,
+            session_id="sess-recov",
+            parent_session_id=sample_session["id"],
+            mode="terminal",
+            task_id="task-from-registry",
+        )
+        registry.add(agent)
+
+        await mon._recover_task_from_failed_agent(run.id)
+
+        mock_task_manager.update_task.assert_called_once_with(
+            "task-from-registry", status="open", assignee=None
+        )
+
+
+class TestSetSessionCoordinator:
+    """Tests for set_session_coordinator."""
+
+    def test_sets_coordinator(
+        self,
+        monitor: AgentLifecycleMonitor,
+    ) -> None:
+        """set_session_coordinator updates the coordinator reference."""
+        mock_coordinator = MagicMock()
+        monitor.set_session_coordinator(mock_coordinator)
+        assert monitor._session_coordinator is mock_coordinator
+
+
+class TestCleanupStalePendingRuns:
+    """Tests for cleanup_stale_pending_runs."""
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_agent_run_manager(
+        self,
+        monitor: AgentLifecycleMonitor,
+    ) -> None:
+        """cleanup_stale_pending_runs delegates to agent_run_manager."""
+        with patch.object(
+            monitor._agent_run_manager,
+            "cleanup_stale_pending_runs",
+            return_value=3,
+        ):
+            result = await monitor.cleanup_stale_pending_runs()
+        assert result == 3
+
+
+class TestFireOrphanCompletion:
+    """Tests for _fire_orphan_completion."""
+
+    @pytest.mark.asyncio
+    async def test_no_completion_registry_is_noop(
+        self,
+        monitor: AgentLifecycleMonitor,
+    ) -> None:
+        """Without completion_registry, nothing happens."""
+        assert monitor._completion_registry is None
+        # Should not raise
+        await monitor._fire_orphan_completion("run-123")
+
+    @pytest.mark.asyncio
+    async def test_fires_with_unregistered_run(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+    ) -> None:
+        """Registers and notifies for an unregistered run."""
+        mock_cr = MagicMock()
+        mock_cr.is_registered.return_value = False
+        mock_cr.notify = AsyncMock()
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            completion_registry=mock_cr,
+        )
+        await mon._fire_orphan_completion("run-orphan")
+        mock_cr.register.assert_called_once()
+        mock_cr.notify.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_fires_with_already_registered_run(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+    ) -> None:
+        """Notifies without re-registering an already registered run."""
+        mock_cr = MagicMock()
+        mock_cr.is_registered.return_value = True
+        mock_cr.notify = AsyncMock()
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            completion_registry=mock_cr,
+        )
+        await mon._fire_orphan_completion("run-registered")
+        mock_cr.register.assert_not_called()
+        mock_cr.notify.assert_called_once()
+
+
+class TestDeadAgentCompletionEvent:
+    """Tests for completion event firing in check_dead_agents."""
+
+    @pytest.mark.asyncio
+    async def test_fires_completion_on_dead_tmux_agent(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Completion event is fired when a dead tmux agent is cleaned up."""
+        mock_cr = MagicMock()
+        mock_cr.notify = AsyncMock()
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            completion_registry=mock_cr,
+        )
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-dead-cr",
+        )
+        agent_run_manager.start(run.id)
+        _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-dead-cr")
+
+        with patch.object(mon._tmux, "has_session", new_callable=AsyncMock, return_value=False):
+            await mon.check_dead_agents()
+
+        mock_cr.notify.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_releases_clones_on_dead_tmux_agent(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Clones are released when a dead tmux agent with clone_id is cleaned up."""
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.release = MagicMock()
+        mon = AgentLifecycleMonitor(
+            agent_registry=registry,
+            agent_run_manager=agent_run_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-dead-clone",
+        )
+        agent_run_manager.start(run.id)
+
+        agent = RunningAgent(
+            run_id=run.id,
+            session_id="sess-dead-clone",
+            parent_session_id=sample_session["id"],
+            mode="terminal",
+            tmux_session_name="gobby-dead-clone",
+            started_at=datetime.now(UTC),
+            clone_id="clone-789",
+        )
+        registry.add(agent)
+
+        with patch.object(mon._tmux, "has_session", new_callable=AsyncMock, return_value=False):
+            await mon.check_dead_agents()
+
+        mock_clone_storage.release.assert_called_once_with("clone-789")
+
+
+class TestDeadAgentKillsOrphanedProcess:
+    """Tests for killing orphaned processes in check_dead_agents."""
+
+    @pytest.mark.asyncio
+    async def test_kills_orphaned_process(
+        self,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+        monitor: AgentLifecycleMonitor,
+    ) -> None:
+        """Orphaned process receives SIGTERM when tmux is dead."""
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-orphan-pid",
+        )
+        agent_run_manager.start(run.id)
+
+        agent = RunningAgent(
+            run_id=run.id,
+            session_id="sess-orphan-pid",
+            parent_session_id=sample_session["id"],
+            mode="terminal",
+            tmux_session_name="gobby-orphan-pid",
+            started_at=datetime.now(UTC),
+            pid=999999,  # Non-existent PID
+        )
+        registry.add(agent)
+
+        with patch.object(
+            monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False
+        ):
+            cleaned = await monitor.check_dead_agents()
+
+        assert cleaned == 1
+
+
+class TestRecoverOrCleanupPidAliveNoTmux:
+    """Tests for recover_or_cleanup_agents when PID alive but tmux dead."""
+
+    @pytest.mark.asyncio
+    async def test_kills_orphan_when_pid_alive_tmux_dead(
+        self,
+        monitor: AgentLifecycleMonitor,
+        registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """When PID is alive but tmux is dead, the process is killed."""
+        import os
+
+        run = agent_run_manager.create(
+            parent_session_id=sample_session["id"],
+            provider="claude",
+            prompt="test",
+            run_id="run-pid-no-tmux",
+        )
+        agent_run_manager.start(run.id)
+        agent_run_manager.update_runtime(
+            run.id,
+            pid=os.getpid(),
+            tmux_session_name="gobby-dead-tmux",
+            mode="terminal",
+        )
+
+        # PID alive (current process), tmux dead
+        with (
+            patch.object(
+                monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False
+            ),
+            patch("os.kill") as mock_kill,
+        ):
+            recovered, cleaned = await monitor.recover_or_cleanup_agents()
+
+        assert recovered == 0
+        assert cleaned == 1
+        # os.kill called twice: once with signal 0 (alive check), once with SIGTERM (kill)
+        assert mock_kill.call_count == 2
+        import signal
+
+        mock_kill.assert_any_call(os.getpid(), signal.SIGTERM)
+        updated = agent_run_manager.get(run.id)
+        assert updated is not None
+        assert updated.status == "error"

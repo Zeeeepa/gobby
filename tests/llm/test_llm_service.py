@@ -26,7 +26,7 @@ def llm_config() -> DaemonConfig:
 @pytest.fixture
 def llm_config_empty_providers() -> DaemonConfig:
     """Create a DaemonConfig with empty LLM providers."""
-    return DaemonConfig(llm_providers=LLMProvidersConfig())
+    return DaemonConfig(llm_providers=LLMProvidersConfig(claude=None))
 
 
 @pytest.fixture
@@ -207,6 +207,7 @@ class TestLLMServiceGetDefaultProvider:
         # Config with only Gemini
         config = DaemonConfig(
             llm_providers=LLMProvidersConfig(
+                claude=None,
                 gemini=LLMProviderConfig(models="gemini-2.0-flash"),
             ),
         )
@@ -219,7 +220,7 @@ class TestLLMServiceGetDefaultProvider:
     def test_get_default_provider_no_enabled_raises(self) -> None:
         """Test error when no providers are enabled."""
         # Create config with empty llm_providers
-        config = DaemonConfig(llm_providers=LLMProvidersConfig())
+        config = DaemonConfig(llm_providers=LLMProvidersConfig(claude=None))
         service = LLMService(config)
 
         # Trying to get a default provider when none are enabled should raise

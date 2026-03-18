@@ -684,8 +684,7 @@ class TaskSyncManager:
 
         result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603
         if result.returncode != 0:
-            logger.warning(f"gh CLI failed: {result.stderr}")
-            return []
+            raise RuntimeError(f"gh command failed: {result.stderr}")
 
         parsed: list[dict[str, Any]] = json.loads(result.stdout)
         return parsed

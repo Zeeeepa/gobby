@@ -233,3 +233,251 @@ class TestGetClaimedTasks:
         assert "[in_progress]" in result
         assert "Fix the bug" in result
         assert "A short description" in result
+
+    def test_formats_task_without_seq_num(self) -> None:
+        """Tasks without seq_num use truncated ID as ref."""
+        from gobby.sessions.summarize import _get_claimed_tasks
+
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-1234-full"
+        mock_task.seq_num = None
+        mock_task.status = "open"
+        mock_task.title = "No seq num task"
+        mock_task.description = None
+
+        mock_db = MagicMock()
+        with (
+            patch("gobby.storage.session_tasks.SessionTaskManager") as MockSTM,
+            patch("gobby.storage.task_dependencies.TaskDependencyManager") as MockDep,
+        ):
+            MockSTM.return_value.get_session_tasks.return_value = [{"task": mock_task}]
+            MockDep.return_value.get_all_dependencies.return_value = []
+            result = _get_claimed_tasks("sess-1", mock_db)
+
+        assert "task-uui" in result
+        assert "[open]" in result
+
+    def test_formats_task_with_blockers(self) -> None:
+        """Tasks with blocking dependencies show blocker info."""
+        from gobby.sessions.summarize import _get_claimed_tasks
+
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-1234"
+        mock_task.seq_num = 5
+        mock_task.status = "blocked"
+        mock_task.title = "Blocked task"
+        mock_task.description = None
+
+        mock_dep = MagicMock()
+        mock_dep.dep_type = "blocks"
+        mock_dep.depends_on = "blocker-id-xyz"
+
+        mock_db = MagicMock()
+        with (
+            patch("gobby.storage.session_tasks.SessionTaskManager") as MockSTM,
+            patch("gobby.storage.task_dependencies.TaskDependencyManager") as MockDep,
+        ):
+            MockSTM.return_value.get_session_tasks.return_value = [{"task": mock_task}]
+            MockDep.return_value.get_all_dependencies.return_value = [mock_dep]
+            result = _get_claimed_tasks("sess-1", mock_db)
+
+        assert "Blocked by:" in result
+        assert "blocker-" in result
+
+    def test_long_description_truncated(self) -> None:
+        """Descriptions longer than 120 chars are truncated."""
+        from gobby.sessions.summarize import _get_claimed_tasks
+
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-1234"
+        mock_task.seq_num = 1
+        mock_task.status = "open"
+        mock_task.title = "Long desc task"
+        mock_task.description = "A" * 200
+
+        mock_db = MagicMock()
+        with (
+            patch("gobby.storage.session_tasks.SessionTaskManager") as MockSTM,
+            patch("gobby.storage.task_dependencies.TaskDependencyManager") as MockDep,
+        ):
+            MockSTM.return_value.get_session_tasks.return_value = [{"task": mock_task}]
+            MockDep.return_value.get_all_dependencies.return_value = []
+            result = _get_claimed_tasks("sess-1", mock_db)
+
+        assert "..." in result
+
+    def test_exception_returns_empty(self) -> None:
+        """Exception during task lookup returns empty string."""
+        from gobby.sessions.summarize import _get_claimed_tasks
+
+        mock_db = MagicMock()
+        with patch("gobby.storage.session_tasks.SessionTaskManager", side_effect=RuntimeError("fail")):
+            result = _get_claimed_tasks("sess-1", mock_db)
+        assert result == ""
+
+
+class TestGetSessionMemories:
+    """Tests for _get_session_memories()."""
+
+    def test_returns_empty_on_no_memories(self) -> None:
+        from gobby.sessions.summarize import _get_session_memories
+
+        mock_db = MagicMock()
+        mock_db.fetchall.return_value = []
+        result = _get_session_memories("sess-1", mock_db)
+        assert result == ""
+
+    def test_formats_memories(self) -> None:
+        from gobby.sessions.summarize import _get_session_memories
+
+        mock_db = MagicMock()
+        mock_db.fetchall.return_value = [
+            {"content": "Remember this fact", "tags": '["tag1", "tag2"]', "memory_type": "fact"},
+        ]
+        result = _get_session_memories("sess-1", mock_db)
+        assert "[fact]" in result
+        assert "Remember this fact" in result
+        assert "tag1, tag2" in result
+
+    def test_truncates_long_content(self) -> None:
+        from gobby.sessions.summarize import _get_session_memories
+
+        mock_db = MagicMock()
+        mock_db.fetchall.return_value = [
+            {"content": "X" * 300, "tags": None, "memory_type": None},
+        ]
+        result = _get_session_memories("sess-1", mock_db)
+        assert "..." in result
+        assert "[fact]" in result  # default memory_type
+
+    def test_invalid_tags_json_kept_as_string(self) -> None:
+        from gobby.sessions.summarize import _get_session_memories
+
+        mock_db = MagicMock()
+        mock_db.fetchall.return_value = [
+            {"content": "data", "tags": "not-json", "memory_type": "note"},
+        ]
+        result = _get_session_memories("sess-1", mock_db)
+        assert "not-json" in result
+
+    def test_exception_returns_empty(self) -> None:
+        from gobby.sessions.summarize import _get_session_memories
+
+        mock_db = MagicMock()
+        mock_db.fetchall.side_effect = RuntimeError("db error")
+        result = _get_session_memories("sess-1", mock_db)
+        assert result == ""
+
+
+class TestExtractDigestTurns:
+    """Tests for _extract_digest_turns()."""
+
+    def test_none_input(self) -> None:
+        from gobby.sessions.summarize import _extract_digest_turns
+
+        first, recent = _extract_digest_turns(None)
+        assert first == ""
+        assert recent == ""
+
+    def test_empty_string(self) -> None:
+        from gobby.sessions.summarize import _extract_digest_turns
+
+        first, recent = _extract_digest_turns("")
+        assert first == ""
+        assert recent == ""
+
+    def test_no_turn_structure(self) -> None:
+        from gobby.sessions.summarize import _extract_digest_turns
+
+        text = "Just some text without turn headers. " * 20
+        first, recent = _extract_digest_turns(text)
+        assert len(first) <= 500
+        assert recent == ""
+
+    def test_single_turn(self) -> None:
+        from gobby.sessions.summarize import _extract_digest_turns
+
+        text = "### Turn 1\nDid some work."
+        first, recent = _extract_digest_turns(text)
+        assert "Turn 1" in first
+        assert "Did some work" in first
+
+    def test_multiple_turns(self) -> None:
+        from gobby.sessions.summarize import _extract_digest_turns
+
+        text = (
+            "### Turn 1\nFirst turn content.\n"
+            "### Turn 2\nSecond turn content.\n"
+            "### Turn 3\nThird turn content.\n"
+        )
+        first, recent = _extract_digest_turns(text)
+        assert "Turn 1" in first
+        assert "Turn 2" in recent or "Turn 3" in recent
+
+    def test_truncation_on_long_turns(self) -> None:
+        from gobby.sessions.summarize import _extract_digest_turns
+
+        long_content = "X" * 2000
+        text = f"### Turn 1\n{long_content}\n### Turn 2\n{long_content}\n"
+        first, recent = _extract_digest_turns(text)
+        assert len(first) <= 810  # 800 + "..."
+        assert len(recent) <= 1510
+
+
+class TestReadTranscript:
+    """Tests for _read_transcript()."""
+
+    @pytest.mark.asyncio
+    async def test_reads_valid_jsonl(self, tmp_path: Path) -> None:
+        from gobby.sessions.summarize import _read_transcript
+
+        path = tmp_path / "transcript.jsonl"
+        lines = [
+            json.dumps({"type": "human", "content": "hello"}),
+            json.dumps({"type": "assistant", "content": "hi"}),
+        ]
+        path.write_text("\n".join(lines))
+        turns = await _read_transcript(path)
+        assert len(turns) == 2
+
+    @pytest.mark.asyncio
+    async def test_skips_malformed_lines(self, tmp_path: Path) -> None:
+        from gobby.sessions.summarize import _read_transcript
+
+        path = tmp_path / "transcript.jsonl"
+        lines = [
+            json.dumps({"type": "human"}),
+            "not valid json{{{",
+            json.dumps({"type": "assistant"}),
+        ]
+        path.write_text("\n".join(lines))
+        turns = await _read_transcript(path)
+        assert len(turns) == 2
+
+    @pytest.mark.asyncio
+    async def test_skips_empty_lines(self, tmp_path: Path) -> None:
+        from gobby.sessions.summarize import _read_transcript
+
+        path = tmp_path / "transcript.jsonl"
+        path.write_text(json.dumps({"type": "human"}) + "\n\n\n")
+        turns = await _read_transcript(path)
+        assert len(turns) == 1
+
+
+class TestWriteFiles:
+    """Tests for _write_files()."""
+
+    @pytest.mark.asyncio
+    async def test_no_write_when_disabled(self) -> None:
+        from gobby.sessions.summarize import _write_files
+
+        sm = MagicMock()
+        result = await _write_files(
+            session_id="s1",
+            full_markdown="# Full",
+            compact_markdown="# Compact",
+            write_file=False,
+            output_path="~/.gobby/summaries",
+            session_manager=sm,
+        )
+        assert result == []

@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -1396,3 +1396,203 @@ class TestRunningAgentRegistryEdgeCases:
         registry.add(agent)
 
         assert call_count[0] == 1
+
+
+class TestValidateTerminalValue:
+    """Tests for _validate_terminal_value helper function."""
+
+    def test_valid_tmux_pane(self) -> None:
+        """Valid tmux pane format (%N)."""
+        from gobby.agents.registry import _validate_terminal_value
+
+        assert _validate_terminal_value("tmux_pane", "%0") is True
+        assert _validate_terminal_value("tmux_pane", "%123") is True
+
+    def test_invalid_tmux_pane(self) -> None:
+        """Invalid tmux pane formats."""
+        from gobby.agents.registry import _validate_terminal_value
+
+        assert _validate_terminal_value("tmux_pane", "0") is False
+        assert _validate_terminal_value("tmux_pane", "%abc") is False
+        assert _validate_terminal_value("tmux_pane", "") is False
+        assert _validate_terminal_value("tmux_pane", "; rm -rf /") is False
+
+    def test_valid_parent_pid(self) -> None:
+        """Valid parent_pid format (digits only)."""
+        from gobby.agents.registry import _validate_terminal_value
+
+        assert _validate_terminal_value("parent_pid", "12345") is True
+        assert _validate_terminal_value("parent_pid", "0") is True
+
+    def test_invalid_parent_pid(self) -> None:
+        """Invalid parent_pid formats."""
+        from gobby.agents.registry import _validate_terminal_value
+
+        assert _validate_terminal_value("parent_pid", "abc") is False
+        assert _validate_terminal_value("parent_pid", "12 34") is False
+        assert _validate_terminal_value("parent_pid", "-1") is False
+
+    def test_valid_session_id(self) -> None:
+        """Valid session_id format (alphanumeric, hyphens, underscores)."""
+        from gobby.agents.registry import _validate_terminal_value
+
+        assert _validate_terminal_value("session_id", "abc-123_def") is True
+        assert _validate_terminal_value("session_id", "UUID-format-test") is True
+
+    def test_invalid_session_id(self) -> None:
+        """Invalid session_id formats."""
+        from gobby.agents.registry import _validate_terminal_value
+
+        assert _validate_terminal_value("session_id", "has space") is False
+        assert _validate_terminal_value("session_id", "has;semicolon") is False
+
+    def test_unknown_key(self) -> None:
+        """Unknown keys always return False."""
+        from gobby.agents.registry import _validate_terminal_value
+
+        assert _validate_terminal_value("unknown_key", "anything") is False
+
+
+class TestRunningAgentRegistryKill:
+    """Tests for RunningAgentRegistry.kill() method."""
+
+    @pytest.fixture
+    def registry(self):
+        return RunningAgentRegistry()
+
+    @pytest.mark.asyncio
+    async def test_kill_not_in_registry(self, registry) -> None:
+        """kill() returns already_completed for unregistered agent."""
+        result = await registry.kill("nonexistent-run")
+        assert result["success"] is True
+        assert result["already_completed"] is True
+
+    @pytest.mark.asyncio
+    async def test_kill_in_process_with_task(self, registry) -> None:
+        """kill() cancels asyncio task for in_process mode."""
+        mock_task = MagicMock()
+        agent = RunningAgent(
+            run_id="ar-inproc",
+            session_id="sess-inproc",
+            parent_session_id="parent",
+            mode="in_process",
+            task=mock_task,
+        )
+        registry.add(agent)
+
+        result = await registry.kill("ar-inproc")
+
+        assert result["success"] is True
+        assert "Cancelled" in result["message"]
+        mock_task.cancel.assert_called_once()
+        assert registry.get("ar-inproc") is None
+
+    @pytest.mark.asyncio
+    async def test_kill_autonomous_with_task(self, registry) -> None:
+        """kill() cancels asyncio task for autonomous mode."""
+        mock_task = MagicMock()
+        agent = RunningAgent(
+            run_id="ar-auto",
+            session_id="sess-auto",
+            parent_session_id="parent",
+            mode="autonomous",
+            task=mock_task,
+        )
+        registry.add(agent)
+
+        result = await registry.kill("ar-auto")
+
+        assert result["success"] is True
+        mock_task.cancel.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_kill_no_pid_found(self, registry) -> None:
+        """kill() returns error when no PID can be found."""
+        agent = RunningAgent(
+            run_id="ar-nopid",
+            session_id="sess-nopid",
+            parent_session_id="parent",
+            mode="terminal",
+            pid=None,
+        )
+        registry.add(agent)
+
+        with patch("gobby.storage.database.LocalDatabase"):
+            with patch("gobby.storage.sessions.LocalSessionManager") as MockSM:
+                MockSM.return_value.get.return_value = None
+                result = await registry.kill("ar-nopid")
+
+        assert result["success"] is False
+        assert "No target PID" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_kill_process_already_dead(self, registry) -> None:
+        """kill() handles already-dead process."""
+
+        agent = RunningAgent(
+            run_id="ar-dead",
+            session_id="sess-dead",
+            parent_session_id="parent",
+            mode="terminal",
+            pid=99999999,
+        )
+        registry.add(agent)
+
+        with patch("os.kill", side_effect=ProcessLookupError):
+            result = await registry.kill("ar-dead")
+
+        assert result["success"] is True
+        assert result.get("already_dead") is True
+
+    @pytest.mark.asyncio
+    async def test_kill_permission_error(self, registry) -> None:
+        """kill() handles permission errors."""
+        agent = RunningAgent(
+            run_id="ar-perm",
+            session_id="sess-perm",
+            parent_session_id="parent",
+            mode="terminal",
+            pid=1,
+        )
+        registry.add(agent)
+
+        with patch("os.kill", side_effect=PermissionError):
+            result = await registry.kill("ar-perm")
+
+        assert result["success"] is False
+        assert "permission" in result["error"].lower()
+
+
+class TestRunSubprocess:
+    """Tests for _run_subprocess method."""
+
+    @pytest.fixture
+    def registry(self):
+        return RunningAgentRegistry()
+
+    @pytest.mark.asyncio
+    async def test_run_subprocess_success(self, registry) -> None:
+        """_run_subprocess returns (rc, stdout, stderr)."""
+        rc, stdout, stderr = await registry._run_subprocess("echo", "hello")
+        assert rc == 0
+        assert "hello" in stdout
+
+    @pytest.mark.asyncio
+    async def test_run_subprocess_timeout(self, registry) -> None:
+        """_run_subprocess raises TimeoutError on timeout."""
+        with pytest.raises(TimeoutError):
+            await registry._run_subprocess("sleep", "10", timeout=0.1)
+
+
+class TestEmitEvent:
+    """Tests for emit_event public method."""
+
+    def test_emit_event_calls_callbacks(self) -> None:
+        """emit_event dispatches to registered callbacks."""
+        registry = RunningAgentRegistry()
+        callback = MagicMock()
+        registry.add_event_callback(callback)
+
+        registry.emit_event("custom_event", "run-123", {"key": "value"})
+
+        callback.assert_called_once_with("custom_event", "run-123", {"key": "value"})

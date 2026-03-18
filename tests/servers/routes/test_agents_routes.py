@@ -448,3 +448,487 @@ class TestCrudRoundTrip:
         # Delete
         resp = client.delete(f"/api/agents/definitions/{defn_id}")
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# POST /api/agents/definitions/{id}/restore
+# ---------------------------------------------------------------------------
+
+
+class TestRestoreDefinition:
+    def test_restore_soft_deleted(self, client: TestClient) -> None:
+        """Soft-deleted definition can be restored."""
+        created = client.post("/api/agents/definitions", json={"name": "restorable"}).json()[
+            "definition"
+        ]
+        client.delete(f"/api/agents/definitions/{created['id']}")
+        response = client.post(f"/api/agents/definitions/{created['id']}/restore")
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+    def test_restore_not_found(self, client: TestClient) -> None:
+        """Restoring a nonexistent definition returns 404."""
+        response = client.post("/api/agents/definitions/nonexistent-id/restore")
+        assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/agents/definitions/{id}/rules
+# ---------------------------------------------------------------------------
+
+
+class TestPatchRules:
+    def test_add_rules(self, client: TestClient) -> None:
+        """Add rules to an agent definition."""
+        created = client.post("/api/agents/definitions", json={"name": "rules-test"}).json()[
+            "definition"
+        ]
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rules",
+            json={"add": ["rule-a", "rule-b"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "rule-a" in data["rules"]
+        assert "rule-b" in data["rules"]
+
+    def test_remove_rules(self, client: TestClient) -> None:
+        """Remove rules from an agent definition."""
+        created = client.post("/api/agents/definitions", json={"name": "rules-rm"}).json()[
+            "definition"
+        ]
+        # Add first
+        client.patch(
+            f"/api/agents/definitions/{created['id']}/rules",
+            json={"add": ["rule-x", "rule-y"]},
+        )
+        # Then remove
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rules",
+            json={"remove": ["rule-x"]},
+        )
+        assert response.status_code == 200
+        assert "rule-x" not in response.json()["rules"]
+        assert "rule-y" in response.json()["rules"]
+
+    def test_add_duplicate_rule_is_idempotent(self, client: TestClient) -> None:
+        """Adding a rule that already exists does not duplicate it."""
+        created = client.post("/api/agents/definitions", json={"name": "rules-dup"}).json()[
+            "definition"
+        ]
+        client.patch(
+            f"/api/agents/definitions/{created['id']}/rules",
+            json={"add": ["rule-a"]},
+        )
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rules",
+            json={"add": ["rule-a"]},
+        )
+        assert response.status_code == 200
+        assert response.json()["rules"].count("rule-a") == 1
+
+    def test_patch_rules_not_found(self, client: TestClient) -> None:
+        """Patching rules on nonexistent definition returns 404."""
+        response = client.patch(
+            "/api/agents/definitions/nonexistent-id/rules",
+            json={"add": ["rule-a"]},
+        )
+        assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/agents/definitions/{id}/rule-selectors
+# ---------------------------------------------------------------------------
+
+
+class TestPatchRuleSelectors:
+    def test_add_include_selectors(self, client: TestClient) -> None:
+        """Add include selectors to an agent definition."""
+        created = client.post("/api/agents/definitions", json={"name": "sel-test"}).json()[
+            "definition"
+        ]
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"add_include": ["tag:security"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "tag:security" in data["rule_selectors"]["include"]
+
+    def test_add_exclude_selectors(self, client: TestClient) -> None:
+        """Add exclude selectors."""
+        created = client.post("/api/agents/definitions", json={"name": "sel-excl"}).json()[
+            "definition"
+        ]
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"add_exclude": ["tag:experimental"]},
+        )
+        assert response.status_code == 200
+        assert "tag:experimental" in response.json()["rule_selectors"]["exclude"]
+
+    def test_remove_include_selectors(self, client: TestClient) -> None:
+        """Remove include selectors."""
+        created = client.post("/api/agents/definitions", json={"name": "sel-rm"}).json()[
+            "definition"
+        ]
+        client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"add_include": ["tag:a", "tag:b"]},
+        )
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"remove_include": ["tag:a"]},
+        )
+        assert response.status_code == 200
+        assert "tag:a" not in response.json()["rule_selectors"]["include"]
+        assert "tag:b" in response.json()["rule_selectors"]["include"]
+
+    def test_remove_exclude_selectors(self, client: TestClient) -> None:
+        """Remove exclude selectors."""
+        created = client.post("/api/agents/definitions", json={"name": "sel-rm-excl"}).json()[
+            "definition"
+        ]
+        client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"add_exclude": ["tag:x", "tag:y"]},
+        )
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"remove_exclude": ["tag:x"]},
+        )
+        assert response.status_code == 200
+        assert "tag:x" not in response.json()["rule_selectors"]["exclude"]
+
+    def test_patch_selectors_not_found(self, client: TestClient) -> None:
+        """Patching selectors on nonexistent definition returns 404."""
+        response = client.patch(
+            "/api/agents/definitions/nonexistent-id/rule-selectors",
+            json={"add_include": ["tag:a"]},
+        )
+        assert response.status_code == 404
+
+    def test_add_duplicate_selector_is_idempotent(self, client: TestClient) -> None:
+        """Adding a selector that already exists does not duplicate it."""
+        created = client.post("/api/agents/definitions", json={"name": "sel-dup"}).json()[
+            "definition"
+        ]
+        client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"add_include": ["tag:a"]},
+        )
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/rule-selectors",
+            json={"add_include": ["tag:a"]},
+        )
+        assert response.status_code == 200
+        assert response.json()["rule_selectors"]["include"].count("tag:a") == 1
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/agents/definitions/{id}/variables
+# ---------------------------------------------------------------------------
+
+
+class TestPatchVariables:
+    def test_set_variables(self, client: TestClient) -> None:
+        """Set variables on an agent definition."""
+        created = client.post("/api/agents/definitions", json={"name": "var-test"}).json()[
+            "definition"
+        ]
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/variables",
+            json={"set": {"key1": "value1", "key2": 42}},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["variables"]["key1"] == "value1"
+        assert data["variables"]["key2"] == 42
+
+    def test_remove_variables(self, client: TestClient) -> None:
+        """Remove variables from an agent definition."""
+        created = client.post("/api/agents/definitions", json={"name": "var-rm"}).json()[
+            "definition"
+        ]
+        client.patch(
+            f"/api/agents/definitions/{created['id']}/variables",
+            json={"set": {"a": 1, "b": 2}},
+        )
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/variables",
+            json={"remove": ["a"]},
+        )
+        assert response.status_code == 200
+        assert "a" not in response.json()["variables"]
+        assert response.json()["variables"]["b"] == 2
+
+    def test_set_and_remove_in_one_request(self, client: TestClient) -> None:
+        """Set and remove variables in the same request."""
+        created = client.post("/api/agents/definitions", json={"name": "var-both"}).json()[
+            "definition"
+        ]
+        client.patch(
+            f"/api/agents/definitions/{created['id']}/variables",
+            json={"set": {"old": "val"}},
+        )
+        response = client.patch(
+            f"/api/agents/definitions/{created['id']}/variables",
+            json={"set": {"new": "val2"}, "remove": ["old"]},
+        )
+        assert response.status_code == 200
+        assert "old" not in response.json()["variables"]
+        assert response.json()["variables"]["new"] == "val2"
+
+    def test_patch_variables_not_found(self, client: TestClient) -> None:
+        """Patching variables on nonexistent definition returns 404."""
+        response = client.patch(
+            "/api/agents/definitions/nonexistent-id/variables",
+            json={"set": {"key": "val"}},
+        )
+        assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /api/agents/definitions (source_filter)
+# ---------------------------------------------------------------------------
+
+
+class TestListDefinitionsSourceFilter:
+    def test_source_filter(
+        self, client: TestClient, agent_manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Listing with source_filter only returns matching sources."""
+        body1 = AgentDefinitionBody(
+            name="src-a", sources=["claude"], provider="claude", mode="autonomous"
+        )
+        agent_manager.create(
+            name="src-a",
+            definition_json=body1.model_dump_json(),
+            workflow_type="agent",
+            source="installed",
+            enabled=True,
+        )
+        body2 = AgentDefinitionBody(
+            name="src-b", sources=["gemini"], provider="gemini", mode="autonomous"
+        )
+        agent_manager.create(
+            name="src-b",
+            definition_json=body2.model_dump_json(),
+            workflow_type="agent",
+            source="installed",
+            enabled=True,
+        )
+        response = client.get("/api/agents/definitions?source_filter=claude")
+        assert response.status_code == 200
+        data = response.json()
+        names = [d["definition"]["name"] for d in data["definitions"]]
+        assert "src-a" in names
+        assert "src-b" not in names
+
+
+# ---------------------------------------------------------------------------
+# POST /api/agents/definitions/{name}/install
+# ---------------------------------------------------------------------------
+
+
+class TestInstallFromTemplate:
+    def test_install_from_template(
+        self, client: TestClient, agent_manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Install creates a copy from a template definition."""
+        _create_agent_row(agent_manager, "tmpl-worker", source="template")
+        response = client.post("/api/agents/definitions/tmpl-worker/install")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+
+    def test_install_template_not_found(self, client: TestClient) -> None:
+        """Installing from a nonexistent template returns 404."""
+        response = client.post("/api/agents/definitions/nonexistent/install")
+        assert response.status_code == 404
+
+    def test_install_from_non_template_not_found(
+        self, client: TestClient, agent_manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Installing from a non-template source returns 404."""
+        _create_agent_row(agent_manager, "installed-worker", source="installed")
+        response = client.post("/api/agents/definitions/installed-worker/install")
+        assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/agents/definitions/{id} — nested field updates
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateDefinitionNestedFields:
+    def test_update_workflows(self, client: TestClient) -> None:
+        """Update workflows field replaces it wholesale."""
+        created = client.post("/api/agents/definitions", json={"name": "wf-update"}).json()[
+            "definition"
+        ]
+        response = client.put(
+            f"/api/agents/definitions/{created['id']}",
+            json={"workflows": {"rules": ["rule-a"]}},
+        )
+        assert response.status_code == 200
+
+    def test_update_sandbox_config(self, client: TestClient) -> None:
+        """Update sandbox_config maps to sandbox field."""
+        created = client.post("/api/agents/definitions", json={"name": "sb-update"}).json()[
+            "definition"
+        ]
+        response = client.put(
+            f"/api/agents/definitions/{created['id']}",
+            json={"sandbox_config": {"network": False}},
+        )
+        assert response.status_code == 200
+
+    def test_update_lifecycle_variables(self, client: TestClient) -> None:
+        """Update lifecycle_variables."""
+        created = client.post("/api/agents/definitions", json={"name": "lv-update"}).json()[
+            "definition"
+        ]
+        response = client.put(
+            f"/api/agents/definitions/{created['id']}",
+            json={"lifecycle_variables": {"on_start": "hello"}},
+        )
+        assert response.status_code == 200
+
+    def test_update_default_variables(self, client: TestClient) -> None:
+        """Update default_variables."""
+        created = client.post("/api/agents/definitions", json={"name": "dv-update"}).json()[
+            "definition"
+        ]
+        response = client.put(
+            f"/api/agents/definitions/{created['id']}",
+            json={"default_variables": {"key": "val"}},
+        )
+        assert response.status_code == 200
+
+    def test_update_steps(self, client: TestClient) -> None:
+        """Update steps field."""
+        created = client.post("/api/agents/definitions", json={"name": "steps-update"}).json()[
+            "definition"
+        ]
+        response = client.put(
+            f"/api/agents/definitions/{created['id']}",
+            json={"steps": [{"name": "step1", "prompt": "Do something"}]},
+        )
+        assert response.status_code == 200
+
+    def test_update_blocked_tools(self, client: TestClient) -> None:
+        """Update blocked_tools and blocked_mcp_tools."""
+        created = client.post("/api/agents/definitions", json={"name": "bt-update"}).json()[
+            "definition"
+        ]
+        response = client.put(
+            f"/api/agents/definitions/{created['id']}",
+            json={"blocked_tools": ["Bash"], "blocked_mcp_tools": ["dangerous_tool"]},
+        )
+        assert response.status_code == 200
+
+    def test_update_name_field(self, client: TestClient) -> None:
+        """Update name updates both body and row-level name."""
+        created = client.post("/api/agents/definitions", json={"name": "nm-update"}).json()[
+            "definition"
+        ]
+        response = client.put(
+            f"/api/agents/definitions/{created['id']}",
+            json={"name": "renamed-agent"},
+        )
+        assert response.status_code == 200
+        assert response.json()["definition"]["name"] == "renamed-agent"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/agents/definitions (include_deleted)
+# ---------------------------------------------------------------------------
+
+
+class TestListDefinitionsIncludeDeleted:
+    def test_include_deleted_true(
+        self, client: TestClient, agent_manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """include_deleted=true shows soft-deleted definitions."""
+        row = _create_agent_row(agent_manager, "del-show")
+        agent_manager.delete(row.id)
+        response = client.get("/api/agents/definitions?include_deleted=true")
+        assert response.status_code == 200
+        names = [d["definition"]["name"] for d in response.json()["definitions"]]
+        assert "del-show" in names
+
+    def test_include_deleted_false_hides(
+        self, client: TestClient, agent_manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """include_deleted=false hides soft-deleted definitions."""
+        row = _create_agent_row(agent_manager, "del-hide")
+        agent_manager.delete(row.id)
+        response = client.get("/api/agents/definitions?include_deleted=false")
+        assert response.status_code == 200
+        names = [d["definition"]["name"] for d in response.json()["definitions"]]
+        assert "del-hide" not in names
+
+
+# ---------------------------------------------------------------------------
+# POST /api/agents/definitions (with workflows and blocked tools)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateDefinitionExtended:
+    def test_create_with_workflows(self, client: TestClient) -> None:
+        """Create with workflows dict."""
+        response = client.post(
+            "/api/agents/definitions",
+            json={
+                "name": "wf-agent",
+                "workflows": {"rules": ["rule-1"]},
+            },
+        )
+        assert response.status_code == 200
+
+    def test_create_with_blocked_tools(self, client: TestClient) -> None:
+        """Create with blocked_tools and blocked_mcp_tools."""
+        response = client.post(
+            "/api/agents/definitions",
+            json={
+                "name": "blocked-agent",
+                "blocked_tools": ["Bash"],
+                "blocked_mcp_tools": ["dangerous"],
+            },
+        )
+        assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Error path: export raises generic exception
+# ---------------------------------------------------------------------------
+
+
+class TestExportDefinitionErrors:
+    def test_export_generic_error(self, client: TestClient) -> None:
+        """Export returns 500 on generic exceptions."""
+        with patch(
+            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager.list_all",
+            side_effect=RuntimeError("unexpected"),
+        ):
+            response = client.get("/api/agents/definitions/any-name/export")
+        assert response.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# Error path: delete generic exception
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteDefinitionErrors:
+    def test_delete_generic_error(self, client: TestClient) -> None:
+        """Delete returns 500 on generic exceptions."""
+        with patch(
+            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager.delete",
+            side_effect=RuntimeError("boom"),
+        ):
+            response = client.delete("/api/agents/definitions/any-id")
+        assert response.status_code == 500
