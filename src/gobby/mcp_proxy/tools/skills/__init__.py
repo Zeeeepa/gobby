@@ -892,8 +892,9 @@ def create_skills_registry(
             # Notifier triggers re-indexing automatically via create_skill
 
             # Persist skill files if loaded
-            if hasattr(parsed_skill, 'loaded_files') and parsed_skill.loaded_files:
+            if hasattr(parsed_skill, "loaded_files") and parsed_skill.loaded_files:
                 from gobby.storage.skills import SkillFile
+
                 skill_files = [
                     SkillFile(
                         id="",

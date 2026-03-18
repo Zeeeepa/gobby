@@ -71,9 +71,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
                         # (independent of task-claim gate — rules need this
                         # for per-session has_dirty_files scoping)
                         if file_path:
-                            self._track_session_edited_file(
-                                session_id, str(file_path), event.cwd
-                            )
+                            self._track_session_edited_file(session_id, str(file_path), event.cwd)
 
                         # Check if session has any claimed tasks before marking had_edits
                         has_claimed_task = False
@@ -97,9 +95,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
 
         return HookResponse(decision="allow")
 
-    def _track_session_edited_file(
-        self, session_id: str, file_path: str, cwd: str | None
-    ) -> None:
+    def _track_session_edited_file(self, session_id: str, file_path: str, cwd: str | None) -> None:
         """Record a repo-relative file path in session_edited_files variable.
 
         Used to scope ``has_dirty_files`` to only files this session touched,

@@ -198,7 +198,14 @@ class LocalProjectManager:
         if not fields:
             return self.get(project_id)
 
-        allowed = {"name", "repo_path", "github_url", "github_repo", "linear_team_id", "linear_synced_at"}
+        allowed = {
+            "name",
+            "repo_path",
+            "github_url",
+            "github_repo",
+            "linear_team_id",
+            "linear_synced_at",
+        }
         fields = {k: v for k, v in fields.items() if k in allowed}
         if not fields:
             return self.get(project_id)

@@ -102,7 +102,9 @@ class CostCalculator:
         cache_read_rate = cost.cache_read if cost.cache_read is not None else input_rate * 0.1
 
         # Check for long-context pricing surcharge
-        total_input = max(0, input_tokens) + max(0, cache_creation_tokens) + max(0, cache_read_tokens)
+        total_input = (
+            max(0, input_tokens) + max(0, cache_creation_tokens) + max(0, cache_read_tokens)
+        )
         lc_multiplier = self._get_long_context_multiplier(model, total_input)
         if lc_multiplier is not None:
             input_rate *= lc_multiplier

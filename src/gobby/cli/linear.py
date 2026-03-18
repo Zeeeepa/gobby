@@ -301,9 +301,7 @@ def linear_auto_sync(interval: int, disable: bool) -> None:
                 interval_seconds=interval,
                 enabled=1,
             )
-            click.echo(
-                f"✓ Updated Linear auto-sync job: interval={interval}s (id={existing.id})"
-            )
+            click.echo(f"✓ Updated Linear auto-sync job: interval={interval}s (id={existing.id})")
         else:
             job = cron_storage.create_job(
                 project_id=project_id,

@@ -199,9 +199,7 @@ class RuleEngine:
 
                 # 4b. Agent-level tool enforcement (broadest scope, preempts everything)
                 if rule_event == RuleEvent.BEFORE_TOOL:
-                    agent_block = self._check_agent_tool_enforcement(
-                        event, session_id, variables
-                    )
+                    agent_block = self._check_agent_tool_enforcement(event, session_id, variables)
                     if agent_block is not None:
                         variables["tool_block_pending"] = True
                         variables["_last_blocked_tool"] = _get_tool_identity(event.data)
@@ -929,7 +927,7 @@ class RuleEngine:
 
         # Discovery/infrastructure tools always pass
         if tool_name.startswith("mcp__gobby__"):
-            mcp_suffix = tool_name[len("mcp__gobby__"):]
+            mcp_suffix = tool_name[len("mcp__gobby__") :]
             if is_discovery_tool(mcp_suffix) or is_infrastructure_tool(mcp_suffix):
                 return None
 
@@ -945,7 +943,9 @@ class RuleEngine:
 
         # Check MCP tool restrictions (for call_tool)
         if blocked_mcp_tools and tool_name in (
-            "call_tool", "mcp__gobby__call_tool", "mcp_gobby_call_tool"
+            "call_tool",
+            "mcp__gobby__call_tool",
+            "mcp_gobby_call_tool",
         ):
             tool_input = event.data.get("tool_input") or {}
             if isinstance(tool_input, dict):
@@ -956,11 +956,7 @@ class RuleEngine:
                 if is_discovery_tool(mcp_tool_name):
                     return None
 
-                mcp_key = (
-                    f"{mcp_server}:{mcp_tool_name}"
-                    if mcp_server and mcp_tool_name
-                    else ""
-                )
+                mcp_key = f"{mcp_server}:{mcp_tool_name}" if mcp_server and mcp_tool_name else ""
 
                 if mcp_key and self._mcp_tool_matches(mcp_key, blocked_mcp_tools):
                     return HookResponse(

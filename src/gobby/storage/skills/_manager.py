@@ -498,7 +498,11 @@ class LocalSkillManager:
                 (skill_id,),
             ).fetchall()
             existing_by_path: dict[str, dict] = {
-                row["path"]: {"id": row["id"], "hash": row["content_hash"], "deleted": row["deleted_at"]}
+                row["path"]: {
+                    "id": row["id"],
+                    "hash": row["content_hash"],
+                    "deleted": row["deleted_at"],
+                }
                 for row in existing_rows
             }
 
@@ -516,7 +520,14 @@ class LocalSkillManager:
                                SET content = ?, content_hash = ?, size_bytes = ?,
                                    file_type = ?, deleted_at = NULL, updated_at = ?
                                WHERE id = ?""",
-                            (f.content, f.content_hash, f.size_bytes, f.file_type, now, existing["id"]),
+                            (
+                                f.content,
+                                f.content_hash,
+                                f.size_bytes,
+                                f.file_type,
+                                now,
+                                existing["id"],
+                            ),
                         )
                         changed += 1
                     elif existing["hash"] != f.content_hash:
@@ -526,7 +537,14 @@ class LocalSkillManager:
                                SET content = ?, content_hash = ?, size_bytes = ?,
                                    file_type = ?, updated_at = ?
                                WHERE id = ?""",
-                            (f.content, f.content_hash, f.size_bytes, f.file_type, now, existing["id"]),
+                            (
+                                f.content,
+                                f.content_hash,
+                                f.size_bytes,
+                                f.file_type,
+                                now,
+                                existing["id"],
+                            ),
                         )
                         changed += 1
                     # else: hash matches, skip
@@ -538,8 +556,17 @@ class LocalSkillManager:
                            (id, skill_id, path, file_type, content, content_hash,
                             size_bytes, created_at, updated_at)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (file_id, skill_id, f.path, f.file_type, f.content,
-                         f.content_hash, f.size_bytes, now, now),
+                        (
+                            file_id,
+                            skill_id,
+                            f.path,
+                            f.file_type,
+                            f.content,
+                            f.content_hash,
+                            f.size_bytes,
+                            now,
+                            now,
+                        ),
                     )
                     changed += 1
 
@@ -582,7 +609,11 @@ class LocalSkillManager:
             conditions.append("file_type != 'license'")
 
         where = " AND ".join(conditions)
-        cols = "*" if include_content else "id, skill_id, path, file_type, content_hash, size_bytes, deleted_at, created_at, updated_at"
+        cols = (
+            "*"
+            if include_content
+            else "id, skill_id, path, file_type, content_hash, size_bytes, deleted_at, created_at, updated_at"
+        )
 
         rows = self.db.fetchall(
             f"SELECT {cols} FROM skill_files WHERE {where} ORDER BY path",  # nosec B608
@@ -594,18 +625,20 @@ class LocalSkillManager:
             if include_content:
                 result.append(SkillFile.from_row(row))
             else:
-                result.append(SkillFile(
-                    id=row["id"],
-                    skill_id=row["skill_id"],
-                    path=row["path"],
-                    file_type=row["file_type"],
-                    content="",  # Not loaded
-                    content_hash=row["content_hash"],
-                    size_bytes=row["size_bytes"],
-                    deleted_at=row["deleted_at"],
-                    created_at=row["created_at"],
-                    updated_at=row["updated_at"],
-                ))
+                result.append(
+                    SkillFile(
+                        id=row["id"],
+                        skill_id=row["skill_id"],
+                        path=row["path"],
+                        file_type=row["file_type"],
+                        content="",  # Not loaded
+                        content_hash=row["content_hash"],
+                        size_bytes=row["size_bytes"],
+                        deleted_at=row["deleted_at"],
+                        created_at=row["created_at"],
+                        updated_at=row["updated_at"],
+                    )
+                )
         return result
 
     def get_skill_file(self, skill_id: str, path: str) -> SkillFile | None:

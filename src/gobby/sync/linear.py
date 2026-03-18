@@ -349,9 +349,7 @@ class LinearSyncService:
 
                 # Update task from Linear data
                 linear_state = issue.get("state", {})
-                state_name = (
-                    linear_state.get("name", "") if isinstance(linear_state, dict) else ""
-                )
+                state_name = linear_state.get("name", "") if isinstance(linear_state, dict) else ""
                 gobby_status = self.map_linear_status_to_gobby(state_name)
                 priority_val = issue.get("priority", 2)
 
@@ -394,8 +392,7 @@ class LinearSyncService:
         else:
             # No previous sync — push all linked tasks
             rows = self.task_manager.db.fetchall(
-                "SELECT id FROM tasks "
-                "WHERE project_id = ? AND linear_issue_id IS NOT NULL",
+                "SELECT id FROM tasks WHERE project_id = ? AND linear_issue_id IS NOT NULL",
                 (self.project_id,),
             )
 

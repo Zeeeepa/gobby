@@ -705,7 +705,11 @@ def install(
 
     # Prompt for API keys (interactive) or show instructions (non-interactive)
     api_key_result = _prompt_api_keys(no_interactive=no_interactive_flag)
-    if no_interactive_flag or (api_key_result["stored"] == 0 and api_key_result["already_configured"] == 0 and api_key_result["env_found"] == 0):
+    if no_interactive_flag or (
+        api_key_result["stored"] == 0
+        and api_key_result["already_configured"] == 0
+        and api_key_result["env_found"] == 0
+    ):
         click.echo("\nMCP Servers (via Gobby proxy):")
         click.echo("  Configure API keys to enable external integrations:")
         click.echo("    gobby secrets set github_personal_access_token")

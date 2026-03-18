@@ -191,7 +191,9 @@ def register_health_routes(router: APIRouter, server: "HTTPServer") -> None:
                     qdrant_client = getattr(vector_store, "_client", None)
                     if qdrant_client is not None:
                         try:
-                            await asyncio.to_thread(qdrant_client.count, vector_store._collection_name)
+                            await asyncio.to_thread(
+                                qdrant_client.count, vector_store._collection_name
+                            )
                             qdrant_healthy = True
                         except Exception:
                             qdrant_healthy = False

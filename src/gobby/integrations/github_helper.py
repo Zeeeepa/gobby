@@ -151,9 +151,7 @@ class GitHubMCPHelper:
                                 ),
                                 "date": commit_data.get("author", {}).get("date", ""),
                                 "html_url": item.get("html_url", ""),
-                                "author_avatar": (item.get("author") or {}).get(
-                                    "avatar_url", ""
-                                ),
+                                "author_avatar": (item.get("author") or {}).get("avatar_url", ""),
                             }
                         )
                 return commits

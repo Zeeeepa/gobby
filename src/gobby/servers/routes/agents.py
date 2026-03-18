@@ -335,8 +335,11 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             if "default_variables" in fields:
                 body_dict["default_variables"] = fields["default_variables"]
             for key in (
-                "steps", "step_variables", "exit_condition",
-                "blocked_tools", "blocked_mcp_tools",
+                "steps",
+                "step_variables",
+                "exit_condition",
+                "blocked_tools",
+                "blocked_mcp_tools",
             ):
                 if key in fields:
                     body_dict[key] = fields[key]

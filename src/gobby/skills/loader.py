@@ -80,27 +80,70 @@ class LoadedSkillFile:
 
 
 # File extensions considered binary (skip these during loading)
-_BINARY_EXTENSIONS = frozenset({
-    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg",
-    ".webp", ".mp3", ".mp4", ".wav", ".ogg", ".webm",
-    ".woff", ".woff2", ".ttf", ".eot", ".otf",
-    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z",
-    ".pdf", ".doc", ".docx", ".xls", ".xlsx",
-    ".pyc", ".pyo", ".so", ".dylib", ".dll", ".exe",
-    ".class", ".jar", ".o", ".a",
-})
+_BINARY_EXTENSIONS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        ".webp",
+        ".mp3",
+        ".mp4",
+        ".wav",
+        ".ogg",
+        ".webm",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".otf",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".pyc",
+        ".pyo",
+        ".so",
+        ".dylib",
+        ".dll",
+        ".exe",
+        ".class",
+        ".jar",
+        ".o",
+        ".a",
+    }
+)
 
 # Directories to skip during recursive scan
-_SKIP_DIRS = frozenset({
-    "__pycache__", "node_modules", ".git", ".svn", ".hg",
-    ".DS_Store", "__MACOSX",
-})
+_SKIP_DIRS = frozenset(
+    {
+        "__pycache__",
+        "node_modules",
+        ".git",
+        ".svn",
+        ".hg",
+        ".DS_Store",
+        "__MACOSX",
+    }
+)
 
 # Files to skip (SKILL.md is handled separately as main content)
 _SKIP_FILES = frozenset({"SKILL.md"})
 
 # License file names (stored as type "license", not surfaced to agents)
-_LICENSE_FILES = frozenset({"LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "LICENCE.txt", "LICENCE.md"})
+_LICENSE_FILES = frozenset(
+    {"LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "LICENCE.txt", "LICENCE.md"}
+)
 
 
 def _classify_file(rel_path: str, filename: str) -> str:
@@ -646,13 +689,15 @@ class SkillLoader:
             content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
             file_type = _classify_file(rel_path, file_path.name)
 
-            files.append(LoadedSkillFile(
-                path=rel_path,
-                file_type=file_type,
-                content=content,
-                content_hash=content_hash,
-                size_bytes=len(content.encode("utf-8")),
-            ))
+            files.append(
+                LoadedSkillFile(
+                    path=rel_path,
+                    file_type=file_type,
+                    content=content,
+                    content_hash=content_hash,
+                    size_bytes=len(content.encode("utf-8")),
+                )
+            )
 
         return sorted(files, key=lambda f: f.path)
 

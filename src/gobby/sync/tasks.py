@@ -572,7 +572,11 @@ class TaskSyncManager:
                     labels = [lbl.get("name") for lbl in issue.get("labels", []) if lbl.get("name")]
                     labels_json = json.dumps(labels) if labels else None
 
-                    created_at = issue.get("createdAt") or issue.get("created_at") or datetime.now(UTC).isoformat()
+                    created_at = (
+                        issue.get("createdAt")
+                        or issue.get("created_at")
+                        or datetime.now(UTC).isoformat()
+                    )
                     updated_at = datetime.now(UTC).isoformat()
 
                     exists = self.db.fetchone("SELECT 1 FROM tasks WHERE id = ?", (task_id,))
@@ -662,11 +666,17 @@ class TaskSyncManager:
             return None
 
         cmd = [
-            "gh", "issue", "list",
-            "--repo", f"{owner}/{repo}",
-            "--state", "open",
-            "--limit", str(limit),
-            "--json", "number,title,body,labels,createdAt",
+            "gh",
+            "issue",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--state",
+            "open",
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,body,labels,createdAt",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603

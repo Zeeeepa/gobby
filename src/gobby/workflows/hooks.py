@@ -150,9 +150,7 @@ class WorkflowHookHandler:
                 # Legacy fallback: no per-session tracking, baseline subtraction
                 return bool(dirty - _base)
 
-            eval_context = {
-                "has_dirty_files": LazyBool(_check_dirty)
-            }
+            eval_context = {"has_dirty_files": LazyBool(_check_dirty)}
 
             # Snapshot BEFORE observers to capture both observer and rule changes in the diff
             pre_eval = deepcopy(variables)

@@ -173,9 +173,7 @@ class SessionVariableManager:
                 )
         return True
 
-    def append_to_set_variable(
-        self, session_id: str, name: str, values: list[str]
-    ) -> bool:
+    def append_to_set_variable(self, session_id: str, name: str, values: list[str]) -> bool:
         """Atomically append values to a list variable (deduped, sorted).
 
         Uses BEGIN IMMEDIATE to serialize the read-modify-write, preventing

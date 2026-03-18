@@ -118,9 +118,7 @@ def main() -> int:
     if payload:
         port = _read_daemon_port()
         payload_bytes = json.dumps(payload).encode()
-        thread = threading.Thread(
-            target=_post_to_daemon, args=(port, payload_bytes), daemon=True
-        )
+        thread = threading.Thread(target=_post_to_daemon, args=(port, payload_bytes), daemon=True)
         thread.start()
 
     # Forward to downstream if configured

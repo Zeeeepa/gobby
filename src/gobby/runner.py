@@ -1371,4 +1371,3 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main(config_path=args.config, verbose=args.verbose)
-
