@@ -2426,6 +2426,16 @@
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+.files-code-viewer {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.files-code-viewer > div {
+  min-height: 100%;
+}
+
 /* File context menu */
 .file-ctx-backdrop {
   position: fixed;

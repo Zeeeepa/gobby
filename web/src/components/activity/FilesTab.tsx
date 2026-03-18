@@ -3,6 +3,24 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 
+// Custom theme matching the app (same as FilesPage)
+const codeTheme = {
+  ...oneDark,
+  'pre[class*="language-"]': {
+    ...oneDark['pre[class*="language-"]'],
+    background: '#0a0a0a',
+    margin: '0',
+    padding: '1rem',
+    borderRadius: '0',
+    fontSize: '0.9em',
+  },
+  'code[class*="language-"]': {
+    ...oneDark['code[class*="language-"]'],
+    background: 'transparent',
+    fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
+  },
+}
+
 interface FilesTabProps {
   projectId?: string | null
   onAddToChat?: (filePath: string) => void
@@ -296,19 +314,21 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
             ) : (
               <SyntaxHighlighter
                 language={language}
-                style={oneDark}
+                style={codeTheme}
+                PreTag="div"
                 showLineNumbers
+                lineNumberStyle={{
+                  minWidth: '3em',
+                  paddingRight: '1em',
+                  textAlign: 'right',
+                  userSelect: 'none',
+                  color: '#555',
+                }}
                 customStyle={{
                   margin: 0,
-                  padding: '0.75rem',
-                  fontSize: '12px',
-                  background: '#0a0a0a',
-                  fontFamily: '"SF Mono", "Fira Code", "JetBrains Mono", monospace',
-                  whiteSpace: 'pre',
-                  wordBreak: 'keep-all',
-                  overflowWrap: 'normal',
+                  borderRadius: 0,
+                  minHeight: '100%',
                 }}
-                lineNumberStyle={{ minWidth: '2.5em', paddingRight: '1em', color: 'var(--text-muted)', opacity: 0.5 }}
               >
                 {fileContent ?? ''}
               </SyntaxHighlighter>
