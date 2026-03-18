@@ -371,6 +371,12 @@ export function useChat() {
     localStorage.setItem(ACTIVE_AGENT_KEY, activeAgent);
   }, [activeAgent]);
 
+  // Keep a ref so onopen/reconnect can read the current project
+  const projectIdRef = useRef<string | null>(null);
+  const setProjectIdRef = useCallback((id: string | null) => {
+    projectIdRef.current = id;
+  }, []);
+
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false);
   const planContentRef = useRef<string | null>(null);
@@ -521,6 +527,17 @@ export function useChat() {
             conversation_id: conversationIdRef.current,
           }),
         );
+
+        // Re-sync current project on connect/reconnect
+        if (projectIdRef.current) {
+          ws.send(
+            JSON.stringify({
+              type: "set_project",
+              conversation_id: conversationIdRef.current,
+              project_id: projectIdRef.current,
+            }),
+          );
+        }
 
         // Re-sync persisted agent on reconnect
         ws.send(
@@ -2192,6 +2209,7 @@ export function useChat() {
     sendMessage,
     sendMode,
     sendProjectChange,
+    setProjectIdRef,
     sendWorktreeChange,
     sendAgentChange,
     activeAgent,
