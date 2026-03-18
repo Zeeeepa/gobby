@@ -57,6 +57,7 @@ from gobby.llm.sdk_utils import (
     parse_server_name as _parse_server_name,
 )
 from gobby.servers.chat_session_helpers import (
+    _PLAN_FILE_PATTERN,
     PendingApproval,
     _find_cli_path,
     _find_mcp_config,
@@ -343,9 +344,29 @@ class ChatSession(ChatSessionPermissionsMixin):
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
+                tool_name = inp.get("tool_name", "")
+                tool_input = inp.get("tool_input", {})
+
+                # Detect plan file writes in plan mode → broadcast to frontend
+                if (
+                    tool_name in ("Write", "Edit")
+                    and self.chat_mode == "plan"
+                    and not self._plan_approved
+                    and isinstance(tool_input, dict)
+                ):
+                    file_path = tool_input.get("file_path", "")
+                    if _PLAN_FILE_PATTERN.match(file_path):
+                        plan_content = self._read_plan_file()
+                        if plan_content and self._on_plan_ready:
+                            await self._on_plan_ready(plan_content, tool_input)
+                            logger.info(
+                                "Plan file written, broadcast plan_pending_approval for %s",
+                                self.conversation_id[:8],
+                            )
+
                 data = {
-                    "tool_name": inp.get("tool_name", ""),
-                    "tool_input": inp.get("tool_input", {}),
+                    "tool_name": tool_name,
+                    "tool_input": tool_input,
                     "tool_response": inp.get("tool_response"),
                 }
                 resp = await cb_post(data)
