@@ -511,7 +511,7 @@ function FileContent({ file, getImageUrl, onContentChange, onSave, editorViewRef
   if (file.language === 'markdown') {
     return (
       <div className="files-code-viewer">
-        <div className="files-markdown-viewer">
+        <div className="files-markdown-viewer message-content">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {file.content}
           </ReactMarkdown>

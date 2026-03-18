@@ -378,7 +378,7 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
                 onSave={handleSaveEdit}
               />
             ) : language === 'markdown' ? (
-              <div className="files-markdown-viewer">
+              <div className="files-markdown-viewer message-content">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {fileContent ?? ''}
                 </ReactMarkdown>
