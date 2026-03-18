@@ -2161,6 +2161,213 @@
 }
 
 /* ============================================
+   Tasks Tab — compact panel tree
+   ============================================ */
+.paneltask-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.paneltask-search {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.75);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.paneltask-search:focus {
+  border-color: var(--accent);
+}
+
+.paneltask-search::placeholder {
+  color: var(--text-muted);
+}
+
+.paneltask-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: calc(var(--font-size-base) * 0.65);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.paneltask-toggle input {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.paneltask-count {
+  font-size: calc(var(--font-size-base) * 0.65);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 1.5rem;
+  text-align: right;
+}
+
+.paneltask {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  font-size: calc(var(--font-size-base) * 0.8);
+  transition: background 0.1s;
+  border-left: 2px solid transparent;
+}
+
+.paneltask:hover {
+  background: var(--bg-tertiary);
+}
+
+.paneltask--selected {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-left-color: var(--accent);
+}
+
+.paneltask--closed {
+  opacity: 0.5;
+}
+
+.paneltask-chevron {
+  font-size: 0.7em;
+  color: var(--text-muted);
+  width: 0.875rem;
+  text-align: center;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.paneltask-chevron--leaf {
+  visibility: hidden;
+}
+
+.paneltask-ref {
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.7);
+  flex-shrink: 0;
+}
+
+.paneltask-title {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Detail pane */
+.paneltask-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.paneltask-detail-close {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.125rem;
+  line-height: 1;
+  transition: color 0.1s;
+}
+
+.paneltask-detail-close:hover {
+  color: var(--text-primary);
+}
+
+.paneltask-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.paneltask-detail-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.paneltask-pill {
+  font-size: calc(var(--font-size-base) * 0.6);
+  padding: 0.0625rem 0.375rem;
+  border: 1px solid currentColor;
+  border-radius: 9999px;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+
+.paneltask-pill--type {
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.paneltask-detail-title {
+  font-size: calc(var(--font-size-base) * 0.9);
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.paneltask-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: calc(var(--font-size-base) * 0.7);
+  color: var(--text-muted);
+}
+
+.paneltask-detail-sep {
+  opacity: 0.4;
+}
+
+.paneltask-detail-section {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.paneltask-detail-label {
+  font-size: calc(var(--font-size-base) * 0.65);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.25rem;
+}
+
+.paneltask-detail-dates {
+  display: flex;
+  gap: 0.75rem;
+  font-size: calc(var(--font-size-base) * 0.65);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 0.375rem;
+}
+
+/* ============================================
    Files Tab
    ============================================ */
 .file-tree-entry {
