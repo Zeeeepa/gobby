@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } from '@codemirror/language'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
-import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
+import { oneDark } from '@codemirror/theme-one-dark'
 import { javascript } from '@codemirror/lang-javascript'
 import { python } from '@codemirror/lang-python'
 import { json } from '@codemirror/lang-json'
@@ -80,7 +80,7 @@ export function CodeMirrorEditor({ content, language, readOnly = false, onChange
       indentOnInput(),
       highlightSelectionMatches(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      syntaxHighlighting(oneDarkHighlightStyle),
+      oneDark,
       keymap.of([
         ...defaultKeymap,
         ...historyKeymap,
