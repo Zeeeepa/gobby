@@ -101,17 +101,29 @@ export function useSessions() {
     }
   }, [filters.source, filters.projectId]);
 
-  const fetchProjects = useCallback(async () => {
-    try {
-      const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/api/files/projects`);
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
+  const fetchProjects = useCallback(async (retries = 3, delay = 2000) => {
+    let attempt = 0;
+    while (attempt <= retries) {
+      try {
+        const baseUrl = getBaseUrl();
+        const response = await fetch(`${baseUrl}/api/files/projects`);
+        if (response.ok) {
+          const data = await response.json();
+          setProjects(data);
+          return;
+        } else {
+          throw new Error(`Failed to fetch projects: ${response.status}`);
+        }
+      } catch (e) {
+        attempt++;
+        if (attempt <= retries) {
+          console.warn(`Fetch projects failed, retrying in ${delay}ms... (attempt ${attempt}/${retries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          console.error("Failed to fetch projects after retries:", e);
+          setError(e instanceof Error ? e : new Error(String(e)));
+        }
       }
-    } catch (e) {
-      console.error("Failed to fetch projects:", e);
-      setError(e instanceof Error ? e : new Error(String(e)));
     }
   }, []);
 

@@ -241,4 +241,65 @@ describe('useSessions', () => {
     expect(result.current.isLoading).toBe(true)
     await waitFor(() => expect(result.current.isLoading).toBe(false))
   })
+
+  it('retries fetching projects on failure', async () => {
+    mockFetch.resetRoutes()
+    
+    // First call fails, second succeeds
+    let calls = 0
+    mockFetch.fn.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.includes('/api/files/projects')) {
+        calls++
+        if (calls === 1) {
+          return new Response('Error', { status: 500 })
+        }
+        return new Response(JSON.stringify([{ id: 'proj-1', name: 'Test Project' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      if (url.includes('/api/sessions')) {
+        return new Response(JSON.stringify({ sessions: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('Not Found', { status: 404 })
+    })
+
+    const { result } = renderHook(() => useSessions())
+
+    // Initial state: projects empty
+    expect(result.current.projects).toHaveLength(0)
+
+    // Wait for retry (2s delay) + fetch time
+    await waitFor(() => expect(result.current.projects).toHaveLength(1), { timeout: 5000 })
+    expect(result.current.projects[0].name).toBe('Test Project')
+    expect(calls).toBe(2)
+  }, 10000)
+
+  it('eventually fails projects fetch after 3 retries', async () => {
+    mockFetch.resetRoutes()
+    
+    // All 4 attempts fail
+    let calls = 0
+    mockFetch.fn.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.includes('/api/files/projects')) {
+        calls++
+        return new Response('Error', { status: 500 })
+      }
+      if (url.includes('/api/sessions')) {
+        return new Response(JSON.stringify({ sessions: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('Not Found', { status: 404 })
+    })
+
+    const { result } = renderHook(() => useSessions())
+
+    // Initial state: projects empty
+    expect(result.current.projects).toHaveLength(0)
+
+    // Wait for all retries (2s * 3 retries = 6s)
+    await waitFor(() => expect(result.current.error).toBeTruthy(), { timeout: 15000 })
+    expect(calls).toBe(4)
+  }, 20000)
 })
