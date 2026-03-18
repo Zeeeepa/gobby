@@ -184,6 +184,32 @@ class PipelineExecutor:
                 exc_info=True,
             )
 
+    def _close_pipeline_session(
+        self,
+        pipeline_session_id: str | None,
+        caller_session_id: str | None,
+    ) -> None:
+        """Close the pipeline's child session after execution finishes.
+
+        Pipeline sessions are implementation details — they should not
+        linger in the user's session list.  Fail-open: errors are logged
+        but never propagate.
+        """
+        if (
+            not pipeline_session_id
+            or not self.session_manager
+            or pipeline_session_id == caller_session_id
+        ):
+            return
+        try:
+            self.session_manager.update_status(pipeline_session_id, "deleted")
+        except Exception:
+            logger.warning(
+                "Failed to close pipeline session %s",
+                pipeline_session_id,
+                exc_info=True,
+            )
+
     async def execute(
         self,
         pipeline: PipelineDefinition,
@@ -562,6 +588,9 @@ class PipelineExecutor:
                     span.set_attribute("status", "completed")
                     span.set_attribute("step_count", len(pipeline.steps))
 
+                # Close pipeline session (implementation detail, not user-facing)
+                self._close_pipeline_session(pipeline_session_id, caller_session_id)
+
                 return execution
 
             except ApprovalRequired:
@@ -621,6 +650,9 @@ class PipelineExecutor:
                     await self._notify_completion(
                         execution.id, "failed", pipeline.name, error=str(e)
                     )
+
+                    # Close pipeline session on failure too
+                    self._close_pipeline_session(pipeline_session_id, caller_session_id)
                 raise
 
     async def _execute_step(

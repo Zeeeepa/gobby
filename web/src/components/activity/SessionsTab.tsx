@@ -74,8 +74,9 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTa
         fetch(`${baseUrl}/api/sessions?status=paused&limit=20`).then((r) => (r.ok ? r.json() : { sessions: [] })),
       ])
       setAgents(agentsRes.agents ?? agentsRes ?? [])
-      const active = activeRes.sessions ?? activeRes ?? []
-      const paused = pausedRes.sessions ?? pausedRes ?? []
+      const HIDDEN_SOURCES = new Set(["pipeline", "cron"])
+      const active = (activeRes.sessions ?? activeRes ?? []).filter((s: any) => !HIDDEN_SOURCES.has(s.source))
+      const paused = (pausedRes.sessions ?? pausedRes ?? []).filter((s: any) => !HIDDEN_SOURCES.has(s.source))
       setCliSessions([...active, ...paused])
     } catch {
       // Keep existing data on error
