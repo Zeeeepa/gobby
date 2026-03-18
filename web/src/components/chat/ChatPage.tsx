@@ -200,7 +200,7 @@ export function ChatPage({
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">
       {/* Main chat column */}
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-[400px]">
         {/* Command Bar */}
         <CommandBar
           sessionRef={effectiveSessionRef}
@@ -225,7 +225,7 @@ export function ChatPage({
 
         <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
           {/* Messages */}
-          <div className="flex-1 min-h-0">
+          <div className="flex flex-col flex-1 min-h-0">
             <MessageList
               ref={messageListRef}
               messages={chat.messages}
@@ -298,8 +298,6 @@ export function ChatPage({
         canvasState={canvas.activeCanvas}
         onCloseCanvas={canvas.closeCanvas}
         projectId={projectId}
-        agents={conversations.agents}
-        cliSessions={conversations.cliSessions}
         onKillAgent={conversations.onKillAgent}
         isMobile={isMobile}
       />

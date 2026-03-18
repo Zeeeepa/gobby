@@ -1,7 +1,6 @@
 import { memo, useState, useEffect, useCallback } from 'react'
 import '../tasks/task-execution.css'
 import type { GobbyTask } from '../../hooks/useTasks'
-import { StatusDot } from '../tasks/TaskBadges'
 import { Markdown } from '../chat/Markdown'
 
 interface TasksTabProps {
@@ -17,6 +16,23 @@ interface GobbyTaskDetail extends GobbyTask {
 
 const CLOSED_STATUSES = new Set(['closed', 'review_approved'])
 
+const STATUS_DOT_COLORS: Record<string, string> = {
+  open: '#3b82f6',
+  in_progress: '#f59e0b',
+  needs_review: '#8b5cf6',
+  review_approved: '#22c55e',
+  closed: '#737373',
+  escalated: '#ef4444',
+}
+
+const PRIORITY_TEXT_COLORS: Record<number, string> = {
+  0: 'var(--status-escalated, #ef4444)',  // critical
+  1: 'var(--status-escalated, #ef4444)',  // high
+  2: 'var(--status-progress, #f59e0b)',   // medium
+  3: 'var(--text-secondary, #a3a3a3)',    // low
+  4: 'var(--text-muted, #737373)',        // backlog
+}
+
 function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || ''
 }
@@ -26,8 +42,7 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
   const [loading, setLoading] = useState(true)
   const [showClosed, setShowClosed] = useState(false)
   const [search, setSearch] = useState('')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [taskDetail, setTaskDetail] = useState<GobbyTaskDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
@@ -46,88 +61,42 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
       .finally(() => setLoading(false))
   }, [projectId, showClosed])
 
-  // Fetch task detail when selected
+  // Fetch task detail when expanded
   useEffect(() => {
-    if (!selectedTaskId) { setTaskDetail(null); return }
+    if (!expandedId) { setTaskDetail(null); return }
     setDetailLoading(true)
     const baseUrl = getBaseUrl()
-    fetch(`${baseUrl}/api/tasks/${selectedTaskId}`)
+    fetch(`${baseUrl}/api/tasks/${expandedId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setTaskDetail(data?.id ? data : (data?.task ?? null)))
       .catch(() => setTaskDetail(null))
       .finally(() => setDetailLoading(false))
-  }, [selectedTaskId])
+  }, [expandedId])
 
-  // Build tree
-  const taskMap = new Map<string, GobbyTask & { children: GobbyTask[] }>()
-  for (const t of tasks) taskMap.set(t.id, { ...t, children: [] })
-  const roots: (GobbyTask & { children: GobbyTask[] })[] = []
-  for (const t of taskMap.values()) {
-    if (t.parent_task_id && taskMap.has(t.parent_task_id)) {
-      taskMap.get(t.parent_task_id)!.children.push(t)
-    } else {
-      roots.push(t)
-    }
-  }
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id))
+  }, [])
 
-  // Search filter
+  // Flat list sorted by priority then recency
   const q = search.toLowerCase().trim()
-  const matchesSearch = (t: GobbyTask): boolean => {
-    if (!q) return true
-    return t.title.toLowerCase().includes(q) || t.ref.toLowerCase().includes(q)
-  }
-
-  const toggleExpanded = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      return next
+  const filtered = tasks
+    .filter((t) => {
+      if (!showClosed && CLOSED_STATUSES.has(t.status)) return false
+      if (!q) return true
+      return t.title.toLowerCase().includes(q) || t.ref.toLowerCase().includes(q)
     })
-  }, [])
-
-  const handleSelect = useCallback((id: string) => {
-    setSelectedTaskId((prev) => (prev === id ? null : id))
-  }, [])
-
-  const renderTask = (task: GobbyTask & { children?: GobbyTask[] }, depth: number) => {
-    if (!matchesSearch(task)) return null
-    const hasChildren = task.children && task.children.length > 0
-    const isExpanded = expandedIds.has(task.id)
-    const isSelected = task.id === selectedTaskId
-    const ref = task.seq_num != null ? `#${task.seq_num}` : null
-    const isClosed = CLOSED_STATUSES.has(task.status)
-
-    return (
-      <div key={task.id}>
-        <div
-          className={`paneltask${isSelected ? ' paneltask--selected' : ''}${isClosed ? ' paneltask--closed' : ''}`}
-          style={{ paddingLeft: `${8 + depth * 14}px` }}
-          onClick={() => handleSelect(task.id)}
-        >
-          {hasChildren ? (
-            <button
-              className="paneltask-chevron"
-              onClick={(e) => { e.stopPropagation(); toggleExpanded(task.id) }}
-            >
-              {isExpanded ? '\u25BE' : '\u25B8'}
-            </button>
-          ) : (
-            <span className="paneltask-chevron paneltask-chevron--leaf" />
-          )}
-          <StatusDot status={task.status} />
-          {ref && <span className="paneltask-ref">{ref}</span>}
-          <span className="paneltask-title">{task.title}</span>
-        </div>
-        {hasChildren && isExpanded && (task.children as (GobbyTask & { children?: GobbyTask[] })[]).map((c) => renderTask(c, depth + 1))}
-      </div>
-    )
-  }
+    .sort((a, b) => {
+      // Priority first (lower = higher priority)
+      const pa = a.priority ?? 3
+      const pb = b.priority ?? 3
+      if (pa !== pb) return pa - pb
+      // Then by recency (newer first)
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+    })
 
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading tasks...</p></div>
   }
-
-  const visibleCount = tasks.filter((t) => !CLOSED_STATUSES.has(t.status) || showClosed).length
 
   return (
     <div className="flex flex-col h-full">
@@ -144,63 +113,88 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
           <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
           Closed
         </label>
-        <span className="paneltask-count">{visibleCount}</span>
+        <span className="paneltask-count">{filtered.length}</span>
       </div>
 
-      {/* Task tree */}
-      <div className={`overflow-y-auto ${selectedTaskId ? 'max-h-[55%]' : 'flex-1'}`}>
-        {roots.length === 0 ? (
+      {/* Flat task list */}
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
           <div className="activity-tab-empty">
             <p>No {showClosed ? '' : 'open '}tasks</p>
           </div>
         ) : (
-          roots.map((t) => renderTask(t, 0))
+          filtered.map((task) => {
+            const isExpanded = task.id === expandedId
+            const ref = task.seq_num != null ? `#${task.seq_num}` : null
+            const isClosed = CLOSED_STATUSES.has(task.status)
+            const dotColor = STATUS_DOT_COLORS[task.status] ?? '#737373'
+            const textColor = PRIORITY_TEXT_COLORS[task.priority ?? 3] ?? 'var(--text-secondary)'
+
+            return (
+              <div key={task.id}>
+                <div
+                  className={`paneltask-row${isExpanded ? ' paneltask-row--expanded' : ''}${isClosed ? ' paneltask-row--closed' : ''}`}
+                  onClick={() => toggleExpand(task.id)}
+                >
+                  <span
+                    className="paneltask-status-dot"
+                    style={{ backgroundColor: dotColor }}
+                  />
+                  {ref && <span className="paneltask-ref">{ref}</span>}
+                  <span className="paneltask-row-title" style={{ color: textColor }}>
+                    {task.title}
+                  </span>
+                  <span className={`paneltask-row-arrow${isExpanded ? ' paneltask-row-arrow--open' : ''}`}>
+                    {'\u203A'}
+                  </span>
+                </div>
+
+                {/* Accordion detail */}
+                {isExpanded && (
+                  <div className="paneltask-accordion">
+                    {detailLoading ? (
+                      <p className="text-xs text-muted-foreground px-3 py-2">Loading...</p>
+                    ) : taskDetail ? (
+                      <TaskAccordionDetail task={taskDetail} />
+                    ) : (
+                      <p className="text-xs text-muted-foreground px-3 py-2">Task not found</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
-
-      {/* Detail pane */}
-      {selectedTaskId && (
-        <div className="flex-1 flex flex-col min-h-0 border-t border-border">
-          <div className="paneltask-detail-header">
-            <span className="text-xs text-muted-foreground">Detail</span>
-            <button className="paneltask-detail-close" onClick={() => setSelectedTaskId(null)}>{'\u2715'}</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3">
-            {detailLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : taskDetail ? (
-              <TaskDetailView task={taskDetail} />
-            ) : (
-              <p className="text-xs text-muted-foreground">Task not found</p>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 })
 
-function TaskDetailView({ task }: { task: GobbyTaskDetail }) {
+function TaskAccordionDetail({ task }: { task: GobbyTaskDetail }) {
   const priorityLabel = task.priority === 0 ? 'Critical' : task.priority === 1 ? 'High' : task.priority === 2 ? 'Medium' : task.priority === 3 ? 'Low' : 'Backlog'
 
   return (
-    <div className="paneltask-detail">
-      <div className="paneltask-detail-badges">
-        <span className="paneltask-ref">{task.ref}</span>
-        <StatusPill status={task.status} />
-        {task.task_type !== 'task' && <TypePill type={task.task_type} />}
-      </div>
-      <h3 className="paneltask-detail-title">{task.title}</h3>
-
-      <div className="paneltask-detail-meta">
-        <span>{priorityLabel} priority</span>
-        {task.assignee && <><span className="paneltask-detail-sep">/</span><span>{task.assignee}</span></>}
-        {task.category && <><span className="paneltask-detail-sep">/</span><span>{task.category}</span></>}
+    <div className="paneltask-accordion-content">
+      <div className="paneltask-accordion-meta">
+        <span className="paneltask-accordion-status">{task.status.replace(/_/g, ' ')}</span>
+        <span className="paneltask-detail-sep">{'\u00B7'}</span>
+        <span>{priorityLabel}</span>
+        {task.task_type !== 'task' && (
+          <>
+            <span className="paneltask-detail-sep">{'\u00B7'}</span>
+            <span>{task.task_type}</span>
+          </>
+        )}
+        {task.assignee && (
+          <>
+            <span className="paneltask-detail-sep">{'\u00B7'}</span>
+            <span>{task.assignee}</span>
+          </>
+        )}
       </div>
 
       {task.description && (
-        <div className="paneltask-detail-section">
-          <div className="paneltask-detail-label">Description</div>
+        <div className="paneltask-accordion-section">
           <div className="message-content text-xs">
             <Markdown content={task.description} id={`task-desc-${task.id}`} />
           </div>
@@ -208,7 +202,7 @@ function TaskDetailView({ task }: { task: GobbyTaskDetail }) {
       )}
 
       {task.validation_criteria && (
-        <div className="paneltask-detail-section">
+        <div className="paneltask-accordion-section">
           <div className="paneltask-detail-label">Validation</div>
           <div className="message-content text-xs">
             <Markdown content={task.validation_criteria} id={`task-vc-${task.id}`} />
@@ -216,31 +210,10 @@ function TaskDetailView({ task }: { task: GobbyTaskDetail }) {
         </div>
       )}
 
-      <div className="paneltask-detail-dates">
+      <div className="paneltask-accordion-dates">
         <span>Created {new Date(task.created_at).toLocaleDateString()}</span>
-        {task.closed_at && <span>Closed {new Date(task.closed_at).toLocaleDateString()}</span>}
+        {task.closed_at && <span> {'\u00B7'} Closed {new Date(task.closed_at).toLocaleDateString()}</span>}
       </div>
     </div>
   )
-}
-
-function StatusPill({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    open: 'var(--status-open, #3b82f6)',
-    in_progress: 'var(--status-progress, #f59e0b)',
-    closed: 'var(--status-closed, #737373)',
-    review_approved: 'var(--status-closed, #22c55e)',
-    needs_review: 'var(--status-review, #8b5cf6)',
-    escalated: 'var(--status-escalated, #ef4444)',
-  }
-  const c = colors[status] ?? '#737373'
-  return (
-    <span className="paneltask-pill" style={{ color: c, borderColor: c }}>
-      {status.replace(/_/g, ' ')}
-    </span>
-  )
-}
-
-function TypePill({ type }: { type: string }) {
-  return <span className="paneltask-pill paneltask-pill--type">{type}</span>
 }

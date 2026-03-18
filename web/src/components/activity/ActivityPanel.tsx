@@ -8,7 +8,6 @@ import { TasksTab } from './TasksTab'
 import { FilesTab } from './FilesTab'
 import type { Artifact } from '../../types/artifacts'
 import type { CanvasPanelState } from '../canvas/hooks/useCanvasPanel'
-import type { GobbySession } from '../../hooks/useSessions'
 
 export type ActivityTab = 'sessions' | 'pipelines' | 'tasks' | 'files' | 'artifacts' | 'canvas'
 
@@ -48,8 +47,6 @@ interface ActivityPanelProps {
   // Files tab
   onAddFileToChat?: (filePath: string) => void
   // Sessions tab
-  agents?: Array<{ run_id: string; provider: string; pid?: number; mode?: string; started_at?: string; session_id?: string }>
-  cliSessions?: GobbySession[]
   onKillAgent?: (runId: string) => void
   isMobile?: boolean
 }
@@ -72,17 +69,18 @@ export function ActivityPanel({
   onCloseCanvas,
   projectId,
   onAddFileToChat,
-  agents,
-  cliSessions,
   onKillAgent,
   isMobile = false,
 }: ActivityPanelProps) {
   if (!isPinned) return null
 
+  // Mobile: close handler
+  const handleClose = () => onPinnedChange(false)
+
   const tabContent = () => {
     switch (activeTab) {
       case 'sessions':
-        return <SessionsTab agents={agents} cliSessions={cliSessions} onKillAgent={onKillAgent} />
+        return <SessionsTab onKillAgent={onKillAgent} />
       case 'pipelines':
         return <PipelinesTab projectId={projectId} />
       case 'tasks':
@@ -113,19 +111,54 @@ export function ActivityPanel({
     }
   }
 
+  if (isMobile) {
+    return (
+      <div className="activity-panel-mobile-overlay">
+        <div className="activity-panel">
+          {/* Tab strip with close button */}
+          <div className="activity-panel-tabs">
+            <div className="activity-panel-tab-strip">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
+                  onClick={() => onTabChange(tab.id)}
+                  title={tab.label}
+                >
+                  <span className="activity-panel-tab-icon">{tab.icon}</span>
+                  <span className="activity-panel-tab-label">{tab.label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              className="activity-panel-close"
+              onClick={handleClose}
+              title="Close panel"
+            >
+              {'\u2715'}
+            </button>
+          </div>
+
+          {/* Tab content */}
+          <div className="activity-panel-content">
+            {tabContent()}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
-      {!isMobile && (
-        <ResizeHandle
-          onResize={onWidthChange}
-          panelWidth={panelWidth}
-          minWidth={280}
-          maxWidth={800}
-        />
-      )}
+      <ResizeHandle
+        onResize={onWidthChange}
+        panelWidth={panelWidth}
+        minWidth={280}
+        maxWidth={1200}
+      />
       <div
         className="activity-panel"
-        style={isMobile ? undefined : { width: panelWidth, flexShrink: 0 }}
+        style={{ width: panelWidth, flexShrink: 0 }}
       >
         {/* Tab strip */}
         <div className="activity-panel-tabs">

@@ -280,12 +280,9 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
               ) : (
                 <button className="file-viewer-action" onClick={() => { setIsEditing(true); setEditContent(fileContent ?? '') }}>Edit</button>
               )}
-              <button className="file-viewer-action" onClick={() => { setSelectedFile(null); setFileContent(null); setIsEditing(false) }}>
-                Close
-              </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="files-code-viewer">
             {fileLoading ? (
               <div className="p-3 text-xs text-muted-foreground">Loading...</div>
             ) : isEditing ? (
@@ -301,7 +298,16 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
                 language={language}
                 style={oneDark}
                 showLineNumbers
-                customStyle={{ margin: 0, padding: '0.75rem', fontSize: '12px', background: 'transparent', overflow: 'auto' }}
+                customStyle={{
+                  margin: 0,
+                  padding: '0.75rem',
+                  fontSize: '12px',
+                  background: '#0a0a0a',
+                  fontFamily: '"SF Mono", "Fira Code", "JetBrains Mono", monospace',
+                  whiteSpace: 'pre',
+                  wordBreak: 'keep-all',
+                  overflowWrap: 'normal',
+                }}
                 lineNumberStyle={{ minWidth: '2.5em', paddingRight: '1em', color: 'var(--text-muted)', opacity: 0.5 }}
               >
                 {fileContent ?? ''}

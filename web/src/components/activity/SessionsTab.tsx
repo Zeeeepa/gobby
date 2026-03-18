@@ -14,8 +14,6 @@ interface RunningAgent {
 }
 
 interface SessionsTabProps {
-  agents?: RunningAgent[]
-  cliSessions?: GobbySession[]
   onKillAgent?: (runId: string) => void
 }
 
@@ -37,12 +35,43 @@ const SOURCE_LABELS: Record<string, string> = {
   copilot: 'Copilot',
 }
 
-export const SessionsTab = memo(function SessionsTab({ agents = [], cliSessions = [], onKillAgent }: SessionsTabProps) {
+function getBaseUrl(): string {
+  return import.meta.env.VITE_API_BASE_URL || ''
+}
+
+export const SessionsTab = memo(function SessionsTab({ onKillAgent }: SessionsTabProps) {
+  const [agents, setAgents] = useState<RunningAgent[]>([])
+  const [cliSessions, setCliSessions] = useState<GobbySession[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [mode, setMode] = useState<'observe' | 'attach'>('observe')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Build session entries from agents + cliSessions
+  // Fetch agents and sessions from API
+  const fetchData = useCallback(async () => {
+    const baseUrl = getBaseUrl()
+    try {
+      const [agentsRes, sessionsRes] = await Promise.all([
+        fetch(`${baseUrl}/api/agents/running`).then((r) => (r.ok ? r.json() : { agents: [] })),
+        fetch(`${baseUrl}/api/sessions?status=active&limit=50`).then((r) => (r.ok ? r.json() : { sessions: [] })),
+      ])
+      setAgents(agentsRes.agents ?? agentsRes ?? [])
+      setCliSessions(sessionsRes.sessions ?? sessionsRes ?? [])
+    } catch {
+      // Keep existing data on error
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Initial fetch + poll every 5s
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(fetchData, 5000)
+    return () => clearInterval(interval)
+  }, [fetchData])
+
+  // Build session entries from fetched data
   const entries: SessionEntry[] = [
     ...agents.map((a): SessionEntry => ({
       id: a.session_id ?? a.run_id,
@@ -78,6 +107,10 @@ export const SessionsTab = memo(function SessionsTab({ agents = [], cliSessions 
     if (!window.confirm('Kill this agent session?')) return
     onKillAgent?.(runId)
   }, [onKillAgent])
+
+  if (loading) {
+    return <div className="activity-tab-empty"><p>Loading sessions...</p></div>
+  }
 
   if (entries.length === 0) {
     return (
