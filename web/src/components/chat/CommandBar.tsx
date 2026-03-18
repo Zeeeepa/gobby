@@ -87,32 +87,6 @@ export function CommandBar({
     <div className="command-bar">
       {/* Left cluster — Session context */}
       <div className="command-bar-left">
-        <button
-          type="button"
-          className="command-bar-btn command-bar-new"
-          onClick={handleNewChat}
-          title="New Chat"
-        >
-          <PlusIcon />
-          <span className="command-bar-btn-label">New</span>
-        </button>
-
-        {showAgentPicker && (
-          <AgentPickerDropdown
-            definitions={agentDefinitions}
-            globalDefs={agentGlobalDefs}
-            projectDefs={agentProjectDefs}
-            showScopeToggle={agentShowScopeToggle}
-            hasGlobal={agentHasGlobal}
-            hasProject={agentHasProject}
-            onSelect={(name) => {
-              onNewChat(name)
-              setShowAgentPicker(false)
-            }}
-            onClose={() => setShowAgentPicker(false)}
-          />
-        )}
-
         {isObserving && viewingMeta ? (
           <ObservationSegment
             sessionRef={sessionRef}
@@ -151,6 +125,31 @@ export function CommandBar({
             <span className="command-bar-pill-dot" />
             <span>{activeAgentCount} Session{activeAgentCount !== 1 ? 's' : ''}</span>
           </button>
+        )}
+
+        <button
+          type="button"
+          className="command-bar-btn"
+          onClick={handleNewChat}
+          title="New Chat"
+        >
+          <PlusIcon />
+        </button>
+
+        {showAgentPicker && (
+          <AgentPickerDropdown
+            definitions={agentDefinitions}
+            globalDefs={agentGlobalDefs}
+            projectDefs={agentProjectDefs}
+            showScopeToggle={agentShowScopeToggle}
+            hasGlobal={agentHasGlobal}
+            hasProject={agentHasProject}
+            onSelect={(name) => {
+              onNewChat(name)
+              setShowAgentPicker(false)
+            }}
+            onClose={() => setShowAgentPicker(false)}
+          />
         )}
 
         <button
@@ -209,9 +208,8 @@ function ObservationSegment({
 
 function PlusIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" clipRule="evenodd" fillRule="evenodd">
+      <path d="M8 1a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2H9v5a1 1 0 1 1-2 0V9H2a1 1 0 0 1 0-2h5V2a1 1 0 0 1 1-1Z" />
     </svg>
   )
 }

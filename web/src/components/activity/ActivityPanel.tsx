@@ -8,6 +8,7 @@ import { TasksTab } from './TasksTab'
 import { FilesTab } from './FilesTab'
 import type { Artifact } from '../../types/artifacts'
 import type { CanvasPanelState } from '../canvas/hooks/useCanvasPanel'
+import type { GobbySession } from '../../hooks/useSessions'
 
 export type ActivityTab = 'sessions' | 'pipelines' | 'tasks' | 'files' | 'artifacts' | 'canvas'
 
@@ -45,7 +46,11 @@ interface ActivityPanelProps {
   // Tasks tab
   projectId?: string | null
   // Files tab
-  // Sessions tab (placeholder for now)
+  onAddFileToChat?: (filePath: string) => void
+  // Sessions tab
+  agents?: Array<{ run_id: string; provider: string; pid?: number; mode?: string; started_at?: string; session_id?: string }>
+  cliSessions?: GobbySession[]
+  onKillAgent?: (runId: string) => void
   isMobile?: boolean
 }
 
@@ -66,6 +71,10 @@ export function ActivityPanel({
   canvasState,
   onCloseCanvas,
   projectId,
+  onAddFileToChat,
+  agents,
+  cliSessions,
+  onKillAgent,
   isMobile = false,
 }: ActivityPanelProps) {
   if (!isPinned) return null
@@ -73,13 +82,13 @@ export function ActivityPanel({
   const tabContent = () => {
     switch (activeTab) {
       case 'sessions':
-        return <SessionsTab />
+        return <SessionsTab agents={agents} cliSessions={cliSessions} onKillAgent={onKillAgent} />
       case 'pipelines':
         return <PipelinesTab projectId={projectId} />
       case 'tasks':
         return <TasksTab projectId={projectId} />
       case 'files':
-        return <FilesTab projectId={projectId} />
+        return <FilesTab projectId={projectId} onAddToChat={onAddFileToChat} />
       case 'artifacts':
         return (
           <ArtifactsTab

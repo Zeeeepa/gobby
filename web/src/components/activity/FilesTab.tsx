@@ -1,7 +1,11 @@
-import { memo, useState, useEffect, useCallback } from 'react'
+import { memo, useState, useEffect, useCallback, useRef } from 'react'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
 
 interface FilesTabProps {
   projectId?: string | null
+  onAddToChat?: (filePath: string) => void
 }
 
 interface FileEntry {
@@ -10,11 +14,38 @@ interface FileEntry {
   is_dir: boolean
   size?: number
   extension?: string
-  children?: FileEntry[]
-  loaded?: boolean
 }
 
-export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
+interface ContextMenuState {
+  x: number
+  y: number
+  entry: FileEntry
+}
+
+const EXT_TO_LANG: Record<string, string> = {
+  js: 'javascript', jsx: 'jsx', ts: 'typescript', tsx: 'tsx',
+  py: 'python', rb: 'ruby', go: 'go', rs: 'rust',
+  java: 'java', kt: 'kotlin', swift: 'swift', c: 'c', cpp: 'cpp',
+  cs: 'csharp', php: 'php', sh: 'bash', bash: 'bash', zsh: 'bash',
+  json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'toml',
+  xml: 'xml', html: 'html', css: 'css', scss: 'scss', less: 'less',
+  md: 'markdown', sql: 'sql', graphql: 'graphql',
+  dockerfile: 'docker', makefile: 'makefile',
+}
+
+function detectLanguage(path: string): string {
+  const name = path.split('/').pop()?.toLowerCase() ?? ''
+  if (name === 'dockerfile') return 'docker'
+  if (name === 'makefile') return 'makefile'
+  const ext = name.split('.').pop() ?? ''
+  return EXT_TO_LANG[ext] ?? 'text'
+}
+
+function getBaseUrl(): string {
+  return import.meta.env.VITE_API_BASE_URL || ''
+}
+
+export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: FilesTabProps) {
   const [rootEntries, setRootEntries] = useState<FileEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
@@ -22,16 +53,17 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState<string>('')
+  const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
+  const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch root directory
   useEffect(() => {
-    if (!projectId) {
-      setRootEntries([])
-      setLoading(false)
-      return
-    }
+    if (!projectId) { setRootEntries([]); setLoading(false); return }
     setLoading(true)
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    const baseUrl = getBaseUrl()
     fetch(`${baseUrl}/api/files/tree?project_id=${encodeURIComponent(projectId)}&path=`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setRootEntries(Array.isArray(data) ? data : []))
@@ -41,7 +73,7 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
 
   const loadChildren = useCallback((dirPath: string) => {
     if (!projectId || childrenMap.has(dirPath)) return
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    const baseUrl = getBaseUrl()
     fetch(`${baseUrl}/api/files/tree?project_id=${encodeURIComponent(projectId)}&path=${encodeURIComponent(dirPath)}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
@@ -52,23 +84,14 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
         })
       })
       .catch(() => {
-        setChildrenMap((prev) => {
-          const next = new Map(prev)
-          next.set(dirPath, [])
-          return next
-        })
+        setChildrenMap((prev) => { const next = new Map(prev); next.set(dirPath, []); return next })
       })
   }, [projectId, childrenMap])
 
   const toggleDir = useCallback((path: string) => {
     setExpandedPaths((prev) => {
       const next = new Set(prev)
-      if (next.has(path)) {
-        next.delete(path)
-      } else {
-        next.add(path)
-        loadChildren(path)
-      }
+      if (next.has(path)) { next.delete(path) } else { next.add(path); loadChildren(path) }
       return next
     })
   }, [loadChildren])
@@ -78,59 +101,159 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
     setSelectedFile(path)
     setFileLoading(true)
     setFileContent(null)
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+    setIsEditing(false)
+    const baseUrl = getBaseUrl()
     fetch(`${baseUrl}/api/files/read?project_id=${encodeURIComponent(projectId)}&path=${encodeURIComponent(path)}`)
       .then((res) => (res.ok ? res.json() : { content: 'Failed to load file' }))
-      .then((data) => setFileContent(data.content ?? data.error ?? 'No content'))
+      .then((data) => {
+        const content = data.content ?? data.error ?? 'No content'
+        setFileContent(content)
+        setEditContent(content)
+      })
       .catch(() => setFileContent('Error loading file'))
       .finally(() => setFileLoading(false))
   }, [projectId])
 
-  if (loading) {
-    return <div className="activity-tab-empty"><p>Loading files...</p></div>
-  }
+  // Context menu actions
+  const handleContextMenu = useCallback((e: React.MouseEvent, entry: FileEntry) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY, entry })
+  }, [])
 
-  if (!projectId) {
-    return <div className="activity-tab-empty"><p>No project selected</p></div>
-  }
+  const closeCtxMenu = useCallback(() => setCtxMenu(null), [])
+
+  const handleDelete = useCallback(async (entry: FileEntry) => {
+    closeCtxMenu()
+    if (!projectId) return
+    const ok = window.confirm(`Delete "${entry.name}"?`)
+    if (!ok) return
+    const baseUrl = getBaseUrl()
+    await fetch(`${baseUrl}/api/files/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, path: entry.path }),
+    })
+    // Refresh parent directory
+    const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
+    setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
+    loadChildren(parentPath)
+    if (selectedFile === entry.path) { setSelectedFile(null); setFileContent(null) }
+  }, [projectId, closeCtxMenu, loadChildren, selectedFile])
+
+  const handleRename = useCallback((entry: FileEntry) => {
+    closeCtxMenu()
+    setRenaming({ path: entry.path, name: entry.name })
+    requestAnimationFrame(() => renameInputRef.current?.focus())
+  }, [closeCtxMenu])
+
+  const submitRename = useCallback(async () => {
+    if (!renaming || !projectId) return
+    const newName = renameInputRef.current?.value?.trim()
+    if (!newName || newName === renaming.name) { setRenaming(null); return }
+    const baseUrl = getBaseUrl()
+    const parentPath = renaming.path.includes('/') ? renaming.path.substring(0, renaming.path.lastIndexOf('/')) : ''
+    const newPath = parentPath ? `${parentPath}/${newName}` : newName
+    await fetch(`${baseUrl}/api/files/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, path: renaming.path, new_path: newPath }),
+    })
+    setRenaming(null)
+    setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
+    loadChildren(parentPath)
+  }, [renaming, projectId, loadChildren])
+
+  const handleMove = useCallback(async (entry: FileEntry) => {
+    closeCtxMenu()
+    if (!projectId) return
+    const newPath = window.prompt('Move to path:', entry.path)
+    if (!newPath || newPath === entry.path) return
+    const baseUrl = getBaseUrl()
+    await fetch(`${baseUrl}/api/files/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, path: entry.path, new_path: newPath }),
+    })
+    const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
+    setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
+    loadChildren(parentPath)
+  }, [projectId, closeCtxMenu, loadChildren])
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!projectId || !selectedFile) return
+    const baseUrl = getBaseUrl()
+    await fetch(`${baseUrl}/api/files/write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, path: selectedFile, content: editContent }),
+    })
+    setFileContent(editContent)
+    setIsEditing(false)
+  }, [projectId, selectedFile, editContent])
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handler = () => setCtxMenu(null)
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [ctxMenu])
+
+  if (loading) return <div className="activity-tab-empty"><p>Loading files...</p></div>
+  if (!projectId) return <div className="activity-tab-empty"><p>No project selected</p></div>
 
   const renderEntry = (entry: FileEntry, depth: number) => {
     const isDir = entry.is_dir
     const isExpanded = expandedPaths.has(entry.path)
     const isSelected = entry.path === selectedFile
     const children = childrenMap.get(entry.path)
+    const isRenaming = renaming?.path === entry.path
 
     return (
       <div key={entry.path}>
         <div
-          className={`flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 cursor-pointer text-sm${isSelected ? ' bg-muted' : ''}`}
+          className={`file-tree-entry${isSelected ? ' file-tree-entry--active' : ''}`}
           style={{ paddingLeft: `${8 + depth * 14}px` }}
           onClick={() => isDir ? toggleDir(entry.path) : openFile(entry.path)}
+          onContextMenu={(e) => handleContextMenu(e, entry)}
         >
           {isDir ? (
-            <span className="text-[10px] text-muted-foreground w-3 text-center shrink-0">
-              {isExpanded ? '\u25BC' : '\u25B6'}
-            </span>
+            <span className="file-tree-chevron">{isExpanded ? '\u25BC' : '\u25B6'}</span>
           ) : (
-            <span className="w-3 shrink-0" />
+            <span className="file-tree-chevron file-tree-chevron--leaf" />
           )}
           <span className="text-xs shrink-0">{isDir ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}</span>
-          <span className="text-foreground truncate">{entry.name}</span>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              className="file-tree-rename-input"
+              defaultValue={renaming.name}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitRename()
+                if (e.key === 'Escape') setRenaming(null)
+              }}
+              onBlur={submitRename}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className="text-foreground truncate">{entry.name}</span>
+          )}
           {!isDir && entry.size != null && (
-            <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+            <span className="file-tree-size">
               {entry.size < 1024 ? `${entry.size}B` : entry.size < 1048576 ? `${(entry.size / 1024).toFixed(0)}K` : `${(entry.size / 1048576).toFixed(1)}M`}
             </span>
           )}
         </div>
         {isDir && isExpanded && children?.map((c) => renderEntry(c, depth + 1))}
         {isDir && isExpanded && !children && (
-          <div style={{ paddingLeft: `${22 + depth * 14}px` }} className="text-xs text-muted-foreground py-1">
-            Loading...
-          </div>
+          <div style={{ paddingLeft: `${22 + depth * 14}px` }} className="text-xs text-muted-foreground py-1">Loading...</div>
         )}
       </div>
     )
   }
+
+  const language = selectedFile ? detectLanguage(selectedFile) : 'text'
 
   return (
     <div className="flex flex-col h-full">
@@ -146,25 +269,63 @@ export const FilesTab = memo(function FilesTab({ projectId }: FilesTabProps) {
       {/* File viewer */}
       {selectedFile && (
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/30">
-            <span className="text-xs text-foreground font-mono truncate">{selectedFile}</span>
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground shrink-0 ml-2"
-              onClick={() => { setSelectedFile(null); setFileContent(null) }}
-            >
-              Close
-            </button>
+          <div className="file-viewer-toolbar">
+            <span className="file-viewer-path">{selectedFile}</span>
+            <div className="file-viewer-actions">
+              {isEditing ? (
+                <>
+                  <button className="file-viewer-action file-viewer-action--save" onClick={handleSaveEdit}>Save</button>
+                  <button className="file-viewer-action" onClick={() => { setIsEditing(false); setEditContent(fileContent ?? '') }}>Cancel</button>
+                </>
+              ) : (
+                <button className="file-viewer-action" onClick={() => { setIsEditing(true); setEditContent(fileContent ?? '') }}>Edit</button>
+              )}
+              <button className="file-viewer-action" onClick={() => { setSelectedFile(null); setFileContent(null); setIsEditing(false) }}>
+                Close
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-auto">
             {fileLoading ? (
               <div className="p-3 text-xs text-muted-foreground">Loading...</div>
+            ) : isEditing ? (
+              <CodeMirrorEditor
+                content={editContent}
+                language={language}
+                readOnly={false}
+                onChange={setEditContent}
+                onSave={handleSaveEdit}
+              />
             ) : (
-              <pre className="p-3 text-xs font-mono text-foreground whitespace-pre-wrap break-words">
-                {fileContent}
-              </pre>
+              <SyntaxHighlighter
+                language={language}
+                style={oneDark}
+                showLineNumbers
+                customStyle={{ margin: 0, padding: '0.75rem', fontSize: '12px', background: 'transparent', overflow: 'auto' }}
+                lineNumberStyle={{ minWidth: '2.5em', paddingRight: '1em', color: 'var(--text-muted)', opacity: 0.5 }}
+              >
+                {fileContent ?? ''}
+              </SyntaxHighlighter>
             )}
           </div>
         </div>
+      )}
+
+      {/* Context menu */}
+      {ctxMenu && (
+        <>
+          <div className="file-ctx-backdrop" onClick={closeCtxMenu} />
+          <div className="file-ctx-menu" style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y }}>
+            {onAddToChat && !ctxMenu.entry.is_dir && (
+              <button className="file-ctx-item" onClick={() => { onAddToChat(ctxMenu.entry.path); closeCtxMenu() }}>
+                Add to chat
+              </button>
+            )}
+            <button className="file-ctx-item" onClick={() => handleRename(ctxMenu.entry)}>Rename</button>
+            <button className="file-ctx-item" onClick={() => handleMove(ctxMenu.entry)}>Move</button>
+            <button className="file-ctx-item file-ctx-item--danger" onClick={() => handleDelete(ctxMenu.entry)}>Delete</button>
+          </div>
+        </>
       )}
     </div>
   )

@@ -298,6 +298,9 @@ export function ChatPage({
         canvasState={canvas.activeCanvas}
         onCloseCanvas={canvas.closeCanvas}
         projectId={projectId}
+        agents={conversations.agents}
+        cliSessions={conversations.cliSessions}
+        onKillAgent={conversations.onKillAgent}
         isMobile={isMobile}
       />
 
