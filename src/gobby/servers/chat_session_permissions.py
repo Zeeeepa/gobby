@@ -49,6 +49,7 @@ class ChatSessionPermissionsMixin:
     _pending_plan_decision: str | None
     _on_mode_persist: Callable[[str], None] | None
     _on_plan_ready: Callable[[str | None, dict[str, Any]], Awaitable[None]] | None
+    project_path: str | None
     _pending_approval: PendingApproval | None
     _pending_approval_decision: str | None
     _pending_approval_event: asyncio.Event | None
@@ -334,12 +335,25 @@ class ChatSessionPermissionsMixin:
         If _plan_file_path was tracked (from a Write/Edit to a plan path),
         read that file directly. Otherwise, fall back to finding the most
         recently modified .md file in .gobby/plans/ or .claude/plans/.
+
+        Relative paths are resolved against ``project_path`` (the CLI
+        subprocess CWD) rather than the daemon's CWD, which may differ.
         """
         from pathlib import Path
 
+        # Resolve a possibly-relative path against the project directory.
+        # The CLI subprocess writes files relative to project_path, but this
+        # code runs in the daemon process whose CWD may be different.
+        project_root = Path(self.project_path) if self.project_path else None
+
+        def _resolve(p: Path) -> Path:
+            if not p.is_absolute() and project_root is not None:
+                return project_root / p
+            return p
+
         if self._plan_file_path:
             try:
-                path = Path(self._plan_file_path)
+                path = _resolve(Path(self._plan_file_path))
                 if path.exists():
                     return path.read_text(encoding="utf-8")
             except Exception as e:
@@ -348,6 +362,9 @@ class ChatSessionPermissionsMixin:
         # Fallback: find the most recently modified plan file
         try:
             plan_dirs = [Path(".gobby/plans"), Path(".claude/plans")]
+            # Resolve project-relative dirs against project_root
+            plan_dirs = [_resolve(d) for d in plan_dirs]
+
             home = Path.home()
             for cli in (".claude", ".gemini", ".codex", ".cursor", ".windsurf", ".copilot"):
                 plan_dirs.append(home / cli / "plans")
