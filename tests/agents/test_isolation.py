@@ -574,6 +574,51 @@ class TestWorktreeIsolationHandler:
         mock_git_manager.delete_worktree.assert_not_called()
         mock_worktree_storage.delete.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_prepare_calls_ensure_project_json(self) -> None:
+        """Test prepare_environment calls ensure_project_json_for_isolation."""
+        mock_git_manager = MagicMock()
+        mock_git_manager.repo_path = "/path/to/main/repo"
+        mock_git_manager.create_worktree.return_value = MagicMock(success=True)
+        mock_git_manager.get_current_branch.return_value = "main"
+        mock_git_manager.has_unpushed_commits.return_value = (False, 0)
+
+        mock_worktree_storage = MagicMock()
+        mock_worktree_storage.get_by_branch.return_value = None
+        mock_worktree_storage.create.return_value = MagicMock(
+            id="wt-123",
+            worktree_path="/tmp/worktrees/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = WorktreeIsolationHandler(
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        with patch(
+            "gobby.utils.project_context.ensure_project_json_for_isolation"
+        ) as mock_ensure:
+            await handler.prepare_environment(config)
+            mock_ensure.assert_called_once_with(
+                "/path/to/main/repo",
+                handler._generate_worktree_path("my-branch", "repo"),
+            )
+
     def test_is_isolation_handler_subclass(self) -> None:
         """Test WorktreeIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(WorktreeIsolationHandler, IsolationHandler)
@@ -925,6 +970,48 @@ class TestCloneIsolationHandler:
 
         mock_clone_manager.delete_clone.assert_not_called()
         mock_clone_storage.delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_prepare_calls_ensure_project_json(self) -> None:
+        """Test prepare_environment calls ensure_project_json_for_isolation."""
+        mock_clone_manager = MagicMock()
+        mock_clone_manager.create_clone.return_value = MagicMock(success=True)
+
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.get_by_branch.return_value = None
+        mock_clone_storage.create.return_value = MagicMock(
+            id="clone-123",
+            clone_path="/tmp/clones/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = CloneIsolationHandler(
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/source/repo",
+            provider="gemini",
+            parent_session_id="sess-456",
+        )
+
+        with patch(
+            "gobby.utils.project_context.ensure_project_json_for_isolation"
+        ) as mock_ensure:
+            await handler.prepare_environment(config)
+            mock_ensure.assert_called_once_with(
+                "/path/to/source/repo",
+                handler._generate_clone_path("my-branch", "repo"),
+            )
 
     def test_is_isolation_handler_subclass(self) -> None:
         """Test CloneIsolationHandler is a subclass of IsolationHandler."""

@@ -156,6 +156,47 @@ def get_workflow_project_path(cwd: Path | None = None) -> Path | None:
     return Path(project_path) if project_path else None
 
 
+def ensure_project_json_for_isolation(
+    source_repo_path: str | Path,
+    isolated_path: str | Path,
+) -> None:
+    """
+    Ensure .gobby/project.json exists in an isolated environment with parent_project_path.
+
+    Reads project.json from the source repo and writes it to the isolated path
+    (worktree or clone) with a ``parent_project_path`` field pointing back to
+    the source. This allows ``get_workflow_project_path()`` to discover
+    workflows from the parent project.
+
+    Always overwrites any existing project.json in the target — git-tracked
+    copies won't have the ``parent_project_path`` field.
+
+    Args:
+        source_repo_path: Path to the main/source repository.
+        isolated_path: Path to the worktree or clone directory.
+    """
+    source_project_json = Path(source_repo_path) / ".gobby" / "project.json"
+
+    if not source_project_json.exists():
+        return
+
+    try:
+        with open(source_project_json) as f:
+            data = json.load(f)
+
+        data["parent_project_path"] = str(Path(source_repo_path).resolve())
+
+        target_gobby_dir = Path(isolated_path) / ".gobby"
+        target_gobby_dir.mkdir(parents=True, exist_ok=True)
+
+        with open(target_gobby_dir / "project.json", "w") as f:
+            json.dump(data, f, indent=2)
+
+        logger.info("Wrote project.json with parent reference in %s", isolated_path)
+    except Exception as e:
+        logger.warning("Failed to write project.json in %s: %s", isolated_path, e)
+
+
 def get_project_mcp_dir(project_name: str) -> Path:
     """
     Get the directory for project-specific MCP configuration.

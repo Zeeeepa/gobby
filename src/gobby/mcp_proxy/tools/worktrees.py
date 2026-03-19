@@ -14,13 +14,12 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.utils.project_context import get_project_context
+from gobby.utils.project_context import ensure_project_json_for_isolation, get_project_context
 from gobby.worktrees.git import WorktreeGitManager
 
 if TYPE_CHECKING:
@@ -138,38 +137,12 @@ def _copy_project_json_to_worktree(
     repo_path: str | Path,
     worktree_path: str | Path,
 ) -> None:
+    """Copy .gobby/project.json from main repo to worktree, adding parent reference.
+
+    Delegates to ``ensure_project_json_for_isolation`` which always writes
+    ``parent_project_path`` even when the file already exists (e.g. git-tracked).
     """
-    Copy .gobby/project.json from main repo to worktree, adding parent reference.
-
-    This ensures worktree sessions:
-    - Use the same project_id as the parent repo
-    - Can discover the parent project path for workflow lookup
-
-    Args:
-        repo_path: Path to main repository
-        worktree_path: Path to worktree directory
-    """
-    main_gobby_dir = Path(repo_path) / ".gobby"
-    main_project_json = main_gobby_dir / "project.json"
-    worktree_gobby_dir = Path(worktree_path) / ".gobby"
-
-    if main_project_json.exists():
-        try:
-            worktree_gobby_dir.mkdir(parents=True, exist_ok=True)
-            worktree_project_json = worktree_gobby_dir / "project.json"
-            if not worktree_project_json.exists():
-                # Read, add parent reference, write
-                with open(main_project_json) as f:
-                    data = json.load(f)
-
-                data["parent_project_path"] = str(Path(repo_path).resolve())
-
-                with open(worktree_project_json, "w") as f:
-                    json.dump(data, f, indent=2)
-
-                logger.info("Created project.json in worktree with parent reference")
-        except Exception as e:
-            logger.warning(f"Failed to create project.json in worktree: {e}")
+    ensure_project_json_for_isolation(repo_path, worktree_path)
 
 
 def _install_provider_hooks(
