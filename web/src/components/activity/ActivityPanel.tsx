@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react'
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../chat/ui/Tooltip'
 import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import { ArtifactsTab } from './ArtifactsTab'
 import { CanvasTab } from './CanvasTab'
@@ -121,19 +122,24 @@ export function ActivityPanel({
         <div className="activity-panel">
           {/* Tab strip with close button */}
           <div className="activity-panel-tabs">
-            <div className="activity-panel-tab-strip">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
-                  onClick={() => onTabChange(tab.id)}
-                  title={tab.label}
-                >
-                  <span className="activity-panel-tab-icon">{tab.icon}</span>
-                  <span className="activity-panel-tab-label">{tab.label}</span>
-                </button>
-              ))}
-            </div>
+            <TooltipProvider delayDuration={200}>
+              <div className="activity-panel-tab-strip">
+                {TABS.map((tab) => (
+                  <Tooltip key={tab.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
+                        onClick={() => onTabChange(tab.id)}
+                      >
+                        <span className="activity-panel-tab-icon">{tab.icon}</span>
+                        <span className="activity-panel-tab-label">{tab.label}</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{tab.label}</TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </TooltipProvider>
             <button
               className="activity-panel-close"
               onClick={handleClose}
@@ -166,18 +172,23 @@ export function ActivityPanel({
       >
         {/* Tab strip */}
         <div className="activity-panel-tabs">
-          <div className="activity-panel-tab-strip">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
-                onClick={() => onTabChange(tab.id)}
-                title={tab.label}
-              >
-                <span className="activity-panel-tab-icon">{tab.icon}</span>
-              </button>
-            ))}
-          </div>
+          <TooltipProvider delayDuration={200}>
+            <div className="activity-panel-tab-strip">
+              {TABS.map((tab) => (
+                <Tooltip key={tab.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
+                      onClick={() => onTabChange(tab.id)}
+                    >
+                      <span className="activity-panel-tab-icon">{tab.icon}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{tab.label}</TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </TooltipProvider>
           <button
             className="activity-panel-pin"
             onClick={() => onPinnedChange(!isPinned)}

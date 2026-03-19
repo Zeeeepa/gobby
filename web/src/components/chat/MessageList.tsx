@@ -98,7 +98,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
         if (userScrolledUpRef.current) return false
         return 'smooth'
       }}
-      atBottomThreshold={150}
+      atBottomThreshold={400}
       atBottomStateChange={handleAtBottomStateChange}
       overscan={400}
       increaseViewportBy={200}

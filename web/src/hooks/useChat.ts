@@ -3,6 +3,7 @@ import type { ChatMessage, ToolCall, ChatMode } from "../types/chat";
 import type { QueuedFile } from "../types/chat";
 import type { A2UISurfaceState, UserAction } from "../components/canvas/types";
 import type { CanvasPanelState } from "../components/canvas/hooks/useCanvasPanel";
+import { sessionMessagesToChatMessages } from "../components/sessions/transcriptAdapter";
 
 const CONVERSATION_ID_KEY = "gobby-conversation-id";
 
@@ -1644,7 +1645,7 @@ export function useChat() {
         );
         if (res.ok) {
           const data = await res.json();
-          const mapped = mapApiMessages(data.messages || []);
+          const mapped = sessionMessagesToChatMessages(data.messages || []);
           if (mapped.length > 0) {
             setMessages(mapped);
           }
@@ -2109,7 +2110,7 @@ export function useChat() {
       .then((data) => {
         if (!data?.messages?.length) return;
         if (viewingSessionIdRef.current !== sessionId) return;
-        const mapped = mapApiMessages(data.messages);
+        const mapped = sessionMessagesToChatMessages(data.messages);
         setMessages(mapped);
       })
       .catch((err) =>
