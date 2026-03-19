@@ -216,6 +216,10 @@ class SessionMessageProcessor:
         # Store messages
         await self.message_manager.store_messages(session_id, parsed_messages)
 
+        # Keep session alive while messages are flowing
+        if self.session_manager:
+            self.session_manager.touch(session_id)
+
         # Extract and store model from parsed messages (if present)
         if self.session_manager:
             for msg in parsed_messages:
@@ -306,6 +310,10 @@ class SessionMessageProcessor:
 
         # Store messages
         await self.message_manager.store_messages(session_id, new_messages)
+
+        # Keep session alive while messages are flowing
+        if self.session_manager:
+            self.session_manager.touch(session_id)
 
         # Extract and store model from parsed messages
         if self.session_manager:
