@@ -588,7 +588,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
     async def set_variable(
         name: str,
         value: str | int | float | bool | None,
-        session_id: str | None = None,
+        session_id: str,
     ) -> dict[str, Any]:
         """
         Set a session-scoped variable. Top-level shortcut — no progressive discovery needed.
@@ -605,15 +605,15 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
 
     @mcp.tool()
     async def get_variable(
+        session_id: str,
         name: str | None = None,
-        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Get session-scoped variable(s). Top-level shortcut — no progressive discovery needed.
 
         Args:
-            name: Variable name (omit to get all variables)
             session_id: Session ID (accepts #N, N, UUID, or prefix)
+            name: Variable name (omit to get all variables)
 
         Returns:
             Dict with variable value(s)
