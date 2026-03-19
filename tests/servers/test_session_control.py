@@ -11,13 +11,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.servers.websocket.session_control import _kill_terminal_session
+from gobby.sessions.terminal_kill import kill_terminal_session
 
 pytestmark = pytest.mark.unit
 
 
 class TestKillTerminalSession:
-    """Tests for the _kill_terminal_session helper."""
+    """Tests for the kill_terminal_session helper."""
 
     @pytest.mark.asyncio
     async def test_kills_via_tmux_pane(self) -> None:
@@ -29,7 +29,7 @@ class TestKillTerminalSession:
         mock_proc.communicate = AsyncMock(return_value=(b"", b""))
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
-            result = await _kill_terminal_session(ctx, "test-session-id")
+            result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is True
         mock_exec.assert_called_once_with(
@@ -54,7 +54,7 @@ class TestKillTerminalSession:
             patch("asyncio.create_subprocess_exec", return_value=mock_proc),
             patch("os.kill") as mock_kill,
         ):
-            result = await _kill_terminal_session(ctx, "test-session-id")
+            result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is True
         mock_kill.assert_called_once_with(12345, signal.SIGTERM)
@@ -65,7 +65,7 @@ class TestKillTerminalSession:
         ctx = {"parent_pid": "9999"}
 
         with patch("os.kill") as mock_kill:
-            result = await _kill_terminal_session(ctx, "test-session-id")
+            result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is True
         mock_kill.assert_called_once_with(9999, signal.SIGTERM)
@@ -75,7 +75,7 @@ class TestKillTerminalSession:
         """Should return False when neither tmux_pane nor parent_pid available."""
         ctx: dict[str, str] = {}
 
-        result = await _kill_terminal_session(ctx, "test-session-id")
+        result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is False
 
@@ -85,7 +85,7 @@ class TestKillTerminalSession:
         ctx = {"parent_pid": "12345"}
 
         with patch("os.kill", side_effect=ProcessLookupError):
-            result = await _kill_terminal_session(ctx, "test-session-id")
+            result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is False
 
@@ -98,7 +98,7 @@ class TestKillTerminalSession:
             patch("asyncio.create_subprocess_exec", side_effect=FileNotFoundError),
             patch("os.kill") as mock_kill,
         ):
-            result = await _kill_terminal_session(ctx, "test-session-id")
+            result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is True
         mock_kill.assert_called_once_with(5678, signal.SIGTERM)
@@ -115,7 +115,7 @@ class TestKillTerminalSession:
             ),
             patch("os.kill") as mock_kill,
         ):
-            result = await _kill_terminal_session(ctx, "test-session-id")
+            result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is True
         mock_kill.assert_called_once_with(5678, signal.SIGTERM)
@@ -133,7 +133,7 @@ class TestKillTerminalSession:
             patch("asyncio.create_subprocess_exec", return_value=mock_proc),
             patch("os.kill", side_effect=ProcessLookupError),
         ):
-            result = await _kill_terminal_session(ctx, "test-session-id")
+            result = await kill_terminal_session(ctx, "test-session-id")
 
         assert result is False
 
@@ -194,7 +194,7 @@ class TestContinueInChatTerminalKill:
                 return_value=mock_registry,
             ),
             patch(
-                "gobby.servers.websocket.session_control._kill_terminal_session",
+                "gobby.servers.websocket.session_control.kill_terminal_session",
                 new_callable=AsyncMock,
                 return_value=True,
             ) as mock_kill,
@@ -260,7 +260,7 @@ class TestContinueInChatTerminalKill:
                 return_value=mock_registry,
             ),
             patch(
-                "gobby.servers.websocket.session_control._kill_terminal_session",
+                "gobby.servers.websocket.session_control.kill_terminal_session",
                 new_callable=AsyncMock,
             ) as mock_kill,
         ):
