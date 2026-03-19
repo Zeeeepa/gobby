@@ -427,4 +427,40 @@ describe('useChat', () => {
     expect(result.current.contextUsage.totalInputTokens).toBeGreaterThan(0)
     expect(result.current.contextUsage.contextWindow).toBe(200000)
   })
+
+  it('sends set_project message on connect if projectIdRef is set', async () => {
+    await loadModule()
+    const { result } = renderHook(() => useChat())
+
+    act(() => {
+      result.current.setProjectIdRef('test-project-123')
+    })
+
+    const ws = mockWs.instances[0]
+    act(() => ws.simulateOpen())
+
+    const calls = ws.send.mock.calls.map(c => JSON.parse(c[0]))
+    const projectMsg = calls.find(m => m.type === 'set_project')
+    
+    expect(projectMsg).toBeDefined()
+    expect(projectMsg.project_id).toBe('test-project-123')
+  })
+
+  it('sendProjectChange updates ref and sends WS message', async () => {
+    await loadModule()
+    const { result } = renderHook(() => useChat())
+
+    const ws = mockWs.instances[0]
+    act(() => ws.simulateOpen())
+    ws.send.mockClear()
+
+    act(() => {
+      result.current.sendProjectChange('new-project-456')
+    })
+
+    const calls = ws.send.mock.calls.map(c => JSON.parse(c[0]))
+    const projectMsg = calls.find(m => m.type === 'set_project')
+    expect(projectMsg).toBeDefined()
+    expect(projectMsg.project_id).toBe('new-project-456')
+  })
 })

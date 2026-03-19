@@ -494,6 +494,12 @@ export function useChat() {
     localStorage.setItem(ACTIVE_AGENT_KEY, activeAgent);
   }, [activeAgent]);
 
+  // Keep a ref so onopen/reconnect can read the current project
+  const projectIdRef = useRef<string | null>(null);
+  const setProjectIdRef = useCallback((id: string | null) => {
+    projectIdRef.current = id;
+  }, []);
+
   // Plan mode approval tracking
   const [planPendingApproval, setPlanPendingApproval] = useState(false);
   const planContentRef = useRef<string | null>(null);
@@ -645,6 +651,17 @@ export function useChat() {
           }),
         );
 
+        // Re-sync current project on connect/reconnect
+        if (projectIdRef.current) {
+          ws.send(
+            JSON.stringify({
+              type: "set_project",
+              conversation_id: conversationIdRef.current,
+              project_id: projectIdRef.current,
+            }),
+          );
+        }
+
         // Re-sync persisted agent on reconnect
         ws.send(
           JSON.stringify({
@@ -765,6 +782,16 @@ export function useChat() {
                   sendMessageRef.current?.(
                     "Plan approved — proceed with implementation.",
                   );
+                }, 200);
+              }
+              if (
+                reason === "plan_changes_requested" &&
+                pendingPlanFeedbackRef.current
+              ) {
+                const feedback = pendingPlanFeedbackRef.current;
+                pendingPlanFeedbackRef.current = null;
+                setTimeout(() => {
+                  sendMessageRef.current?.(feedback);
                 }, 200);
               }
               // Only update mode and notify if it actually changed —
@@ -1240,6 +1267,13 @@ export function useChat() {
           sendMessageRef.current?.(
             "Plan approved — proceed with implementation.",
           );
+        }, 200);
+      }
+      if (pendingPlanFeedbackRef.current) {
+        const feedback = pendingPlanFeedbackRef.current;
+        pendingPlanFeedbackRef.current = null;
+        setTimeout(() => {
+          sendMessageRef.current?.(feedback);
         }, 200);
       }
     }
@@ -2034,6 +2068,7 @@ export function useChat() {
 
   // Track whether we're waiting for plan_approved mode_changed to auto-send
   const pendingPlanExecutionRef = useRef(false);
+  const pendingPlanFeedbackRef = useRef<string | null>(null);
 
   // Approve the current plan — tells backend to unlock write tools,
   // then sends a follow-up message to prompt the agent to begin execution.
@@ -2060,6 +2095,7 @@ export function useChat() {
   const requestPlanChanges = useCallback((feedback: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     if (!planContentRef.current) return;
+    pendingPlanFeedbackRef.current = feedback;
     // Eagerly clear approval UI to prevent ghost flash when artifact panel closes
     setPlanPendingApproval(false);
     planContentRef.current = null;
@@ -2315,6 +2351,7 @@ export function useChat() {
     sendMessage,
     sendMode,
     sendProjectChange,
+    setProjectIdRef,
     sendWorktreeChange,
     sendAgentChange,
     activeAgent,

@@ -234,6 +234,8 @@ export default function App() {
     contextUsage,
     sendMessage,
     sendMode,
+    sendProjectChange,
+    setProjectIdRef,
     sendWorktreeChange,
     stopStreaming,
     clearHistory,
@@ -538,6 +540,14 @@ export default function App() {
       projectId: effectiveProjectId ?? null,
     }));
   }, [effectiveProjectId, projectReady]);
+
+  // Keep useChat's projectIdRef in sync with App's effectiveProjectId
+  useEffect(() => {
+    setProjectIdRef(effectiveProjectId);
+    if (effectiveProjectId) {
+      sendProjectChange(effectiveProjectId);
+    }
+  }, [effectiveProjectId, setProjectIdRef, sendProjectChange]);
 
   // Web-chat sessions for main conversation list
   const webChatSessions = useMemo(
