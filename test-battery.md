@@ -3,143 +3,151 @@
 > Persistent state for the test-battery monitoring loop.
 > Survives context compaction. Read this file on every skill invocation.
 
-## Status: COMPLETED
+## Status: COMPLETED (manual QA phase)
 
 ## Configuration
 
-- **Gobby Session ID**: #2742
-- **Epic**: #9915 "OpenTelemetry Full Observability Stack"
-- **Epic ID**: 9946e3cf-fd73-44dd-841c-57d20037586c
-- **Monitoring Task**: #10116 (ID: 1d4470e2-08b2-431d-a540-91e305494475)
-- **Cron Job ID**: cj-6ef838c401b0
-- **Current Branch**: 0.2.28
-- **Merge Target**: 0.2.28
+- **Gobby Session ID**: #3053
+- **Epic**: #10452 "Fix project context on reload + plan approval bugs"
+- **Epic ID**: c8665869-dabb-4060-9724-815f86447620
+- **Monitoring Task**: #10461 (ID: be55e44f-92c2-4e9e-a5d9-72083236b711)
+- **Cron Job ID**: cj-3b6bf7f66f9b (disabled)
+- **Pipeline**: orchestrator-worktree v1.2
+- **Current Branch**: 0.2.30
+- **Merge Target**: 0.2.30
+- **Isolation**: worktree `wt-234a21` at `/Users/josh/.gobby/worktrees/gobby/epic-10452`
 - **Dev Provider/Model**: gemini / provider-default
 - **QA Provider/Model**: claude / opus
 - **Agent Timeout**: 1200s
-- **Cron Interval**: 240s
+- **Cron Interval**: 300s
 - **Max Concurrent**: 5
-- **Started At**: 2026-03-10T03:32:18Z
-- **Completed At**: 2026-03-10T06:35:00Z
-- **Duration**: ~3 hours
-- **Clone**: clone-db7b7f at ~/.gobby/clones/epic-9915
+- **Started At**: 2026-03-18T23:02:33Z
+- **Completed At**: 2026-03-19T01:00:00Z (approx)
+- **Duration**: ~2 hours
 
-## Final Cycle: 15+
+## Final Task Summary
 
-### Task Summary (Final)
+| Task | Title | Dev | QA | Verdict |
+|------|-------|-----|-----|---------|
+| #10453 | Remove duplicate PlanApprovalBar from MessageList | ✅ `c540bceb` | ✅ Autonomous (Claude Opus) | **CLOSED** |
+| #10454 | Backend: send mode_changed for request_changes | ❌ Docstring only | — | **FAIL** — no implementation |
+| #10455 | Frontend: auto-send feedback on plan_changes_requested | ✅ `fd4aabad` | Manual review passed | **PASS** — needs Playwright |
+| #10456 | Add retry with backoff to fetchProjects | ✅ `635e8cbd` | Manual review passed | **PASS** — needs Playwright |
+| #10457 | Add projectIdRef to useChat, send set_project on WS | ❌ Ruff formatting only | — | **FAIL** — no implementation |
+| #10458 | Wire up sendProjectChange in App.tsx via useEffect | ✅ `fe69186d` | Manual review passed | **PASS** — needs Playwright |
 
-| Status | Count | Refs |
-| :--- | :---: | :--- |
-| ✅ **`review_approved`** | **10** | `#9916`, `#9917`, `#9918`, `#9919`, `#9920`, `#9921`, `#9922`, `#9923`, `#9924`, `#9925` |
+**Score: 4/6 dev tasks produced real code. 1/6 fully autonomous (dev → QA → closed). 2/6 no-ops.**
 
-All 10 subtasks reached `review_approved` status through autonomous orchestration.
+## Remaining Work
 
-### Merge
+- Merge worktree `epic-10452` → `0.2.30` for passing tasks (#10453, #10455, #10456, #10458)
+- Playwright visual verification for #10455, #10456, #10458
+- Reopen #10454 and #10457 for re-implementation (or verify if work was done by adjacent tasks)
+- Note: #10454's backend fix may have been done in #10458's commit `809c2fcc` — needs verification
 
-- **Merge Commit**: 153601e1
-- **Conflict**: `tests/utils/test_fibonacci.py` (modify/delete — fibonacci test artifact from battery setup, resolved by deletion)
-- **Diff**: 105 files changed, +6176/-4206 lines
-- **Push**: All checks passed (type_check, ts_check, frontend_tests)
+## Candid Assessment
 
-## The Epic of Epic #9915
+### What Worked
 
-### What Happened
+1. **Gemini + worktree isolation works.** The upstream `.git` file bug (GitHub #12050) appears fixed. All 6 Gemini dev agents launched, ran, and interacted with git in the worktree without any `.git`-related failures. This is a significant finding.
 
-At ~10:30pm on March 9th, we kicked off Phase 3 of the test battery: a full orchestrator pipeline run against a real 10-task OTel epic. Gemini agents wrote code, Claude Opus agents reviewed it, and a cron-driven pipeline orchestrated the whole thing on 240-second ticks.
+2. **orchestrator-worktree pipeline works.** The worktree variant of the orchestrator correctly resolves worktrees, dispatches agents with `worktree_id`, and handles the full scan→suggest→dispatch cycle. Ticks completed in <1s consistently.
 
-By 1:30am, all 10 tasks were `review_approved` and the code was merged. Along the way, we discovered and fixed five infrastructure bugs in real-time — each one surfaced only because real agents were doing real work in real isolation.
+3. **First autonomous task closure (#10453).** Gemini dev committed clean code, Claude Opus QA reviewed it, validated against criteria, and closed the task — full loop, no human intervention. The validation feedback was substantive, not rubber-stamped.
 
-### What Was Built (by autonomous agents)
+4. **Agent resilience across daemon restarts.** Two of four agents survived a daemon crash. The AgentLifecycleMonitor re-registered them on restart. This is better than expected.
 
-- `src/gobby/telemetry/` — Full OTel module: tracing, metrics, logging bridge, middleware, exporters, span store
-- `src/gobby/storage/spans.py` — SQLite span storage with migrations
-- `src/gobby/servers/routes/traces.py` — Trace query API
-- `web/src/components/traces/` — Trace viewer UI (TracesPage, TraceWaterfall, TraceDetail)
-- Removed 1,700+ lines of legacy logging/metrics code
-- Added 2,400+ lines of tests across 12 new test files
+5. **Bug discovery.** Found 3 real bugs (#10462, #10463, #10464) plus confirmed 2 known issues (pipeline cache, zombie agents). The test battery is still the best bug-finding tool we have.
 
-### Bugs Found and Fixed During the Run
+### What Didn't Work
 
-| # | Task | Bug | Fix | Commit |
-| :---: | :--- | :--- | :--- | :---: |
-| 1 | **#10117** | Cron logger used reserved `name` key, masking real errors | Renamed to `job_name` | `35e20b7c` |
-| 2 | **#10164** | `no-truncate-interactive` rule false-positived on tmux commands containing `/dev/null` paths and filenames with "truncate" | Command-position anchoring + negative lookahead for `/dev/null` | `d0be5333` |
-| 3 | **#10169** | `tmux send-keys -l` with trailing `\n` added literal newline instead of submitting — both Claude Code and Gemini CLI sat with text in input, never hitting Enter | Split into literal text send + separate `Enter` key event | `a5e8bb4a` |
-| 4 | **#10170** | Orchestrator `get_clone` and `resolve_clone_id` gated on `not orchestration_complete`, so `merge_clone` never had a `clone_id` when orchestration finished | Made both steps unconditional | `68c0120e` |
-| 5 | **#10171** | `close_task` required `changes_summary` for epics even when all children were closed — epics are containers, not work items | Made `changes_summary` optional for parents with all children closed; runtime validation still enforces for leaf tasks | `dd254a90` |
-| 6 | **#10172** | `merge-clone` pipeline missing `parent_session_id` in `spawn_agent` call; `close_epic` gate didn't check merge success | Added `parent_session_id`, hardened gate with error check | `34d82b1b` |
-| 7 | **#10173** | `invoke_pipeline` passes dict instead of string to sub-pipeline arguments | ⚠️ Filed — not yet fixed | — |
-| 8 | **#10174** | Merge agent should stash dirty `.gobby/` sync files before merging | ⚠️ Filed — not yet fixed | — |
+1. **`require-commit-before-status` rule breaks in worktrees.** Every dev agent that committed was blocked from transitioning to `needs_review`. Required manual DB intervention every time. This is the #1 blocker for worktree orchestration. (#10462)
 
-### The Merge Agent's Noble Struggle
+2. **ToolSearch catch-22 in step workflows.** QA agents couldn't load the deferred `mcp__gobby__call_tool` schema because `ToolSearch` wasn't in the claim step's allowed tools. Every QA agent spawned before the fix burned 20+ minutes trying different argument formats and failing. (#10464 — fixed live)
 
-The merge-clone pipeline failed three ways before we did it manually:
+3. **QA concurrency in shared worktree.** The orchestrator dispatches one QA per tick, but since QA takes longer than 5 min, multiple QA agents end up running concurrently in the same worktree. They'll step on each other's toes running tests. Need a gate: only dispatch QA when no other QA is active.
 
-1. **Stale pipeline cache** — daemon restart required to pick up template changes (pipelines are loaded into memory at startup)
-2. **Missing `parent_session_id`** — `spawn_agent` rejected the call
-3. **`invoke_pipeline` type coercion bug** — dict passed where string expected
+4. **Zombie agents.** Agents that exit don't reliably unregister from the in-memory registry. This blocks subsequent dispatches ("agent already running for task"). Required manual `kill_agent` calls multiple times.
 
-The merge agent itself got spawned manually, tried heroically to resolve a conflict in `test_fibonacci.py` through merge tools, but `merge_start` expected a `worktree_id` and got a `clone_id`. It was cancelled after ~60 seconds of creative problem-solving.
+5. **Pipeline definition caching.** `reload_cache` doesn't refresh installed pipeline definitions — only bundled templates. Updating a pipeline STILL requires a daemon restart. Same bug as test battery #1. This should be fixed.
 
-In the end, the merge was three commands:
+6. **2 of 6 Gemini agents produced no-ops.** #10454 added a docstring. #10457 reformatted whitespace. Both claimed to have completed the task. The dev agent step workflow has no mechanism to verify actual code changes — an agent can commit junk and mark for review.
 
-```bash
-git fetch /Users/josh/.gobby/clones/epic-9915 epic-9915:epic-9915
-git merge epic-9915 --no-edit
-git rm tests/utils/test_fibonacci.py && git commit --no-edit
-```
+7. **`annotate_observed` breaks in worktrees.** Commit linkage relies on session lifecycle tracking, which doesn't see worktree branch commits. Had to remove the step entirely.
 
-Screwed by an AP programming test question. The fibonacci test — created as a throwaway during battery setup — was the only merge conflict in 105 files of OTel instrumentation.
+### What Needs to Change for Test Battery #3
 
-### Pipeline Stats (Final)
+**Must fix before next run:**
+- #10462: `require-commit-before-status` worktree support (biggest manual intervention burden)
+- #10464: ToolSearch in step workflow allowed tools (already fixed, verify in templates)
+- QA concurrency gate: only dispatch QA when no QA agent is active
+- Pipeline cache refresh: `reload_cache` should also refresh installed definitions
 
-- **Total Executions**: 180+ (144 completed, 40 failed)
-- **Cron Ticks**: ~45 over 3 hours
-- **Agents Spawned**: ~30 (dev + QA)
-- **Bugs Fixed Live**: 6 (with 2 more filed)
+**Should fix:**
+- Zombie agent cleanup: agents should unregister on clean exit, not just on kill
+- Commit validation: dev agent step workflow should verify non-trivial diffs before allowing `mark_task_needs_review`
+- `annotate_observed` worktree support (or make it non-fatal)
 
-### What We Learned
+**Design considerations for unified comms test:**
+- The orchestrator pipeline dispatches QA sequentially (one per tick, `tasks[0]`). For a larger epic, this creates a QA bottleneck. Consider dispatching QA for all needs_review tasks in one batch (like `dispatch_devs` uses `dispatch_batch`).
+- Need a `dispatch_qa_batch` or extend `dispatch_batch` to support QA agent type selection.
+- The current orchestrator is fire-and-forget — it has no awareness of whether agents succeed or fail. The lifecycle monitor handles recovery, but the orchestrator could be smarter about retry tracking.
 
-1. **Pipeline executor caches definitions in memory.** Template changes require daemon restart, not just `reload_cache`.
-2. **tmux `send-keys -l` is literal-only.** TUI apps (Claude Code, Gemini CLI) need a separate `Enter` key event to submit.
-3. **Rule engine regex patterns match against full command strings** including file paths. Patterns like `\btruncate\b` will match filenames.
-4. **Pipeline conditions cascade.** If step A is gated and step B depends on A's output, B effectively inherits the gate.
-5. **`invoke_pipeline` argument passing has a type coercion bug** — needs investigation.
-6. **Merge tools expect worktree_id, not clone_id** — clone merge path needs its own resolution flow.
+## Bugs Filed During Run
 
-### Quick status before we wrap
+| Ref | Title | Status |
+|-----|-------|--------|
+| #10459 | Add isolation mode prompt to test-battery skill wizard | open |
+| #10462 | require-commit-before-status rule doesn't recognize worktree commits | open |
+| #10463 | mcp_proxy.semantic_search doesn't resolve OPENAI_API_KEY from SecretStore | open |
+| #10464 | Step workflow claim step blocks ToolSearch for deferred MCP tools | fixed live |
 
-- Epic #9915: All 10 subtasks review_approved, merged (153601e1), pushed
-- test-battery.md: Chronicled and committed
-- Bugs fixed live: 6 (cron logger, rule regex, tmux send-keys, get_clone gate, close_task schema, merge-clone
-parent_session_id)
-  - Bugs filed: #10173 (invoke_pipeline type coercion), #10174 (merge stash), #10175 (DaemonConfig extra=ignore)
-  - Cron job: Disabled, battery complete
+## Infrastructure Fixes Applied During Run
 
-  Session's clean. Good night — that was a W.
+1. Removed `annotate_observed` step from orchestrator-worktree pipeline (v1.0 → v1.2)
+2. Added `ToolSearch` to claim/terminate steps in both `developer` and `qa-reviewer` agent definitions
+3. 3 daemon restarts for pipeline/agent definition changes
+4. Multiple manual DB updates to transition tasks past `require-commit-before-status` rule
 
-### The Vibe
+## Issues Log
 
-> "I'm running on caffeine and spite." — Josh, 1:15am
->
-> "Amaze amaze amaze!" — Josh, when all 10 tasks hit review_approved
->
-> "lol, screwed by an AP programming test question" — Josh, on the fibonacci merge conflict
-
-Ten real OTel tasks — tracing, metrics, span storage, trace viewer UI — dispatched across Gemini devs and Claude Opus reviewers, all driven through to `review_approved` by an autonomous cron-driven orchestrator. Written, reviewed, merged, and pushed by 1:30am. Caffeine and spite wins again.
+| # | Cycle | Type | Description | Resolution |
+|---|-------|------|-------------|------------|
+| 1 | 3 | rule-bug | `require-commit-before-status` doesn't recognize worktree branch commits | Manual DB update. Filed #10462. |
+| 2 | 3 | lifecycle | Zombie agents stayed in registry after exiting | Killed via `kill_agent`. |
+| 3 | 4 | Bug #10000 | Tmux session for #10456 agent died, process ran 16+ min orphaned | Killed orphan, reopened task. |
+| 4 | 4 | rule-bug | #10458 agent couldn't transition (same as #1) | Manual DB update. |
+| 5 | 4 | daemon-crash | Daemon died. 2/4 agents survived. | `gobby start` — clean recovery. |
+| 6 | 5 | pipeline-cache | `reload_cache` syncs 0 installed pipelines | Removed step, restarted daemon. |
+| 7 | 5 | worktree-commits | `update_observed_files` can't find worktree commits | Removed step entirely. |
+| 8 | 5+ | ToolSearch | QA agents stuck in claim step — can't load deferred tool schema | Fixed agent definitions, restarted daemon. |
+| 9 | 8+ | concurrency | Multiple QA agents dispatched concurrently in shared worktree | Killed newer agent. Needs pipeline gate. |
 
 ## Pipeline Executions
 
 | Cycle | Execution ID | Status | Dispatched | Open | In Prog | Review | Approved |
-| :---: | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| 1 | `pe-769bc537` | ✅ completed | 1 (`#9916`) | 9 | 1 | 0 | 0 |
-| 1 | `pe-329551ad` | ✅ completed | 0 | 9 | 1 | 0 | 0 |
-| 2 | `pe-d603ab9c` | ✅ completed | 0 | 9 | 1 | 0 | 0 |
-| 3 | `pe-f1e7834b` | ✅ completed | 4 | 9 | 0 | 1 | 0 |
-| 5 | `pe-b2743f8b` | ✅ completed | 4 | 4 | 4 | 1 | 1 |
-| 5 | *(failed)* | ❌ failed | 0 | — | — | — | — |
-| 6 | `pe-e8b62aee` | ✅ completed | 2 | 3 | 4 | 1 | 2 |
-| 7 | `pe-cab65d0f` | ✅ completed | — | — | — | — | — |
-| 8 | `pe-9868b9be` | ✅ completed | 3 | 2 | 4 | 1 | 3 |
-| 15 | `pe-de6af79f` | ✅ completed | 1 (QA `#9924`) | 0 | 1 | 1 | 8 |
-| **final** | `pe-67b5903a` | 🎉 **completed** | 0 | 0 | 0 | 0 | **10** |
+|-------|-------------|--------|------------|------|---------|--------|----------|
+| 1 | `pe-d85e4b90` | completed | 3 (#10453, #10456, #10457) | 6 | 0 | 0 | 0 |
+| 2 | `pe-eaa7d8c9` | completed | 0 | 3 | 3 | 0 | 0 |
+| 3 | `pe-a25f5ae4` | completed | 2 (#10454, #10458) | 1 | 3 | 2 | 0 |
+| 4 | `pe-e6e5215b` | completed | 0 (QA #10453) | 1 | 3 | 2 | 0 |
+| 5a | failed x3 | annotate_observed | — | — | — | — | — |
+| 5b | `pe-8f75b350` | completed | 0 (QA #10457) | 1 | 2 | 2 | 0 |
+| 6+ | multiple | completed | dev #10455, QA #10454 | 0 | 1 | 4 | 0 |
+
+## Comparison: Test Battery #1 vs #2
+
+| Metric | Battery #1 (OTel) | Battery #2 (Project/Plan) |
+|--------|-------------------|--------------------------|
+| Tasks | 10 | 6 |
+| Duration | ~3 hours | ~2 hours |
+| Isolation | Clone | Worktree |
+| Dev provider | Gemini | Gemini |
+| QA provider | Claude Opus | Claude Opus |
+| Tasks fully closed | 10/10 | 1/6 |
+| Bugs found/fixed live | 6 | 3 (+2 fixed live) |
+| Daemon restarts | 1 | 3 |
+| Manual interventions | ~5 | ~15 |
+| No-op dev agents | 0 | 2 |
+
+Battery #1 was cleaner because: (a) clone isolation doesn't hit the commit-status rule bug, (b) no ToolSearch catch-22 existed yet, (c) tasks were more self-contained. Battery #2 surfaced more infrastructure bugs but required significantly more babysitting.

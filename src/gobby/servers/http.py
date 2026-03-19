@@ -222,7 +222,9 @@ class HTTPServer:
                 semantic_search = SemanticToolSearch(
                     db=services.mcp_db_manager.db,
                     openai_api_key=openai_api_key,
-                    embedding_model=_mcp_proxy_cfg.embedding_model if _mcp_proxy_cfg else DEFAULT_EMBEDDING_MODEL,
+                    embedding_model=_mcp_proxy_cfg.embedding_model
+                    if _mcp_proxy_cfg
+                    else DEFAULT_EMBEDDING_MODEL,
                     api_base=_mcp_proxy_cfg.embedding_api_base if _mcp_proxy_cfg else None,
                 )
                 logger.debug("Semantic tool search initialized")
@@ -615,9 +617,7 @@ class HTTPServer:
                     dispatch_summaries_fn=getattr(
                         app.state.hook_manager, "_dispatch_session_summaries", None
                     ),
-                    message_processor=getattr(
-                        app.state.hook_manager, "_message_processor", None
-                    ),
+                    message_processor=getattr(app.state.hook_manager, "_message_processor", None),
                 )
                 app.state.liveness_monitor = liveness_monitor
                 await liveness_monitor.start()

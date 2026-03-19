@@ -810,9 +810,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             # Kill tmux pane / terminal process if present
             terminal_killed = False
             if session.terminal_context:
-                terminal_killed = await kill_terminal_session(
-                    session.terminal_context, session_id
-                )
+                terminal_killed = await kill_terminal_session(session.terminal_context, session_id)
 
             server.session_manager.update_status(session_id, "expired")
             await _broadcast_session("session_expired", session_id)

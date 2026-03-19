@@ -255,9 +255,7 @@ class GobbyRunner:
 
                     _mem_api_key = (
                         self.config.memory.embedding_api_key
-                        or self._resolve_embedding_api_key(
-                            self.config.memory.embedding_model
-                        )
+                        or self._resolve_embedding_api_key(self.config.memory.embedding_model)
                     )
                     _mem_embed_kwargs: dict[str, Any] = {
                         "model": self.config.memory.embedding_model,

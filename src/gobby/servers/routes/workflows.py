@@ -8,7 +8,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import yaml
-
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel

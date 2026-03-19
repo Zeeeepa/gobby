@@ -386,9 +386,7 @@ class CodeIndexer:
         result.duration_ms = int((time.monotonic() - start) * 1000)
         return result
 
-    async def _index_content_only(
-        self, path: Path, project_id: str, root_path: str
-    ) -> None:
+    async def _index_content_only(self, path: Path, project_id: str, root_path: str) -> None:
         """Index a non-tree-sitter file for content search only."""
         root = Path(root_path).resolve()
         resolved = path.resolve()

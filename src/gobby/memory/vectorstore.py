@@ -83,9 +83,7 @@ class VectorStore:
         else:
             # Check for dimension mismatch between config and existing collection
             try:
-                info = await asyncio.to_thread(
-                    client.get_collection, self._collection_name
-                )
+                info = await asyncio.to_thread(client.get_collection, self._collection_name)
                 existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
                 if existing_dim != self._embedding_dim:
                     logger.error(

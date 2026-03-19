@@ -133,7 +133,9 @@ class WorkflowHookHandler:
 
             project_path = event.cwd  # Live cwd from CLI adapter — correct for worktrees
             if not project_path:
-                project_path = event.metadata.get("project_path") if hasattr(event, "metadata") else None
+                project_path = (
+                    event.metadata.get("project_path") if hasattr(event, "metadata") else None
+                )
 
             session_edited = set(variables.get("session_edited_files", []))
             baseline = set(variables.get("baseline_dirty_files", []))
