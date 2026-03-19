@@ -2,10 +2,12 @@
 Semantic tool search using embeddings.
 
 Provides infrastructure for embedding-based tool discovery:
-- Tool embedding storage and retrieval
+- Tool embedding storage and retrieval (Qdrant vector store)
 - Cosine similarity search
-- Integration with OpenAI text-embedding-3-small model
+- Metadata tracking in SQLite (text hashes for change detection)
 """
+
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -13,9 +15,12 @@ import math
 import struct
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.storage.database import DatabaseProtocol
+
+if TYPE_CHECKING:
+    from gobby.memory.vectorstore import VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +91,14 @@ class ToolEmbedding:
     updated_at: str
 
     @classmethod
-    def from_row(cls, row: Any) -> "ToolEmbedding":
+    def from_row(cls, row: Any) -> ToolEmbedding:
         """Create ToolEmbedding from database row."""
-        # Decode embedding from BLOB
+        # Decode embedding from BLOB (may be empty if stored in Qdrant)
         embedding_blob = row["embedding"]
-        embedding = list(struct.unpack(f"{row['embedding_dim']}f", embedding_blob))
+        if embedding_blob and len(embedding_blob) >= 4:
+            embedding = list(struct.unpack(f"{row['embedding_dim']}f", embedding_blob))
+        else:
+            embedding = []
 
         return cls(
             id=row["id"],
@@ -173,6 +181,8 @@ class SemanticToolSearch:
     - Integration with embedding providers (to be implemented)
     """
 
+    TOOL_COLLECTION = "tool_embeddings"
+
     def __init__(
         self,
         db: DatabaseProtocol,
@@ -180,24 +190,27 @@ class SemanticToolSearch:
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         openai_api_key: str | None = None,
         api_base: str | None = None,
+        vector_store: VectorStore | None = None,
     ):
         """
         Initialize semantic search manager.
 
         Args:
-            db: Database connection
-            embedding_model: Model name for embeddings (default: text-embedding-3-small)
-            embedding_dim: Dimension of embedding vectors (default: 1536)
-            openai_api_key: OpenAI API key (from config or environment)
-            api_base: API base URL for embedding endpoint (e.g., http://localhost:11434/v1 for Ollama)
+            db: Database connection (used for metadata: text hashes, tool info)
+            embedding_model: Model name for embeddings
+            embedding_dim: Dimension of embedding vectors
+            openai_api_key: API key (not needed for local/ models)
+            api_base: API base URL for embedding endpoint
+            vector_store: Qdrant vector store for embedding storage/search
         """
         self.db = db
         self.embedding_model = embedding_model
         self.embedding_dim = embedding_dim
         self._openai_api_key = openai_api_key
         self._api_base = api_base
+        self._vector_store = vector_store
 
-    def store_embedding(
+    async def store_embedding(
         self,
         tool_id: str,
         server_name: str,
@@ -207,6 +220,8 @@ class SemanticToolSearch:
     ) -> ToolEmbedding:
         """
         Store or update a tool embedding.
+
+        Vectors go to Qdrant; metadata (text_hash) goes to SQLite.
 
         Args:
             tool_id: ID of the tool in the tools table
@@ -219,8 +234,21 @@ class SemanticToolSearch:
             ToolEmbedding instance
         """
         now = datetime.now(UTC).isoformat()
-        embedding_blob = _embedding_to_blob(embedding)
 
+        # Store vector in Qdrant
+        if self._vector_store:
+            await self._vector_store.upsert(
+                memory_id=tool_id,
+                embedding=embedding,
+                payload={
+                    "server_name": server_name,
+                    "project_id": project_id,
+                    "embedding_model": self.embedding_model,
+                },
+                collection_name=self.TOOL_COLLECTION,
+            )
+
+        # Store metadata in SQLite (no BLOB)
         self.db.execute(
             """
             INSERT INTO tool_embeddings (
@@ -241,7 +269,7 @@ class SemanticToolSearch:
                 tool_id,
                 server_name,
                 project_id,
-                embedding_blob,
+                b"",  # Empty BLOB — vectors live in Qdrant
                 self.embedding_model,
                 len(embedding),
                 text_hash,
@@ -250,10 +278,18 @@ class SemanticToolSearch:
             ),
         )
 
-        result = self.get_embedding(tool_id)
-        if result is None:
-            raise RuntimeError(f"Failed to retrieve embedding for tool {tool_id} after store")
-        return result
+        return ToolEmbedding(
+            id=0,
+            tool_id=tool_id,
+            server_name=server_name,
+            project_id=project_id,
+            embedding=embedding,
+            embedding_model=self.embedding_model,
+            embedding_dim=len(embedding),
+            text_hash=text_hash,
+            created_at=now,
+            updated_at=now,
+        )
 
     def get_embedding(self, tool_id: str) -> ToolEmbedding | None:
         """
@@ -442,7 +478,7 @@ class SemanticToolSearch:
         """
         return _compute_text_hash(text)
 
-    async def embed_text(self, text: str) -> list[float]:
+    async def embed_text(self, text: str, is_query: bool = False) -> list[float]:
         """
         Generate embedding for text using the shared embedding router.
 
@@ -451,6 +487,7 @@ class SemanticToolSearch:
 
         Args:
             text: Text to embed
+            is_query: If True, use query prefix (for search); False for indexing
 
         Returns:
             Embedding vector as list of floats
@@ -465,6 +502,7 @@ class SemanticToolSearch:
             model=self.embedding_model,
             api_base=self._api_base,
             api_key=self._openai_api_key,
+            is_query=is_query,
         )
 
     async def embed_tool(
@@ -506,7 +544,7 @@ class SemanticToolSearch:
         embedding = await self.embed_text(text)
 
         # Store embedding
-        return self.store_embedding(
+        return await self.store_embedding(
             tool_id=tool_id,
             server_name=server_name,
             project_id=project_id,
@@ -598,8 +636,8 @@ class SemanticToolSearch:
         """
         Search for tools semantically similar to a query.
 
-        Embeds the query and computes cosine similarity against all
-        stored tool embeddings, returning ranked results.
+        Uses Qdrant vector search if available, falls back to SQLite-based
+        cosine similarity for backwards compatibility.
 
         Args:
             query: Search query text
@@ -612,42 +650,41 @@ class SemanticToolSearch:
             List of SearchResult sorted by similarity (descending)
         """
         # Embed the query
-        query_embedding = await self.embed_text(query)
-
-        # Get all embeddings for the project
-        if server_filter:
-            embeddings = self.get_embeddings_for_server(server_filter, project_id)
-        else:
-            embeddings = self.get_embeddings_for_project(project_id)
-
-        if not embeddings:
-            logger.debug(f"No embeddings found for project {project_id}")
-            return []
+        query_embedding = await self.embed_text(query, is_query=True)
 
         # Get tool metadata for results
         tool_info = self._get_tool_info_map(project_id, server_filter)
 
-        # Compute similarities
-        results: list[SearchResult] = []
-        for emb in embeddings:
-            similarity = _cosine_similarity(query_embedding, emb.embedding)
+        if not self._vector_store:
+            logger.warning("No VectorStore configured — tool search unavailable")
+            return []
 
-            if similarity >= min_similarity:
-                tool_data = tool_info.get(emb.tool_id, {})
+        filters: dict[str, str] = {"project_id": project_id}
+        if server_filter:
+            filters["server_name"] = server_filter
+
+        qdrant_results = await self._vector_store.search(
+            query_embedding=query_embedding,
+            limit=top_k,
+            filters=filters,
+            collection_name=self.TOOL_COLLECTION,
+        )
+
+        results: list[SearchResult] = []
+        for tool_id, score in qdrant_results:
+            if score >= min_similarity:
+                tool_data = tool_info.get(tool_id, {})
                 results.append(
                     SearchResult(
-                        tool_id=emb.tool_id,
-                        server_name=emb.server_name,
+                        tool_id=tool_id,
+                        server_name=tool_data.get("server_name", "unknown"),
                         tool_name=tool_data.get("name", "unknown"),
                         description=tool_data.get("description"),
-                        similarity=similarity,
-                        embedding_id=emb.id,
+                        similarity=score,
+                        embedding_id=0,
                     )
                 )
-
-        # Sort by similarity descending and limit
-        results.sort(key=lambda x: x.similarity, reverse=True)
-        return results[:top_k]
+        return results
 
     def _get_tool_info_map(
         self, project_id: str, server_filter: str | None = None
@@ -664,7 +701,7 @@ class SemanticToolSearch:
         """
         if server_filter:
             query = """
-                SELECT t.id, t.name, t.description
+                SELECT t.id, t.name, t.description, s.name as server_name
                 FROM tools t
                 JOIN mcp_servers s ON t.mcp_server_id = s.id
                 WHERE s.project_id = ? AND s.name = ?
@@ -672,11 +709,18 @@ class SemanticToolSearch:
             rows = self.db.fetchall(query, (project_id, server_filter))
         else:
             query = """
-                SELECT t.id, t.name, t.description
+                SELECT t.id, t.name, t.description, s.name as server_name
                 FROM tools t
                 JOIN mcp_servers s ON t.mcp_server_id = s.id
                 WHERE s.project_id = ?
             """
             rows = self.db.fetchall(query, (project_id,))
 
-        return {row["id"]: {"name": row["name"], "description": row["description"]} for row in rows}
+        return {
+            row["id"]: {
+                "name": row["name"],
+                "description": row["description"],
+                "server_name": row["server_name"],
+            }
+            for row in rows
+        }

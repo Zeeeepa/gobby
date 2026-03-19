@@ -43,6 +43,7 @@ class ServiceContainer:
     # Advanced Features
     memory_manager: MemoryManager | None = None
     llm_service: LLMService | None = None
+    vector_store: Any | None = None  # VectorStore (Qdrant)
 
     # MCP & Agents
     mcp_manager: Any | None = None  # MCPClientManager

@@ -744,6 +744,7 @@ class GobbyRunner:
             memory_sync_manager=self.memory_sync_manager,
             memory_manager=self.memory_manager,
             llm_service=self.llm_service,
+            vector_store=self.vector_store,
             mcp_manager=self.mcp_proxy,
             mcp_db_manager=self.mcp_db_manager,
             metrics_manager=self.metrics_manager,
@@ -955,6 +956,13 @@ class GobbyRunner:
             if self.vector_store:
                 try:
                     await self.vector_store.initialize()
+                    # Ensure tool_embeddings collection exists (shared Qdrant instance)
+                    from gobby.mcp_proxy.semantic_search import SemanticToolSearch
+
+                    await self.vector_store.ensure_collection(
+                        SemanticToolSearch.TOOL_COLLECTION,
+                        self.config.memory.embedding_dim,
+                    )
                     qdrant_count = await self.vector_store.count()
                     if qdrant_count == 0 and self.memory_manager:
                         sqlite_memories = self.memory_manager.storage.list_memories(limit=10000)

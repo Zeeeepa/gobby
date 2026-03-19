@@ -549,7 +549,7 @@ class KnowledgeGraphService:
         # Try vector search first
         if self._embed_fn is not None:
             try:
-                embedding = await self._embed_fn(query)
+                embedding = await self._embed_fn(query, is_query=True)
                 results = await self.search_entities_by_vector(
                     query_embedding=embedding,
                     limit=limit,

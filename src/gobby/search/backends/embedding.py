@@ -176,6 +176,7 @@ class EmbeddingBackend:
                 model=self._model,
                 api_base=self._api_base,
                 api_key=self._api_key,
+                is_query=True,
             )
         except Exception as e:
             logger.error(f"Failed to embed query: {e}")

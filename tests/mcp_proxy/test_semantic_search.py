@@ -138,6 +138,7 @@ class TestSemanticToolSearchApiBase:
                 model="text-embedding-3-small",
                 api_base="http://localhost:11434/v1",
                 api_key="sk-test",
+                is_query=False,
             )
             assert result == [0.1, 0.2, 0.3]
 
@@ -157,6 +158,27 @@ class TestSemanticToolSearchApiBase:
                 model=DEFAULT_EMBEDDING_MODEL,
                 api_base=None,
                 api_key=None,
+                is_query=False,
+            )
+            assert len(result) == 768
+
+    @pytest.mark.asyncio
+    async def test_embed_text_query_mode(self, temp_db: LocalDatabase) -> None:
+        """Test that embed_text passes is_query=True for search queries."""
+        search = SemanticToolSearch(temp_db)
+
+        with patch(
+            "gobby.search.embeddings.generate_embedding",
+            new_callable=AsyncMock,
+            return_value=[0.1] * 768,
+        ) as mock_embed:
+            result = await search.embed_text("search query", is_query=True)
+            mock_embed.assert_called_once_with(
+                text="search query",
+                model=DEFAULT_EMBEDDING_MODEL,
+                api_base=None,
+                api_key=None,
+                is_query=True,
             )
             assert len(result) == 768
 
@@ -189,7 +211,8 @@ class TestSemanticToolSearch:
         assert search.embedding_model == "custom-model"
         assert search.embedding_dim == 768
 
-    def test_store_and_get_embedding(
+    @pytest.mark.asyncio
+    async def test_store_and_get_embedding(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
@@ -197,7 +220,7 @@ class TestSemanticToolSearch:
         """Test storing and retrieving an embedding."""
         embedding = [0.1] * 1536  # Mock embedding
 
-        result = semantic_search.store_embedding(
+        result = await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -211,15 +234,15 @@ class TestSemanticToolSearch:
         assert result.embedding_model == DEFAULT_EMBEDDING_MODEL
         assert len(result.embedding) == 1536
 
-        # Retrieve it
+        # Retrieve metadata from SQLite (embedding BLOB is empty — vectors in Qdrant)
         retrieved = semantic_search.get_embedding(sample_tool["id"])
         assert retrieved is not None
         assert retrieved.tool_id == sample_tool["id"]
-        # Float precision: 32-bit storage vs 64-bit Python floats
-        assert len(retrieved.embedding) == len(embedding)
-        assert all(abs(a - b) < 1e-6 for a, b in zip(retrieved.embedding, embedding, strict=True))
+        assert retrieved.text_hash == "abcd1234"
+        assert retrieved.embedding == []  # No BLOB in SQLite
 
-    def test_store_embedding_upsert(
+    @pytest.mark.asyncio
+    async def test_store_embedding_upsert(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
@@ -228,7 +251,7 @@ class TestSemanticToolSearch:
         embedding1 = [0.1] * 1536
         embedding2 = [0.2] * 1536
 
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -236,7 +259,7 @@ class TestSemanticToolSearch:
             text_hash="hash1",
         )
 
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -246,9 +269,7 @@ class TestSemanticToolSearch:
 
         retrieved = semantic_search.get_embedding(sample_tool["id"])
         assert retrieved is not None
-        # Float precision: 32-bit storage vs 64-bit Python floats
-        assert len(retrieved.embedding) == len(embedding2)
-        assert all(abs(a - b) < 1e-6 for a, b in zip(retrieved.embedding, embedding2, strict=True))
+        assert retrieved.embedding == []  # No BLOB in SQLite
         assert retrieved.text_hash == "hash2"
 
     def test_get_embedding_nonexistent(self, semantic_search: SemanticToolSearch) -> None:
@@ -256,7 +277,8 @@ class TestSemanticToolSearch:
         result = semantic_search.get_embedding("nonexistent-id")
         assert result is None
 
-    def test_get_embeddings_for_project(
+    @pytest.mark.asyncio
+    async def test_get_embeddings_for_project(
         self,
         semantic_search: SemanticToolSearch,
         mcp_manager: LocalMCPManager,
@@ -282,7 +304,7 @@ class TestSemanticToolSearch:
 
         # Store embeddings
         for tool in tools:
-            semantic_search.store_embedding(
+            await semantic_search.store_embedding(
                 tool_id=tool.id,
                 server_name="multi-tool-server",
                 project_id=sample_project["id"],
@@ -293,13 +315,14 @@ class TestSemanticToolSearch:
         embeddings = semantic_search.get_embeddings_for_project(sample_project["id"])
         assert len(embeddings) == 2
 
-    def test_get_embeddings_for_server(
+    @pytest.mark.asyncio
+    async def test_get_embeddings_for_server(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
     ) -> None:
         """Test getting embeddings for a specific server."""
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -314,13 +337,14 @@ class TestSemanticToolSearch:
         assert len(embeddings) == 1
         assert embeddings[0].tool_id == sample_tool["id"]
 
-    def test_delete_embedding(
+    @pytest.mark.asyncio
+    async def test_delete_embedding(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
     ) -> None:
         """Test deleting an embedding."""
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -337,7 +361,8 @@ class TestSemanticToolSearch:
         result = semantic_search.delete_embedding("nonexistent")
         assert result is False
 
-    def test_delete_embeddings_for_server(
+    @pytest.mark.asyncio
+    async def test_delete_embeddings_for_server(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
@@ -353,7 +378,7 @@ class TestSemanticToolSearch:
         tools = mcp_manager.get_cached_tools("test-server", project_id=sample_project["id"])
 
         for tool in tools:
-            semantic_search.store_embedding(
+            await semantic_search.store_embedding(
                 tool_id=tool.id,
                 server_name="test-server",
                 project_id=sample_project["id"],
@@ -382,7 +407,8 @@ class TestSemanticToolSearch:
         )
         assert result is True
 
-    def test_needs_reembedding_unchanged(
+    @pytest.mark.asyncio
+    async def test_needs_reembedding_unchanged(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
@@ -397,7 +423,7 @@ class TestSemanticToolSearch:
         text_hash = SemanticToolSearch.compute_text_hash(text)
 
         # Store with correct hash
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -413,13 +439,14 @@ class TestSemanticToolSearch:
         )
         assert result is False
 
-    def test_needs_reembedding_changed(
+    @pytest.mark.asyncio
+    async def test_needs_reembedding_changed(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
     ) -> None:
         """Test that changed tool needs reembedding."""
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -435,13 +462,14 @@ class TestSemanticToolSearch:
         )
         assert result is True
 
-    def test_get_embedding_stats(
+    @pytest.mark.asyncio
+    async def test_get_embedding_stats(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
     ) -> None:
         """Test getting embedding statistics."""
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -456,13 +484,14 @@ class TestSemanticToolSearch:
         assert "test-server" in stats["by_server"]
         assert stats["by_server"]["test-server"] == 1
 
-    def test_get_embedding_stats_all(
+    @pytest.mark.asyncio
+    async def test_get_embedding_stats_all(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
     ) -> None:
         """Test getting stats without project filter."""
-        semantic_search.store_embedding(
+        await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -477,13 +506,14 @@ class TestSemanticToolSearch:
 class TestToolEmbedding:
     """Tests for ToolEmbedding dataclass."""
 
-    def test_to_dict(
+    @pytest.mark.asyncio
+    async def test_to_dict(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
     ) -> None:
         """Test converting ToolEmbedding to dictionary."""
-        embedding = semantic_search.store_embedding(
+        embedding = await semantic_search.store_embedding(
             tool_id=sample_tool["id"],
             server_name=sample_tool["server_name"],
             project_id=sample_tool["project_id"],
@@ -763,24 +793,27 @@ class TestSearchResult:
 
 
 class TestSearchTools:
-    """Tests for search_tools method."""
+    """Tests for search_tools method (Qdrant-backed)."""
 
     @pytest.fixture
-    def mock_litellm_response(self):
-        """Create a mock litellm embedding response."""
-        mock_response = MagicMock()
-        mock_response.data = [{"embedding": [0.1] * 1536}]
-        return mock_response
+    def search_with_vs(self, temp_db: LocalDatabase) -> SemanticToolSearch:
+        """Create SemanticToolSearch with a mock VectorStore."""
+        mock_vs = AsyncMock()
+        mock_vs.search = AsyncMock(return_value=[])
+        return SemanticToolSearch(
+            temp_db,
+            openai_api_key="sk-test",
+            vector_store=mock_vs,
+        )
 
     @pytest.mark.asyncio
     async def test_search_tools_basic(
         self,
-        semantic_search: SemanticToolSearch,
+        search_with_vs: SemanticToolSearch,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
     ):
-        """Test basic tool search."""
-        # Create server and tools
+        """Test basic tool search delegates to VectorStore."""
         mcp_manager.upsert(
             name="search-server",
             transport="http",
@@ -795,93 +828,36 @@ class TestSearchTools:
             ],
             project_id=sample_project["id"],
         )
-
-        # Store embeddings with different vectors to get different similarities
         tools = mcp_manager.get_cached_tools("search-server", project_id=sample_project["id"])
-        # search_tool gets vector closer to query
-        semantic_search.store_embedding(
-            tool_id=tools[0].id,
-            server_name="search-server",
-            project_id=sample_project["id"],
-            embedding=[0.9] * 1536,  # Similar to query
-            text_hash="hash1",
-        )
-        # create_tool gets different vector
-        semantic_search.store_embedding(
-            tool_id=tools[1].id,
-            server_name="search-server",
-            project_id=sample_project["id"],
-            embedding=[0.1] * 1536,  # Less similar
-            text_hash="hash2",
-        )
+        tool_by_name = {t.name: t for t in tools}
 
-        # Mock embed_text to return query embedding
-        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
-            mock_embed.return_value = [0.9] * 1536  # Query embedding
+        # Mock VectorStore to return ranked results
+        search_with_vs._vector_store.search.return_value = [
+            (tool_by_name["search_tool"].id, 0.95),
+            (tool_by_name["create_tool"].id, 0.60),
+        ]
 
-            results = await semantic_search.search_tools(
+        with patch.object(search_with_vs, "embed_text", new_callable=AsyncMock) as mock_embed:
+            mock_embed.return_value = [0.9] * 768
+
+            results = await search_with_vs.search_tools(
                 query="find something",
                 project_id=sample_project["id"],
             )
 
             assert len(results) == 2
-            # search_tool should be first (higher similarity)
             assert results[0].tool_name == "search_tool"
             assert results[0].similarity > results[1].similarity
-
-    @pytest.mark.asyncio
-    async def test_search_tools_with_top_k(
-        self,
-        semantic_search: SemanticToolSearch,
-        mcp_manager: LocalMCPManager,
-        sample_project: dict,
-    ):
-        """Test search with top_k limit."""
-        mcp_manager.upsert(
-            name="topk-server",
-            transport="http",
-            url="http://localhost:8080",
-            project_id=sample_project["id"],
-        )
-        mcp_manager.cache_tools(
-            "topk-server",
-            [
-                {"name": "tool_a"},
-                {"name": "tool_b"},
-                {"name": "tool_c"},
-            ],
-            project_id=sample_project["id"],
-        )
-
-        tools = mcp_manager.get_cached_tools("topk-server", project_id=sample_project["id"])
-        for tool in tools:
-            semantic_search.store_embedding(
-                tool_id=tool.id,
-                server_name="topk-server",
-                project_id=sample_project["id"],
-                embedding=[0.5] * 1536,
-                text_hash=f"hash-{tool.name}",
-            )
-
-        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
-            mock_embed.return_value = [0.5] * 1536
-
-            results = await semantic_search.search_tools(
-                query="test",
-                project_id=sample_project["id"],
-                top_k=2,
-            )
-
-            assert len(results) == 2
+            search_with_vs._vector_store.search.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_search_tools_with_min_similarity(
         self,
-        semantic_search: SemanticToolSearch,
+        search_with_vs: SemanticToolSearch,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
     ):
-        """Test search with minimum similarity threshold."""
+        """Test search filters by minimum similarity."""
         mcp_manager.upsert(
             name="minsim-server",
             transport="http",
@@ -890,112 +866,60 @@ class TestSearchTools:
         )
         mcp_manager.cache_tools(
             "minsim-server",
-            [
-                {"name": "relevant_tool"},
-                {"name": "irrelevant_tool"},
-            ],
+            [{"name": "relevant_tool"}, {"name": "irrelevant_tool"}],
             project_id=sample_project["id"],
         )
-
         tools = mcp_manager.get_cached_tools("minsim-server", project_id=sample_project["id"])
         tool_by_name = {t.name: t for t in tools}
 
-        # High similarity tool
-        semantic_search.store_embedding(
-            tool_id=tool_by_name["relevant_tool"].id,
-            server_name="minsim-server",
-            project_id=sample_project["id"],
-            embedding=[0.9] * 1536,
-            text_hash="hash1",
-        )
-        # Low similarity tool (orthogonal-ish)
-        semantic_search.store_embedding(
-            tool_id=tool_by_name["irrelevant_tool"].id,
-            server_name="minsim-server",
-            project_id=sample_project["id"],
-            embedding=[-0.5] * 1536,
-            text_hash="hash2",
-        )
+        search_with_vs._vector_store.search.return_value = [
+            (tool_by_name["relevant_tool"].id, 0.90),
+            (tool_by_name["irrelevant_tool"].id, 0.30),  # Below threshold
+        ]
 
-        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
-            mock_embed.return_value = [0.9] * 1536
+        with patch.object(search_with_vs, "embed_text", new_callable=AsyncMock) as mock_embed:
+            mock_embed.return_value = [0.9] * 768
 
-            results = await semantic_search.search_tools(
+            results = await search_with_vs.search_tools(
                 query="test",
                 project_id=sample_project["id"],
                 min_similarity=0.5,
             )
 
-            # Only the relevant tool should pass the threshold
             assert len(results) == 1
             assert results[0].tool_name == "relevant_tool"
 
     @pytest.mark.asyncio
-    async def test_search_tools_with_server_filter(
+    async def test_search_tools_passes_server_filter(
         self,
-        semantic_search: SemanticToolSearch,
-        mcp_manager: LocalMCPManager,
+        search_with_vs: SemanticToolSearch,
         sample_project: dict,
     ):
-        """Test search with server filter."""
-        # Create two servers
-        mcp_manager.upsert(
-            name="server-a",
-            transport="http",
-            url="http://localhost:8080",
-            project_id=sample_project["id"],
-        )
-        mcp_manager.upsert(
-            name="server-b",
-            transport="http",
-            url="http://localhost:8081",
-            project_id=sample_project["id"],
-        )
+        """Test search passes server_filter to VectorStore."""
+        search_with_vs._vector_store.search.return_value = []
 
-        mcp_manager.cache_tools("server-a", [{"name": "tool_a"}], project_id=sample_project["id"])
-        mcp_manager.cache_tools("server-b", [{"name": "tool_b"}], project_id=sample_project["id"])
+        with patch.object(search_with_vs, "embed_text", new_callable=AsyncMock) as mock_embed:
+            mock_embed.return_value = [0.5] * 768
 
-        tools_a = mcp_manager.get_cached_tools("server-a", project_id=sample_project["id"])
-        tools_b = mcp_manager.get_cached_tools("server-b", project_id=sample_project["id"])
-
-        for tool in tools_a:
-            semantic_search.store_embedding(
-                tool_id=tool.id,
-                server_name="server-a",
-                project_id=sample_project["id"],
-                embedding=[0.5] * 1536,
-                text_hash="hash-a",
-            )
-        for tool in tools_b:
-            semantic_search.store_embedding(
-                tool_id=tool.id,
-                server_name="server-b",
-                project_id=sample_project["id"],
-                embedding=[0.5] * 1536,
-                text_hash="hash-b",
-            )
-
-        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
-            mock_embed.return_value = [0.5] * 1536
-
-            results = await semantic_search.search_tools(
+            await search_with_vs.search_tools(
                 query="test",
                 project_id=sample_project["id"],
                 server_filter="server-a",
             )
 
-            assert len(results) == 1
-            assert results[0].server_name == "server-a"
+            call_kwargs = search_with_vs._vector_store.search.call_args[1]
+            assert call_kwargs["filters"]["server_name"] == "server-a"
+            assert call_kwargs["collection_name"] == SemanticToolSearch.TOOL_COLLECTION
 
     @pytest.mark.asyncio
-    async def test_search_tools_no_embeddings(
+    async def test_search_tools_no_vectorstore(
         self,
         semantic_search: SemanticToolSearch,
         sample_project: dict,
     ):
-        """Test search returns empty when no embeddings exist."""
+        """Test search returns empty when no VectorStore configured."""
         with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
-            mock_embed.return_value = [0.5] * 1536
+            mock_embed.return_value = [0.5] * 768
 
             results = await semantic_search.search_tools(
                 query="test",

@@ -322,18 +322,30 @@ async def refresh_mcp_tools(
 
                 # Generate embeddings for new/changed tools
                 if semantic_search and tools_to_embed:
+                    # Look up tool IDs from the cached tools in DB
+                    cached_tools = server._mcp_db_manager.get_cached_tools(
+                        server_name, project_id=project_id
+                    )
+                    tool_id_map = {t.name: t.id for t in cached_tools}
+
                     for tool in tools_to_embed:
+                        tool_name = tool["name"]
+                        tool_id = tool_id_map.get(tool_name)
+                        if not tool_id:
+                            continue
                         try:
                             await semantic_search.embed_tool(
-                                server_name=server_name,
-                                tool_name=tool["name"],
-                                description=tool.get("description", ""),
+                                tool_id=tool_id,
+                                name=tool_name,
+                                description=tool.get("description"),
                                 input_schema=tool.get("inputSchema"),
+                                server_name=server_name,
                                 project_id=project_id,
+                                force=force,
                             )
                             server_stats["embeddings"] += 1
                         except Exception as e:
-                            logger.warning(f"Failed to embed {server_name}/{tool['name']}: {e}")
+                            logger.warning(f"Failed to embed {server_name}/{tool_name}: {e}")
 
                 stats["by_server"][server_name] = server_stats
                 stats["servers_processed"] += 1

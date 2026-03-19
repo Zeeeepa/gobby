@@ -226,6 +226,7 @@ class HTTPServer:
                     if _mcp_proxy_cfg
                     else DEFAULT_EMBEDDING_MODEL,
                     api_base=_mcp_proxy_cfg.embedding_api_base if _mcp_proxy_cfg else None,
+                    vector_store=getattr(services, "vector_store", None),
                 )
                 logger.debug("Semantic tool search initialized")
 

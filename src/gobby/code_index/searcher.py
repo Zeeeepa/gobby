@@ -136,7 +136,7 @@ class CodeSearcher:
         if self._embed_fn is None or self._vector_store is None:
             return []
 
-        embedding = await self._embed_fn(query)
+        embedding = await self._embed_fn(query, is_query=True)
         if embedding is None:
             return []
 

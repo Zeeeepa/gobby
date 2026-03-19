@@ -497,7 +497,7 @@ class MemoryManager:
             tags_none: Memory must have NONE of these tags
         """
         if query and self._vector_store and self._embed_fn:
-            query_embedding = await self._embed_fn(query)
+            query_embedding = await self._embed_fn(query, is_query=True)
 
             # Build filters for VectorStore
             filters: dict[str, Any] = {}

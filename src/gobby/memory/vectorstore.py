@@ -231,6 +231,42 @@ class VectorStore:
             points=points,
         )
 
+    async def ensure_collection(self, collection_name: str, embedding_dim: int | None = None) -> None:
+        """Ensure a named collection exists, creating it if needed.
+
+        Args:
+            collection_name: Collection to ensure
+            embedding_dim: Vector dimension (defaults to instance's _embedding_dim)
+        """
+        client = self._ensure_client()
+        dim = embedding_dim or self._embedding_dim
+        exists = await asyncio.to_thread(client.collection_exists, collection_name)
+        if not exists:
+            await asyncio.to_thread(
+                client.create_collection,
+                collection_name=collection_name,
+                vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+            )
+            logger.info(f"Created Qdrant collection '{collection_name}' (dim={dim})")
+        else:
+            try:
+                info = await asyncio.to_thread(client.get_collection, collection_name)
+                existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
+                if existing_dim != dim:
+                    # Auto-recreate with correct dimensions
+                    await asyncio.to_thread(client.delete_collection, collection_name=collection_name)
+                    await asyncio.to_thread(
+                        client.create_collection,
+                        collection_name=collection_name,
+                        vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+                    )
+                    logger.info(
+                        f"Recreated Qdrant collection '{collection_name}' "
+                        f"(dim changed {existing_dim}→{dim})"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not verify collection '{collection_name}': {e}")
+
     async def delete_collection(self, collection_name: str) -> None:
         """Delete a collection by name."""
         client = self._ensure_client()
