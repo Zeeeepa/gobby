@@ -7,6 +7,7 @@ via parent PID checks and triggers session expiry + summary generation.
 from __future__ import annotations
 
 import json
+import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -82,7 +83,7 @@ class TestCheckSessions:
 
     @pytest.mark.asyncio
     async def test_detects_dead_pid(self, monitor, mock_session_storage, mock_dispatch_fn):
-        """Dead parent PID triggers expiry + summary dispatch."""
+        """Dead parent PID (no tmux) triggers expiry + summary dispatch."""
         mock_session_storage.db.fetchall.return_value = [
             {"id": "s1", "terminal_context": json.dumps({"parent_pid": 99999})},
         ]
@@ -197,6 +198,99 @@ class TestCheckSessions:
         # TTL expired, so s1 should be processed again
         mock_dispatch_fn.assert_called_once_with("s1", False, None)
 
+    @pytest.mark.asyncio
+    async def test_dead_pid_live_tmux_pane_refreshes(
+        self, monitor, mock_session_storage, mock_dispatch_fn
+    ):
+        """Dead parent PID + live tmux pane → touch session, do NOT expire."""
+        mock_session_storage.db.fetchall.return_value = [
+            {
+                "id": "s1",
+                "terminal_context": json.dumps(
+                    {"parent_pid": 99999, "tmux_pane": "%6"}
+                ),
+            },
+        ]
+
+        with (
+            patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=False),
+            patch.object(SessionLivenessMonitor, "_is_tmux_pane_alive", return_value=True),
+        ):
+            await monitor._check_sessions()
+
+        # Session should be touched, NOT expired
+        mock_session_storage.touch.assert_called_once_with("s1")
+        mock_dispatch_fn.assert_not_called()
+        mock_session_storage.update_status.assert_not_called()
+        assert "s1" not in monitor._recently_handled
+
+    @pytest.mark.asyncio
+    async def test_dead_pid_dead_tmux_pane_expires(
+        self, monitor, mock_session_storage, mock_dispatch_fn
+    ):
+        """Dead parent PID + dead tmux pane → expire as normal."""
+        mock_session_storage.db.fetchall.return_value = [
+            {
+                "id": "s1",
+                "terminal_context": json.dumps(
+                    {"parent_pid": 99999, "tmux_pane": "%6"}
+                ),
+            },
+        ]
+
+        with (
+            patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=False),
+            patch.object(SessionLivenessMonitor, "_is_tmux_pane_alive", return_value=False),
+        ):
+            await monitor._check_sessions()
+
+        mock_dispatch_fn.assert_called_once_with("s1", False, None)
+        mock_session_storage.update_status.assert_called_once_with("s1", "expired")
+        assert "s1" in monitor._recently_handled
+
+    @pytest.mark.asyncio
+    async def test_dead_pid_no_tmux_pane_expires(
+        self, monitor, mock_session_storage, mock_dispatch_fn
+    ):
+        """Dead parent PID + no tmux pane → expire as normal."""
+        mock_session_storage.db.fetchall.return_value = [
+            {
+                "id": "s1",
+                "terminal_context": json.dumps({"parent_pid": 99999}),
+            },
+        ]
+
+        with patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=False):
+            await monitor._check_sessions()
+
+        mock_dispatch_fn.assert_called_once_with("s1", False, None)
+        mock_session_storage.update_status.assert_called_once_with("s1", "expired")
+
+    @pytest.mark.asyncio
+    async def test_dead_pid_live_tmux_touch_failure_continues(
+        self, monitor, mock_session_storage, mock_dispatch_fn
+    ):
+        """If touch() fails for a live tmux session, don't expire — just continue."""
+        mock_session_storage.db.fetchall.return_value = [
+            {
+                "id": "s1",
+                "terminal_context": json.dumps(
+                    {"parent_pid": 99999, "tmux_pane": "%6"}
+                ),
+            },
+        ]
+        mock_session_storage.touch.side_effect = Exception("DB error")
+
+        with (
+            patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=False),
+            patch.object(SessionLivenessMonitor, "_is_tmux_pane_alive", return_value=True),
+        ):
+            await monitor._check_sessions()
+
+        # Should NOT expire even if touch fails
+        mock_dispatch_fn.assert_not_called()
+        mock_session_storage.update_status.assert_not_called()
+
 
 class TestExpireSession:
     """Tests for _expire_session."""
@@ -290,19 +384,59 @@ class TestIsPidAlive:
             assert SessionLivenessMonitor._is_pid_alive(1) is False
 
 
+class TestIsTmuxPaneAlive:
+    """Tests for the static _is_tmux_pane_alive method."""
+
+    def test_alive_pane(self):
+        """Pane ID in tmux output means pane is alive."""
+        mock_result = MagicMock()
+        mock_result.stdout = "%5\n%6\n%7\n"
+        with patch("subprocess.run", return_value=mock_result):
+            assert SessionLivenessMonitor._is_tmux_pane_alive("%6") is True
+
+    def test_dead_pane(self):
+        """Pane ID not in tmux output means pane is dead."""
+        mock_result = MagicMock()
+        mock_result.stdout = "%5\n%7\n"
+        with patch("subprocess.run", return_value=mock_result):
+            assert SessionLivenessMonitor._is_tmux_pane_alive("%6") is False
+
+    def test_tmux_not_installed(self):
+        """FileNotFoundError (tmux not installed) returns False."""
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert SessionLivenessMonitor._is_tmux_pane_alive("%6") is False
+
+    def test_tmux_timeout(self):
+        """Subprocess timeout returns False."""
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("tmux", 5)):
+            assert SessionLivenessMonitor._is_tmux_pane_alive("%6") is False
+
+    def test_os_error(self):
+        """Generic OSError returns False."""
+        with patch("subprocess.run", side_effect=OSError("tmux server not running")):
+            assert SessionLivenessMonitor._is_tmux_pane_alive("%6") is False
+
+    def test_empty_output(self):
+        """Empty tmux output (no panes) returns False."""
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        with patch("subprocess.run", return_value=mock_result):
+            assert SessionLivenessMonitor._is_tmux_pane_alive("%6") is False
+
+
 class TestGetActiveSessionsWithPid:
     """Tests for _get_active_sessions_with_pid query."""
 
     def test_parses_terminal_context(self, monitor, mock_session_storage):
-        """Correctly extracts parent_pid from terminal_context JSON."""
+        """Correctly extracts parent_pid and tmux_pane from terminal_context JSON."""
         mock_session_storage.db.fetchall.return_value = [
             {"id": "s1", "terminal_context": json.dumps({"parent_pid": 12345})},
-            {"id": "s2", "terminal_context": json.dumps({"parent_pid": 67890})},
+            {"id": "s2", "terminal_context": json.dumps({"parent_pid": 67890, "tmux_pane": "%3"})},
         ]
 
         result = monitor._get_active_sessions_with_pid()
 
-        assert result == [("s1", 12345), ("s2", 67890)]
+        assert result == [("s1", 12345, None), ("s2", 67890, "%3")]
 
     def test_skips_missing_pid(self, monitor, mock_session_storage):
         """Sessions without parent_pid are excluded."""
@@ -344,3 +478,13 @@ class TestGetActiveSessionsWithPid:
         call_args = mock_session_storage.db.fetchall.call_args
         sql = call_args[0][0]
         assert "agent_run_id IS NULL" in sql
+
+    def test_non_string_tmux_pane_treated_as_none(self, monitor, mock_session_storage):
+        """Non-string tmux_pane values are normalized to None."""
+        mock_session_storage.db.fetchall.return_value = [
+            {"id": "s1", "terminal_context": json.dumps({"parent_pid": 123, "tmux_pane": 42})},
+        ]
+
+        result = monitor._get_active_sessions_with_pid()
+
+        assert result == [("s1", 123, None)]

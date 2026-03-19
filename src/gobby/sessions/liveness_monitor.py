@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import time
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
@@ -129,12 +130,31 @@ class SessionLivenessMonitor:
         if not active_sessions:
             return
 
-        # 3. Check each session's parent PID
-        for session_id, parent_pid in active_sessions:
+        # 3. Check each session's parent PID (and tmux pane if present)
+        for session_id, parent_pid, tmux_pane in active_sessions:
             if session_id in self._recently_handled:
                 continue
 
             if self._is_pid_alive(parent_pid):
+                continue
+
+            # Parent PID is dead — but if running in tmux, the pane may
+            # still be alive (e.g. terminal tab closed while tmux persists).
+            if tmux_pane and self._is_tmux_pane_alive(tmux_pane):
+                logger.debug(
+                    "Session %s parent PID %d dead but tmux pane %s alive — refreshing",
+                    session_id,
+                    parent_pid,
+                    tmux_pane,
+                )
+                try:
+                    self._session_storage.touch(session_id)
+                except Exception:
+                    logger.warning(
+                        "SessionLivenessMonitor: failed to touch session %s",
+                        session_id,
+                        exc_info=True,
+                    )
                 continue
 
             logger.info(
@@ -146,11 +166,12 @@ class SessionLivenessMonitor:
             await self._expire_session(session_id)
             self._recently_handled[session_id] = now
 
-    def _get_active_sessions_with_pid(self) -> list[tuple[str, int]]:
+    def _get_active_sessions_with_pid(self) -> list[tuple[str, int, str | None]]:
         """Query active/paused sessions that have a parent_pid in terminal_context.
 
         Returns:
-            List of (session_id, parent_pid) tuples.
+            List of (session_id, parent_pid, tmux_pane) tuples.
+            tmux_pane is None when the session has no tmux pane.
         """
         try:
             rows = self._session_storage.db.fetchall(
@@ -169,7 +190,7 @@ class SessionLivenessMonitor:
             )
             return []
 
-        result: list[tuple[str, int]] = []
+        result: list[tuple[str, int, str | None]] = []
         for row in rows:
             raw_ctx = row["terminal_context"]
             if not raw_ctx:
@@ -181,7 +202,10 @@ class SessionLivenessMonitor:
 
             parent_pid = ctx.get("parent_pid")
             if isinstance(parent_pid, int) and parent_pid > 0:
-                result.append((row["id"], parent_pid))
+                tmux_pane = ctx.get("tmux_pane")
+                if tmux_pane is not None and not isinstance(tmux_pane, str):
+                    tmux_pane = None
+                result.append((row["id"], parent_pid, tmux_pane))
 
         return result
 
@@ -197,6 +221,28 @@ class SessionLivenessMonitor:
             # Process exists but we can't signal it — it's alive
             return True
         except OSError:
+            return False
+
+    @staticmethod
+    def _is_tmux_pane_alive(pane_id: str) -> bool:
+        """Check if a tmux pane is still alive.
+
+        Args:
+            pane_id: Tmux pane identifier (e.g. ``%6``).
+
+        Returns:
+            True if the pane exists in any tmux session, False otherwise
+            (including when tmux is not installed or the server isn't running).
+        """
+        try:
+            result = subprocess.run(
+                ["tmux", "list-panes", "-a", "-F", "#{pane_id}"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return pane_id in result.stdout.splitlines()
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             return False
 
     async def _expire_session(self, session_id: str) -> None:

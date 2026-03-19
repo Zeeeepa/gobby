@@ -328,6 +328,19 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def touch(self, session_id: str) -> None:
+        """Refresh updated_at without changing any other fields.
+
+        Used by the liveness monitor to keep tmux-backed sessions warm
+        so the 30-minute pause timeout doesn't fire while the tmux pane
+        is still alive.
+        """
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            "UPDATE sessions SET updated_at = ? WHERE id = ?",
+            (now, session_id),
+        )
+
     def mark_had_edits(self, session_id: str) -> Session | None:
         """Mark session as having edits."""
         now = datetime.now(UTC).isoformat()
