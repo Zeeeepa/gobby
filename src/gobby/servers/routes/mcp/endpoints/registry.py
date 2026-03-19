@@ -322,7 +322,7 @@ async def refresh_mcp_tools(
 
                 # Generate embeddings for new/changed tools
                 if semantic_search and tools_to_embed:
-                    # Look up tool IDs from the cached tools in DB
+                    # Look up DB-assigned tool IDs if available, else use synthetic IDs
                     cached_tools = server._mcp_db_manager.get_cached_tools(
                         server_name, project_id=project_id
                     )
@@ -332,7 +332,10 @@ async def refresh_mcp_tools(
                         tool_name = tool["name"]
                         tool_id = tool_id_map.get(tool_name)
                         if not tool_id:
-                            continue
+                            # Deterministic UUID for internal tools not in DB
+                            import uuid
+
+                            tool_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{server_name}/{tool_name}"))
                         try:
                             await semantic_search.embed_tool(
                                 tool_id=tool_id,

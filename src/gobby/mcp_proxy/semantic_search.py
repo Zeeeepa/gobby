@@ -248,35 +248,39 @@ class SemanticToolSearch:
                 collection_name=self.TOOL_COLLECTION,
             )
 
-        # Store metadata in SQLite (no BLOB)
-        self.db.execute(
-            """
-            INSERT INTO tool_embeddings (
-                tool_id, server_name, project_id, embedding,
-                embedding_model, embedding_dim, text_hash, created_at, updated_at
+        # Store metadata in SQLite (best-effort — skips for synthetic tool IDs
+        # that don't exist in the tools table due to FK constraint)
+        try:
+            self.db.execute(
+                """
+                INSERT INTO tool_embeddings (
+                    tool_id, server_name, project_id, embedding,
+                    embedding_model, embedding_dim, text_hash, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(tool_id) DO UPDATE SET
+                    server_name = excluded.server_name,
+                    project_id = excluded.project_id,
+                    embedding = excluded.embedding,
+                    embedding_model = excluded.embedding_model,
+                    embedding_dim = excluded.embedding_dim,
+                    text_hash = excluded.text_hash,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    tool_id,
+                    server_name,
+                    project_id,
+                    b"",  # Empty BLOB — vectors live in Qdrant
+                    self.embedding_model,
+                    len(embedding),
+                    text_hash,
+                    now,
+                    now,
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(tool_id) DO UPDATE SET
-                server_name = excluded.server_name,
-                project_id = excluded.project_id,
-                embedding = excluded.embedding,
-                embedding_model = excluded.embedding_model,
-                embedding_dim = excluded.embedding_dim,
-                text_hash = excluded.text_hash,
-                updated_at = excluded.updated_at
-            """,
-            (
-                tool_id,
-                server_name,
-                project_id,
-                b"",  # Empty BLOB — vectors live in Qdrant
-                self.embedding_model,
-                len(embedding),
-                text_hash,
-                now,
-                now,
-            ),
-        )
+        except Exception:
+            pass  # FK constraint — tool not in DB (internal server)
 
         return ToolEmbedding(
             id=0,
