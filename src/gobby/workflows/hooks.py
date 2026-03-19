@@ -137,6 +137,18 @@ class WorkflowHookHandler:
                     event.metadata.get("project_path") if hasattr(event, "metadata") else None
                 )
 
+            # Lazy-init baseline on first evaluation (rule template may not have fired)
+            if "baseline_dirty_files" not in variables:
+                initial_dirty = sorted(get_dirty_files(project_path))
+                variables["baseline_dirty_files"] = initial_dirty
+                variables.setdefault("session_edited_files", [])
+                # Persist so future evaluations have it
+                if self._session_var_manager and session_id:
+                    self._session_var_manager.merge_variables(
+                        session_id,
+                        {"baseline_dirty_files": initial_dirty, "session_edited_files": []},
+                    )
+
             session_edited = set(variables.get("session_edited_files", []))
             baseline = set(variables.get("baseline_dirty_files", []))
 

@@ -945,17 +945,18 @@ class TestBaselineDirtyFilesSubtraction:
 
     @pytest.mark.asyncio
     @patch("gobby.workflows.git_utils.get_dirty_files")
-    async def test_blocked_when_no_baseline(
+    async def test_not_blocked_when_no_baseline_lazy_init(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
-        """Should block when no baseline is stored (backwards compat)."""
+        """Should NOT block when no baseline is stored — lazy-init captures current dirty files."""
         mock_get_dirty.return_value = {"file_a.py"}
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
         response = await handler._evaluate_rules(event)
 
-        assert response.decision == "block"
+        # Lazy-init captures file_a.py as baseline, so dirty - baseline = {} → allow
+        assert response.decision == "allow"
 
     @pytest.mark.asyncio
     @patch("gobby.workflows.git_utils.get_dirty_files")
@@ -1082,3 +1083,39 @@ class TestBaselineDirtyFilesSubtraction:
         event_a = self._make_event(session_id="session-a")
         response_a = await handler._evaluate_rules(event_a)
         assert response_a.decision == "allow"  # a.py committed, b.py is not session-a's
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_lazy_init_baseline_persisted_to_session_variables(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Lazy-init baseline should be persisted so future evaluations have it."""
+        mock_get_dirty.return_value = {"pre_existing.py", "other.py"}
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        await handler._evaluate_rules(event)
+
+        # Baseline should be persisted
+        variables = session_var_manager.get_variables("test-session")
+        assert set(variables.get("baseline_dirty_files", [])) == {"pre_existing.py", "other.py"}
+        assert variables.get("session_edited_files") == []
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files")
+    async def test_lazy_init_then_new_file_blocks(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """After lazy-init baseline, new dirty files beyond baseline should block."""
+        # First evaluation: captures baseline
+        mock_get_dirty.return_value = {"pre_existing.py"}
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+        assert response.decision == "allow"
+
+        # Second evaluation: new file appears
+        mock_get_dirty.return_value = {"pre_existing.py", "new_file.py"}
+        response = await handler._evaluate_rules(event)
+        assert response.decision == "block"
