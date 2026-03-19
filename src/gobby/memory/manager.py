@@ -833,22 +833,29 @@ class MemoryManager:
     # =========================================================================
 
     async def reindex_embeddings(self) -> dict[str, Any]:
-        """Regenerate embeddings for all stored memories."""
+        """Regenerate embeddings for all stored memories.
+
+        Uses VectorStore.rebuild() to delete and recreate the collection,
+        which handles embedding dimension changes (e.g., 1536→768) cleanly.
+        """
         if not self._vector_store or not self._embed_fn:
             return {"success": False, "error": "Vector store or embedding function not configured"}
 
         memories = self.list_memories(limit=MAX_REINDEX_LIMIT)
         total = len(memories)
-        generated = 0
 
-        for mem in memories:
-            try:
-                await self._embed_and_upsert(
-                    mem.id, mem.content, payload={"project_id": mem.project_id}
-                )
-                generated += 1
-            except Exception as e:
-                logger.warning(f"Failed to reindex memory {mem.id}: {e}")
+        # Convert Memory objects to dicts for VectorStore.rebuild()
+        memory_dicts = [
+            {"id": mem.id, "content": mem.content, "project_id": mem.project_id}
+            for mem in memories
+        ]
+
+        try:
+            await self._vector_store.rebuild(memory_dicts, self._embed_fn)
+            generated = len(memory_dicts)
+        except Exception as e:
+            logger.error(f"Failed to rebuild vector store: {e}")
+            return {"success": False, "total_memories": total, "error": str(e)}
 
         return {"success": True, "total_memories": total, "embeddings_generated": generated}
 

@@ -817,11 +817,12 @@ class TestReindexEmbeddings:
 
     @pytest.mark.asyncio
     async def test_reindex_with_vectorstore(self, db, memory_config) -> None:
-        """reindex_embeddings processes all memories."""
+        """reindex_embeddings rebuilds collection with all memories."""
         from unittest.mock import AsyncMock
 
         mock_vs = MagicMock()
         mock_vs.upsert = AsyncMock()
+        mock_vs.rebuild = AsyncMock()
         mock_embed = AsyncMock(return_value=[0.1, 0.2])
         manager = MemoryManager(
             db=db, config=memory_config, vector_store=mock_vs, embed_fn=mock_embed
@@ -832,6 +833,10 @@ class TestReindexEmbeddings:
         assert result["success"] is True
         assert result["total_memories"] == 2
         assert result["embeddings_generated"] == 2
+        # Verify rebuild was called (not individual upserts)
+        mock_vs.rebuild.assert_called_once()
+        memory_dicts = mock_vs.rebuild.call_args[0][0]
+        assert len(memory_dicts) == 2
 
 
 # =============================================================================
