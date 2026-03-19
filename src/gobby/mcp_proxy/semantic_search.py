@@ -309,20 +309,24 @@ class SemanticToolSearch:
         self,
         project_id: str,
         mcp_manager: Any,
+        internal_manager: Any | None = None,
     ) -> dict[str, Any]:
         """
         Generate embeddings for all tools in a project.
 
-        Iterates through all MCP servers and their tools, generating
-        embeddings for each.
+        Iterates through both internal registries and external MCP servers,
+        generating embeddings for each tool.
 
         Args:
             project_id: Project ID
-            mcp_manager: LocalMCPManager instance for accessing tools
+            mcp_manager: LocalMCPManager instance for accessing external tools
+            internal_manager: InternalRegistryManager for internal tools (optional)
 
         Returns:
             Dict with statistics: embedded, failed, by_server
         """
+        import uuid
+
         from gobby.storage.mcp import LocalMCPManager
 
         if not isinstance(mcp_manager, LocalMCPManager):
@@ -336,13 +340,49 @@ class SemanticToolSearch:
             "by_server": {},
         }
 
-        # Get all servers for the project
+        # Embed internal registry tools (gobby-tasks, gobby-memory, etc.)
+        if internal_manager:
+            for registry in internal_manager.get_all_registries():
+                server_stats = {"embedded": 0, "skipped": 0, "failed": 0}
+
+                for tool_entry in registry.list_tools():
+                    tool_name = tool_entry.get("name", "")
+                    schema = registry.get_schema(tool_name)
+                    description = schema.get("description") if schema else None
+                    input_schema = schema.get("inputSchema") if schema else None
+                    # Deterministic UUID for internal tools (not in DB)
+                    tool_id = str(
+                        uuid.uuid5(uuid.NAMESPACE_DNS, f"{registry.name}/{tool_name}")
+                    )
+
+                    try:
+                        await self.embed_tool(
+                            tool_id=tool_id,
+                            name=tool_name,
+                            description=description,
+                            input_schema=input_schema,
+                            server_name=registry.name,
+                            project_id=project_id,
+                        )
+
+                        server_stats["embedded"] += 1
+                        stats["embedded"] += 1
+
+                    except Exception as e:
+                        server_stats["failed"] += 1
+                        stats["failed"] += 1
+                        error_msg = f"{registry.name}/{tool_name}: {e}"
+                        stats["errors"].append(error_msg)
+                        logger.error(f"Failed to embed tool {error_msg}")
+
+                stats["by_server"][registry.name] = server_stats
+
+        # Embed external MCP server tools
         servers = mcp_manager.list_servers(project_id=project_id, enabled_only=False)
 
         for server in servers:
             server_stats = {"embedded": 0, "skipped": 0, "failed": 0}
 
-            # Get tools for this server
             tools = mcp_manager.get_cached_tools(server.name, project_id=project_id)
 
             for tool in tools:
@@ -358,7 +398,6 @@ class SemanticToolSearch:
 
                     server_stats["embedded"] += 1
                     stats["embedded"] += 1
-                    logger.info(f"Embedded tool: {server.name}/{tool.name}")
 
                 except Exception as e:
                     server_stats["failed"] += 1

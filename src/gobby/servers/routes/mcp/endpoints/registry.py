@@ -57,6 +57,7 @@ async def embed_mcp_tools(
                 stats = await server._tools_handler._semantic_search.embed_all_tools(
                     project_id=project_id,
                     mcp_manager=server._mcp_db_manager,
+                    internal_manager=server._internal_manager,
                 )
                 response_time_ms = (time.perf_counter() - start_time) * 1000
                 return {

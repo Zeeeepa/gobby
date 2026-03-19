@@ -324,6 +324,7 @@ async def search_mcp_tools(
                             await semantic_search.embed_all_tools(
                                 project_id=proj_id,
                                 mcp_manager=server._mcp_db_manager,
+                                internal_manager=server._internal_manager,
                             )
                         except Exception as e:
                             logger.error(

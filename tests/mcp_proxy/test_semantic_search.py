@@ -1,6 +1,6 @@
 """Tests for the SemanticToolSearch module."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -396,6 +396,44 @@ class TestEmbeddingGeneration:
             assert stats["failed"] == 0
             assert "embed-server" in stats["by_server"]
             assert stats["by_server"]["embed-server"]["embedded"] == 2
+
+    @pytest.mark.asyncio
+    async def test_embed_all_tools_with_internal_manager(
+        self,
+        semantic_search: SemanticToolSearch,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test embed_all_tools includes internal registry tools."""
+        # Create a mock internal registry
+        mock_registry = MagicMock()
+        mock_registry.name = "gobby-tasks"
+        mock_registry.list_tools.return_value = [
+            {"name": "create_task", "brief": "Create a new task"},
+            {"name": "list_tasks", "brief": "List tasks"},
+        ]
+        mock_registry.get_schema.side_effect = lambda name: {
+            "description": f"Description for {name}",
+            "inputSchema": {"type": "object", "properties": {}},
+        }
+
+        mock_internal_manager = MagicMock()
+        mock_internal_manager.get_all_registries.return_value = [mock_registry]
+
+        mock_embedding = [0.1] * DEFAULT_EMBEDDING_DIM
+
+        with patch.object(
+            semantic_search, "embed_text", new_callable=AsyncMock, return_value=mock_embedding
+        ):
+            stats = await semantic_search.embed_all_tools(
+                project_id=sample_project["id"],
+                mcp_manager=mcp_manager,
+                internal_manager=mock_internal_manager,
+            )
+
+            assert stats["embedded"] == 2
+            assert "gobby-tasks" in stats["by_server"]
+            assert stats["by_server"]["gobby-tasks"]["embedded"] == 2
 
     @pytest.mark.asyncio
     async def test_embed_all_tools_handles_errors(
