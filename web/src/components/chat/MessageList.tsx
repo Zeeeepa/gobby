@@ -41,6 +41,13 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
     }
   }, [isStreaming, messages])
 
+  // Scroll to bottom on new messages (non-streaming appends)
+  useEffect(() => {
+    if (!userScrolledUpRef.current && messages.length > 0) {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
+    }
+  }, [messages.length])
+
   const Footer = useCallback(() => (
     <>
       {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (

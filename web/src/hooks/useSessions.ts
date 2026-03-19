@@ -75,6 +75,7 @@ export function useSessions() {
   }, []);
 
   const fetchSessions = useCallback(async () => {
+    setIsLoading(true);
     setError(null);
     try {
       const baseUrl = getBaseUrl();

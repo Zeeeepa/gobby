@@ -85,7 +85,7 @@ export function ActivityPanel({
   const tabContent = () => {
     switch (activeTab) {
       case 'sessions':
-        return <SessionsTab onKillAgent={onKillAgent} onExpireSession={onExpireSession} />
+        return <SessionsTab projectId={projectId} onKillAgent={onKillAgent} onExpireSession={onExpireSession} />
       case 'pipelines':
         return <PipelinesTab projectId={projectId} />
       case 'tasks':

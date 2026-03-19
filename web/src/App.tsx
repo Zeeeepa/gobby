@@ -566,6 +566,13 @@ export default function App() {
     if (initialReconciliationDone.current) return;
     if (!effectiveProjectId || sessionsHook.isLoading) return;
 
+    // Guard: ensure fetched sessions belong to the current project.
+    // After a project switch, the fetch for the new project may still be in-flight
+    // while webChatSessions contains stale data from the old project.
+    const sessionsMatchProject = webChatSessions.length === 0 ||
+      webChatSessions.some((s) => s.project_id === effectiveProjectId);
+    if (!sessionsMatchProject) return;
+
     initialReconciliationDone.current = true;
 
     // Does the current localStorage conversation_id match any server session?

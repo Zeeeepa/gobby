@@ -17,6 +17,7 @@ interface RunningAgent {
 }
 
 interface SessionsTabProps {
+  projectId?: string | null
   onKillAgent?: (runId: string) => void
   onExpireSession?: (sessionId: string) => void
 }
@@ -25,7 +26,7 @@ function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || ''
 }
 
-export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSession }: SessionsTabProps) {
+export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, onExpireSession }: SessionsTabProps) {
   const [agents, setAgents] = useState<RunningAgent[]>([])
   const [cliSessions, setCliSessions] = useState<GobbySession[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,11 +46,12 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSess
   // Fetch agents and sessions from API
   const fetchData = useCallback(async () => {
     const baseUrl = getBaseUrl()
+    const projectParam = projectId ? `&project_id=${encodeURIComponent(projectId)}` : ''
     try {
       const [agentsRes, activeRes, pausedRes] = await Promise.all([
         fetch(`${baseUrl}/api/agents/running`).then((r) => (r.ok ? r.json() : { agents: [] })),
-        fetch(`${baseUrl}/api/sessions?status=active&limit=50`).then((r) => (r.ok ? r.json() : { sessions: [] })),
-        fetch(`${baseUrl}/api/sessions?status=paused&limit=20`).then((r) => (r.ok ? r.json() : { sessions: [] })),
+        fetch(`${baseUrl}/api/sessions?status=active&limit=50${projectParam}`).then((r) => (r.ok ? r.json() : { sessions: [] })),
+        fetch(`${baseUrl}/api/sessions?status=paused&limit=20${projectParam}`).then((r) => (r.ok ? r.json() : { sessions: [] })),
       ])
       setAgents(agentsRes.agents ?? agentsRes ?? [])
       const active = (activeRes.sessions ?? activeRes ?? []).filter((s: any) => s.source !== "pipeline" && s.source !== "cron")
@@ -63,7 +65,7 @@ export const SessionsTab = memo(function SessionsTab({ onKillAgent, onExpireSess
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [projectId])
 
   // Initial fetch + poll every 5s
   useEffect(() => {
