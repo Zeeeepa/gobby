@@ -115,6 +115,7 @@ class MemoryManager:
                         vector_store=vector_store,
                         code_link_min_score=config.code_link_min_score,
                         code_symbol_collection_prefix=config.code_symbol_collection_prefix,
+                        embedding_dim=config.embedding_dim,
                     )
                     logger.debug("KnowledgeGraphService initialized")
             except Exception as e:

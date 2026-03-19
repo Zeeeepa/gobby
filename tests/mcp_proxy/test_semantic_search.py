@@ -1,6 +1,6 @@
 """Tests for the SemanticToolSearch module."""
 
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def semantic_search(temp_db: LocalDatabase) -> SemanticToolSearch:
     """Create a SemanticToolSearch instance with temp database."""
-    # Provide a fake API key for testing - actual embedding calls are mocked
+    # Use explicit model/dim for testing - actual embedding calls are mocked
     return SemanticToolSearch(temp_db, openai_api_key="sk-test-fake-key")
 
 
@@ -118,39 +118,47 @@ class TestSemanticToolSearchApiBase:
         assert search.embedding_model == "openai/nomic-embed-text"
 
     @pytest.mark.asyncio
-    async def test_embed_text_litellm_passes_api_base(self, temp_db: LocalDatabase) -> None:
-        """Test that _embed_text_litellm passes api_base to litellm when set."""
+    async def test_embed_text_delegates_to_generate_embedding(self, temp_db: LocalDatabase) -> None:
+        """Test that embed_text delegates to the shared generate_embedding router."""
         search = SemanticToolSearch(
             temp_db,
             api_base="http://localhost:11434/v1",
             openai_api_key="sk-test",
+            embedding_model="text-embedding-3-small",
         )
 
-        mock_response = MagicMock()
-        mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
-
-        with patch("litellm.aembedding", new_callable=AsyncMock, return_value=mock_response) as mock_embed:
-            await search._embed_text_litellm("test text", api_key="sk-test")
-            mock_embed.assert_called_once()
-            call_kwargs = mock_embed.call_args[1]
-            assert call_kwargs["api_base"] == "http://localhost:11434/v1"
+        with patch(
+            "gobby.search.embeddings.generate_embedding",
+            new_callable=AsyncMock,
+            return_value=[0.1, 0.2, 0.3],
+        ) as mock_embed:
+            result = await search.embed_text("test text")
+            mock_embed.assert_called_once_with(
+                text="test text",
+                model="text-embedding-3-small",
+                api_base="http://localhost:11434/v1",
+                api_key="sk-test",
+            )
+            assert result == [0.1, 0.2, 0.3]
 
     @pytest.mark.asyncio
-    async def test_embed_text_litellm_no_api_base_when_none(self, temp_db: LocalDatabase) -> None:
-        """Test that _embed_text_litellm does NOT pass api_base when it's None."""
-        search = SemanticToolSearch(
-            temp_db,
-            openai_api_key="sk-test",
-        )
+    async def test_embed_text_local_model_no_api_key_needed(self, temp_db: LocalDatabase) -> None:
+        """Test that embed_text works with local models without API key."""
+        search = SemanticToolSearch(temp_db)
 
-        mock_response = MagicMock()
-        mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
-
-        with patch("litellm.aembedding", new_callable=AsyncMock, return_value=mock_response) as mock_embed:
-            await search._embed_text_litellm("test text", api_key="sk-test")
-            mock_embed.assert_called_once()
-            call_kwargs = mock_embed.call_args[1]
-            assert "api_base" not in call_kwargs
+        with patch(
+            "gobby.search.embeddings.generate_embedding",
+            new_callable=AsyncMock,
+            return_value=[0.1] * 768,
+        ) as mock_embed:
+            result = await search.embed_text("test text")
+            mock_embed.assert_called_once_with(
+                text="test text",
+                model=DEFAULT_EMBEDDING_MODEL,
+                api_base=None,
+                api_key=None,
+            )
+            assert len(result) == 768
 
     def test_compute_text_hash(self) -> None:
         """Test text hash computation."""
@@ -494,31 +502,21 @@ class TestToolEmbedding:
 class TestEmbeddingGeneration:
     """Tests for embedding generation methods."""
 
-    @pytest.fixture
-    def mock_litellm_response(self):
-        """Create a mock litellm embedding response."""
-        mock_response = MagicMock()
-        mock_response.data = [{"embedding": [0.1] * 1536}]
-        return mock_response
-
     @pytest.mark.asyncio
     async def test_embed_text(
         self,
         semantic_search: SemanticToolSearch,
-        mock_litellm_response: MagicMock,
     ):
-        """Test generating embedding for text."""
-        with patch("litellm.aembedding", new_callable=AsyncMock) as mock_aembedding:
-            mock_aembedding.return_value = mock_litellm_response
-
+        """Test generating embedding for text delegates to shared router."""
+        with patch(
+            "gobby.search.embeddings.generate_embedding",
+            new_callable=AsyncMock,
+            return_value=[0.1] * 768,
+        ) as mock_embed:
             result = await semantic_search.embed_text("test text")
 
-            assert len(result) == 1536
-            mock_aembedding.assert_called_once_with(
-                model=DEFAULT_EMBEDDING_MODEL,
-                input=["test text"],
-                api_key=ANY,  # API key from env or ~/.codex/auth.json
-            )
+            assert len(result) == 768
+            mock_embed.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_embed_text_error(
@@ -526,9 +524,11 @@ class TestEmbeddingGeneration:
         semantic_search: SemanticToolSearch,
     ):
         """Test embed_text raises RuntimeError on failure."""
-        with patch("litellm.aembedding", new_callable=AsyncMock) as mock_aembedding:
-            mock_aembedding.side_effect = Exception("API error")
-
+        with patch(
+            "gobby.search.embeddings.generate_embedding",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("Embedding generation failed"),
+        ):
             with pytest.raises(RuntimeError, match="Embedding generation failed"):
                 await semantic_search.embed_text("test text")
 
@@ -537,12 +537,13 @@ class TestEmbeddingGeneration:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-        mock_litellm_response: MagicMock,
     ):
         """Test generating and storing embedding for a tool."""
-        with patch("litellm.aembedding", new_callable=AsyncMock) as mock_aembedding:
-            mock_aembedding.return_value = mock_litellm_response
+        mock_embedding = [0.1] * DEFAULT_EMBEDDING_DIM
 
+        with patch.object(
+            semantic_search, "embed_text", new_callable=AsyncMock, return_value=mock_embedding
+        ):
             result = await semantic_search.embed_tool(
                 tool_id=sample_tool["id"],
                 name=sample_tool["name"],
@@ -554,19 +555,20 @@ class TestEmbeddingGeneration:
 
             assert result is not None
             assert result.tool_id == sample_tool["id"]
-            assert len(result.embedding) == 1536
+            assert len(result.embedding) == DEFAULT_EMBEDDING_DIM
 
     @pytest.mark.asyncio
     async def test_embed_tool_skips_if_unchanged(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-        mock_litellm_response: MagicMock,
     ):
         """Test that embed_tool skips if content unchanged."""
-        with patch("litellm.aembedding", new_callable=AsyncMock) as mock_aembedding:
-            mock_aembedding.return_value = mock_litellm_response
+        mock_embedding = [0.1] * DEFAULT_EMBEDDING_DIM
 
+        with patch.object(
+            semantic_search, "embed_text", new_callable=AsyncMock, return_value=mock_embedding
+        ) as mock_embed:
             # First call - should embed
             result1 = await semantic_search.embed_tool(
                 tool_id=sample_tool["id"],
@@ -589,20 +591,21 @@ class TestEmbeddingGeneration:
             )
             assert result2 is None
 
-            # Should only have called API once
-            assert mock_aembedding.call_count == 1
+            # Should only have called embed once
+            assert mock_embed.call_count == 1
 
     @pytest.mark.asyncio
     async def test_embed_tool_force_reembed(
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-        mock_litellm_response: MagicMock,
     ):
         """Test force re-embedding even if unchanged."""
-        with patch("litellm.aembedding", new_callable=AsyncMock) as mock_aembedding:
-            mock_aembedding.return_value = mock_litellm_response
+        mock_embedding = [0.1] * DEFAULT_EMBEDDING_DIM
 
+        with patch.object(
+            semantic_search, "embed_text", new_callable=AsyncMock, return_value=mock_embedding
+        ) as mock_embed:
             # First call
             await semantic_search.embed_tool(
                 tool_id=sample_tool["id"],
@@ -625,8 +628,8 @@ class TestEmbeddingGeneration:
             )
             assert result is not None
 
-            # Should have called API twice
-            assert mock_aembedding.call_count == 2
+            # Should have called embed twice
+            assert mock_embed.call_count == 2
 
     @pytest.mark.asyncio
     async def test_embed_all_tools(
@@ -634,7 +637,6 @@ class TestEmbeddingGeneration:
         semantic_search: SemanticToolSearch,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-        mock_litellm_response: MagicMock,
     ):
         """Test embedding all tools for a project."""
         # Create server with multiple tools
@@ -653,9 +655,11 @@ class TestEmbeddingGeneration:
             project_id=sample_project["id"],
         )
 
-        with patch("litellm.aembedding", new_callable=AsyncMock) as mock_aembedding:
-            mock_aembedding.return_value = mock_litellm_response
+        mock_embedding = [0.1] * DEFAULT_EMBEDDING_DIM
 
+        with patch.object(
+            semantic_search, "embed_text", new_callable=AsyncMock, return_value=mock_embedding
+        ):
             stats = await semantic_search.embed_all_tools(
                 project_id=sample_project["id"],
                 mcp_manager=mcp_manager,
@@ -687,9 +691,10 @@ class TestEmbeddingGeneration:
             project_id=sample_project["id"],
         )
 
-        with patch("litellm.aembedding", new_callable=AsyncMock) as mock_aembedding:
-            mock_aembedding.side_effect = Exception("API error")
-
+        with patch.object(
+            semantic_search, "embed_text", new_callable=AsyncMock,
+            side_effect=RuntimeError("API error"),
+        ):
             stats = await semantic_search.embed_all_tools(
                 project_id=sample_project["id"],
                 mcp_manager=mcp_manager,

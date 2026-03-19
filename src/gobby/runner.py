@@ -311,7 +311,7 @@ class GobbyRunner:
                     _ci_model = (
                         self.config.memory.embedding_model
                         if hasattr(self.config, "memory")
-                        else "text-embedding-3-small"
+                        else "local/nomic-embed-text-v1.5"
                     )
                     _ci_api_key = (
                         self.config.memory.embedding_api_key
@@ -867,6 +867,10 @@ class GobbyRunner:
         for prefix, secret_name in prefix_to_secret.items():
             if model.startswith(prefix):
                 return self.secret_store.get(secret_name)
+
+        # Local in-process models don't need an API key
+        if model.startswith("local/"):
+            return None
 
         # Ollama models don't need an API key
         if model.startswith("ollama/"):

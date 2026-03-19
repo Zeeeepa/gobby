@@ -60,6 +60,7 @@ class KnowledgeGraphService:
         vector_store: VectorStore | None = None,
         code_link_min_score: float = 0.82,
         code_symbol_collection_prefix: str = "code_symbols_",
+        embedding_dim: int = 768,
     ):
         self._neo4j = neo4j_client
         self._llm = llm_provider
@@ -68,6 +69,7 @@ class KnowledgeGraphService:
         self._vector_store = vector_store
         self._code_link_min_score = code_link_min_score
         self._code_symbol_collection_prefix = code_symbol_collection_prefix
+        self._embedding_dim = embedding_dim
         self._vector_index_ensured = False
 
     # -----------------------------------------------------------------------
@@ -389,7 +391,7 @@ class KnowledgeGraphService:
         if self._vector_index_ensured:
             return
         try:
-            await self._neo4j.ensure_vector_index()
+            await self._neo4j.ensure_vector_index(dimensions=self._embedding_dim)
             self._vector_index_ensured = True
         except Neo4jConnectionError:
             logger.debug("Neo4j unreachable, skipping vector index creation")

@@ -135,8 +135,8 @@ class TestMCPClientProxyConfigDefaults:
         assert config.tool_timeout == 30
         assert config.tool_timeouts == {}
         assert config.search_mode == "llm"
-        assert config.embedding_provider == "openai"
-        assert config.embedding_model == "text-embedding-3-small"
+        assert config.embedding_provider == "local"
+        assert config.embedding_model == "local/nomic-embed-text-v1.5"
         assert config.min_similarity == 0.3
         assert config.top_k == 10
         assert config.refresh_on_server_add is True

@@ -69,6 +69,9 @@ dependencies = [
     "opentelemetry-exporter-prometheus>=0.49b0",
     "opentelemetry-instrumentation-logging>=0.49b0",
     "opentelemetry-semantic-conventions>=0.49b0",
+    # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
+    # ~50MB wheel, no torch, auto-detects Metal/CUDA
+    "llama-cpp-python>=0.3.0",
 ]
 
 [project.scripts]

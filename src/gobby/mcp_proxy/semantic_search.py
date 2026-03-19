@@ -20,8 +20,8 @@ from gobby.storage.database import DatabaseProtocol
 logger = logging.getLogger(__name__)
 
 # Default embedding model
-DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
-DEFAULT_EMBEDDING_DIM = 1536
+DEFAULT_EMBEDDING_MODEL = "local/nomic-embed-text-v1.5"
+DEFAULT_EMBEDDING_DIM = 768
 
 
 def _cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
@@ -444,58 +444,28 @@ class SemanticToolSearch:
 
     async def embed_text(self, text: str) -> list[float]:
         """
-        Generate embedding for text using OpenAI.
+        Generate embedding for text using the shared embedding router.
 
-        Requires OPENAI_API_KEY in environment (set by LiteLLM provider from config).
-
-        Args:
-            text: Text to embed
-
-        Returns:
-            Embedding vector as list of floats (1536 dimensions)
-
-        Raises:
-            RuntimeError: If OPENAI_API_KEY not set or embedding fails
-        """
-        import os
-
-        api_key = self._openai_api_key or os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY not configured. Set it via gobby-config MCP tools or OPENAI_API_KEY env var"
-            )
-        return await self._embed_text_litellm(text, api_key=api_key)
-
-    async def _embed_text_litellm(self, text: str, api_key: str) -> list[float]:
-        """Generate embedding using LiteLLM (OpenAI API).
+        Routes to local in-process model (local/ prefix) or cloud API
+        (LiteLLM) based on the configured embedding_model.
 
         Args:
             text: Text to embed
-            api_key: OpenAI API key (from Codex auth or environment)
 
         Returns:
             Embedding vector as list of floats
-        """
-        try:
-            import litellm
-        except ImportError as e:
-            raise RuntimeError("litellm package not installed. Run: pip install litellm") from e
 
-        try:
-            kwargs: dict[str, Any] = {
-                "model": self.embedding_model,
-                "input": [text],
-                "api_key": api_key,
-            }
-            if self._api_base:
-                kwargs["api_base"] = self._api_base
-            response = await litellm.aembedding(**kwargs)
-            embedding: list[float] = response.data[0]["embedding"]
-            logger.debug(f"Generated embedding via LiteLLM with {len(embedding)} dimensions")
-            return embedding
-        except Exception as e:
-            logger.error(f"Failed to generate embedding with LiteLLM: {e}")
-            raise RuntimeError(f"Embedding generation failed: {e}") from e
+        Raises:
+            RuntimeError: If embedding generation fails
+        """
+        from gobby.search.embeddings import generate_embedding
+
+        return await generate_embedding(
+            text=text,
+            model=self.embedding_model,
+            api_base=self._api_base,
+            api_key=self._openai_api_key,
+        )
 
     async def embed_tool(
         self,

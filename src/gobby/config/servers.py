@@ -82,11 +82,11 @@ class MCPClientProxyConfig(BaseModel):
         description="Default search mode for tool recommendations: 'llm' (LLM-based), 'semantic' (embedding similarity), 'hybrid' (both)",
     )
     embedding_provider: str = Field(
-        default="openai",
-        description="Provider for embedding generation (openai, litellm)",
+        default="local",
+        description="Provider for embedding generation (local, openai, litellm)",
     )
     embedding_model: str = Field(
-        default="text-embedding-3-small",
+        default="local/nomic-embed-text-v1.5",
         description="Model to use for tool embedding generation",
     )
     embedding_api_base: str | None = Field(

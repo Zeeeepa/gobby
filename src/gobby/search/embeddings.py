@@ -43,11 +43,12 @@ _DEFAULT_MAX_DELAY = 60.0  # seconds
 
 async def generate_embeddings(
     texts: list[str],
-    model: str = "text-embedding-3-small",
+    model: str = "local/nomic-embed-text-v1.5",
     api_base: str | None = None,
     api_key: str | None = None,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     base_delay: float = _DEFAULT_BASE_DELAY,
+    is_query: bool = False,
 ) -> list[list[float]]:
     """Generate embeddings using LiteLLM with exponential backoff.
 
@@ -74,6 +75,12 @@ async def generate_embeddings(
     """
     if not texts:
         return []
+
+    # Route local/ prefix models to the in-process backend
+    if model.startswith("local/"):
+        from gobby.search.local_embeddings import generate_embeddings_local
+
+        return await generate_embeddings_local(texts, model=model, is_query=is_query)
 
     try:
         import litellm
@@ -136,11 +143,12 @@ async def generate_embeddings(
 
 async def generate_embedding(
     text: str,
-    model: str = "text-embedding-3-small",
+    model: str = "local/nomic-embed-text-v1.5",
     api_base: str | None = None,
     api_key: str | None = None,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     base_delay: float = _DEFAULT_BASE_DELAY,
+    is_query: bool = False,
 ) -> list[float]:
     """Generate embedding for a single text.
 
@@ -167,6 +175,7 @@ async def generate_embedding(
         api_key=api_key,
         max_retries=max_retries,
         base_delay=base_delay,
+        is_query=is_query,
     )
     if not embeddings:
         raise RuntimeError(
@@ -177,7 +186,7 @@ async def generate_embedding(
 
 
 def is_embedding_available(
-    model: str = "text-embedding-3-small",
+    model: str = "local/nomic-embed-text-v1.5",
     api_key: str | None = None,
     api_base: str | None = None,
 ) -> bool:
@@ -194,6 +203,10 @@ def is_embedding_available(
     Returns:
         True if embeddings can be generated, False otherwise
     """
+    # Local in-process models are always available (no API key needed)
+    if model.startswith("local/"):
+        return True
+
     # Local models with api_base (Ollama, custom endpoints) are assumed available
     if api_base:
         return True

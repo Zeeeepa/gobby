@@ -39,7 +39,7 @@ class MemoryConfig(BaseModel):
         ),
     )
     embedding_model: str = Field(
-        default="text-embedding-3-small",
+        default="local/nomic-embed-text-v1.5",
         description="Embedding model for semantic search",
     )
     embedding_api_base: str | None = Field(
@@ -59,10 +59,10 @@ class MemoryConfig(BaseModel):
         ),
     )
     embedding_dim: int = Field(
-        default=1536,
+        default=768,
         description=(
             "Dimensionality of embedding vectors. Must match the model's output: "
-            "1536 for text-embedding-3-small, 768 for nomic-embed-text, 1024 for BGE-M3."
+            "768 for nomic-embed-text (default), 1536 for text-embedding-3-small, 1024 for BGE-M3."
         ),
     )
     qdrant_path: str | None = Field(

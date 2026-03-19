@@ -61,7 +61,7 @@ class EmbeddingBackend:
 
     def __init__(
         self,
-        model: str = "text-embedding-3-small",
+        model: str = "local/nomic-embed-text-v1.5",
         api_base: str | None = None,
         api_key: str | None = None,
     ):

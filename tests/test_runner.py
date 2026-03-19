@@ -1782,6 +1782,12 @@ class TestResolveEmbeddingApiKey:
         assert key == "mistral-test-key"
         runner_with_secrets.secret_store.get.assert_called_with("mistral_api_key")
 
+    def test_local_returns_none(self, runner_with_secrets) -> None:
+        """local/ models don't need an API key."""
+        key = runner_with_secrets._resolve_embedding_api_key("local/nomic-embed-text-v1.5")
+        assert key is None
+        runner_with_secrets.secret_store.get.assert_not_called()
+
     def test_ollama_returns_none(self, runner_with_secrets) -> None:
         """ollama/ models don't need an API key."""
         key = runner_with_secrets._resolve_embedding_api_key("ollama/nomic-embed-text")
