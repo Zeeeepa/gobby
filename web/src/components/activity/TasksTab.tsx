@@ -1,7 +1,10 @@
-import { memo, useState, useEffect, useCallback } from 'react'
+import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Tree, type NodeRendererProps } from 'react-arborist'
+import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
+import { StatusDot } from '../tasks/TaskBadges'
+import { Markdown } from '../chat/Markdown'
 import '../tasks/task-execution.css'
 import type { GobbyTask } from '../../hooks/useTasks'
-import { Markdown } from '../chat/Markdown'
 
 interface TasksTabProps {
   projectId?: string | null
@@ -14,7 +17,23 @@ interface GobbyTaskDetail extends GobbyTask {
   closed_at: string | null
 }
 
+// =============================================================================
+// Tree node type (mirrors TaskTree.tsx)
+// =============================================================================
+
+interface TreeNode {
+  id: string
+  task: GobbyTask
+  children: TreeNode[]
+}
+
+// =============================================================================
+// Constants
+// =============================================================================
+
 const CLOSED_STATUSES = new Set(['closed', 'review_approved'])
+const ALL_STATUSES = ['open', 'in_progress', 'needs_review', 'escalated', 'closed']
+const DEFAULT_FILTERS = new Set(['open', 'in_progress', 'needs_review', 'escalated'])
 
 const STATUS_DOT_COLORS: Record<string, string> = {
   open: '#3b82f6',
@@ -34,33 +53,145 @@ const PRIORITY_LABELS: Record<number, string> = {
 }
 
 const PRIORITY_TEXT_COLORS: Record<number, string> = {
-  0: 'var(--status-escalated, #ef4444)',  // critical
-  1: 'var(--status-escalated, #ef4444)',  // high
-  2: 'var(--status-progress, #f59e0b)',   // medium
-  3: 'var(--text-secondary, #a3a3a3)',    // low
-  4: 'var(--text-muted, #737373)',        // backlog
+  0: 'var(--status-escalated, #ef4444)',
+  1: 'var(--status-escalated, #ef4444)',
+  2: 'var(--status-progress, #f59e0b)',
+  3: 'var(--text-secondary, #a3a3a3)',
+  4: 'var(--text-muted, #737373)',
 }
 
 function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || ''
 }
 
+// =============================================================================
+// Build tree from flat task list (same logic as TaskTree.tsx)
+// =============================================================================
+
+function buildTree(tasks: GobbyTask[]): TreeNode[] {
+  const nodeMap = new Map<string, TreeNode>()
+  const roots: TreeNode[] = []
+
+  for (const task of tasks) {
+    nodeMap.set(task.id, { id: task.id, task, children: [] })
+  }
+
+  for (const task of tasks) {
+    const node = nodeMap.get(task.id)!
+    if (task.parent_task_id && nodeMap.has(task.parent_task_id)) {
+      nodeMap.get(task.parent_task_id)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+
+  return roots
+}
+
+function searchMatch(node: { data: TreeNode }, term: string): boolean {
+  const task = node.data.task
+  const lower = term.toLowerCase()
+  return task.title.toLowerCase().includes(lower) || task.ref.toLowerCase().includes(lower)
+}
+
+// =============================================================================
+// Lightweight node renderer for panel tree
+// =============================================================================
+
+function PanelTaskNode({ node, style }: NodeRendererProps<TreeNode>) {
+  const task = node.data.task
+  const dotColor = STATUS_DOT_COLORS[task.status] ?? '#737373'
+  const textColor = PRIORITY_TEXT_COLORS[task.priority ?? 3] ?? 'var(--text-secondary)'
+  const ref = task.seq_num != null ? `#${task.seq_num}` : null
+
+  return (
+    <div
+      style={style}
+      className={`paneltask-row${node.isSelected ? ' paneltask-row--expanded' : ''}${CLOSED_STATUSES.has(task.status) ? ' paneltask-row--closed' : ''}`}
+      onClick={() => node.activate()}
+    >
+      {node.isInternal ? (
+        <button
+          className="paneltask-tree-toggle"
+          onClick={e => { e.stopPropagation(); node.toggle() }}
+        >
+          {node.isOpen ? '▾' : '▸'}
+        </button>
+      ) : (
+        <span className="paneltask-tree-toggle paneltask-tree-toggle--leaf" />
+      )}
+      <span
+        className="paneltask-status-dot"
+        style={{ backgroundColor: dotColor }}
+      />
+      {ref && <span className="paneltask-ref">{ref}</span>}
+      <span className="paneltask-row-title" style={{ color: textColor }}>
+        {task.title}
+      </span>
+    </div>
+  )
+}
+
+// =============================================================================
+// Filter dropdown
+// =============================================================================
+
+function FilterDropdown({
+  filters,
+  onToggle,
+  onClose,
+}: {
+  filters: Set<string>
+  onToggle: (status: string) => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <div className="paneltask-filter-backdrop" onClick={onClose} />
+      <div className="paneltask-filter-dropdown">
+        {ALL_STATUSES.map((status) => (
+          <label key={status} className="paneltask-filter-chip">
+            <input
+              type="checkbox"
+              checked={filters.has(status)}
+              onChange={() => onToggle(status)}
+            />
+            <span
+              className="paneltask-status-dot"
+              style={{ backgroundColor: STATUS_DOT_COLORS[status] ?? '#737373' }}
+            />
+            <span>{status.replace(/_/g, ' ')}</span>
+          </label>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// =============================================================================
+// TasksTab
+// =============================================================================
+
 export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
   const [tasks, setTasks] = useState<GobbyTask[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(() => new Set(DEFAULT_FILTERS))
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false)
+  const [topHeight, setTopHeight] = useState(50)
   const [taskDetail, setTaskDetail] = useState<GobbyTaskDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [treeHeight, setTreeHeight] = useState(300)
 
-  // Fetch tasks — only non-closed by default
+  // Fetch all tasks (filter client-side)
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
     const baseUrl = getBaseUrl()
     const params = new URLSearchParams()
     if (projectId) params.set('project_id', projectId)
-    params.set('status', 'open')
     params.set('limit', '500')
     fetch(`${baseUrl}/api/tasks?${params}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : { tasks: [] }))
@@ -70,40 +201,66 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
     return () => controller.abort()
   }, [projectId])
 
-  // Fetch task detail when expanded
+  // Fetch task detail when selected
   useEffect(() => {
-    if (!expandedId) { setTaskDetail(null); return }
+    if (!selectedTaskId) { setTaskDetail(null); return }
     const controller = new AbortController()
     setDetailLoading(true)
     const baseUrl = getBaseUrl()
-    fetch(`${baseUrl}/api/tasks/${expandedId}`, { signal: controller.signal })
+    fetch(`${baseUrl}/api/tasks/${selectedTaskId}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setTaskDetail(data?.id ? data : (data?.task ?? null)))
       .catch((err) => { if (err.name !== 'AbortError') setTaskDetail(null) })
       .finally(() => { if (!controller.signal.aborted) setDetailLoading(false) })
     return () => controller.abort()
-  }, [expandedId])
+  }, [selectedTaskId])
 
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id))
+  // ResizeObserver for tree height
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(([entry]) => {
+      const available = entry.contentRect.height - 40
+      if (available > 100) setTreeHeight(Math.round(available))
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
   }, [])
 
-  // Flat list sorted by priority then recency
-  const q = search.toLowerCase().trim()
-  const filtered = tasks
-    .filter((t) => {
-      if (CLOSED_STATUSES.has(t.status)) return false
-      if (!q) return true
-      return t.title.toLowerCase().includes(q) || t.ref.toLowerCase().includes(q)
+  const toggleFilter = useCallback((status: string) => {
+    setStatusFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
     })
-    .sort((a, b) => {
-      // Priority first (lower = higher priority)
-      const pa = a.priority ?? 3
-      const pb = b.priority ?? 3
-      if (pa !== pb) return pa - pb
-      // Then by recency (newer first)
-      return (b.created_at ?? '').localeCompare(a.created_at ?? '')
-    })
+  }, [])
+
+  // Client-side filtering
+  const now = Date.now()
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const filtered = useMemo(() => {
+    return tasks
+      .filter((t) => {
+        if (!statusFilters.has(t.status)) {
+          // Show closed tasks if closed within 24h and closed filter is on
+          if (CLOSED_STATUSES.has(t.status) && statusFilters.has('closed')) {
+            const closedAt = (t as GobbyTaskDetail).closed_at
+            if (closedAt && now - new Date(closedAt).getTime() < DAY_MS) return true
+          }
+          return false
+        }
+        return true
+      })
+      .sort((a, b) => {
+        const pa = a.priority ?? 3
+        const pb = b.priority ?? 3
+        if (pa !== pb) return pa - pb
+        return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+      })
+  }, [tasks, statusFilters, now])
+
+  const treeData = useMemo(() => buildTree(filtered), [filtered])
 
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading tasks...</p></div>
@@ -111,69 +268,102 @@ export const TasksTab = memo(function TasksTab({ projectId }: TasksTabProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Compact toolbar */}
-      <div className="paneltask-toolbar">
+      {/* Toolbar */}
+      <div className="paneltask-toolbar" style={{ position: 'relative' }}>
         <input
           type="text"
           className="paneltask-search"
-          placeholder="Filter..."
+          placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-      </div>
-
-      {/* Flat task list */}
-      <div className="flex-1 overflow-y-auto">
-        {filtered.length === 0 ? (
-          <div className="activity-tab-empty">
-            <p>No open tasks</p>
-          </div>
-        ) : (
-          filtered.map((task) => {
-            const isExpanded = task.id === expandedId
-            const ref = task.seq_num != null ? `#${task.seq_num}` : null
-            const isClosed = CLOSED_STATUSES.has(task.status)
-            const dotColor = STATUS_DOT_COLORS[task.status] ?? '#737373'
-            const textColor = PRIORITY_TEXT_COLORS[task.priority ?? 3] ?? 'var(--text-secondary)'
-
-            return (
-              <div key={task.id}>
-                <div
-                  className={`paneltask-row${isExpanded ? ' paneltask-row--expanded' : ''}${isClosed ? ' paneltask-row--closed' : ''}`}
-                  onClick={() => toggleExpand(task.id)}
-                >
-                  <span
-                    className="paneltask-status-dot"
-                    style={{ backgroundColor: dotColor }}
-                  />
-                  {ref && <span className="paneltask-ref">{ref}</span>}
-                  <span className="paneltask-row-title" style={{ color: textColor }}>
-                    {task.title}
-                  </span>
-                </div>
-
-                {/* Accordion detail */}
-                {isExpanded && (
-                  <div className="paneltask-accordion">
-                    {detailLoading ? (
-                      <p className="text-xs text-muted-foreground px-3 py-2">Loading...</p>
-                    ) : taskDetail ? (
-                      <TaskAccordionDetail task={taskDetail} />
-                    ) : (
-                      <p className="text-xs text-muted-foreground px-3 py-2">Task not found</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })
+        <button
+          type="button"
+          className="paneltask-filter-btn"
+          onClick={() => setShowFilterDropdown((v) => !v)}
+          title="Filter by status"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+        </button>
+        {showFilterDropdown && (
+          <FilterDropdown
+            filters={statusFilters}
+            onToggle={toggleFilter}
+            onClose={() => setShowFilterDropdown(false)}
+          />
         )}
       </div>
+
+      {/* Tree pane */}
+      <div
+        ref={containerRef}
+        className={`overflow-y-auto ${selectedTaskId ? 'border-b border-border' : 'flex-1'}`}
+        style={selectedTaskId ? { height: `${topHeight}%` } : undefined}
+      >
+        {filtered.length === 0 ? (
+          <div className="activity-tab-empty">
+            <p>No tasks match filters</p>
+          </div>
+        ) : (
+          <Tree<TreeNode>
+            data={treeData}
+            openByDefault={true}
+            width="100%"
+            height={selectedTaskId ? undefined : treeHeight}
+            rowHeight={30}
+            indent={16}
+            searchTerm={search}
+            searchMatch={searchMatch}
+            onActivate={(node) => setSelectedTaskId(node.data.task.id)}
+            disableDrag
+            disableDrop
+          >
+            {PanelTaskNode}
+          </Tree>
+        )}
+      </div>
+
+      {/* Resize handle */}
+      {selectedTaskId && (
+        <ResizeHandle direction="vertical" onResize={setTopHeight} panelHeight={topHeight} minHeight={15} maxHeight={80} />
+      )}
+
+      {/* Detail pane */}
+      {selectedTaskId && (
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          <div className="paneltask-detail-header">
+            <span className="paneltask-detail-header-title">
+              {taskDetail ? taskDetail.title : 'Loading...'}
+            </span>
+            <button
+              type="button"
+              className="paneltask-detail-close"
+              onClick={() => setSelectedTaskId(null)}
+              title="Close detail"
+            >
+              ✕
+            </button>
+          </div>
+          {detailLoading ? (
+            <p className="text-xs text-muted-foreground px-3 py-2">Loading...</p>
+          ) : taskDetail ? (
+            <TaskDetail task={taskDetail} />
+          ) : (
+            <p className="text-xs text-muted-foreground px-3 py-2">Task not found</p>
+          )}
+        </div>
+      )}
     </div>
   )
 })
 
-function TaskAccordionDetail({ task }: { task: GobbyTaskDetail }) {
+// =============================================================================
+// Task detail panel (extracted from former accordion)
+// =============================================================================
+
+function TaskDetail({ task }: { task: GobbyTaskDetail }) {
   const priorityLabel = PRIORITY_LABELS[task.priority ?? 4] ?? 'Backlog'
 
   return (

@@ -1,4 +1,4 @@
-import { useCallback, useImperativeHandle, useRef, forwardRef } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ChatMessage } from '../../types/chat'
 import { MessageItem } from './MessageItem'
@@ -38,6 +38,12 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
     userScrolledUpRef.current = !atBottom
   }, [])
+
+  useEffect(() => {
+    if (isStreaming && !userScrolledUpRef.current) {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
+    }
+  }, [isStreaming, messages])
 
   const Footer = useCallback(() => (
     <>
@@ -88,7 +94,10 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
       className="chat-scaled flex-1 min-h-0 overflow-x-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]"
       data={messages}
       itemContent={itemContent}
-      followOutput="smooth"
+      followOutput={() => {
+        if (userScrolledUpRef.current) return false
+        return 'smooth'
+      }}
       atBottomThreshold={150}
       atBottomStateChange={handleAtBottomStateChange}
       overscan={400}

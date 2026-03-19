@@ -1867,37 +1867,6 @@
   background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-.command-bar-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.2rem 0.625rem;
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: calc(var(--font-size-base) * 0.75);
-  transition: all 0.15s;
-}
-
-.command-bar-pill:hover {
-  border-color: var(--accent);
-  color: var(--text-primary);
-}
-
-.command-bar-pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #4ade80;
-  animation: command-bar-pulse 2s ease-in-out infinite;
-}
-
-@keyframes command-bar-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
 
 /* ============================================
    Command Palette
@@ -2096,7 +2065,6 @@
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.1s, background 0.1s;
-  border-bottom: 2px solid transparent;
   box-sizing: border-box;
 }
 
@@ -2107,7 +2075,6 @@
 
 .activity-panel-tab.active {
   color: var(--accent);
-  border-bottom-color: var(--accent);
 }
 
 .activity-panel-tab-icon {
@@ -2317,6 +2284,124 @@
   padding-top: 0.375rem;
 }
 
+/* Tree toggle for panel tasks */
+.paneltask-tree-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.75);
+  cursor: pointer;
+  padding: 0;
+  width: 1rem;
+  flex-shrink: 0;
+  text-align: center;
+  line-height: 1;
+}
+
+.paneltask-tree-toggle--leaf {
+  visibility: hidden;
+}
+
+/* Filter button */
+.paneltask-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.2rem 0.375rem;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.paneltask-filter-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* Filter dropdown */
+.paneltask-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.paneltask-filter-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0.5rem;
+  z-index: 100;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 0.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 10rem;
+}
+
+.paneltask-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.1s;
+  text-transform: capitalize;
+}
+
+.paneltask-filter-chip:hover {
+  background: var(--bg-tertiary);
+}
+
+.paneltask-filter-chip input {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Detail header */
+.paneltask-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.paneltask-detail-header-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(var(--font-size-base) * 0.8);
+  font-weight: 500;
+}
+
+.paneltask-detail-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: calc(var(--font-size-base) * 0.85);
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.paneltask-detail-close:hover {
+  color: var(--text-primary);
+}
+
 /* ============================================
    Files Tab
    ============================================ */
@@ -2462,12 +2547,6 @@
   white-space: nowrap;
 }
 
-.files-tree-size {
-  margin-left: auto;
-  font-size: calc(var(--font-size-base) * 0.6875);
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
 
 .files-tree-loading {
   padding: 0.25rem 0.5rem;
@@ -2482,7 +2561,7 @@
   font-weight: 700;
   font-family: inherit;
   flex-shrink: 0;
-  margin-left: auto;
+  margin-left: 0.375rem;
   padding-right: 0.25rem;
 }
 

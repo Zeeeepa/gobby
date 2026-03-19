@@ -189,6 +189,40 @@ function findPendingToolCall(msg: ChatMessage): ToolCall | undefined {
   return msg.toolCalls?.find((tc) => tc.status !== "completed");
 }
 
+function extractServerName(toolName: string): string {
+  const parts = toolName.split("__");
+  if (parts.length >= 3 && parts[0] === "mcp") return parts[1];
+  return "builtin";
+}
+
+function isHookFeedback(content: string): boolean {
+  return /^Stop hook feedback:/.test(content) ||
+    /^(Pre|Post)ToolUse hook/.test(content) ||
+    /^UserPromptSubmit hook/.test(content);
+}
+
+function extractUserText(content: string): string | null {
+  if (!content.startsWith("[") || !content.endsWith("]")) return null;
+  let blocks: Array<{ type?: string; text?: string; content?: string }> | null = null;
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) blocks = parsed;
+  } catch {
+    return null;
+  }
+  if (!blocks || blocks.length === 0) return null;
+  const texts: string[] = [];
+  for (const block of blocks) {
+    const text = block.text ?? block.content ?? "";
+    if (!text) continue;
+    if (text.includes("<hook_context>") || text.includes("</hook_context>")) continue;
+    if (text.includes("<system-reminder>") || text.includes("</system-reminder>")) continue;
+    if (text.includes("<system_instructions>") || text.includes("</system_instructions>")) continue;
+    texts.push(text);
+  }
+  return texts.length > 0 ? texts.join("\n\n") : "";
+}
+
 function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
   let currentAssistant: ChatMessage | null = null;
@@ -202,9 +236,10 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
 
   for (const m of messages) {
     const id = m.id || `msg-${m.message_index ?? result.length}`;
+    const content = (m.content || "").trim();
 
     if (m.role === "user") {
-      if (m.content_type === "tool_result") {
+      if (m.content_type === "tool_result" || m.tool_use_id) {
         // Tool result in a user message — prefer ID-based match, fall back to positional
         if (currentAssistant) {
           const match = m.tool_use_id
@@ -217,6 +252,47 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
         }
         continue;
       }
+
+      // Skip tool_result protocol messages (user messages with raw tool_result JSON arrays)
+      if (content.startsWith("[{") && content.includes("tool_result")) {
+        continue;
+      }
+
+      // Hook feedback → attach to last tool call as error, or render as system message
+      if (isHookFeedback(content)) {
+        if (currentAssistant?.toolCalls?.length) {
+          const lastTc = currentAssistant.toolCalls[currentAssistant.toolCalls.length - 1];
+          lastTc.error = content;
+          lastTc.status = "error";
+          if (currentAssistant.contentBlocks) {
+            for (const block of currentAssistant.contentBlocks) {
+              if (block.type === "tool_chain") {
+                const tcMatch = block.calls.find((c) => c.id === lastTc.id);
+                if (tcMatch) {
+                  tcMatch.error = content;
+                  tcMatch.status = "error";
+                }
+              }
+            }
+          }
+        } else {
+          flushAssistant();
+          result.push({ id, role: "system", content, timestamp: new Date(m.timestamp) });
+        }
+        continue;
+      }
+
+      // User messages with serialized content block arrays → extract user text
+      if (content.startsWith("[")) {
+        const extracted = extractUserText(content);
+        if (extracted !== null) {
+          if (!extracted.trim()) continue;
+          flushAssistant();
+          result.push({ id, role: "user", content: extracted, timestamp: new Date(m.timestamp) });
+          continue;
+        }
+      }
+
       // Regular user message
       flushAssistant();
       result.push({
@@ -226,7 +302,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
         timestamp: new Date(m.timestamp),
       });
     } else if (m.role === "assistant") {
-      if (m.content_type === "tool_use") {
+      if (m.content_type === "tool_use" || m.tool_name) {
         // Tool invocation — attach to current assistant message or create one
         if (!currentAssistant) {
           currentAssistant = {
@@ -238,10 +314,11 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
             contentBlocks: [],
           };
         }
+        const toolName = m.tool_name || "unknown";
         const toolCall: ToolCall = {
           id: m.tool_use_id || id,
-          tool_name: m.tool_name || "unknown",
-          server_name: "builtin",
+          tool_name: toolName,
+          server_name: extractServerName(toolName),
           status: m.tool_result ? "completed" : "calling",
           arguments: tryParseJSON(m.tool_input) as
             | Record<string, unknown>
@@ -266,6 +343,51 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
         }
         currentAssistant.thinkingContent =
           (currentAssistant.thinkingContent || "") + (m.content || "");
+      } else if (content.startsWith("[{") && content.includes("tool_use")) {
+        // Assistant message that is a JSON array of tool_use blocks
+        try {
+          const calls = JSON.parse(content) as Array<{
+            type?: string; id?: string; name?: string; input?: unknown;
+          }>;
+          const tools = calls.filter((c) => c.type === "tool_use");
+          if (tools.length > 0) {
+            const toolCalls = tools.map((t) => ({
+              id: t.id || `tool-${id}-${t.name}`,
+              tool_name: t.name || "unknown",
+              server_name: extractServerName(t.name || ""),
+              status: "completed" as const,
+              arguments: typeof t.input === "object" && t.input !== null
+                ? (t.input as Record<string, unknown>) : undefined,
+            }));
+            if (!currentAssistant) {
+              currentAssistant = {
+                id, role: "assistant", content: "", timestamp: new Date(m.timestamp),
+                toolCalls, contentBlocks: [{ type: "tool_chain", calls: [...toolCalls] }],
+              };
+            } else {
+              currentAssistant.toolCalls = [...(currentAssistant.toolCalls || []), ...toolCalls];
+              for (const tc of toolCalls) appendToolBlock(currentAssistant, tc);
+            }
+            continue;
+          }
+        } catch {
+          // Fall through to normal text handling
+        }
+        // Regular assistant text
+        if (currentAssistant) {
+          if (content) {
+            if (currentAssistant.content && !currentAssistant.content.endsWith("\n"))
+              currentAssistant.content += "\n";
+            currentAssistant.content += content;
+            appendTextBlock(currentAssistant, content);
+          }
+        } else {
+          currentAssistant = {
+            id, role: "assistant", content: content || "",
+            timestamp: new Date(m.timestamp),
+            contentBlocks: content ? [{ type: "text", content }] : [],
+          };
+        }
       } else {
         // Regular assistant text
         if (currentAssistant) {

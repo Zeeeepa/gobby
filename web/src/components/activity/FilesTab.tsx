@@ -245,6 +245,35 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
     loadChildren(parentPath)
   }, [projectId, closeCtxMenu, loadChildren])
 
+  const handleDuplicate = useCallback(async (entry: FileEntry) => {
+    closeCtxMenu()
+    if (!projectId || entry.is_dir) return
+    const baseUrl = getBaseUrl()
+    const readRes = await fetch(`${baseUrl}/api/files/read?project_id=${encodeURIComponent(projectId)}&path=${encodeURIComponent(entry.path)}`)
+    if (!readRes.ok) {
+      console.error(`Read failed (${readRes.status}):`, await readRes.text().catch(() => ''))
+      return
+    }
+    const { content } = await readRes.json()
+    const dotIdx = entry.name.lastIndexOf('.')
+    const newName = dotIdx > 0
+      ? `${entry.name.substring(0, dotIdx)} copy${entry.name.substring(dotIdx)}`
+      : `${entry.name} copy`
+    const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
+    const newPath = parentPath ? `${parentPath}/${newName}` : newName
+    const writeRes = await fetch(`${baseUrl}/api/files/write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, path: newPath, content }),
+    })
+    if (!writeRes.ok) {
+      console.error(`Duplicate failed (${writeRes.status}):`, await writeRes.text().catch(() => ''))
+      return
+    }
+    setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
+    loadChildren(parentPath)
+  }, [projectId, closeCtxMenu, loadChildren])
+
   const handleSaveEdit = useCallback(async () => {
     if (!projectId || !selectedFile) return
     const baseUrl = getBaseUrl()
@@ -349,11 +378,6 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
             if (status) return <GitStatusBadge status={status} />
             return null
           })()}
-          {entry.size != null && (
-            <span className="files-tree-size">
-              {entry.size < 1024 ? `${entry.size}B` : entry.size < 1048576 ? `${(entry.size / 1024).toFixed(0)}K` : `${(entry.size / 1048576).toFixed(1)}M`}
-            </span>
-          )}
         </div>
       </div>
     )
@@ -452,6 +476,9 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
               <button className="file-ctx-item" onClick={() => { onAddToChat(ctxMenu.entry.path); closeCtxMenu() }}>
                 Add to chat
               </button>
+            )}
+            {!ctxMenu.entry.is_dir && (
+              <button className="file-ctx-item" onClick={() => handleDuplicate(ctxMenu.entry)}>Duplicate</button>
             )}
             <button className="file-ctx-item" onClick={() => handleRename(ctxMenu.entry)}>Rename</button>
             <button className="file-ctx-item" onClick={() => handleMove(ctxMenu.entry)}>Move</button>
