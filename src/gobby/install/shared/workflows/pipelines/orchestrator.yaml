@@ -186,8 +186,25 @@ steps:
         mode: "terminal"
 
   # --- DISPATCH QA (for needs_review tasks) ---
-  - id: annotate_observed
+  - id: check_qa_running
     condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 }}"
+    mcp:
+      server: gobby-agents
+      tool: list_running_agents
+      arguments:
+        parent_session_id: "${{ session_id }}"
+
+  - id: qa_gate
+    condition: "${{ check_qa_running.output and len(check_qa_running.output.agents) > 0 }}"
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        data:
+          qa_already_running: "${{ any(a.get('provider', '') == inputs.qa_provider for a in check_qa_running.output.agents) }}"
+
+  - id: annotate_observed
+    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
     mcp:
       server: gobby-tasks
       tool: update_observed_files
@@ -196,7 +213,7 @@ steps:
         require_commits: true
 
   - id: dispatch_qa
-    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 }}"
+    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
     mcp:
       server: gobby-agents
       tool: spawn_agent
