@@ -258,7 +258,22 @@ class AgentLifecycleMonitor:
                 assert tmux_name is not None  # guaranteed by filter above
                 alive = await self._tmux.has_session(tmux_name)
                 if alive:
-                    continue
+                    # Tmux session exists, but check if the agent process is still running
+                    if agent.pid:
+                        try:
+                            os.kill(agent.pid, 0)  # Signal 0 = check if process exists
+                        except ProcessLookupError:
+                            # Process is dead but tmux lingers — treat as dead agent
+                            logger.info(
+                                f"Agent {agent.run_id} PID {agent.pid} dead "
+                                f"but tmux '{tmux_name}' alive — cleaning up"
+                            )
+                        except PermissionError:
+                            continue  # Process exists but we can't signal it — it's alive
+                        else:
+                            continue  # Process is alive
+                    else:
+                        continue  # No PID to check, trust tmux liveness
 
                 logger.info(
                     f"Detected dead tmux session '{agent.tmux_session_name}' "

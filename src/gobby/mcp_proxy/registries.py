@@ -174,6 +174,7 @@ def setup_internal_registries(
     from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
     workflows_registry = create_workflows_registry(
+        loader=workflow_loader,
         session_manager=local_session_manager,
         db=getattr(local_session_manager, "db", None) if local_session_manager else None,
         executor_getter=lambda: pipeline_executor,

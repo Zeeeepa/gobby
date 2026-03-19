@@ -247,6 +247,8 @@ class PipelineExecutor:
         # Track current step for error handling
         current_step_execution: StepExecution | None = None
         execution: PipelineExecution | None = None
+        caller_session_id: str | None = session_id
+        pipeline_session_id: str | None = session_id
 
         with create_span("pipeline.execute", attributes=span_attrs) as span:
             try:

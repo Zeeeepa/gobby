@@ -210,6 +210,14 @@ class HTTPServer:
                     and services.config.llm_providers.api_keys
                 ):
                     openai_api_key = services.config.llm_providers.api_keys.get("OPENAI_API_KEY")
+                if not openai_api_key and services.database:
+                    try:
+                        from gobby.storage.secrets import SecretStore
+
+                        secret_store = SecretStore(services.database)
+                        openai_api_key = secret_store.get("openai_api_key")
+                    except Exception:
+                        pass  # SecretStore unavailable — fall through to env var
                 semantic_search = SemanticToolSearch(
                     db=services.mcp_db_manager.db, openai_api_key=openai_api_key
                 )

@@ -131,9 +131,9 @@ class WorkflowHookHandler:
             from gobby.workflows.git_utils import get_dirty_files
             from gobby.workflows.safe_evaluator import LazyBool
 
-            project_path = getattr(event, "project_path", None)
-            if project_path is None and hasattr(event, "metadata"):
-                project_path = event.metadata.get("project_path")
+            project_path = event.cwd  # Live cwd from CLI adapter — correct for worktrees
+            if not project_path:
+                project_path = event.metadata.get("project_path") if hasattr(event, "metadata") else None
 
             session_edited = set(variables.get("session_edited_files", []))
             baseline = set(variables.get("baseline_dirty_files", []))

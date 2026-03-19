@@ -980,6 +980,10 @@ class RuleEngine:
         tool_name = event.data.get("tool_name", "")
         wf_name = instance.workflow_name
 
+        # ToolSearch (Claude Code deferred tool loader) is always allowed — it IS progressive discovery
+        if tool_name == "ToolSearch":
+            return None
+
         # Discovery/infrastructure tools always pass — agents need these in every step
         if tool_name.startswith("mcp__gobby__"):
             mcp_suffix = tool_name[len("mcp__gobby__") :]
