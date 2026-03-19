@@ -58,6 +58,8 @@ class TestAgentDefinitionBodyModel:
         assert body.instructions is None
         assert body.provider == "inherit"
         assert body.model is None
+        assert body.api_base is None
+        assert body.api_token is None
         assert body.mode == "inherit"
         assert body.isolation == "inherit"
         assert body.base_branch == "inherit"
@@ -110,7 +112,7 @@ class TestAgentDefinitionBodyModel:
         from gobby.workflows.definitions import AgentDefinitionBody
 
         fields = AgentDefinitionBody.model_fields
-        assert len(fields) == 21, f"Expected 21 fields, got {len(fields)}: {list(fields.keys())}"
+        assert len(fields) == 23, f"Expected 23 fields, got {len(fields)}: {list(fields.keys())}"
 
     def test_workflows_default_empty(self) -> None:
         """Workflows defaults to empty AgentWorkflows."""
@@ -137,6 +139,29 @@ class TestAgentDefinitionBodyModel:
         for iso in ("none", "worktree", "clone"):
             body = AgentDefinitionBody(name="test", isolation=iso)
             assert body.isolation == iso
+
+    def test_api_base_and_token(self) -> None:
+        """api_base and api_token configure local model endpoints."""
+        from gobby.workflows.definitions import AgentDefinitionBody
+
+        body = AgentDefinitionBody(
+            name="local-dev",
+            model="qwen3-8b",
+            api_base="http://localhost:1234/v1",
+            api_token="sk-local",
+        )
+        assert body.api_base == "http://localhost:1234/v1"
+        assert body.api_token == "sk-local"
+
+    def test_api_token_env_var_pattern(self) -> None:
+        """api_token accepts ${ENV_VAR} pattern for env var expansion."""
+        from gobby.workflows.definitions import AgentDefinitionBody
+
+        body = AgentDefinitionBody(
+            name="local-dev",
+            api_token="${MY_API_KEY}",
+        )
+        assert body.api_token == "${MY_API_KEY}"
 
         body = AgentDefinitionBody(name="test")
         assert body.isolation == "inherit"

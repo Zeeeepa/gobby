@@ -247,18 +247,27 @@ class GobbyRunner:
                     path=qdrant_path if not self.config.memory.qdrant_url else None,
                     url=self.config.memory.qdrant_url,
                     api_key=self.config.memory.qdrant_api_key,
+                    embedding_dim=self.config.memory.embedding_dim,
                 )
                 embed_fn: Callable[..., Any] | None = None
                 if self.llm_service:
                     from functools import partial
 
-                    _mem_api_key = self._resolve_embedding_api_key(
-                        self.config.memory.embedding_model
+                    _mem_api_key = (
+                        self.config.memory.embedding_api_key
+                        or self._resolve_embedding_api_key(
+                            self.config.memory.embedding_model
+                        )
                     )
+                    _mem_embed_kwargs: dict[str, Any] = {
+                        "model": self.config.memory.embedding_model,
+                        "api_key": _mem_api_key,
+                    }
+                    if self.config.memory.embedding_api_base:
+                        _mem_embed_kwargs["api_base"] = self.config.memory.embedding_api_base
                     embed_fn = partial(
                         generate_embedding,
-                        model=self.config.memory.embedding_model,
-                        api_key=_mem_api_key,
+                        **_mem_embed_kwargs,
                     )
 
                 self.memory_manager = MemoryManager(
@@ -306,11 +315,20 @@ class GobbyRunner:
                         if hasattr(self.config, "memory")
                         else "text-embedding-3-small"
                     )
-                    _ci_api_key = self._resolve_embedding_api_key(_ci_model)
+                    _ci_api_key = (
+                        self.config.memory.embedding_api_key
+                        if hasattr(self.config, "memory") and self.config.memory.embedding_api_key
+                        else self._resolve_embedding_api_key(_ci_model)
+                    )
+                    _ci_embed_kwargs: dict[str, Any] = {
+                        "model": _ci_model,
+                        "api_key": _ci_api_key,
+                    }
+                    if hasattr(self.config, "memory") and self.config.memory.embedding_api_base:
+                        _ci_embed_kwargs["api_base"] = self.config.memory.embedding_api_base
                     ci_embed_fn = partial(
                         generate_embedding,
-                        model=_ci_model,
-                        api_key=_ci_api_key,
+                        **_ci_embed_kwargs,
                     )
 
                 ci_vector_store = self.vector_store if ci_config.embedding_enabled else None

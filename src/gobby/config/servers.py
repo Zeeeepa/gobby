@@ -89,6 +89,13 @@ class MCPClientProxyConfig(BaseModel):
         default="text-embedding-3-small",
         description="Model to use for tool embedding generation",
     )
+    embedding_api_base: str | None = Field(
+        default=None,
+        description=(
+            "API base URL for the embedding endpoint. "
+            "Use for local models (e.g., 'http://localhost:11434/v1' for Ollama)."
+        ),
+    )
     min_similarity: float = Field(
         default=0.3,
         description="Minimum similarity threshold for semantic search results (0.0-1.0)",

@@ -98,6 +98,60 @@ class TestTextProcessing:
         assert "Tool: simple_tool" in text
         assert "Description:" not in text
 
+
+class TestSemanticToolSearchApiBase:
+    """Tests for SemanticToolSearch api_base parameter."""
+
+    def test_api_base_default_none(self, temp_db: LocalDatabase) -> None:
+        """Test api_base defaults to None."""
+        search = SemanticToolSearch(temp_db)
+        assert search._api_base is None
+
+    def test_api_base_custom(self, temp_db: LocalDatabase) -> None:
+        """Test api_base can be set for local models."""
+        search = SemanticToolSearch(
+            temp_db,
+            api_base="http://localhost:11434/v1",
+            embedding_model="openai/nomic-embed-text",
+        )
+        assert search._api_base == "http://localhost:11434/v1"
+        assert search.embedding_model == "openai/nomic-embed-text"
+
+    @pytest.mark.asyncio
+    async def test_embed_text_litellm_passes_api_base(self, temp_db: LocalDatabase) -> None:
+        """Test that _embed_text_litellm passes api_base to litellm when set."""
+        search = SemanticToolSearch(
+            temp_db,
+            api_base="http://localhost:11434/v1",
+            openai_api_key="sk-test",
+        )
+
+        mock_response = MagicMock()
+        mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
+
+        with patch("litellm.aembedding", new_callable=AsyncMock, return_value=mock_response) as mock_embed:
+            await search._embed_text_litellm("test text", api_key="sk-test")
+            mock_embed.assert_called_once()
+            call_kwargs = mock_embed.call_args[1]
+            assert call_kwargs["api_base"] == "http://localhost:11434/v1"
+
+    @pytest.mark.asyncio
+    async def test_embed_text_litellm_no_api_base_when_none(self, temp_db: LocalDatabase) -> None:
+        """Test that _embed_text_litellm does NOT pass api_base when it's None."""
+        search = SemanticToolSearch(
+            temp_db,
+            openai_api_key="sk-test",
+        )
+
+        mock_response = MagicMock()
+        mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
+
+        with patch("litellm.aembedding", new_callable=AsyncMock, return_value=mock_response) as mock_embed:
+            await search._embed_text_litellm("test text", api_key="sk-test")
+            mock_embed.assert_called_once()
+            call_kwargs = mock_embed.call_args[1]
+            assert "api_base" not in call_kwargs
+
     def test_compute_text_hash(self) -> None:
         """Test text hash computation."""
         hash1 = _compute_text_hash("hello world")

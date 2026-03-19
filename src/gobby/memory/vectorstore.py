@@ -80,6 +80,24 @@ class VectorStore:
                 f"Created Qdrant collection '{self._collection_name}' "
                 f"(dim={self._embedding_dim}, distance=cosine)"
             )
+        else:
+            # Check for dimension mismatch between config and existing collection
+            try:
+                info = await asyncio.to_thread(
+                    client.get_collection, self._collection_name
+                )
+                existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
+                if existing_dim != self._embedding_dim:
+                    logger.error(
+                        f"Embedding dimension mismatch for collection '{self._collection_name}': "
+                        f"configured={self._embedding_dim}, existing={existing_dim}. "
+                        f"Either change embedding_dim in config to {existing_dim}, "
+                        f"or run 'gobby memory rebuild' to re-embed with the new model."
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Could not verify collection dimensions for '{self._collection_name}': {e}"
+                )
 
     def _ensure_client(self) -> QdrantClient:
         """Return the client, raising if not initialized."""

@@ -179,6 +179,7 @@ class SemanticToolSearch:
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         openai_api_key: str | None = None,
+        api_base: str | None = None,
     ):
         """
         Initialize semantic search manager.
@@ -188,11 +189,13 @@ class SemanticToolSearch:
             embedding_model: Model name for embeddings (default: text-embedding-3-small)
             embedding_dim: Dimension of embedding vectors (default: 1536)
             openai_api_key: OpenAI API key (from config or environment)
+            api_base: API base URL for embedding endpoint (e.g., http://localhost:11434/v1 for Ollama)
         """
         self.db = db
         self.embedding_model = embedding_model
         self.embedding_dim = embedding_dim
         self._openai_api_key = openai_api_key
+        self._api_base = api_base
 
     def store_embedding(
         self,
@@ -479,11 +482,14 @@ class SemanticToolSearch:
             raise RuntimeError("litellm package not installed. Run: pip install litellm") from e
 
         try:
-            response = await litellm.aembedding(
-                model=self.embedding_model,
-                input=[text],
-                api_key=api_key,
-            )
+            kwargs: dict[str, Any] = {
+                "model": self.embedding_model,
+                "input": [text],
+                "api_key": api_key,
+            }
+            if self._api_base:
+                kwargs["api_base"] = self._api_base
+            response = await litellm.aembedding(**kwargs)
             embedding: list[float] = response.data[0]["embedding"]
             logger.debug(f"Generated embedding via LiteLLM with {len(embedding)} dimensions")
             return embedding

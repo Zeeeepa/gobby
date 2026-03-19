@@ -200,6 +200,24 @@ class TestMCPClientProxyConfigCustomValues:
         assert config.embedding_provider == "litellm"
         assert config.embedding_model == "voyage-code-2"
 
+    def test_embedding_api_base_default(self) -> None:
+        """Test default embedding_api_base is None."""
+        from gobby.config.servers import MCPClientProxyConfig
+
+        config = MCPClientProxyConfig()
+        assert config.embedding_api_base is None
+
+    def test_embedding_api_base_custom(self) -> None:
+        """Test setting custom embedding_api_base for local models."""
+        from gobby.config.servers import MCPClientProxyConfig
+
+        config = MCPClientProxyConfig(
+            embedding_api_base="http://localhost:11434/v1",
+            embedding_model="openai/nomic-embed-text",
+        )
+        assert config.embedding_api_base == "http://localhost:11434/v1"
+        assert config.embedding_model == "openai/nomic-embed-text"
+
 
 class TestMCPClientProxyConfigValidation:
     """Test MCPClientProxyConfig validation."""

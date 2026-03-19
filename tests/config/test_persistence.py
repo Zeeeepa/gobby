@@ -254,6 +254,71 @@ class TestMemoryConfigEmbeddingFields:
         config = MemoryConfig(embedding_model="text-embedding-3-large")
         assert config.embedding_model == "text-embedding-3-large"
 
+    def test_embedding_api_base_default(self) -> None:
+        """Test default embedding_api_base is None."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.embedding_api_base is None
+
+    def test_embedding_api_base_custom(self) -> None:
+        """Test setting custom embedding_api_base for local models."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(embedding_api_base="http://localhost:11434/v1")
+        assert config.embedding_api_base == "http://localhost:11434/v1"
+
+    def test_embedding_api_key_default(self) -> None:
+        """Test default embedding_api_key is None."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.embedding_api_key is None
+
+    def test_embedding_api_key_custom(self) -> None:
+        """Test setting custom embedding_api_key."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(embedding_api_key="sk-custom-key")
+        assert config.embedding_api_key == "sk-custom-key"
+
+    def test_embedding_dim_default(self) -> None:
+        """Test default embedding_dim is 1536."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.embedding_dim == 1536
+
+    def test_embedding_dim_custom(self) -> None:
+        """Test setting custom embedding_dim for local models."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(embedding_dim=768)
+        assert config.embedding_dim == 768
+
+    def test_embedding_dim_must_be_positive(self) -> None:
+        """Test that embedding_dim must be at least 1."""
+        from gobby.config.persistence import MemoryConfig
+
+        with pytest.raises(ValidationError):
+            MemoryConfig(embedding_dim=0)
+
+        with pytest.raises(ValidationError):
+            MemoryConfig(embedding_dim=-1)
+
+    def test_local_embedding_config_full(self) -> None:
+        """Test full local embedding configuration (e.g., Ollama + nomic-embed-text)."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(
+            embedding_model="openai/nomic-embed-text",
+            embedding_api_base="http://localhost:11434/v1",
+            embedding_dim=768,
+        )
+        assert config.embedding_model == "openai/nomic-embed-text"
+        assert config.embedding_api_base == "http://localhost:11434/v1"
+        assert config.embedding_dim == 768
+
 
 class TestMemoryConfigNeo4jFields:
     """Test neo4j_url and neo4j_auth fields on MemoryConfig."""

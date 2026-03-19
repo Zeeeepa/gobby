@@ -42,6 +42,29 @@ class MemoryConfig(BaseModel):
         default="text-embedding-3-small",
         description="Embedding model for semantic search",
     )
+    embedding_api_base: str | None = Field(
+        default=None,
+        description=(
+            "API base URL for the embedding endpoint. "
+            "Use for local models (e.g., 'http://localhost:11434/v1' for Ollama). "
+            "When None, uses the provider's default endpoint."
+        ),
+    )
+    embedding_api_key: str | None = Field(
+        default=None,
+        description=(
+            "Explicit API key for the embedding endpoint. "
+            "Overrides auto-resolved key from secrets/env. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
+    embedding_dim: int = Field(
+        default=1536,
+        description=(
+            "Dimensionality of embedding vectors. Must match the model's output: "
+            "1536 for text-embedding-3-small, 768 for nomic-embed-text, 1024 for BGE-M3."
+        ),
+    )
     qdrant_path: str | None = Field(
         default=None,
         description=(
@@ -122,6 +145,14 @@ class MemoryConfig(BaseModel):
         default="code_symbols_",
         description="Qdrant collection name prefix for code symbol embeddings (must match code_index.qdrant_collection_prefix)",
     )
+
+    @field_validator("embedding_dim")
+    @classmethod
+    def validate_embedding_dim(cls, v: int) -> int:
+        """Validate embedding_dim is positive."""
+        if v < 1:
+            raise ValueError("embedding_dim must be at least 1")
+        return v
 
     @field_validator("crossref_threshold", "code_link_min_score")
     @classmethod

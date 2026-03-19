@@ -152,6 +152,20 @@ async def spawn_agent_impl(
     if effective_model is None and agent_body:
         effective_model = agent_body.model
 
+    # Resolve api_base/api_token from agent definition (with ${ENV_VAR} expansion)
+    effective_api_base: str | None = None
+    effective_api_token: str | None = None
+    if agent_body:
+        effective_api_base = agent_body.api_base
+        if agent_body.api_token:
+            token = agent_body.api_token
+            if token.startswith("${") and token.endswith("}"):
+                import os
+
+                effective_api_token = os.environ.get(token[2:-1])
+            else:
+                effective_api_token = token
+
     effective_timeout = timeout
     if effective_timeout is None and agent_body and agent_body.timeout:
         effective_timeout = agent_body.timeout
@@ -452,6 +466,8 @@ async def spawn_agent_impl(
         session_manager=runner.child_session_manager,
         machine_id=get_machine_id() or "unknown",
         model=effective_model,
+        api_base=effective_api_base,
+        api_token=effective_api_token,
         sandbox_config=effective_sandbox_config,
         # Autonomous mode fields
         system_prompt=agent_body.instructions if agent_body else None,

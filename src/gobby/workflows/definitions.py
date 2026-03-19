@@ -242,6 +242,14 @@ class AgentDefinitionBody(BaseModel):
     # Execution
     provider: str = "inherit"
     model: str | None = None
+    api_base: str | None = Field(
+        default=None,
+        description="API base URL for the model endpoint (e.g., http://localhost:1234/v1 for LM Studio)",
+    )
+    api_token: str | None = Field(
+        default=None,
+        description="Auth token for the endpoint. Supports ${ENV_VAR} pattern for env var expansion.",
+    )
     mode: Literal["terminal", "autonomous", "self", "inherit"] = "inherit"
     isolation: Literal["none", "worktree", "clone", "inherit"] | None = "inherit"
     base_branch: str = "inherit"

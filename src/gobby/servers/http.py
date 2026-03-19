@@ -21,7 +21,7 @@ from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
 from gobby.llm import create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
-from gobby.mcp_proxy.semantic_search import SemanticToolSearch
+from gobby.mcp_proxy.semantic_search import DEFAULT_EMBEDDING_MODEL, SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.telemetry.instruments import inc_counter
 from gobby.utils.version import get_version
@@ -218,8 +218,12 @@ class HTTPServer:
                         openai_api_key = secret_store.get("openai_api_key")
                     except Exception:
                         pass  # SecretStore unavailable — fall through to env var
+                _mcp_proxy_cfg = services.config.mcp_client_proxy if services.config else None
                 semantic_search = SemanticToolSearch(
-                    db=services.mcp_db_manager.db, openai_api_key=openai_api_key
+                    db=services.mcp_db_manager.db,
+                    openai_api_key=openai_api_key,
+                    embedding_model=_mcp_proxy_cfg.embedding_model if _mcp_proxy_cfg else DEFAULT_EMBEDDING_MODEL,
+                    api_base=_mcp_proxy_cfg.embedding_api_base if _mcp_proxy_cfg else None,
                 )
                 logger.debug("Semantic tool search initialized")
 

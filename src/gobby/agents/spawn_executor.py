@@ -60,6 +60,8 @@ class SpawnRequest:
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
     machine_id: str | None = None
     model: str | None = None  # Model override (e.g., gemini-3-pro-preview)
+    api_base: str | None = None  # API base URL for local model endpoints
+    api_token: str | None = None  # Auth token for the endpoint
 
     # Sandbox configuration
     sandbox_config: SandboxConfig | None = None
@@ -196,6 +198,12 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
     if sandbox_env:
         env.update(sandbox_env)
 
+    # Map api_base/api_token to Claude-specific env vars
+    if request.api_base:
+        env["ANTHROPIC_BASE_URL"] = request.api_base
+    if request.api_token:
+        env["ANTHROPIC_AUTH_TOKEN"] = request.api_token
+
     # Pass machine_id as env var for sandboxed agents
     if request.machine_id:
         env["GOBBY_MACHINE_ID"] = request.machine_id
@@ -299,6 +307,12 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     env = spawn_context.env_vars.copy()
     if sandbox_env:
         env.update(sandbox_env)
+
+    # Map api_base/api_token to Gemini-specific env vars
+    if request.api_base:
+        env["GEMINI_API_BASE"] = request.api_base
+    if request.api_token:
+        env["GEMINI_API_KEY"] = request.api_token
 
     # Pass machine_id as env var for sandboxed agents that can't read ~/.gobby/machine_id
     if request.machine_id:
