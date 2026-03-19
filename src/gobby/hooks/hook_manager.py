@@ -935,6 +935,30 @@ class HookManager:
             lines.append("</project-memory>")
             return "\n".join(lines)
 
+        elif tool == "search_skills":
+            results = result.get("results", [])
+            if not results:
+                return ""
+            lines = ["<available-skills>"]
+            for r in results:
+                name = r.get("skill_name", "unknown")
+                desc = r.get("description", "")
+                score = r.get("score", 0)
+                if desc:
+                    lines.append(f"- **{name}**: {desc} (relevance: {score:.2f})")
+                else:
+                    lines.append(f"- **{name}** (relevance: {score:.2f})")
+            lines.append("")
+            lines.append(
+                'Load a skill: get_skill(name="skill-name") on gobby-skills'
+            )
+            lines.append(
+                "Search skill hubs for more: search_hub(query=\"...\") on gobby-skills, "
+                'then install_skill(source="hub:slug") to use'
+            )
+            lines.append("</available-skills>")
+            return "\n".join(lines)
+
         else:
             return f"**{tool} result:**\n```json\n{json.dumps(result, indent=2, default=str)}\n```"
 
