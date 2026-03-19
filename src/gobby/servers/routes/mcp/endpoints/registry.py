@@ -40,7 +40,6 @@ async def embed_mcp_tools(
     try:
         body = await request.json()
         cwd = body.get("cwd")
-        force = body.get("force", False)
 
         # Resolve project_id from cwd
         try:
@@ -58,7 +57,6 @@ async def embed_mcp_tools(
                 stats = await server._tools_handler._semantic_search.embed_all_tools(
                     project_id=project_id,
                     mcp_manager=server._mcp_db_manager,
-                    force=force,
                 )
                 response_time_ms = (time.perf_counter() - start_time) * 1000
                 return {
@@ -344,7 +342,6 @@ async def refresh_mcp_tools(
                                 input_schema=tool.get("inputSchema"),
                                 server_name=server_name,
                                 project_id=project_id,
-                                force=force,
                             )
                             server_stats["embeddings"] += 1
                         except Exception as e:

@@ -312,8 +312,8 @@ async def search_mcp_tools(
                 semantic_search = server._tools_handler._semantic_search
 
                 # Check if embeddings exist - if not, trigger background generation
-                existing = semantic_search.get_embeddings_for_project(project_id)
-                if not existing and server._mcp_db_manager:
+                has_existing = await semantic_search.has_embeddings(project_id)
+                if not has_existing and server._mcp_db_manager:
                     logger.info(
                         f"No embeddings for project {project_id}, triggering background generation..."
                     )
@@ -324,7 +324,6 @@ async def search_mcp_tools(
                             await semantic_search.embed_all_tools(
                                 project_id=proj_id,
                                 mcp_manager=server._mcp_db_manager,
-                                force=False,
                             )
                         except Exception as e:
                             logger.error(

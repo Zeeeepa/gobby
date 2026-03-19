@@ -1436,7 +1436,7 @@ class TestSearchMCPTools:
         }
 
         mock_semantic_search = MagicMock()
-        mock_semantic_search.get_embeddings_for_project.return_value = [MagicMock()]
+        mock_semantic_search.has_embeddings = AsyncMock(return_value=True)
         mock_semantic_search.search_tools = AsyncMock(return_value=[mock_result])
 
         mock_handler = MagicMock()
