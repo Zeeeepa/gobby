@@ -1,8 +1,8 @@
-"""Unified transcript read layer with DB-first, gzip-archive fallback.
+"""Unified transcript read layer: DB → live JSONL → gzip archive.
 
-Tries the session_messages DB table first. If empty (messages were purged),
-falls back to decompressing the gzip archive and parsing lines through the
-appropriate TranscriptParser.
+Tries the session_messages DB table first. If empty, reads the live
+JSONL transcript file from disk (active/paused sessions). If no JSONL
+exists (cleaned up after expiry), falls back to the gzip archive.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import asyncio
 import functools
 import gzip
 import logging
+import os
 from typing import TYPE_CHECKING, Any
 
 from gobby.sessions.transcript_archive import get_archive_dir
@@ -130,28 +131,42 @@ class TranscriptReader:
         if messages:
             return messages
 
-        # 2. DB empty — try gzip archive fallback
+        # 2. DB empty — try live JSONL file (active/paused sessions)
+        jsonl_messages = await self._read_from_jsonl(session_id, limit, offset, role)
+        if jsonl_messages:
+            return jsonl_messages
+
+        # 3. JSONL gone — try gzip archive (expired sessions)
         return await self._read_from_archive(session_id, limit, offset, role)
 
     async def count_messages(self, session_id: str) -> int:
-        """Count messages for a session, falling back to gzip archive."""
+        """Count messages for a session, falling back to live JSONL or gzip archive."""
         db_count = await self._message_manager.count_messages(session_id)
         if db_count > 0:
             return db_count
 
-        # Fallback: count lines from archive (avoids loading all messages into memory)
         session = self._session_manager.get(session_id)
-        if not session or not session.external_id:
+        if not session:
             return 0
 
-        archive_dir = get_archive_dir(self._archive_dir)
-        archive_path = archive_dir / f"{session.external_id}.jsonl.gz"
-        if not archive_path.is_file():
-            return 0
+        # Fallback 1: count lines from live JSONL file
+        jsonl_path = getattr(session, "jsonl_path", None)
+        if jsonl_path and os.path.isfile(jsonl_path):
+            try:
+                lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
+                return sum(1 for line in lines if line.strip())
+            except Exception as e:
+                logger.warning("Failed to count messages from JSONL for session %s: %s", session_id, e)
 
-        lines = await asyncio.to_thread(_decompress_archive, str(archive_path))
-        # Count non-empty lines (each line is a message)
-        return sum(1 for line in lines if line.strip())
+        # Fallback 2: count lines from gzip archive
+        if session.external_id:
+            archive_dir = get_archive_dir(self._archive_dir)
+            archive_path = archive_dir / f"{session.external_id}.jsonl.gz"
+            if archive_path.is_file():
+                lines = await asyncio.to_thread(_decompress_archive, str(archive_path))
+                return sum(1 for line in lines if line.strip())
+
+        return 0
 
     async def _read_from_archive(
         self,
@@ -190,6 +205,48 @@ class TranscriptReader:
 
         # Apply pagination
         return all_messages[offset : offset + limit]
+
+    async def _read_from_jsonl(
+        self,
+        session_id: str,
+        limit: int,
+        offset: int,
+        role: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Read messages from a live JSONL transcript file on disk."""
+        session = self._session_manager.get(session_id)
+        if not session:
+            return []
+
+        jsonl_path = getattr(session, "jsonl_path", None)
+        if not jsonl_path or not os.path.isfile(jsonl_path):
+            return []
+
+        source = session.source or "claude"
+
+        try:
+            lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
+            all_messages = _parse_lines_to_dicts(lines, source)
+        except Exception as e:
+            logger.warning("Failed to read JSONL for session %s: %s", session_id, e)
+            return []
+
+        # Fill in session_id
+        for msg in all_messages:
+            msg["session_id"] = session_id
+
+        # Apply role filter
+        if role:
+            all_messages = [m for m in all_messages if m["role"] == role]
+
+        # Apply pagination
+        return all_messages[offset : offset + limit]
+
+    @staticmethod
+    def _read_jsonl_lines(path: str) -> list[str]:
+        """Read lines from a JSONL file. Runs in a thread."""
+        with open(path, encoding="utf-8") as f:
+            return f.readlines()
 
 
 def clear_archive_cache() -> None:

@@ -10,6 +10,15 @@ import pytest
 
 from gobby.sessions.transcript_reader import TranscriptReader, clear_archive_cache
 
+# Helper to write a plain JSONL file (not gzipped)
+def _write_jsonl_file(path: Path, lines: list[dict]) -> Path:
+    """Write JSONL lines to a plain file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(json.dumps(line) + "\n")
+    return path
+
 pytestmark = pytest.mark.unit
 
 
@@ -149,6 +158,7 @@ class TestTranscriptReaderGzipFallback:
         session = MagicMock()
         session.external_id = external_id
         session.source = "claude"
+        session.jsonl_path = None  # no live JSONL — forces gzip fallback
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -255,6 +265,157 @@ class TestTranscriptReaderGzipFallback:
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
+
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
+        result = await reader.get_messages("sess-1", limit=3, offset=2)
+
+        assert len(result) == 3
+
+
+class TestTranscriptReaderJsonlFallback:
+    """TranscriptReader falls back to live JSONL when DB and archive are empty."""
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_jsonl(self, tmp_path: Path):
+        jsonl_path = tmp_path / "transcript.jsonl"
+        lines = [
+            {"type": "user", "message": {"role": "user", "content": "hello"}},
+            {
+                "type": "assistant",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+            },
+        ]
+        _write_jsonl_file(jsonl_path, lines)
+
+        message_manager = AsyncMock()
+        message_manager.get_messages.return_value = []
+        message_manager.count_messages.return_value = 0
+
+        session = MagicMock()
+        session.external_id = "no-archive"
+        session.source = "claude"
+        session.jsonl_path = str(jsonl_path)
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        # No archive dir — forces archive fallback to return []
+        archive_dir = tmp_path / "empty-archives"
+        archive_dir.mkdir()
+
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
+        result = await reader.get_messages("sess-1", limit=50)
+
+        assert len(result) > 0
+        for msg in result:
+            assert msg["session_id"] == "sess-1"
+
+    @pytest.mark.asyncio
+    async def test_count_falls_back_to_jsonl(self, tmp_path: Path):
+        jsonl_path = tmp_path / "transcript.jsonl"
+        lines = [
+            {"type": "user", "message": {"role": "user", "content": "hello"}},
+            {
+                "type": "assistant",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+            },
+        ]
+        _write_jsonl_file(jsonl_path, lines)
+
+        message_manager = AsyncMock()
+        message_manager.count_messages.return_value = 0
+
+        session = MagicMock()
+        session.external_id = "no-archive"
+        session.source = "claude"
+        session.jsonl_path = str(jsonl_path)
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        archive_dir = tmp_path / "empty-archives"
+        archive_dir.mkdir()
+
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
+        count = await reader.count_messages("sess-1")
+
+        assert count > 0
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_jsonl(self, tmp_path: Path):
+        message_manager = AsyncMock()
+        message_manager.get_messages.return_value = []
+        message_manager.count_messages.return_value = 0
+
+        session = MagicMock()
+        session.external_id = "no-archive"
+        session.source = "claude"
+        session.jsonl_path = "/nonexistent/path.jsonl"
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        archive_dir = tmp_path / "empty-archives"
+        archive_dir.mkdir()
+
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
+        result = await reader.get_messages("sess-1")
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_role_filter_applied(self, tmp_path: Path):
+        jsonl_path = tmp_path / "transcript.jsonl"
+        lines = [
+            {"type": "user", "message": {"role": "user", "content": "hello"}},
+            {
+                "type": "assistant",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+            },
+        ]
+        _write_jsonl_file(jsonl_path, lines)
+
+        message_manager = AsyncMock()
+        message_manager.get_messages.return_value = []
+
+        session = MagicMock()
+        session.external_id = "no-archive"
+        session.source = "claude"
+        session.jsonl_path = str(jsonl_path)
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        archive_dir = tmp_path / "empty-archives"
+        archive_dir.mkdir()
+
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
+        result = await reader.get_messages("sess-1", role="user")
+
+        for msg in result:
+            assert msg["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_pagination_applied(self, tmp_path: Path):
+        jsonl_path = tmp_path / "transcript.jsonl"
+        lines = [
+            {"type": "user", "message": {"role": "user", "content": f"msg {i}"}} for i in range(10)
+        ]
+        _write_jsonl_file(jsonl_path, lines)
+
+        message_manager = AsyncMock()
+        message_manager.get_messages.return_value = []
+
+        session = MagicMock()
+        session.external_id = "no-archive"
+        session.source = "claude"
+        session.jsonl_path = str(jsonl_path)
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        archive_dir = tmp_path / "empty-archives"
+        archive_dir.mkdir()
 
         reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
         result = await reader.get_messages("sess-1", limit=3, offset=2)

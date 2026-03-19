@@ -138,10 +138,13 @@ class TestSessionLifecycleTransitions:
     def test_reregister_active_sessions(self) -> None:
         """Test re-registering active sessions from storage."""
         mock_session_storage = MagicMock()
-        mock_session_storage.list.return_value = [
-            MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
-            MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="gemini"),
-        ]
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [
+                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
+                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="gemini"),
+            ],
+            "paused": [],
+        }[status]
 
         mock_message_processor = MagicMock()
 
@@ -155,12 +158,39 @@ class TestSessionLifecycleTransitions:
         assert count == 2
         assert mock_message_processor.register_session.call_count == 2
 
+    def test_reregister_includes_paused_sessions(self) -> None:
+        """Test re-registration includes paused sessions."""
+        mock_session_storage = MagicMock()
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [
+                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
+            ],
+            "paused": [
+                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="claude"),
+            ],
+        }[status]
+
+        mock_message_processor = MagicMock()
+
+        coordinator = SessionCoordinator(
+            session_storage=mock_session_storage,
+            message_processor=mock_message_processor,
+        )
+
+        count = coordinator.reregister_active_sessions()
+
+        assert count == 2
+        mock_message_processor.register_session.assert_any_call(
+            "session-2", "/path/to/2.jsonl", source="claude"
+        )
+
     def test_reregister_skips_sessions_without_jsonl_path(self) -> None:
         """Test re-registration skips sessions without jsonl_path."""
         mock_session_storage = MagicMock()
-        mock_session_storage.list.return_value = [
-            MagicMock(id="session-1", jsonl_path=None, source="claude"),
-        ]
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [MagicMock(id="session-1", jsonl_path=None, source="claude")],
+            "paused": [],
+        }[status]
 
         mock_message_processor = MagicMock()
 
@@ -177,10 +207,13 @@ class TestSessionLifecycleTransitions:
     def test_reregister_handles_errors_gracefully(self) -> None:
         """Test re-registration handles individual session errors."""
         mock_session_storage = MagicMock()
-        mock_session_storage.list.return_value = [
-            MagicMock(id="session-1", jsonl_path="/path/1.jsonl", source="claude"),
-            MagicMock(id="session-2", jsonl_path="/path/2.jsonl", source="claude"),
-        ]
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [
+                MagicMock(id="session-1", jsonl_path="/path/1.jsonl", source="claude"),
+                MagicMock(id="session-2", jsonl_path="/path/2.jsonl", source="claude"),
+            ],
+            "paused": [],
+        }[status]
 
         mock_message_processor = MagicMock()
         mock_message_processor.register_session.side_effect = [

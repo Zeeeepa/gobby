@@ -195,14 +195,17 @@ class SessionCoordinator:
 
     def reregister_active_sessions(self, limit: int = 1000) -> int:
         """
-        Re-register active sessions with the message processor.
+        Re-register active and paused sessions with the message processor.
 
         Called during initialization to restore message processing
-        for sessions that were active before a daemon restart.
+        for sessions that were active before a daemon restart.  Paused
+        sessions are included because their transcripts may not have
+        been fully ingested before the daemon stopped.
 
         Args:
-            limit: Maximum number of sessions to re-register (default 1000).
-                   Sessions beyond this limit will not be re-registered.
+            limit: Maximum number of sessions to re-register per status
+                   (default 1000). Sessions beyond this limit will not
+                   be re-registered.
 
         Returns:
             Number of sessions successfully re-registered
@@ -211,11 +214,13 @@ class SessionCoordinator:
             return 0
 
         try:
-            # Query active sessions from storage
+            # Query active and paused sessions from storage
             active_sessions = self._session_storage.list(status="active", limit=limit)
+            paused_sessions = self._session_storage.list(status="paused", limit=limit)
+            all_sessions = active_sessions + paused_sessions
             registered_count = 0
 
-            for session in active_sessions:
+            for session in all_sessions:
                 jsonl_path = getattr(session, "jsonl_path", None)
                 if not jsonl_path:
                     continue
@@ -230,13 +235,14 @@ class SessionCoordinator:
 
             if registered_count > 0:
                 self.logger.info(
-                    f"Re-registered {registered_count} active sessions with message processor"
+                    f"Re-registered {registered_count} active/paused sessions "
+                    f"with message processor"
                 )
 
             return registered_count
 
         except Exception as e:
-            self.logger.warning(f"Failed to re-register active sessions: {e}")
+            self.logger.warning(f"Failed to re-register active/paused sessions: {e}")
             return 0
 
     def start_agent_run(self, agent_run_id: str) -> bool:
