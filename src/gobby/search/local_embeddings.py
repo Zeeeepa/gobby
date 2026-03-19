@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -108,6 +109,7 @@ class LocalEmbeddingModel:
     def __init__(self, model_path: Path) -> None:
         self._model_path = model_path
         self._llama: Llama | None = None
+        self._inference_lock = threading.Lock()
 
     @classmethod
     async def get_instance(cls, model_name: str = "nomic-embed-text-v1.5") -> LocalEmbeddingModel:
@@ -249,17 +251,22 @@ class LocalEmbeddingModel:
         return embeddings
 
     def _embed_sync(self, texts: list[str]) -> list[list[float]]:
-        """Synchronous embedding (runs in thread)."""
+        """Synchronous embedding (runs in thread).
+
+        Protected by threading.Lock because llama-cpp-python is not
+        thread-safe — concurrent calls to llama_decode segfault.
+        """
         assert self._llama is not None  # noqa: S101
-        results: list[list[float]] = []
-        for text in texts:
-            output = self._llama.embed(text)
-            # llama-cpp-python returns list[float] for single input
-            if isinstance(output[0], float):
-                results.append(output)  # type: ignore[arg-type]
-            else:
-                results.append(output[0])  # type: ignore[arg-type]
-        return results
+        with self._inference_lock:
+            results: list[list[float]] = []
+            for text in texts:
+                output = self._llama.embed(text)
+                # llama-cpp-python returns list[float] for single input
+                if isinstance(output[0], float):
+                    results.append(output)  # type: ignore[arg-type]
+                else:
+                    results.append(output[0])  # type: ignore[arg-type]
+            return results
 
 
 async def generate_embeddings_local(
