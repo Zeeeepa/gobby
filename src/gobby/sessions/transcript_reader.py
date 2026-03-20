@@ -227,9 +227,7 @@ class TranscriptReader:
 
         return 0
 
-    async def _get_parsed_messages_from_archive(
-        self, session_id: str
-    ) -> list[ParsedMessage]:
+    async def _get_parsed_messages_from_archive(self, session_id: str) -> list[ParsedMessage]:
         """Read and parse ParsedMessages from gzip archive."""
         session = self._session_manager.get(session_id)
         if not session or not session.external_id:
@@ -250,9 +248,7 @@ class TranscriptReader:
             logger.warning("Failed to read archive for session %s: %s", session_id, e)
             return []
 
-    async def _get_parsed_messages_from_jsonl(
-        self, session_id: str
-    ) -> list[ParsedMessage]:
+    async def _get_parsed_messages_from_jsonl(self, session_id: str) -> list[ParsedMessage]:
         """Read and parse ParsedMessages from live JSONL file."""
         session = self._session_manager.get(session_id)
         if not session:

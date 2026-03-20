@@ -11,6 +11,7 @@ import pytest
 from gobby.sessions.transcript_reader import TranscriptReader, clear_archive_cache
 from gobby.sessions.transcript_renderer import RenderedMessage
 
+
 # Helper to write a plain JSONL file (not gzipped)
 def _write_jsonl_file(path: Path, lines: list[dict]) -> Path:
     """Write JSONL lines to a plain file."""
@@ -19,6 +20,7 @@ def _write_jsonl_file(path: Path, lines: list[dict]) -> Path:
         for line in lines:
             f.write(json.dumps(line) + "\n")
     return path
+
 
 pytestmark = pytest.mark.unit
 
@@ -477,9 +479,7 @@ class TestTranscriptReaderRendered:
         session_manager = MagicMock()
         session_manager.get.return_value = session
 
-        reader = TranscriptReader(
-            message_manager, session_manager, archive_dir=str(archive_dir)
-        )
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
 
         result = await reader.get_rendered_messages("sess-1")
 
@@ -491,9 +491,7 @@ class TestTranscriptReaderRendered:
         jsonl_path = tmp_path / "transcript.jsonl"
         lines = []
         for i in range(10):
-            lines.append(
-                {"type": "user", "message": {"role": "user", "content": f"msg {i}"}}
-            )
+            lines.append({"type": "user", "message": {"role": "user", "content": f"msg {i}"}})
         _write_jsonl_file(jsonl_path, lines)
 
         message_manager = AsyncMock()
@@ -522,8 +520,7 @@ class TestTranscriptReaderRendered:
 
         # Write valid gzip data first
         valid_line = (
-            json.dumps({"type": "user", "message": {"role": "user", "content": "valid"}})
-            + "\n"
+            json.dumps({"type": "user", "message": {"role": "user", "content": "valid"}}) + "\n"
         )
         with gzip.open(path, "wt", encoding="utf-8") as f:
             f.write(valid_line)
@@ -542,9 +539,7 @@ class TestTranscriptReaderRendered:
         session_manager.get.return_value = session
 
         clear_archive_cache()
-        reader = TranscriptReader(
-            message_manager, session_manager, archive_dir=str(archive_dir)
-        )
+        reader = TranscriptReader(message_manager, session_manager, archive_dir=str(archive_dir))
 
         # Should not raise exception, should return what it could read
         result = await reader.get_rendered_messages("sess-1")
