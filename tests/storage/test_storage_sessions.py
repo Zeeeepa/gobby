@@ -85,6 +85,43 @@ class TestLocalSessionManager:
         assert session.status == "active"
         assert session.jsonl_path == "/path/to/transcript.jsonl"
         assert session.git_branch == "main"
+        
+        # Verify stats columns
+        assert session.message_count == 0
+        assert session.turn_count == 0
+        assert session.tool_call_count == 0
+        assert session.last_assistant_content is None
+
+    def test_register_session_has_stats_columns(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ) -> None:
+        """Test that a newly registered session has the stats columns."""
+        session = session_manager.register(
+            external_id="stats-check",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+        
+        # Verify Session object has fields
+        assert hasattr(session, "message_count")
+        assert hasattr(session, "turn_count")
+        assert hasattr(session, "tool_call_count")
+        assert hasattr(session, "last_assistant_content")
+        
+        # Verify values from DB
+        row = session_manager.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session.id,))
+        assert "message_count" in row.keys()
+        assert "turn_count" in row.keys()
+        assert "tool_call_count" in row.keys()
+        assert "last_assistant_content" in row.keys()
+        
+        assert row["message_count"] == 0
+        assert row["turn_count"] == 0
+        assert row["tool_call_count"] == 0
+        assert row["last_assistant_content"] is None
 
     def test_register_upserts_on_conflict(
         self,
