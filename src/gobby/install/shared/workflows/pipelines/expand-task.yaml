@@ -20,6 +20,10 @@ inputs:
     type: string
     required: true
     description: "Session ID for tracking"
+  plan_file:
+    type: string
+    required: false
+    description: "Relative path to plan file for subtask context injection"
   agent: "expander"
   provider: "claude"
   model: null
@@ -37,7 +41,7 @@ steps:
       server: gobby-agents
       tool: spawn_agent
       arguments:
-        prompt: "Research and produce an expansion spec for task ${{ inputs.task_id }}"
+        prompt: "Research and produce an expansion spec for task ${{ inputs.task_id }}. Plan file: ${{ inputs.plan_file or 'none' }}"
         agent: "${{ inputs.agent }}"
         task_id: "${{ inputs.task_id }}"
         provider: "${{ inputs.provider }}"

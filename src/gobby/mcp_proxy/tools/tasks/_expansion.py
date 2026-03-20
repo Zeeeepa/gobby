@@ -158,16 +158,33 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not subtasks:
             return {"error": "No subtasks in spec"}
 
+        # Build plan reference block if plan_file is in the spec
+        plan_file = spec.get("plan_file")
+        plan_ref_block = ""
+        if plan_file:
+            plan_ref_block = (
+                f"> **Plan reference:** `{plan_file}`\n"
+                "> Your task description below is your scope — follow it, not the plan.\n"
+                "> The plan file provides background context only "
+                "(the \"why\" behind this task).\n"
+                "> Your description may differ from the plan because "
+                "expansion was adapted to the actual codebase.\n\n"
+            )
+
         # Create subtasks atomically - clean up on failure
         created_tasks = []
         created_refs = []
 
         try:
             for subtask in subtasks:
+                raw_description = subtask.get("description") or ""
+                description = (
+                    f"{plan_ref_block}{raw_description}" if plan_ref_block else raw_description
+                )
                 result = ctx.task_manager.create_task_with_decomposition(
                     project_id=task.project_id,
                     title=subtask["title"],
-                    description=subtask.get("description"),
+                    description=description or None,
                     priority=subtask.get("priority", 2),
                     task_type=subtask.get("task_type", "task"),
                     parent_task_id=resolved_id,
@@ -397,11 +414,15 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 if missing:
                     errors.append(f"Plan sections not covered by any subtask: {sorted(missing)}")
 
-        return {
+        result: dict[str, Any] = {
             "valid": len(errors) == 0,
             "errors": errors,
             "subtask_count": n,
         }
+        plan_file = spec.get("plan_file")
+        if plan_file:
+            result["plan_file"] = plan_file
+        return result
 
     # Register tools
     registry.register(
@@ -416,8 +437,12 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "spec": {
                     "type": "object",
-                    "description": "Expansion specification containing subtasks array",
+                    "description": "Expansion specification containing subtasks array and optional plan_file",
                     "properties": {
+                        "plan_file": {
+                            "type": "string",
+                            "description": "Relative path to the plan file for context injection into subtask descriptions",
+                        },
                         "subtasks": {
                             "type": "array",
                             "description": "List of subtask definitions",

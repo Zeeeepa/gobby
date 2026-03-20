@@ -56,9 +56,10 @@ If `pending=True`, skip to **Phase 3** immediately.
 
 1. **Parse input**: Task ref (`#N`) or file path (`plan.md`)
 
-2. **If file path**: Read file content, create root task:
+2. **If file path**: Read file content, create root task, and preserve the path:
    ```python
    content = Read(file_path)
+   plan_file_path = file_path  # Preserve for pipeline input
    # Extract first heading as title
    result = call_tool("gobby-tasks", "create_task", {
        "title": "<first_heading>",
@@ -109,13 +110,19 @@ Delegate to the `expand-task` pipeline. This spawns a researcher agent that expl
 the codebase and produces a spec, then validates and executes it mechanically.
 
 ```python
+inputs = {
+    "task_id": "<task_ref>",
+    "session_id": "<session_id>"
+}
+# If expansion originated from a plan file, pass the path so it gets
+# injected as a reference into each subtask description
+if plan_file_path:
+    inputs["plan_file"] = plan_file_path
+
 result = call_tool("gobby-workflows", "run_pipeline", {
     "name": "expand-task",
     "session_id": "<session_id>",
-    "inputs": {
-        "task_id": "<task_ref>",
-        "session_id": "<session_id>"
-    },
+    "inputs": inputs,
     "wait": True,
     "wait_timeout": 600
 })

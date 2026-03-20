@@ -730,3 +730,118 @@ class TestExpansionWithSeqNum:
         # All refs should be #N format
         for ref in exec_result["created"]:
             assert ref.startswith("#"), f"Expected #N format, got {ref}"
+
+
+class TestPlanFileReference:
+    """Tests for plan_file reference injection into subtask descriptions."""
+
+    @pytest.mark.asyncio
+    async def test_plan_file_injected_into_descriptions(
+        self,
+        expansion_registry: dict,
+        parent_task: str,
+        task_manager: LocalTaskManager,
+        test_project: str,
+        test_session: str,
+    ) -> None:
+        """Subtask descriptions should include plan reference block when plan_file is in spec."""
+        save_fn = expansion_registry["save_expansion_spec"].func
+        execute_fn = expansion_registry["execute_expansion"].func
+
+        spec = {
+            "plan_file": "docs/plans/my-plan.md",
+            "subtasks": [
+                {"title": "First task", "description": "Implement the auth module."},
+                {"title": "Second task", "description": "Write tests for auth."},
+            ],
+        }
+        await save_fn(task_id=parent_task, spec=spec)
+        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
+
+        assert result["count"] == 2
+
+        subtasks = task_manager.list_tasks(
+            project_id=test_project,
+            parent_task_id=parent_task,
+        )
+        for st in subtasks:
+            assert st.description is not None
+            assert "**Plan reference:** `docs/plans/my-plan.md`" in st.description
+            assert "Your task description below is your scope" in st.description
+
+        # Original description content is preserved after the reference block
+        descriptions = {st.title: st.description for st in subtasks}
+        assert "Implement the auth module." in descriptions["First task"]
+        assert "Write tests for auth." in descriptions["Second task"]
+
+    @pytest.mark.asyncio
+    async def test_no_plan_file_no_reference_block(
+        self,
+        expansion_registry: dict,
+        parent_task: str,
+        task_manager: LocalTaskManager,
+        test_project: str,
+        test_session: str,
+    ) -> None:
+        """Subtask descriptions should NOT have reference block when no plan_file."""
+        save_fn = expansion_registry["save_expansion_spec"].func
+        execute_fn = expansion_registry["execute_expansion"].func
+
+        spec = {
+            "subtasks": [
+                {"title": "A task", "description": "Do something."},
+            ],
+        }
+        await save_fn(task_id=parent_task, spec=spec)
+        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
+
+        assert result["count"] == 1
+
+        subtasks = task_manager.list_tasks(
+            project_id=test_project,
+            parent_task_id=parent_task,
+        )
+        assert subtasks[0].description == "Do something."
+
+    @pytest.mark.asyncio
+    async def test_validate_returns_plan_file(
+        self,
+        expansion_registry: dict,
+        parent_task: str,
+    ) -> None:
+        """validate_expansion_spec should return plan_file when present in spec."""
+        save_fn = expansion_registry["save_expansion_spec"].func
+        validate_fn = expansion_registry["validate_expansion_spec"].func
+
+        spec = {
+            "plan_file": "docs/plans/feature.md",
+            "subtasks": [
+                {"title": "Task", "description": "Details", "category": "code"},
+            ],
+        }
+        await save_fn(task_id=parent_task, spec=spec)
+        result = await validate_fn(task_id=parent_task)
+
+        assert result["valid"] is True
+        assert result["plan_file"] == "docs/plans/feature.md"
+
+    @pytest.mark.asyncio
+    async def test_validate_no_plan_file_key(
+        self,
+        expansion_registry: dict,
+        parent_task: str,
+    ) -> None:
+        """validate_expansion_spec should not include plan_file when absent."""
+        save_fn = expansion_registry["save_expansion_spec"].func
+        validate_fn = expansion_registry["validate_expansion_spec"].func
+
+        spec = {
+            "subtasks": [
+                {"title": "Task", "description": "Details", "category": "code"},
+            ],
+        }
+        await save_fn(task_id=parent_task, spec=spec)
+        result = await validate_fn(task_id=parent_task)
+
+        assert result["valid"] is True
+        assert "plan_file" not in result
