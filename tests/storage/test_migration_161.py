@@ -1,8 +1,10 @@
 import pytest
+
 from gobby.storage.database import LocalDatabase
-from gobby.storage.migrations import run_migrations, get_current_version
+from gobby.storage.migrations import get_current_version, run_migrations
 
 pytestmark = pytest.mark.unit
+
 
 def test_migration_161_backfill(tmp_path):
     """Test that migration 161 correctly backfills stats from existing messages."""
@@ -54,21 +56,41 @@ def test_migration_161_backfill(tmp_path):
 
     # 2. Insert test data
     session_id = "sess-1"
-    db.execute("INSERT INTO sessions (id, external_id, machine_id, source, project_id) VALUES (?, 'ext-1', 'mach-1', 'gemini', 'proj-1')", (session_id,))
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id) VALUES (?, 'ext-1', 'mach-1', 'gemini', 'proj-1')",
+        (session_id,),
+    )
 
     # message 0: user
-    db.execute("INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 0, 'user', 'hello', '2026-03-20T10:00:00')", (session_id,))
+    db.execute(
+        "INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 0, 'user', 'hello', '2026-03-20T10:00:00')",
+        (session_id,),
+    )
     # message 1: assistant (turn 1 - thinking)
-    db.execute("INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 1, 'assistant', 'thinking...', '2026-03-20T10:00:01')", (session_id,))
+    db.execute(
+        "INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 1, 'assistant', 'thinking...', '2026-03-20T10:00:01')",
+        (session_id,),
+    )
     # message 2: assistant (turn 1 - tool call)
-    db.execute("INSERT INTO session_messages (session_id, message_index, role, content, tool_name, timestamp) VALUES (?, 2, 'assistant', '', 'Grep', '2026-03-20T10:00:02')", (session_id,))
+    db.execute(
+        "INSERT INTO session_messages (session_id, message_index, role, content, tool_name, timestamp) VALUES (?, 2, 'assistant', '', 'Grep', '2026-03-20T10:00:02')",
+        (session_id,),
+    )
     # message 3: tool result
-    db.execute("INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 3, 'tool', 'matches found', '2026-03-20T10:00:03')", (session_id,))
+    db.execute(
+        "INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 3, 'tool', 'matches found', '2026-03-20T10:00:03')",
+        (session_id,),
+    )
     # message 4: assistant (turn 1 - final response)
-    db.execute("INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 4, 'assistant', 'I found it.', '2026-03-20T10:00:04')", (session_id,))
+    db.execute(
+        "INSERT INTO session_messages (session_id, message_index, role, content, timestamp) VALUES (?, 4, 'assistant', 'I found it.', '2026-03-20T10:00:04')",
+        (session_id,),
+    )
 
     # Add another session with no messages
-    db.execute("INSERT INTO sessions (id, external_id, machine_id, source, project_id) VALUES ('sess-empty', 'ext-2', 'mach-1', 'gemini', 'proj-1')")
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id) VALUES ('sess-empty', 'ext-2', 'mach-1', 'gemini', 'proj-1')"
+    )
 
     # 3. Run migrations
     run_migrations(db)
@@ -89,6 +111,7 @@ def test_migration_161_backfill(tmp_path):
     assert row_empty["turn_count"] == 0
     assert row_empty["tool_call_count"] == 0
     assert row_empty["last_assistant_content"] is None
+
 
 def test_migration_161_fresh_install(tmp_path):
     """Test that a fresh install has the columns and starts at correct version."""
