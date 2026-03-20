@@ -32,6 +32,7 @@ def register_message_tools(
         transcript_reader: Optional TranscriptReader for DB + gzip fallback reads
     """
 
+    # Resolves session reference to UUID using the provided session manager
     def _resolve_session_id(session_id: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID.
 
