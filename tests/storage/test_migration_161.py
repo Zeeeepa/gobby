@@ -38,7 +38,8 @@ def test_migration_161_backfill(tmp_path):
         source TEXT NOT NULL,
         project_id TEXT NOT NULL REFERENCES projects(id),
         title TEXT,
-        status TEXT DEFAULT 'active'
+        status TEXT DEFAULT 'active',
+        compact_markdown TEXT
     );
     """)
 
@@ -51,6 +52,14 @@ def test_migration_161_backfill(tmp_path):
         content TEXT NOT NULL,
         tool_name TEXT,
         timestamp TEXT NOT NULL
+    );
+    """)
+
+    # Memories table needed by migration 162 (which adds graph_processed column)
+    db.execute("""
+    CREATE TABLE memories (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL
     );
     """)
 
@@ -96,7 +105,7 @@ def test_migration_161_backfill(tmp_path):
     run_migrations(db)
 
     # 4. Verify version
-    assert get_current_version(db) == 161
+    assert get_current_version(db) >= 161
 
     # 5. Verify sess-1 stats
     row = db.fetchone("SELECT * FROM sessions WHERE id = ?", (session_id,))
@@ -119,7 +128,7 @@ def test_migration_161_fresh_install(tmp_path):
     db = LocalDatabase(db_path)
 
     run_migrations(db)
-    assert get_current_version(db) == 161
+    assert get_current_version(db) >= 161
 
     # PRAGMA table_info(sessions)
     columns = {row["name"] for row in db.fetchall("PRAGMA table_info(sessions)")}

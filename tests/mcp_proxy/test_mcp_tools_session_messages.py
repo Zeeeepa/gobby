@@ -412,13 +412,15 @@ async def test_get_handoff_context_by_session_id(mock_session_manager, full_sess
 
 
 @pytest.mark.asyncio
-async def test_get_handoff_context_falls_back_to_compact(
+async def test_get_handoff_context_no_summary_returns_no_context(
     mock_session_manager, full_sessions_registry
 ):
-    """Test get_handoff_context uses compact_markdown when summary is None."""
+    """Test get_handoff_context returns has_context=False when summary_markdown is None.
+
+    compact_markdown fallback was removed in migration 163.
+    """
     mock_session = _make_mock_session("sess-abc")
     mock_session.summary_markdown = None
-    mock_session.compact_markdown = "## Compact Context"
     mock_session.title = "Test"
     mock_session.status = "handoff_ready"
     mock_session_manager.resolve_session_reference.return_value = "sess-abc"
@@ -426,9 +428,7 @@ async def test_get_handoff_context_falls_back_to_compact(
 
     result = await full_sessions_registry.call("get_handoff_context", {"session_id": "sess-abc"})
 
-    assert result["has_context"] is True
-    assert result["context"] == "## Compact Context"
-    assert result["context_type"] == "compact_markdown"
+    assert result["has_context"] is False
 
 
 @pytest.mark.asyncio
