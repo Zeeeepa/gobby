@@ -2,7 +2,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from gobby.sessions.transcript_renderer import RenderState, render_incremental, render_transcript
+from gobby.sessions.transcript_renderer import (
+    RenderState,
+    classify_tool,
+    extract_result_metadata,
+    render_incremental,
+    render_transcript,
+)
 from gobby.sessions.transcripts.base import ParsedMessage
 
 
@@ -155,3 +161,76 @@ def test_render_transcript_web_search_result():
     block = rendered[0].content_blocks[0]
     assert block.type == "web_search_result"
     assert block.content == {"results": []}
+
+
+def test_classify_tool():
+    assert classify_tool("Bash") == ("bash", None)
+    assert classify_tool("Read") == ("read", None)
+    assert classify_tool("Edit") == ("edit", None)
+    assert classify_tool("MultiEdit") == ("edit", None)
+    assert classify_tool("mcp__server__tool") == ("mcp", "server")
+    assert classify_tool("mcp__other") == ("mcp", "unknown")
+    assert classify_tool("Unknown") == ("unknown", None)
+    assert classify_tool(None) == ("unknown", None)
+
+
+def test_extract_result_metadata():
+    # Bash
+    bash_res = {"exit_code": 0, "stdout": "line1\nline2", "stderr": "error1"}
+    meta = extract_result_metadata("bash", bash_res)
+    assert meta["exit_code"] == 0
+    assert meta["stdout_lines"] == 2
+    assert meta["stderr_lines"] == 1
+
+    # Read
+    read_res = "line1\nline2\nline3"
+    meta = extract_result_metadata("read", read_res, {"file_path": "test.py"})
+    assert meta["line_count"] == 3
+    assert meta["file_path"] == "test.py"
+
+    # Edit
+    meta = extract_result_metadata("edit", "ok", {"path": "test.py"})
+    assert meta["file_path"] == "test.py"
+
+    # Grep
+    grep_res = {"files_matched": 5, "total_matches": 10}
+    meta = extract_result_metadata("grep", grep_res)
+    assert meta["files_matched"] == 5
+    assert meta["total_matches"] == 10
+
+    # Glob
+    glob_res = ["file1.py", "file2.py"]
+    meta = extract_result_metadata("glob", glob_res)
+    assert meta["files_found"] == 2
+
+    # Default
+    assert extract_result_metadata("unknown", "something") == {}
+
+
+def test_render_transcript_metadata_integration():
+    msgs = [
+        make_msg(
+            0,
+            "assistant",
+            "",
+            content_type="tool_use",
+            tool_use_id="call-1",
+            tool_name="Bash",
+            tool_input={"command": "ls"},
+        ),
+        make_msg(
+            1,
+            "user",
+            "",
+            content_type="tool_result",
+            tool_use_id="call-1",
+            tool_result={"exit_code": 0, "stdout": "a\nb", "stderr": ""},
+        ),
+    ]
+    rendered = render_transcript(msgs)
+    assert len(rendered) == 1
+    block = rendered[0].content_blocks[0]
+    tool_call = block.tool_calls[0]
+    assert tool_call.tool_type == "bash"
+    assert tool_call.result.metadata["exit_code"] == 0
+    assert tool_call.result.metadata["stdout_lines"] == 2
