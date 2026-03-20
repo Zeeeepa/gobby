@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -273,11 +274,38 @@ def _is_hook_feedback(msg: ParsedMessage) -> bool:
     return any(msg.content.startswith(p) for p in prefixes)
 
 
-def _strip_hook_context(content: str) -> str:
-    """Remove <hook_context> tags from user messages."""
-    if "<hook_context>" in content:
-        return content.split("<hook_context>")[0].strip()
-    return content
+# Protocol XML tags that should be stripped from rendered content
+_PROTOCOL_TAG_RE = re.compile(
+    r"<(?:system-reminder|task-notification|local-command-caveat|local-command-stdout"
+    r"|command-name|command-args|command-message|hook_context|hook-context"
+    r"|antml_thinking|antml_function_calls|antml_invoke)"
+    r"[^>]*>.*?</(?:system-reminder|task-notification|local-command-caveat|local-command-stdout"
+    r"|command-name|command-args|command-message|hook_context|hook-context"
+    r"|antml_thinking|antml_function_calls|antml_invoke)>",
+    re.DOTALL,
+)
+
+# Unclosed protocol tags (content extends to end of string)
+_PROTOCOL_TAG_UNCLOSED_RE = re.compile(
+    r"<(?:system-reminder|task-notification|local-command-caveat|hook_context)[^>]*>.*$",
+    re.DOTALL,
+)
+
+
+def _strip_protocol_tags(content: str) -> str:
+    """Remove protocol XML tags from message content.
+
+    Strips system-reminder, task-notification, local-command-*,
+    hook_context, and other infrastructure tags that shouldn't be
+    displayed in the session viewer.
+    """
+    if "<" not in content:
+        return content
+    result = _PROTOCOL_TAG_RE.sub("", content)
+    result = _PROTOCOL_TAG_UNCLOSED_RE.sub("", result)
+    # Clean up leftover whitespace
+    result = re.sub(r"\n{3,}", "\n\n", result).strip()
+    return result
 
 
 def _process_message_block(
@@ -321,10 +349,10 @@ def _process_message_block(
         # Non-hashable content (e.g. dict) — skip deduplication
         pass
 
-    # User message cleanup
+    # Strip protocol tags from all message content
     block_text: Any = msg.content
-    if state.current_message.role == "user" and isinstance(block_text, str):
-        block_text = _strip_hook_context(block_text)
+    if isinstance(block_text, str):
+        block_text = _strip_protocol_tags(block_text)
 
     # Block Type Mapping
     original_type = msg.content_type
