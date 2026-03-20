@@ -70,7 +70,9 @@ def compute_next_run(job: CronJob) -> datetime | None:
             # Expired one-shot
             now_utc = datetime.now(ZoneInfo("UTC"))
             if run_at_utc <= now_utc:
-                logger.debug(f"Job {job.id}: one-shot run_at {run_at_utc} is in the past (now={now_utc})")
+                logger.debug(
+                    f"Job {job.id}: one-shot run_at {run_at_utc} is in the past (now={now_utc})"
+                )
                 return None
             return run_at_utc
         except (ValueError, TypeError) as e:

@@ -85,8 +85,8 @@ class ChatSessionPermissionsMixin:
             # ExitPlanMode is a CLI-internal tool that the SDK may handle
             # before this callback fires. Plan approval is now triggered
             # automatically when the agent writes a plan file (PostToolUse
-            # hook detects .gobby/plans/*.md writes). 
-            # If the agent calls it AFTER writing the plan, allow it to 
+            # hook detects .gobby/plans/*.md writes).
+            # If the agent calls it AFTER writing the plan, allow it to
             # succeed (return success) so the agent finishes its turn.
             if self._plan_file_path or self._read_plan_file():
                 return PermissionResultAllow(updated_input=input_data)

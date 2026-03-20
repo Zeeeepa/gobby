@@ -169,23 +169,10 @@ class SessionControlMixin:
                         )
                     )
                 except (ConnectionClosed, ConnectionClosedError):
-                    else:
-                        try:
-                            await websocket.send(
-                                json.dumps(
-                                    {
-                                        "type": "mode_changed",
-                                        "conversation_id": conversation_id,
-                                        "mode": "plan",
-                                        "reason": "plan_changes_requested",
-                                    }
-                                )
-                            )
-                        except (ConnectionClosed, ConnectionClosedError):
-                            pass
-                        logger.info(
-                            "Plan changes requested (legacy) for conversation %s", conversation_id[:8]
-                        )
+                    pass
+                logger.info(
+                    "Plan changes requested (legacy) for conversation %s", conversation_id[:8]
+                )
 
     async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle continue_in_chat message to resume a CLI session in the web chat UI.
