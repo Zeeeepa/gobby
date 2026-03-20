@@ -2363,6 +2363,52 @@ class TestBuildOutputs:
         outputs = executor._build_outputs(pipeline, context)
         assert outputs["count"] == 2
 
+    def test_build_outputs_any_all_in_expressions(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ):
+        """any() and all() should work in pipeline expressions.
+
+        Regression test for orchestrator qa_gate failure:
+          any(a.get('provider') == 'claude' for a in agents)
+        """
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.templates import TemplateEngine
+
+        pipeline = PipelineDefinition(
+            name="test-any-all",
+            steps=[PipelineStep(id="check", exec="echo test")],
+            outputs={
+                "has_claude": "${{ any(a.get('provider') == 'claude' for a in check.output.agents) }}",
+                "all_claude": "${{ all(a.get('provider') == 'claude' for a in check.output.agents) }}",
+            },
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            template_engine=TemplateEngine(),
+        )
+
+        context = {
+            "inputs": {},
+            "steps": {
+                "check": {
+                    "status": "completed",
+                    "output": {
+                        "agents": [
+                            {"provider": "gemini"},
+                            {"provider": "claude"},
+                        ]
+                    },
+                },
+            },
+        }
+
+        outputs = executor._build_outputs(pipeline, context)
+        assert outputs["has_claude"] is True
+        assert outputs["all_claude"] is False
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Additional coverage: _coerce_rendered_value
