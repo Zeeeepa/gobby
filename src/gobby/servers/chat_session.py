@@ -116,8 +116,6 @@ class ChatSession(ChatSessionPermissionsMixin):
     _tool_approval_callback: Any | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
     _last_model: str | None = field(default=None, repr=False)
-    _message_manager: Any | None = field(default=None, repr=False)
-    _message_manager_source_session_id: str | None = field(default=None, repr=False)
     _pending_agent_name: str | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
     _max_history_total_chars: int = field(default=30_000, repr=False)

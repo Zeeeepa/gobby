@@ -310,26 +310,7 @@ class SessionControlMixin:
             await self._send_error(websocket, f"Failed to create session: {e}")
             return
 
-        # Fall back to history injection if no SDK resume available
-        if not sdk_resume_id:
-            message_manager = getattr(self, "message_manager", None)
-            if message_manager:
-                try:
-                    max_idx = await message_manager.get_max_message_index(source_session_id)
-                    if max_idx >= 0:
-                        session._message_manager_source_session_id = source_session_id
-                        session._needs_history_injection = True
-                        session._message_manager = message_manager
-                        logger.info(
-                            "Cross-session history injection enabled for continuation",
-                            extra={
-                                "source": source_session_id[:8],
-                                "target": conversation_id[:8],
-                                "max_idx": max_idx,
-                            },
-                        )
-                except Exception as e:
-                    logger.warning(f"Failed to set up history injection: {e}")
+        # History injection via message_manager removed (session_messages table dropped)
 
         # Set parent_session_id on the DB record for lineage tracking
         if session.db_session_id and session_manager:
@@ -788,31 +769,9 @@ class SessionControlMixin:
             await self._send_error(websocket, f"Session not found: {session_id}", code="NOT_FOUND")
             return
 
-        # Load recent messages
-        message_manager = getattr(self, "message_manager", None)
+        # Message loading via message_manager removed (session_messages table dropped)
         messages: list[dict[str, Any]] = []
         total_count = 0
-        if message_manager:
-            try:
-                raw_messages = await message_manager.get_messages(session_id, limit=100)
-                messages = [
-                    {
-                        "id": m.get("id", ""),
-                        "role": m.get("role", ""),
-                        "content": m.get("content", ""),
-                        "content_type": m.get("content_type"),
-                        "tool_name": m.get("tool_name"),
-                        "tool_input": m.get("tool_input"),
-                        "tool_result": m.get("tool_result"),
-                        "tool_use_id": m.get("tool_use_id"),
-                        "timestamp": m.get("timestamp", ""),
-                        "message_index": m.get("message_index"),
-                    }
-                    for m in raw_messages
-                ]
-                total_count = len(messages)
-            except Exception as e:
-                logger.warning(f"Failed to load messages for session {session_id}: {e}")
 
         # Auto-subscribe to session-scoped events
         if not hasattr(websocket, "subscriptions") or websocket.subscriptions is None:

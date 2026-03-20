@@ -376,26 +376,7 @@ class ChatSessionMixin:
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 
-        # Detect returning sessions and set up history injection (ChatSession only —
-        # CodexChatSession injects history via context_prefix, not SDK hooks)
-        message_manager = getattr(self, "message_manager", None)
-        if message_manager and session.db_session_id and isinstance(session, ChatSession):
-            try:
-                max_idx = await message_manager.get_max_message_index(session.db_session_id)
-                if max_idx >= 0:
-                    session.message_index = max_idx + 1
-                    session._needs_history_injection = True
-                    session._message_manager = message_manager
-                    logger.info(
-                        "Returning session detected; history injection enabled",
-                        extra={"max_idx": max_idx, "conversation_id": conversation_id[:8]},
-                    )
-            except Exception as e:
-                logger.warning(
-                    "Failed to check message history",
-                    extra={"conversation_id": conversation_id[:8]},
-                    exc_info=e,
-                )
+        # History injection via message_manager removed (session_messages table dropped)
 
         # Fire SESSION_START (informational, fire-and-forget)
         start_data: dict[str, Any] = {}

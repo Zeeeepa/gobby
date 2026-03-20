@@ -1,8 +1,7 @@
-"""Unified transcript read layer: DB → live JSONL → gzip archive.
+"""Unified transcript read layer: live JSONL → gzip archive.
 
-Tries the session_messages DB table first. If empty, reads the live
-JSONL transcript file from disk (active/paused sessions). If no JSONL
-exists (cleaned up after expiry), falls back to the gzip archive.
+Reads from the live JSONL transcript file on disk (active/paused sessions).
+If no JSONL exists (cleaned up after expiry), falls back to the gzip archive.
 """
 
 from __future__ import annotations
@@ -23,7 +22,6 @@ if TYPE_CHECKING:
     from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
     from gobby.sessions.transcripts.codex import CodexTranscriptParser
     from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
     TranscriptParser = ClaudeTranscriptParser | GeminiTranscriptParser | CodexTranscriptParser
@@ -108,21 +106,21 @@ def _parse_lines_to_dicts(
 
 
 class TranscriptReader:
-    """Unified read layer: DB first, gzip archive fallback.
+    """Unified read layer: live JSONL first, gzip archive fallback.
 
     Usage::
 
-        reader = TranscriptReader(message_manager, session_manager)
+        reader = TranscriptReader(session_manager=session_manager)
         messages = await reader.get_messages(session_id, limit=50)
     """
 
     def __init__(
         self,
-        message_manager: LocalSessionMessageManager,
         session_manager: LocalSessionManager,
         archive_dir: str | None = None,
+        # Deprecated: kept for backwards-compat callers, ignored
+        message_manager: object | None = None,
     ):
-        self._message_manager = message_manager
         self._session_manager = session_manager
         self._archive_dir = archive_dir
 
@@ -144,22 +142,12 @@ class TranscriptReader:
         Returns:
             List of message dicts
         """
-        # 1. Try DB
-        messages = await self._message_manager.get_messages(
-            session_id=session_id,
-            limit=limit,
-            offset=offset,
-            role=role,
-        )
-        if messages:
-            return messages
-
-        # 2. DB empty — try live JSONL file (active/paused sessions)
+        # 1. Try live JSONL file (active/paused sessions)
         jsonl_messages = await self._read_from_jsonl(session_id, limit, offset, role)
         if jsonl_messages:
             return jsonl_messages
 
-        # 3. JSONL gone — try gzip archive (expired sessions)
+        # 2. JSONL gone — try gzip archive (expired sessions)
         return await self._read_from_archive(session_id, limit, offset, role)
 
     async def get_rendered_messages(
@@ -198,11 +186,7 @@ class TranscriptReader:
         return rendered[offset : offset + limit]
 
     async def count_messages(self, session_id: str) -> int:
-        """Count messages for a session, falling back to live JSONL or gzip archive."""
-        db_count = await self._message_manager.count_messages(session_id)
-        if db_count > 0:
-            return db_count
-
+        """Count messages for a session from live JSONL or gzip archive."""
         session = self._session_manager.get(session_id)
         if not session:
             return 0

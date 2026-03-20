@@ -27,7 +27,6 @@ from gobby.sessions.transcripts.hook_assembler import HookTranscriptAssembler
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager
-from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
@@ -54,7 +53,6 @@ class _Storage:
     session: LocalSessionManager
     session_task: SessionTaskManager
     memory: LocalMemoryManager
-    message: LocalSessionMessageManager
     task: LocalTaskManager
     agent_run: LocalAgentRunManager
     worktree: LocalWorktreeManager
@@ -91,7 +89,6 @@ class HookManagerComponents:
     session_storage: LocalSessionManager
     session_task_manager: SessionTaskManager
     memory_storage: LocalMemoryManager
-    message_manager: LocalSessionMessageManager
     task_manager: LocalTaskManager
     agent_run_manager: LocalAgentRunManager
     worktree_manager: LocalWorktreeManager
@@ -234,7 +231,6 @@ class HookManagerFactory:
             message_processor=message_processor,
             task_manager=storage.task,
             session_coordinator=session_coordinator,
-            message_manager=storage.message,
             skill_manager=workflow_components.skill_manager,
             skills_config=config.skills if config else None,
             workflow_config=config.workflow if config else None,
@@ -251,7 +247,6 @@ class HookManagerFactory:
             session_storage=storage.session,
             session_task_manager=storage.session_task,
             memory_storage=storage.memory,
-            message_manager=storage.message,
             task_manager=storage.task,
             agent_run_manager=storage.agent_run,
             worktree_manager=storage.worktree,
@@ -287,7 +282,6 @@ class HookManagerFactory:
             session=session,
             session_task=session_task,
             memory=LocalMemoryManager(database),
-            message=LocalSessionMessageManager(database),
             task=LocalTaskManager(database),
             agent_run=LocalAgentRunManager(database),
             worktree=LocalWorktreeManager(database),

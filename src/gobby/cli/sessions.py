@@ -10,7 +10,6 @@ import click
 
 from gobby.cli.utils import resolve_project_ref, resolve_session_id
 from gobby.storage.database import LocalDatabase
-from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 
 
@@ -18,12 +17,6 @@ def get_session_manager() -> LocalSessionManager:
     """Get initialized session manager."""
     db = LocalDatabase()
     return LocalSessionManager(db)
-
-
-def get_message_manager() -> LocalSessionMessageManager:
-    """Get initialized message manager."""
-    db = LocalDatabase()
-    return LocalSessionMessageManager(db)
 
 
 def _format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
@@ -178,7 +171,6 @@ def show_messages(
         raise SystemExit(1) from e
 
     session_manager = get_session_manager()
-    message_manager = get_message_manager()
 
     # Resolve session ID
     session = session_manager.get(session_id)
@@ -186,10 +178,10 @@ def show_messages(
         click.echo(f"Session not found: {session_id}", err=True)
         return
 
-    # Fetch messages (DB first, gzip archive fallback)
+    # Fetch messages (live JSONL + gzip archive fallback)
     from gobby.sessions.transcript_reader import TranscriptReader
 
-    reader = TranscriptReader(message_manager, session_manager)
+    reader = TranscriptReader(None, session_manager)
     messages = asyncio.run(
         reader.get_messages(
             session_id=session.id,
@@ -223,57 +215,6 @@ def show_messages(
             click.echo(f"{role_icon} [{msg['message_index']}] {msg['role']}: {content}")
 
 
-@sessions.command("search")
-@click.argument("query")
-@click.option("--session", "-s", "session_id", help="Search within specific session")
-@click.option("--project", "-p", "project_ref", help="Search within project (name or UUID)")
-@click.option("--limit", "-n", default=20, help="Max results")
-@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def search_messages(
-    query: str,
-    session_id: str | None,
-    project_ref: str | None,
-    limit: int,
-    json_format: bool,
-) -> None:
-    """Search messages across sessions."""
-    if session_id:
-        try:
-            session_id = resolve_session_id(session_id)
-        except click.ClickException as e:
-            raise SystemExit(1) from e
-
-    project_id = resolve_project_ref(project_ref) if project_ref else None
-    message_manager = get_message_manager()
-
-    results = asyncio.run(
-        message_manager.search_messages(
-            query_text=query,
-            limit=limit,
-            session_id=session_id,
-            project_id=project_id,
-        )
-    )
-
-    if json_format:
-        click.echo(json.dumps(results, indent=2, default=str))
-        return
-
-    if not results:
-        click.echo(f"No messages found matching '{query}'")
-        return
-
-    click.echo(f"Found {len(results)} messages matching '{query}':\n")
-
-    for msg in results:
-        content = msg.get("content") or ""
-        if len(content) > 100:
-            content = content[:97] + "..."
-
-        session_short = msg["session_id"][:8]
-        role_icon = {"user": "👤", "assistant": "🤖", "tool": "🔧"}.get(msg["role"], "?")
-        click.echo(f"{role_icon} [{session_short}] {content}")
-
 
 @sessions.command("delete")
 @click.argument("session_id")
@@ -304,7 +245,6 @@ def session_stats(project_ref: str | None) -> None:
     """Show session statistics."""
     project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_session_manager()
-    message_manager = get_message_manager()
 
     sessions_list = manager.list(project_id=project_id, limit=10000)
 
@@ -320,13 +260,8 @@ def session_stats(project_ref: str | None) -> None:
         by_status[session.status] = by_status.get(session.status, 0) + 1
         by_source[session.source] = by_source.get(session.source, 0) + 1
 
-    # Get message counts
-    message_counts = asyncio.run(message_manager.get_all_counts())
-    total_messages = sum(message_counts.values())
-
     click.echo("Session Statistics:")
     click.echo(f"  Total Sessions: {len(sessions_list)}")
-    click.echo(f"  Total Messages: {total_messages}")
 
     click.echo("\n  By Status:")
     for status, count in sorted(by_status.items()):

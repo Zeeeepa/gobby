@@ -123,16 +123,15 @@ class HTTPServer:
                 )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
-            # Create TranscriptReader for DB + gzip fallback reads
+            # Create TranscriptReader for JSONL + gzip fallback reads
             transcript_reader = None
-            if services.message_manager and services.session_manager:
+            if services.session_manager:
                 from gobby.sessions.transcript_reader import TranscriptReader
 
                 archive_dir = None
                 if services.config and hasattr(services.config, "sessions"):
                     archive_dir = getattr(services.config.sessions, "transcript_archive_dir", None)
                 transcript_reader = TranscriptReader(
-                    message_manager=services.message_manager,
                     session_manager=services.session_manager,
                     archive_dir=archive_dir,
                 )
@@ -147,7 +146,6 @@ class HTTPServer:
                 db=services.mcp_db_manager.db if services.mcp_db_manager else None,
                 sync_manager=services.task_sync_manager,
                 task_validator=services.task_validator,
-                message_manager=services.message_manager,
                 local_session_manager=services.session_manager,
                 metrics_manager=services.metrics_manager,
                 llm_service=services.llm_service,
@@ -309,14 +307,6 @@ class HTTPServer:
     @memory_manager.setter
     def memory_manager(self, value: Any) -> None:
         self.services.memory_manager = value
-
-    @property
-    def message_manager(self) -> Any:
-        return self.services.message_manager
-
-    @message_manager.setter
-    def message_manager(self, value: Any) -> None:
-        self.services.message_manager = value
 
     @property
     def message_processor(self) -> Any:

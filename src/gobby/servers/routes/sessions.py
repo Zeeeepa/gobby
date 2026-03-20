@@ -439,13 +439,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 exclude_subagents=exclude_subagents,
             )
 
-            # Fetch message counts if message manager is available
-            message_counts = {}
-            if server.message_manager:
-                try:
-                    message_counts = await server.message_manager.get_all_counts()
-                except Exception as e:
-                    logger.warning(f"Failed to fetch message counts: {e}")
+            # message_counts no longer available (session_messages table removed)
+            message_counts: dict[str, int] = {}
 
             # Build resumability info if requested
             resumability: dict[str, tuple[bool, str | None]] = {}
@@ -582,14 +577,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
             session_data = session.to_dict()
 
-            # Enrich with message count (same as list endpoint)
-            if server.message_manager:
-                try:
-                    counts = await server.message_manager.get_all_counts()
-                    session_data["message_count"] = counts.get(session.id, 0)
-                except Exception as e:
-                    logger.warning(f"Failed to fetch message count: {e}")
-                    session_data["message_count"] = 0
+            # message_count no longer available (session_messages table removed)
+            session_data["message_count"] = 0
 
             # Enrich with activity stats
             try:
@@ -637,13 +626,13 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
         try:
             if format == "legacy":
-                if server.message_manager is None:
-                    raise HTTPException(status_code=503, detail="Message manager not available")
+                if server.transcript_reader is None:
+                    raise HTTPException(status_code=503, detail="Transcript reader not available")
 
-                messages = await server.message_manager.get_messages(
+                messages = await server.transcript_reader.get_messages(
                     session_id=session_id, limit=limit, offset=offset, role=role
                 )
-                count = await server.message_manager.count_messages(session_id)
+                count = await server.transcript_reader.count_messages(session_id)
             else:
                 if server.transcript_reader is None:
                     raise HTTPException(status_code=503, detail="Transcript reader not available")
@@ -897,15 +886,15 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 raise HTTPException(status_code=503, detail="Session manager not available")
             if server.llm_service is None:
                 raise HTTPException(status_code=503, detail="LLM service not available")
-            if server.message_manager is None:
-                raise HTTPException(status_code=503, detail="Message manager not available")
+            if server.transcript_reader is None:
+                raise HTTPException(status_code=503, detail="Transcript reader not available")
 
             session = server.session_manager.get(session_id)
             if session is None:
                 raise HTTPException(status_code=404, detail="Session not found")
 
-            # Read recent messages from DB
-            messages = await server.message_manager.get_messages(
+            # Read recent messages from transcript (JSONL / archive)
+            messages = await server.transcript_reader.get_messages(
                 session_id=session_id, limit=20, offset=0
             )
             if not messages:

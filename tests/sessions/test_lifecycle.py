@@ -31,8 +31,7 @@ def mock_config():
 @pytest.fixture
 def manager(mock_db, mock_config):
     with patch("gobby.sessions.lifecycle.LocalSessionManager"):
-        with patch("gobby.sessions.lifecycle.LocalSessionMessageManager"):
-            return SessionLifecycleManager(mock_db, mock_config)
+        return SessionLifecycleManager(mock_db, mock_config)
 
 
 class TestSessionLifecycleManager:
@@ -201,20 +200,15 @@ class TestSessionLifecycleManager:
             parser_instance = MockParser.return_value
             parser_instance.parse_lines.return_value = [message_mock]
 
-            manager.message_manager.store_messages = AsyncMock()
-            manager.message_manager.update_state = AsyncMock()
-
             await manager._process_session_transcript("s1", str(jsonl_path))
 
-            manager.message_manager.store_messages.assert_awaited_once()
-            manager.message_manager.update_state.assert_awaited_once()
+            parser_instance.parse_lines.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_process_session_transcript_missing_file(self, manager):
         """Test handling of missing file."""
         await manager._process_session_transcript("s1", "/non/existent/file.jsonl")
         # Should just return without error
-        manager.message_manager.store_messages.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_session_transcript_read_error(self, tmp_path, manager):
@@ -236,8 +230,6 @@ class TestSessionLifecycleManager:
 
         await manager._process_session_transcript("s1", str(jsonl_path))
 
-        manager.message_manager.store_messages.assert_not_called()
-
     @pytest.mark.asyncio
     async def test_process_session_transcript_no_messages(self, tmp_path, manager):
         """Test file with no valid messages."""
@@ -249,8 +241,6 @@ class TestSessionLifecycleManager:
             MockParser.return_value.parse_lines.return_value = []
 
             await manager._process_session_transcript("s1", str(jsonl_path))
-
-            manager.message_manager.store_messages.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_pending_transcripts_loop_error(self, manager):
@@ -678,13 +668,11 @@ class TestProcessSessionTranscriptParsers:
 
         manager.session_manager.get.return_value = None
         await manager._process_session_transcript("s1", str(jsonl_path))
-        manager.message_manager.store_messages.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_none_jsonl_path(self, manager):
         """Handles None jsonl_path."""
         await manager._process_session_transcript("s1", None)
-        manager.message_manager.store_messages.assert_not_called()
 
 
 class TestProcessPendingTranscriptsArchive:
@@ -701,7 +689,6 @@ class TestProcessPendingTranscriptsArchive:
         session.source = "claude"
         session.digest_markdown = "### Turn 1\nA\n### Turn 2\nB\n### Turn 3\nC"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
-        manager.message_manager.purge = AsyncMock()
 
         with (
             patch.object(
@@ -715,11 +702,10 @@ class TestProcessPendingTranscriptsArchive:
             processed = await manager._process_pending_transcripts()
 
         assert processed == 1
-        manager.message_manager.purge.assert_awaited_once_with("s1")
 
     @pytest.mark.asyncio
-    async def test_archive_returns_none_retains_messages(self, manager):
-        """When archive returns None, messages are retained."""
+    async def test_archive_returns_none(self, manager):
+        """When archive returns None, session is still processed."""
         session = MagicMock()
         session.id = "s1"
         session.jsonl_path = "/path/to/transcript.jsonl"
@@ -727,7 +713,6 @@ class TestProcessPendingTranscriptsArchive:
         session.agent_depth = 0
         session.source = "claude"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
-        manager.message_manager.purge = AsyncMock()
 
         with (
             patch.object(
@@ -741,7 +726,6 @@ class TestProcessPendingTranscriptsArchive:
             processed = await manager._process_pending_transcripts()
 
         assert processed == 1
-        manager.message_manager.purge.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_archive_failure_handled(self, manager):

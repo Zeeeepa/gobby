@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.sessions.transcript_reader import TranscriptReader
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -54,20 +53,20 @@ class ContextResolver:
     def __init__(
         self,
         session_manager: LocalSessionManager,
-        message_manager: LocalSessionMessageManager,
         project_path: str | Path | None = None,
         max_file_size: int = 51200,  # 50KB default
         max_content_size: int = 51200,  # 50KB default for all content types
         max_transcript_messages: int = 100,
         truncation_suffix: str = "\n\n[truncated: {bytes} bytes remaining]",
         transcript_reader: TranscriptReader | None = None,
+        # Deprecated: kept for backwards-compat callers, ignored
+        message_manager: object | None = None,
     ):
         """
         Initialize the context resolver.
 
         Args:
             session_manager: Session storage manager for session lookups.
-            message_manager: Message storage manager for transcript lookups.
             project_path: Project root path for file security checks.
             max_file_size: Maximum file size in bytes (default: 50KB).
             max_content_size: Maximum content size for all sources (default: 50KB).
@@ -76,7 +75,6 @@ class ContextResolver:
             transcript_reader: Optional TranscriptReader for DB + gzip fallback reads.
         """
         self._session_manager = session_manager
-        self._message_manager = message_manager
         self._project_path = Path(project_path) if project_path else None
         self._truncation_suffix = truncation_suffix
         self._max_file_size = max_file_size
@@ -174,7 +172,7 @@ class ContextResolver:
         # Clamp count to max
         count = min(count, self._max_transcript_messages)
 
-        # Use TranscriptReader (DB + gzip fallback) when available
+        # Use TranscriptReader (JSONL + gzip fallback) when available
         if self._transcript_reader:
             messages = await self._transcript_reader.get_messages(
                 session_id=session_id,
@@ -182,11 +180,7 @@ class ContextResolver:
                 offset=0,
             )
         else:
-            messages = await self._message_manager.get_messages(
-                session_id=session_id,
-                limit=count,
-                offset=0,
-            )
+            messages = []
 
         if not messages:
             return ""

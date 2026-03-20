@@ -19,14 +19,12 @@ from gobby.mcp_proxy.tools.sessions._transcripts import register_transcript_tool
 
 if TYPE_CHECKING:
     from gobby.sessions.transcript_reader import TranscriptReader
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
 __all__ = ["create_session_messages_registry"]
 
 
 def create_session_messages_registry(
-    message_manager: LocalSessionMessageManager | None = None,
     session_manager: LocalSessionManager | None = None,
     llm_service: Any | None = None,
     transcript_processor: Any | None = None,
@@ -35,18 +33,20 @@ def create_session_messages_registry(
     worktree_manager: Any | None = None,
     inter_session_message_manager: Any | None = None,
     transcript_reader: TranscriptReader | None = None,
+    # Deprecated: kept for backwards-compat callers, ignored
+    message_manager: object | None = None,
 ) -> InternalToolRegistry:
     """
     Create a sessions tool registry with session and message tools.
 
     Args:
-        message_manager: LocalSessionMessageManager instance for message operations
         session_manager: LocalSessionManager instance for session CRUD
         llm_service: LLM service for handoff generation (optional)
         transcript_processor: Transcript processor for handoff generation (optional)
         config: DaemonConfig for settings (optional)
         db: Database for dependency injection (optional)
         worktree_manager: Worktree manager for context enrichment (optional)
+        transcript_reader: TranscriptReader for JSONL + gzip fallback reads (optional)
 
     Returns:
         InternalToolRegistry with all session tools registered
@@ -57,9 +57,9 @@ def create_session_messages_registry(
     )
 
     # --- Message Tools ---
-    # Register if message_manager or transcript_reader is available
-    if message_manager is not None or transcript_reader is not None:
-        register_message_tools(registry, message_manager, session_manager, transcript_reader)
+    # Register if transcript_reader or session_manager is available
+    if transcript_reader is not None or session_manager is not None:
+        register_message_tools(registry, None, session_manager, transcript_reader)
 
     # --- Handoff Tools ---
     # Only register if session_manager is available

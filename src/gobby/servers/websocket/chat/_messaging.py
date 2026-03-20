@@ -15,7 +15,6 @@ from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 from gobby.hooks.events import HookEvent, HookEventType
 from gobby.servers.chat_session_base import ChatSessionProtocol
 from gobby.servers.websocket.chat._session import _resolve_git_branch
-from gobby.sessions.transcripts.base import ParsedMessage
 
 logger = logging.getLogger(__name__)
 
@@ -302,39 +301,8 @@ class ChatMessagingMixin:
             return None
 
         async def _persist_message(session: Any, role: str, text: str) -> None:
-            """Persist a chat message to the database (best-effort)."""
-            message_manager = getattr(self, "message_manager", None)
-            db_sid = getattr(session, "db_session_id", None)
-            if not message_manager or not db_sid or not text:
-                return
-            try:
-                idx = session.message_index
-                session.message_index = idx + 1
-                msg = ParsedMessage(
-                    index=idx,
-                    role=role,
-                    content=text,
-                    content_type="text",
-                    tool_name=None,
-                    tool_input=None,
-                    tool_result=None,
-                    timestamp=datetime.now(UTC),
-                    raw_json={},
-                )
-                await message_manager.store_messages(db_sid, [msg])
-            except Exception as e:
-                logger.error(f"Failed to persist {role} message for {conversation_id[:8]}: {e}")
-                try:
-                    await _safe_send(
-                        {
-                            "type": "chat_warning",
-                            "conversation_id": conversation_id,
-                            "warning": "Message may not be saved to history",
-                            "code": "PERSIST_FAILED",
-                        }
-                    )
-                except Exception:
-                    pass
+            """Message persistence removed (session_messages table dropped)."""
+            pass
 
         async def _emit_pending_approval(tool_name: str, arguments: dict[str, Any]) -> None:
             """Emit pending_approval tool_status to the client."""
@@ -361,63 +329,8 @@ class ChatMessagingMixin:
             tool_result: Any | None,
             is_error: bool = False,
         ) -> None:
-            """Persist a tool_use + tool_result pair as session messages."""
-            if session is None:
-                return
-            message_manager = getattr(self, "message_manager", None)
-            db_sid = getattr(session, "db_session_id", None)
-            if not message_manager or not db_sid:
-                return
-            try:
-                idx = session.message_index
-                session.message_index = idx + 1
-                tool_use_msg = ParsedMessage(
-                    index=idx,
-                    role="assistant",
-                    content=tool_name,
-                    content_type="tool_use",
-                    tool_name=tool_name,
-                    tool_input=tool_input,
-                    tool_result=None,
-                    timestamp=datetime.now(UTC),
-                    raw_json={},
-                    tool_use_id=tool_call_id,
-                )
-                idx2 = session.message_index
-                session.message_index = idx2 + 1
-                result_content = ""
-                if tool_result is not None:
-                    result_content = (
-                        json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result
-                    )
-                if is_error:
-                    result_content = f"Error: {result_content}"
-                tool_result_msg = ParsedMessage(
-                    index=idx2,
-                    role="tool",
-                    content=result_content,
-                    content_type="tool_result",
-                    tool_name=tool_name,
-                    tool_input=None,
-                    tool_result=tool_result if not is_error else None,
-                    timestamp=datetime.now(UTC),
-                    raw_json={},
-                    tool_use_id=tool_call_id,
-                )
-                await message_manager.store_messages(db_sid, [tool_use_msg, tool_result_msg])
-            except Exception as e:
-                logger.error(f"Failed to persist tool call for {conversation_id[:8]}: {e}")
-                try:
-                    await _safe_send(
-                        {
-                            "type": "chat_warning",
-                            "conversation_id": conversation_id,
-                            "warning": "Tool call may not be saved to history",
-                            "code": "PERSIST_FAILED",
-                        }
-                    )
-                except Exception:
-                    pass
+            """Tool call persistence removed (session_messages table dropped)."""
+            pass
 
         gen: AsyncIterator[Any] | None = None
         try:

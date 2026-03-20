@@ -26,7 +26,6 @@ from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 from gobby.storage.database import DatabaseProtocol
-from gobby.storage.session_messages import LocalSessionMessageManager
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,6 @@ class SessionMessageProcessor:
         session_manager: "LocalSessionManager | None" = None,
     ):
         self.db = db
-        self.message_manager = LocalSessionMessageManager(db)
         self.poll_interval = poll_interval
         self.websocket_server: WebSocketServer | None = websocket_server
         self.session_manager: LocalSessionManager | None = session_manager
@@ -62,6 +60,10 @@ class SessionMessageProcessor:
 
         # Track last mtime for JSON file sessions (mtime-based change detection)
         self._last_mtime: dict[str, float] = {}
+
+        # Track byte offsets and message indices per session (in-memory)
+        self._byte_offsets: dict[str, int] = {}
+        self._message_indices: dict[str, int] = {}
 
         # Track render state for incremental rendering per session
         self._render_states: dict[str, RenderState] = {}
@@ -125,6 +127,8 @@ class SessionMessageProcessor:
             self._last_mtime.pop(session_id, None)
             self._render_states.pop(session_id, None)
             self._stats.pop(session_id, None)
+            self._byte_offsets.pop(session_id, None)
+            self._message_indices.pop(session_id, None)
             logger.debug(f"Unregistered session {session_id}")
 
     async def _loop(self) -> None:
@@ -163,15 +167,9 @@ class SessionMessageProcessor:
             await self._process_json_session(session_id, transcript_path)
             return
 
-        # Get current processing state
-        state = await self.message_manager.get_state(session_id)
-
-        last_offset = 0
-        last_index = -1
-
-        if state:
-            last_offset = state.get("last_byte_offset", 0)
-            last_index = state.get("last_message_index", -1)
+        # Get current processing state (in-memory)
+        last_offset = self._byte_offsets.get(session_id, 0)
+        last_index = self._message_indices.get(session_id, -1)
 
         # Read new content
         new_lines = []
@@ -213,13 +211,8 @@ class SessionMessageProcessor:
         parsed_messages = parser.parse_lines(new_lines, start_index=last_index + 1)
 
         if not parsed_messages:
-            # We read lines but found no valid messages (maybe parse errors or skipped types)
-            # We still update the offset so we don't re-read them endlessly
-            await self.message_manager.update_state(
-                session_id=session_id,
-                byte_offset=valid_offset,
-                message_index=last_index,
-            )
+            # We read lines but found no valid messages — still update offset
+            self._byte_offsets[session_id] = valid_offset
             return
 
         # Compute incremental stats (no DB message writes)
@@ -277,14 +270,10 @@ class SessionMessageProcessor:
                     "message": render_state.current_message.to_dict(),
                 })
 
-        # Update state
+        # Update in-memory state
         new_last_index = parsed_messages[-1].index
-
-        await self.message_manager.update_state(
-            session_id=session_id,
-            byte_offset=valid_offset,
-            message_index=new_last_index,
-        )
+        self._byte_offsets[session_id] = valid_offset
+        self._message_indices[session_id] = new_last_index
 
         logger.debug(f"Processed {len(parsed_messages)} messages for {session_id}")
 
@@ -328,9 +317,8 @@ class SessionMessageProcessor:
             self._last_mtime[session_id] = current_mtime
             return
 
-        # Get current state to find only new messages
-        state = await self.message_manager.get_state(session_id)
-        last_index = state.get("last_message_index", -1) if state else -1
+        # Get current state to find only new messages (in-memory)
+        last_index = self._message_indices.get(session_id, -1)
 
         new_messages = [m for m in all_messages if m.index > last_index]
 
@@ -391,13 +379,9 @@ class SessionMessageProcessor:
                     "message": render_state.current_message.to_dict(),
                 })
 
-        # Update state — use 0 for byte_offset since JSON doesn't use offsets
+        # Update in-memory state
         new_last_index = new_messages[-1].index
-        await self.message_manager.update_state(
-            session_id=session_id,
-            byte_offset=0,
-            message_index=new_last_index,
-        )
+        self._message_indices[session_id] = new_last_index
 
         # Track mtime for change detection
         self._last_mtime[session_id] = current_mtime

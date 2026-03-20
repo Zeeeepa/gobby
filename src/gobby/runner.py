@@ -29,7 +29,6 @@ from gobby.storage.clones import LocalCloneManager
 from gobby.storage.database import DatabaseProtocol, LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.migrations import run_migrations
-from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
@@ -141,7 +140,6 @@ class GobbyRunner:
             logger.warning(f"Failed to populate model costs: {e}")
 
         self.session_manager = LocalSessionManager(self.database)
-        self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 
@@ -750,7 +748,6 @@ class GobbyRunner:
             metrics_manager=self.metrics_manager,
             agent_runner=self.agent_runner,
             message_processor=self.message_processor,
-            message_manager=self.message_manager,
             task_validator=self.task_validator,
             worktree_storage=self.worktree_storage,
             clone_storage=self.clone_storage,
@@ -818,7 +815,6 @@ class GobbyRunner:
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
                 session_manager=self.session_manager,
-                message_manager=self.message_manager,
                 daemon_config=self.config,
                 internal_manager=self.http_server._internal_manager,
             )

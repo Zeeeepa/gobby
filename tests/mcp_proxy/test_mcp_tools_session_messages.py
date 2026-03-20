@@ -7,17 +7,10 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.sessions.transcript_reader import TranscriptReader
 from gobby.sessions.transcript_renderer import ContentBlock, RenderedMessage
-from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_models import Session
 from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
-
-
-@pytest.fixture
-def mock_message_manager():
-    manager = MagicMock(spec=LocalSessionMessageManager)
-    return manager
 
 
 @pytest.fixture
@@ -37,77 +30,23 @@ def mock_transcript_reader():
 
 
 @pytest.fixture
-def session_messages_registry(mock_message_manager):
-    """Registry with only message manager (backward compatibility)."""
-    return create_session_messages_registry(message_manager=mock_message_manager)
-
-
-@pytest.fixture
 def renderer_registry(mock_transcript_reader):
     """Registry with transcript_reader (primary renderer path)."""
     return create_session_messages_registry(transcript_reader=mock_transcript_reader)
 
 
 @pytest.fixture
-def full_sessions_registry(mock_message_manager, mock_session_manager):
-    """Registry with both message and session managers."""
+def full_sessions_registry(mock_session_manager):
+    """Registry with session manager."""
     return create_session_messages_registry(
-        message_manager=mock_message_manager,
         session_manager=mock_session_manager,
     )
 
 
-def test_create_session_messages_registry_returns_registry(session_messages_registry) -> None:
+def test_create_session_messages_registry_returns_registry(renderer_registry) -> None:
     """Test that create_session_messages_registry returns an InternalToolRegistry."""
-    assert isinstance(session_messages_registry, InternalToolRegistry)
-    assert session_messages_registry.name == "gobby-sessions"
-
-
-def test_session_messages_registry_has_all_tools(session_messages_registry) -> None:
-    """Test that all expected tools are registered."""
-    expected_tools = [
-        "get_session_messages",
-        "search_messages",
-    ]
-
-    tools_list = session_messages_registry.list_tools()
-    tool_names = [t["name"] for t in tools_list]
-
-    for tool_name in expected_tools:
-        assert tool_name in tool_names, f"Missing tool: {tool_name}"
-
-
-@pytest.mark.asyncio
-async def test_get_session_messages(mock_message_manager, session_messages_registry):
-    """Test get_session_messages tool execution."""
-    # Mock return values
-    mock_message_manager.count_messages.return_value = 10
-    mock_message_manager.get_messages.return_value = [{"role": "user", "content": "hello"}]
-
-    result = await session_messages_registry.call(
-        "get_session_messages", {"session_id": "sess-123", "limit": 5, "offset": 0}
-    )
-
-    mock_message_manager.count_messages.assert_called_with("sess-123")
-    mock_message_manager.get_messages.assert_called_with(session_id="sess-123", limit=5, offset=0)
-
-    assert result["success"] is True
-    assert result["total_count"] == 10
-    assert len(result["messages"]) == 1
-
-
-@pytest.mark.asyncio
-async def test_get_session_messages_not_found(mock_message_manager, session_messages_registry):
-    """Test get_session_messages handles errors gracefully."""
-    mock_message_manager.count_messages.return_value = 0
-    mock_message_manager.get_messages.return_value = []
-
-    result = await session_messages_registry.call(
-        "get_session_messages", {"session_id": "sess-123"}
-    )
-
-    assert result["total_count"] == 0
-    assert result["messages"] == []
+    assert isinstance(renderer_registry, InternalToolRegistry)
+    assert renderer_registry.name == "gobby-sessions"
 
 
 @pytest.mark.asyncio
@@ -207,45 +146,12 @@ def test_registry_without_managers_has_no_message_tools():
     assert "search_messages" not in tool_names
 
 
-@pytest.mark.asyncio
-async def test_search_messages(mock_message_manager, session_messages_registry):
-    """Test search_messages tool execution."""
-    mock_message_manager.search_messages.return_value = [
-        {"content": "found it", "session_id": "s1"}
-    ]
-
-    result = await session_messages_registry.call("search_messages", {"query": "found"})
-
-    mock_message_manager.search_messages.assert_called_with(
-        query_text="found", session_id=None, limit=20
-    )
-
-    assert result["count"] == 1
-    assert result["results"][0]["content"] == "found it"
-
-
-@pytest.mark.asyncio
-async def test_search_messages_with_session_filter(mock_message_manager, session_messages_registry):
-    """Test search_messages tool execution WITH session filter."""
-    mock_message_manager.search_messages.return_value = []
-
-    await session_messages_registry.call(
-        "search_messages", {"query": "found", "session_id": "sess-123"}
-    )
-
-    mock_message_manager.search_messages.assert_called_with(
-        query_text="found", session_id="sess-123", limit=20
-    )
-
-
 # --- Session CRUD Tool Tests ---
 
 
 def test_full_registry_has_session_tools(full_sessions_registry) -> None:
     """Test that full registry has all session and handoff tools."""
     expected_tools = [
-        "get_session_messages",
-        "search_messages",
         "get_session",
         "list_sessions",
         "session_stats",
@@ -261,14 +167,13 @@ def test_full_registry_has_session_tools(full_sessions_registry) -> None:
         assert tool_name in tool_names, f"Missing tool: {tool_name}"
 
 
-def test_registry_without_session_manager_lacks_crud_tools(session_messages_registry) -> None:
+def test_registry_without_session_manager_lacks_crud_tools(renderer_registry) -> None:
     """Test that registry without session_manager doesn't have CRUD tools."""
-    tools_list = session_messages_registry.list_tools()
+    tools_list = renderer_registry.list_tools()
     tool_names = [t["name"] for t in tools_list]
 
-    # Should have message tools
+    # Should have message tools (via transcript_reader)
     assert "get_session_messages" in tool_names
-    assert "search_messages" in tool_names
 
     # Should NOT have session CRUD tools
     assert "get_session" not in tool_names

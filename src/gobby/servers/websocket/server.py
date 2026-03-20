@@ -37,7 +37,6 @@ if TYPE_CHECKING:
     from gobby.hooks.event_handlers import EventHandlers
     from gobby.hooks.webhooks import WebhookDispatcher
     from gobby.storage.inter_session_messages import InterSessionMessageManager
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.workflows.hooks import WorkflowHookHandler
 
@@ -72,9 +71,10 @@ class WebSocketServer(
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
         session_manager: "LocalSessionManager | None" = None,
-        message_manager: "LocalSessionMessageManager | None" = None,
         daemon_config: Any = None,
         internal_manager: Any = None,
+        # Deprecated: kept for backwards-compat callers, ignored
+        message_manager: object | None = None,
     ):
         """
         Initialize WebSocket server.
@@ -96,7 +96,6 @@ class WebSocketServer(
         self.stop_registry = stop_registry
         self.internal_manager = internal_manager
         self.session_manager = session_manager
-        self.message_manager = message_manager
         self.daemon_config = daemon_config
         self.workflow_handler: WorkflowHookHandler | None = None
         self.event_handlers: EventHandlers | None = None
