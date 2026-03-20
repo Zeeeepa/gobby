@@ -77,6 +77,7 @@ class RuleEffect(BaseModel):
         "observe",
         "rewrite_input",
         "compress_output",
+        "load_skill",
     ]
 
     # Per-effect condition (gates this individual effect within a multi-effect rule)
@@ -116,6 +117,9 @@ class RuleEffect(BaseModel):
     strategy: str | None = None
     max_lines: int | None = None
 
+    # load_skill — resolve and inject a skill's content into agent context
+    skill: str | None = None
+
     def model_post_init(self, __context: Any) -> None:
         """Warn when fields irrelevant to the effect type are set."""
         import warnings
@@ -135,6 +139,7 @@ class RuleEffect(BaseModel):
             "observe": {"category", "message"},
             "rewrite_input": {"input_updates", "auto_approve"},
             "compress_output": {"strategy", "max_lines"},
+            "load_skill": {"skill"},
         }
         # Fields with non-None defaults that shouldn't trigger warnings
         _default_skip = {"background", "when", "auto_approve", "inject_result", "block_on_failure"}

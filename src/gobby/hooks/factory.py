@@ -341,9 +341,9 @@ class HookManagerFactory:
         from gobby.workflows.templates import TemplateEngine
 
         loader = WorkflowLoader(db=database)
-        rule_engine = RuleEngine(db=database)
         template_engine = TemplateEngine()
         skill_manager = HookSkillManager(db=database)
+        rule_engine = RuleEngine(db=database, skill_manager=skill_manager)
 
         pipeline_executor = None
         try:

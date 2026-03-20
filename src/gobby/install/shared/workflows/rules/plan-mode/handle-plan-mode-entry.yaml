@@ -14,3 +14,5 @@ rules:
       - type: set_variable
         variable: mode_level
         value: 0
+      - type: load_skill
+        skill: plan

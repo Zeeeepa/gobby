@@ -2140,3 +2140,161 @@ class TestCompressOutputEffect:
         assert compression is not None
         assert compression["strategy"] == "tail"
         assert compression["max_lines"] == 50
+
+
+class _FakeSkill:
+    """Minimal skill stub for load_skill tests."""
+
+    def __init__(self, name: str, content: str) -> None:
+        self.name = name
+        self.content = content
+
+
+class _FakeSkillManager:
+    """Minimal skill manager stub for load_skill tests."""
+
+    def __init__(self, skills: dict[str, _FakeSkill] | None = None) -> None:
+        self._skills = skills or {}
+
+    def resolve_skill_name(self, name: str) -> _FakeSkill | None:
+        return self._skills.get(name)
+
+
+class TestLoadSkillEffect:
+    """Tests for load_skill effect type."""
+
+    @pytest.mark.asyncio
+    async def test_load_skill_injects_content(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """load_skill should resolve skill and inject content into context."""
+        _insert_rule(
+            manager,
+            "load-plan-skill",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effects=[RuleEffect(type="load_skill", skill="plan")],
+            ),
+        )
+
+        skill_mgr = _FakeSkillManager(
+            {"plan": _FakeSkill("plan", "You are now in plan mode.")}
+        )
+        engine = RuleEngine(db, skill_manager=skill_mgr)
+        variables: dict[str, Any] = {}
+        event = _make_event(
+            HookEventType.AFTER_TOOL, data={"tool_name": "EnterPlanMode"}
+        )
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        assert '<skill name="plan">' in (response.context or "")
+        assert "You are now in plan mode." in (response.context or "")
+
+    @pytest.mark.asyncio
+    async def test_load_skill_missing_skill_fails_open(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """load_skill with nonexistent skill should not block."""
+        _insert_rule(
+            manager,
+            "load-missing-skill",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effects=[RuleEffect(type="load_skill", skill="nonexistent")],
+            ),
+        )
+
+        skill_mgr = _FakeSkillManager()
+        engine = RuleEngine(db, skill_manager=skill_mgr)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Bash"})
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        assert not (response.context or "")
+
+    @pytest.mark.asyncio
+    async def test_load_skill_no_skill_manager_fails_open(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """load_skill without skill_manager should not block."""
+        _insert_rule(
+            manager,
+            "load-no-manager",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effects=[RuleEffect(type="load_skill", skill="plan")],
+            ),
+        )
+
+        engine = RuleEngine(db)  # No skill_manager
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Bash"})
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        assert not (response.context or "")
+
+    @pytest.mark.asyncio
+    async def test_load_skill_with_per_effect_when(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """load_skill with per-effect when=false should be skipped."""
+        _insert_rule(
+            manager,
+            "load-conditional",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                effects=[
+                    RuleEffect(
+                        type="load_skill",
+                        skill="plan",
+                        when="False",
+                    ),
+                ],
+            ),
+        )
+
+        skill_mgr = _FakeSkillManager(
+            {"plan": _FakeSkill("plan", "Plan content")}
+        )
+        engine = RuleEngine(db, skill_manager=skill_mgr)
+        variables: dict[str, Any] = {}
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Bash"})
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        assert not (response.context or "")
+
+    @pytest.mark.asyncio
+    async def test_load_skill_with_set_variable(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """load_skill alongside set_variable in multi-effect rule."""
+        _insert_rule(
+            manager,
+            "plan-mode-entry",
+            RuleDefinitionBody(
+                event=RuleEvent.AFTER_TOOL,
+                when="event.data.get('tool_name') == 'EnterPlanMode'",
+                effects=[
+                    RuleEffect(type="set_variable", variable="plan_mode", value=True),
+                    RuleEffect(type="load_skill", skill="plan"),
+                ],
+            ),
+        )
+
+        skill_mgr = _FakeSkillManager(
+            {"plan": _FakeSkill("plan", "Plan skill content")}
+        )
+        engine = RuleEngine(db, skill_manager=skill_mgr)
+        variables: dict[str, Any] = {}
+        event = _make_event(
+            HookEventType.AFTER_TOOL, data={"tool_name": "EnterPlanMode"}
+        )
+        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert response.decision == "allow"
+        assert variables["plan_mode"] is True
+        assert "Plan skill content" in (response.context or "")

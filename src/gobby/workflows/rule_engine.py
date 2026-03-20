@@ -1,7 +1,8 @@
 """Rule engine with single-pass evaluation loop.
 
 Rules are stateless event handlers: event comes in, conditions match, effect fires.
-Five effect types: block, set_variable, inject_context, mcp_call, observe.
+Effect types: block, set_variable, inject_context, mcp_call, observe,
+rewrite_input, compress_output, load_skill.
 """
 
 import json
@@ -88,10 +89,15 @@ class RuleEngine:
     applies session overrides, evaluates in priority order.
     """
 
-    def __init__(self, db: DatabaseProtocol):
+    def __init__(
+        self,
+        db: DatabaseProtocol,
+        skill_manager: Any | None = None,
+    ):
         self.db = db
         self.definition_manager = LocalWorkflowDefinitionManager(db)
         self.instance_manager = WorkflowInstanceManager(db)
+        self._skill_manager = skill_manager
 
     async def evaluate(
         self,
@@ -617,6 +623,33 @@ class RuleEngine:
                 "strategy": effect.strategy,
                 "max_lines": effect.max_lines,
             }
+
+        elif effect.type == "load_skill":
+            if effect.skill and self._skill_manager:
+                try:
+                    skill = self._skill_manager.resolve_skill_name(effect.skill)
+                    if skill:
+                        context_parts.append(
+                            f"<skill name=\"{skill.name}\">\n{skill.content}\n</skill>"
+                        )
+                    else:
+                        logger.warning(
+                            "load_skill effect: skill %r not found (rule %s)",
+                            effect.skill,
+                            row.name,
+                        )
+                except Exception:
+                    logger.warning(
+                        "load_skill effect: failed to resolve skill %r (rule %s)",
+                        effect.skill,
+                        row.name,
+                        exc_info=True,
+                    )
+            elif effect.skill and not self._skill_manager:
+                logger.warning(
+                    "load_skill effect: no skill_manager available (rule %s)",
+                    row.name,
+                )
 
     def _build_eval_context(
         self,
