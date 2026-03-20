@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from gobby.servers.websocket.server import WebSocketServer
     from gobby.storage.sessions import LocalSessionManager
 
+from gobby.sessions.transcript_renderer import RenderState, render_incremental
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
@@ -61,6 +62,9 @@ class SessionMessageProcessor:
 
         # Track last mtime for JSON file sessions (mtime-based change detection)
         self._last_mtime: dict[str, float] = {}
+
+        # Track render state for incremental rendering per session
+        self._render_states: dict[str, RenderState] = {}
 
         self._running = False
         self._task: asyncio.Task[None] | None = None
@@ -116,6 +120,7 @@ class SessionMessageProcessor:
             if session_id in self._parsers:
                 del self._parsers[session_id]
             self._last_mtime.pop(session_id, None)
+            self._render_states.pop(session_id, None)
             logger.debug(f"Unregistered session {session_id}")
 
     async def _loop(self) -> None:
@@ -227,25 +232,27 @@ class SessionMessageProcessor:
                     self.session_manager.update_model(session_id, msg.model)
                     break  # Only need the first model found
 
-        # Broadcast new messages
+        # Render incrementally and broadcast
+        render_state = self._render_states.get(session_id, RenderState())
+        completed, render_state = render_incremental(
+            parsed_messages, render_state, session_id=session_id
+        )
+        self._render_states[session_id] = render_state
+
         if self.websocket_server:
-            for msg in parsed_messages:
-                payload = {
+            for rendered_msg in completed:
+                await self.websocket_server.broadcast({
                     "type": "session_message",
                     "session_id": session_id,
-                    "message": {
-                        "index": msg.index,
-                        "role": msg.role,
-                        "content": msg.content,
-                        "content_type": msg.content_type,
-                        "tool_name": msg.tool_name,
-                        "tool_input": json.dumps(msg.tool_input) if msg.tool_input else None,
-                        "tool_result": json.dumps(msg.tool_result) if msg.tool_result else None,
-                        "tool_use_id": msg.tool_use_id,
-                        "timestamp": msg.timestamp.isoformat(),
-                    },
-                }
-                await self.websocket_server.broadcast(payload)
+                    "message": rendered_msg.to_dict(),
+                })
+            # Broadcast in-progress turn for live updates (upsert by ID)
+            if render_state.current_message:
+                await self.websocket_server.broadcast({
+                    "type": "session_message",
+                    "session_id": session_id,
+                    "message": render_state.current_message.to_dict(),
+                })
 
         # Update state
         new_last_index = parsed_messages[-1].index
@@ -322,25 +329,26 @@ class SessionMessageProcessor:
                     self.session_manager.update_model(session_id, msg.model)
                     break
 
-        # Broadcast new messages
+        # Render incrementally and broadcast
+        render_state = self._render_states.get(session_id, RenderState())
+        completed, render_state = render_incremental(
+            new_messages, render_state, session_id=session_id
+        )
+        self._render_states[session_id] = render_state
+
         if self.websocket_server:
-            for msg in new_messages:
-                payload = {
+            for rendered_msg in completed:
+                await self.websocket_server.broadcast({
                     "type": "session_message",
                     "session_id": session_id,
-                    "message": {
-                        "index": msg.index,
-                        "role": msg.role,
-                        "content": msg.content,
-                        "content_type": msg.content_type,
-                        "tool_name": msg.tool_name,
-                        "tool_input": json.dumps(msg.tool_input) if msg.tool_input else None,
-                        "tool_result": json.dumps(msg.tool_result) if msg.tool_result else None,
-                        "tool_use_id": msg.tool_use_id,
-                        "timestamp": msg.timestamp.isoformat(),
-                    },
-                }
-                await self.websocket_server.broadcast(payload)
+                    "message": rendered_msg.to_dict(),
+                })
+            if render_state.current_message:
+                await self.websocket_server.broadcast({
+                    "type": "session_message",
+                    "session_id": session_id,
+                    "message": render_state.current_message.to_dict(),
+                })
 
         # Update state — use 0 for byte_offset since JSON doesn't use offsets
         new_last_index = new_messages[-1].index
