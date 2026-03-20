@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from gobby.mcp_proxy.tools.code._context import CodeRegistryContext
 from gobby.mcp_proxy.tools.code._graph import create_graph_registry
+from gobby.mcp_proxy.tools.code._impact import create_impact_registry
 from gobby.mcp_proxy.tools.code._indexing import create_indexing_registry
 from gobby.mcp_proxy.tools.code._query import create_query_registry
 from gobby.mcp_proxy.tools.code._summary import create_summary_registry
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from gobby.code_index.storage import CodeIndexStorage
     from gobby.code_index.summarizer import SymbolSummarizer
     from gobby.config.code_index import CodeIndexConfig
+    from gobby.storage.database import LocalDatabase
 
 
 def create_code_registry(
@@ -31,6 +33,7 @@ def create_code_registry(
     summarizer: SymbolSummarizer | None = None,
     config: CodeIndexConfig | None = None,
     project_id: str | None = None,
+    db: LocalDatabase | None = None,
 ) -> InternalToolRegistry:
     """Create the unified gobby-code tool registry.
 
@@ -44,6 +47,7 @@ def create_code_registry(
         summarizer=summarizer,
         config=config,
         project_id=project_id,
+        db=db,
     )
 
     registry = InternalToolRegistry(
@@ -56,6 +60,7 @@ def create_code_registry(
         create_indexing_registry,
         create_query_registry,
         create_graph_registry,
+        create_impact_registry,
         create_summary_registry,
     ):
         sub_registry = sub_factory(ctx)

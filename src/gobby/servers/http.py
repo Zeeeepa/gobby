@@ -183,6 +183,7 @@ class HTTPServer:
                         summarizer=code_indexer.summarizer,
                         config=code_indexer.config,
                         project_id=services.project_id,
+                        db=services.database,
                     )
                     self._internal_manager.add_registry(code_registry)
                     logger.debug("Code index registry initialized")

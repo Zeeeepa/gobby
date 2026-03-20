@@ -167,6 +167,99 @@ class CodeGraph:
             logger.debug(f"get_import_chain failed: {e}")
             return []
 
+    async def find_blast_radius(
+        self,
+        symbol_name: str | None,
+        file_path: str | None,
+        project_id: str,
+        depth: int = 3,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Find the transitive blast radius of changing a symbol or file.
+
+        Walks the call/import graph backwards to find all affected code.
+        Returns list of dicts with: symbol_id, symbol_name, kind, file_path,
+        distance, rel_type ('call' or 'import').
+        """
+        if not self.available:
+            return []
+
+        if bool(symbol_name) == bool(file_path):
+            raise ValueError("Exactly one of symbol_name or file_path must be provided")
+
+        depth = max(1, min(depth, 5))
+        results: list[dict[str, Any]] = []
+
+        try:
+            if symbol_name:
+                # Walk CALLS backwards from the target symbol
+                records = await self._client.execute_read(
+                    """MATCH path = (affected:CodeSymbol)-[:CALLS*1..$depth]->(
+                           target:CodeSymbol {name: $name, project: $project})
+                       WITH affected, min(length(path)) AS distance
+                       OPTIONAL MATCH (file:CodeFile)-[:DEFINES]->(affected)
+                       RETURN DISTINCT affected.id AS symbol_id,
+                              affected.name AS symbol_name,
+                              affected.kind AS kind, file.path AS file_path,
+                              distance, 'call' AS rel_type
+                       ORDER BY distance ASC, affected.name ASC
+                       LIMIT $limit""",
+                    {
+                        "name": symbol_name,
+                        "project": project_id,
+                        "depth": depth,
+                        "limit": limit,
+                    },
+                )
+                results.extend(dict(r) for r in records)
+            else:
+                # Walk CALLS backwards from all symbols defined in the file
+                call_records = await self._client.execute_read(
+                    """MATCH (tf:CodeFile {path: $path, project: $project})
+                           -[:DEFINES]->(target_sym:CodeSymbol)
+                       MATCH path = (affected:CodeSymbol)-[:CALLS*1..$depth]->(target_sym)
+                       WITH affected, min(length(path)) AS distance
+                       OPTIONAL MATCH (file:CodeFile)-[:DEFINES]->(affected)
+                       RETURN DISTINCT affected.id AS symbol_id,
+                              affected.name AS symbol_name,
+                              affected.kind AS kind, file.path AS file_path,
+                              distance, 'call' AS rel_type
+                       ORDER BY distance ASC, affected.name ASC
+                       LIMIT $limit""",
+                    {
+                        "path": file_path,
+                        "project": project_id,
+                        "depth": depth,
+                        "limit": limit,
+                    },
+                )
+                results.extend(dict(r) for r in call_records)
+
+                # Walk IMPORTS backwards from modules this file imports
+                import_records = await self._client.execute_read(
+                    """MATCH (tf:CodeFile {path: $path, project: $project})
+                           -[:IMPORTS]->(m:CodeModule)
+                       MATCH path = (importer:CodeFile)-[:IMPORTS*1..$depth]->(m)
+                       WHERE importer.path <> $path
+                       WITH importer, min(length(path)) AS distance
+                       RETURN DISTINCT importer.path AS file_path,
+                              distance, 'import' AS rel_type
+                       ORDER BY distance ASC
+                       LIMIT $limit""",
+                    {
+                        "path": file_path,
+                        "project": project_id,
+                        "depth": depth,
+                        "limit": limit,
+                    },
+                )
+                results.extend(dict(r) for r in import_records)
+
+        except Exception as e:
+            logger.debug(f"find_blast_radius failed: {e}")
+
+        return results
+
     async def clear_project(self, project_id: str) -> None:
         """Remove all graph data for a project."""
         if not self.available:
