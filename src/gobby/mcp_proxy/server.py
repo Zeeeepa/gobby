@@ -45,6 +45,9 @@ class GobbyDaemonTools:
         self._mcp_manager = mcp_manager  # Store for project_id access
         self._semantic_search = semantic_search  # Store for direct search access
         self._session_manager = session_manager  # Store for per-call project resolution
+        self.daemon_port = daemon_port
+        self.websocket_port = websocket_port
+        self.start_time = start_time
 
         # Initialize services
         self.tool_proxy = ToolProxyService(
@@ -62,6 +65,20 @@ class GobbyDaemonTools:
         )
 
     # --- System Tools ---
+
+    async def status(self) -> dict[str, Any]:
+        """Get the current status of the Gobby daemon."""
+        import time
+
+        uptime = time.time() - self.start_time
+        return {
+            "success": True,
+            "running": True,
+            "healthy": True,
+            "http_port": self.daemon_port,
+            "websocket_port": self.websocket_port,
+            "uptime_seconds": round(uptime, 2),
+        }
 
     async def list_mcp_servers(self) -> dict[str, Any]:
         """List configured MCP servers."""
@@ -198,13 +215,11 @@ class GobbyDaemonTools:
         # At this point arguments is dict or None (str case handled above)
         # Strip call_tool's own parameters that LLMs sometimes flatten into
         # the arguments dict instead of passing as separate parameters.
+        effective_arguments: dict[str, Any] | None = None
         if isinstance(arguments, dict):
-            for leaked_key in ("server_name", "tool_name"):
-                arguments.pop(leaked_key, None)
-
-        effective_arguments: dict[str, Any] | None = (
-            arguments if isinstance(arguments, dict) else None
-        )
+            effective_arguments = dict(arguments)  # Shallow copy to avoid modifying original
+            for leaked_key in ("server_name", "tool_name", "session_id"):
+                effective_arguments.pop(leaked_key, None)
 
         try:
             result = await self.tool_proxy.call_tool(
@@ -433,6 +448,7 @@ def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
     mcp = FastMCP("gobby", instructions=build_gobby_instructions())
 
     # System tools
+    mcp.add_tool(tools_handler.status)
     mcp.add_tool(tools_handler.list_mcp_servers)
 
     # Tool Proxy
