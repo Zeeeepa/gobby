@@ -120,7 +120,7 @@ export interface ToolCallGroup {
   kind: 'group'
   toolName: string
   displayName: string
-  calls: ToolCall[]
+  tool_calls: ToolCall[]
   hasErrors: boolean
   allCompleted: boolean
   hasInFlight: boolean
@@ -160,7 +160,7 @@ export function groupToolCalls(toolCalls: ToolCall[]): ToolCallSegment[] {
         kind: 'group',
         toolName: call.tool_name,
         displayName: formatToolName(call.tool_name),
-        calls,
+        tool_calls: calls,
         hasErrors: calls.some(c => c.status === 'error'),
         allCompleted: calls.every(c => c.status === 'completed'),
         hasInFlight: calls.some(c => c.status === 'calling'),
