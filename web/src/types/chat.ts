@@ -49,6 +49,27 @@ export interface ToolCall {
   error?: string;
 }
 
+/**
+ * Classify a tool name into a canonical type (bash, read, edit, mcp, etc.)
+ * matching the backend logic in transcript_renderer.py.
+ */
+export function classifyTool(toolName: string | null | undefined): string {
+  if (!toolName) return "unknown";
+  const name = toolName.toLowerCase();
+
+  // Built-in tools
+  if (["bash", "sh", "terminal", "shell"].includes(name)) return "bash";
+  if (["read", "read_file", "cat"].includes(name)) return "read";
+  if (["edit", "write", "multiedit", "patch", "sed"].includes(name)) return "edit";
+  if (["grep", "rg", "search"].includes(name)) return "grep";
+  if (["glob", "ls", "list_files", "find"].includes(name)) return "glob";
+
+  // MCP tools: mcp__server__tool
+  if (toolName.startsWith("mcp__")) return "mcp";
+
+  return "unknown";
+}
+
 export type ContentBlock =
   | { type: "text"; content: string }
   | { type: "thinking"; content: string }

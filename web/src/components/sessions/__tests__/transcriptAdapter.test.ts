@@ -73,7 +73,8 @@ describe('sessionMessagesToChatMessages', () => {
     expect(result[0].toolCalls![0]).toMatchObject({
       id: 'tool-2',
       tool_name: 'read_file',
-      server_name: '',
+      tool_type: 'read',
+      server_name: 'builtin',
       status: 'completed',
       arguments: { path: '/foo' },
       result: 'file contents',
@@ -91,6 +92,7 @@ describe('sessionMessagesToChatMessages', () => {
       }),
     ])
     expect(result[0].toolCalls![0].server_name).toBe('gobby')
+    expect(result[0].toolCalls![0].tool_type).toBe('mcp')
   })
 
   it('handles malformed tool_input JSON gracefully', () => {
@@ -156,6 +158,7 @@ describe('sessionMessagesToChatMessages', () => {
     expect(result[0].toolCalls![0]).toMatchObject({
       id: 'tu_1',
       tool_name: 'mcp__github__list_prs',
+      tool_type: 'mcp',
       server_name: 'github',
       status: 'completed',
       arguments: { repo: 'foo' },
@@ -163,7 +166,8 @@ describe('sessionMessagesToChatMessages', () => {
     expect(result[0].toolCalls![1]).toMatchObject({
       id: 'tu_2',
       tool_name: 'read_file',
-      server_name: '',
+      tool_type: 'read',
+      server_name: 'builtin',
     })
   })
 
@@ -196,7 +200,8 @@ describe('sessionMessagesToChatMessages', () => {
     ])
     expect(result[0].toolCalls![0]).toMatchObject({
       tool_name: 'unknown',
-      server_name: '',
+      server_name: 'builtin',
+      tool_type: 'unknown',
     })
   })
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { ChatMessage, ToolCall, ChatMode } from "../types/chat";
+import type { ChatMessage, ToolCall, ChatMode, ContentBlock, TokenUsage, ToolResult } from "../types/chat";
+import { classifyTool } from "../types/chat";
 import type { QueuedFile } from "../types/chat";
 import type { A2UISurfaceState, UserAction } from "../components/canvas/types";
 import type { CanvasPanelState } from "../components/canvas/hooks/useCanvasPanel";
@@ -349,6 +350,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           id: m.tool_use_id || id,
           tool_name: toolName,
           server_name: extractServerName(toolName),
+          tool_type: classifyTool(toolName),
           status: m.tool_result ? "completed" : "calling",
           arguments: tryParseJSON(m.tool_input) as
             | Record<string, unknown>
@@ -381,14 +383,18 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           }>;
           const tools = calls.filter((c) => c.type === "tool_use");
           if (tools.length > 0) {
-            const toolCalls = tools.map((t) => ({
-              id: t.id || `tool-${id}-${t.name}`,
-              tool_name: t.name || "unknown",
-              server_name: extractServerName(t.name || ""),
-              status: "completed" as const,
-              arguments: typeof t.input === "object" && t.input !== null
-                ? (t.input as Record<string, unknown>) : undefined,
-            }));
+            const toolCalls: ToolCall[] = tools.map((t) => {
+              const toolName = t.name || "unknown";
+              return {
+                id: t.id || `tool-${id}-${toolName}`,
+                tool_name: toolName,
+                server_name: extractServerName(toolName),
+                tool_type: classifyTool(toolName),
+                status: "completed" as const,
+                arguments: typeof t.input === "object" && t.input !== null
+                  ? (t.input as Record<string, unknown>) : undefined,
+              };
+            });
             if (!currentAssistant) {
               currentAssistant = {
                 id, role: "assistant", content: "", timestamp: new Date(m.timestamp),
@@ -1012,10 +1018,12 @@ export function useChat() {
                     return prev;
                   const lastIdx = prev.length - 1;
                   const last = lastIdx >= 0 ? prev[lastIdx] : null;
+                  const toolName = (msg.tool_name as string) || "unknown";
                   const toolCall: ToolCall = {
                     id: toolUseId,
-                    tool_name: (msg.tool_name as string) || "unknown",
-                    server_name: "builtin",
+                    tool_name: toolName,
+                    server_name: extractServerName(toolName),
+                    tool_type: classifyTool(toolName),
                     status: "calling",
                     arguments: tryParseJSON(msg.tool_input) as
                       | Record<string, unknown>
@@ -1346,10 +1354,12 @@ export function useChat() {
       const idx = prev.findIndex((m) => m.id === status.message_id);
       if (idx < 0) {
         // Tool status arrived before any text/thinking — create the message
+        const toolName = status.tool_name || "unknown";
         const newCall: ToolCall = {
           id: status.tool_call_id,
-          tool_name: status.tool_name || "unknown",
-          server_name: status.server_name || "builtin",
+          tool_name: toolName,
+          server_name: status.server_name || extractServerName(toolName),
+          tool_type: classifyTool(toolName),
           status: status.status,
           arguments: status.arguments,
           result: status.result,
@@ -1386,10 +1396,12 @@ export function useChat() {
         };
         toolCalls[existingIdx] = callRef;
       } else {
+        const toolName = status.tool_name || "unknown";
         callRef = {
           id: status.tool_call_id,
-          tool_name: status.tool_name || "unknown",
-          server_name: status.server_name || "builtin",
+          tool_name: toolName,
+          server_name: status.server_name || extractServerName(toolName),
+          tool_type: classifyTool(toolName),
           status: status.status,
           arguments: status.arguments,
           result: status.result,

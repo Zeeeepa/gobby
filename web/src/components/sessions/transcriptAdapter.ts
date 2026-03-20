@@ -1,4 +1,5 @@
 import type { ChatMessage, ToolCall } from '../../types/chat'
+import { classifyTool } from '../../types/chat'
 import type { SessionMessage } from '../../hooks/useSessionDetail'
 
 function extractServerName(toolName: string): string {
@@ -6,7 +7,7 @@ function extractServerName(toolName: string): string {
   if (parts.length >= 3 && parts[0] === 'mcp') {
     return parts[1]
   }
-  return ''
+  return 'builtin'
 }
 
 function tryParseJson(str: string | undefined): Record<string, unknown> | undefined {
@@ -188,6 +189,7 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
         id: msg.tool_use_id || `tool-${msg.id}`,
         tool_name: toolName,
         server_name: extractServerName(toolName),
+        tool_type: classifyTool(toolName),
         status: 'completed',
         arguments: tryParseJson(msg.tool_input),
         result: tryParseResult(msg.tool_result),

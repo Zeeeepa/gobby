@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ToolCall } from '../../../types/chat'
+import { classifyTool } from '../../../types/chat'
 import { groupToolCalls, extractBase64Image } from '../ToolCallCard'
 import type { ToolCallGroup, ToolCallSingle } from '../ToolCallCard'
 
@@ -7,6 +8,7 @@ function makeCall(overrides: Partial<ToolCall> & { id: string; tool_name: string
   return {
     server_name: 'builtin',
     status: 'completed',
+    tool_type: classifyTool(overrides.tool_name),
     ...overrides,
   }
 }
