@@ -2,7 +2,7 @@ tags: [context-handoff, context, handoff, lifecycle, gobby, default]
 
 rules:
   inject-compact-handoff:
-    description: "Inject compact handoff context after compaction"
+    description: "Inject session summary context after compaction"
     event: session_start
     enabled: false
     priority: 11
@@ -11,6 +11,6 @@ rules:
       - type: inject_context
         template: |
           ## Continuation Context
-          *Injected by Gobby compact handoff*
+          *Injected by Gobby session handoff*
 
-          {{ compact_session_summary }}
+          {{ session_summary }}

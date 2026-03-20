@@ -100,7 +100,7 @@ async def test_search_memories_queries_qdrant(manager, mock_vector_store, mock_e
     results = await manager.search_memories(query="cats", limit=5)
 
     # Should have called embed_fn for the query
-    mock_embed_fn.assert_awaited_once_with("cats")
+    mock_embed_fn.assert_awaited_once_with("cats", is_query=True)
 
     # Should have searched VectorStore
     mock_vector_store.search.assert_awaited_once()
@@ -137,9 +137,12 @@ async def test_search_memories_no_query_returns_list(manager, mock_vector_store)
     await manager.create_memory(content="fact one")
     await manager.create_memory(content="fact two")
 
+    # Reset search mock after create_memory (dedup may call search)
+    mock_vector_store.search.reset_mock()
+
     results = await manager.search_memories(query=None, limit=10)
 
-    # Should NOT call VectorStore search
+    # Should NOT call VectorStore search for query=None
     mock_vector_store.search.assert_not_awaited()
     assert len(results) == 2
 

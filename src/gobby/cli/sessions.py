@@ -339,10 +339,6 @@ def session_stats(project_ref: str | None) -> None:
 
 @sessions.command("create-handoff")
 @click.option("--session-id", "-s", help="Session ID (defaults to current active session)")
-@click.option("--compact", "-c", is_flag=True, default=False, help="Generate compact summary only")
-@click.option(
-    "--full", "full_summary", is_flag=True, default=False, help="Generate full LLM summary only"
-)
 @click.option(
     "--output",
     type=click.Choice(["db", "file", "all"]),
@@ -358,8 +354,6 @@ def session_stats(project_ref: str | None) -> None:
 @click.argument("notes", required=False)
 def create_handoff(
     session_id: str | None,
-    compact: bool,
-    full_summary: bool,
     output: str,
     output_path: str,
     notes: str | None,
@@ -501,162 +495,68 @@ def create_handoff(
 
         logging.getLogger(__name__).debug("Git log is optional, failed: %s", e)
 
-    # Determine what to generate (neither flag = both)
-    generate_compact = not full_summary or compact  # generate if --compact or neither flag
-    generate_full = not compact or full_summary  # generate if --full or neither flag
-
-    # Generate content
-    compact_markdown = None
+    # Generate full summary via shared function
     full_markdown = None
+    try:
+        from gobby.sessions.summarize import generate_session_summaries
 
-    if generate_compact:
-        # Try LLM-powered compact summary first, fall back to code-only
+        _summary_db = LocalDatabase()
+
+        async def _gen_summary() -> dict[str, Any]:
+            return await generate_session_summaries(
+                session_id=session.id,
+                session_manager=manager,
+                db=_summary_db,
+                set_handoff_ready=False,
+            )
+
         try:
-            from gobby.sessions.summarize import generate_session_summaries
-
-            _compact_db = LocalDatabase()
-
-            async def _gen_compact() -> dict[str, Any]:
-                return await generate_session_summaries(
-                    session_id=session.id,
-                    session_manager=manager,
-                    db=_compact_db,
-                    compact_only=True,
-                    set_handoff_ready=False,
-                )
-
-            try:
-                compact_result = asyncio.run(_gen_compact())
-            finally:
-                _compact_db.close()
-            if compact_result.get("success") and compact_result.get("compact_length", 0) > 0:
-                updated = manager.get(session.id)
-                if updated:
-                    compact_markdown = updated.compact_markdown
-            if not compact_markdown:
-                click.echo(
-                    f"Warning: LLM compact summary failed ({compact_result.get('full_error') or compact_result.get('error', 'unknown')}), using code-only fallback",
-                    err=True,
-                )
-                compact_markdown = format_handoff_as_markdown(handoff_ctx)
-        except Exception as e:
-            click.echo(f"Warning: LLM compact failed ({e}), using code-only fallback", err=True)
-            compact_markdown = format_handoff_as_markdown(handoff_ctx)
-
-    if generate_full:
-        # Generate LLM-powered full summary
-        try:
-            from gobby.config.app import load_config
-            from gobby.llm.claude import ClaudeLLMProvider
-            from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
-
-            config = load_config()
-            provider = ClaudeLLMProvider(config)
-            transcript_parser = ClaudeTranscriptParser()
-
-            # Get prompt template: try PromptLoader first, then config fallback
-            prompt_template = None
-            try:
-                from gobby.prompts.loader import PromptLoader
-
-                loader = PromptLoader(db=LocalDatabase())
-                prompt_obj = loader.load("handoff/session_end")
-                prompt_template = prompt_obj.content
-            except FileNotFoundError:
-                pass
-            except Exception as e:
-                click.echo(f"Warning: Failed to load prompt template: {e}", err=True)
-
-            if not prompt_template:
-                click.echo(
-                    "Warning: No prompt template found for handoff/session_end",
-                    err=True,
-                )
-                # Only fail if --full was explicitly requested without --compact
-                if full_summary and not compact:
-                    return
-                # Otherwise, skip full generation but continue with compact
-            else:
-                # Prepare context for LLM
-                last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)
-                last_messages = transcript_parser.extract_last_messages(turns, num_pairs=2)
-
-                context = {
-                    "transcript_summary": _format_turns_for_llm(last_turns),
-                    "last_messages": last_messages,
-                    "git_status": handoff_ctx.git_status or "",
-                    "file_changes": "",
-                    "external_id": session.id[:12],
-                    "session_id": session.id,
-                    "session_source": session.source,
-                }
-
-                import anyio
-
-                async def _generate() -> str:
-                    return await provider.generate_summary(context, prompt_template=prompt_template)
-
-                full_markdown = anyio.run(_generate)
-
-        except Exception as e:
-            click.echo(f"Warning: Failed to generate full summary: {e}", err=True)
-            if full_summary and not compact:
-                # Only --full was requested and it failed
-                return
+            summary_result = asyncio.run(_gen_summary())
+        finally:
+            _summary_db.close()
+        if summary_result.get("success") and summary_result.get("full_length", 0) > 0:
+            updated = manager.get(session.id)
+            if updated:
+                full_markdown = updated.summary_markdown
+        if not full_markdown:
+            click.echo(
+                f"Warning: LLM summary failed ({summary_result.get('full_error') or summary_result.get('error', 'unknown')}), using code-only fallback",
+                err=True,
+            )
+            full_markdown = format_handoff_as_markdown(handoff_ctx)
+    except Exception as e:
+        click.echo(f"Warning: LLM summary failed ({e}), using code-only fallback", err=True)
+        full_markdown = format_handoff_as_markdown(handoff_ctx)
 
     # Determine what to save
     save_to_db = output in ("db", "all")
     save_to_file = output in ("file", "all")
 
-    # Save to database - always save both compact and full when available
-    if save_to_db:
-        if compact_markdown:
-            manager.update_compact_markdown(session.id, compact_markdown)
-            click.echo(f"Saved compact to database: {len(compact_markdown)} chars")
-        if full_markdown:
-            manager.update_summary(session.id, summary_markdown=full_markdown)
-            click.echo(f"Saved full to database: {len(full_markdown)} chars")
+    # Save to database
+    if save_to_db and full_markdown:
+        manager.update_summary(session.id, summary_markdown=full_markdown)
+        click.echo(f"Saved summary to database: {len(full_markdown)} chars")
 
     # Save to file
     files_written = []
-    if save_to_file:
+    if save_to_file and full_markdown:
         try:
             summary_dir = Path(output_path).expanduser()
             summary_dir.mkdir(parents=True, exist_ok=True)
             timestamp = int(time.time())
 
-            # Write full summary as session_*.md
-            if full_markdown:
-                full_file = summary_dir / f"session_{timestamp}_{session.id[:12]}.md"
-                full_file.write_text(full_markdown, encoding="utf-8")
-                files_written.append(str(full_file))
-                click.echo(f"Saved full to file: {full_file}")
-
-            # Write compact summary as session_compact_*.md
-            if compact_markdown:
-                compact_file = summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
-                compact_file.write_text(compact_markdown, encoding="utf-8")
-                files_written.append(str(compact_file))
-                click.echo(f"Saved compact to file: {compact_file}")
-
+            full_file = summary_dir / f"session_{timestamp}_{session.id[:12]}.md"
+            full_file.write_text(full_markdown, encoding="utf-8")
+            files_written.append(str(full_file))
+            click.echo(f"Saved summary to file: {full_file}")
         except Exception as e:
             click.echo(f"Error writing file: {e}", err=True)
 
     # Output summary
-    summary_type = "none"
-    if compact_markdown and full_markdown:
-        summary_type = "both"
-    elif compact_markdown:
-        summary_type = "compact"
-    elif full_markdown:
-        summary_type = "full"
     click.echo(f"\nCreated handoff context for session {session.id[:12]}")
-    click.echo(f"  Type: {summary_type}")
     click.echo(f"  Output: {output}")
-    if compact_markdown:
-        click.echo(f"  Compact length: {len(compact_markdown)} chars")
     if full_markdown:
-        click.echo(f"  Full length: {len(full_markdown)} chars")
+        click.echo(f"  Summary length: {len(full_markdown)} chars")
     click.echo(f"  Active task: {'Yes' if handoff_ctx.active_gobby_task else 'No'}")
     click.echo(f"  Files modified: {len(handoff_ctx.files_modified)}")
     click.echo(f"  Git commits: {len(handoff_ctx.git_commits)}")

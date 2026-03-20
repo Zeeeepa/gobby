@@ -3,7 +3,6 @@ Context resolver for subagent context injection.
 
 Resolves various context sources for injecting into subagent prompts:
 - summary_markdown: Parent session's summary
-- compact_markdown: Parent session's handoff context
 - session_id:<id>: Lookup specific session summary
 - transcript:<n>: Last N messages from parent session
 - file:<path>: Read file content with security checks
@@ -36,7 +35,6 @@ class ContextResolver:
 
     Supports the following source formats:
     - "summary_markdown": Parent session's summary_markdown field
-    - "compact_markdown": Parent session's compact_markdown (handoff context)
     - "session_id:<id>": Summary from a specific session by ID
     - "transcript:<n>": Last N messages from parent session
     - "file:<path>": Read file content (project-scoped with security checks)
@@ -106,9 +104,6 @@ class ContextResolver:
         if source == "summary_markdown":
             content = self._resolve_summary_markdown(session_id)
 
-        elif source == "compact_markdown":
-            content = self._resolve_compact_markdown(session_id)
-
         # Handle parameterized source types
         elif match := self.SESSION_ID_PATTERN.match(source):
             target_session_id = match.group(1)
@@ -145,22 +140,6 @@ class ContextResolver:
             raise ContextResolutionError(f"Session not found: {session_id}")
 
         return session.summary_markdown or ""
-
-    def _resolve_compact_markdown(self, session_id: str) -> str:
-        """
-        Resolve compact_markdown (handoff context) from parent session.
-
-        Args:
-            session_id: Parent session ID.
-
-        Returns:
-            Compact markdown content, or empty string if not available.
-        """
-        session = self._session_manager.get(session_id)
-        if not session:
-            raise ContextResolutionError(f"Session not found: {session_id}")
-
-        return session.compact_markdown or ""
 
     def _resolve_session_id(self, target_session_id: str) -> str:
         """

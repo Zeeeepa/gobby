@@ -107,7 +107,7 @@ def agents() -> None:
     "-c",
     "session_context",
     default="summary_markdown",
-    help="Context source (summary_markdown, compact_markdown, transcript:<n>, file:<path>)",
+    help="Context source (summary_markdown, transcript:<n>, file:<path>)",
 )
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def spawn_agent_cmd(

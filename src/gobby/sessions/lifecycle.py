@@ -42,6 +42,7 @@ class SessionLifecycleManager:
         memory_manager: Any | None = None,
         llm_service: Any | None = None,
         memory_sync_manager: Any | None = None,
+        kg_queue_config: Any | None = None,
     ):
         self.db = db
         self.config = config
@@ -51,10 +52,12 @@ class SessionLifecycleManager:
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
         self._memory_extraction_config: Any = None
+        self._kg_queue_config = kg_queue_config
 
         self._running = False
         self._expire_task: asyncio.Task[None] | None = None
         self._process_task: asyncio.Task[None] | None = None
+        self._kg_queue_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         """Start background jobs."""
@@ -75,17 +78,28 @@ class SessionLifecycleManager:
             name="session-lifecycle-process",
         )
 
+        # Start KG queue processing job (if memory manager has KG service)
+        if self.memory_manager and getattr(self.memory_manager, "kg_service", None):
+            self._kg_queue_task = asyncio.create_task(
+                self._kg_queue_loop(),
+                name="session-lifecycle-kg-queue",
+            )
+
+        kg_interval = (
+            getattr(self._kg_queue_config, "interval_minutes", 30) if self._kg_queue_config else 30
+        )
         logger.info(
             f"SessionLifecycleManager started "
             f"(expire every {self.config.expire_check_interval_minutes}m, "
-            f"process every {self.config.transcript_processing_interval_minutes}m)"
+            f"process every {self.config.transcript_processing_interval_minutes}m, "
+            f"kg_queue every {kg_interval}m)"
         )
 
     async def stop(self) -> None:
         """Stop background jobs."""
         self._running = False
 
-        tasks = [t for t in [self._expire_task, self._process_task] if t]
+        tasks = [t for t in [self._expire_task, self._process_task, self._kg_queue_task] if t]
         for task in tasks:
             task.cancel()
 
@@ -94,6 +108,7 @@ class SessionLifecycleManager:
 
         self._expire_task = None
         self._process_task = None
+        self._kg_queue_task = None
 
         logger.info("SessionLifecycleManager stopped")
 
@@ -131,6 +146,62 @@ class SessionLifecycleManager:
                 await asyncio.sleep(interval_seconds)
             except asyncio.CancelledError:
                 break
+
+    async def _kg_queue_loop(self) -> None:
+        """Background loop for processing pending KG graph memories."""
+        interval_minutes = (
+            getattr(self._kg_queue_config, "interval_minutes", 30) if self._kg_queue_config else 30
+        )
+        batch_size = (
+            getattr(self._kg_queue_config, "batch_size", 20) if self._kg_queue_config else 20
+        )
+        interval_seconds = interval_minutes * 60
+
+        while self._running:
+            try:
+                await self._process_pending_graph_memories(batch_size)
+            except Exception as e:
+                logger.error(f"Error in KG queue loop: {e}")
+
+            try:
+                await asyncio.sleep(interval_seconds)
+            except asyncio.CancelledError:
+                break
+
+    async def _process_pending_graph_memories(self, batch_size: int = 20) -> int:
+        """Process queued memories for KG extraction.
+
+        Runs on a slow cadence (default 30 min). Processes memories
+        sequentially to avoid bursty LLM calls.
+        """
+        if not self.memory_manager:
+            return 0
+
+        kg_service = getattr(self.memory_manager, "kg_service", None)
+        if not kg_service:
+            return 0
+
+        pending = self.memory_manager.get_pending_graph_memories(limit=batch_size)
+        if not pending:
+            return 0
+
+        processed = 0
+        for memory in pending:
+            try:
+                await kg_service.add_to_graph(
+                    memory.content,
+                    memory_id=memory.id,
+                    project_id=memory.project_id,
+                )
+                self.memory_manager.mark_graph_processed(memory.id)
+                processed += 1
+            except Exception as e:
+                logger.warning(f"KG processing failed for memory {memory.id}: {e}")
+
+        if processed > 0:
+            logger.info(f"Processed {processed} memories for knowledge graph")
+
+        return processed
 
     async def _expire_stale_sessions(self) -> int:
         """Pause inactive active sessions and expire stale sessions."""
@@ -215,7 +286,14 @@ class SessionLifecycleManager:
         for session in sessions:
             agent_depth = getattr(session, "agent_depth", 0) or 0
             source = getattr(session, "source", "") or ""
-            skip_llm = agent_depth > 0 or source in ("pipeline", "cron")
+
+            # Turn count fallback: subagents get 1 turn, short Q&A gets 1-2.
+            # By 3+ turns there's likely something worth remembering.
+            from gobby.sessions.summarize import TURN_PATTERN
+
+            digest = getattr(session, "digest_markdown", None)
+            turn_count = len(TURN_PATTERN.findall(digest)) if isinstance(digest, str) else 0
+            skip_llm = agent_depth > 0 or source in ("pipeline", "cron") or turn_count < 3
 
             # Step 1: Process transcript (reads JSONL, stores messages, aggregates usage)
             try:

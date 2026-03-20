@@ -556,10 +556,9 @@ class RuleEngine:
         elif effect.type == "inject_context":
             # NOTE: inject_context templates render with rule evaluation context:
             # event, variables (flattened to top-level), and helper functions.
-            # Session data (summary_markdown, compact_markdown, task_context) is
-            # populated as session variables by the SESSION_START handler before
-            # rules evaluate, making them available as {{ full_session_summary }},
-            # {{ compact_session_summary }}, {{ task_context }} in templates.
+            # Session data (summary_markdown, task_context) is populated as session
+            # variables by the SESSION_START handler before rules evaluate, making
+            # them available as {{ session_summary }}, {{ task_context }} in templates.
             if effect.template:
                 template_text = self._render_template(effect.template, ctx, allowed_funcs)
                 context_parts.append(template_text)

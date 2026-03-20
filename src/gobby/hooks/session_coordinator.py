@@ -333,11 +333,7 @@ class SessionCoordinator:
                 return
 
             # Use summary as result if available
-            result = (
-                getattr(session, "summary_markdown", None)
-                or getattr(session, "compact_markdown", None)
-                or ""
-            )
+            result = getattr(session, "summary_markdown", None) or ""
 
             # Fallback: get last assistant message if no summary available
             if not result:

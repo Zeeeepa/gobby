@@ -185,14 +185,12 @@ class TestGraphBackgroundTask:
         # Mock KG service
         manager._kg_service.add_to_graph = AsyncMock()
 
+        manager.storage.mark_pending_graph = MagicMock()
+
         await manager.create_memory(content="Josh uses Python")
 
-        # Wait for background tasks to complete
-        if manager._background_tasks:
-            await asyncio.wait(manager._background_tasks, timeout=1.0)
-
-        # Verify graph task was fired
-        assert manager._kg_service.add_to_graph.called
+        # Graph is now queued via mark_pending_graph, not fired as background task
+        manager.storage.mark_pending_graph.assert_called_once()
 
     async def test_create_memory_no_graph_task_when_no_kg_service(self) -> None:
         """create_memory doesn't fire graph task when KnowledgeGraphService is unavailable."""

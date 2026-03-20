@@ -86,40 +86,42 @@ class MemoryManager:
         else:
             self._neo4j_client = None
 
-        # DedupService + KnowledgeGraphService: initialized when LLM + VectorStore + embed_fn available
+        # DedupService: initialized when VectorStore + embed_fn available (no LLM needed)
         self._dedup_service: DedupService | None = None
         self._kg_service: KnowledgeGraphService | None = None
-        if llm_service and vector_store and embed_fn:
+        if vector_store and embed_fn:
             try:
                 from gobby.memory.services.dedup import DedupService as _DedupService
+
+                self._dedup_service = _DedupService(
+                    vector_store=vector_store,
+                    storage=self.storage,
+                    embed_fn=embed_fn,
+                )
+                logger.debug("DedupService initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize DedupService: {e}")
+
+        # KnowledgeGraphService: requires LLM + Neo4j + VectorStore + embed_fn
+        if llm_service and vector_store and embed_fn and self._neo4j_client:
+            try:
                 from gobby.prompts.loader import PromptLoader
 
                 provider = llm_service.get_default_provider()
                 prompt_loader = PromptLoader(db=self.db)
-                self._dedup_service = _DedupService(
+                self._kg_service = KnowledgeGraphService(
+                    neo4j_client=self._neo4j_client,
                     llm_provider=provider,
-                    vector_store=vector_store,
-                    storage=self.storage,
                     embed_fn=embed_fn,
                     prompt_loader=prompt_loader,
+                    vector_store=vector_store,
+                    code_link_min_score=config.code_link_min_score,
+                    code_symbol_collection_prefix=config.code_symbol_collection_prefix,
+                    embedding_dim=config.embedding_dim,
                 )
-                logger.debug("DedupService initialized")
-
-                # KnowledgeGraphService: requires Neo4j client
-                if self._neo4j_client:
-                    self._kg_service = KnowledgeGraphService(
-                        neo4j_client=self._neo4j_client,
-                        llm_provider=provider,
-                        embed_fn=embed_fn,
-                        prompt_loader=prompt_loader,
-                        vector_store=vector_store,
-                        code_link_min_score=config.code_link_min_score,
-                        code_symbol_collection_prefix=config.code_symbol_collection_prefix,
-                        embedding_dim=config.embedding_dim,
-                    )
-                    logger.debug("KnowledgeGraphService initialized")
+                logger.debug("KnowledgeGraphService initialized")
             except Exception as e:
-                logger.warning(f"Failed to initialize DedupService: {e}")
+                logger.warning(f"Failed to initialize KnowledgeGraphService: {e}")
 
     @property
     def kg_service(self) -> KnowledgeGraphService | None:
@@ -217,33 +219,29 @@ class MemoryManager:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
-    def _fire_background_graph(
+    def _enqueue_for_graph(
         self,
-        content: str,
-        memory_id: str | None = None,
+        memory_id: str,
         project_id: str | None = None,
     ) -> None:
-        """Fire a background knowledge graph task (non-blocking).
+        """Queue memory for background KG processing instead of immediate fire-and-forget.
 
-        Extracts entities and relationships from content and merges
-        them into the Neo4j knowledge graph. When memory_id is provided,
-        creates MENTIONED_IN links from entities to the source memory.
-        When project_id is provided, cross-links entities to code symbols.
+        Marks the memory as pending graph processing. A separate background loop
+        (in SessionLifecycleManager) processes the queue on a slower cadence.
         """
+        try:
+            self.storage.mark_pending_graph(memory_id)
+            logger.debug(f"Queued memory {memory_id} for graph processing")
+        except Exception as e:
+            logger.warning(f"Failed to queue memory {memory_id} for graph: {e}")
 
-        async def _run_graph() -> None:
-            try:
-                assert self._kg_service is not None  # noqa: S101
-                await self._kg_service.add_to_graph(
-                    content, memory_id=memory_id, project_id=project_id
-                )
-            except Exception as e:
-                logger.warning(f"Background graph extraction failed: {e}")
+    def get_pending_graph_memories(self, limit: int = 20) -> list[Memory]:
+        """Get memories pending KG graph processing."""
+        return self.storage.get_pending_graph_memories(limit=limit)
 
-        task = asyncio.create_task(_run_graph(), name="memory-graph")
-
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
+    def mark_graph_processed(self, memory_id: str) -> None:
+        """Mark a memory as having been processed by the KG pipeline."""
+        self.storage.mark_graph_processed(memory_id)
 
     # =========================================================================
     # CRUD operations
@@ -315,9 +313,9 @@ class MemoryManager:
                 source_session_id=source_session_id,
             )
 
-        # Fire-and-forget: background knowledge graph task
+        # Queue for background KG processing (processed on slow cadence)
         if self._kg_service:
-            self._fire_background_graph(content, memory_id=memory.id, project_id=project_id)
+            self._enqueue_for_graph(memory_id=memory.id, project_id=project_id)
 
         return memory
 

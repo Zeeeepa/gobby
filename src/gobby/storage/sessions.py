@@ -451,20 +451,6 @@ class LocalSessionManager:
             (hash_value, now, session_id),
         )
 
-    def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Session | None:
-        """Update session compact handoff markdown."""
-        now = datetime.now(UTC).isoformat()
-        self.db.execute(
-            """
-            UPDATE sessions
-            SET compact_markdown = ?,
-                updated_at = ?
-            WHERE id = ?
-            """,
-            (compact_markdown, now, session_id),
-        )
-        return self.get(session_id)
-
     def update_parent_session_id(self, session_id: str, parent_session_id: str) -> Session | None:
         """Update parent session ID."""
         now = datetime.now(UTC).isoformat()

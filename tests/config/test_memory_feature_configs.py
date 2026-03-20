@@ -3,37 +3,29 @@
 import pytest
 
 from gobby.config.features import (
-    MemoryDedupDecisionConfig,
+    KnowledgeGraphQueueConfig,
     MemoryEntityExtractionConfig,
-    MemoryFactExtractionConfig,
+    MemoryExtractionConfig,
 )
 
 pytestmark = pytest.mark.unit
 
 
-class TestMemoryFactExtractionConfig:
-    """Tests for MemoryFactExtractionConfig."""
+class TestMemoryExtractionConfig:
+    """Tests for MemoryExtractionConfig."""
 
     def test_exists(self) -> None:
-        """MemoryFactExtractionConfig can be instantiated."""
-        config = MemoryFactExtractionConfig()
+        config = MemoryExtractionConfig()
         assert config is not None
 
     def test_defaults(self) -> None:
-        """MemoryFactExtractionConfig has correct defaults."""
-        config = MemoryFactExtractionConfig()
+        config = MemoryExtractionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "haiku"
 
-    def test_prompt_path_default(self) -> None:
-        """MemoryFactExtractionConfig has a prompt_path field."""
-        config = MemoryFactExtractionConfig()
-        assert hasattr(config, "prompt_path")
-
     def test_overridable(self) -> None:
-        """MemoryFactExtractionConfig fields are independently configurable."""
-        config = MemoryFactExtractionConfig(
+        config = MemoryExtractionConfig(
             enabled=False,
             provider="gemini",
             model="gemini-2.0-flash",
@@ -43,60 +35,45 @@ class TestMemoryFactExtractionConfig:
         assert config.model == "gemini-2.0-flash"
 
 
-class TestMemoryDedupDecisionConfig:
-    """Tests for MemoryDedupDecisionConfig."""
+class TestKnowledgeGraphQueueConfig:
+    """Tests for KnowledgeGraphQueueConfig."""
 
     def test_exists(self) -> None:
-        """MemoryDedupDecisionConfig can be instantiated."""
-        config = MemoryDedupDecisionConfig()
+        config = KnowledgeGraphQueueConfig()
         assert config is not None
 
     def test_defaults(self) -> None:
-        """MemoryDedupDecisionConfig has correct defaults."""
-        config = MemoryDedupDecisionConfig()
-        assert config.enabled is True
-        assert config.provider == "claude"
-        assert config.model == "haiku"
-
-    def test_prompt_path_default(self) -> None:
-        """MemoryDedupDecisionConfig has a prompt_path field."""
-        config = MemoryDedupDecisionConfig()
-        assert hasattr(config, "prompt_path")
+        config = KnowledgeGraphQueueConfig()
+        assert config.interval_minutes == 30
+        assert config.batch_size == 20
 
     def test_overridable(self) -> None:
-        """MemoryDedupDecisionConfig fields are independently configurable."""
-        config = MemoryDedupDecisionConfig(
-            enabled=False,
-            provider="litellm",
-            model="gpt-4o-mini",
+        config = KnowledgeGraphQueueConfig(
+            interval_minutes=15,
+            batch_size=50,
         )
-        assert config.enabled is False
-        assert config.provider == "litellm"
-        assert config.model == "gpt-4o-mini"
+        assert config.interval_minutes == 15
+        assert config.batch_size == 50
 
 
 class TestMemoryEntityExtractionConfig:
     """Tests for MemoryEntityExtractionConfig."""
 
     def test_exists(self) -> None:
-        """MemoryEntityExtractionConfig can be instantiated."""
         config = MemoryEntityExtractionConfig()
         assert config is not None
 
     def test_defaults(self) -> None:
-        """MemoryEntityExtractionConfig has correct defaults."""
         config = MemoryEntityExtractionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "haiku"
 
     def test_prompt_path_default(self) -> None:
-        """MemoryEntityExtractionConfig has a prompt_path field."""
         config = MemoryEntityExtractionConfig()
         assert hasattr(config, "prompt_path")
 
     def test_overridable(self) -> None:
-        """MemoryEntityExtractionConfig fields are independently configurable."""
         config = MemoryEntityExtractionConfig(
             enabled=False,
             provider="codex",
@@ -110,26 +87,24 @@ class TestMemoryEntityExtractionConfig:
 class TestDaemonConfigIntegration:
     """Tests for memory feature configs in DaemonConfig."""
 
-    def test_memory_fact_extraction_on_daemon_config(self) -> None:
-        """DaemonConfig has memory_fact_extraction attribute."""
+    def test_knowledge_graph_queue_on_daemon_config(self) -> None:
         from gobby.config.app import DaemonConfig
 
         config = DaemonConfig()
-        assert hasattr(config, "memory_fact_extraction")
-        assert isinstance(config.memory_fact_extraction, MemoryFactExtractionConfig)
-
-    def test_memory_dedup_decision_on_daemon_config(self) -> None:
-        """DaemonConfig has memory_dedup_decision attribute."""
-        from gobby.config.app import DaemonConfig
-
-        config = DaemonConfig()
-        assert hasattr(config, "memory_dedup_decision")
-        assert isinstance(config.memory_dedup_decision, MemoryDedupDecisionConfig)
+        assert hasattr(config, "knowledge_graph_queue")
+        assert isinstance(config.knowledge_graph_queue, KnowledgeGraphQueueConfig)
 
     def test_memory_entity_extraction_on_daemon_config(self) -> None:
-        """DaemonConfig has memory_entity_extraction attribute."""
         from gobby.config.app import DaemonConfig
 
         config = DaemonConfig()
         assert hasattr(config, "memory_entity_extraction")
         assert isinstance(config.memory_entity_extraction, MemoryEntityExtractionConfig)
+
+    def test_memory_extraction_on_daemon_config(self) -> None:
+        from gobby.config.app import DaemonConfig
+
+        config = DaemonConfig()
+        assert hasattr(config, "memory_extraction")
+        assert isinstance(config.memory_extraction, MemoryExtractionConfig)
+        assert config.memory_extraction.enabled is True

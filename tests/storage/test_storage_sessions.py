@@ -587,10 +587,6 @@ class TestLocalSessionManager:
             project_id=sample_project["id"],
         )
 
-        updated = session_manager.update_compact_markdown(session.id, "# Compact")
-        assert updated is not None
-        assert updated.compact_markdown == "# Compact"
-
     def test_update_parent_session_id(
         self,
         session_manager: LocalSessionManager,
@@ -1171,7 +1167,6 @@ class TestLocalSessionManager:
         )
 
         # Update other fields
-        session_manager.update_compact_markdown(session.id, "# Compact")
         session_manager.update_summary(session.id, "/summary.md", "# Summary")
 
         # Retrieve and convert to dict
@@ -1188,7 +1183,6 @@ class TestLocalSessionManager:
         assert "jsonl_path" in d
         assert "summary_path" in d
         assert "summary_markdown" in d
-        assert "compact_markdown" in d
         assert "git_branch" in d
         assert "parent_session_id" in d
         assert "agent_depth" in d

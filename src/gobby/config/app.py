@@ -26,10 +26,9 @@ from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ChatConfig,
     ImportMCPServerConfig,
-    MemoryDedupDecisionConfig,
+    KnowledgeGraphQueueConfig,
     MemoryEntityExtractionConfig,
     MemoryExtractionConfig,
-    MemoryFactExtractionConfig,
     MergeResolutionConfig,
     MetricsConfig,
     OutputCompressionConfig,
@@ -343,13 +342,9 @@ class DaemonConfig(BaseModel):
         default_factory=ImportMCPServerConfig,
         description="MCP server import configuration",
     )
-    memory_fact_extraction: MemoryFactExtractionConfig = Field(
-        default_factory=MemoryFactExtractionConfig,
-        description="Memory fact extraction LLM configuration",
-    )
-    memory_dedup_decision: MemoryDedupDecisionConfig = Field(
-        default_factory=MemoryDedupDecisionConfig,
-        description="Memory dedup decision LLM configuration",
+    knowledge_graph_queue: KnowledgeGraphQueueConfig = Field(
+        default_factory=KnowledgeGraphQueueConfig,
+        description="Background knowledge graph processing queue configuration",
     )
     memory_entity_extraction: MemoryEntityExtractionConfig = Field(
         default_factory=MemoryEntityExtractionConfig,

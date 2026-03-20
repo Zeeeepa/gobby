@@ -78,30 +78,6 @@ class TestResolveSummaryMarkdown:
         assert "Session not found: sess-unknown" in str(exc_info.value)
 
 
-class TestResolveCompactMarkdown:
-    """Tests for compact_markdown resolution."""
-
-    async def test_returns_handoff_context(self, resolver, mock_session_manager):
-        """compact_markdown returns handoff context."""
-        mock_session = MagicMock()
-        mock_session.compact_markdown = "## Handoff\n\nContext here."
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("compact_markdown", "sess-123")
-
-        assert result == "## Handoff\n\nContext here."
-
-    async def test_returns_empty_when_none(self, resolver, mock_session_manager):
-        """compact_markdown returns empty string when None."""
-        mock_session = MagicMock()
-        mock_session.compact_markdown = None
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("compact_markdown", "sess-123")
-
-        assert result == ""
-
-
 class TestResolveSessionId:
     """Tests for session_id:<id> resolution."""
 
@@ -268,26 +244,6 @@ class TestContentTruncation:
         assert len(result) < 200
         assert "truncated" in result
         assert "100 bytes remaining" in result
-
-    async def test_truncates_long_compact_markdown(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """compact_markdown is truncated when over limit."""
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            max_content_size=100,
-        )
-
-        mock_session = MagicMock()
-        mock_session.compact_markdown = "B" * 200
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("compact_markdown", "sess-123")
-
-        assert len(result) < 200
-        assert "truncated" in result
 
     async def test_truncates_long_transcript(
         self, mock_session_manager, mock_message_manager, temp_project

@@ -51,7 +51,7 @@ class AgentConfig:
     """Default variables for the agent."""
 
     session_context: str = "summary_markdown"
-    """Context source: summary_markdown, compact_markdown, session_id:<id>, transcript:<n>, file:<path>."""
+    """Context source: summary_markdown, session_id:<id>, transcript:<n>, file:<path>."""
 
     mode: str = "in_process"
     """Execution mode: in_process, terminal, embedded, headless."""

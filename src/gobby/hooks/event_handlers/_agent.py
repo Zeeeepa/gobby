@@ -341,7 +341,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
         return HookResponse(decision="allow")
 
     def handle_subagent_start(self, event: HookEvent) -> HookResponse:
-        """Handle SUBAGENT_START event."""
+        """Handle SUBAGENT_START event.
+
+        Marks the subagent's session with correct agent_depth so that
+        lifecycle processing can skip LLM-heavy steps for subagents.
+        """
         input_data = event.data
         session_id = event.metadata.get("_platform_session_id")
         agent_id = input_data.get("agent_id")
@@ -353,6 +357,22 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if subagent_id:
             log_msg += f", subagent_id={subagent_id}"
         self.logger.debug(log_msg)
+
+        # Track pending subagent depth for auto-registration
+        if session_id and subagent_id and self._session_manager:
+            try:
+                parent = self._session_manager.get_by_external_id(session_id)
+                parent_depth = getattr(parent, "agent_depth", 0) or 0 if parent else 0
+                if not hasattr(self, "_pending_subagent_depths"):
+                    self._pending_subagent_depths: dict[str, int] = {}
+                self._pending_subagent_depths[subagent_id] = parent_depth + 1
+                self.logger.debug(
+                    "Pending subagent depth for %s: %d",
+                    subagent_id,
+                    parent_depth + 1,
+                )
+            except Exception as e:
+                self.logger.debug("Failed to track subagent depth: %s", e)
 
         return HookResponse(decision="allow")
 

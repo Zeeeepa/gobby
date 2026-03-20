@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 161
+BASELINE_VERSION = 163
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -221,7 +221,6 @@ CREATE TABLE sessions (
     jsonl_path TEXT,
     summary_path TEXT,
     summary_markdown TEXT,
-    compact_markdown TEXT,
     git_branch TEXT,
     parent_session_id TEXT REFERENCES sessions(id),
     transcript_processed BOOLEAN DEFAULT FALSE,
@@ -485,11 +484,13 @@ CREATE TABLE memories (
     last_accessed_at TEXT,
     tags TEXT,
     media TEXT,
+    graph_processed INTEGER DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
+CREATE INDEX idx_memories_graph_pending ON memories(graph_processed) WHERE graph_processed = 0;
 
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1440,6 +1441,17 @@ UPDATE sessions SET
   turn_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND role = 'assistant'),
   tool_call_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND tool_name IS NOT NULL),
   last_assistant_content = (SELECT content FROM session_messages WHERE session_id = sessions.id AND role = 'assistant' AND tool_name IS NULL ORDER BY message_index DESC LIMIT 1)""",
+    ),
+    (
+        162,
+        "Add graph_processed column to memories table for KG queue processing",
+        """ALTER TABLE memories ADD COLUMN graph_processed INTEGER DEFAULT 1;
+CREATE INDEX IF NOT EXISTS idx_memories_graph_pending ON memories(graph_processed) WHERE graph_processed = 0""",
+    ),
+    (
+        163,
+        "Drop compact_markdown column from sessions table",
+        "ALTER TABLE sessions DROP COLUMN compact_markdown",
     ),
 ]
 

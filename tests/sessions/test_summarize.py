@@ -99,10 +99,8 @@ class TestGenerateSessionSummaries:
             )
 
         assert result["success"] is True
-        assert result["compact_length"] > 0
-        assert result["full_length"] == 0
-        sm.update_compact_markdown.assert_called_once()
-        sm.update_summary.assert_not_called()
+        # compact_only is ignored — always generates full summary via fallback
+        assert result["full_length"] > 0
 
     @pytest.mark.asyncio
     async def test_sets_handoff_ready(self, tmp_path: Path) -> None:
@@ -172,7 +170,6 @@ class TestGenerateSessionSummaries:
 
         assert result["success"] is True
         assert result["full_length"] > 0
-        assert result["compact_length"] > 0
 
     @pytest.mark.asyncio
     async def test_full_only_error_returns_failure(self, tmp_path: Path) -> None:
@@ -185,6 +182,10 @@ class TestGenerateSessionSummaries:
             patch(
                 "gobby.sessions.summarize._generate_full_summary", return_value=(None, "LLM error")
             ),
+            patch(
+                "gobby.sessions.formatting.format_handoff_as_markdown",
+                return_value="# Fallback Summary",
+            ),
         ):
             result = await generate_session_summaries(
                 session_id="sess-1",
@@ -192,8 +193,9 @@ class TestGenerateSessionSummaries:
                 full_only=True,
             )
 
-        assert result["success"] is False
-        assert "LLM error" in result["error"]
+        # full_only flag is ignored — fallback to code-only renderer on LLM error
+        assert result["success"] is True
+        assert result["full_length"] > 0
 
 
 class TestGetClaimedTasks:
@@ -475,7 +477,6 @@ class TestWriteFiles:
         result = await _write_files(
             session_id="s1",
             full_markdown="# Full",
-            compact_markdown="# Compact",
             write_file=False,
             output_path="~/.gobby/summaries",
             session_manager=sm,

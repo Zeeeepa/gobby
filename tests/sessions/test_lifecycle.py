@@ -270,8 +270,9 @@ class TestSessionLifecycleManager:
         summary_markdown presence: sessions with summaries are marked done,
         those without are deferred for retry.
         """
-        s1 = MagicMock(id="s1", agent_depth=0, source="claude")
-        s2 = MagicMock(id="s2", agent_depth=0, source="claude")
+        _digest = "### Turn 1\nA\n### Turn 2\nB\n### Turn 3\nC"
+        s1 = MagicMock(id="s1", agent_depth=0, source="claude", digest_markdown=_digest)
+        s2 = MagicMock(id="s2", agent_depth=0, source="claude", digest_markdown=_digest)
         manager.session_manager.get_pending_transcript_sessions.return_value = [s1, s2]
 
         # Enable llm_service so the summary-gating logic activates
@@ -698,6 +699,7 @@ class TestProcessPendingTranscriptsArchive:
         session.external_id = "ext-123"
         session.agent_depth = 0
         session.source = "claude"
+        session.digest_markdown = "### Turn 1\nA\n### Turn 2\nB\n### Turn 3\nC"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
         manager.message_manager.purge = AsyncMock()
 
