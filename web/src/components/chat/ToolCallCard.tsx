@@ -3,7 +3,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import type { ToolCall } from '../../types/chat'
+import type { ToolCall, ToolResult } from '../../types/chat'
+import { classifyTool } from '../../types/chat'
 import type { ArtifactType } from '../../types/artifacts'
 import { cn } from '../../lib/utils'
 import { Badge } from './ui/Badge'
@@ -47,32 +48,73 @@ export function pathBasename(path: string): string {
   return parts[parts.length - 1] || path
 }
 
-const FILE_TOOLS = new Set(['Read', 'Write', 'Edit'])
-const COMPACT_HEADER_TOOLS = new Set(['Read', 'Bash', 'Grep', 'Glob', 'list_mcp_servers', 'ExitPlanMode'])
+const FILE_TOOL_TYPES = new Set(['read', 'edit'])
+const COMPACT_HEADER_TOOL_TYPES = new Set(['read', 'bash', 'grep', 'glob'])
+// Names that are compact but don't map to a tool_type
+const COMPACT_HEADER_NAMES = new Set(['list_mcp_servers', 'ExitPlanMode'])
+
+/**
+ * Resolve the canonical tool_type for a ToolCall, falling back to classifyTool
+ * for backward compatibility when tool_type is missing (old format messages).
+ */
+export function resolveToolType(call: ToolCall): string {
+  if (call.tool_type) return call.tool_type
+  return classifyTool(formatToolName(call.tool_name))
+}
+
+/**
+ * Check whether a ToolCall result is the new typed ToolResult format.
+ */
+function isTypedResult(result: unknown): result is ToolResult {
+  if (typeof result !== 'object' || result === null) return false
+  const obj = result as Record<string, unknown>
+  return 'content' in obj && 'content_type' in obj
+}
+
+/**
+ * Extract the displayable string content from a tool result,
+ * handling both old format (raw string/object) and new ToolResult format.
+ */
+export function extractResultContent(result: unknown): unknown {
+  if (isTypedResult(result)) return result.content
+  return result
+}
+
+/**
+ * Extract metadata from a ToolResult, or return undefined for old-format results.
+ */
+export function extractResultMetadata(result: unknown): Record<string, unknown> | undefined {
+  if (isTypedResult(result)) return result.metadata
+  return undefined
+}
 
 export function getToolSummary(call: ToolCall): string | null {
   const args = call.arguments || {}
   const name = formatToolName(call.tool_name)
+  const toolType = resolveToolType(call)
 
-  switch (name) {
-    case 'Read':
-    case 'Write':
-    case 'Edit':
+  // Use tool_type for core categorization (handles aliases like Write -> edit, cat -> read)
+  switch (toolType) {
+    case 'read':
+    case 'edit':
       return (args.file_path as string) || null
 
-    case 'Bash':
+    case 'bash':
       return truncStr(args.command as string, 80)
 
-    case 'Grep': {
+    case 'grep': {
       const pattern = args.pattern as string
       const path = args.path as string
       if (!pattern) return null
       return path ? `"${pattern}" in ${path}` : `"${pattern}"`
     }
 
-    case 'Glob':
+    case 'glob':
       return (args.pattern as string) || null
+  }
 
+  // Name-based matching for tools that don't have a canonical tool_type
+  switch (name) {
     case 'Task': {
       const agentType = args.subagent_type as string
       const desc = args.description as string
@@ -462,24 +504,28 @@ export function extractBase64Image(result: unknown): string | null {
 }
 
 function ToolResultContent({ call }: { call: ToolCall }) {
-  const imageSrc = useMemo(() => extractBase64Image(call.result), [call.result])
+  const rawContent = extractResultContent(call.result)
+  const metadata = extractResultMetadata(call.result)
+  const toolType = resolveToolType(call)
+
+  const imageSrc = useMemo(() => extractBase64Image(rawContent), [rawContent])
 
   const resultStr = useMemo(() => {
     try {
-      if (typeof call.result === 'string') {
+      if (typeof rawContent === 'string') {
         try {
-          return JSON.stringify(JSON.parse(call.result), null, 2)
+          return JSON.stringify(JSON.parse(rawContent), null, 2)
         } catch {
-          return call.result
+          return rawContent
         }
       } else {
-        return JSON.stringify(call.result, null, 2)
+        return JSON.stringify(rawContent, null, 2)
       }
     } catch (e) {
       if (process.env.NODE_ENV === 'development') console.error('Failed to serialize tool call result:', e)
-      return String(call.result)
+      return String(rawContent)
     }
-  }, [call.result])
+  }, [rawContent])
   const filePath = call.arguments?.file_path as string | undefined
 
   // Base64 image — render inline
@@ -498,10 +544,14 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     if (parsed) {
       const language = getLanguageFromPath(filePath)
       const fileName = pathBasename(filePath)
+      const lineCount = metadata?.line_count as number | undefined
       return (
         <div className="rounded overflow-hidden">
           <div className="flex items-center justify-between bg-muted/50 px-3 py-1 text-xs">
             <span className="text-muted-foreground font-mono truncate">{fileName}</span>
+            {lineCount != null && (
+              <span className="text-muted-foreground/60 ml-2">{lineCount} lines</span>
+            )}
           </div>
           <SyntaxHighlighter
             style={highlighterTheme}
@@ -530,14 +580,16 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     }
   }
 
-  const toolName = formatToolName(call.tool_name)
-
   // Grep content mode: parse file:line:content and render per-file with highlighting
-  if (toolName === 'Grep') {
+  if (toolType === 'grep') {
     const groups = parseGrepOutput(resultStr)
     if (groups) {
+      const matchCount = metadata?.match_count as number | undefined
       return (
         <div className="space-y-2">
+          {matchCount != null && (
+            <div className="text-muted-foreground/60 text-xs">{matchCount} match{matchCount !== 1 ? 'es' : ''}</div>
+          )}
           {groups.map((group, i) => {
             const lang = getLanguageFromPath(group.filePath)
             const content = group.lines.map(l => l.content).join('\n')
@@ -575,7 +627,23 @@ function ToolResultContent({ call }: { call: ToolCall }) {
     }
   }
 
+  // Bash results: show exit code from metadata when available
+  if (toolType === 'bash' && metadata?.exit_code != null) {
+    const exitCode = metadata.exit_code as number
+    return (
+      <div>
+        {exitCode !== 0 && (
+          <div className="text-destructive-foreground/70 text-xs mb-1">exit code {exitCode}</div>
+        )}
+        <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground max-h-96 overflow-y-auto font-mono text-xs">
+          {resultStr}
+        </pre>
+      </div>
+    )
+  }
+
   // Agent/Task results: render as markdown
+  const toolName = formatToolName(call.tool_name)
   if (toolName === 'Agent' || toolName === 'Task') {
     return (
       <div className="max-h-96 overflow-y-auto text-xs p-2">
@@ -607,23 +675,25 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
   const isActive = call.status === 'calling' || call.status === 'pending_approval'
   const [expanded, setExpanded] = useState(isActive)
   const displayName = formatToolName(call.tool_name)
+  const toolType = resolveToolType(call)
   const summary = useMemo(() => getToolSummary(call), [call])
-  const isCompact = summary !== null && COMPACT_HEADER_TOOLS.has(displayName)
-  const isFileHeader = FILE_TOOLS.has(displayName)
+  const isCompact = summary !== null && (COMPACT_HEADER_TOOL_TYPES.has(toolType) || COMPACT_HEADER_NAMES.has(displayName))
+  const isFileHeader = FILE_TOOL_TYPES.has(toolType)
   const { openFileAsArtifact } = useArtifactContext()
 
   // Compute artifact info for Read tools to show button in toolbar
   const artifactButton = useMemo(() => {
-    if (displayName !== 'Read' || call.status !== 'completed' || !call.result) return null
+    if (toolType !== 'read' || call.status !== 'completed' || !call.result) return null
     const filePath = call.arguments?.file_path as string | undefined
     if (!filePath) return null
-    const resultStr = typeof call.result === 'string' ? call.result : String(call.result)
+    const content = extractResultContent(call.result)
+    const resultStr = typeof content === 'string' ? content : String(content)
     const parsed = parseReadOutput(resultStr)
     if (!parsed) return null
     const artifactInfo = getArtifactTypeForFile(filePath)
     const fileName = pathBasename(filePath)
     return { artifactInfo, parsed, fileName }
-  }, [displayName, call.status, call.result, call.arguments])
+  }, [toolType, call.status, call.result, call.arguments])
 
   if (call.tool_name === 'render_surface') {
     return <CanvasSurfaceCard call={call} canvasSurfaces={canvasSurfaces} onCanvasInteraction={onCanvasInteraction} />
@@ -682,7 +752,7 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
           {call.arguments && Object.keys(call.arguments).length > 0 && !isCompact && (
             <ToolArgumentsContent args={call.arguments} />
           )}
-          {call.status === 'completed' && call.result !== undefined && !['Edit', 'Write'].includes(formatToolName(call.tool_name)) && (
+          {call.status === 'completed' && call.result !== undefined && toolType !== 'edit' && (
             <div>
               <div className="text-muted-foreground mb-1 font-medium">Result</div>
               <ToolResultContent call={call} />
