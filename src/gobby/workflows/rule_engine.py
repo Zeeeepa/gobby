@@ -591,6 +591,7 @@ class RuleEngine:
                     "background": effect.background,
                     "inject_result": effect.inject_result,
                     "block_on_failure": effect.block_on_failure,
+                    "block_on_success": effect.block_on_success,
                 }
             )
 

@@ -162,7 +162,6 @@ class HookManager:
         self._session_storage = components.session_storage
         self._session_task_manager = components.session_task_manager
         self._memory_storage = components.memory_storage
-        self._message_manager = components.message_manager
         self._task_manager = components.task_manager
         self._agent_run_manager = components.agent_run_manager
         self._worktree_manager = components.worktree_manager
@@ -441,17 +440,7 @@ class HookManager:
         except Exception as e:
             self.logger.warning(f"Non-blocking webhook dispatch failed: {e}")
 
-        # --- Hook-based transcript capture (Windsurf, Copilot) ---
-        # These CLIs don't write local transcript files, so we
-        # assemble transcripts from hook events as they flow through.
-        if event.source in (SessionSource.WINDSURF, SessionSource.COPILOT) and platform_session_id:
-            try:
-                hook_messages = self._hook_assembler.process_event(platform_session_id, event)
-                if hook_messages:
-                    self._store_hook_messages(platform_session_id, hook_messages)
-            except Exception as e:
-                self.logger.warning(f"Hook transcript capture failed: {e}")
-        # ---------------------------------------------------------
+        # Hook-based transcript capture removed (session_messages table dropped)
 
         return cast(HookResponse, response)
 
@@ -501,7 +490,7 @@ class HookManager:
             ):
                 dispatch_results = self._dispatch_mcp_calls(mcp_calls, event) if mcp_calls else []
 
-            # Process auto-heal dispatch results: inject context and block on failure
+            # Process auto-heal dispatch results: inject context, block on failure/success
             extra_context: list[str] = []
             block_override: HookResponse | None = None
 
@@ -518,6 +507,16 @@ class HookManager:
                         reason=(
                             f"Auto-heal prerequisite failed: {dr['server']}/{dr['tool']}: "
                             f"{error_msg}"
+                        ),
+                        context="\n\n".join(extra_context) if extra_context else None,
+                    )
+                    break
+                if dr.get("block_on_success") and dr.get("success"):
+                    block_override = HookResponse(
+                        decision="block",
+                        reason=(
+                            f"Intercepted by {dr['server']}/{dr['tool']} — "
+                            f"results injected below."
                         ),
                         context="\n\n".join(extra_context) if extra_context else None,
                     )
@@ -682,32 +681,6 @@ class HookManager:
                 except Exception as e:
                     self.logger.warning(f"Failed to schedule async webhook: {e}")
 
-    def _store_hook_messages(self, session_id: str, messages: list[Any]) -> None:
-        """Store hook-assembled transcript messages asynchronously.
-
-        Args:
-            session_id: Platform session ID.
-            messages: ParsedMessage objects from HookTranscriptAssembler.
-        """
-        coro = self._message_manager.store_messages(session_id, messages)
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(coro)
-        except RuntimeError:
-            if self._loop:
-                try:
-                    asyncio.run_coroutine_threadsafe(coro, self._loop)
-                except Exception as e:
-                    self.logger.warning(f"Failed to schedule hook message storage: {e}")
-            else:
-                # No event loop available — run synchronously as last resort
-                self.logger.debug(
-                    "No event loop available, running hook message storage synchronously"
-                )
-                try:
-                    asyncio.run(coro)
-                except Exception as e:
-                    self.logger.warning(f"Sync hook message storage failed: {e}")
 
     def _dispatch_mcp_calls(
         self, mcp_calls: list[dict[str, Any]], event: HookEvent
@@ -752,7 +725,8 @@ class HookManager:
             background = call.get("background", False)
             inject_result = call.get("inject_result", False)
             block_on_failure = call.get("block_on_failure", False)
-            needs_capture = inject_result or block_on_failure
+            block_on_success = call.get("block_on_success", False)
+            needs_capture = inject_result or block_on_failure or block_on_success
 
             if not server or not tool:
                 self.logger.warning("_dispatch_mcp_calls: missing server or tool in %s", call)
@@ -809,6 +783,7 @@ class HookManager:
                         "tool": tool,
                         "inject_result": inject_result,
                         "block_on_failure": block_on_failure,
+                        "block_on_success": block_on_success,
                         "success": success,
                         "result": result,
                     }
