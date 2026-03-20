@@ -366,7 +366,7 @@ class TestGetMessagesEdgeCases:
         test_client = TestClient(server.app)
 
         response = test_client.get(
-            f"/api/sessions/{session.id}/messages?limit=50&offset=10&role=user"
+            f"/api/sessions/{session.id}/messages?limit=50&offset=10&role=user&format=legacy"
         )
 
         assert response.status_code == 200
@@ -406,7 +406,7 @@ class TestGetMessagesEdgeCases:
         server.message_manager = mock_message_manager
 
         test_client = TestClient(server.app)
-        response = test_client.get(f"/api/sessions/{session.id}/messages")
+        response = test_client.get(f"/api/sessions/{session.id}/messages?format=legacy")
 
         assert response.status_code == 500
 

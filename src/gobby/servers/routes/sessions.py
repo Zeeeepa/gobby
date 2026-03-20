@@ -618,6 +618,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         limit: int = 100,
         offset: int = 0,
         role: str | None = None,
+        format: str = Query("rendered", pattern="^(rendered|legacy)$"),
     ) -> dict[str, Any]:
         """
         Get messages for a session.
@@ -627,6 +628,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             limit: Max messages to return (default 100)
             offset: Pagination offset
             role: Filter by role (user, assistant, tool)
+            format: Response format - 'rendered' (default) or 'legacy' (flat rows)
 
         Returns:
             List of messages and total count key
@@ -634,14 +636,28 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         start_time = time.perf_counter()
 
         try:
-            if server.message_manager is None:
-                raise HTTPException(status_code=503, detail="Message manager not available")
+            if format == "legacy":
+                if server.message_manager is None:
+                    raise HTTPException(status_code=503, detail="Message manager not available")
 
-            messages = await server.message_manager.get_messages(
-                session_id=session_id, limit=limit, offset=offset, role=role
-            )
+                messages = await server.message_manager.get_messages(
+                    session_id=session_id, limit=limit, offset=offset, role=role
+                )
+                count = await server.message_manager.count_messages(session_id)
+            else:
+                if server.transcript_reader is None:
+                    raise HTTPException(status_code=503, detail="Transcript reader not available")
 
-            count = await server.message_manager.count_messages(session_id)
+                # Note: role filter not yet supported in rendered format (groups turns)
+                # If role filter is needed, legacy format must be used.
+                rendered = await server.transcript_reader.get_rendered_messages(
+                    session_id=session_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                messages = [m.to_dict() for m in rendered]
+                count = await server.transcript_reader.count_messages(session_id)
+
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
             return {
@@ -649,6 +665,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 "messages": messages,
                 "total_count": count,
                 "response_time_ms": response_time_ms,
+                "format": format,
             }
 
         except HTTPException:
