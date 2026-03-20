@@ -585,6 +585,15 @@ async def spawn_agent_impl(
                     variables=dict(agent_body.step_variables),
                 )
                 WorkflowInstanceManager(db).save_instance(step_instance)
+
+                # Initialize step_workflow_complete so the require-step-completion
+                # rule can gate agent stop until the exit_condition is met.
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                SessionVariableManager(db).set_variable(
+                    spawn_result.child_session_id, "step_workflow_complete", False
+                )
+
                 logger.info(
                     "Created step workflow instance %s for session %s (agent=%s, step=%s)",
                     step_wf_name,

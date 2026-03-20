@@ -1190,6 +1190,25 @@ class RuleEngine:
                     instance.workflow_name,
                     session_id,
                 )
+
+                # Evaluate exit_condition after transition
+                if definition.exit_condition:
+                    exit_ctx = {
+                        "current_step": instance.current_step,
+                        "vars": instance.variables,
+                        "variables": variables,
+                    }
+                    if self._evaluate_condition(
+                        definition.exit_condition, exit_ctx, "set_variable"
+                    ):
+                        variables["step_workflow_complete"] = True
+                        logger.info(
+                            "Exit condition met for workflow %s (session=%s, step=%s)",
+                            instance.workflow_name,
+                            session_id,
+                            instance.current_step,
+                        )
+
                 return  # First matching transition wins
 
         # Save if variables changed without transition
