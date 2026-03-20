@@ -113,9 +113,9 @@ class LocalSessionManager:
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
                         workflow_name, status, created_at, updated_at, seq_num, had_edits,
-                        message_count, turn_count, tool_call_count
+                        message_count, turn_count, tool_call_count, last_assistant_content
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0, 0, 0, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0, 0, 0, 0, NULL)
                     """,
                     (
                         session_id,
@@ -562,6 +562,28 @@ class LocalSessionManager:
 
         values["updated_at"] = datetime.now(UTC).isoformat()
         self.db.safe_update("sessions", values, "id = ?", (session_id,))
+        return self.get(session_id)
+
+    def recalculate_stats(self, session_id: str) -> Session | None:
+        """Recalculate session stats from session_messages table.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Updated session or None if not found
+        """
+        sql = """
+        UPDATE sessions SET
+          message_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id),
+          turn_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND role = 'assistant'),
+          tool_call_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND tool_name IS NOT NULL),
+          last_assistant_content = (SELECT content FROM session_messages WHERE session_id = sessions.id AND role = 'assistant' AND tool_name IS NULL ORDER BY message_index DESC LIMIT 1),
+          updated_at = ?
+        WHERE id = ?
+        """
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(sql, (now, session_id))
         return self.get(session_id)
 
     def list(
