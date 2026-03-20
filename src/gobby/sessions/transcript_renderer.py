@@ -35,6 +35,76 @@ class RenderedToolCall:
     error: str | None = None
 
 
+TOOL_TYPE_MAP = {
+    "Bash": "bash",
+    "Read": "read",
+    "Write": "write",
+    "Edit": "edit",
+    "MultiEdit": "edit",
+    "Grep": "grep",
+    "Glob": "glob",
+    "WebSearch": "web_search",
+    "WebFetch": "web_fetch",
+    "AskUserQuestion": "ask_user",
+    "Agent": "agent",
+    "NotebookEdit": "notebook",
+}
+
+
+def classify_tool(tool_name: str | None) -> tuple[str, str | None]:
+    """Returns (tool_type, server_name). Extracts server from mcp__server__tool naming."""
+    if not tool_name:
+        return "unknown", None
+
+    if tool_name in TOOL_TYPE_MAP:
+        return TOOL_TYPE_MAP[tool_name], None
+
+    if tool_name.startswith("mcp__"):
+        parts = tool_name.split("__")
+        if len(parts) >= 3:
+            return "mcp", parts[1]
+        return "mcp", "unknown"
+
+    return "unknown", None
+
+
+def extract_result_metadata(
+    tool_type: str, result_content: Any, arguments: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Extract tool-specific metadata from result for rich frontend rendering."""
+    metadata: dict[str, Any] = {}
+    if result_content is None:
+        return metadata
+
+    match tool_type:
+        case "bash":
+            if isinstance(result_content, dict):
+                metadata["exit_code"] = result_content.get("exit_code")
+                stdout = result_content.get("stdout", "")
+                stderr = result_content.get("stderr", "")
+                if isinstance(stdout, str):
+                    metadata["stdout_lines"] = len(stdout.splitlines())
+                if isinstance(stderr, str):
+                    metadata["stderr_lines"] = len(stderr.splitlines())
+        case "read":
+            if isinstance(result_content, str):
+                metadata["line_count"] = len(result_content.splitlines())
+            if arguments:
+                metadata["file_path"] = arguments.get("file_path") or arguments.get("path")
+        case "edit":
+            if arguments:
+                metadata["file_path"] = arguments.get("file_path") or arguments.get("path")
+        case "grep":
+            if isinstance(result_content, dict):
+                metadata["files_matched"] = result_content.get("files_matched")
+                metadata["total_matches"] = result_content.get("total_matches")
+        case "glob":
+            if isinstance(result_content, list):
+                metadata["files_found"] = len(result_content)
+
+    return metadata
+
+
 @dataclass
 class ContentBlock:
     """A block of content within a message."""
@@ -186,17 +256,6 @@ def _strip_hook_context(content: str) -> str:
     return content
 
 
-def _extract_server_name(tool_name: str | None) -> str:
-    """Extract server name from tool name (mcp__server__tool -> server)."""
-    if not tool_name:
-        return "unknown"
-    if tool_name.startswith("mcp__"):
-        parts = tool_name.split("__")
-        if len(parts) >= 3:
-            return parts[1]
-    return "unknown"
-
-
 def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
     """Integrate a ParsedMessage into the current RenderedMessage or pair as tool result."""
 
@@ -204,9 +263,13 @@ def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
     if msg.content_type in ["tool_result", "mcp_tool_result"]:
         if msg.tool_use_id and msg.tool_use_id in state.pending_tool_calls:
             tool_call = state.pending_tool_calls[msg.tool_use_id]
+            content = msg.tool_result or msg.content
             tool_call.result = ToolResult(
-                content=msg.tool_result or msg.content,
+                content=content,
                 content_type="json" if msg.tool_result else "text",
+                metadata=extract_result_metadata(
+                    tool_call.tool_type, content, tool_call.arguments
+                ),
             )
             tool_call.status = "success"
             return
@@ -228,20 +291,20 @@ def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
     state.seen_content.add(content_hash)
 
     # User message cleanup
-    content: Any = msg.content
-    if state.current_message.role == "user" and isinstance(content, str):
-        content = _strip_hook_context(content)
+    block_text: Any = msg.content
+    if state.current_message.role == "user" and isinstance(block_text, str):
+        block_text = _strip_hook_context(block_text)
 
     # Block Type Mapping
     original_type = msg.content_type
     block_type = original_type
-    block_content: Any = content
+    block_content: Any = block_text
 
     if block_type in ["tool_use", "mcp_tool_use"]:
         block_type = "tool_chain"
     elif block_type == "web_search_tool_result":
         block_type = "web_search_result"
-        block_content = msg.tool_result or content
+        block_content = msg.tool_result or block_text
     elif block_type in ["text", "thinking", "tool_reference", "image", "document"]:
         pass  # Use as-is
     else:
@@ -270,11 +333,12 @@ def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
             block.raw = msg.raw_json
 
         if block_type == "tool_chain":
+            tool_type, server_name = classify_tool(msg.tool_name)
             tool_call = RenderedToolCall(
                 id=msg.tool_use_id or f"call-{msg.index}",
                 tool_name=msg.tool_name or "unknown",
-                server_name=_extract_server_name(msg.tool_name),
-                tool_type="mcp",
+                server_name=server_name or "unknown",
+                tool_type=tool_type,
                 arguments=msg.tool_input or {},
             )
             block.tool_calls = [tool_call]
