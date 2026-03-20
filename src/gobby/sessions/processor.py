@@ -66,6 +66,9 @@ class SessionMessageProcessor:
         # Track render state for incremental rendering per session
         self._render_states: dict[str, RenderState] = {}
 
+        # Incremental stat accumulators per session
+        self._stats: dict[str, dict[str, int | str | None]] = {}
+
         self._running = False
         self._task: asyncio.Task[None] | None = None
 
@@ -121,6 +124,7 @@ class SessionMessageProcessor:
                 del self._parsers[session_id]
             self._last_mtime.pop(session_id, None)
             self._render_states.pop(session_id, None)
+            self._stats.pop(session_id, None)
             logger.debug(f"Unregistered session {session_id}")
 
     async def _loop(self) -> None:
@@ -218,19 +222,38 @@ class SessionMessageProcessor:
             )
             return
 
-        # Store messages
-        await self.message_manager.store_messages(session_id, parsed_messages)
+        # Compute incremental stats (no DB message writes)
+        stats = self._stats.get(session_id, {
+            "message_count": 0,
+            "turn_count": 0,
+            "tool_call_count": 0,
+            "last_assistant_content": None,
+        })
+        for msg in parsed_messages:
+            stats["message_count"] = stats.get("message_count", 0) + 1
+            if msg.role == "assistant" and msg.content_type == "text":
+                stats["turn_count"] = stats.get("turn_count", 0) + 1
+                if isinstance(msg.content, str) and msg.content.strip():
+                    stats["last_assistant_content"] = msg.content.strip()[-500:]
+            if msg.tool_name:
+                stats["tool_call_count"] = stats.get("tool_call_count", 0) + 1
+        self._stats[session_id] = stats
 
-        # Keep session alive while messages are flowing
+        # Write stats to sessions table
         if self.session_manager:
             self.session_manager.touch(session_id)
-
-        # Extract and store model from parsed messages (if present)
-        if self.session_manager:
+            self.session_manager.update_stats(
+                session_id,
+                message_count=stats.get("message_count", 0),
+                turn_count=stats.get("turn_count", 0),
+                tool_call_count=stats.get("tool_call_count", 0),
+                last_assistant_content=stats.get("last_assistant_content"),
+            )
+            # Extract and store model
             for msg in parsed_messages:
                 if msg.model:
                     self.session_manager.update_model(session_id, msg.model)
-                    break  # Only need the first model found
+                    break
 
         # Render incrementally and broadcast
         render_state = self._render_states.get(session_id, RenderState())
@@ -315,15 +338,33 @@ class SessionMessageProcessor:
             self._last_mtime[session_id] = current_mtime
             return
 
-        # Store messages
-        await self.message_manager.store_messages(session_id, new_messages)
+        # Compute incremental stats (no DB message writes)
+        stats = self._stats.get(session_id, {
+            "message_count": 0,
+            "turn_count": 0,
+            "tool_call_count": 0,
+            "last_assistant_content": None,
+        })
+        for msg in new_messages:
+            stats["message_count"] = stats.get("message_count", 0) + 1
+            if msg.role == "assistant" and msg.content_type == "text":
+                stats["turn_count"] = stats.get("turn_count", 0) + 1
+                if isinstance(msg.content, str) and msg.content.strip():
+                    stats["last_assistant_content"] = msg.content.strip()[-500:]
+            if msg.tool_name:
+                stats["tool_call_count"] = stats.get("tool_call_count", 0) + 1
+        self._stats[session_id] = stats
 
-        # Keep session alive while messages are flowing
+        # Write stats and keep session alive
         if self.session_manager:
             self.session_manager.touch(session_id)
-
-        # Extract and store model from parsed messages
-        if self.session_manager:
+            self.session_manager.update_stats(
+                session_id,
+                message_count=stats.get("message_count", 0),
+                turn_count=stats.get("turn_count", 0),
+                tool_call_count=stats.get("tool_call_count", 0),
+                last_assistant_content=stats.get("last_assistant_content"),
+            )
             for msg in new_messages:
                 if msg.model:
                     self.session_manager.update_model(session_id, msg.model)
