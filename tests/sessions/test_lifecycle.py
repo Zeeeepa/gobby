@@ -106,6 +106,8 @@ class TestSessionLifecycleManager:
         session.id = "s1"
         session.jsonl_path = str(tmp_path / "transcript.jsonl")
         session.external_id = "ext-s1"
+        session.agent_depth = 0
+        session.source = "claude"
 
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
 
@@ -128,6 +130,60 @@ class TestSessionLifecycleManager:
             assert processed == 1
             mock_process.assert_awaited_once_with("s1", session.jsonl_path)
             manager.session_manager.mark_transcript_processed.assert_called_once_with("s1")
+
+    @pytest.mark.asyncio
+    async def test_process_pending_transcripts_skips_subagent_sessions(self, tmp_path, manager):
+        """Subagent sessions (agent_depth > 0) skip memory extraction and summary generation."""
+        session = MagicMock(spec=Session)
+        session.id = "s-sub"
+        session.jsonl_path = str(tmp_path / "transcript.jsonl")
+        session.external_id = "ext-sub"
+        session.agent_depth = 1
+        session.source = "claude"
+
+        manager.session_manager.get_pending_transcript_sessions.return_value = [session]
+
+        with open(session.jsonl_path, "w") as f:
+            f.write('{"type": "message", "content": "hello"}\n')
+
+        with (
+            patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
+            patch.object(manager, "_extract_memories_if_needed", new_callable=AsyncMock) as mock_mem,
+            patch.object(manager, "_generate_summaries_if_needed", new_callable=AsyncMock) as mock_sum,
+        ):
+            processed = await manager._process_pending_transcripts()
+
+            assert processed == 1
+            mock_mem.assert_not_awaited()
+            mock_sum.assert_not_awaited()
+            manager.session_manager.mark_transcript_processed.assert_called_once_with("s-sub")
+
+    @pytest.mark.asyncio
+    async def test_process_pending_transcripts_skips_pipeline_sessions(self, tmp_path, manager):
+        """Pipeline sessions skip memory extraction and summary generation."""
+        session = MagicMock(spec=Session)
+        session.id = "s-pipe"
+        session.jsonl_path = str(tmp_path / "transcript.jsonl")
+        session.external_id = "ext-pipe"
+        session.agent_depth = 0
+        session.source = "pipeline"
+
+        manager.session_manager.get_pending_transcript_sessions.return_value = [session]
+
+        with open(session.jsonl_path, "w") as f:
+            f.write('{"type": "message", "content": "hello"}\n')
+
+        with (
+            patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
+            patch.object(manager, "_extract_memories_if_needed", new_callable=AsyncMock) as mock_mem,
+            patch.object(manager, "_generate_summaries_if_needed", new_callable=AsyncMock) as mock_sum,
+        ):
+            processed = await manager._process_pending_transcripts()
+
+            assert processed == 1
+            mock_mem.assert_not_awaited()
+            mock_sum.assert_not_awaited()
+            manager.session_manager.mark_transcript_processed.assert_called_once_with("s-pipe")
 
     @pytest.mark.asyncio
     async def test_process_session_transcript_real_parsing(self, tmp_path, manager):
@@ -214,8 +270,8 @@ class TestSessionLifecycleManager:
         summary_markdown presence: sessions with summaries are marked done,
         those without are deferred for retry.
         """
-        s1 = MagicMock(id="s1")
-        s2 = MagicMock(id="s2")
+        s1 = MagicMock(id="s1", agent_depth=0, source="claude")
+        s2 = MagicMock(id="s2", agent_depth=0, source="claude")
         manager.session_manager.get_pending_transcript_sessions.return_value = [s1, s2]
 
         # Enable llm_service so the summary-gating logic activates
@@ -640,6 +696,8 @@ class TestProcessPendingTranscriptsArchive:
         session.id = "s1"
         session.jsonl_path = "/path/to/transcript.jsonl"
         session.external_id = "ext-123"
+        session.agent_depth = 0
+        session.source = "claude"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
         manager.message_manager.purge = AsyncMock()
 
@@ -664,6 +722,8 @@ class TestProcessPendingTranscriptsArchive:
         session.id = "s1"
         session.jsonl_path = "/path/to/transcript.jsonl"
         session.external_id = "ext-123"
+        session.agent_depth = 0
+        session.source = "claude"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
         manager.message_manager.purge = AsyncMock()
 
@@ -688,6 +748,8 @@ class TestProcessPendingTranscriptsArchive:
         session.id = "s1"
         session.jsonl_path = "/path/to/transcript.jsonl"
         session.external_id = "ext-123"
+        session.agent_depth = 0
+        session.source = "claude"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
 
         with (

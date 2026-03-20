@@ -213,11 +213,26 @@ class SessionLifecycleManager:
 
         processed = 0
         for session in sessions:
+            agent_depth = getattr(session, "agent_depth", 0) or 0
+            source = getattr(session, "source", "") or ""
+            skip_llm = agent_depth > 0 or source in ("pipeline", "cron")
+
             # Step 1: Process transcript (reads JSONL, stores messages, aggregates usage)
             try:
                 await self._process_session_transcript(session.id, session.jsonl_path)
             except Exception as e:
                 logger.error(f"Failed to process transcript for {session.id}: {e}")
+
+            # Skip LLM-heavy steps for non-human sessions — subagents, pipelines,
+            # and cron sessions are ephemeral and not worth the token cost.
+            if skip_llm:
+                self.session_manager.mark_transcript_processed(session.id)
+                processed += 1
+                logger.debug(
+                    f"Processed transcript for {source} session {session.id} "
+                    f"(depth={agent_depth}, skipped memory/summary)"
+                )
+                continue
 
             # Step 2: Extract memories (best-effort, independent of transcript success)
             try:

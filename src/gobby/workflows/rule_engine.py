@@ -689,6 +689,28 @@ class RuleEngine:
             "source": event.source.value if event.source else None,
         }
 
+        # Safely inject project context if not in variables
+        if "project" not in variables:
+            project_info = {"name": "Unknown", "id": "unknown", "path": ""}
+            try:
+                session_id = event.metadata.get("_platform_session_id")
+                if session_id:
+                    from gobby.storage.projects import LocalProjectManager
+                    from gobby.storage.sessions import LocalSessionManager
+
+                    session_db = LocalSessionManager(self.db).get(session_id)
+                    if session_db and session_db.project_id:
+                        proj = LocalProjectManager(self.db).get(session_db.project_id)
+                        if proj:
+                            project_info = {
+                                "name": proj.name,
+                                "id": proj.id,
+                                "path": proj.repo_path or "",
+                            }
+            except Exception:
+                pass
+            ctx["project"] = project_info
+
         # Flatten variables at top level for convenience
         for key, val in variables.items():
             if key not in ctx:
