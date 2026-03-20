@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
 
@@ -196,7 +197,7 @@ def _extract_server_name(tool_name: str | None) -> str:
     return "unknown"
 
 
-def _process_message_block(msg: ParsedMessage, state: RenderState):
+def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
     """Integrate a ParsedMessage into the current RenderedMessage or pair as tool result."""
 
     # Tool Result Pairing
