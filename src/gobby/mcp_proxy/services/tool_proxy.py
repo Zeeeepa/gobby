@@ -297,6 +297,12 @@ class ToolProxyService:
                     "error": "Invalid arguments: expected dict, got string that isn't valid JSON",
                     "error_code": ToolProxyErrorCode.INVALID_ARGUMENTS.value,
                 }
+        # Strip call_tool's own parameters that LLMs sometimes flatten into
+        # the arguments dict instead of passing as separate parameters.
+        if isinstance(arguments, dict):
+            for leaked_key in ("server_name", "tool_name"):
+                arguments.pop(leaked_key, None)
+
         if not isinstance(arguments, dict):
             return {
                 "success": False,

@@ -196,6 +196,12 @@ class GobbyDaemonTools:
                 )
 
         # At this point arguments is dict or None (str case handled above)
+        # Strip call_tool's own parameters that LLMs sometimes flatten into
+        # the arguments dict instead of passing as separate parameters.
+        if isinstance(arguments, dict):
+            for leaked_key in ("server_name", "tool_name"):
+                arguments.pop(leaked_key, None)
+
         effective_arguments: dict[str, Any] | None = (
             arguments if isinstance(arguments, dict) else None
         )
