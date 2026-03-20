@@ -4,6 +4,7 @@ import { cn } from '../../lib/utils'
 import { Markdown } from './Markdown'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallCards, ToolChainGroup } from './ToolCallCard'
+import { UnknownBlockCard } from './UnknownBlockCard'
 import type { A2UISurfaceState, UserAction } from '../canvas'
 
 interface MessageItemProps {
@@ -132,9 +133,11 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
               }
               if (block.type === 'unknown') {
                 return (
-                  <div key={`${message.id}-b${i}`} className="my-1 text-xs text-muted-foreground/60 italic">
-                    Unsupported block type: {block.block_type}
-                  </div>
+                  <UnknownBlockCard
+                    key={`${message.id}-b${i}`}
+                    blockType={block.block_type}
+                    raw={block.raw}
+                  />
                 )
               }
               return null
