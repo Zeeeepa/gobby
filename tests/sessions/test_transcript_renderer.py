@@ -1,7 +1,5 @@
 from datetime import UTC, datetime
 
-import pytest
-
 from gobby.sessions.transcript_renderer import (
     RenderState,
     classify_tool,
