@@ -545,3 +545,13 @@ class TestTranscriptReaderRendered:
         result = await reader.get_rendered_messages("sess-1")
         assert len(result) >= 1
         assert "valid" in result[0].content
+
+    @pytest.mark.asyncio
+    async def test_get_rendered_messages_empty_session(self):
+        message_manager = AsyncMock()
+        session_manager = MagicMock()
+        session_manager.get.return_value = None
+
+        reader = TranscriptReader(message_manager, session_manager)
+        result = await reader.get_rendered_messages("empty-session")
+        assert result == []

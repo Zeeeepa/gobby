@@ -28,6 +28,8 @@ if TYPE_CHECKING:
 
     TranscriptParser = ClaudeTranscriptParser | GeminiTranscriptParser | CodexTranscriptParser
 
+from gobby.sessions.transcript_renderer import render_transcript
+
 logger = logging.getLogger(__name__)
 
 # LRU-cached decompression to avoid repeated gzip reads within a session
@@ -190,8 +192,6 @@ class TranscriptReader:
             return []
 
         # 3. Render transcript (group blocks into turns)
-        from gobby.sessions.transcript_renderer import render_transcript
-
         rendered = render_transcript(parsed_messages, session_id=session_id)
 
         # 4. Apply pagination
