@@ -56,6 +56,7 @@ def register_message_tools(
         name="get_session_messages",
         description="Get messages for a session. Returns rendered messages with content blocks. Accepts #N, N, UUID, or prefix for session_id.",
     )
+    # Entry point for get_session_messages tool
     async def get_session_messages(
         session_id: str,
         limit: int = 50,
