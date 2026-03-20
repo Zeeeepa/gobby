@@ -288,16 +288,20 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
         }>
         const tools = calls.filter((c) => c.type === 'tool_use')
         if (tools.length > 0) {
-          const toolCalls = tools.map((t) => ({
-            id: t.id || `tool-${msg.id}-${t.name}`,
-            tool_name: t.name || 'unknown',
-            server_name: extractServerName(t.name || ''),
-            status: 'completed' as const,
-            arguments:
-              typeof t.input === 'object' && t.input !== null
-                ? (t.input as Record<string, unknown>)
-                : undefined,
-          }))
+          const toolCalls: ToolCall[] = tools.map((t) => {
+            const toolName = t.name || 'unknown'
+            return {
+              id: t.id || `tool-${msg.id}-${toolName}`,
+              tool_name: toolName,
+              server_name: extractServerName(toolName),
+              tool_type: classifyTool(toolName),
+              status: 'completed' as const,
+              arguments:
+                typeof t.input === 'object' && t.input !== null
+                  ? (t.input as Record<string, unknown>)
+                  : undefined,
+            }
+          })
           const chatMsg: ChatMessage = {
             id: String(msg.id),
             role: 'assistant',

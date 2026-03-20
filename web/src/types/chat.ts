@@ -33,7 +33,7 @@ export const CHAT_MODES: ChatModeInfo[] = [
 
 export interface ToolResult {
   content: unknown;
-  content_type: "text" | "json" | "image" | "error";
+  content_type: string;  // 'text' | 'json' | 'image' | 'error'
   truncated: boolean;
   metadata?: Record<string, unknown>;  // exit_code, line_count, etc.
 }
