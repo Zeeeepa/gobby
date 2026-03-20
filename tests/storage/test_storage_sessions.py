@@ -85,7 +85,7 @@ class TestLocalSessionManager:
         assert session.status == "active"
         assert session.jsonl_path == "/path/to/transcript.jsonl"
         assert session.git_branch == "main"
-        
+
         # Verify stats columns
         assert session.message_count == 0
         assert session.turn_count == 0
@@ -104,20 +104,20 @@ class TestLocalSessionManager:
             source="claude",
             project_id=sample_project["id"],
         )
-        
+
         # Verify Session object has fields
         assert hasattr(session, "message_count")
         assert hasattr(session, "turn_count")
         assert hasattr(session, "tool_call_count")
         assert hasattr(session, "last_assistant_content")
-        
+
         # Verify values from DB
         row = session_manager.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session.id,))
         assert "message_count" in row.keys()
         assert "turn_count" in row.keys()
         assert "tool_call_count" in row.keys()
         assert "last_assistant_content" in row.keys()
-        
+
         assert row["message_count"] == 0
         assert row["turn_count"] == 0
         assert row["tool_call_count"] == 0
@@ -275,21 +275,21 @@ class TestLocalSessionManager:
             source="claude",
             project_id=sample_project["id"],
         )
-        
+
         updated = session_manager.update_stats(
             session.id,
             message_count=10,
             turn_count=5,
             tool_call_count=3,
-            last_assistant_content="Testing stats update."
+            last_assistant_content="Testing stats update.",
         )
-        
+
         assert updated is not None
         assert updated.message_count == 10
         assert updated.turn_count == 5
         assert updated.tool_call_count == 3
         assert updated.last_assistant_content == "Testing stats update."
-        
+
         # Verify DB persisted
         row = session_manager.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session.id,))
         assert row["message_count"] == 10
@@ -309,27 +309,39 @@ class TestLocalSessionManager:
             source="claude",
             project_id=sample_project["id"],
         )
-        
+
         # Insert test messages manually
-        session_manager.db.execute("""
+        session_manager.db.execute(
+            """
             INSERT INTO session_messages (session_id, message_index, role, content, timestamp)
             VALUES (?, 0, 'user', 'hello', '2026-03-20T10:00:00')
-        """, (session.id,))
-        session_manager.db.execute("""
+        """,
+            (session.id,),
+        )
+        session_manager.db.execute(
+            """
             INSERT INTO session_messages (session_id, message_index, role, content, timestamp)
             VALUES (?, 1, 'assistant', 'thinking...', '2026-03-20T10:00:01')
-        """, (session.id,))
-        session_manager.db.execute("""
+        """,
+            (session.id,),
+        )
+        session_manager.db.execute(
+            """
             INSERT INTO session_messages (session_id, message_index, role, content, tool_name, timestamp)
             VALUES (?, 2, 'assistant', '', 'Grep', '2026-03-20T10:00:02')
-        """, (session.id,))
-        session_manager.db.execute("""
+        """,
+            (session.id,),
+        )
+        session_manager.db.execute(
+            """
             INSERT INTO session_messages (session_id, message_index, role, content, timestamp)
             VALUES (?, 3, 'assistant', 'I found it.', '2026-03-20T10:00:03')
-        """, (session.id,))
+        """,
+            (session.id,),
+        )
 
         updated = session_manager.recalculate_stats(session.id)
-        
+
         assert updated is not None
         assert updated.message_count == 4
         assert updated.turn_count == 3
