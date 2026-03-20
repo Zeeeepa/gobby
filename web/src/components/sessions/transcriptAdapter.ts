@@ -134,9 +134,9 @@ function appendToolBlock(msg: ChatMessage, tc: ToolCall) {
   if (!msg.contentBlocks) msg.contentBlocks = []
   const last = msg.contentBlocks[msg.contentBlocks.length - 1]
   if (last?.type === 'tool_chain') {
-    last.calls.push(tc)
+    last.tool_calls.push(tc)
   } else {
-    msg.contentBlocks.push({ type: 'tool_chain', calls: [tc] })
+    msg.contentBlocks.push({ type: 'tool_chain', tool_calls: [tc] })
   }
 }
 
@@ -186,7 +186,7 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
           if (lastAssistant.contentBlocks) {
             for (const block of lastAssistant.contentBlocks) {
               if (block.type === 'tool_chain') {
-                const tcMatch = block.calls.find((c) => c.id === match.id)
+                const tcMatch = block.tool_calls.find((c) => c.id === match.id)
                 if (tcMatch) {
                   tcMatch.result = match.result
                   tcMatch.status = 'completed'
@@ -214,7 +214,7 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
         if (lastAssistant.contentBlocks) {
           for (const block of lastAssistant.contentBlocks) {
             if (block.type === 'tool_chain') {
-              const match = block.calls.find((c) => c.id === lastTc.id)
+              const match = block.tool_calls.find((c) => c.id === lastTc.id)
               if (match) {
                 match.error = content
                 match.status = 'error'
@@ -275,7 +275,7 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
             content: '',
             timestamp: new Date(msg.timestamp),
             toolCalls,
-            contentBlocks: [{ type: 'tool_chain', calls: [...toolCalls] }],
+            contentBlocks: [{ type: 'tool_chain', tool_calls: [...toolCalls] }],
           }
           lastAssistant = chatMsg
           result.push(chatMsg)

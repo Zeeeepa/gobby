@@ -31,20 +31,33 @@ export const CHAT_MODES: ChatModeInfo[] = [
   },
 ];
 
+export interface ToolResult {
+  content: unknown;
+  content_type: string;  // 'text' | 'json' | 'image' | 'error'
+  truncated: boolean;
+  metadata?: Record<string, unknown>;  // exit_code, line_count, etc.
+}
+
 export interface ToolCall {
   id: string;
   tool_name: string;
   server_name: string;
-  status: "calling" | "completed" | "error" | "pending_approval";
+  tool_type: string;    // NEW: 'bash', 'read', 'edit', 'mcp', etc.
+  status: "calling" | "completed" | "error" | "pending" | "pending_approval";
   arguments?: Record<string, unknown>;
-  result?: unknown;
+  result?: ToolResult;  // NEW: typed result instead of unknown
   error?: string;
 }
 
 export type ContentBlock =
   | { type: "text"; content: string }
-  | { type: "tool_chain"; calls: ToolCall[] }
-  | { type: "image"; src: string; alt?: string };
+  | { type: "thinking"; content: string }
+  | { type: "tool_chain"; tool_calls: ToolCall[] }
+  | { type: "tool_reference"; tool_name: string; server_name: string }
+  | { type: "image"; source: Record<string, unknown> }
+  | { type: "document"; source: Record<string, unknown> }
+  | { type: "web_search_result"; content: Record<string, unknown> }
+  | { type: "unknown"; block_type: string; raw: Record<string, unknown>; source_line?: number };
 
 export interface ChatMessage {
   id: string;

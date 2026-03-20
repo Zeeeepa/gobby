@@ -154,9 +154,9 @@ function appendToolBlock(msg: ChatMessage, tc: ToolCall) {
   if (!msg.contentBlocks) msg.contentBlocks = [];
   const last = msg.contentBlocks[msg.contentBlocks.length - 1];
   if (last?.type === "tool_chain") {
-    last.calls.push(tc);
+    last.tool_calls.push(tc);
   } else {
-    msg.contentBlocks.push({ type: "tool_chain", calls: [tc] });
+    msg.contentBlocks.push({ type: "tool_chain", tool_calls: [tc] });
   }
 }
 
@@ -165,7 +165,7 @@ function findToolCallById(msg: ChatMessage, toolUseId: string): ToolCall | undef
   if (msg.contentBlocks) {
     for (const block of msg.contentBlocks) {
       if (block.type === "tool_chain") {
-        const found = block.calls.find((tc) => tc.id === toolUseId);
+        const found = block.tool_calls.find((tc) => tc.id === toolUseId);
         if (found) return found;
       }
     }
@@ -180,7 +180,7 @@ function findPendingToolCall(msg: ChatMessage): ToolCall | undefined {
     for (let i = msg.contentBlocks.length - 1; i >= 0; i--) {
       const block = msg.contentBlocks[i];
       if (block.type === "tool_chain") {
-        const pending = block.calls.find((tc) => tc.status !== "completed");
+        const pending = block.tool_calls.find((tc) => tc.status !== "completed");
         if (pending) return pending;
       }
     }
@@ -267,7 +267,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           if (currentAssistant.contentBlocks) {
             for (const block of currentAssistant.contentBlocks) {
               if (block.type === "tool_chain") {
-                const tcMatch = block.calls.find((c) => c.id === lastTc.id);
+                const tcMatch = block.tool_calls.find((c) => c.id === lastTc.id);
                 if (tcMatch) {
                   tcMatch.error = content;
                   tcMatch.status = "error";
@@ -362,7 +362,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
             if (!currentAssistant) {
               currentAssistant = {
                 id, role: "assistant", content: "", timestamp: new Date(m.timestamp),
-                toolCalls, contentBlocks: [{ type: "tool_chain", calls: [...toolCalls] }],
+                toolCalls, contentBlocks: [{ type: "tool_chain", tool_calls: [...toolCalls] }],
               };
             } else {
               currentAssistant.toolCalls = [...(currentAssistant.toolCalls || []), ...toolCalls];
@@ -996,9 +996,9 @@ export function useChat() {
                     const blocks = [...(last.contentBlocks || [])];
                     const lastBlock = blocks[blocks.length - 1];
                     if (lastBlock?.type === "tool_chain") {
-                      blocks[blocks.length - 1] = { ...lastBlock, calls: [...lastBlock.calls, toolCall] };
+                      blocks[blocks.length - 1] = { ...lastBlock, tool_calls: [...lastBlock.tool_calls, toolCall] };
                     } else {
-                      blocks.push({ type: "tool_chain" as const, calls: [toolCall] });
+                      blocks.push({ type: "tool_chain" as const, tool_calls: [toolCall] });
                     }
                     updated[lastIdx] = {
                       ...last,
@@ -1015,7 +1015,7 @@ export function useChat() {
                       content: "",
                       timestamp: new Date(),
                       toolCalls: [toolCall],
-                      contentBlocks: [{ type: "tool_chain" as const, calls: [toolCall] }],
+                      contentBlocks: [{ type: "tool_chain" as const, tool_calls: [toolCall] }],
                     },
                   ];
                 });
@@ -1049,11 +1049,11 @@ export function useChat() {
                     for (let bi = 0; bi < blocks.length; bi++) {
                       const block = blocks[bi];
                       if (block.type === "tool_chain") {
-                        const tcIdx = block.calls.findIndex((c) => c.id === callRef.id);
+                        const tcIdx = block.tool_calls.findIndex((c) => c.id === callRef.id);
                         if (tcIdx >= 0) {
-                          const updatedBlockCalls = [...block.calls];
+                          const updatedBlockCalls = [...block.tool_calls];
                           updatedBlockCalls[tcIdx] = callRef;
-                          blocks[bi] = { ...block, calls: updatedBlockCalls };
+                          blocks[bi] = { ...block, tool_calls: updatedBlockCalls };
                           break;
                         }
                       }
@@ -1333,7 +1333,7 @@ export function useChat() {
             content: "",
             timestamp: new Date(),
             toolCalls: [newCall],
-            contentBlocks: [{ type: "tool_chain" as const, calls: [newCall] }],
+            contentBlocks: [{ type: "tool_chain" as const, tool_calls: [newCall] }],
           },
         ];
       }
@@ -1375,11 +1375,11 @@ export function useChat() {
         for (let bi = 0; bi < blocks.length; bi++) {
           const block = blocks[bi];
           if (block.type === "tool_chain") {
-            const tcIdx = block.calls.findIndex((c) => c.id === status.tool_call_id);
+            const tcIdx = block.tool_calls.findIndex((c) => c.id === status.tool_call_id);
             if (tcIdx >= 0) {
-              const updatedCalls = [...block.calls];
+              const updatedCalls = [...block.tool_calls];
               updatedCalls[tcIdx] = callRef;
-              blocks[bi] = { ...block, calls: updatedCalls };
+              blocks[bi] = { ...block, tool_calls: updatedCalls };
               break;
             }
           }
@@ -1388,9 +1388,9 @@ export function useChat() {
         // New tool call — append to last tool_chain or create new one
         const lastBlock = blocks[blocks.length - 1];
         if (lastBlock?.type === "tool_chain") {
-          blocks[blocks.length - 1] = { ...lastBlock, calls: [...lastBlock.calls, callRef] };
+          blocks[blocks.length - 1] = { ...lastBlock, tool_calls: [...lastBlock.tool_calls, callRef] };
         } else {
-          blocks.push({ type: "tool_chain" as const, calls: [callRef] });
+          blocks.push({ type: "tool_chain" as const, tool_calls: [callRef] });
         }
       }
 
