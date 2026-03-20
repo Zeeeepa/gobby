@@ -3,8 +3,8 @@ import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import type { GobbySession } from '../../hooks/useSessions'
 import { useSessionDetail } from '../../hooks/useSessionDetail'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
-import { sessionMessagesToChatMessages } from '../sessions/transcriptAdapter'
 import { MessageItem } from '../chat/MessageItem'
+import type { ChatMessage } from '../../types/chat'
 import { ArtifactContext } from '../chat/artifacts/ArtifactContext'
 
 interface RunningAgent {
@@ -119,7 +119,25 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
 
   // Fetch selected session messages
   const { messages, isLoading } = useSessionDetail(selectedSessionId)
-  const chatMessages = sessionMessagesToChatMessages(messages)
+  const chatMessages: ChatMessage[] = useMemo(() => messages.map((m) => {
+    const chatMsg: ChatMessage = {
+      id: m.id,
+      role: (m.role as 'user' | 'assistant' | 'system') || 'assistant',
+      content: m.content || '',
+      timestamp: new Date(m.timestamp),
+      contentBlocks: m.content_blocks,
+    }
+    if (m.content_blocks) {
+      for (const block of m.content_blocks) {
+        if (block.type === 'tool_chain' && block.tool_calls) {
+          chatMsg.toolCalls = [...(chatMsg.toolCalls || []), ...block.tool_calls]
+        } else if (block.type === 'thinking') {
+          chatMsg.thinkingContent = (chatMsg.thinkingContent || '') + block.content
+        }
+      }
+    }
+    return chatMsg
+  }), [messages])
 
   // Auto-scroll when new messages arrive
   useEffect(() => {
