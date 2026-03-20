@@ -27,7 +27,6 @@ from gobby.config.features import (
     ChatConfig,
     ImportMCPServerConfig,
     KnowledgeGraphQueueConfig,
-    MemoryEntityExtractionConfig,
     MemoryExtractionConfig,
     MergeResolutionConfig,
     MetricsConfig,
@@ -345,10 +344,6 @@ class DaemonConfig(BaseModel):
     knowledge_graph_queue: KnowledgeGraphQueueConfig = Field(
         default_factory=KnowledgeGraphQueueConfig,
         description="Background knowledge graph processing queue configuration",
-    )
-    memory_entity_extraction: MemoryEntityExtractionConfig = Field(
-        default_factory=MemoryEntityExtractionConfig,
-        description="Memory entity extraction LLM configuration",
     )
     hook_extensions: HookExtensionsConfig = Field(
         default_factory=HookExtensionsConfig,

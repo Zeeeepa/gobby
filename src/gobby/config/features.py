@@ -23,7 +23,6 @@ __all__ = [
     "ToolSummarizerConfig",
     "RecommendToolsConfig",
     "ImportMCPServerConfig",
-    "MemoryEntityExtractionConfig",
     "MemoryExtractionConfig",
     "MergeResolutionConfig",
     "MetricsConfig",
@@ -169,27 +168,6 @@ class KnowledgeGraphQueueConfig(BaseModel):
     batch_size: int = Field(
         default=20,
         description="Max memories to process per KG queue cycle",
-    )
-
-
-class MemoryEntityExtractionConfig(BaseModel):
-    """Configuration for memory entity extraction LLM calls."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable LLM-based entity extraction from memories",
-    )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for entity extraction",
-    )
-    model: str = Field(
-        default="haiku",
-        description="Model to use for entity extraction (fast/cheap recommended)",
-    )
-    prompt_path: str | None = Field(
-        default=None,
-        description="Path to custom entity extraction prompt (e.g., 'memory/entity_extraction')",
     )
 
 

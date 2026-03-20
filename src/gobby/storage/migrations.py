@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 163
+BASELINE_VERSION = 164
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -264,26 +264,6 @@ CREATE INDEX idx_sessions_workflow ON sessions(workflow_name);
 CREATE INDEX idx_sessions_agent_run ON sessions(agent_run_id);
 CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(project_id, seq_num);
 CREATE UNIQUE INDEX idx_sessions_unique ON sessions(external_id, machine_id, source, project_id);
-
-CREATE TABLE session_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    message_index INTEGER NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    content_type TEXT DEFAULT 'text',
-    tool_name TEXT,
-    tool_input TEXT,
-    tool_result TEXT,
-    tool_use_id TEXT,
-    timestamp TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(session_id, message_index)
-);
-CREATE INDEX idx_session_messages_session ON session_messages(session_id);
-CREATE INDEX idx_session_messages_role ON session_messages(role);
-CREATE INDEX idx_session_messages_timestamp ON session_messages(timestamp);
-CREATE INDEX idx_session_messages_tool ON session_messages(tool_name);
 
 CREATE TABLE session_message_state (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
@@ -1452,6 +1432,23 @@ CREATE INDEX IF NOT EXISTS idx_memories_graph_pending ON memories(graph_processe
         163,
         "Drop compact_markdown column from sessions table",
         "ALTER TABLE sessions DROP COLUMN compact_markdown",
+    ),
+    (
+        164,
+        "Drop session_messages table (messages now served from JSONL/archive)",
+        """DROP TABLE IF EXISTS session_messages;
+DROP INDEX IF EXISTS idx_session_messages_session;
+DROP INDEX IF EXISTS idx_session_messages_role;
+DROP INDEX IF EXISTS idx_session_messages_timestamp;
+DROP INDEX IF EXISTS idx_session_messages_tool""",
+    ),
+    (
+        165,
+        "Re-enable memory extraction and remove deprecated memory configs",
+        """DELETE FROM config_store WHERE key LIKE 'memory_fact_extraction.%';
+DELETE FROM config_store WHERE key LIKE 'memory_dedup_decision.%';
+DELETE FROM config_store WHERE key LIKE 'memory_entity_extraction.%';
+UPDATE config_store SET value = 'true' WHERE key = 'memory_extraction.enabled'""",
     ),
 ]
 

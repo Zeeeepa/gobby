@@ -20,7 +20,6 @@ from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 from gobby.storage.database import DatabaseProtocol
-from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,6 @@ class SessionLifecycleManager:
         self.db = db
         self.config = config
         self.session_manager = LocalSessionManager(db)
-        self.message_manager = LocalSessionMessageManager(db)
         self.memory_manager = memory_manager
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
@@ -347,15 +345,13 @@ class SessionLifecycleManager:
                         archive_dir,
                     )
                     if archive_path:
-                        await self.message_manager.purge(session.id)
                         logger.debug(
-                            f"Purged DB messages for session {session.id} "
+                            f"Archived transcript for session {session.id} "
                             f"(archived to {archive_path})"
                         )
                     else:
                         logger.warning(
-                            f"Transcript backup returned None for {session.id}, "
-                            f"retaining DB messages"
+                            f"Transcript backup returned None for {session.id}"
                         )
                 except Exception as e:
                     logger.warning(f"Transcript backup failed for {session.id}: {e}")
@@ -380,6 +376,11 @@ class SessionLifecycleManager:
         if not self.memory_manager.config.enabled:
             return
 
+        # Check if extraction feature is enabled
+        extraction_config = getattr(self, "_memory_extraction_config", None)
+        if extraction_config and hasattr(extraction_config, "enabled") and not extraction_config.enabled:
+            return
+
         try:
             from gobby.memory.extractor import SessionMemoryExtractor
 
@@ -387,7 +388,7 @@ class SessionLifecycleManager:
                 memory_manager=self.memory_manager,
                 session_manager=self.session_manager,
                 llm_service=self.llm_service,
-                config=getattr(self, "_memory_extraction_config", None),
+                config=extraction_config,
             )
 
             candidates = await extractor.extract(
@@ -486,9 +487,6 @@ class SessionLifecycleManager:
         if not messages:
             return
 
-        # Store messages (upsert - safe for re-processing)
-        await self.message_manager.store_messages(session_id, messages)
-
         # Aggregate usage
         input_tokens = 0
         output_tokens = 0
@@ -536,13 +534,6 @@ class SessionLifecycleManager:
             cache_read_tokens=cache_read_tokens,
             total_cost_usd=total_cost_usd,
             model=last_model,
-        )
-
-        # Update processing state
-        await self.message_manager.update_state(
-            session_id=session_id,
-            byte_offset=sum(len(line.encode("utf-8")) for line in lines),
-            message_index=messages[-1].index,
         )
 
         # NOTE: Memory extraction and summary generation are now called from

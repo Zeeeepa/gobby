@@ -4,7 +4,6 @@ import pytest
 
 from gobby.config.features import (
     KnowledgeGraphQueueConfig,
-    MemoryEntityExtractionConfig,
     MemoryExtractionConfig,
 )
 
@@ -56,34 +55,6 @@ class TestKnowledgeGraphQueueConfig:
         assert config.batch_size == 50
 
 
-class TestMemoryEntityExtractionConfig:
-    """Tests for MemoryEntityExtractionConfig."""
-
-    def test_exists(self) -> None:
-        config = MemoryEntityExtractionConfig()
-        assert config is not None
-
-    def test_defaults(self) -> None:
-        config = MemoryEntityExtractionConfig()
-        assert config.enabled is True
-        assert config.provider == "claude"
-        assert config.model == "haiku"
-
-    def test_prompt_path_default(self) -> None:
-        config = MemoryEntityExtractionConfig()
-        assert hasattr(config, "prompt_path")
-
-    def test_overridable(self) -> None:
-        config = MemoryEntityExtractionConfig(
-            enabled=False,
-            provider="codex",
-            model="o3-mini",
-        )
-        assert config.enabled is False
-        assert config.provider == "codex"
-        assert config.model == "o3-mini"
-
-
 class TestDaemonConfigIntegration:
     """Tests for memory feature configs in DaemonConfig."""
 
@@ -94,13 +65,6 @@ class TestDaemonConfigIntegration:
         assert hasattr(config, "knowledge_graph_queue")
         assert isinstance(config.knowledge_graph_queue, KnowledgeGraphQueueConfig)
 
-    def test_memory_entity_extraction_on_daemon_config(self) -> None:
-        from gobby.config.app import DaemonConfig
-
-        config = DaemonConfig()
-        assert hasattr(config, "memory_entity_extraction")
-        assert isinstance(config.memory_entity_extraction, MemoryEntityExtractionConfig)
-
     def test_memory_extraction_on_daemon_config(self) -> None:
         from gobby.config.app import DaemonConfig
 
@@ -108,3 +72,9 @@ class TestDaemonConfigIntegration:
         assert hasattr(config, "memory_extraction")
         assert isinstance(config.memory_extraction, MemoryExtractionConfig)
         assert config.memory_extraction.enabled is True
+
+    def test_no_memory_entity_extraction_on_daemon_config(self) -> None:
+        from gobby.config.app import DaemonConfig
+
+        config = DaemonConfig()
+        assert not hasattr(config, "memory_entity_extraction")

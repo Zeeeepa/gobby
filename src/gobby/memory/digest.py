@@ -626,6 +626,9 @@ async def memory_extract_from_session(
     if not memory_manager.config.enabled:
         return None
 
+    if config and hasattr(config, "enabled") and not config.enabled:
+        return None
+
     if not llm_service:
         return {"error": "LLM service not available"}
 
