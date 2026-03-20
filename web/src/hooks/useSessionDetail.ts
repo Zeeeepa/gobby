@@ -60,8 +60,23 @@ export function useSessionDetail(sessionId: string | null) {
 
         if (messagesRes.ok) {
           const data = await messagesRes.json()
-          setMessages(data.messages || [])
-          setTotalMessages(data.total_count || 0)
+          const rawMessages = data.messages || []
+          // Map RenderedMessage shape: content_blocks, model, usage are top-level
+          const mapped: SessionMessage[] = rawMessages.map((m: Record<string, unknown>) => ({
+            id: String(m.id ?? m.message_index ?? `hist-${Math.random()}`),
+            role: (m.role as string) ?? 'assistant',
+            content: (m.content as string) ?? '',
+            timestamp: (m.timestamp as string) ?? '',
+            content_blocks: m.content_blocks as ContentBlock[] | undefined,
+            model: m.model as string | null | undefined,
+            usage: m.usage as TokenUsage | null | undefined,
+            // Legacy fields (may be absent in new shape)
+            content_type: m.content_type as string | undefined,
+            tool_name: m.tool_name as string | undefined,
+            message_index: m.message_index as number | undefined,
+          }))
+          setMessages(mapped)
+          setTotalMessages(data.total_count || mapped.length)
         } else {
           console.warn(`Messages fetch returned ${messagesRes.status}`)
         }
@@ -81,6 +96,8 @@ export function useSessionDetail(sessionId: string | null) {
   sessionIdRef.current = sessionId
 
   // Subscribe to real-time session_message events via WebSocket
+  // Broadcasts are now RenderedMessage-shaped with content_blocks.
+  // Uses upsert semantics: replace existing message with same ID, append if new.
   useWebSocketEvent('session_message', useCallback((data: Record<string, unknown>) => {
     const msgSessionId = data.session_id as string | undefined
     if (!msgSessionId || msgSessionId !== sessionIdRef.current) return
@@ -92,27 +109,23 @@ export function useSessionDetail(sessionId: string | null) {
       id: String(msg.id ?? msg.index ?? `ws-${Date.now()}`),
       role: (msg.role as string) ?? 'assistant',
       content: (msg.content as string) ?? '',
-      content_type: msg.content_type as string | undefined,
-      tool_name: msg.tool_name as string | undefined,
-      tool_input: msg.tool_input as string | undefined,
-      tool_result: msg.tool_result as string | undefined,
-      tool_use_id: msg.tool_use_id as string | undefined,
       timestamp: (msg.timestamp as string) ?? new Date().toISOString(),
-      message_index: msg.index as number | undefined,
+      content_blocks: msg.content_blocks as ContentBlock[] | undefined,
+      model: msg.model as string | null | undefined,
+      usage: msg.usage as TokenUsage | null | undefined,
     }
 
-    let added = false
     setMessages((prev) => {
-      // Deduplicate by id or message_index
-      if (newMessage.message_index !== undefined &&
-          prev.some((m) => m.message_index === newMessage.message_index)) {
-        return prev
+      const existingIdx = prev.findIndex((m) => m.id === newMessage.id)
+      if (existingIdx >= 0) {
+        // Upsert: replace existing message (in-progress turn update)
+        const updated = [...prev]
+        updated[existingIdx] = newMessage
+        return updated
       }
-      if (prev.some((m) => m.id === newMessage.id)) return prev
-      added = true
       return [...prev, newMessage]
     })
-    if (added) setTotalMessages((prev) => prev + 1)
+    setTotalMessages((prev) => prev + 1)
   }, []))
 
   const hasMore = false
