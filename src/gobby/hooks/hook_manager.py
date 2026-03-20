@@ -36,7 +36,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.factory import HookManagerFactory
 from gobby.telemetry.tracing import create_span
 
@@ -89,6 +89,7 @@ class HookManager:
         message_processor: Any | None = None,
         memory_sync_manager: Any | None = None,
         task_sync_manager: Any | None = None,
+        code_index_trigger: Any | None = None,
     ):
         """
         Initialize HookManager with subsystems.
@@ -152,6 +153,7 @@ class HookManager:
             task_sync_manager=task_sync_manager,
             get_machine_id=self.get_machine_id,
             resolve_project_id=self._resolve_project_id,
+            code_index_trigger=code_index_trigger,
         )
 
         # Unpack all subsystems from factory components
@@ -319,7 +321,7 @@ class HookManager:
             )
 
         # Resolve platform session_id from CLI external_id
-        platform_session_id = self._session_lookup.resolve(event)
+        self._session_lookup.resolve(event)  # side-effect: enriches event.metadata
 
         # Get handler for this event type
         handler = self._get_event_handler(event.event_type)
