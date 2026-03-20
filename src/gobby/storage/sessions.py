@@ -112,9 +112,10 @@ class LocalSessionManager:
                         id, external_id, machine_id, source, project_id, title,
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
-                        workflow_name, status, created_at, updated_at, seq_num, had_edits
+                        workflow_name, status, created_at, updated_at, seq_num, had_edits,
+                        message_count, turn_count, tool_call_count
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0, 0, 0, 0)
                     """,
                     (
                         session_id,

@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 158
+BASELINE_VERSION = 161
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -245,6 +245,10 @@ CREATE TABLE sessions (
     last_turn_markdown TEXT,
     chat_mode TEXT DEFAULT 'plan',
     last_digest_input_hash TEXT,
+    message_count INTEGER DEFAULT 0,
+    turn_count INTEGER DEFAULT 0,
+    tool_call_count INTEGER DEFAULT 0,
+    last_assistant_content TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1423,6 +1427,19 @@ CREATE INDEX IF NOT EXISTS idx_ccc_file ON code_content_chunks(project_id, file_
         160,
         "Add FTS5 triggers for code_content_chunks",
         _setup_code_content_fts,
+    ),
+    (
+        161,
+        "Add message_count, turn_count, tool_call_count, last_assistant_content columns to sessions table + backfill",
+        """ALTER TABLE sessions ADD COLUMN message_count INTEGER DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN turn_count INTEGER DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN tool_call_count INTEGER DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN last_assistant_content TEXT;
+UPDATE sessions SET
+  message_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id),
+  turn_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND role = 'assistant'),
+  tool_call_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND tool_name IS NOT NULL),
+  last_assistant_content = (SELECT content FROM session_messages WHERE session_id = sessions.id AND role = 'assistant' AND tool_name IS NULL ORDER BY message_index DESC LIMIT 1)""",
     ),
 ]
 
