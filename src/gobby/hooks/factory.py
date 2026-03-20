@@ -129,6 +129,7 @@ class HookManagerFactory:
         task_sync_manager: Any | None,
         get_machine_id: Callable[[], str],
         resolve_project_id: Callable[[str | None, str | None], str],
+        code_index_trigger: Any | None = None,
     ) -> HookManagerComponents:
         """Create all HookManager subsystems.
 
@@ -236,6 +237,7 @@ class HookManagerFactory:
             workflow_config=config.workflow if config else None,
             get_machine_id=get_machine_id,
             resolve_project_id=resolve_project_id,
+            code_index_trigger=code_index_trigger,
             logger=hook_logger,
         )
 

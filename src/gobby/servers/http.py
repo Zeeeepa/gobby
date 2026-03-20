@@ -439,6 +439,21 @@ class HTTPServer:
                 "memory_sync_manager": self.services.memory_sync_manager,
                 "task_sync_manager": self.services.task_sync_manager,
             }
+
+            # Create code index trigger for post-edit incremental indexing
+            code_indexer = getattr(self.services, "code_indexer", None)
+            if code_indexer is not None:
+                try:
+                    from gobby.code_index.trigger import CodeIndexTrigger
+
+                    hook_manager_kwargs["code_index_trigger"] = CodeIndexTrigger(
+                        indexer=code_indexer,
+                        loop=asyncio.get_running_loop(),
+                        debounce_seconds=2.0,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to create CodeIndexTrigger: {e}")
+
             if self.services.config:
                 # Pass full log file path from config
                 hook_manager_kwargs["log_file"] = (

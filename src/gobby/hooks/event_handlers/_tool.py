@@ -73,6 +73,19 @@ class ToolEventHandlerMixin(EventHandlersBase):
                         if file_path:
                             self._track_session_edited_file(session_id, str(file_path), event.cwd)
 
+                            # Trigger incremental code index update
+                            if self._code_index_trigger:
+                                try:
+                                    project_id = self._resolve_project_id(None, event.cwd)
+                                    if project_id:
+                                        self._code_index_trigger.notify_file_changed(
+                                            file_path=str(file_path),
+                                            project_id=project_id,
+                                            root_path=event.cwd or "",
+                                        )
+                                except Exception as e:
+                                    logger.debug(f"Failed to trigger code index update: {e}")
+
                         # Check if session has any claimed tasks before marking had_edits
                         has_claimed_task = False
                         if self._task_manager:

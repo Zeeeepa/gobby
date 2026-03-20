@@ -62,6 +62,7 @@ class EventHandlers(
         workflow_config: WorkflowConfig | None = None,
         get_machine_id: Callable[[], str] | None = None,
         resolve_project_id: Callable[[str | None, str | None], str] | None = None,
+        code_index_trigger: Any | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """
@@ -94,6 +95,7 @@ class EventHandlers(
         self._workflow_config = workflow_config
         self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
         self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")
+        self._code_index_trigger = code_index_trigger
         self._dispatch_session_summaries_fn: (
             Callable[[str, bool, threading.Event | None], None] | None
         ) = None

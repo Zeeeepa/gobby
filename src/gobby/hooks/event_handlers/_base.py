@@ -34,6 +34,7 @@ class EventHandlersBase:
     _skills_config: SkillsConfig | None
     _get_machine_id: Callable[[], str]
     _resolve_project_id: Callable[[str | None, str | None], str]
+    _code_index_trigger: Any | None
     _dispatch_session_summaries_fn: Callable[[str, bool, threading.Event | None], None] | None
     logger: logging.Logger
     _handler_map: dict[HookEventType, Callable[[HookEvent], HookResponse]]
