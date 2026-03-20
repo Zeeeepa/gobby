@@ -125,9 +125,7 @@ def register_message_tools(
                                     isinstance(block.get("content"), str)
                                     and len(block["content"]) > 500
                                 ):
-                                    block["content"] = (
-                                        block["content"][:500] + "... (truncated)"
-                                    )
+                                    block["content"] = block["content"][:500] + "... (truncated)"
 
             return {
                 "success": True,
