@@ -1,6 +1,6 @@
 name: orchestrator
 type: pipeline
-version: "5.2"
+version: "5.6"
 description: |
   Tick-based orchestration pipeline. Each cron tick does one pass:
   scan task state, dispatch agents, exit. The cron schedule IS the loop.
@@ -201,7 +201,7 @@ steps:
       tool: pipeline_eval
       arguments:
         data:
-          qa_already_running: "${{ any(a.get('provider', '') == inputs.qa_provider for a in check_qa_running.output.agents) }}"
+          qa_already_running: "${{ len([a for a in check_qa_running.output.agents if a.get('provider', '') == inputs.qa_provider]) > 0 }}"
 
   - id: annotate_observed
     condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
