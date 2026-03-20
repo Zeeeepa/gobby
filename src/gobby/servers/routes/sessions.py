@@ -1039,7 +1039,9 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             from gobby.sessions.transcripts import get_parser
             from gobby.workflows.summary_actions import generate_summary
 
-            transcript_processor = get_parser(session.source or "claude")
+            transcript_processor = get_parser(
+                session.source or "claude", session_id=session_id
+            )
 
             result = await generate_summary(
                 session_manager=server.session_manager,

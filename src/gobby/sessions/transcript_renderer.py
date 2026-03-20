@@ -6,7 +6,11 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 
-from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
+from gobby.sessions.transcripts.base import (
+    ParsedMessage,
+    TokenUsage,
+    TranscriptParserErrorLog,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +158,10 @@ class RenderState:
 
 
 def render_transcript(
-    parsed_messages: Iterable[ParsedMessage], session_id: str | None = None
+    parsed_messages: Iterable[ParsedMessage],
+    session_id: str | None = None,
+    cli_name: str = "claude",
+    error_log: TranscriptParserErrorLog | None = None,
 ) -> list[RenderedMessage]:
     """
     Render a full transcript from a stream of parsed messages.
@@ -162,15 +169,22 @@ def render_transcript(
     Args:
         parsed_messages: Stream of flat ParsedMessage objects.
         session_id: Optional session identifier.
+        cli_name: CLI name to use for error logging if error_log is not provided.
+        error_log: Optional error log instance to use.
 
     Returns:
         List of grouped RenderedMessage objects.
     """
+    if not error_log:
+        error_log = TranscriptParserErrorLog(cli_name)
+
     state = RenderState()
     rendered_messages = []
 
     for msg in parsed_messages:
-        completed, state = render_incremental([msg], state)
+        completed, state = render_incremental(
+            [msg], state, session_id=session_id, error_log=error_log
+        )
         rendered_messages.extend(completed)
 
     if state.current_message:
@@ -180,7 +194,10 @@ def render_transcript(
 
 
 def render_incremental(
-    new_messages: list[ParsedMessage], pending_state: RenderState
+    new_messages: list[ParsedMessage],
+    pending_state: RenderState,
+    session_id: str | None = None,
+    error_log: TranscriptParserErrorLog | None = None,
 ) -> tuple[list[RenderedMessage], RenderState]:
     """
     Process new messages and return completed turns.
@@ -188,6 +205,8 @@ def render_incremental(
     Args:
         new_messages: Batch of new ParsedMessage objects.
         pending_state: Current accumulation state.
+        session_id: Optional session identifier.
+        error_log: Optional error log instance.
 
     Returns:
         Tuple of (newly completed messages, updated state).
@@ -204,7 +223,7 @@ def render_incremental(
         # 2. Tool result pairing (can bypass turn logic if paired)
         is_tool_result = msg.content_type in ["tool_result", "mcp_tool_result"]
         if is_tool_result and msg.tool_use_id in state.pending_tool_calls:
-            _process_message_block(msg, state)
+            _process_message_block(msg, state, session_id=session_id, error_log=error_log)
             continue
 
         # 3. Detect turn boundary
@@ -233,7 +252,7 @@ def render_incremental(
             )
 
         # 5. Process block
-        _process_message_block(msg, state)
+        _process_message_block(msg, state, session_id=session_id, error_log=error_log)
 
     return completed_messages, state
 
@@ -256,7 +275,12 @@ def _strip_hook_context(content: str) -> str:
     return content
 
 
-def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
+def _process_message_block(
+    msg: ParsedMessage,
+    state: RenderState,
+    session_id: str | None = None,
+    error_log: TranscriptParserErrorLog | None = None,
+) -> None:
     """Integrate a ParsedMessage into the current RenderedMessage or pair as tool result."""
 
     # Tool Result Pairing
@@ -267,9 +291,7 @@ def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
             tool_call.result = ToolResult(
                 content=content,
                 content_type="json" if msg.tool_result else "text",
-                metadata=extract_result_metadata(
-                    tool_call.tool_type, content, tool_call.arguments
-                ),
+                metadata=extract_result_metadata(tool_call.tool_type, content, tool_call.arguments),
             )
             tool_call.status = "success"
             return
@@ -310,6 +332,13 @@ def _process_message_block(msg: ParsedMessage, state: RenderState) -> None:
     else:
         # Fallback for unknown types
         block_type = "unknown"
+        if error_log:
+            error_log.log_unknown_block(
+                line_num=msg.index,
+                session_id=session_id,
+                block_type=original_type,
+                raw=msg.raw_json,
+            )
 
     # Merge consecutive blocks of same type if appropriate
     if (

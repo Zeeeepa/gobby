@@ -51,36 +51,39 @@ def _decompress_archive(archive_path: str) -> list[str]:
     return lines
 
 
-def _get_parser(source: str) -> TranscriptParser:
+def _get_parser(source: str, session_id: str | None = None) -> TranscriptParser:
     """Get the appropriate transcript parser for a source."""
     from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
     from gobby.sessions.transcripts.codex import CodexTranscriptParser
     from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 
     if source == "gemini":
-        return GeminiTranscriptParser()
+        return GeminiTranscriptParser(session_id=session_id)
     elif source == "codex":
-        return CodexTranscriptParser()
+        return CodexTranscriptParser(session_id=session_id)
     else:
-        return ClaudeTranscriptParser()
+        return ClaudeTranscriptParser(session_id=session_id)
 
 
-def _parse_lines(lines: list[str], source: str) -> list[ParsedMessage]:
+def _parse_lines(
+    lines: list[str], source: str, session_id: str | None = None
+) -> list[ParsedMessage]:
     """Parse lines into ParsedMessage objects."""
-    parser = _get_parser(source)
+    parser = _get_parser(source, session_id=session_id)
     return parser.parse_lines(lines, start_index=0)
 
 
 def _parse_lines_to_dicts(
     lines: list[str],
     source: str,
+    session_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Parse JSONL lines through the appropriate transcript parser.
 
     Returns dicts matching the session_messages column shape so callers
     get a consistent format regardless of source.
     """
-    parsed = _parse_lines(lines, source)
+    parsed = _parse_lines(lines, source, session_id=session_id)
 
     results: list[dict[str, Any]] = []
     for msg in parsed:
@@ -243,7 +246,7 @@ class TranscriptReader:
 
         try:
             lines = await asyncio.to_thread(_decompress_archive, str(archive_path))
-            return _parse_lines(lines, source)
+            return _parse_lines(lines, source, session_id=session_id)
         except Exception as e:
             logger.warning("Failed to read archive for session %s: %s", session_id, e)
             return []
@@ -262,7 +265,7 @@ class TranscriptReader:
 
         try:
             lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
-            return _parse_lines(lines, source)
+            return _parse_lines(lines, source, session_id=session_id)
         except Exception as e:
             logger.warning("Failed to read JSONL for session %s: %s", session_id, e)
             return []
@@ -289,7 +292,7 @@ class TranscriptReader:
 
         try:
             lines = await asyncio.to_thread(_decompress_archive, str(archive_path))
-            all_messages = _parse_lines_to_dicts(lines, source)
+            all_messages = _parse_lines_to_dicts(lines, source, session_id=session_id)
         except Exception as e:
             logger.warning("Failed to read archive for session %s: %s", session_id, e)
             return []
@@ -325,7 +328,7 @@ class TranscriptReader:
 
         try:
             lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
-            all_messages = _parse_lines_to_dicts(lines, source)
+            all_messages = _parse_lines_to_dicts(lines, source, session_id=session_id)
         except Exception as e:
             logger.warning("Failed to read JSONL for session %s: %s", session_id, e)
             return []

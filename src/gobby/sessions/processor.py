@@ -106,7 +106,7 @@ class SessionMessageProcessor:
             # For now, let's assume it might be created shortly.
 
         self._active_sessions[session_id] = transcript_path
-        self._parsers[session_id] = get_parser(source)
+        self._parsers[session_id] = get_parser(source, session_id=session_id)
         logger.debug(f"Registered session {session_id} for processing ({source})")
 
     def unregister_session(self, session_id: str) -> None:
