@@ -146,19 +146,28 @@ def test_render_transcript_unknown_block_type():
     assert block.raw == {"some": "raw"}
 
 
-def test_render_transcript_web_search_result():
-    msg = make_msg(
-        0,
-        "assistant",
-        "search results",
-        content_type="web_search_tool_result",
-        tool_result={"results": []},
-    )
+def test_render_transcript_tool_reference():
+    msgs = [
+        make_msg(0, "assistant", "mcp__server__tool", content_type="tool_reference"),
+    ]
+    rendered = render_transcript(msgs)
+    assert len(rendered) == 1
+    block = rendered[0].content_blocks[0]
+    assert block.type == "tool_reference"
+    assert block.tool_name == "mcp__server__tool"
+    assert block.server_name == "server"
+    assert block.content is None
+
+
+def test_render_transcript_image():
+    image_source = {"type": "base64", "media_type": "image/png", "data": "abc"}
+    msg = make_msg(0, "assistant", image_source, content_type="image")
     rendered = render_transcript([msg])
     assert len(rendered) == 1
     block = rendered[0].content_blocks[0]
-    assert block.type == "web_search_result"
-    assert block.content == {"results": []}
+    assert block.type == "image"
+    assert block.source == image_source
+    assert block.content is None
 
 
 def test_classify_tool():

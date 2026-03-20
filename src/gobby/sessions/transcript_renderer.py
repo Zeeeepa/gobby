@@ -116,6 +116,9 @@ class ContentBlock:
     type: str  # text, thinking, tool_chain, tool_reference, image, document, web_search_result, unknown
     content: Any | None = None  # content can be Any for pass-through types
     tool_calls: list[RenderedToolCall] | None = None
+    tool_name: str | None = None  # For tool_reference
+    server_name: str | None = None  # For tool_reference
+    source: dict[str, Any] | None = None  # For image/document
     raw: dict[str, Any] | None = None
     source_line: int | None = None
     block_type: str | None = None  # Original type for 'unknown' blocks
@@ -259,6 +262,8 @@ def render_incremental(
 
 def _is_hook_feedback(msg: ParsedMessage) -> bool:
     """Identify hook feedback messages that should be role='system'."""
+    if not isinstance(msg.content, str):
+        return False
     prefixes = [
         "Stop hook feedback:",
         "PreToolUse hook",
@@ -293,7 +298,7 @@ def _process_message_block(
                 content_type="json" if msg.tool_result else "text",
                 metadata=extract_result_metadata(tool_call.tool_type, content, tool_call.arguments),
             )
-            tool_call.status = "success"
+            tool_call.status = "completed"
             return
 
     if not state.current_message:
@@ -306,11 +311,15 @@ def _process_message_block(
         state.current_message.usage = msg.usage
 
     # Content Deduplication
-    content_key = (msg.content_type, msg.content, msg.tool_use_id, msg.tool_name)
-    content_hash = hash(content_key)
-    if content_hash in state.seen_content:
-        return
-    state.seen_content.add(content_hash)
+    try:
+        content_key = (msg.content_type, msg.content, msg.tool_use_id, msg.tool_name)
+        content_hash = hash(content_key)
+        if content_hash in state.seen_content:
+            return
+        state.seen_content.add(content_hash)
+    except TypeError:
+        # Non-hashable content (e.g. dict) — skip deduplication
+        pass
 
     # User message cleanup
     block_text: Any = msg.content
@@ -353,9 +362,20 @@ def _process_message_block(
         # Create new block
         block = ContentBlock(
             type=block_type,
-            content=block_content if block_type != "tool_chain" else None,
+            content=block_content if block_type not in ["tool_chain", "image", "document", "tool_reference"] else None,
             source_line=msg.index,
         )
+
+        if block_type == "image" or block_type == "document":
+            block.source = block_content if isinstance(block_content, dict) else {"data": str(block_content)}
+
+        if block_type == "tool_reference":
+            # For tool_reference, we might have tool_name in msg or content
+            t_name = msg.tool_name or (block_content if isinstance(block_content, str) else None)
+            if t_name:
+                t_type, s_name = classify_tool(t_name)
+                block.tool_name = t_name
+                block.server_name = s_name or "builtin"
 
         if block_type == "unknown":
             block.block_type = original_type
