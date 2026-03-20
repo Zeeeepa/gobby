@@ -11,17 +11,11 @@ interface ProjectDetailViewProps {
   onDelete: () => Promise<boolean>
   /** Render prop for the Code tab (FilesPage scoped to project) */
   renderCodeTab?: () => React.ReactNode
-  /** Render prop for Tasks tab */
-  renderTasksTab?: () => React.ReactNode
-  /** Render prop for Sessions tab */
-  renderSessionsTab?: () => React.ReactNode
 }
 
 const TABS: { key: ProjectSubTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'code', label: 'Code' },
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'sessions', label: 'Sessions' },
   { key: 'settings', label: 'Settings' },
 ]
 
@@ -33,8 +27,6 @@ export function ProjectDetailView({
   onSave,
   onDelete,
   renderCodeTab,
-  renderTasksTab,
-  renderSessionsTab,
 }: ProjectDetailViewProps) {
   return (
     <div className="projects-detail">
@@ -65,9 +57,6 @@ export function ProjectDetailView({
             onClick={() => onTabChange(tab.key)}
           >
             {tab.label}
-            {tab.key === 'tasks' && project.open_task_count > 0 && (
-              <span className="projects-detail-tab-badge">{project.open_task_count}</span>
-            )}
           </button>
         ))}
       </div>
@@ -81,16 +70,6 @@ export function ProjectDetailView({
                 ? 'Loading code explorer...'
                 : 'No repository path configured for this project.'}
             </div>
-          )
-        )}
-        {activeTab === 'tasks' && (
-          renderTasksTab ? renderTasksTab() : (
-            <div className="projects-detail-empty">Loading tasks...</div>
-          )
-        )}
-        {activeTab === 'sessions' && (
-          renderSessionsTab ? renderSessionsTab() : (
-            <div className="projects-detail-empty">Loading sessions...</div>
           )
         )}
         {activeTab === 'settings' && (

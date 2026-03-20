@@ -7,9 +7,6 @@ import { ProjectOverview } from './ProjectOverview'
 import { ProjectCard } from './ProjectCard'
 import { ProjectDetailView } from './ProjectDetailView'
 import { FilesPage } from '../FilesPage'
-import { TasksPage } from '../tasks/TasksPage'
-import { SessionsPage } from '../sessions/SessionsPage'
-import { useSessions } from '../../hooks/useSessions'
 
 type OverviewFilter = 'total' | 'active' | 'tasks' | null
 type ViewMode = 'cards' | 'list'
@@ -55,7 +52,6 @@ export function ProjectsPage() {
   } = useProjects()
 
   const files = useFiles()
-  const sessionsHook = useSessions()
 
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
@@ -115,28 +111,6 @@ export function ProjectsPage() {
     )
   }, [selectedProject, files])
 
-  // Render Tasks tab: TasksPage with projectFilter
-  const renderTasksTab = useCallback(() => {
-    if (!selectedProject) return null
-    return <TasksPage projectFilter={selectedProject.id} />
-  }, [selectedProject])
-
-  // Render Sessions tab: SessionsPage filtered by project
-  const renderSessionsTab = useCallback(() => {
-    if (!selectedProject) return null
-    // Filter sessions to this project
-    const projectSessions = sessionsHook.filteredSessions.filter(
-      s => s.project_id === selectedProject.id
-    )
-    return (
-      <SessionsPage
-        sessions={projectSessions}
-        filters={{ ...sessionsHook.filters, projectId: selectedProject.id }}
-        onFiltersChange={sessionsHook.setFilters}
-        isLoading={sessionsHook.isLoading}
-      />
-    )
-  }, [selectedProject, sessionsHook])
 
   // Detail view
   if (selectedProject) {
@@ -150,8 +124,6 @@ export function ProjectsPage() {
           onSave={handleSave}
           onDelete={handleDelete}
           renderCodeTab={renderCodeTab}
-          renderTasksTab={renderTasksTab}
-          renderSessionsTab={renderSessionsTab}
         />
       </main>
     )

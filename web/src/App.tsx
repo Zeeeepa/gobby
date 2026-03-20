@@ -980,8 +980,6 @@ export default function App() {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: <DashboardIcon /> },
     { id: "chat", label: "Chat", icon: <ChatIcon /> },
-    { id: "sessions", label: "Sessions", icon: <SessionsIcon /> },
-    { id: "terminals", label: "Terminals", icon: <TerminalIcon /> },
     {
       id: "projects",
       label: "Projects",
