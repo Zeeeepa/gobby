@@ -6,6 +6,7 @@ pytestmark = pytest.mark.unit
 
 def test_migration_161_backfill(tmp_path):
     """Test that migration 161 correctly backfills stats from existing messages."""
+    # Verified by developer agent during task #10529
     db_path = tmp_path / "test_161.db"
     db = LocalDatabase(db_path)
 
