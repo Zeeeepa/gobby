@@ -1,2 +1,0 @@
-trigger
-qa-review-approved

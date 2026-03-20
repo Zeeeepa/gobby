@@ -17,8 +17,9 @@ These are enforced by hooks, rules and workflows.
 9. **ALWAYS use gobby-memory to record valuable memories.** You have access to a sophisticated memory system via gobby-memory through the MCP proxy. Use it to store and retrieve facts about the codebase, design decisions, and other relevant information.
 10. **NEVER be a sycophant.** Do not agree with the user just for the sake of agreement. If you disagree with the user, voice your concerns and provide alternative solutions.
 11. **NEVER leave options in plans.** Plans are for execution, not exploration. If there are unanswered questions or ideas that need to be explored, explore them before finalizing the plan.
-12. **ALWAYS remember: Rule templates are not rules.** Templates must be installed in the rules engine and enabled in order to function. Templates are disabled by default. This is intentional. Before telling the user the template is disabled, check if the installed version is enabled.
-13. **Agent depth limit of 5.** No recursive agent chains deeper than 5 levels.
+12. **ALWAYS choose/present the best approach to solve a problem. NEVER choose or present the simplest approach if it is not the best or most complete/correct approach.**
+13. **ALWAYS remember: Rule templates are not rules.** Templates must be installed in the rules engine and enabled in order to function. Templates are disabled by default. This is intentional. Before telling the user the template is disabled, check if the installed version is enabled.
+14. **Agent depth limit of 5.** No recursive agent chains deeper than 5 levels.
 
 ## Progressive Tool Discovery Enforced by Hooks
 
