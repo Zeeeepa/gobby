@@ -108,4 +108,6 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
     if compressed.strategy_name not in ("passthrough", "excluded"):
         output = f"[Output compressed by Gobby — {compressed.strategy_name}, {compressed.savings_pct:.0f}% reduction]\n{output}"
     click.echo(output, nl=False)
-    sys.exit(result.returncode)
+    # Exit 0 when compression succeeded — the LLM reads pass/fail from the
+    # content.  Propagating the subprocess exit code causes Claude Code to
+    # frame the entire output as "Error: Exit code 1", hiding the results.

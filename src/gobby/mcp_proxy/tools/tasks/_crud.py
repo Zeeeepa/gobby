@@ -101,11 +101,10 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             }
 
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-        resolved_session_id = session_id
         try:
             resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError:
-            pass  # Fall back to raw value if resolution fails
+        except ValueError as e:
+            return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
         # Create task
         create_result = ctx.task_manager.create_task_with_decomposition(
