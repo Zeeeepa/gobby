@@ -1,10 +1,12 @@
-from datetime import UTC
-from unittest.mock import ANY, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
+from gobby.sessions.transcript_reader import TranscriptReader
+from gobby.sessions.transcript_renderer import ContentBlock, RenderedMessage
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_models import Session
 from gobby.storage.sessions import LocalSessionManager
@@ -27,9 +29,23 @@ def mock_session_manager():
 
 
 @pytest.fixture
+def mock_transcript_reader():
+    reader = MagicMock(spec=TranscriptReader)
+    reader.get_rendered_messages = AsyncMock()
+    reader.count_messages = AsyncMock()
+    return reader
+
+
+@pytest.fixture
 def session_messages_registry(mock_message_manager):
     """Registry with only message manager (backward compatibility)."""
     return create_session_messages_registry(message_manager=mock_message_manager)
+
+
+@pytest.fixture
+def renderer_registry(mock_transcript_reader):
+    """Registry with transcript_reader (primary renderer path)."""
+    return create_session_messages_registry(transcript_reader=mock_transcript_reader)
 
 
 @pytest.fixture
@@ -92,6 +108,103 @@ async def test_get_session_messages_not_found(mock_message_manager, session_mess
 
     assert result["total_count"] == 0
     assert result["messages"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_session_messages_renderer_path(mock_transcript_reader, renderer_registry):
+    """Test get_session_messages uses transcript_reader.get_rendered_messages when available."""
+    rendered = RenderedMessage(
+        id="msg-1",
+        role="assistant",
+        content="Hello world",
+        timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+        content_blocks=[ContentBlock(type="text", content="Hello world")],
+    )
+    mock_transcript_reader.get_rendered_messages.return_value = [rendered]
+    mock_transcript_reader.count_messages.return_value = 1
+
+    result = await renderer_registry.call(
+        "get_session_messages", {"session_id": "sess-123", "limit": 10, "offset": 0}
+    )
+
+    mock_transcript_reader.get_rendered_messages.assert_called_with(
+        session_id="sess-123", limit=10, offset=0
+    )
+    assert result["success"] is True
+    assert result["total_count"] == 1
+    assert len(result["messages"]) == 1
+    msg = result["messages"][0]
+    assert msg["role"] == "assistant"
+    assert msg["content_blocks"][0]["type"] == "text"
+    assert msg["content_blocks"][0]["content"] == "Hello world"
+
+
+@pytest.mark.asyncio
+async def test_get_session_messages_renderer_truncates_content_blocks(
+    mock_transcript_reader, renderer_registry
+):
+    """Test that content_blocks text is truncated when full_content=False."""
+    long_text = "x" * 1000
+    rendered = RenderedMessage(
+        id="msg-1",
+        role="assistant",
+        content=long_text,
+        timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+        content_blocks=[ContentBlock(type="text", content=long_text)],
+    )
+    mock_transcript_reader.get_rendered_messages.return_value = [rendered]
+    mock_transcript_reader.count_messages.return_value = 1
+
+    result = await renderer_registry.call(
+        "get_session_messages",
+        {"session_id": "sess-123", "limit": 10, "offset": 0, "full_content": False},
+    )
+
+    assert result["success"] is True
+    msg = result["messages"][0]
+    # Top-level content truncated at 500
+    assert msg["content"].endswith("... (truncated)")
+    assert len(msg["content"]) < 1000
+    # content_blocks text truncated at 500
+    block_content = msg["content_blocks"][0]["content"]
+    assert block_content.endswith("... (truncated)")
+    assert len(block_content) < 1000
+
+
+@pytest.mark.asyncio
+async def test_get_session_messages_renderer_full_content(
+    mock_transcript_reader, renderer_registry
+):
+    """Test that content_blocks are NOT truncated when full_content=True."""
+    long_text = "x" * 1000
+    rendered = RenderedMessage(
+        id="msg-1",
+        role="assistant",
+        content=long_text,
+        timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+        content_blocks=[ContentBlock(type="text", content=long_text)],
+    )
+    mock_transcript_reader.get_rendered_messages.return_value = [rendered]
+    mock_transcript_reader.count_messages.return_value = 1
+
+    result = await renderer_registry.call(
+        "get_session_messages",
+        {"session_id": "sess-123", "limit": 10, "offset": 0, "full_content": True},
+    )
+
+    assert result["success"] is True
+    msg = result["messages"][0]
+    assert msg["content"] == long_text
+    assert msg["content_blocks"][0]["content"] == long_text
+
+
+def test_registry_without_managers_has_no_message_tools():
+    """Test that registry with no message_manager or transcript_reader has no message tools."""
+    registry = create_session_messages_registry()
+    tools_list = registry.list_tools()
+    tool_names = [t["name"] for t in tools_list]
+    assert "get_session_messages" not in tool_names
+    assert "search_messages" not in tool_names
 
 
 @pytest.mark.asyncio

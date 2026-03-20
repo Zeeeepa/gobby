@@ -280,6 +280,7 @@ describe('useChat', () => {
     const msg = assistantMsgs[0]
     expect(msg.toolCalls?.length).toBeGreaterThanOrEqual(1)
     expect(msg.toolCalls?.[0].tool_name).toBe('read_file')
+    expect(msg.toolCalls?.[0].tool_type).toBe('read')
   })
 
   it('stopStreaming stops streaming', async () => {

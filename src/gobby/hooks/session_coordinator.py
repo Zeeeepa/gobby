@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING, Any
@@ -342,23 +341,7 @@ class SessionCoordinator:
 
             # Fallback: get last assistant message if no summary available
             if not result:
-                try:
-                    db = self._agent_run_manager.db
-                    msg_row = db.fetchone(
-                        """
-                        SELECT content FROM session_messages
-                        WHERE session_id = ? AND role = 'assistant' AND tool_name IS NULL
-                        ORDER BY message_index DESC
-                        LIMIT 1
-                        """,
-                        (session.id,),
-                    )
-                    if msg_row:
-                        result = msg_row["content"]
-                except (sqlite3.Error, ValueError) as e:
-                    self.logger.warning(
-                        f"Failed to get last assistant message for {session.id}: {e}"
-                    )
+                result = getattr(session, "last_assistant_content", None) or ""
 
             # Fallback: check inter_session_messages for send_message data
             if not result:
@@ -424,27 +407,10 @@ class SessionCoordinator:
                 except Exception as e:
                     self.logger.debug(f"tmux kill-session failed for {tmux_session_name}: {e}")
 
-            # Count tool calls and turns from session messages
-            tool_calls_count = 0
-            turns_used = 0
-            stats_retrieved = False
-            try:
-                db = self._agent_run_manager.db
-                row = db.fetchone(
-                    """
-                    SELECT
-                        COUNT(CASE WHEN tool_name IS NOT NULL THEN 1 END) AS tool_calls,
-                        COUNT(CASE WHEN role = 'assistant' THEN 1 END) AS turns
-                    FROM session_messages WHERE session_id = ?
-                    """,
-                    (session.id,),
-                )
-                if row:
-                    tool_calls_count = row["tool_calls"] or 0
-                    turns_used = row["turns"] or 0
-                    stats_retrieved = True
-            except (sqlite3.Error, ValueError) as e:
-                self.logger.warning(f"Failed to count session stats for {session.id}: {e}")
+            # Count tool calls and turns from session stats
+            tool_calls_count = getattr(session, "tool_call_count", 0)
+            turns_used = getattr(session, "turn_count", 0)
+            stats_retrieved = True
 
             # Guard: agent exited cleanly but did nothing — treat as error
             # Only apply when stats were successfully retrieved to avoid false positives on DB failure

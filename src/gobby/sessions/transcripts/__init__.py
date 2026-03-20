@@ -31,15 +31,16 @@ PARSER_REGISTRY: dict[str, type[TranscriptParser]] = {
 }
 
 
-def get_parser(source: str) -> TranscriptParser:
+def get_parser(source: str, session_id: str | None = None) -> TranscriptParser:
     """
     Get a transcript parser instance for the given source.
 
     Args:
         source: CLI source name (e.g., 'claude', 'gemini', 'cursor')
+        session_id: Optional session identifier.
 
     Returns:
         TranscriptParser instance
     """
     parser_cls = PARSER_REGISTRY.get(source, ClaudeTranscriptParser)
-    return parser_cls()
+    return parser_cls(session_id=session_id)

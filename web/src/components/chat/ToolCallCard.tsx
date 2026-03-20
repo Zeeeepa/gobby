@@ -120,7 +120,7 @@ export interface ToolCallGroup {
   kind: 'group'
   toolName: string
   displayName: string
-  calls: ToolCall[]
+  tool_calls: ToolCall[]
   hasErrors: boolean
   allCompleted: boolean
   hasInFlight: boolean
@@ -160,7 +160,7 @@ export function groupToolCalls(toolCalls: ToolCall[]): ToolCallSegment[] {
         kind: 'group',
         toolName: call.tool_name,
         displayName: formatToolName(call.tool_name),
-        calls,
+        tool_calls: calls,
         hasErrors: calls.some(c => c.status === 'error'),
         allCompleted: calls.every(c => c.status === 'completed'),
         hasInFlight: calls.some(c => c.status === 'calling'),
@@ -960,7 +960,7 @@ function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondTo
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }) {
-  const serverName = group.calls[0]?.server_name
+  const serverName = group.tool_calls[0]?.server_name
 
   return (
     <div className={cn(
@@ -973,14 +973,14 @@ function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondTo
       >
         <GroupStatusIcon hasErrors={group.hasErrors} allCompleted={group.allCompleted} hasInFlight={group.hasInFlight} />
         <span className="font-mono text-foreground">{group.displayName}</span>
-        <Badge variant="default">×{group.calls.length}</Badge>
+        <Badge variant="default">×{group.tool_calls.length}</Badge>
         {serverName && serverName !== 'builtin' && <span className="text-muted-foreground text-xs">{serverName}</span>}
         <div className="flex-1" />
         <span className="text-muted-foreground text-xs">{expanded ? '\u25BC' : '\u25B6'}</span>
       </div>
       {expanded && (
         <div className="border-t border-border pl-4">
-          {group.calls.map(call => (
+          {group.tool_calls.map(call => (
             <ToolCallItem
               key={call.id}
               call={call}
@@ -1105,7 +1105,7 @@ export const ToolCallCards = memo(function ToolCallCards({ toolCalls, onRespond,
             />
           )
         }
-        const groupKey = `${segment.calls[0].id}-${segment.toolName}`
+        const groupKey = `${segment.tool_calls[0].id}-${segment.toolName}`
         return (
           <ToolCallGroupHeader
             key={groupKey}

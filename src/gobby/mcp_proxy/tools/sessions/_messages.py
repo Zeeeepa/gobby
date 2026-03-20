@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 def register_message_tools(
     registry: InternalToolRegistry,
-    message_manager: LocalSessionMessageManager,
+    message_manager: LocalSessionMessageManager | None = None,
     session_manager: LocalSessionManager | None = None,
     transcript_reader: TranscriptReader | None = None,
 ) -> None:
@@ -27,11 +27,13 @@ def register_message_tools(
 
     Args:
         registry: The InternalToolRegistry to register tools with
-        message_manager: LocalSessionMessageManager instance for message operations
+        message_manager: Optional LocalSessionMessageManager instance for message operations
         session_manager: LocalSessionManager for resolving session references
         transcript_reader: Optional TranscriptReader for DB + gzip fallback reads
     """
 
+    # Resolves session reference to UUID using the provided session manager.
+    # Accepts #N, N, UUID, or prefix.
     def _resolve_session_id(session_id: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID.
 
@@ -53,8 +55,9 @@ def register_message_tools(
 
     @registry.tool(
         name="get_session_messages",
-        description="Get messages for a session. Falls back to gzip archive if DB messages were purged. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Get messages for a session. Returns rendered messages with content blocks. Accepts #N, N, UUID, or prefix for session_id.",
     )
+    # Entry point for get_session_messages tool
     async def get_session_messages(
         session_id: str,
         limit: int = 50,
@@ -71,26 +74,26 @@ def register_message_tools(
             full_content: If True, returns full content. If False (default), truncates large content.
         """
         try:
-            if not message_manager:
-                raise RuntimeError("Message manager not available")
-
             resolved_id = _resolve_session_id(session_id)
 
-            # Use TranscriptReader (DB + gzip fallback) when available
+            # Use TranscriptReader (Rendered output) when available
             if transcript_reader:
-                messages = await transcript_reader.get_messages(
+                rendered_messages = await transcript_reader.get_rendered_messages(
                     session_id=resolved_id,
                     limit=limit,
                     offset=offset,
                 )
+                messages = [m.to_dict() for m in rendered_messages]
                 session_total = await transcript_reader.count_messages(resolved_id)
-            else:
+            elif message_manager:
                 messages = await message_manager.get_messages(
                     session_id=resolved_id,
                     limit=limit,
                     offset=offset,
                 )
                 session_total = await message_manager.count_messages(resolved_id)
+            else:
+                raise RuntimeError("Message retrieval not available")
 
             # Truncate content if not full_content
             if not full_content:
@@ -117,6 +120,16 @@ def register_message_tools(
                         ):
                             tr["content"] = tr["content"][:200] + "... (truncated)"
 
+                    # Also truncate content_blocks if present (from renderer)
+                    if "content_blocks" in msg and msg["content_blocks"]:
+                        for block in msg["content_blocks"]:
+                            if block.get("type") in ["text", "thinking"]:
+                                if (
+                                    isinstance(block.get("content"), str)
+                                    and len(block["content"]) > 500
+                                ):
+                                    block["content"] = block["content"][:500] + "... (truncated)"
+
             return {
                 "success": True,
                 "messages": messages,
@@ -131,7 +144,7 @@ def register_message_tools(
 
     @registry.tool(
         name="search_messages",
-        description="Search messages using text matching (DB-only, does not search gzip archives). Accepts #N, N, UUID, or prefix for session_id.",
+        description="[DEPRECATED] Search messages using text matching. This tool is deprecated and will be removed in a future release. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def search_messages(
         query: str,

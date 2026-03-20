@@ -63,6 +63,11 @@ class Session:
     chat_mode: str = "plan"
     # Idempotency guard for digest pipeline
     last_digest_input_hash: str | None = None
+    # Stats fields
+    message_count: int = 0
+    turn_count: int = 0
+    tool_call_count: int = 0
+    last_assistant_content: str | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -106,6 +111,12 @@ class Session:
             chat_mode=row["chat_mode"] if "chat_mode" in row.keys() else "plan",
             last_digest_input_hash=row["last_digest_input_hash"]
             if "last_digest_input_hash" in row.keys()
+            else None,
+            message_count=row["message_count"] if "message_count" in row.keys() else 0,
+            turn_count=row["turn_count"] if "turn_count" in row.keys() else 0,
+            tool_call_count=row["tool_call_count"] if "tool_call_count" in row.keys() else 0,
+            last_assistant_content=row["last_assistant_content"]
+            if "last_assistant_content" in row.keys()
             else None,
         )
 
@@ -183,6 +194,10 @@ class Session:
             "last_turn_markdown": self.last_turn_markdown,
             "chat_mode": self.chat_mode,
             "last_digest_input_hash": self.last_digest_input_hash,
+            "message_count": self.message_count,
+            "turn_count": self.turn_count,
+            "tool_call_count": self.tool_call_count,
+            "last_assistant_content": self.last_assistant_content,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,
@@ -201,6 +216,9 @@ class Session:
             "git_branch": self.git_branch,
             "model": self.model,
             "had_edits": self.had_edits,
+            "message_count": self.message_count,
+            "turn_count": self.turn_count,
+            "tool_call_count": self.tool_call_count,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,

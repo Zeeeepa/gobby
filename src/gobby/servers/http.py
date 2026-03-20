@@ -136,6 +136,7 @@ class HTTPServer:
                     session_manager=services.session_manager,
                     archive_dir=archive_dir,
                 )
+                services.transcript_reader = transcript_reader
 
             # Setup internal registries (gobby-tasks, gobby-memory, gobby-workflows, etc.)
             self._internal_manager = setup_internal_registries(
@@ -332,6 +333,14 @@ class HTTPServer:
     @metrics_manager.setter
     def metrics_manager(self, value: "ToolMetricsManager | None") -> None:
         self.services.metrics_manager = value
+
+    @property
+    def transcript_reader(self) -> Any:
+        return self.services.transcript_reader
+
+    @transcript_reader.setter
+    def transcript_reader(self, value: Any) -> None:
+        self.services.transcript_reader = value
 
     @property
     def _mcp_db_manager(self) -> Any:

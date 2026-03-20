@@ -112,9 +112,10 @@ class LocalSessionManager:
                         id, external_id, machine_id, source, project_id, title,
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
-                        workflow_name, status, created_at, updated_at, seq_num, had_edits
+                        workflow_name, status, created_at, updated_at, seq_num, had_edits,
+                        message_count, turn_count, tool_call_count, last_assistant_content
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0, 0, 0, 0, NULL)
                     """,
                     (
                         session_id,
@@ -524,6 +525,65 @@ class LocalSessionManager:
         values["updated_at"] = datetime.now(UTC).isoformat()
 
         self.db.safe_update("sessions", values, "id = ?", (session_id,))
+        return self.get(session_id)
+
+    def update_stats(
+        self,
+        session_id: str,
+        message_count: int | None = None,
+        turn_count: int | None = None,
+        tool_call_count: int | None = None,
+        last_assistant_content: str | None = None,
+    ) -> Session | None:
+        """Update session stats columns.
+
+        Args:
+            session_id: Session ID
+            message_count: Total message count (optional)
+            turn_count: Assistant turn count (optional)
+            tool_call_count: Tool call count (optional)
+            last_assistant_content: Last assistant text content (optional)
+
+        Returns:
+            Updated session or None if not found
+        """
+        values: dict[str, Any] = {}
+        if message_count is not None:
+            values["message_count"] = message_count
+        if turn_count is not None:
+            values["turn_count"] = turn_count
+        if tool_call_count is not None:
+            values["tool_call_count"] = tool_call_count
+        if last_assistant_content is not None:
+            values["last_assistant_content"] = last_assistant_content
+
+        if not values:
+            return self.get(session_id)
+
+        values["updated_at"] = datetime.now(UTC).isoformat()
+        self.db.safe_update("sessions", values, "id = ?", (session_id,))
+        return self.get(session_id)
+
+    def recalculate_stats(self, session_id: str) -> Session | None:
+        """Recalculate session stats from session_messages table.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Updated session or None if not found
+        """
+        sql = """
+        UPDATE sessions SET
+          message_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id),
+          turn_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND role = 'assistant'),
+          tool_call_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND tool_name IS NOT NULL),
+          last_assistant_content = (SELECT content FROM session_messages WHERE session_id = sessions.id AND role = 'assistant' AND tool_name IS NULL ORDER BY message_index DESC LIMIT 1),
+          updated_at = ?
+        WHERE id = ?
+        """
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(sql, (now, session_id))
         return self.get(session_id)
 
     def list(

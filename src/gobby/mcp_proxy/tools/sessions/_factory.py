@@ -57,8 +57,8 @@ def create_session_messages_registry(
     )
 
     # --- Message Tools ---
-    # Only register if message_manager is available
-    if message_manager is not None:
+    # Register if message_manager or transcript_reader is available
+    if message_manager is not None or transcript_reader is not None:
         register_message_tools(registry, message_manager, session_manager, transcript_reader)
 
     # --- Handoff Tools ---

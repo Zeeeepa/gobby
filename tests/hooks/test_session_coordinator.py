@@ -17,7 +17,6 @@ Test categories:
 from __future__ import annotations
 
 import logging
-import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -310,10 +309,6 @@ class TestAgentRunCompletion:
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
 
-        # Mock DB to return tool call and turn counts
-        mock_row = {"tool_calls": 5, "turns": 3}
-        mock_agent_run_manager.db.fetchone.return_value = mock_row
-
         coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
 
         mock_session = MagicMock()
@@ -321,6 +316,8 @@ class TestAgentRunCompletion:
         mock_session.id = "sess-789"
         mock_session.summary_markdown = "Done"
         mock_session.compact_markdown = None
+        mock_session.tool_call_count = 5
+        mock_session.turn_count = 3
 
         coordinator.complete_agent_run(mock_session)
 
@@ -334,14 +331,6 @@ class TestAgentRunCompletion:
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
 
-        # fetchone is called multiple times: result fallback queries, then stats query.
-        # Return None for the fallback queries, then the stats row.
-        mock_agent_run_manager.db.fetchone.side_effect = [
-            None,  # last assistant message fallback
-            None,  # inter_session_messages fallback
-            {"tool_calls": 0, "turns": 0},  # session stats query
-        ]
-
         coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
 
         mock_session = MagicMock()
@@ -349,6 +338,8 @@ class TestAgentRunCompletion:
         mock_session.id = "sess-ghost"
         mock_session.summary_markdown = ""
         mock_session.compact_markdown = None
+        mock_session.tool_call_count = 0
+        mock_session.turn_count = 0
 
         coordinator.complete_agent_run(mock_session)
 
@@ -359,12 +350,11 @@ class TestAgentRunCompletion:
         assert "no activity" in fail_kwargs["error"].lower()
         mock_agent_run_manager.complete.assert_not_called()
 
-    def test_complete_agent_run_defaults_counts_on_db_error(self) -> None:
-        """DB error counting stats → stats_retrieved=False → falls through to complete()."""
+    def test_complete_agent_run_defaults_counts_when_missing(self) -> None:
+        """Stats attributes from session are passed through to complete()."""
         mock_agent_run_manager = MagicMock()
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
-        mock_agent_run_manager.db.fetchone.side_effect = sqlite3.OperationalError("DB error")
 
         coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
 
@@ -373,13 +363,15 @@ class TestAgentRunCompletion:
         mock_session.id = "sess-789"
         mock_session.summary_markdown = "Done"
         mock_session.compact_markdown = None
+        mock_session.tool_call_count = 10
+        mock_session.turn_count = 5
 
         coordinator.complete_agent_run(mock_session)
 
-        # When stats retrieval fails, stats_retrieved=False so zero-activity guard
-        # does NOT fire. Falls through to complete() with default counts.
         mock_agent_run_manager.complete.assert_called_once()
-        mock_agent_run_manager.fail.assert_not_called()
+        call_kwargs = mock_agent_run_manager.complete.call_args[1]
+        assert call_kwargs["tool_calls_count"] == 10
+        assert call_kwargs["turns_used"] == 5
 
 
 class TestWorktreeRelease:

@@ -88,6 +88,9 @@ class ServiceContainer:
     prompt_manager: Any | None = None  # LocalPromptManager
     dev_mode: bool = False
 
+    # Transcripts
+    transcript_reader: Any | None = None  # TranscriptReader
+
     # Context
     project_id: str | None = None
     websocket_server: Any | None = None  # GobbyWebSocketServer
