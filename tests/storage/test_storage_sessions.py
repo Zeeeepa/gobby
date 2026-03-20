@@ -263,6 +263,40 @@ class TestLocalSessionManager:
         assert updated is not None
         assert updated.title == "New Title"
 
+    def test_update_stats(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ) -> None:
+        """Test updating session stats."""
+        session = session_manager.register(
+            external_id="stats-update-test",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+        
+        updated = session_manager.update_stats(
+            session.id,
+            message_count=10,
+            turn_count=5,
+            tool_call_count=3,
+            last_assistant_content="Testing stats update."
+        )
+        
+        assert updated is not None
+        assert updated.message_count == 10
+        assert updated.turn_count == 5
+        assert updated.tool_call_count == 3
+        assert updated.last_assistant_content == "Testing stats update."
+        
+        # Verify DB persisted
+        row = session_manager.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session.id,))
+        assert row["message_count"] == 10
+        assert row["turn_count"] == 5
+        assert row["tool_call_count"] == 3
+        assert row["last_assistant_content"] == "Testing stats update."
+
     @pytest.mark.unit
     def test_update_model(
         self,
