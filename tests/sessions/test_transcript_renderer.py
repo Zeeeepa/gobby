@@ -137,7 +137,7 @@ def test_render_incremental_returns_completed_turns():
 def test_render_transcript_unknown_block_type():
     msg = make_msg(0, "assistant", "special", content_type="random_type")
     msg.raw_json = {"some": "raw"}
-    
+
     rendered = render_transcript([msg])
     assert len(rendered) == 1
     block = rendered[0].content_blocks[0]
