@@ -231,7 +231,9 @@ class VectorStore:
             points=points,
         )
 
-    async def ensure_collection(self, collection_name: str, embedding_dim: int | None = None) -> None:
+    async def ensure_collection(
+        self, collection_name: str, embedding_dim: int | None = None
+    ) -> None:
         """Ensure a named collection exists, creating it if needed.
 
         Args:
@@ -254,7 +256,9 @@ class VectorStore:
                 existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
                 if existing_dim != dim:
                     # Auto-recreate with correct dimensions
-                    await asyncio.to_thread(client.delete_collection, collection_name=collection_name)
+                    await asyncio.to_thread(
+                        client.delete_collection, collection_name=collection_name
+                    )
                     await asyncio.to_thread(
                         client.create_collection,
                         collection_name=collection_name,

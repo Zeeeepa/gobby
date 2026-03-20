@@ -156,7 +156,9 @@ class TranscriptReader:
                 lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
                 return sum(1 for line in lines if line.strip())
             except Exception as e:
-                logger.warning("Failed to count messages from JSONL for session %s: %s", session_id, e)
+                logger.warning(
+                    "Failed to count messages from JSONL for session %s: %s", session_id, e
+                )
 
         # Fallback 2: count lines from gzip archive
         if session.external_id:

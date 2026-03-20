@@ -334,7 +334,9 @@ async def refresh_mcp_tools(
                             # Deterministic UUID for internal tools not in DB
                             import uuid
 
-                            tool_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{server_name}/{tool_name}"))
+                            tool_id = str(
+                                uuid.uuid5(uuid.NAMESPACE_DNS, f"{server_name}/{tool_name}")
+                            )
                         try:
                             await semantic_search.embed_tool(
                                 tool_id=tool_id,

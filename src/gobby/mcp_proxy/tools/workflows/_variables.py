@@ -323,9 +323,7 @@ def list_variables(
     Returns:
         Dict with success, variables list, and count
     """
-    rows = def_manager.list_all(
-        workflow_type="variable", enabled=enabled, project_id=project_id
-    )
+    rows = def_manager.list_all(workflow_type="variable", enabled=enabled, project_id=project_id)
     # Exclude raw templates by default
     rows = [r for r in rows if r.source != "template"]
     variables = [_variable_summary(r) for r in rows]
@@ -345,9 +343,7 @@ def get_variable_definition(
     Returns:
         Dict with success and variable detail, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 
@@ -403,7 +399,11 @@ def create_variable(
 
     # Hard-delete any soft-deleted variable that would block the UNIQUE constraint
     deleted_row = def_manager.get_by_name(name, include_deleted=True)
-    if deleted_row is not None and deleted_row.deleted_at and deleted_row.workflow_type == "variable":
+    if (
+        deleted_row is not None
+        and deleted_row.deleted_at
+        and deleted_row.workflow_type == "variable"
+    ):
         def_manager.hard_delete(deleted_row.id)
 
     row = def_manager.create(
@@ -450,9 +450,7 @@ def update_variable(
     Returns:
         Dict with success and updated variable, or error
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 
@@ -506,9 +504,7 @@ def delete_variable(
     Returns:
         Dict with success, or error if not found/protected
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 
@@ -558,9 +554,7 @@ def export_variable(
     """
     import yaml
 
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 

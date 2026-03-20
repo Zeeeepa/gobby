@@ -630,7 +630,7 @@ class RuleEngine:
                     skill = self._skill_manager.resolve_skill_name(effect.skill)
                     if skill:
                         context_parts.append(
-                            f"<skill name=\"{skill.name}\">\n{skill.content}\n</skill>"
+                            f'<skill name="{skill.name}">\n{skill.content}\n</skill>'
                         )
                     else:
                         logger.warning(

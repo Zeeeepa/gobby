@@ -87,12 +87,14 @@ def list_downloaded_models() -> list[dict[str, str]]:
         return models
     for path in sorted(_DEFAULT_MODEL_DIR.glob("*.gguf")):
         size_mb = path.stat().st_size / (1024 * 1024)
-        models.append({
-            "name": path.stem,
-            "filename": path.name,
-            "path": str(path),
-            "size": f"{size_mb:.1f} MB",
-        })
+        models.append(
+            {
+                "name": path.stem,
+                "filename": path.name,
+                "path": str(path),
+                "size": f"{size_mb:.1f} MB",
+            }
+        )
     return models
 
 
@@ -170,8 +172,7 @@ class LocalEmbeddingModel:
         info = _MODEL_REGISTRY.get(model_name)
         if not info:
             raise RuntimeError(
-                f"Unknown local model: {model_name}. "
-                f"Available: {', '.join(_MODEL_REGISTRY.keys())}"
+                f"Unknown local model: {model_name}. Available: {', '.join(_MODEL_REGISTRY.keys())}"
             )
 
         url = info["url"]
@@ -245,9 +246,7 @@ class LocalEmbeddingModel:
         prefixed_texts = [f"{prefix}{t}" for t in texts]
 
         # Run in thread to avoid blocking the event loop
-        embeddings = await asyncio.to_thread(
-            self._embed_sync, prefixed_texts
-        )
+        embeddings = await asyncio.to_thread(self._embed_sync, prefixed_texts)
         return embeddings
 
     def _embed_sync(self, texts: list[str]) -> list[list[float]]:

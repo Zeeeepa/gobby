@@ -846,8 +846,7 @@ class MemoryManager:
 
         # Convert Memory objects to dicts for VectorStore.rebuild()
         memory_dicts = [
-            {"id": mem.id, "content": mem.content, "project_id": mem.project_id}
-            for mem in memories
+            {"id": mem.id, "content": mem.content, "project_id": mem.project_id} for mem in memories
         ]
 
         try:

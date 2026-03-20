@@ -166,7 +166,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 f"> **Plan reference:** `{plan_file}`\n"
                 "> Your task description below is your scope — follow it, not the plan.\n"
                 "> The plan file provides background context only "
-                "(the \"why\" behind this task).\n"
+                '(the "why" behind this task).\n'
                 "> Your description may differ from the plan because "
                 "expansion was adapted to the actual codebase.\n\n"
             )

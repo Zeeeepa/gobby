@@ -949,11 +949,9 @@ class HookManager:
                 else:
                     lines.append(f"- **{name}** (relevance: {score:.2f})")
             lines.append("")
+            lines.append('Load a skill: get_skill(name="skill-name") on gobby-skills')
             lines.append(
-                'Load a skill: get_skill(name="skill-name") on gobby-skills'
-            )
-            lines.append(
-                "Search skill hubs for more: search_hub(query=\"...\") on gobby-skills, "
+                'Search skill hubs for more: search_hub(query="...") on gobby-skills, '
                 'then install_skill(source="hub:slug") to use'
             )
             lines.append("</available-skills>")

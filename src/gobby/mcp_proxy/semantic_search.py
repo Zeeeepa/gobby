@@ -351,9 +351,7 @@ class SemanticToolSearch:
                     description = schema.get("description") if schema else None
                     input_schema = schema.get("inputSchema") if schema else None
                     # Deterministic UUID for internal tools (not in DB)
-                    tool_id = str(
-                        uuid.uuid5(uuid.NAMESPACE_DNS, f"{registry.name}/{tool_name}")
-                    )
+                    tool_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{registry.name}/{tool_name}"))
 
                     try:
                         await self.embed_tool(
