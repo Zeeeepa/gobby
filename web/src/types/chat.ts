@@ -33,7 +33,7 @@ export const CHAT_MODES: ChatModeInfo[] = [
 
 export interface ToolResult {
   content: unknown;
-  content_type: string;  // 'text' | 'json' | 'image' | 'error'
+  content_type: "text" | "json" | "image" | "error";
   truncated: boolean;
   metadata?: Record<string, unknown>;  // exit_code, line_count, etc.
 }
@@ -58,6 +58,24 @@ export type ContentBlock =
   | { type: "document"; source: Record<string, unknown> }
   | { type: "web_search_result"; content: Record<string, unknown> }
   | { type: "unknown"; block_type: string; raw: Record<string, unknown>; source_line?: number };
+
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_tokens?: number;
+  cache_read_tokens?: number;
+  total_cost_usd?: number;
+}
+
+export interface RenderedMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: string;
+  content_blocks?: ContentBlock[];
+  model?: string | null;
+  usage?: TokenUsage | null;
+}
 
 export interface ChatMessage {
   id: string;

@@ -125,6 +125,9 @@ interface ApiMessage {
   tool_use_id?: string;
   timestamp: string;
   message_index?: number;
+  content_blocks?: ContentBlock[];  // Snake case from RenderedMessage shape
+  model?: string | null;
+  usage?: TokenUsage | null;
 }
 
 function tryParseJSON(value: unknown): unknown {
@@ -236,6 +239,33 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
 
   for (const m of messages) {
     const id = m.id || `msg-${m.message_index ?? result.length}`;
+    const timestamp = new Date(m.timestamp);
+
+    // If message already has pre-rendered content_blocks, use them directly (RenderedMessage shape)
+    if (m.content_blocks && m.content_blocks.length > 0) {
+      flushAssistant();
+
+      const chatMsg: ChatMessage = {
+        id,
+        role: (m.role as "user" | "assistant" | "system") || "assistant",
+        content: m.content || "",
+        timestamp,
+        contentBlocks: m.content_blocks,
+      };
+
+      // Extract toolCalls and thinkingContent for legacy component compatibility
+      for (const block of m.content_blocks) {
+        if (block.type === "tool_chain" && block.tool_calls) {
+          chatMsg.toolCalls = [...(chatMsg.toolCalls || []), ...block.tool_calls];
+        } else if (block.type === "thinking") {
+          chatMsg.thinkingContent = (chatMsg.thinkingContent || "") + block.content;
+        }
+      }
+
+      result.push(chatMsg);
+      continue;
+    }
+
     const content = (m.content || "").trim();
 
     if (m.role === "user") {

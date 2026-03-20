@@ -152,6 +152,33 @@ export function sessionMessagesToChatMessages(messages: SessionMessage[]): ChatM
   let lastAssistant: ChatMessage | null = null
 
   for (const msg of messages) {
+    const id = String(msg.id)
+    const timestamp = new Date(msg.timestamp)
+
+    // If message already has pre-rendered content_blocks, use them directly (RenderedMessage shape)
+    if (msg.content_blocks && msg.content_blocks.length > 0) {
+      const chatMsg: ChatMessage = {
+        id,
+        role: (msg.role as 'user' | 'assistant' | 'system') || 'assistant',
+        content: msg.content || '',
+        timestamp,
+        contentBlocks: msg.content_blocks,
+      }
+
+      // Extract toolCalls for legacy component compatibility
+      for (const block of msg.content_blocks) {
+        if (block.type === 'tool_chain' && block.tool_calls) {
+          chatMsg.toolCalls = [...(chatMsg.toolCalls || []), ...block.tool_calls]
+        }
+      }
+
+      if (chatMsg.role === 'assistant') {
+        lastAssistant = chatMsg
+      }
+      result.push(chatMsg)
+      continue
+    }
+
     const content = msg.content?.trim() ?? ''
 
     // Tool-use messages: create ToolCall and attach to last assistant message

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { GobbySession } from './useSessions'
 import { useWebSocketEvent } from './useWebSocketEvent'
+import type { ContentBlock, TokenUsage } from '../types/chat'
 
 export interface SessionMessage {
   id: string
@@ -13,6 +14,9 @@ export interface SessionMessage {
   tool_use_id?: string
   timestamp: string
   message_index?: number
+  content_blocks?: ContentBlock[]
+  model?: string | null
+  usage?: TokenUsage | null
 }
 
 function getBaseUrl(): string {
