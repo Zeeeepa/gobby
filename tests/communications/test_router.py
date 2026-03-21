@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
 from gobby.communications.models import CommsRoutingRule
 from gobby.communications.router import MessageRouter
+
 
 @pytest.mark.asyncio
 async def test_router_matching():
@@ -13,25 +16,17 @@ async def test_router_matching():
     store = MagicMock()
     rules = [
         CommsRoutingRule(
-            id="rule-1",
-            name="Rule 1",
-            channel_id="chan-1",
-            event_pattern="task.*",
-            priority=10
+            id="rule-1", name="Rule 1", channel_id="chan-1", event_pattern="task.*", priority=10
         ),
         CommsRoutingRule(
-            id="rule-2",
-            name="Rule 2",
-            channel_id="chan-2",
-            event_pattern="*",
-            priority=0
+            id="rule-2", name="Rule 2", channel_id="chan-2", event_pattern="*", priority=0
         ),
         CommsRoutingRule(
             id="rule-3",
             name="Rule 3",
             channel_id="chan-3",
             event_pattern="session.started",
-            priority=20
+            priority=20,
         ),
         CommsRoutingRule(
             id="rule-disabled",
@@ -39,7 +34,7 @@ async def test_router_matching():
             channel_id="chan-4",
             event_pattern="*",
             priority=100,
-            enabled=False
+            enabled=False,
         ),
     ]
 
@@ -57,12 +52,13 @@ async def test_router_matching():
     assert matched == ["chan-1", "chan-2"]
 
     # Matches session.started and *
-    matched = await router.match_channels("session:started") # Test normalization
+    matched = await router.match_channels("session:started")  # Test normalization
     assert matched == ["chan-3", "chan-2"]
 
     # Matches only *
     matched = await router.match_channels("unknown.event")
     assert matched == ["chan-2"]
+
 
 @pytest.mark.asyncio
 async def test_router_filtering():
@@ -74,7 +70,7 @@ async def test_router_filtering():
             channel_id="chan-proj",
             event_pattern="*",
             project_id="proj-1",
-            priority=10
+            priority=10,
         ),
         CommsRoutingRule(
             id="rule-sess",
@@ -82,7 +78,7 @@ async def test_router_filtering():
             channel_id="chan-sess",
             event_pattern="*",
             session_id="sess-1",
-            priority=5
+            priority=5,
         ),
     ]
     store.get_routing_rules.return_value = rules

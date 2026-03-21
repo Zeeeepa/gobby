@@ -97,4 +97,6 @@ class BaseChannelAdapter(ABC):
             remaining = remaining[split_idx:].lstrip()
 
         return chunks
+
+
 # Status update trigger
