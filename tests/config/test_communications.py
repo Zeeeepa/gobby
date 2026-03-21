@@ -1,5 +1,6 @@
 """Tests for communication configuration models."""
 
+from gobby.config.app import DaemonConfig
 from gobby.config.communications import ChannelDefaults, CommunicationsConfig
 
 
@@ -46,3 +47,11 @@ def test_communications_config_default():
     assert config.auto_create_sessions is True
     assert isinstance(config.channel_defaults, ChannelDefaults)
     assert config.channel_defaults.rate_limit_per_minute == 30
+
+
+def test_daemon_config_includes_communications():
+    """Test CommunicationsConfig is wired into DaemonConfig."""
+    config = DaemonConfig()
+    assert hasattr(config, "communications")
+    assert isinstance(config.communications, CommunicationsConfig)
+    assert config.communications.enabled is False
