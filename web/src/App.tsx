@@ -994,7 +994,6 @@ export default function App() {
     { id: "workflows", label: "Workflows", icon: <WorkflowsIcon /> },
     { id: "reports", label: "Reports", icon: <ReportsIcon /> },
     { id: "projects", label: "Projects", icon: <ProjectsIcon /> },
-    { id: "source-control", label: "GitHub", icon: <GitHubIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
     { id: "traces", label: "Traces", icon: <TracesIcon /> },
     {
@@ -1198,7 +1197,7 @@ export default function App() {
           ) : activeTab === "code" ? (
             <CodePage projectId={effectiveProjectId} />
           ) : activeTab === "projects" ? (
-            <ProjectsPage />
+            <ProjectsPage projectId={effectiveProjectId} />
           ) : activeTab === "tasks" ? (
             <TasksPage projectFilter={effectiveProjectId} />
           ) : activeTab === "memory" ? (
