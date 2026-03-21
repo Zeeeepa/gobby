@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import logging
 from typing import TYPE_CHECKING
@@ -40,10 +41,16 @@ class MessageRouter:
         Returns:
             List of matched channel IDs, sorted by priority (highest first).
         """
+        # rules should already be sorted by priority from store
         rules = self.store.get_routing_rules(enabled_only=True)
+        # Handle both sync and async return from store if needed in future
+        if asyncio.iscoroutine(rules):
+            rules = await rules
+
         event_type = self._normalize_event_type(event_type)
 
         matched_channel_ids: list[str] = []
+        seen_channels: set[str] = set()
 
         for rule in rules:
             # Match project_id if specified in rule
@@ -56,8 +63,9 @@ class MessageRouter:
 
             # Match event pattern
             if self._matches_pattern(event_type, rule.event_pattern):
-                if rule.channel_id and rule.channel_id not in matched_channel_ids:
+                if rule.channel_id and rule.channel_id not in seen_channels:
                     matched_channel_ids.append(rule.channel_id)
+                    seen_channels.add(rule.channel_id)
 
         return matched_channel_ids
 

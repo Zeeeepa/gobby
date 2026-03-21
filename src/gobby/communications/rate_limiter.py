@@ -89,7 +89,7 @@ class TokenBucketRateLimiter:
             bucket.tokens = min(float(bucket.burst), bucket.tokens + new_tokens)
             bucket.last_refill = now
 
-    def check(self, channel_id: str) -> bool:
+    async def check(self, channel_id: str) -> bool:
         """Check if a token is available and consume it if so.
 
         This follows the token-bucket algorithm, refilling tokens based on elapsed time
@@ -101,13 +101,14 @@ class TokenBucketRateLimiter:
         Returns:
             True if a token was consumed, False otherwise.
         """
-        bucket = self._get_or_create_bucket(channel_id)
-        self._refill(bucket)
+        async with self._lock:
+            bucket = self._get_or_create_bucket(channel_id)
+            self._refill(bucket)
 
-        if bucket.tokens >= 1.0:
-            bucket.tokens -= 1.0
-            return True
-        return False
+            if bucket.tokens >= 1.0:
+                bucket.tokens -= 1.0
+                return True
+            return False
 
     async def wait_if_needed(self, channel_id: str) -> None:
         """Wait until a token is available for the channel.
@@ -128,23 +129,26 @@ class TokenBucketRateLimiter:
                 needed = 1.0 - bucket.tokens
                 wait_time = needed / bucket.rate
 
+            # Sleep outside the lock to allow other channels/checks to proceed
             await asyncio.sleep(wait_time)
 
-    def reset(self, channel_id: str) -> None:
+    async def reset(self, channel_id: str) -> None:
         """Reset a channel's bucket to full.
 
         Args:
             channel_id: The ID of the channel.
         """
-        if channel_id in self._buckets:
-            bucket = self._buckets[channel_id]
-            bucket.tokens = float(bucket.burst)
-            bucket.last_refill = time.monotonic()
+        async with self._lock:
+            if channel_id in self._buckets:
+                bucket = self._buckets[channel_id]
+                bucket.tokens = float(bucket.burst)
+                bucket.last_refill = time.monotonic()
 
-    def remove_channel(self, channel_id: str) -> None:
+    async def remove_channel(self, channel_id: str) -> None:
         """Remove a channel's bucket configuration.
 
         Args:
             channel_id: The ID of the channel.
         """
-        self._buckets.pop(channel_id, None)
+        async with self._lock:
+            self._buckets.pop(channel_id, None)
