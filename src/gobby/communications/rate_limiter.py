@@ -24,16 +24,16 @@ class TokenBucketRateLimiter:
 
     def __init__(
         self,
-        default_rate_per_min: int = 30,
+        default_rate: int = 30,
         default_burst: int = 5,
     ) -> None:
         """Initialize the rate limiter.
 
         Args:
-            default_rate_per_min: Default tokens per minute.
+            default_rate: Default tokens per minute.
             default_burst: Default maximum tokens (burst size).
         """
-        self._default_rate = default_rate_per_min / 60.0
+        self._default_rate = default_rate / 60.0
         self._default_burst = default_burst
         self._buckets: dict[str, _Bucket] = {}
         self._lock = asyncio.Lock()
@@ -42,7 +42,7 @@ class TokenBucketRateLimiter:
     def from_defaults(cls, defaults: ChannelDefaults) -> TokenBucketRateLimiter:
         """Create a rate limiter from ChannelDefaults."""
         return cls(
-            default_rate_per_min=defaults.rate_limit_per_minute,
+            default_rate=defaults.rate_limit_per_minute,
             default_burst=defaults.burst,
         )
 
@@ -57,18 +57,18 @@ class TokenBucketRateLimiter:
             )
         return self._buckets[channel_id]
 
-    def configure_channel(self, channel_id: str, rate_per_min: int, burst: int) -> None:
+    def configure_channel(self, channel_id: str, rate: int, burst: int) -> None:
         """Configure specific limits for a channel.
 
         Args:
             channel_id: The ID of the channel.
-            rate_per_min: Tokens per minute for this channel.
+            rate: Tokens per minute for this channel.
             burst: Maximum tokens (burst size) for this channel.
         """
-        rate = rate_per_min / 60.0
+        r = rate / 60.0
         if channel_id in self._buckets:
             bucket = self._buckets[channel_id]
-            bucket.rate = rate
+            bucket.rate = r
             bucket.burst = burst
             # Cap tokens if new burst is smaller
             bucket.tokens = min(bucket.tokens, float(burst))
@@ -76,7 +76,7 @@ class TokenBucketRateLimiter:
             self._buckets[channel_id] = _Bucket(
                 tokens=float(burst),
                 last_refill=time.monotonic(),
-                rate=rate,
+                rate=r,
                 burst=burst,
             )
 
@@ -89,7 +89,7 @@ class TokenBucketRateLimiter:
             bucket.tokens = min(float(bucket.burst), bucket.tokens + new_tokens)
             bucket.last_refill = now
 
-    async def check(self, channel_id: str) -> bool:
+    def check(self, channel_id: str) -> bool:
         """Check if a token is available and consume it if so.
 
         This follows the token-bucket algorithm, refilling tokens based on elapsed time
@@ -101,14 +101,13 @@ class TokenBucketRateLimiter:
         Returns:
             True if a token was consumed, False otherwise.
         """
-        async with self._lock:
-            bucket = self._get_or_create_bucket(channel_id)
-            self._refill(bucket)
+        bucket = self._get_or_create_bucket(channel_id)
+        self._refill(bucket)
 
-            if bucket.tokens >= 1.0:
-                bucket.tokens -= 1.0
-                return True
-            return False
+        if bucket.tokens >= 1.0:
+            bucket.tokens -= 1.0
+            return True
+        return False
 
     async def wait_if_needed(self, channel_id: str) -> None:
         """Wait until a token is available for the channel.
@@ -117,38 +116,37 @@ class TokenBucketRateLimiter:
             channel_id: The ID of the channel.
         """
         while True:
-            async with self._lock:
-                bucket = self._get_or_create_bucket(channel_id)
-                self._refill(bucket)
+            # We don't really need the lock for single bucket ops as they are atomic-ish in GIL,
+            # but for refill + check it's safer. However, this is local memory state.
+            bucket = self._get_or_create_bucket(channel_id)
+            self._refill(bucket)
 
-                if bucket.tokens >= 1.0:
-                    bucket.tokens -= 1.0
-                    return
+            if bucket.tokens >= 1.0:
+                bucket.tokens -= 1.0
+                return
 
-                # Calculate wait time
-                needed = 1.0 - bucket.tokens
-                wait_time = needed / bucket.rate
+            # Calculate wait time
+            needed = 1.0 - bucket.tokens
+            wait_time = needed / bucket.rate
 
-            # Sleep outside the lock to allow other channels/checks to proceed
+            # Sleep to allow other tasks to proceed
             await asyncio.sleep(wait_time)
 
-    async def reset(self, channel_id: str) -> None:
+    def reset(self, channel_id: str) -> None:
         """Reset a channel's bucket to full.
 
         Args:
             channel_id: The ID of the channel.
         """
-        async with self._lock:
-            if channel_id in self._buckets:
-                bucket = self._buckets[channel_id]
-                bucket.tokens = float(bucket.burst)
-                bucket.last_refill = time.monotonic()
+        if channel_id in self._buckets:
+            bucket = self._buckets[channel_id]
+            bucket.tokens = float(bucket.burst)
+            bucket.last_refill = time.monotonic()
 
-    async def remove_channel(self, channel_id: str) -> None:
+    def remove_channel(self, channel_id: str) -> None:
         """Remove a channel's bucket configuration.
 
         Args:
             channel_id: The ID of the channel.
         """
-        async with self._lock:
-            self._buckets.pop(channel_id, None)
+        self._buckets.pop(channel_id, None)

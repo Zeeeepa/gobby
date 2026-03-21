@@ -13,36 +13,36 @@ from gobby.communications.rate_limiter import TokenBucketRateLimiter
 @pytest.mark.asyncio
 async def test_rate_limiter_check():
     # 60 tokens per min = 1 token per sec. Burst = 2.
-    limiter = TokenBucketRateLimiter(default_rate_per_min=60, default_burst=2)
+    limiter = TokenBucketRateLimiter(default_rate=60, default_burst=2)
 
     # First check consumes one token
-    assert await limiter.check("chan-1") is True
+    assert limiter.check("chan-1") is True
     # Second check consumes the second burst token
-    assert await limiter.check("chan-1") is True
+    assert limiter.check("chan-1") is True
     # Third check fails (empty)
-    assert await limiter.check("chan-1") is False
+    assert limiter.check("chan-1") is False
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_refill():
     # 600 tokens per min = 10 tokens per sec.
-    limiter = TokenBucketRateLimiter(default_rate_per_min=600, default_burst=1)
+    limiter = TokenBucketRateLimiter(default_rate=600, default_burst=1)
 
-    assert await limiter.check("chan-1") is True
-    assert await limiter.check("chan-1") is False
+    assert limiter.check("chan-1") is True
+    assert limiter.check("chan-1") is False
 
     # Wait for refill (0.1s should give 1 token)
     await asyncio.sleep(0.15)
-    assert await limiter.check("chan-1") is True
+    assert limiter.check("chan-1") is True
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_wait():
     # 60 tokens per min = 1 token per sec.
-    limiter = TokenBucketRateLimiter(default_rate_per_min=60, default_burst=1)
+    limiter = TokenBucketRateLimiter(default_rate=60, default_burst=1)
 
     # Consume initial token
-    assert await limiter.check("chan-1") is True
+    assert limiter.check("chan-1") is True
 
     start = time.monotonic()
     # Should wait ~1s
@@ -54,26 +54,26 @@ async def test_rate_limiter_wait():
 
 @pytest.mark.asyncio
 async def test_rate_limiter_configure():
-    limiter = TokenBucketRateLimiter(default_rate_per_min=1, default_burst=1)
+    limiter = TokenBucketRateLimiter(default_rate=1, default_burst=1)
 
     # Configure channel with high rate
-    limiter.configure_channel("fast-chan", rate_per_min=6000, burst=10)
+    limiter.configure_channel("fast-chan", rate=6000, burst=10)
 
     for _ in range(10):
-        assert await limiter.check("fast-chan") is True
-    assert await limiter.check("fast-chan") is False
+        assert limiter.check("fast-chan") is True
+    assert limiter.check("fast-chan") is False
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_reset_remove():
-    limiter = TokenBucketRateLimiter(default_rate_per_min=60, default_burst=1)
+    limiter = TokenBucketRateLimiter(default_rate=60, default_burst=1)
 
-    assert await limiter.check("chan-1") is True
-    assert await limiter.check("chan-1") is False
+    assert limiter.check("chan-1") is True
+    assert limiter.check("chan-1") is False
 
-    await limiter.reset("chan-1")
-    assert await limiter.check("chan-1") is True
+    limiter.reset("chan-1")
+    assert limiter.check("chan-1") is True
 
-    await limiter.remove_channel("chan-1")
+    limiter.remove_channel("chan-1")
     # Should re-create with defaults
-    assert await limiter.check("chan-1") is True
+    assert limiter.check("chan-1") is True
