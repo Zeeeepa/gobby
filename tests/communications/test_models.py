@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+
 from gobby.communications.models import (
     ChannelCapabilities,
     ChannelConfig,
-    CommsMessage,
     CommsIdentity,
+    CommsMessage,
     CommsRoutingRule,
 )
 
