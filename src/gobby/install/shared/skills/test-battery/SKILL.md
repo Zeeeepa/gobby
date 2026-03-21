@@ -1,7 +1,7 @@
 ---
 name: test-battery
 description: "Setup wizard + autonomous monitoring loop for orchestrator test battery. Creates cron-driven orchestrator pipeline on a clone, monitors agent progress, and intervenes on infrastructure failures. Persists state in test-battery.md for compaction survival."
-version: "3.0.0"
+version: "3.1.0"
 category: testing
 triggers: test battery, orchestrator test, run test battery, e2e test, test the orchestrator
 metadata:
@@ -16,7 +16,7 @@ Autonomous monitoring loop for the orchestrator pipeline. Sets up a cron-driven 
 
 **Three phases:**
 1. **Phase 0: Resume** — Check for existing `test-battery.md` and resume monitoring
-2. **Phase 1: Setup** — Interactive wizard (9 prompts)
+2. **Phase 1: Setup** — Interactive wizard (10 prompts)
 3. **Phase 2: Init** — Create monitoring task, cron job, state file
 4. **Phase 3: Monitor** — Autonomous polling loop with intervention protocol
 
@@ -39,7 +39,7 @@ Before anything else, check if a monitoring session is already in progress:
 
 ## Phase 1: Interactive Setup Wizard
 
-Collect configuration through 9 sequential prompts. Show the default for each and accept enter/confirmation for defaults.
+Collect configuration through 10 sequential prompts. Show the default for each and accept enter/confirmation for defaults.
 
 ### Prompt 1: Reset Environment
 
@@ -131,7 +131,15 @@ Ask: "Cron interval — how often should the orchestrator tick? (default: 5m)"
 - Convert to seconds
 - Default: 300
 
-### Prompt 9: Confirm
+### Prompt 9: Isolation Mode
+
+Ask: "Agent isolation mode? (default: worktree)"
+- **worktree** — Each agent gets a git worktree (fast, shared .git, recommended)
+- **clone** — Each agent gets a full git clone (fully isolated, slower setup)
+- **none** — Agents work in the main directory (no isolation, use for debugging)
+- Default: `isolation="worktree"`
+
+### Prompt 10: Confirm
 
 Display the full configuration:
 
@@ -147,6 +155,7 @@ Timeout:        <N>s
 Cron Interval:  <N>s (<N>m)
 Max Concurrent: 5
 Merge Target:   <current_branch>
+Isolation:      <worktree|clone|none>
 ============================================
 ```
 
@@ -190,7 +199,8 @@ job = call_tool("gobby-cron", "create_cron_job", {
             "qa_model": "<qa_model>",
             "agent_timeout": <timeout>,
             "max_concurrent": 5,
-            "merge_target": "<current_branch>"
+            "merge_target": "<current_branch>",
+            "isolation": "<isolation>"
         }
     },
     "schedule_type": "interval",
@@ -425,6 +435,7 @@ Create this as `test-battery.md` in the project root during Phase 2:
 - **Agent Timeout**: <N>s
 - **Cron Interval**: <N>s
 - **Max Concurrent**: 5
+- **Isolation**: <worktree|clone|none>
 - **Started At**: <ISO timestamp>
 
 ## Current Cycle: 0
