@@ -92,6 +92,9 @@ class TokenBucketRateLimiter:
     def check(self, channel_id: str) -> bool:
         """Check if a token is available and consume it if so.
 
+        This follows the token-bucket algorithm, refilling tokens based on elapsed time
+        since the last check or refill operation.
+
         Args:
             channel_id: The ID of the channel to check.
 
