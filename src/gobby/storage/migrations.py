@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 164
+BASELINE_VERSION = 166
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -975,6 +975,68 @@ CREATE TABLE metric_snapshots (
     metrics_json TEXT NOT NULL
 );
 CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp);
+
+CREATE TABLE comms_channels (
+    id TEXT PRIMARY KEY,
+    channel_type TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    webhook_secret TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE comms_identities (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    external_user_id TEXT NOT NULL,
+    external_username TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(channel_id, external_user_id)
+);
+CREATE INDEX idx_comms_identities_channel ON comms_identities(channel_id);
+CREATE INDEX idx_comms_identities_external_user ON comms_identities(external_user_id);
+CREATE INDEX idx_comms_identities_session ON comms_identities(session_id);
+
+CREATE TABLE comms_messages (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    identity_id TEXT REFERENCES comms_identities(id) ON DELETE SET NULL,
+    direction TEXT NOT NULL CHECK(direction IN ('inbound', 'outbound')),
+    content TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'text',
+    platform_message_id TEXT,
+    platform_thread_id TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'sent',
+    error TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_messages_channel_created ON comms_messages(channel_id, created_at);
+CREATE INDEX idx_comms_messages_session ON comms_messages(session_id);
+CREATE INDEX idx_comms_messages_direction ON comms_messages(direction);
+
+CREATE TABLE comms_routing_rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    channel_id TEXT REFERENCES comms_channels(id) ON DELETE CASCADE,
+    event_pattern TEXT NOT NULL DEFAULT '*',
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    priority INTEGER DEFAULT 0,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
+CREATE INDEX idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);
 """
 
 
@@ -1449,6 +1511,71 @@ DROP INDEX IF EXISTS idx_session_messages_tool""",
 DELETE FROM config_store WHERE key LIKE 'memory_dedup_decision.%';
 DELETE FROM config_store WHERE key LIKE 'memory_entity_extraction.%';
 UPDATE config_store SET value = 'true' WHERE key = 'memory_extraction.enabled'""",
+    ),
+    (
+        166,
+        "Add communications tables for multi-channel support",
+        """CREATE TABLE comms_channels (
+    id TEXT PRIMARY KEY,
+    channel_type TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    webhook_secret TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE comms_identities (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    external_user_id TEXT NOT NULL,
+    external_username TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(channel_id, external_user_id)
+);
+CREATE INDEX idx_comms_identities_channel ON comms_identities(channel_id);
+CREATE INDEX idx_comms_identities_external_user ON comms_identities(external_user_id);
+CREATE INDEX idx_comms_identities_session ON comms_identities(session_id);
+
+CREATE TABLE comms_messages (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    identity_id TEXT REFERENCES comms_identities(id) ON DELETE SET NULL,
+    direction TEXT NOT NULL CHECK(direction IN ('inbound', 'outbound')),
+    content TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'text',
+    platform_message_id TEXT,
+    platform_thread_id TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'sent',
+    error TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_messages_channel_created ON comms_messages(channel_id, created_at);
+CREATE INDEX idx_comms_messages_session ON comms_messages(session_id);
+CREATE INDEX idx_comms_messages_direction ON comms_messages(direction);
+
+CREATE TABLE comms_routing_rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    channel_id TEXT REFERENCES comms_channels(id) ON DELETE CASCADE,
+    event_pattern TEXT NOT NULL DEFAULT '*',
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    priority INTEGER DEFAULT 0,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
+CREATE INDEX idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);""",
     ),
 ]
 
