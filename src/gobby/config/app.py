@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
 from gobby.config.code_index import CodeIndexConfig
+from gobby.config.communications import CommunicationsConfig
 from gobby.config.conductor import ConductorConfig
 from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
@@ -320,6 +321,10 @@ class DaemonConfig(BaseModel):
     llm_providers: LLMProvidersConfig = Field(
         default_factory=LLMProvidersConfig,
         description="Multi-provider LLM configuration",
+    )
+    communications: CommunicationsConfig = Field(
+        default_factory=CommunicationsConfig,
+        description="Communications channel configuration",
     )
     digest: DigestConfig = Field(
         default_factory=DigestConfig,
