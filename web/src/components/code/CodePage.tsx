@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { TabBar } from '../shared/TabBar'
-import { FilesTab } from '../activity/FilesTab'
+import { FilesPage } from '../FilesPage'
 import { CodeGraphExplorer } from '../code-graph/CodeGraphExplorer'
+import { useFilesContext } from '../../contexts/FilesContext'
 import './CodePage.css'
 
 interface CodePageProps {
@@ -17,6 +18,13 @@ type CodeTab = 'editor' | 'graph'
 
 export function CodePage({ projectId }: CodePageProps) {
   const [activeTab, setActiveTab] = useState<CodeTab>('editor')
+  const files = useFilesContext()
+
+  // Scope file tree to the selected project
+  const scopedProjects = useMemo(
+    () => projectId ? files.projects.filter(p => p.id === projectId) : files.projects,
+    [projectId, files.projects]
+  )
 
   return (
     <div className="code-page">
@@ -29,7 +37,34 @@ export function CodePage({ projectId }: CodePageProps) {
       </div>
       <div className="code-page-content">
         {activeTab === 'editor' && (
-          <FilesTab projectId={projectId} />
+          scopedProjects.length > 0 ? (
+            <FilesPage
+              projects={scopedProjects}
+              expandedDirs={files.expandedDirs}
+              expandedProjects={files.expandedProjects}
+              openFiles={files.openFiles}
+              activeFileIndex={files.activeFileIndex}
+              loadingDirs={files.loadingDirs}
+              gitStatuses={files.gitStatuses}
+              onExpandProject={files.expandProject}
+              onExpandDir={files.expandDir}
+              onOpenFile={files.openFile}
+              onCloseFile={files.closeFile}
+              onSetActiveFile={files.setActiveFileIndex}
+              getImageUrl={files.getImageUrl}
+              onToggleEditing={files.toggleEditing}
+              onCancelEditing={files.cancelEditing}
+              onUpdateEditContent={files.updateEditContent}
+              onSaveFile={files.saveFile}
+              onFetchDiff={files.fetchDiff}
+            />
+          ) : (
+            <div className="code-page-empty">
+              {projectId
+                ? 'No files found for this project. Try refreshing or check the repo path.'
+                : 'Select a project to browse files.'}
+            </div>
+          )
         )}
         {activeTab === 'graph' && (
           <CodeGraphExplorer projectId={projectId} />

@@ -422,8 +422,10 @@ function TreeEntry({ entry, projectId, depth, expandedDirs, loadingDirs, gitFile
     >
       <FileIcon extension={entry.extension?.replace('.', '') || ''} size={14} />
       <span className="files-tree-name" style={gitColor ? { color: gitColor } : undefined}>{entry.name}</span>
-      {entry.size !== undefined && entry.size > 102400 && (
-        <span className="files-tree-size">{formatSize(entry.size)}</span>
+      {gitStatus && (
+        <span className="files-tree-git-badge" style={{ color: gitColor }}>
+          {gitStatus === '??' ? '?' : gitStatus.charAt(0)}
+        </span>
       )}
     </div>
   )
