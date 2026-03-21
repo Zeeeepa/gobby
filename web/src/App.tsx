@@ -32,6 +32,7 @@ import { SlashCommandModal } from "./components/command-browser/SlashCommandModa
 import { ResumeSessionModal } from "./components/chat/ResumeSessionModal";
 import type { GobbySession } from "./hooks/useSessions";
 import type { CommandPaletteAction } from "./components/chat/CommandPalette";
+import { FilesProvider } from "./contexts/FilesContext";
 
 // Lazy-load non-default page components for code splitting
 const SessionsPage = lazy(() =>
@@ -78,6 +79,9 @@ const WorkflowsPage = lazy(() =>
 );
 const GitHubPage = lazy(() =>
   import("./components/source-control/GitHubPage").then((m) => ({ default: m.GitHubPage })),
+);
+const CodePage = lazy(() =>
+  import("./components/code/CodePage").then((m) => ({ default: m.CodePage })),
 );
 const ReportsPage = lazy(() =>
   import("./components/workflows/ReportsPage").then((m) => ({ default: m.ReportsPage })),
@@ -301,7 +305,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     const hash = window.location.hash.slice(1);
     const validTabs = new Set([
-      "dashboard", "chat", "sessions", "terminals", "projects",
+      "dashboard", "chat", "code", "sessions", "terminals", "projects",
       "tasks", "workflows", "reports", "source-control", "cron",
       "traces", "memory", "skills", "mcp", "configuration",
     ]);
@@ -981,14 +985,15 @@ export default function App() {
     { id: "dashboard", label: "Dashboard", icon: <DashboardIcon /> },
     { id: "chat", label: "Chat", icon: <ChatIcon /> },
     {
-      id: "projects",
-      label: "Projects",
-      icon: <ProjectsIcon />,
+      id: "code",
+      label: "Code",
+      icon: <CodeIcon />,
       separator: true,
     },
     { id: "tasks", label: "Tasks", icon: <TasksIcon /> },
     { id: "workflows", label: "Workflows", icon: <WorkflowsIcon /> },
     { id: "reports", label: "Reports", icon: <ReportsIcon /> },
+    { id: "projects", label: "Projects", icon: <ProjectsIcon /> },
     { id: "source-control", label: "GitHub", icon: <GitHubIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
     { id: "traces", label: "Traces", icon: <TracesIcon /> },
@@ -1061,6 +1066,7 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
       />
 
+      <FilesProvider>
       <AppErrorBoundary
         activeTab={activeTab}
         onReturnToChat={() => setActiveTab("chat")}
@@ -1189,6 +1195,8 @@ export default function App() {
               resizeTerminal={tmux.resizeTerminal}
               onOutput={tmux.onOutput}
             />
+          ) : activeTab === "code" ? (
+            <CodePage projectId={effectiveProjectId} />
           ) : activeTab === "projects" ? (
             <ProjectsPage />
           ) : activeTab === "tasks" ? (
@@ -1222,6 +1230,7 @@ export default function App() {
           )}
         </Suspense>
       </AppErrorBoundary>
+      </FilesProvider>
 
       <Settings
         isOpen={settingsOpen}
@@ -1364,6 +1373,24 @@ function TasksIcon() {
     >
       <path d="M9 11l3 3L22 4" />
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+function CodeIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
     </svg>
   );
 }
