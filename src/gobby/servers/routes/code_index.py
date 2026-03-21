@@ -172,10 +172,7 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
                 for sym in symbols
                 if sym.parent_symbol_id is None
             ]
-            links = [
-                {"source": file_path, "target": n["id"], "type": "DEFINES"}
-                for n in nodes
-            ]
+            links = [{"source": file_path, "target": n["id"], "type": "DEFINES"} for n in nodes]
             data = {"nodes": nodes, "links": links}
 
         return JSONResponse(content=data)

@@ -87,12 +87,14 @@ def create_impact_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
 
             # Only add symbol info if present (import-only results lack symbol_id)
             if r.get("symbol_id"):
-                entry["symbols"].append({
-                    "symbol_id": r["symbol_id"],
-                    "symbol_name": r.get("symbol_name", ""),
-                    "kind": r.get("kind", ""),
-                    "distance": r.get("distance", 1),
-                })
+                entry["symbols"].append(
+                    {
+                        "symbol_id": r["symbol_id"],
+                        "symbol_name": r.get("symbol_name", ""),
+                        "kind": r.get("kind", ""),
+                        "distance": r.get("distance", 1),
+                    }
+                )
 
         # Cross-reference with tasks
         all_task_ids: set[str] = set()
@@ -106,10 +108,12 @@ def create_impact_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
                         continue
                     task_files = af_manager.get_tasks_for_file(fp)
                     for tf in task_files:
-                        entry["tasks"].append({
-                            "task_id": tf.task_id,
-                            "annotation_source": tf.annotation_source,
-                        })
+                        entry["tasks"].append(
+                            {
+                                "task_id": tf.task_id,
+                                "annotation_source": tf.annotation_source,
+                            }
+                        )
                         all_task_ids.add(tf.task_id)
             except Exception as e:
                 logger.debug(f"Task cross-reference failed: {e}")
@@ -122,9 +126,7 @@ def create_impact_registry(ctx: CodeRegistryContext) -> InternalToolRegistry:
 
         # Count unique symbols
         total_symbols = sum(len(f["symbols"]) for f in affected_files)
-        max_distance = max(
-            (f["min_distance"] for f in affected_files), default=0
-        )
+        max_distance = max((f["min_distance"] for f in affected_files), default=0)
 
         return {
             "query": {

@@ -479,9 +479,7 @@ class CodeIndexStorage:
 
     # ── Graph visualization fallbacks ────────────────────────────────
 
-    def get_file_symbol_tree(
-        self, project_id: str, limit: int = 200
-    ) -> dict[str, Any]:
+    def get_file_symbol_tree(self, project_id: str, limit: int = 200) -> dict[str, Any]:
         """Build file→symbol containment graph from SQLite.
 
         Fallback for when Neo4j is unavailable. No call/import edges,
@@ -503,14 +501,16 @@ class CodeIndexStorage:
         for row in file_rows:
             fp = row["file_path"]
             file_paths.append(fp)
-            nodes.append({
-                "id": fp,
-                "name": fp,
-                "type": "file",
-                "file_path": fp,
-                "language": row["language"],
-                "symbol_count": row["symbol_count"] or 0,
-            })
+            nodes.append(
+                {
+                    "id": fp,
+                    "name": fp,
+                    "type": "file",
+                    "file_path": fp,
+                    "language": row["language"],
+                    "symbol_count": row["symbol_count"] or 0,
+                }
+            )
 
         # Get top-level symbols for each file (limit to avoid explosion)
         if file_paths:
@@ -524,20 +524,24 @@ class CodeIndexStorage:
                 (project_id, *file_paths),
             )
             for row in sym_rows:
-                nodes.append({
-                    "id": row["id"],
-                    "name": row["name"],
-                    "type": row["kind"] or "function",
-                    "kind": row["kind"],
-                    "file_path": row["file_path"],
-                    "line_start": row["line_start"],
-                    "signature": row["signature"],
-                })
-                links.append({
-                    "source": row["file_path"],
-                    "target": row["id"],
-                    "type": "DEFINES",
-                })
+                nodes.append(
+                    {
+                        "id": row["id"],
+                        "name": row["name"],
+                        "type": row["kind"] or "function",
+                        "kind": row["kind"],
+                        "file_path": row["file_path"],
+                        "line_start": row["line_start"],
+                        "signature": row["signature"],
+                    }
+                )
+                links.append(
+                    {
+                        "source": row["file_path"],
+                        "target": row["id"],
+                        "type": "DEFINES",
+                    }
+                )
 
         return {"nodes": nodes, "links": links}
 

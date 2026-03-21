@@ -144,7 +144,14 @@ class RuleEffect(BaseModel):
             "load_skill": {"skill"},
         }
         # Fields with non-None defaults that shouldn't trigger warnings
-        _default_skip = {"background", "when", "auto_approve", "inject_result", "block_on_failure", "block_on_success"}
+        _default_skip = {
+            "background",
+            "when",
+            "auto_approve",
+            "inject_result",
+            "block_on_failure",
+            "block_on_success",
+        }
         relevant = _fields_by_type.get(self.type, set())
         for field_name, field_set in _fields_by_type.items():
             if field_name == self.type:
