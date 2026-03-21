@@ -296,21 +296,20 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     }
   }, [blastData, isSearchActive, searchLower])
 
-  // Link color
+  // Link color — must always return a visible color by default
   const linkColor = useCallback((link: any) => {
+    const srcId = typeof link.source === 'object' ? link.source.id : link.source
+    const tgtId = typeof link.target === 'object' ? link.target.id : link.target
+
     if (blastData) {
-      const srcId = typeof link.source === 'object' ? link.source.id : link.source
-      const tgtId = typeof link.target === 'object' ? link.target.id : link.target
       if (!blastData.has(srcId) || !blastData.has(tgtId)) return 'rgba(60,60,60,0.1)'
     }
     if (isSearchActive) {
-      const srcId = typeof link.source === 'object' ? link.source.id : link.source
-      const tgtId = typeof link.target === 'object' ? link.target.id : link.target
       const srcMatch = String(srcId).toLowerCase().includes(searchLower)
       const tgtMatch = String(tgtId).toLowerCase().includes(searchLower)
       if (!srcMatch && !tgtMatch) return 'rgba(60,60,60,0.15)'
     }
-    return link.color || edgeColor(link.type)
+    return link.color || edgeColor(link.type) || 'rgba(120,120,120,0.4)'
   }, [blastData, isSearchActive, searchLower])
 
   const linkLabel = useCallback((link: any) => link.type as string, [])
@@ -431,26 +430,33 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
         graphData={forceData}
         width={dimensions.width}
         height={dimensions.height}
+        nodeId="id"
         nodeThreeObject={nodeThreeObject}
         nodeThreeObjectExtend={false}
         onNodeClick={handleNodeClick}
         nodeLabel={(node: any) => {
-          const parts = [node.name]
-          if (node.kind && node.kind !== node.type) parts.push(`(${node.kind})`)
-          if (node.signature) parts.push(`\n${node.signature}`)
-          if (node.file_path && node.type !== 'file') parts.push(`\n${node.file_path}${node.line_start ? `:${node.line_start}` : ''}`)
-          return parts.join(' ')
+          const parts = [`<b>${node.name}</b>`]
+          if (node.kind) parts.push(`<br/><span style="color:${NODE_COLORS[node.type] || '#6b7280'};text-transform:uppercase;font-size:9px">${node.kind}</span>`)
+          if (node.signature) parts.push(`<br/><span style="color:#e6b450;font-size:9px">${node.signature}</span>`)
+          if (node.file_path && node.type !== 'file') parts.push(`<br/><span style="color:#888;font-size:9px">${node.file_path}${node.line_start ? ':' + node.line_start : ''}</span>`)
+          return `<div style="text-align:center;font-family:monospace;font-size:11px;line-height:1.4">${parts.join('')}</div>`
         }}
+        linkSource="source"
+        linkTarget="target"
         linkColor={linkColor}
         linkLabel={linkLabel}
+        linkWidth={0.5}
         linkOpacity={0.6}
-        linkWidth={1}
-        linkDirectionalParticles={(link: any) => link.type === 'CALLS' ? 2 : 0}
-        linkDirectionalParticleWidth={2}
-        linkDirectionalParticleColor={(link: any) => link.color}
-        backgroundColor="#0a0a0a"
+        linkDirectionalArrowLength={IS_MOBILE ? 0 : 3}
+        linkDirectionalArrowRelPos={1}
+        linkDirectionalParticles={IS_MOBILE ? 0 : 2}
+        linkDirectionalParticleSpeed={0.004}
+        linkDirectionalParticleWidth={0.8}
+        linkDirectionalParticleColor={linkColor}
+        backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
         enableNodeDrag={true}
+        {...(IS_MOBILE ? { rendererConfig: { antialias: false, powerPreference: 'low-power' as const } } : {})}
       />
     </div>
   )

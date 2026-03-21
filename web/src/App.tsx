@@ -32,8 +32,6 @@ import { SlashCommandModal } from "./components/command-browser/SlashCommandModa
 import { ResumeSessionModal } from "./components/chat/ResumeSessionModal";
 import type { GobbySession } from "./hooks/useSessions";
 import type { CommandPaletteAction } from "./components/chat/CommandPalette";
-import { FilesProvider } from "./contexts/FilesContext";
-
 // Lazy-load non-default page components for code splitting
 const SessionsPage = lazy(() =>
   import("./components/sessions/SessionsPage").then((m) => ({
@@ -1065,7 +1063,6 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <FilesProvider>
       <AppErrorBoundary
         activeTab={activeTab}
         onReturnToChat={() => setActiveTab("chat")}
@@ -1229,7 +1226,6 @@ export default function App() {
           )}
         </Suspense>
       </AppErrorBoundary>
-      </FilesProvider>
 
       <Settings
         isOpen={settingsOpen}
