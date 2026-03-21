@@ -30,7 +30,7 @@ class ChannelCapabilities:
         )
 
     @classmethod
-    def from_row(cls, row: Mapping[str, Any]) -> ChannelCapabilities:
+    def from_row(cls, row: Any) -> ChannelCapabilities:
         """Create from database row."""
         data = dict(row)
         return cls(
