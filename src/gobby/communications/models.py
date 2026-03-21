@@ -32,12 +32,13 @@ class ChannelCapabilities:
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> ChannelCapabilities:
         """Create from database row."""
+        data = dict(row)
         return cls(
-            threading=bool(row.get("threading", False)),
-            reactions=bool(row.get("reactions", False)),
-            files=bool(row.get("files", False)),
-            markdown=bool(row.get("markdown", False)),
-            max_message_length=row.get("max_message_length", 4000),
+            threading=bool(data.get("threading", False)),
+            reactions=bool(data.get("reactions", False)),
+            files=bool(data.get("files", False)),
+            markdown=bool(data.get("markdown", False)),
+            max_message_length=data.get("max_message_length", 4000),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -67,21 +68,22 @@ class ChannelConfig:
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> ChannelConfig:
         """Create from database row."""
-        config_json = row.get("config_json")
+        data = dict(row)
+        config_json = data.get("config_json")
         if isinstance(config_json, str):
             import json
 
             config_json = json.loads(config_json)
 
         return cls(
-            id=row["id"],
-            channel_type=row.get("channel_type", "unknown"),
-            name=row.get("name", "Unknown Channel"),
-            enabled=bool(row.get("enabled", False)),
+            id=data["id"],
+            channel_type=data.get("channel_type", "unknown"),
+            name=data.get("name", "Unknown Channel"),
+            enabled=bool(data.get("enabled", False)),
             config_json=config_json or {},
-            webhook_secret=row.get("webhook_secret"),
-            created_at=row.get("created_at", datetime.now().isoformat()),
-            updated_at=row.get("updated_at", datetime.now().isoformat()),
+            webhook_secret=data.get("webhook_secret"),
+            created_at=data.get("created_at", datetime.now().isoformat()),
+            updated_at=data.get("updated_at", datetime.now().isoformat()),
         )
 
 
@@ -106,26 +108,27 @@ class CommsMessage:
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> CommsMessage:
         """Create from database row."""
-        metadata_json = row.get("metadata_json")
+        data = dict(row)
+        metadata_json = data.get("metadata_json")
         if isinstance(metadata_json, str):
             import json
 
             metadata_json = json.loads(metadata_json)
 
         return cls(
-            id=row["id"],
-            channel_id=row.get("channel_id", "unknown"),
-            identity_id=row.get("identity_id"),
-            direction=row.get("direction", "outbound"),  # type: ignore[arg-type]
-            content=row.get("content", ""),
-            content_type=row.get("content_type", "text"),
-            platform_message_id=row.get("platform_message_id"),
-            platform_thread_id=row.get("platform_thread_id"),
-            session_id=row.get("session_id"),
-            status=row.get("status", "sent"),
-            error=row.get("error"),
+            id=data["id"],
+            channel_id=data.get("channel_id", "unknown"),
+            identity_id=data.get("identity_id"),
+            direction=data.get("direction", "outbound"),  # type: ignore[arg-type]
+            content=data.get("content", ""),
+            content_type=data.get("content_type", "text"),
+            platform_message_id=data.get("platform_message_id"),
+            platform_thread_id=data.get("platform_thread_id"),
+            session_id=data.get("session_id"),
+            status=data.get("status", "sent"),
+            error=data.get("error"),
             metadata_json=metadata_json or {},
-            created_at=row.get("created_at", datetime.now().isoformat()),
+            created_at=data.get("created_at", datetime.now().isoformat()),
         )
 
 
@@ -146,22 +149,23 @@ class CommsIdentity:
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> CommsIdentity:
         """Create from database row."""
-        metadata_json = row.get("metadata_json")
+        data = dict(row)
+        metadata_json = data.get("metadata_json")
         if isinstance(metadata_json, str):
             import json
 
             metadata_json = json.loads(metadata_json)
 
         return cls(
-            id=row["id"],
-            channel_id=row.get("channel_id", "unknown"),
-            external_user_id=row.get("external_user_id", "unknown"),
-            external_username=row.get("external_username"),
-            session_id=row.get("session_id"),
-            project_id=row.get("project_id"),
+            id=data["id"],
+            channel_id=data.get("channel_id", "unknown"),
+            external_user_id=data.get("external_user_id", "unknown"),
+            external_username=data.get("external_username"),
+            session_id=data.get("session_id"),
+            project_id=data.get("project_id"),
             metadata_json=metadata_json or {},
-            created_at=row.get("created_at", datetime.now().isoformat()),
-            updated_at=row.get("updated_at", datetime.now().isoformat()),
+            created_at=data.get("created_at", datetime.now().isoformat()),
+            updated_at=data.get("updated_at", datetime.now().isoformat()),
         )
 
 
@@ -184,22 +188,23 @@ class CommsRoutingRule:
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> CommsRoutingRule:
         """Create from database row."""
-        config_json = row.get("config_json")
+        data = dict(row)
+        config_json = data.get("config_json")
         if isinstance(config_json, str):
             import json
 
             config_json = json.loads(config_json)
 
         return cls(
-            id=row["id"],
-            name=row.get("name", "Unknown Rule"),
-            channel_id=row.get("channel_id"),
-            event_pattern=row.get("event_pattern", "*"),
-            project_id=row.get("project_id"),
-            session_id=row.get("session_id"),
-            priority=int(row.get("priority", 0)),
-            enabled=bool(row.get("enabled", True)),
+            id=data["id"],
+            name=data.get("name", "Unknown Rule"),
+            channel_id=data.get("channel_id"),
+            event_pattern=data.get("event_pattern", "*"),
+            project_id=data.get("project_id"),
+            session_id=data.get("session_id"),
+            priority=int(data.get("priority", 0)),
+            enabled=bool(data.get("enabled", True)),
             config_json=config_json or {},
-            created_at=row.get("created_at", datetime.now().isoformat()),
-            updated_at=row.get("updated_at", datetime.now().isoformat()),
+            created_at=data.get("created_at", datetime.now().isoformat()),
+            updated_at=data.get("updated_at", datetime.now().isoformat()),
         )
