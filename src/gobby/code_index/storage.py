@@ -477,6 +477,96 @@ class CodeIndexStorage:
             (project_id,),
         )
 
+    # ── Graph visualization fallbacks ────────────────────────────────
+
+    def get_file_symbol_tree(
+        self, project_id: str, limit: int = 200
+    ) -> dict[str, Any]:
+        """Build file→symbol containment graph from SQLite.
+
+        Fallback for when Neo4j is unavailable. No call/import edges,
+        but still browsable as a file-to-symbol tree.
+        """
+        file_rows = self.db.fetchall(
+            """SELECT f.file_path, f.language, f.symbol_count
+               FROM code_indexed_files f
+               WHERE f.project_id = ?
+               ORDER BY f.file_path
+               LIMIT ?""",
+            (project_id, limit),
+        )
+
+        nodes: list[dict[str, Any]] = []
+        links: list[dict[str, Any]] = []
+        file_paths = []
+
+        for row in file_rows:
+            fp = row["file_path"]
+            file_paths.append(fp)
+            nodes.append({
+                "id": fp,
+                "name": fp,
+                "type": "file",
+                "file_path": fp,
+                "language": row["language"],
+                "symbol_count": row["symbol_count"] or 0,
+            })
+
+        # Get top-level symbols for each file (limit to avoid explosion)
+        if file_paths:
+            placeholders = ",".join("?" for _ in file_paths)
+            sym_rows = self.db.fetchall(
+                f"""SELECT id, name, kind, file_path, line_start, signature
+                    FROM code_symbols
+                    WHERE project_id = ? AND file_path IN ({placeholders})
+                      AND parent_symbol_id IS NULL
+                    ORDER BY file_path, line_start""",
+                (project_id, *file_paths),
+            )
+            for row in sym_rows:
+                nodes.append({
+                    "id": row["id"],
+                    "name": row["name"],
+                    "type": row["kind"] or "function",
+                    "kind": row["kind"],
+                    "file_path": row["file_path"],
+                    "line_start": row["line_start"],
+                    "signature": row["signature"],
+                })
+                links.append({
+                    "source": row["file_path"],
+                    "target": row["id"],
+                    "type": "DEFINES",
+                })
+
+        return {"nodes": nodes, "links": links}
+
+    def search_symbols_for_graph(
+        self, query: str, project_id: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Search symbols and return in graph-node format.
+
+        Uses existing FTS and name search, returns results formatted
+        for graph visualization.
+        """
+        # Try FTS first, fall back to name search
+        symbols = self.search_symbols_fts(query, project_id, limit=limit)
+        if not symbols:
+            symbols = self.search_symbols_by_name(query, project_id, limit=limit)
+
+        return [
+            {
+                "id": sym.id,
+                "name": sym.name,
+                "type": sym.kind or "function",
+                "kind": sym.kind,
+                "file_path": sym.file_path,
+                "line_start": sym.line_start,
+                "signature": sym.signature,
+            }
+            for sym in symbols
+        ]
+
     def search_content_fts(
         self,
         query: str,
