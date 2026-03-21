@@ -1,3 +1,5 @@
+import './TabBar.css'
+
 interface Tab {
   id: string
   label: string

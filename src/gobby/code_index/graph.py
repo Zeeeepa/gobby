@@ -288,22 +288,81 @@ class CodeGraph:
             nodes = [dict(r) for r in file_records]
             node_ids = {n["id"] for n in nodes}
 
-            # Resolve file-to-file edges through shared modules
-            link_records = await self._client.execute_read(
-                """MATCH (f1:CodeFile {project: $project})-[:IMPORTS]->(m:CodeModule)
-                          <-[:IMPORTS]-(f2:CodeFile {project: $project})
-                   WHERE f1.path < f2.path
-                   WITH f1.path AS source, f2.path AS target,
-                        collect(m.name) AS shared_modules
-                   RETURN source, target, 'IMPORTS' AS type,
-                          size(shared_modules) AS weight
+            # Get direct file→module IMPORTS edges
+            import_records = await self._client.execute_read(
+                """MATCH (f:CodeFile {project: $project})-[:IMPORTS]->(m:CodeModule {project: $project})
+                   WHERE f.path IN $file_paths
+                   RETURN f.path AS source, m.name AS target, 'IMPORTS' AS type
                    LIMIT $link_limit""",
-                {"project": project_id, "link_limit": limit * 3},
+                {
+                    "project": project_id,
+                    "file_paths": list(node_ids),
+                    "link_limit": limit * 5,
+                },
             )
-            links = [
-                dict(r) for r in link_records
-                if r["source"] in node_ids and r["target"] in node_ids
-            ]
+
+            links: list[dict[str, Any]] = []
+            module_ids: set[str] = set()
+
+            for r in import_records:
+                rec = dict(r)
+                links.append(rec)
+                mid = rec["target"]
+                if mid not in node_ids and mid not in module_ids:
+                    module_ids.add(mid)
+                    nodes.append({
+                        "id": mid,
+                        "name": mid,
+                        "type": "module",
+                    })
+
+            # Also get file→symbol DEFINES edges
+            defines_records = await self._client.execute_read(
+                """MATCH (f:CodeFile {project: $project})-[:DEFINES]->(s:CodeSymbol {project: $project})
+                   WHERE f.path IN $file_paths
+                   RETURN f.path AS source, s.id AS target, 'DEFINES' AS type,
+                          s.name AS symbol_name, s.kind AS symbol_kind
+                   LIMIT $link_limit""",
+                {
+                    "project": project_id,
+                    "file_paths": list(node_ids),
+                    "link_limit": limit * 5,
+                },
+            )
+
+            for r in defines_records:
+                rec = dict(r)
+                sid = rec["target"]
+                links.append({
+                    "source": rec["source"],
+                    "target": sid,
+                    "type": "DEFINES",
+                })
+                if sid not in node_ids:
+                    nodes.append({
+                        "id": sid,
+                        "name": rec.get("symbol_name", sid),
+                        "type": rec.get("symbol_kind") or "function",
+                        "kind": rec.get("symbol_kind"),
+                        "file_path": rec["source"],
+                    })
+
+            # Add CALLS edges between symbols
+            sym_ids = [n["id"] for n in nodes if n["type"] != "file" and n["type"] != "module"]
+            if sym_ids:
+                call_records = await self._client.execute_read(
+                    """MATCH (s:CodeSymbol {project: $project})-[r:CALLS]->(t:CodeSymbol {project: $project})
+                       WHERE s.id IN $sym_ids OR t.id IN $sym_ids
+                       RETURN s.id AS source, t.id AS target, 'CALLS' AS type
+                       LIMIT $link_limit""",
+                    {
+                        "project": project_id,
+                        "sym_ids": sym_ids,
+                        "link_limit": limit * 3,
+                    },
+                )
+                for r in call_records:
+                    links.append(dict(r))
 
             return {"nodes": nodes, "links": links}
         except Exception as e:

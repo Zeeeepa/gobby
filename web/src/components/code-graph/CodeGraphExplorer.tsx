@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import ForceGraph2D from 'react-force-graph-2d'
+import ForceGraph3D from 'react-force-graph-3d'
+import SpriteText from 'three-spritetext'
 import { useCodeGraph, mergeCodeGraphData } from '../../hooks/useCodeGraph'
-import type { CodeGraphData, CodeGraphNode, CodeGraphLink } from '../../hooks/useCodeGraph'
+import type { CodeGraphData, CodeGraphNode } from '../../hooks/useCodeGraph'
+import { IS_MOBILE, IS_IOS } from '../../utils/platform'
 import './CodeGraphExplorer.css'
 
 interface CodeGraphExplorerProps {
@@ -23,12 +25,6 @@ const NODE_COLORS: Record<string, string> = {
   type: '#a78bfa',
 }
 
-const NODE_SIZES: Record<string, number> = {
-  file: 6, folder: 10, class: 8, function: 4,
-  method: 3, interface: 7, module: 13, constant: 2,
-  variable: 2, type: 3,
-}
-
 const EDGE_COLORS: Record<string, string> = {
   CALLS: '#7c3aed',
   IMPORTS: '#1d4ed8',
@@ -43,10 +39,6 @@ function getNodeColor(node: GraphNode): string {
     return BLAST_COLORS[idx]
   }
   return NODE_COLORS[node.type] || '#6b7280'
-}
-
-function getNodeSize(node: GraphNode): number {
-  return NODE_SIZES[node.type] || 4
 }
 
 // ── Force graph data types ─────────────────────────────────────
@@ -70,8 +62,6 @@ interface GraphLink {
   target: string
   type: string
   color: string
-  curvature: number
-  line?: number
 }
 
 function buildForceData(data: CodeGraphData): { nodes: GraphNode[]; links: GraphLink[] } {
@@ -89,10 +79,9 @@ function buildForceData(data: CodeGraphData): { nodes: GraphNode[]; links: Graph
       symbol_count: n.symbol_count,
       blast_distance: n.blast_distance,
       color: '',
-      val: 0,
+      val: 2,
     }
     gn.color = getNodeColor(gn)
-    gn.val = getNodeSize(gn)
     return gn
   })
 
@@ -103,17 +92,19 @@ function buildForceData(data: CodeGraphData): { nodes: GraphNode[]; links: Graph
       target: l.target,
       type: l.type,
       color: EDGE_COLORS[l.type] || '#2a2a3a',
-      curvature: 0.12 + Math.random() * 0.08,
-      line: l.line,
     }))
 
   return { nodes, links }
 }
 
+function edgeColor(relType: string): string {
+  return EDGE_COLORS[relType] || 'rgba(120,120,120,0.4)'
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
-  const graphRef = useRef<any>(null)
+  const fgRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [graphData, setGraphData] = useState<CodeGraphData>({ nodes: [], links: [] })
@@ -124,15 +115,28 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [webglError, setWebglError] = useState(false)
   const searchDebounceRef = useRef<number | null>(null)
 
   const { fetchFileGraph, expandFile, expandSymbol, fetchBlastRadius, searchSymbols } = useCodeGraph()
+
+  // WebGL error handling (from KnowledgeGraph pattern)
+  useEffect(() => {
+    const handleError = (e: ErrorEvent) => {
+      const msg = (e.message || '').toLowerCase()
+      if (msg.includes('webgl') || msg.includes('three') || msg.includes('context lost')) {
+        e.preventDefault()
+        setWebglError(true)
+      }
+    }
+    window.addEventListener('error', handleError)
+    return () => window.removeEventListener('error', handleError)
+  }, [])
 
   // Resize observer
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-
     const ro = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect
       setDimensions({ width, height })
@@ -154,27 +158,40 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
   // Build force data
   const forceData = useMemo(() => buildForceData(graphData), [graphData])
 
+  // Configure forces after data loads
+  useEffect(() => {
+    const fg = fgRef.current
+    if (!fg) return
+    fg.d3Force('charge')?.strength(-200)
+    fg.d3Force('link')?.distance(80)
+    fg.d3Force('center')?.strength(0.05)
+    if (IS_MOBILE) {
+      try { fg.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2)) } catch { /* noop */ }
+    }
+  }, [forceData])
+
+  // Search
+  const searchLower = searchQuery.toLowerCase()
+  const isSearchActive = searchQuery.length > 0
+
   // Node click handler
-  const handleNodeClick = useCallback(async (node: GraphNode) => {
+  const handleNodeClick = useCallback(async (node: any) => {
     if (!projectId) return
-    setSelectedNode(node)
+    setSelectedNode(node as GraphNode)
 
     if (blastMode) {
-      // Blast radius mode: fetch and highlight
       const opts = node.type === 'file'
         ? { filePath: node.id }
         : { symbolName: node.name }
       const data = await fetchBlastRadius(projectId, opts)
       if (data) {
-        const affected = new Set(data.nodes.map(n => n.id))
+        const affected = new Set(data.nodes.map((n: any) => n.id))
         setBlastData(affected)
-        // Merge blast radius nodes into graph
         setGraphData(prev => mergeCodeGraphData(prev, data))
       }
       return
     }
 
-    // Normal mode: expand on click
     if (expandedNodes.has(node.id)) return
     setExpandedNodes(prev => new Set(prev).add(node.id))
 
@@ -184,7 +201,6 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     } else {
       newData = await expandSymbol(projectId, node.id)
     }
-
     if (newData) {
       setGraphData(prev => mergeCodeGraphData(prev, newData!))
     }
@@ -194,12 +210,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
-
-    if (!query.trim() || !projectId) {
-      setSearchResults([])
-      return
-    }
-
+    if (!query.trim() || !projectId) { setSearchResults([]); return }
     searchDebounceRef.current = window.setTimeout(async () => {
       const results = await searchSymbols(projectId, query)
       setSearchResults(results)
@@ -212,179 +223,111 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     setSearchQuery('')
     setSearchResults([])
 
-    // Check if node exists in graph already
     const exists = graphData.nodes.some(n => n.id === result.id)
     if (!exists) {
-      // Expand the symbol to add it
       const data = await expandSymbol(projectId, result.id)
       if (data) {
-        // Also add the result node itself
         const resultNode: CodeGraphNode = {
-          id: result.id,
-          name: result.name,
+          id: result.id, name: result.name,
           type: result.type || result.kind || 'function',
-          kind: result.kind,
-          file_path: result.file_path,
-          line_start: result.line_start,
-          signature: result.signature,
+          kind: result.kind, file_path: result.file_path,
         }
-        const merged = mergeCodeGraphData(
-          { nodes: [resultNode], links: [] },
-          data
-        )
+        const merged = mergeCodeGraphData({ nodes: [resultNode], links: [] }, data)
         setGraphData(prev => mergeCodeGraphData(prev, merged))
       }
     }
 
-    // Center on node
-    if (graphRef.current) {
-      const node = graphRef.current.graphData().nodes.find((n: any) => n.id === result.id)
+    // Center on node in 3D
+    if (fgRef.current) {
+      const node = fgRef.current.graphData().nodes.find((n: any) => n.id === result.id)
       if (node) {
-        graphRef.current.centerAt(node.x, node.y, 400)
-        graphRef.current.zoom(3, 400)
+        const distance = 200
+        const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z)
+        fgRef.current.cameraPosition(
+          { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+          node, 1000
+        )
       }
     }
   }, [projectId, graphData.nodes, expandSymbol])
 
   // Zoom to fit
   const handleZoomToFit = useCallback(() => {
-    graphRef.current?.zoomToFit(400, 40)
+    fgRef.current?.zoomToFit(400, 40)
   }, [])
 
   // Toggle blast radius mode
   const toggleBlastMode = useCallback(() => {
     setBlastMode(prev => !prev)
-    if (blastMode) {
-      setBlastData(null)
-    }
+    if (blastMode) setBlastData(null)
   }, [blastMode])
 
-  // Canvas node renderer
-  const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const isSelected = selectedNode?.id === node.id
-    const isBlastAffected = blastData ? blastData.has(node.id) : true
-    const isDimmed = (blastData && !isBlastAffected) || false
-
-    const size = (node.val || 4) * (isSelected ? 1.8 : 1)
-    const alpha = isDimmed ? 0.1 : 1
-
-    ctx.save()
-    ctx.globalAlpha = alpha
-
-    if (node.type === 'file') {
-      // Rounded rectangle for files
-      const w = size * 3
-      const h = size * 2
-      const r = 3
-      ctx.beginPath()
-      ctx.moveTo(node.x - w / 2 + r, node.y - h / 2)
-      ctx.lineTo(node.x + w / 2 - r, node.y - h / 2)
-      ctx.quadraticCurveTo(node.x + w / 2, node.y - h / 2, node.x + w / 2, node.y - h / 2 + r)
-      ctx.lineTo(node.x + w / 2, node.y + h / 2 - r)
-      ctx.quadraticCurveTo(node.x + w / 2, node.y + h / 2, node.x + w / 2 - r, node.y + h / 2)
-      ctx.lineTo(node.x - w / 2 + r, node.y + h / 2)
-      ctx.quadraticCurveTo(node.x - w / 2, node.y + h / 2, node.x - w / 2, node.y + h / 2 - r)
-      ctx.lineTo(node.x - w / 2, node.y - h / 2 + r)
-      ctx.quadraticCurveTo(node.x - w / 2, node.y - h / 2, node.x - w / 2 + r, node.y - h / 2)
-      ctx.closePath()
-      ctx.fillStyle = node.color
-      ctx.fill()
-    } else {
-      // Circle for symbols
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, size, 0, 2 * Math.PI)
-      ctx.fillStyle = node.color
-      ctx.fill()
-    }
-
-    // Glow ring on selection
-    if (isSelected) {
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, size + 4, 0, 2 * Math.PI)
-      ctx.strokeStyle = node.color
-      ctx.globalAlpha = 0.3
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.globalAlpha = alpha
-    }
-
-    // Label
-    if (globalScale > 1.2 || isSelected || node.type === 'file') {
+  // 3D node rendering — SpriteText (same pattern as KnowledgeGraph)
+  const nodeThreeObject = useCallback((node: any) => {
+    try {
       const label = node.type === 'file'
-        ? node.name.split('/').pop() || node.name
-        : node.name
-      const fontSize = Math.max(10 / globalScale, 2)
-      ctx.font = `500 ${fontSize}px "JetBrains Mono", "SF Mono", monospace`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'top'
-      ctx.fillStyle = '#e5e5e5'
-      ctx.globalAlpha = isDimmed ? 0.1 : 0.9
-      ctx.fillText(label, node.x, node.y + size + 2)
+        ? (node.name as string).split('/').pop() || node.name
+        : node.name as string
+      const color = node.color as string
+      const dimmed = blastData ? !blastData.has(node.id) : false
+      const searchDimmed = isSearchActive && !label.toLowerCase().includes(searchLower)
+      const isDimmed = dimmed || searchDimmed
+
+      const sprite = new SpriteText(label)
+      sprite.color = isDimmed ? '#333333' : color
+      sprite.fontFace = 'JetBrains Mono, SF Mono, Menlo, monospace'
+
+      if (IS_MOBILE) {
+        sprite.textHeight = 2
+      } else {
+        sprite.textHeight = 3
+        sprite.backgroundColor = isDimmed ? 'rgba(20,20,20,0.3)' : 'rgba(10,10,20,0.75)'
+        sprite.borderColor = isDimmed ? 'transparent' : color
+        sprite.borderWidth = 0.3
+        sprite.borderRadius = 3
+        sprite.padding = [2, 4] as any
+      }
+      return sprite
+    } catch {
+      const fallback = new SpriteText('?')
+      fallback.color = '#888'
+      fallback.textHeight = 3
+      return fallback
     }
+  }, [blastData, isSearchActive, searchLower])
 
-    ctx.restore()
-  }, [selectedNode, blastData])
-
-  // Link canvas renderer
-  const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const isDimmed = blastData && !(blastData.has(link.source.id) && blastData.has(link.target.id))
-
-    ctx.save()
-    ctx.globalAlpha = isDimmed ? 0.05 : 0.6
-    ctx.strokeStyle = link.color || '#2a2a3a'
-    ctx.lineWidth = link.type === 'DEFINES' ? 0.5 : 1
-
-    // Curved path
-    const dx = link.target.x - link.source.x
-    const dy = link.target.y - link.source.y
-    const cx = (link.source.x + link.target.x) / 2 - dy * (link.curvature || 0.15)
-    const cy = (link.source.y + link.target.y) / 2 + dx * (link.curvature || 0.15)
-
-    ctx.beginPath()
-    ctx.moveTo(link.source.x, link.source.y)
-    ctx.quadraticCurveTo(cx, cy, link.target.x, link.target.y)
-
-    if (link.type === 'DEFINES') {
-      ctx.setLineDash([2, 3])
+  // Link color
+  const linkColor = useCallback((link: any) => {
+    if (blastData) {
+      const srcId = typeof link.source === 'object' ? link.source.id : link.source
+      const tgtId = typeof link.target === 'object' ? link.target.id : link.target
+      if (!blastData.has(srcId) || !blastData.has(tgtId)) return 'rgba(60,60,60,0.1)'
     }
-    ctx.stroke()
-    ctx.setLineDash([])
-
-    // Arrow for CALLS
-    if (link.type === 'CALLS' && globalScale > 0.8) {
-      const angle = Math.atan2(link.target.y - cy, link.target.x - cx)
-      const arrowLen = 4
-      ctx.beginPath()
-      ctx.moveTo(link.target.x, link.target.y)
-      ctx.lineTo(
-        link.target.x - arrowLen * Math.cos(angle - Math.PI / 6),
-        link.target.y - arrowLen * Math.sin(angle - Math.PI / 6)
-      )
-      ctx.moveTo(link.target.x, link.target.y)
-      ctx.lineTo(
-        link.target.x - arrowLen * Math.cos(angle + Math.PI / 6),
-        link.target.y - arrowLen * Math.sin(angle + Math.PI / 6)
-      )
-      ctx.stroke()
+    if (isSearchActive) {
+      const srcId = typeof link.source === 'object' ? link.source.id : link.source
+      const tgtId = typeof link.target === 'object' ? link.target.id : link.target
+      const srcMatch = String(srcId).toLowerCase().includes(searchLower)
+      const tgtMatch = String(tgtId).toLowerCase().includes(searchLower)
+      if (!srcMatch && !tgtMatch) return 'rgba(60,60,60,0.15)'
     }
+    return link.color || edgeColor(link.type)
+  }, [blastData, isSearchActive, searchLower])
 
-    ctx.restore()
-  }, [blastData])
-
-  // Hover tooltip
-  const nodeLabel = useCallback((node: any) => {
-    const parts = [node.name]
-    if (node.kind && node.kind !== node.type) parts.push(`(${node.kind})`)
-    if (node.signature) parts.push(`\n${node.signature}`)
-    if (node.file_path && node.type !== 'file') parts.push(`\n${node.file_path}${node.line_start ? `:${node.line_start}` : ''}`)
-    if (node.symbol_count) parts.push(`\n${node.symbol_count} symbols`)
-    return parts.join('')
-  }, [])
+  const linkLabel = useCallback((link: any) => link.type as string, [])
 
   if (!projectId) {
     return (
       <div className="code-graph-empty">
         Select a project to explore its code graph.
+      </div>
+    )
+  }
+
+  if (webglError) {
+    return (
+      <div className="code-graph-empty">
+        WebGL error — your browser may not support 3D rendering.
+        Try refreshing the page.
       </div>
     )
   }
@@ -398,7 +341,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
           onClick={toggleBlastMode}
           title="Blast Radius Mode"
         >
-          {blastMode ? '💥 Blast On' : 'Blast Radius'}
+          {blastMode ? 'Blast On' : 'Blast Radius'}
         </button>
         <button className="code-graph-btn" onClick={handleZoomToFit} title="Zoom to Fit">
           Fit
@@ -482,33 +425,32 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
         </div>
       )}
 
-      {/* Graph */}
-      <ForceGraph2D
-        ref={graphRef}
+      {/* 3D Graph */}
+      <ForceGraph3D
+        ref={fgRef}
         graphData={forceData}
         width={dimensions.width}
         height={dimensions.height}
-        nodeCanvasObject={nodeCanvasObject}
-        nodePointerAreaPaint={(node: any, color, ctx) => {
-          const size = (node.val || 4) * 2
-          ctx.fillStyle = color
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, size, 0, 2 * Math.PI)
-          ctx.fill()
-        }}
-        linkCanvasObject={linkCanvasObject}
+        nodeThreeObject={nodeThreeObject}
+        nodeThreeObjectExtend={false}
         onNodeClick={handleNodeClick}
-        nodeLabel={nodeLabel}
-        backgroundColor="transparent"
-        d3AlphaDecay={0.02}
-        d3VelocityDecay={0.3}
-        cooldownTicks={100}
+        nodeLabel={(node: any) => {
+          const parts = [node.name]
+          if (node.kind && node.kind !== node.type) parts.push(`(${node.kind})`)
+          if (node.signature) parts.push(`\n${node.signature}`)
+          if (node.file_path && node.type !== 'file') parts.push(`\n${node.file_path}${node.line_start ? `:${node.line_start}` : ''}`)
+          return parts.join(' ')
+        }}
+        linkColor={linkColor}
+        linkLabel={linkLabel}
+        linkOpacity={0.6}
+        linkWidth={1}
         linkDirectionalParticles={(link: any) => link.type === 'CALLS' ? 2 : 0}
         linkDirectionalParticleWidth={2}
         linkDirectionalParticleColor={(link: any) => link.color}
+        backgroundColor="#0a0a0a"
+        showNavInfo={false}
         enableNodeDrag={true}
-        enableZoomInteraction={true}
-        enablePanInteraction={true}
       />
     </div>
   )
