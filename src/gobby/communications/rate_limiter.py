@@ -36,7 +36,6 @@ class TokenBucketRateLimiter:
         self._default_rate = default_rate / 60.0
         self._default_burst = default_burst
         self._buckets: dict[str, _Bucket] = {}
-        self._lock = asyncio.Lock()
 
     @classmethod
     def from_defaults(cls, defaults: ChannelDefaults) -> TokenBucketRateLimiter:
