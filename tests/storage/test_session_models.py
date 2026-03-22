@@ -24,7 +24,6 @@ def _make_session(**overrides: Any) -> Session:
         "jsonl_path": "/tmp/transcripts/sess.jsonl",
         "summary_path": "/tmp/summaries/sess.md",
         "summary_markdown": "# Summary\nLong markdown content...",
-        "compact_markdown": "# Compact\nHandoff context...",
         "git_branch": "main",
         "parent_session_id": None,
         "created_at": "2026-01-22T00:00:00+00:00",

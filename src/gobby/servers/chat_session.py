@@ -114,9 +114,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     )
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
-    _on_approved_tools_persist: Callable[[set[str]], None] | None = field(
-        default=None, repr=False
-    )
+    _on_approved_tools_persist: Callable[[set[str]], None] | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
     _last_model: str | None = field(default=None, repr=False)
     _pending_agent_name: str | None = field(default=None, repr=False)
@@ -125,6 +123,8 @@ class ChatSession(ChatSessionPermissionsMixin):
     _context_window_overrides: dict[str, int] = field(default_factory=dict, repr=False)
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
+    _message_manager_source_session_id: str | None = field(default=None, repr=False)
+    _message_manager: Any | None = field(default=None, repr=False)
     sdk_session_id: str | None = field(default=None, repr=False)
     system_prompt_override: str | None = field(default=None, repr=False)
     resume_session_id: str | None = field(default=None, repr=False)
