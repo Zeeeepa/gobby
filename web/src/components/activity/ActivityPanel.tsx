@@ -199,7 +199,7 @@ export function ActivityPanel({
 }
 
 // Hooks for persisting panel state
-export function useActivityPanel() {
+export function useActivityPanel(isMobile = false) {
   const [isPinned, setIsPinned] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_PINNED)
@@ -241,8 +241,11 @@ export function useActivityPanel() {
     try { localStorage.setItem(STORAGE_KEY_TAB, activeTab) } catch { /* ignore */ }
   }, [activeTab])
 
-  // Auto-collapse on narrow viewport
+  // Auto-collapse on narrow viewport (desktop side panel only — mobile
+  // overlay is position:fixed and doesn't affect chat layout, so collapsing
+  // it on resize events just fights with programmatic showTab pins)
   useEffect(() => {
+    if (isMobile) return
     const handleResize = () => {
       if (window.innerWidth < 1100 && isPinned) {
         setIsPinned(false)
@@ -250,7 +253,7 @@ export function useActivityPanel() {
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [isPinned])
+  }, [isPinned, isMobile])
 
   const showTab = useCallback((tab: ActivityTab) => {
     setActiveTab(tab)
