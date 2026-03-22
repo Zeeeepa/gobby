@@ -9,7 +9,7 @@ from gobby.hooks.events import HookEvent, HookResponse, SessionSource
 
 logger = logging.getLogger(__name__)
 
-# Pattern for /gobby or /gobby:skillname with optional args
+# Pattern for /gobby or /gobby skillname with optional args
 _GOBBY_CMD_PATTERN = re.compile(r"^/gobby(?::(\S+))?\s*(.*)?$", re.IGNORECASE | re.DOTALL)
 
 
@@ -121,10 +121,10 @@ class AgentEventHandlerMixin(EventHandlersBase):
         return response
 
     def _intercept_skill_command(self, prompt: str, session_id: str | None = None) -> str | None:
-        """Intercept /gobby and /gobby:skillname commands.
+        """Intercept /gobby and /gobby skillname commands.
 
         Returns context string to inject, or None if not a /gobby command.
-        Supports both colon syntax (/gobby:expand) and space syntax (/gobby expand).
+        Supports space syntax (/gobby expand) and legacy colon syntax.
         """
         match = _GOBBY_CMD_PATTERN.match(prompt)
         if not match:
@@ -148,7 +148,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if not skill_name or skill_name.lower() == "help":
             return self._generate_help_content(session_id)
 
-        # /gobby:skillname → resolve and inject
+        # /gobby skillname → resolve and inject
         if self._skill_manager is None:
             raise RuntimeError("skill_manager not initialized")
         skill = resolved if resolved else self._skill_manager.resolve_skill_name(skill_name)
@@ -216,12 +216,12 @@ class AgentEventHandlerMixin(EventHandlersBase):
         skill_lines = []
         for skill in user_skills:
             desc = skill.description.split(".")[0] if skill.description else ""
-            skill_lines.append(f"- `/gobby:{skill.name}` — {desc}")
+            skill_lines.append(f"- `/gobby {skill.name}` — {desc}")
         skills_list = "\n".join(skill_lines)
 
         fallback = (
             "# Gobby Skills\n\n"
-            "Invoke skills directly with `/gobby:skillname` syntax:\n\n"
+            "Invoke skills directly with `/gobby skillname` syntax:\n\n"
             f"{skills_list}\n\n"
             "**MCP access**: `list_skills()` / `get_skill(name)` on `gobby-skills`.\n"
             "**Hub search**: `search_hub(query)` on `gobby-skills`.\n"
@@ -251,7 +251,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
             lines.append("")
             lines.append("Did you mean:")
             for match in close:
-                lines.append(f"  - `/gobby:{match}`")
+                lines.append(f"  - `/gobby {match}`")
         lines.extend(["", "Run `/gobby` or `/gobby help` to see all available skills."])
         fallback = "\n".join(lines)
 

@@ -10,7 +10,7 @@ Skill '{{ skill_name }}' not found.
 
 Did you mean:
 {% for match in close_matches %}
-  - `/gobby:{{ match }}`
+  - `/gobby {{ match }}`
 {% endfor %}
 {% endif %}
 

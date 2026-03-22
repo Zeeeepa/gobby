@@ -10,7 +10,7 @@ metadata:
       autonomous: full
 ---
 
-# /gobby:playwright - Playwright CLI Browser Automation
+# /gobby playwright - Playwright CLI Browser Automation
 
 Token-efficient browser automation using `playwright-cli`. Runs commands via shell instead of MCP, using ~4x fewer tokens.
 
