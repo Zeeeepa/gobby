@@ -126,6 +126,16 @@ class WorkflowHookHandler:
                 try:
                     variables = dict(self._session_var_manager.get_variables(session_id))
                 except Exception as e:
+                    if event.event_type == HookEventType.STOP:
+                        logger.warning(
+                            "Failed to load session variables on STOP — "
+                            "blocking for safety: %s",
+                            e,
+                        )
+                        return HookResponse(
+                            decision="block",
+                            reason="Could not load session state. Try again.",
+                        )
                     logger.debug(f"Could not load session variables for rules: {e}")
 
             from gobby.workflows.git_utils import get_dirty_files

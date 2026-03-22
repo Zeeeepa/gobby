@@ -251,7 +251,14 @@ class RuleEngine:
                 # Force-allow stop (catastrophic failure bypass — self-clearing)
                 if rule_event == RuleEvent.STOP and variables.get("force_allow_stop"):
                     variables["force_allow_stop"] = False
-                    override_decision = "allow"
+                    if variables.get("task_claimed"):
+                        logger.warning(
+                            "force_allow_stop suppressed — task_claimed=True, "
+                            "deferring to require-task-close rule (session %s)",
+                            session_id,
+                        )
+                    else:
+                        override_decision = "allow"
 
                 # Auto-block stop when a tool just failed (self-clearing)
                 elif rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):

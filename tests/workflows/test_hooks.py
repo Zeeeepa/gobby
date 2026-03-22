@@ -1119,3 +1119,75 @@ class TestBaselineDirtyFilesSubtraction:
         mock_get_dirty.return_value = {"pre_existing.py", "new_file.py"}
         response = await handler._evaluate_rules(event)
         assert response.decision == "block"
+
+
+class TestStopFailsClosedOnVariableLoadError:
+    """Test that STOP events fail closed when session variables can't be loaded."""
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = tmp_path / "test_var_load.db"
+        database = LocalDatabase(db_path)
+        run_migrations(database)
+        return database
+
+    @pytest.fixture
+    def rule_engine(self, db):
+        from gobby.workflows.rule_engine import RuleEngine
+
+        return RuleEngine(db=db)
+
+    def _make_stop_event(self, session_id: str = "test-session") -> HookEvent:
+        return HookEvent(
+            event_type=HookEventType.STOP,
+            session_id=session_id,
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(),
+            data={},
+        )
+
+    def _make_tool_event(self, session_id: str = "test-session") -> HookEvent:
+        return HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id=session_id,
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(),
+            data={"tool_name": "Read"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_stop_blocked_when_get_variables_fails(self, rule_engine) -> None:
+        """STOP should be blocked when session variables can't be loaded."""
+        from unittest.mock import MagicMock
+
+        mock_var_manager = MagicMock()
+        mock_var_manager.get_variables.side_effect = Exception("DB locked")
+
+        handler = WorkflowHookHandler(rule_engine=rule_engine)
+        handler._session_var_manager = mock_var_manager
+
+        event = self._make_stop_event()
+        response = await handler._evaluate_rules(event)
+
+        assert response.decision == "block"
+        assert "Could not load session state" in response.reason
+
+    @pytest.mark.asyncio
+    async def test_non_stop_allowed_when_get_variables_fails(self, rule_engine) -> None:
+        """Non-STOP events should still be allowed when variables fail to load."""
+        from unittest.mock import MagicMock
+
+        mock_var_manager = MagicMock()
+        mock_var_manager.get_variables.side_effect = Exception("DB locked")
+
+        handler = WorkflowHookHandler(rule_engine=rule_engine)
+        handler._session_var_manager = mock_var_manager
+
+        event = self._make_tool_event()
+        response = await handler._evaluate_rules(event)
+
+        # Non-STOP events should still allow (fail-open)
+        assert response.decision == "allow"
