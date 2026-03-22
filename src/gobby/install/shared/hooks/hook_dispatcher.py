@@ -655,21 +655,53 @@ async def main() -> int:
             logger.error(
                 f"Daemon returned error: status={response.status_code}, detail={error_detail}"
             )
+            # Fail closed for critical hooks (stop gates, session lifecycle) —
+            # if the rule engine couldn't evaluate, block rather than allow
+            if hook_type in config.critical_hooks:
+                print(
+                    f"\nHook error on critical hook '{hook_type}' — blocking to fail safe. "
+                    f"Detail: {error_detail}",
+                    file=sys.stderr,
+                )
+                return 2
             print(json.dumps({"status": "error", "message": f"Daemon error: {error_detail}"}))
             return 1
 
     except httpx.ConnectError:
         logger.error("Failed to connect to daemon (unreachable)")
+        # Fail closed for critical hooks — daemon is reachable (passed check_daemon_running)
+        # but connection failed, so enforcement state is unknown
+        if hook_type in config.critical_hooks:
+            print(
+                f"\nDaemon connection failed on critical hook '{hook_type}' — blocking to fail safe.",
+                file=sys.stderr,
+            )
+            return 2
         print(json.dumps({"status": "error", "message": "Daemon unreachable"}))
         return 1
 
     except httpx.TimeoutException:
         logger.error(f"Hook execution timeout: {hook_type}")
+        # Fail closed for critical hooks — rule engine may have been evaluating a stop gate
+        if hook_type in config.critical_hooks:
+            print(
+                f"\nHook timeout on critical hook '{hook_type}' — blocking to fail safe.",
+                file=sys.stderr,
+            )
+            return 2
         print(json.dumps({"status": "error", "message": "Hook execution timeout"}))
         return 1
 
     except Exception as e:
         logger.error(f"Hook execution failed: {e}", exc_info=True)
+        # Fail closed for critical hooks
+        if hook_type in config.critical_hooks:
+            print(
+                f"\nHook failure on critical hook '{hook_type}' — blocking to fail safe. "
+                f"Error: {e}",
+                file=sys.stderr,
+            )
+            return 2
         print(json.dumps({"status": "error", "message": str(e)}))
         return 1
 
