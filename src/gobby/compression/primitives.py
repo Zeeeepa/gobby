@@ -271,7 +271,7 @@ def _group_pytest_failures(lines: list[str]) -> list[str]:
     for line in lines:
         stripped = line.strip()
         # Capture FAILURES section
-        if re.match(r"^=+ FAILURES =+", stripped):
+        if re.match(r"^=+ (?:FAILURES|ERRORS) =+", stripped):
             in_failure_section = True
             result.append(line)
             continue
