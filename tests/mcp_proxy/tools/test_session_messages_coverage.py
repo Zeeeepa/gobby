@@ -514,7 +514,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-123"
         mock_session.summary_markdown = "## Summary"
-        mock_session.compact_markdown = "## Compact"
         mock_session.title = "Test Session"
         mock_session.status = "handoff_ready"
         session_manager.resolve_session_reference.return_value = "sess-123"
@@ -531,26 +530,6 @@ class TestGetHandoffContext:
         assert result["has_context"] is True
         assert result["context"] == "## Summary"
         assert result["context_type"] == "summary_markdown"
-
-    def test_get_falls_back_to_compact(self) -> None:
-        """Test that compact_markdown is used when summary_markdown is None."""
-        session_manager = MagicMock()
-        mock_session = MagicMock()
-        mock_session.id = "sess-123"
-        mock_session.summary_markdown = None
-        mock_session.compact_markdown = "## Compact"
-        mock_session.title = "Test"
-        mock_session.status = "handoff_ready"
-        session_manager.resolve_session_reference.return_value = "sess-123"
-        session_manager.get.return_value = mock_session
-
-        registry = create_test_registry(session_manager=session_manager)
-        get_context = registry.get_tool("get_handoff_context")
-
-        result = get_context(session_id="sess-123")
-
-        assert result["context"] == "## Compact"
-        assert result["context_type"] == "compact_markdown"
 
     def test_get_handoff_context_session_not_found(self) -> None:
         """Test error when session not found by ID."""
@@ -589,7 +568,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-456"
         mock_session.summary_markdown = "## Context"
-        mock_session.compact_markdown = None
         mock_session.title = "Test"
         mock_session.status = "handoff_ready"
         session_manager.find_parent.return_value = mock_session
@@ -613,7 +591,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-latest"
         mock_session.summary_markdown = "## Summary"
-        mock_session.compact_markdown = None
         mock_session.title = "Latest"
         mock_session.status = "handoff_ready"
         session_manager.list.return_value = [mock_session]
@@ -645,7 +622,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-123"
         mock_session.summary_markdown = None
-        mock_session.compact_markdown = None
         session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
@@ -663,7 +639,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-parent"
         mock_session.summary_markdown = "## Context"
-        mock_session.compact_markdown = None
         mock_session.title = "Parent"
         mock_session.status = "handoff_ready"
         session_manager.get.return_value = mock_session

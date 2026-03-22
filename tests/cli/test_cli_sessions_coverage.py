@@ -64,7 +64,6 @@ def test_list_sessions_found(mock_session_manager) -> None:
         jsonl_path=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -94,7 +93,6 @@ def test_list_sessions_json(mock_session_manager) -> None:
         jsonl_path=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -122,7 +120,6 @@ def test_show_session_found(mock_session_manager, mock_resolve_session) -> None:
         machine_id=None,
         jsonl_path=None,
         summary_path=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -161,7 +158,6 @@ def test_delete_session_success(mock_session_manager, mock_resolve_session) -> N
         jsonl_path=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -200,7 +196,6 @@ def test_session_stats(mock_session_manager, mock_message_manager) -> None:
         jsonl_path=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -217,7 +212,6 @@ def test_session_stats(mock_session_manager, mock_message_manager) -> None:
         jsonl_path=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -252,7 +246,6 @@ def test_show_messages(mock_session_manager, mock_message_manager, mock_resolve_
         jsonl_path=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -316,7 +309,6 @@ def test_create_handoff(
         machine_id=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )
@@ -345,7 +337,6 @@ def test_create_handoff(
     assert result.exit_code == 0
     assert "Created handoff context" in result.output
     # assert "Compact length:" in result.output  <-- Removed this assertion
-    mock_session_manager.update_compact_markdown.assert_called()
 
 
 @pytest.mark.integration
@@ -378,7 +369,6 @@ def test_create_handoff_full_llm_error(
         machine_id=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
         usage_total_cost_usd=0.0,
@@ -448,7 +438,6 @@ def test_create_handoff_no_transcript_path(mock_session_manager, mock_resolve_se
         machine_id=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
         usage_total_cost_usd=0.0,
@@ -484,7 +473,6 @@ def test_create_handoff_transcript_not_found(mock_session_manager, mock_resolve_
         machine_id=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
         usage_total_cost_usd=0.0,
@@ -567,7 +555,6 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
         machine_id=None,
         summary_path=None,
         summary_markdown=None,
-        compact_markdown=None,
         git_branch=None,
         parent_session_id=None,
     )

@@ -574,19 +574,6 @@ class TestLocalSessionManager:
         pending = session_manager.get_pending_transcript_sessions()
         assert len(pending) == 1
 
-    def test_update_compact_markdown(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ) -> None:
-        """Test updating compact markdown."""
-        session = session_manager.register(
-            external_id="compact-test",
-            machine_id="machine",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-
     def test_update_parent_session_id(
         self,
         session_manager: LocalSessionManager,

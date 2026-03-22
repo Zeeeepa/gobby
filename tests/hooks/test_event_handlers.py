@@ -1009,7 +1009,6 @@ class TestSessionStartHandoff:
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
         mock_parent_obj.summary_markdown = "# Summary\nWorked on feature X"
-        mock_parent_obj.compact_markdown = None
 
         # get() called: pre-created check (None), handoff var population (parent),
         # seq_num fetch (new session)
@@ -1227,7 +1226,6 @@ class TestSessionStartHandoff:
         mock_parent_obj.id = "parent-sess-500"
         mock_parent_obj.seq_num = 50
         mock_parent_obj.summary_markdown = "# Summary\nCleared session"
-        mock_parent_obj.compact_markdown = None
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 51

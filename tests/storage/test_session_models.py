@@ -81,7 +81,6 @@ class TestSessionToBrief:
 
         brief = session.to_brief()
         assert "summary_markdown" not in brief
-        assert "compact_markdown" not in brief
         assert "digest_markdown" not in brief
         assert "last_turn_markdown" not in brief
         assert "original_prompt" not in brief

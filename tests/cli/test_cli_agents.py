@@ -289,7 +289,7 @@ class TestAgentsSpawnCommand:
                 "--max-turns",
                 "20",
                 "--context",
-                "compact_markdown",
+                "summary_markdown",
             ],
         )
 
@@ -309,7 +309,7 @@ class TestAgentsSpawnCommand:
         assert call_args[1]["json"]["model"] == "claude-3-opus"
         assert call_args[1]["json"]["timeout"] == 300.0
         assert call_args[1]["json"]["max_turns"] == 20
-        assert call_args[1]["json"]["session_context"] == "compact_markdown"
+        assert call_args[1]["json"]["session_context"] == "summary_markdown"
 
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")

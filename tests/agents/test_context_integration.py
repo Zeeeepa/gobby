@@ -27,7 +27,6 @@ def mock_session_manager():
     parent = MagicMock()
     parent.id = "sess-parent"
     parent.summary_markdown = "# Parent Summary\n\nThis is context."
-    parent.compact_markdown = "## Handoff\n\nCompact context here."
     manager.get.return_value = parent
     return manager
 
@@ -70,18 +69,6 @@ class TestContextResolverIntegration:
 
         assert "Parent Summary" in result
         assert "This is context" in result
-
-    async def test_resolves_compact_markdown(self, mock_session_manager, mock_message_manager):
-        """Resolves compact_markdown from parent session."""
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-        )
-
-        result = await resolver.resolve("compact_markdown", "sess-parent")
-
-        assert "Handoff" in result
-        assert "Compact context" in result
 
     async def test_resolves_transcript(self, mock_session_manager, mock_message_manager):
         """Resolves transcript from parent session."""

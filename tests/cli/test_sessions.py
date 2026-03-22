@@ -21,7 +21,6 @@ MOCK_SESSION = Session(
     jsonl_path="/tmp/test.jsonl",
     summary_path=None,
     summary_markdown=None,
-    compact_markdown=None,
     git_branch="main",
     parent_session_id=None,
     created_at=datetime.now(UTC).isoformat(),
