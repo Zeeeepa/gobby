@@ -120,26 +120,17 @@ export function ActivityPanel({
     return (
       <div className="activity-panel-mobile-overlay">
         <div className="activity-panel">
-          {/* Tab strip with close button */}
+          {/* Dropdown selector with close button */}
           <div className="activity-panel-tabs">
-            <TooltipProvider delayDuration={200}>
-              <div className="activity-panel-tab-strip">
-                {TABS.map((tab) => (
-                  <Tooltip key={tab.id}>
-                    <TooltipTrigger asChild>
-                      <button
-                        className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
-                        onClick={() => onTabChange(tab.id)}
-                      >
-                        <span className="activity-panel-tab-icon">{tab.icon}</span>
-                        <span className="activity-panel-tab-label">{tab.label}</span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">{tab.label}</TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-            </TooltipProvider>
+            <select
+              className="activity-panel-mobile-select"
+              value={activeTab}
+              onChange={(e) => onTabChange(e.target.value as ActivityTab)}
+            >
+              {TABS.map((tab) => (
+                <option key={tab.id} value={tab.id}>{tab.label}</option>
+              ))}
+            </select>
             <button
               className="activity-panel-close"
               onClick={handleClose}

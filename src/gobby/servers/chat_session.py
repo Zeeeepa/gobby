@@ -345,9 +345,9 @@ class ChatSession(ChatSessionPermissionsMixin):
                 tool_name = inp.get("tool_name", "")
                 tool_input = inp.get("tool_input", {})
 
-                # Detect plan file writes in plan mode → broadcast to frontend
+                # Detect plan file writes/reads in plan mode → broadcast to frontend
                 if (
-                    tool_name in ("Write", "Edit")
+                    tool_name in ("Write", "Edit", "Read")
                     and self.chat_mode == "plan"
                     and not self._plan_approved
                     and isinstance(tool_input, dict)
@@ -358,7 +358,8 @@ class ChatSession(ChatSessionPermissionsMixin):
                         if plan_content and self._on_plan_ready:
                             await self._on_plan_ready(plan_content, tool_input)
                             logger.info(
-                                "Plan file written, broadcast plan_pending_approval for %s",
+                                "Plan file %s, broadcast plan_pending_approval for %s",
+                                "read" if tool_name == "Read" else "written",
                                 self.conversation_id[:8],
                             )
 

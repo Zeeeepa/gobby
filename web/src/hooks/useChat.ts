@@ -800,11 +800,11 @@ export function useChat() {
               | undefined;
             if (newMode) {
               lastServerModeTimestampRef.current = Date.now();
-              // Always process plan approval/rejection regardless of mode equality
-              if (
-                reason === "plan_approved" ||
-                reason === "plan_changes_requested"
-              ) {
+              // Clear plan state on approval — for rejection, the eager
+              // clear in requestPlanChanges() already handled it, and
+              // clearing here would race with a new plan_pending_approval
+              // that may have arrived before this mode_changed.
+              if (reason === "plan_approved") {
                 setPlanPendingApproval(false);
                 planContentRef.current = null;
               }
