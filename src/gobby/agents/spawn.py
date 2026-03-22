@@ -103,6 +103,7 @@ def prepare_terminal_spawn(
     max_agent_depth: int = 5,
     agent_run_id: str | None = None,
     task_id: str | None = None,
+    timeout_seconds: float | None = None,
 ) -> PreparedSpawn:
     """
     Prepare a terminal spawn by creating the child session.
@@ -179,6 +180,7 @@ def prepare_terminal_spawn(
         child_session_id=child_session.id,
         run_id=agent_run_id,
         task_id=task_id,
+        timeout_seconds=timeout_seconds,
     )
 
     # Persist agent_run_id to session record for hook-based lifecycle tracking

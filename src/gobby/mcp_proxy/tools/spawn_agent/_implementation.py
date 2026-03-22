@@ -476,6 +476,7 @@ async def spawn_agent_impl(
         max_turns=max_turns
         or (agent_body.max_turns if agent_body and agent_body.max_turns else None),
         agent_run_manager=runner.run_storage,
+        timeout_seconds=effective_timeout,
     )
 
     # 11b. Pre-register with RunningAgentRegistry before spawn

@@ -202,7 +202,8 @@ CREATE TABLE agent_runs (
     tmux_session_name TEXT,
     mode TEXT DEFAULT 'terminal',
     worktree_id TEXT,
-    clone_id TEXT
+    clone_id TEXT,
+    timeout_seconds REAL
 );
 CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
 CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
@@ -1077,6 +1078,14 @@ def _setup_code_content_fts(db: LocalDatabase) -> None:
 
 # Migrations beyond v133.
 # Add new migrations here. Do not modify the baseline schema above.
+def _add_timeout_seconds_to_agent_runs(db: LocalDatabase) -> None:
+    """Add timeout_seconds column if not already present (baseline schema may include it)."""
+    rows = db.connection.execute("PRAGMA table_info(agent_runs)").fetchall()
+    existing = {row[1] for row in rows}
+    if "timeout_seconds" not in existing:
+        db.execute("ALTER TABLE agent_runs ADD COLUMN timeout_seconds REAL")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         134,
@@ -1449,6 +1458,11 @@ DROP INDEX IF EXISTS idx_session_messages_tool""",
 DELETE FROM config_store WHERE key LIKE 'memory_dedup_decision.%';
 DELETE FROM config_store WHERE key LIKE 'memory_entity_extraction.%';
 UPDATE config_store SET value = 'true' WHERE key = 'memory_extraction.enabled'""",
+    ),
+    (
+        166,
+        "Add timeout_seconds to agent_runs for persistence across daemon restarts",
+        _add_timeout_seconds_to_agent_runs,
     ),
 ]
 

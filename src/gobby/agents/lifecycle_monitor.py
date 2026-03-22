@@ -750,6 +750,7 @@ class AgentLifecycleMonitor:
                         worktree_id=run.worktree_id,
                         clone_id=run.clone_id,
                         task_id=run.task_id,
+                        timeout_seconds=run.timeout_seconds,
                     )
                 )
                 logger.info(
