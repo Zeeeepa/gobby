@@ -746,7 +746,7 @@ def create_memory_registry(
         description="Audit memories for stale, duplicate, code-derivable, and orphaned entries. Returns a report without deleting anything.",
     )
     async def audit_memories(
-        max_stale_age_days: int = 90,
+        max_stale_age_days: int = 30,
         categories: list[str] | None = None,
     ) -> dict[str, Any]:
         """
@@ -781,7 +781,7 @@ def create_memory_registry(
     )
     async def cleanup_memories(
         dry_run: bool = False,
-        max_stale_age_days: int = 90,
+        max_stale_age_days: int = 30,
         similarity_threshold: float = 0.95,
         categories: list[str] | None = None,
     ) -> dict[str, Any]:

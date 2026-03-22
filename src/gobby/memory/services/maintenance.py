@@ -202,7 +202,7 @@ _CODE_DERIVABLE_MAX_LEN = 200
 
 def find_stale_memories(
     db: DatabaseProtocol,
-    max_age_days: int = 90,
+    max_age_days: int = 30,
     project_id: str | None = None,
     limit: int = 500,
 ) -> list[Memory]:
@@ -364,7 +364,7 @@ def find_code_derivable_memories(
 
 def find_orphaned_memories(
     db: DatabaseProtocol,
-    min_age_days: int = 90,
+    min_age_days: int = 30,
     project_id: str | None = None,
     limit: int = 500,
 ) -> list[Memory]:
@@ -413,7 +413,7 @@ async def execute_cleanup(
     memory_manager: MemoryManager,
     dry_run: bool = False,
     categories: list[str] | None = None,
-    max_stale_age_days: int = 90,
+    max_stale_age_days: int = 30,
     similarity_threshold: float = 0.95,
     limit_per_category: int = 500,
     project_id: str | None = None,

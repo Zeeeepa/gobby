@@ -15,7 +15,7 @@ inputs:
     description: "When true, audit only without deleting"
   max_stale_age_days:
     type: integer
-    default: 90
+    default: 30
     description: "Memories older than this with 0 access_count are considered stale"
 
 steps:

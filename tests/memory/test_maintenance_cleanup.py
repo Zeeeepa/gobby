@@ -97,7 +97,7 @@ class TestFindStaleMemories:
         db = MagicMock()
         db.fetchall.return_value = [_row(id="stale-1", created_at=old_date)]
 
-        result = find_stale_memories(db, max_age_days=90)
+        result = find_stale_memories(db, max_age_days=30)
 
         assert len(result) == 1
         assert result[0].id == "stale-1"
@@ -110,7 +110,7 @@ class TestFindStaleMemories:
         db = MagicMock()
         db.fetchall.return_value = []  # SQL filters them out
 
-        result = find_stale_memories(db, max_age_days=90)
+        result = find_stale_memories(db, max_age_days=30)
 
         assert len(result) == 0
 
@@ -118,13 +118,13 @@ class TestFindStaleMemories:
         db = MagicMock()
         db.fetchall.return_value = []
 
-        find_stale_memories(db, max_age_days=30)
+        find_stale_memories(db, max_age_days=45)
 
         call_args = db.fetchall.call_args
         cutoff_param = call_args[0][1][0]  # First positional param
-        # Cutoff should be ~30 days ago
+        # Cutoff should be ~45 days ago
         cutoff_dt = datetime.fromisoformat(cutoff_param)
-        expected = datetime.now(UTC) - timedelta(days=30)
+        expected = datetime.now(UTC) - timedelta(days=45)
         assert abs((cutoff_dt - expected).total_seconds()) < 5
 
     def test_filters_by_project_id(self) -> None:
