@@ -63,6 +63,26 @@ def test_migration_161_backfill(tmp_path) -> None:
     );
     """)
 
+    # config_store table needed by migration 165 (deletes deprecated memory configs)
+    db.execute("""
+    CREATE TABLE config_store (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'user',
+        is_secret INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """)
+
+    # agent_runs table needed by migration 166 (adds timeout_seconds column)
+    db.execute("""
+    CREATE TABLE agent_runs (
+        id TEXT PRIMARY KEY,
+        agent_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending'
+    );
+    """)
+
     # 2. Insert test data
     session_id = "sess-1"
     db.execute(
