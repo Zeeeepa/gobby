@@ -333,13 +333,21 @@ class HookManagerFactory:
         resolve_project_id: Callable[[str | None, str | None], str],
         broadcaster: Any | None,
     ) -> _WorkflowComponents:
+        from gobby.mcp_proxy.metrics_events import MetricsEventStore
         from gobby.workflows.rule_engine import RuleEngine
         from gobby.workflows.templates import TemplateEngine
 
         loader = WorkflowLoader(db=database)
         template_engine = TemplateEngine()
-        skill_manager = HookSkillManager(db=database)
-        rule_engine = RuleEngine(db=database, skill_manager=skill_manager)
+        metrics_event_store = MetricsEventStore(database)
+        skill_manager = HookSkillManager(
+            db=database, metrics_event_store=metrics_event_store
+        )
+        rule_engine = RuleEngine(
+            db=database,
+            skill_manager=skill_manager,
+            metrics_event_store=metrics_event_store,
+        )
 
         pipeline_executor = None
         try:

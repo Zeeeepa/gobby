@@ -1470,6 +1470,42 @@ UPDATE config_store SET value = 'true' WHERE key = 'memory_extraction.enabled'""
         "Add review_json to pipeline_executions for conductor reviews",
         "ALTER TABLE pipeline_executions ADD COLUMN review_json TEXT",
     ),
+    (
+        168,
+        "Add metrics_events and metrics_events_archive tables",
+        """CREATE TABLE IF NOT EXISTS metrics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT,
+    session_id TEXT,
+    server_name TEXT,
+    name TEXT NOT NULL,
+    success INTEGER NOT NULL DEFAULT 1,
+    latency_ms REAL,
+    result TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_me_type_created ON metrics_events(event_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_me_session ON metrics_events(session_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_me_name ON metrics_events(name, event_type);
+CREATE INDEX IF NOT EXISTS idx_me_created ON metrics_events(created_at);
+
+CREATE TABLE IF NOT EXISTS metrics_events_archive (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    server_name TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL,
+    call_count INTEGER NOT NULL DEFAULT 0,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    total_latency_ms REAL NOT NULL DEFAULT 0,
+    block_count INTEGER NOT NULL DEFAULT 0,
+    allow_count INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(event_type, project_id, server_name, name)
+)""",
+    ),
 ]
 
 

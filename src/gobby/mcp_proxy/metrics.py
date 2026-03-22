@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from gobby.mcp_proxy.metrics_events import MetricsEventStore
 from gobby.mcp_proxy.metrics_store import ToolMetrics, ToolMetricsStore
 from gobby.storage.database import DatabaseProtocol
 from gobby.telemetry.instruments import get_telemetry_metrics
@@ -21,14 +22,20 @@ class ToolMetricsManager:
     and SQLite (for queryable analytics).
     """
 
-    def __init__(self, db: DatabaseProtocol):
+    def __init__(
+        self,
+        db: DatabaseProtocol,
+        event_store: MetricsEventStore | None = None,
+    ):
         """
         Initialize the metrics manager.
 
         Args:
             db: LocalDatabase instance for persistence
+            event_store: Optional MetricsEventStore for per-event recording
         """
         self.store = ToolMetricsStore(db)
+        self.event_store = event_store or MetricsEventStore(db)
         self.metrics = get_telemetry_metrics()
 
     def record_call(
@@ -38,19 +45,13 @@ class ToolMetricsManager:
         project_id: str,
         latency_ms: float,
         success: bool = True,
+        session_id: str | None = None,
     ) -> None:
         """
         Record a tool call with its metrics.
-        Dual-writes to SQLite and OTel.
-
-        Args:
-            server_name: Name of the MCP server
-            tool_name: Name of the tool
-            project_id: Project ID the call was made from
-            latency_ms: Execution time in milliseconds
-            success: Whether the call succeeded
+        Triple-writes to: SQLite aggregate table, event log, and OTel.
         """
-        # 1. SQLite Persistence
+        # 1. SQLite aggregate persistence (backward compat)
         try:
             self.store.record_call(
                 server_name=server_name,
@@ -62,13 +63,29 @@ class ToolMetricsManager:
         except Exception as e:
             logger.error(f"Failed to record call to SQLite: {e}")
 
-        # 2. OTel Observability
+        # 2. Event log (per-event with session_id)
+        try:
+            self.event_store.record_event(
+                event_type="tool_call",
+                name=tool_name,
+                project_id=project_id,
+                session_id=session_id,
+                server_name=server_name,
+                success=success,
+                latency_ms=latency_ms,
+            )
+        except Exception as e:
+            logger.error(f"Failed to record event: {e}")
+
+        # 3. OTel Observability
         attributes = {
             "server_name": server_name,
             "tool_name": tool_name,
             "success": str(success).lower(),
             "project_id": project_id,
         }
+        if session_id:
+            attributes["session_id"] = session_id
 
         # Increment total calls
         self.metrics.inc_counter("mcp_tool_calls_total", attributes=attributes)

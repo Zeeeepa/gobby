@@ -9,9 +9,11 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool).
 """
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from gobby.mcp_proxy.metrics import ToolMetricsManager
+from gobby.mcp_proxy.metrics_events import MetricsEventStore
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.sessions.token_tracker import SessionTokenTracker
 
@@ -20,6 +22,7 @@ def create_metrics_registry(
     metrics_manager: ToolMetricsManager,
     session_storage: Any | None = None,
     daily_budget_usd: float = 50.0,
+    event_store: MetricsEventStore | None = None,
 ) -> InternalToolRegistry:
     """
     Create a metrics tool registry with all metrics-related tools.
@@ -326,6 +329,144 @@ def create_metrics_registry(
         try:
             status = token_tracker.get_budget_status()
             return {"success": True, "budget": status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # --- Event-based metrics tools (require event_store) ---
+
+    @registry.tool(
+        name="get_session_tools",
+        description="Get per-tool call breakdown for a specific session.",
+    )
+    def get_session_tools(session_id: str) -> dict[str, Any]:
+        """Get which tools a session used and how often.
+
+        Args:
+            session_id: Session ID to query.
+
+        Returns:
+            Per-tool breakdown with call counts, success rates, and latency.
+        """
+        if event_store is None:
+            return {"success": False, "error": "Event store not configured"}
+        try:
+            breakdown = event_store.get_session_tool_breakdown(session_id)
+            return {
+                "success": True,
+                "session_id": session_id,
+                "tools": breakdown,
+                "total_tools": len(breakdown),
+                "total_calls": sum(t["call_count"] for t in breakdown),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="get_rule_metrics",
+        description="Get rule evaluation stats: which rules fire, block vs allow counts, latency.",
+    )
+    def get_rule_metrics(
+        hours: int = 24,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Get aggregate rule evaluation metrics.
+
+        Args:
+            hours: Lookback period in hours (default: 24).
+            session_id: Optional session ID to filter by.
+
+        Returns:
+            Per-rule stats with eval count, block/allow breakdown, latency.
+        """
+        if event_store is None:
+            return {"success": False, "error": "Event store not configured"}
+        try:
+            since = datetime.now(UTC) - timedelta(hours=hours)
+            stats = event_store.get_rule_stats(since=since, session_id=session_id)
+            total_evals = sum(r["eval_count"] for r in stats)
+            total_blocks = sum(r["block_count"] for r in stats)
+            return {
+                "success": True,
+                "hours": hours,
+                "rules": stats,
+                "summary": {
+                    "total_evals": total_evals,
+                    "total_blocks": total_blocks,
+                    "total_allows": total_evals - total_blocks,
+                    "unique_rules": len(stats),
+                },
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="get_skill_metrics",
+        description="Get skill search and invocation stats.",
+    )
+    def get_skill_metrics(
+        hours: int = 24,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Get aggregate skill usage metrics.
+
+        Args:
+            hours: Lookback period in hours (default: 24).
+            session_id: Optional session ID to filter by.
+
+        Returns:
+            Per-skill stats with search and invoke counts.
+        """
+        if event_store is None:
+            return {"success": False, "error": "Event store not configured"}
+        try:
+            since = datetime.now(UTC) - timedelta(hours=hours)
+            stats = event_store.get_skill_stats(since=since, session_id=session_id)
+            searches = sum(s["count"] for s in stats if s["event_type"] == "skill_search")
+            invocations = sum(s["count"] for s in stats if s["event_type"] == "skill_invoke")
+            return {
+                "success": True,
+                "hours": hours,
+                "skills": stats,
+                "summary": {
+                    "total_searches": searches,
+                    "total_invocations": invocations,
+                    "unique_skills": len({s["skill_name"] for s in stats}),
+                },
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="get_metrics_timeseries",
+        description="Get time-bucketed metrics for dashboard charts. Supports 1h/6h/12h/24h/7d/30d/all ranges.",
+    )
+    def get_metrics_timeseries(
+        event_type: str = "tool_call",
+        range: str = "24h",
+        name: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Get time-series metrics data.
+
+        Args:
+            event_type: Event type to query (tool_call, rule_eval, skill_search, skill_invoke).
+            range: Time range - 1h, 6h, 12h, 24h, 7d, 30d, or all.
+            name: Optional tool/rule/skill name to filter by.
+            session_id: Optional session ID to filter by.
+
+        Returns:
+            Time-bucketed data with call counts, success/failure, latency.
+        """
+        if event_store is None:
+            return {"success": False, "error": "Event store not configured"}
+        try:
+            result = event_store.get_timeseries(
+                event_type=event_type,
+                range_key=range,
+                name=name,
+                session_id=session_id,
+            )
+            return {"success": True, **result}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

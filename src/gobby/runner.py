@@ -359,8 +359,12 @@ class GobbyRunner:
 
         # Tool Metrics Manager for tracking call statistics
         from gobby.mcp_proxy.metrics import ToolMetricsManager
+        from gobby.mcp_proxy.metrics_events import MetricsEventStore
 
-        self.metrics_manager = ToolMetricsManager(self.database)
+        self.metrics_event_store = MetricsEventStore(self.database)
+        self.metrics_manager = ToolMetricsManager(
+            self.database, event_store=self.metrics_event_store
+        )
 
         # MCPClientManager loads servers from database on init
         self.mcp_proxy = MCPClientManager(
@@ -896,6 +900,7 @@ class GobbyRunner:
             cleanup_zombie_messages_loop,
             expire_approval_timeouts_loop,
             metric_snapshot_loop,
+            metrics_archive_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
             savings_rollup_loop,
@@ -1021,6 +1026,14 @@ class GobbyRunner:
             self._metrics_cleanup_task = asyncio.create_task(
                 metrics_cleanup_loop(self.metrics_manager, lambda: self._shutdown_requested),
                 name="metrics-cleanup",
+            )
+
+            # Start periodic metrics event archiving (every 24 hours, 30-day retention)
+            self._metrics_archive_task = asyncio.create_task(
+                metrics_archive_loop(
+                    self.metrics_event_store, lambda: self._shutdown_requested
+                ),
+                name="metrics-archive",
             )
 
             # Start periodic span cleanup (every 24 hours, 7-day retention)

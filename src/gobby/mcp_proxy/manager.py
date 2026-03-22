@@ -652,6 +652,7 @@ class MCPClientManager:
         tool_name: str,
         arguments: dict[str, Any] | None = None,
         timeout: float | None = None,
+        session_id: str | None = None,
     ) -> Any:
         """Call a tool on a specific server."""
         start_time = time.perf_counter()
@@ -700,6 +701,7 @@ class MCPClientManager:
                                 project_id=metrics_project_id,
                                 latency_ms=latency_ms,
                                 success=success,
+                                session_id=session_id,
                             )
                         except Exception:
                             # Don't let metrics recording failures affect tool calls

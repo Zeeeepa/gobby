@@ -386,7 +386,9 @@ class ToolProxyService:
                 raise MCPError(f"Internal server '{server_name}' not found")
 
             # Use MCP manager for external servers
-            return await self._mcp_manager.call_tool(server_name, tool_name, arguments)
+            return await self._mcp_manager.call_tool(
+                server_name, tool_name, arguments, session_id=session_id
+            )
 
         except Exception as e:
             error_message = str(e)
