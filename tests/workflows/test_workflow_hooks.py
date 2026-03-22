@@ -4,6 +4,7 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.hook_manager import HookManager
+from gobby.workflows.git_utils import DirtyFiles
 from gobby.workflows.hooks import WorkflowHookHandler
 
 pytestmark = pytest.mark.unit
@@ -218,8 +219,8 @@ class TestProjectPathResolution:
             cwd=worktree_path,
         )
 
-        with patch("gobby.workflows.git_utils.get_dirty_files") as mock_dirty:
-            mock_dirty.return_value = set()
+        with patch("gobby.workflows.git_utils.get_dirty_files_categorized") as mock_dirty:
+            mock_dirty.return_value = DirtyFiles(set(), set())
             # Call _evaluate_rules directly (async) to avoid threading issues
             await handler._evaluate_rules(event)
 
@@ -227,9 +228,10 @@ class TestProjectPathResolution:
             assert mock_engine.evaluate.called
             call_kwargs = mock_engine.evaluate.call_args
             eval_context = call_kwargs.kwargs.get("eval_context", {})
-            # Force the LazyBool to evaluate, which triggers get_dirty_files
+            # Force the LazyBool to evaluate, which triggers get_dirty_files_categorized
             assert "has_dirty_files" in eval_context
             bool(eval_context["has_dirty_files"])
-            mock_dirty.assert_called_once()
-            # The path argument should be event.cwd, not None
-            assert mock_dirty.call_args[0][0] == worktree_path
+            assert mock_dirty.call_count >= 1
+            # Every call should use event.cwd, not None
+            for call in mock_dirty.call_args_list:
+                assert call[0][0] == worktree_path

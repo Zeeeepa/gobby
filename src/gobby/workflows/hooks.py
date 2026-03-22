@@ -137,7 +137,7 @@ class WorkflowHookHandler:
                         )
                     logger.debug(f"Could not load session variables for rules: {e}")
 
-            from gobby.workflows.git_utils import get_dirty_files
+            from gobby.workflows.git_utils import get_dirty_files_categorized
             from gobby.workflows.safe_evaluator import LazyBool
 
             project_path = event.cwd  # Live cwd from CLI adapter — correct for worktrees
@@ -148,7 +148,9 @@ class WorkflowHookHandler:
 
             # Lazy-init baseline on first evaluation (rule template may not have fired)
             if "baseline_dirty_files" not in variables:
-                initial_dirty = sorted(get_dirty_files(project_path))
+                initial_dirty = sorted(
+                    get_dirty_files_categorized(project_path).all
+                )
                 variables["baseline_dirty_files"] = initial_dirty
                 variables.setdefault("session_edited_files", [])
                 # Persist so future evaluations have it
@@ -166,12 +168,20 @@ class WorkflowHookHandler:
                 _base: set[str] = baseline,
                 _path: str | None = project_path,
             ) -> bool:
-                dirty = get_dirty_files(_path)
+                result = get_dirty_files_categorized(_path)
+                # Tracked dirty files (modified/staged/deleted) — always relevant
+                # Untracked files — only count ones this session created
+                dirty_tracked = result.tracked
+                dirty_untracked = result.untracked
                 if _edited:
-                    # Precise: only files this session touched that are still dirty
-                    return bool(_edited & dirty)
+                    # Precise: session-edited tracked files that are still dirty,
+                    # plus any untracked files this session created
+                    session_dirty_tracked = _edited & dirty_tracked
+                    session_dirty_untracked = _edited & dirty_untracked
+                    return bool(session_dirty_tracked or session_dirty_untracked)
                 # Legacy fallback: no per-session tracking, baseline subtraction
-                return bool(dirty - _base)
+                # Only consider tracked dirty files minus baseline
+                return bool(dirty_tracked - _base)
 
             eval_context = {"has_dirty_files": LazyBool(_check_dirty)}
 
