@@ -454,9 +454,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     handoff_vars: dict[str, Any] = {}
                     if parent and parent.summary_markdown:
                         handoff_vars["session_summary"] = parent.summary_markdown
-                        # Backwards compat: also set the old variable names
+                        # Also set full_session_summary (used by inject-previous-session-summary rule)
                         handoff_vars["full_session_summary"] = parent.summary_markdown
-                        handoff_vars["compact_session_summary"] = parent.summary_markdown
                     if handoff_vars:
                         sv_mgr.merge_variables(session_id, handoff_vars)
 

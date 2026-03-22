@@ -1037,14 +1037,17 @@ class TestSessionStartHandoff:
         assert response.decision == "allow"
         mock_sv_mgr.merge_variables.assert_any_call(
             "new-sess-456",
-            {"full_session_summary": "# Summary\nWorked on feature X"},
+            {
+                "session_summary": "# Summary\nWorked on feature X",
+                "full_session_summary": "# Summary\nWorked on feature X",
+            },
         )
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
     def test_session_start_compact_sets_compact_session_summary_variable(
         self, mock_sv_mgr_cls: MagicMock, mock_dependencies: dict
     ) -> None:
-        """Test compact_markdown set as compact_session_summary session variable for source='compact'."""
+        """Test summary_markdown set as all session summary variables for source='compact'."""
         mock_sv_mgr = MagicMock()
         mock_sv_mgr.get_variables.return_value = {"auto_inject_handoff": True}
         mock_sv_mgr_cls.return_value = mock_sv_mgr
@@ -1055,8 +1058,7 @@ class TestSessionStartHandoff:
         mock_parent_obj = MagicMock()
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
-        mock_parent_obj.summary_markdown = None
-        mock_parent_obj.compact_markdown = "# Compact\nContinuation of task Y"
+        mock_parent_obj.summary_markdown = "# Compact\nContinuation of task Y"
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 43
@@ -1082,7 +1084,10 @@ class TestSessionStartHandoff:
         assert response.decision == "allow"
         mock_sv_mgr.merge_variables.assert_any_call(
             "new-sess-456",
-            {"compact_session_summary": "# Compact\nContinuation of task Y"},
+            {
+                "session_summary": "# Compact\nContinuation of task Y",
+                "full_session_summary": "# Compact\nContinuation of task Y",
+            },
         )
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
@@ -1107,8 +1112,7 @@ class TestSessionStartHandoff:
         mock_parent_obj = MagicMock()
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
-        mock_parent_obj.summary_markdown = None
-        mock_parent_obj.compact_markdown = "# Compact\nContinuation"
+        mock_parent_obj.summary_markdown = "# Compact\nContinuation"
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 43
@@ -1167,8 +1171,7 @@ class TestSessionStartHandoff:
         mock_parent_obj = MagicMock()
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
-        mock_parent_obj.summary_markdown = None
-        mock_parent_obj.compact_markdown = "# Compact\nDone"
+        mock_parent_obj.summary_markdown = "# Compact\nDone"
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 43
