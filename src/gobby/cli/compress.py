@@ -5,7 +5,6 @@ Used by PreToolUse hook rewriting to reduce token usage.
 """
 
 import re
-import shlex
 import subprocess
 import sys
 
@@ -23,18 +22,17 @@ def compress(command: tuple[str, ...], stats: bool) -> None:
 
     Usage: gobby compress -- git status
     """
-    # When called via hook rewrite with shlex_quote, the entire command arrives
-    # as a single string (e.g. 'uv run pytest -v').  Split it so subprocess
-    # can find the actual binary.
-    cmd_list = list(command)
-    if len(cmd_list) == 1 and " " in cmd_list[0]:
-        cmd_list = shlex.split(cmd_list[0])
-    cmd = " ".join(cmd_list)
+    # The command arrives shlex-quoted from the hook rewrite (single string)
+    # or as separate args if invoked manually.  Join into a single string
+    # and run through the shell so redirections (2>&1), pipes, and flag-like
+    # arguments (e.g. head -30) work correctly.
+    cmd = " ".join(command)
 
-    result = subprocess.run(  # nosec B603 # command comes from CLI args, not user input
-        cmd_list,
+    result = subprocess.run(  # nosec B602 # command comes from hook rewrite, not user input
+        cmd,
         capture_output=True,
         text=True,
+        shell=True,
     )
 
     raw_output = result.stdout
