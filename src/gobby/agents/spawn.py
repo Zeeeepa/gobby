@@ -126,6 +126,7 @@ def prepare_terminal_spawn(
         prompt: Optional initial prompt
         max_agent_depth: Maximum agent depth
         task_id: Optional task ID to link to the agent
+        timeout_seconds: Optional timeout for the agent run in seconds.
 
     Returns:
         PreparedSpawn with all necessary spawn configuration

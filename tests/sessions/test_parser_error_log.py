@@ -1,5 +1,6 @@
 import json
-import os
+
+import pytest
 
 from gobby.sessions.transcript_renderer import render_transcript
 from gobby.sessions.transcripts.base import (
@@ -8,10 +9,12 @@ from gobby.sessions.transcripts.base import (
     TranscriptParserErrorLog,
 )
 
+pytestmark = pytest.mark.unit
 
-def test_parser_error_log_creation(tmp_path):
+
+def test_parser_error_log_creation(tmp_path, monkeypatch):
     # Mock home directory for testing
-    os.environ["HOME"] = str(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
 
     cli_name = "test-cli"
     error_log = TranscriptParserErrorLog(cli_name)
@@ -30,8 +33,8 @@ def test_parser_error_log_creation(tmp_path):
     assert '{"bad": "json"' in content
 
 
-def test_log_unknown_block(tmp_path):
-    os.environ["HOME"] = str(tmp_path)
+def test_log_unknown_block(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
     cli_name = "test-cli-unknown"
     error_log = TranscriptParserErrorLog(cli_name)
 
@@ -45,8 +48,8 @@ def test_log_unknown_block(tmp_path):
     assert json.dumps(raw) in content
 
 
-def test_renderer_logs_unknown_block(tmp_path):
-    os.environ["HOME"] = str(tmp_path)
+def test_renderer_logs_unknown_block(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
     cli_name = "test-cli-renderer"
     error_log = TranscriptParserErrorLog(cli_name)
 
@@ -74,8 +77,8 @@ def test_renderer_logs_unknown_block(tmp_path):
     assert '"extra": "data"' in content
 
 
-def test_parser_logs_malformed_line(tmp_path):
-    os.environ["HOME"] = str(tmp_path)
+def test_parser_logs_malformed_line(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
 
     class MockParser(BaseTranscriptParser):
         def parse_line(self, line, index):
@@ -96,8 +99,8 @@ def test_parser_logs_malformed_line(tmp_path):
     assert "invalid json" in content
 
 
-def test_rotation(tmp_path):
-    os.environ["HOME"] = str(tmp_path)
+def test_rotation(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
     cli_name = "test-cli-rotation"
     error_log = TranscriptParserErrorLog(cli_name)
 

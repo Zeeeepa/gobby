@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from gobby.sessions.transcript_renderer import (
     RenderState,
     classify_tool,
@@ -8,6 +10,8 @@ from gobby.sessions.transcript_renderer import (
     render_transcript,
 )
 from gobby.sessions.transcripts.base import ParsedMessage
+
+pytestmark = pytest.mark.unit
 
 
 def make_msg(

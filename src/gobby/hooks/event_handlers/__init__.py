@@ -81,6 +81,7 @@ class EventHandlers(
             workflow_config: WorkflowConfig for workflow settings (debug_echo_context)
             get_machine_id: Function to get machine ID
             resolve_project_id: Function to resolve project ID from cwd
+            code_index_trigger: Optional trigger for code indexing on file changes.
             logger: Optional logger instance
         """
         self._session_manager = session_manager
@@ -96,6 +97,7 @@ class EventHandlers(
         self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
         self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")
         self._code_index_trigger = code_index_trigger
+        self._pending_subagent_depths: dict[str, int] = {}
         self._dispatch_session_summaries_fn: (
             Callable[[str, bool, threading.Event | None], None] | None
         ) = None

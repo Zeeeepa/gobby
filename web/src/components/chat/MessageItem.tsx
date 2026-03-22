@@ -106,8 +106,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
                 )
               }
               if (block.type === 'image') {
-                // Backend provides source: Record<string, unknown> (Anthropic/SDK shape)
-                const source = block.source as any
+                const { source } = block
                 const src = source?.data ? `data:${source.media_type};base64,${source.data}` : ''
                 if (!src) return null
                 return (

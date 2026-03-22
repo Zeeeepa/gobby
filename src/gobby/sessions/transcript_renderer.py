@@ -247,7 +247,7 @@ def render_incremental(
         # 4. Initialize new message if needed
         if not state.current_message:
             state.current_message = RenderedMessage(
-                id=f"{role}-{msg.timestamp.timestamp()}-{msg.index}",
+                id=f"{session_id or 'no-session'}-{role}-{msg.timestamp.timestamp()}-{msg.index}",
                 role=role,
                 content="",
                 timestamp=msg.timestamp,

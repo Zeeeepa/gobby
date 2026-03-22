@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gobby.config.sessions import SessionLifecycleConfig
+from gobby.sessions.summarize import TURN_PATTERN
 from gobby.sessions.transcript_archive import backup_transcript
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
@@ -287,8 +288,6 @@ class SessionLifecycleManager:
 
             # Turn count fallback: subagents get 1 turn, short Q&A gets 1-2.
             # By 3+ turns there's likely something worth remembering.
-            from gobby.sessions.summarize import TURN_PATTERN
-
             digest = getattr(session, "digest_markdown", None)
             turn_count = len(TURN_PATTERN.findall(digest)) if isinstance(digest, str) else 0
             skip_llm = agent_depth > 0 or source in ("pipeline", "cron") or turn_count < 3

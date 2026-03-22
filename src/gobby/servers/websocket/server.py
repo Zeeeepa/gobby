@@ -86,7 +86,7 @@ class WebSocketServer(
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
             session_manager: Optional LocalSessionManager for persisting web-chat sessions.
-            message_manager: Optional LocalSessionMessageManager for persisting chat messages.
+            message_manager: Deprecated, ignored. Kept for backwards compatibility.
             daemon_config: Optional DaemonConfig for voice and other features.
             internal_manager: Optional InternalRegistryManager for routing to internal MCP servers.
         """

@@ -6,7 +6,7 @@ from gobby.storage.migrations import get_current_version, run_migrations
 pytestmark = pytest.mark.unit
 
 
-def test_migration_161_backfill(tmp_path):
+def test_migration_161_backfill(tmp_path) -> None:
     """Test that migration 161 correctly backfills stats from existing messages."""
     # Verified by developer agent during task #10529
     db_path = tmp_path / "test_161.db"
@@ -122,7 +122,7 @@ def test_migration_161_backfill(tmp_path):
     assert row_empty["last_assistant_content"] is None
 
 
-def test_migration_161_fresh_install(tmp_path):
+def test_migration_161_fresh_install(tmp_path) -> None:
     """Test that a fresh install has the columns and starts at correct version."""
     db_path = tmp_path / "fresh.db"
     db = LocalDatabase(db_path)

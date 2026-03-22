@@ -364,7 +364,7 @@ class Neo4jClient:
             rel_type: Relationship type (e.g. "KNOWS")
             properties: Properties to set on the relationship
         """
-        # Sanitize LLM-extracted relationship types: replace hyphens with underscores
+        # Sanitize LLM-extracted relationship types: replace non-alphanumeric characters with underscores
         rel_type = re.sub(r"[^A-Za-z0-9_]", "_", rel_type)
         _validate_cypher_identifier(rel_type, "relationship type")
         props = dict(properties or {})

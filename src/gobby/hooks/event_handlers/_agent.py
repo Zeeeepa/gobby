@@ -363,8 +363,6 @@ class AgentEventHandlerMixin(EventHandlersBase):
             try:
                 parent = self._session_manager.get_by_external_id(session_id)
                 parent_depth = getattr(parent, "agent_depth", 0) or 0 if parent else 0
-                if not hasattr(self, "_pending_subagent_depths"):
-                    self._pending_subagent_depths: dict[str, int] = {}
                 self._pending_subagent_depths[subagent_id] = parent_depth + 1
                 self.logger.debug(
                     "Pending subagent depth for %s: %d",

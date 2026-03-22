@@ -163,10 +163,12 @@ class KnowledgeGraphQueueConfig(BaseModel):
 
     interval_minutes: int = Field(
         default=30,
+        ge=1,
         description="How often to process the KG queue (minutes)",
     )
     batch_size: int = Field(
         default=20,
+        ge=1,
         description="Max memories to process per KG queue cycle",
     )
 

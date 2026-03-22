@@ -515,7 +515,9 @@ class CodeGraph:
         seen_ids: set[str] = set()
 
         # Add the center node
-        center_id = symbol_name or file_path or ""
+        center_id = symbol_name or file_path
+        if not center_id:
+            raise ValueError("Either symbol_name or file_path must be provided")
         center_type = "function" if symbol_name else "file"
         nodes.append({
             "id": center_id,

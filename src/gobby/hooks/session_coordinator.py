@@ -409,8 +409,6 @@ class SessionCoordinator:
             session_id = session.id
             if self._message_processor:
                 try:
-                    import asyncio
-
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         flush_task = asyncio.ensure_future(

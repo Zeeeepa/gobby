@@ -22,6 +22,11 @@
   color: var(--text-primary);
 }
 
+.tab-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .tab-item.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
@@ -44,5 +49,5 @@
 
 .tab-item.active .tab-badge {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-foreground, #fff);
 }
