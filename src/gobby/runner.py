@@ -730,6 +730,23 @@ class GobbyRunner:
         except Exception as e:
             logger.error(f"Failed to initialize CronScheduler: {e}")
 
+        # Communications Manager
+        self.communications_manager: Any | None = None
+        if hasattr(self.config, "communications") and self.config.communications.enabled:
+            try:
+                from gobby.communications.manager import CommunicationsManager
+                from gobby.storage.communications import LocalCommunicationsStore
+
+                comms_store = LocalCommunicationsStore(self.database)
+                self.communications_manager = CommunicationsManager(
+                    config=self.config.communications,
+                    store=comms_store,
+                    secret_store=self.secret_store,
+                )
+                logger.debug("CommunicationsManager initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize CommunicationsManager: {e}")
+
         # HTTP Server
         # Bundle services into container
         services = ServiceContainer(
@@ -758,6 +775,7 @@ class GobbyRunner:
             pipeline_execution_manager=self.pipeline_execution_manager,
             completion_registry=self.completion_registry,
             agent_lifecycle_monitor=self.agent_lifecycle_monitor,
+            communications_manager=self.communications_manager,
             code_indexer=self.code_indexer,
             cron_storage=self.cron_storage,
             cron_scheduler=self.cron_scheduler,
@@ -986,6 +1004,13 @@ class GobbyRunner:
             # Start Message Processor
             if self.message_processor:
                 await self.message_processor.start()
+
+            # Start Communications Manager
+            if self.communications_manager:
+                try:
+                    await self.communications_manager.start()
+                except Exception as e:
+                    logger.error(f"CommunicationsManager start failed: {e}")
 
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
@@ -1242,6 +1267,12 @@ class GobbyRunner:
                     await asyncio.wait_for(self.message_processor.stop(), timeout=2.0)
                 except TimeoutError:
                     logger.warning("Message processor shutdown timed out")
+
+            if self.communications_manager:
+                try:
+                    await asyncio.wait_for(self.communications_manager.stop(), timeout=5.0)
+                except TimeoutError:
+                    logger.warning("CommunicationsManager shutdown timed out")
 
             if websocket_task:
                 websocket_task.cancel()

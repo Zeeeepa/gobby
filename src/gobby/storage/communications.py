@@ -100,6 +100,31 @@ class LocalCommunicationsStore:
             return None
         return CommsIdentity.from_row(dict(row))
 
+    def save_channel(self, channel: ChannelConfig) -> None:
+        """Save a new channel to the database."""
+        import json as _json
+
+        self.db.execute(
+            """
+            INSERT INTO comms_channels (id, channel_type, name, enabled, config_json, webhook_secret, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                channel.id,
+                channel.channel_type,
+                channel.name,
+                1 if channel.enabled else 0,
+                _json.dumps(channel.config_json),
+                channel.webhook_secret,
+                channel.created_at,
+                channel.updated_at,
+            ),
+        )
+
+    def delete_channel(self, channel_id: str) -> None:
+        """Delete a channel by ID."""
+        self.db.execute("DELETE FROM comms_channels WHERE id = ?", (channel_id,))
+
     def save_identity(self, identity: CommsIdentity) -> None:
         """Save or update an identity."""
         existing = self.get_identity(identity.channel_id, identity.external_user_id)
