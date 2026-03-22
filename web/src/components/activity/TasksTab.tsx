@@ -1,7 +1,6 @@
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Tree, type NodeRendererProps } from 'react-arborist'
 import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
-import { StatusDot } from '../tasks/TaskBadges'
 import { Markdown } from '../chat/Markdown'
 import '../tasks/task-execution.css'
 import type { GobbyTask } from '../../hooks/useTasks'

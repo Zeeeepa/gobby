@@ -47,7 +47,7 @@ interface ToolStatusMessage {
   tool_name?: string;
   server_name?: string;
   arguments?: Record<string, unknown>;
-  result?: unknown;
+  result?: ToolResult;
   error?: string;
 }
 
@@ -277,7 +277,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
             ? findToolCallById(currentAssistant, m.tool_use_id)
             : findPendingToolCall(currentAssistant);
           if (match) {
-            match.result = tryParseJSON(m.content);
+            match.result = tryParseJSON(m.content) as ToolResult | undefined;
             match.status = "completed";
           }
         }
@@ -355,7 +355,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           arguments: tryParseJSON(m.tool_input) as
             | Record<string, unknown>
             | undefined,
-          result: m.tool_result ? tryParseJSON(m.tool_result) : undefined,
+          result: m.tool_result ? tryParseJSON(m.tool_result) as ToolResult : undefined,
         };
         // Add to flat list (backward compat)
         currentAssistant.toolCalls = [
@@ -450,7 +450,7 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           ? findToolCallById(currentAssistant, m.tool_use_id)
           : findPendingToolCall(currentAssistant);
         if (match) {
-          match.result = tryParseJSON(m.content);
+          match.result = tryParseJSON(m.content) as ToolResult | undefined;
           match.status = "completed";
         }
       }
@@ -1074,11 +1074,11 @@ export function useChat() {
                     if (pendingIdx < 0) continue;
                     const updated = [...prev];
                     const updatedCalls = [...m.toolCalls];
-                    const callRef = {
+                    const callRef: ToolCall = {
                       ...updatedCalls[pendingIdx],
                       result: tryParseJSON(
                         msg.tool_result ?? msg.content,
-                      ),
+                      ) as ToolResult | undefined,
                       status: "completed" as const,
                     };
                     updatedCalls[pendingIdx] = callRef;

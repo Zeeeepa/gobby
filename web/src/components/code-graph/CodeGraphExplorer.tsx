@@ -3,7 +3,7 @@ import ForceGraph3D from 'react-force-graph-3d'
 import SpriteText from 'three-spritetext'
 import { useCodeGraph, mergeCodeGraphData } from '../../hooks/useCodeGraph'
 import type { CodeGraphData, CodeGraphNode, CodeGraphSearchResult } from '../../hooks/useCodeGraph'
-import { IS_MOBILE, IS_IOS } from '../../utils/platform'
+import { IS_MOBILE } from '../../utils/platform'
 import './CodeGraphExplorer.css'
 
 interface CodeGraphExplorerProps {
@@ -120,7 +120,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [webglError, setWebglError] = useState(false)
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchDebounceRef = useRef<number | null>(null)
 
   const { fetchFileGraph, expandFile, expandSymbol, fetchBlastRadius, searchSymbols } = useCodeGraph()
 
@@ -378,7 +378,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
                 className="code-graph-search-result"
                 onClick={() => handleSearchResultClick(r)}
               >
-                <span className="code-graph-search-kind" style={{ color: NODE_COLORS[r.kind] || '#6b7280' }}>
+                <span className="code-graph-search-kind" style={{ color: (r.kind ? NODE_COLORS[r.kind] : undefined) || '#6b7280' }}>
                   {r.kind || r.type}
                 </span>
                 <span className="code-graph-search-name">{r.name}</span>
