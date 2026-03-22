@@ -90,6 +90,7 @@ class HookSkillManager:
         self,
         db: DatabaseProtocol | None = None,
         metrics_event_store: Any | None = None,
+        project_id: str | None = None,
     ) -> None:
         """Initialize the skill manager.
 
@@ -98,9 +99,11 @@ class HookSkillManager:
                 filesystem when None.
             metrics_event_store: Optional MetricsEventStore for recording
                 skill search/invoke events.
+            project_id: Optional project ID for loading project-scoped skills.
         """
         self._db = db
         self._event_store = metrics_event_store
+        self._project_id = project_id
 
         # Path to built-in skills: src/gobby/hooks/ -> src/gobby/install/shared/skills/
         self._base_dir = Path(__file__).parent.parent
@@ -152,6 +155,7 @@ class HookSkillManager:
 
         storage = LocalSkillManager(self._db)
         db_skills = storage.list_skills(
+            project_id=self._project_id,
             enabled=True,
             include_templates=False,
             include_deleted=False,

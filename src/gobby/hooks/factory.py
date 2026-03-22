@@ -340,8 +340,11 @@ class HookManagerFactory:
         loader = WorkflowLoader(db=database)
         template_engine = TemplateEngine()
         metrics_event_store = MetricsEventStore(database)
+        project_id = resolve_project_id(None, None)
         skill_manager = HookSkillManager(
-            db=database, metrics_event_store=metrics_event_store
+            db=database,
+            metrics_event_store=metrics_event_store,
+            project_id=project_id,
         )
         rule_engine = RuleEngine(
             db=database,
@@ -354,7 +357,6 @@ class HookManagerFactory:
             from gobby.storage.pipelines import LocalPipelineExecutionManager
             from gobby.workflows.pipeline_executor import PipelineExecutor
 
-            project_id = resolve_project_id(None, None)
             pipeline_mgr = LocalPipelineExecutionManager(database, project_id)
             pipeline_executor = PipelineExecutor(
                 db=database,
