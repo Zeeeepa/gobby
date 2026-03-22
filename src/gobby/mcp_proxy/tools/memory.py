@@ -739,4 +739,77 @@ def create_memory_registry(
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    # ─── Cleanup tools for nightly memory hygiene (#10572) ───
+
+    @registry.tool(
+        name="audit_memories",
+        description="Audit memories for stale, duplicate, code-derivable, and orphaned entries. Returns a report without deleting anything.",
+    )
+    async def audit_memories(
+        max_stale_age_days: int = 90,
+        categories: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Audit memories and report what would be cleaned up.
+
+        Equivalent to cleanup_memories with dry_run=True.
+
+        Args:
+            max_stale_age_days: Memories older than this with 0 access are stale (default: 90)
+            categories: Which categories to audit (default: all).
+                Valid: "stale", "duplicates", "code_derivable", "orphaned"
+        """
+        from gobby.memory.services.maintenance import execute_cleanup
+
+        try:
+            report = await execute_cleanup(
+                memory_manager=memory_manager,
+                dry_run=True,
+                categories=categories,
+                max_stale_age_days=max_stale_age_days,
+                project_id=get_current_project_id(),
+            )
+            if "error" in report:
+                return {"success": False, "error": report["error"]}
+            return {"success": True, **report}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="cleanup_memories",
+        description="Find and remove stale, duplicate, code-derivable, and orphaned memories. Supports dry_run mode and category filtering.",
+    )
+    async def cleanup_memories(
+        dry_run: bool = False,
+        max_stale_age_days: int = 90,
+        similarity_threshold: float = 0.95,
+        categories: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Run memory cleanup: find and optionally delete problematic memories.
+
+        Args:
+            dry_run: If true, report what would be cleaned without deleting (default: false)
+            max_stale_age_days: Memories older than this with 0 access are stale (default: 90)
+            similarity_threshold: Vector similarity threshold for duplicate detection (default: 0.95)
+            categories: Which categories to clean (default: all).
+                Valid: "stale", "duplicates", "code_derivable", "orphaned"
+        """
+        from gobby.memory.services.maintenance import execute_cleanup
+
+        try:
+            report = await execute_cleanup(
+                memory_manager=memory_manager,
+                dry_run=dry_run,
+                categories=categories,
+                max_stale_age_days=max_stale_age_days,
+                similarity_threshold=similarity_threshold,
+                project_id=get_current_project_id(),
+            )
+            if "error" in report:
+                return {"success": False, "error": report["error"]}
+            return {"success": True, **report}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     return registry
