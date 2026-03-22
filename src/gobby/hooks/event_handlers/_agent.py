@@ -134,11 +134,20 @@ class AgentEventHandlerMixin(EventHandlersBase):
         args = (match.group(2) or "").strip()
 
         # Support space syntax: /gobby expand → treat first word of args as skill name
+        # Also supports /gobby skill(s) <name> as a namespace prefix
         resolved = None
         if not skill_name and args and self._skill_manager:
             parts = args.split(None, 1)
             first_word = parts[0]
-            if first_word.lower() != "help":
+            if first_word.lower() in ("skill", "skills"):
+                # /gobby skill(s) <name> → shift to second word
+                if len(parts) > 1:
+                    sub_parts = parts[1].split(None, 1)
+                    skill_name = sub_parts[0]
+                    args = sub_parts[1] if len(sub_parts) > 1 else ""
+                    resolved = self._skill_manager.resolve_skill_name(skill_name)
+                # bare /gobby skills → fall through to help
+            elif first_word.lower() != "help":
                 skill_name = first_word
                 resolved = self._skill_manager.resolve_skill_name(first_word)
                 if resolved:
