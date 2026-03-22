@@ -6,7 +6,7 @@ description: |
   and task creation (mechanical).
 
   Flow: spawn researcher → wait → validate spec → execute expansion →
-        wire affected files → analyze dependencies
+        spawn QA → wait QA → check QA → wire affected files → analyze dependencies
 
   Reusable: orchestrator invokes it, /gobby expand wraps it, other pipelines
   compose with it.
@@ -33,6 +33,7 @@ outputs:
   created: "${{ steps.execute.output.created }}"
   count: "${{ steps.execute.output.count }}"
   validation: "${{ steps.validate.output }}"
+  qa_result: "${{ steps.check_qa.output }}"
 
 steps:
   # --- 1. Spawn the researcher agent ---
@@ -81,7 +82,35 @@ steps:
         parent_task_id: "${{ inputs.task_id }}"
         session_id: "${{ inputs.session_id or session_id }}"
 
-  # --- 6. Wire affected files from spec to child tasks ---
+  # --- 6. Spawn the QA agent to validate expansion ---
+  - id: spawn_qa
+    mcp:
+      server: gobby-agents
+      tool: spawn_agent
+      arguments:
+        prompt: "Validate expansion of task ${{ inputs.task_id }}. Plan file: ${{ inputs.plan_file or 'none' }}. Created tasks: ${{ steps.execute.output.created }}"
+        agent: "expansion-qa"
+        task_id: "${{ inputs.task_id }}"
+        provider: "${{ inputs.provider }}"
+        model: "${{ inputs.model }}"
+        parent_session_id: "${{ inputs.session_id }}"
+        mode: terminal
+
+  # --- 7. Wait for QA agent to complete ---
+  - id: wait_qa
+    wait:
+      completion_id: "${{ steps.spawn_qa.output.run_id }}"
+      timeout: "${{ inputs.wait_timeout }}"
+
+  # --- 8. Check QA result ---
+  - id: check_qa
+    mcp:
+      server: gobby-tasks
+      tool: check_expansion_qa_result
+      arguments:
+        task_id: "${{ inputs.task_id }}"
+
+  # --- 9. Wire affected files from spec to child tasks ---
   - id: wire_files
     mcp:
       server: gobby-tasks
@@ -89,7 +118,7 @@ steps:
       arguments:
         parent_task_id: "${{ inputs.task_id }}"
 
-  # --- 7. Analyze dependencies for file overlaps ---
+  # --- 10. Analyze dependencies for file overlaps ---
   - id: analyze_deps
     condition: "${{ steps.execute.output.count > 1 }}"
     mcp:

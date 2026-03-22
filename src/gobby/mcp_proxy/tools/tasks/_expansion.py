@@ -544,4 +544,182 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=validate_expansion_spec,
     )
 
+    async def save_expansion_qa_result(
+        task_id: str,
+        result: dict[str, Any],
+        project: str | None = None,
+    ) -> dict[str, Any]:
+        """Save expansion QA result to task.expansion_context.qa_result.
+
+        Called by the expansion-qa agent after validating the task tree.
+        Stores the QA findings alongside the existing expansion spec.
+
+        Args:
+            task_id: Parent task ID (can be #N, path, or UUID)
+            result: QA result containing:
+                - passed: bool - whether the expansion passed QA
+                - fixes: list[dict] - fixes applied [{type, task_ref, detail}]
+                - escalations: list[dict] - unfixable issues [{type, detail}]
+            project: Project name or UUID for task resolution (optional)
+
+        Returns:
+            {"saved": True, "task_id": str, "passed": bool}
+        """
+        try:
+            project_id = ctx.resolve_project_filter(project)
+        except ValueError as e:
+            return {"error": str(e)}
+
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id, project_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Task not found: {e}"}
+
+        # Validate result structure
+        if not isinstance(result.get("passed"), bool):
+            return {"error": "result.passed must be a boolean"}
+        if not isinstance(result.get("fixes"), list):
+            return {"error": "result.fixes must be a list"}
+        if not isinstance(result.get("escalations"), list):
+            return {"error": "result.escalations must be a list"}
+
+        # Load existing expansion_context or start fresh
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        existing_context: dict[str, Any] = {}
+        if task.expansion_context:
+            try:
+                existing_context = json.loads(task.expansion_context)
+            except json.JSONDecodeError:
+                existing_context = {}
+
+        # Store QA result alongside existing spec data
+        existing_context["qa_result"] = result
+
+        ctx.task_manager.update_task(
+            resolved_id,
+            expansion_context=json.dumps(existing_context),
+        )
+
+        logger.info(
+            f"Saved expansion QA result for task {task_id}: "
+            f"passed={result['passed']}, "
+            f"fixes={len(result['fixes'])}, "
+            f"escalations={len(result['escalations'])}"
+        )
+
+        return {
+            "saved": True,
+            "task_id": resolved_id,
+            "passed": result["passed"],
+        }
+
+    async def check_expansion_qa_result(
+        task_id: str,
+        project: str | None = None,
+    ) -> dict[str, Any]:
+        """Check expansion QA result from task.expansion_context.qa_result.
+
+        Used by the expand-task pipeline to read QA findings after the
+        QA agent completes.
+
+        Args:
+            task_id: Parent task ID (can be #N, path, or UUID)
+            project: Project name or UUID for task resolution (optional)
+
+        Returns:
+            {"passed": bool, "fixes": [...], "escalations": [...]}
+            or {"error": str} if no QA result exists
+        """
+        try:
+            project_id = ctx.resolve_project_filter(project)
+        except ValueError as e:
+            return {"error": str(e)}
+
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id, project_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Task not found: {e}"}
+
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        if not task.expansion_context:
+            return {"error": "No expansion context on task"}
+
+        try:
+            context = json.loads(task.expansion_context)
+        except json.JSONDecodeError:
+            return {"error": "Invalid expansion_context JSON"}
+
+        qa_result = context.get("qa_result")
+        if qa_result is None:
+            return {"error": "No QA result in expansion context"}
+
+        return qa_result
+
+    registry.register(
+        name="save_expansion_qa_result",
+        description="Save expansion QA result after validating task tree against plan.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Parent task ID (can be #N, path, or UUID)",
+                },
+                "result": {
+                    "type": "object",
+                    "description": "QA result with passed, fixes, and escalations",
+                    "properties": {
+                        "passed": {
+                            "type": "boolean",
+                            "description": "Whether the expansion passed QA",
+                        },
+                        "fixes": {
+                            "type": "array",
+                            "items": {"type": "object"},
+                            "description": "Fixes applied: [{type, task_ref, detail}]",
+                        },
+                        "escalations": {
+                            "type": "array",
+                            "items": {"type": "object"},
+                            "description": "Unfixable issues: [{type, detail}]",
+                        },
+                    },
+                    "required": ["passed", "fixes", "escalations"],
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project name or UUID for task resolution",
+                },
+            },
+            "required": ["task_id", "result"],
+        },
+        func=save_expansion_qa_result,
+    )
+
+    registry.register(
+        name="check_expansion_qa_result",
+        description="Check expansion QA result. Used by pipeline to gate on QA pass/fail.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Parent task ID (can be #N, path, or UUID)",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project name or UUID for task resolution",
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=check_expansion_qa_result,
+    )
+
     return registry
