@@ -82,6 +82,9 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
     _plan_file_path: str | None = field(default=None, repr=False)
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
+    _on_approved_tools_persist: Callable[[set[str]], None] | None = field(
+        default=None, repr=False
+    )
     _pending_agent_name: str | None = field(default=None, repr=False)
     _session_manager_ref: Any | None = field(default=None, repr=False)
     _plan_approval_completed: bool = field(default=False, repr=False)

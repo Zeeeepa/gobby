@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 167
+BASELINE_VERSION = 169
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -249,6 +249,8 @@ CREATE TABLE sessions (
     turn_count INTEGER DEFAULT 0,
     tool_call_count INTEGER DEFAULT 0,
     last_assistant_content TEXT,
+    pending_plan_path TEXT,
+    approved_tools_json TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1505,6 +1507,12 @@ CREATE TABLE IF NOT EXISTS metrics_events_archive (
     allow_count INTEGER NOT NULL DEFAULT 0,
     UNIQUE(event_type, project_id, server_name, name)
 )""",
+    ),
+    (
+        169,
+        "Add pending_plan_path and approved_tools_json to sessions for restart resilience",
+        """ALTER TABLE sessions ADD COLUMN pending_plan_path TEXT;
+ALTER TABLE sessions ADD COLUMN approved_tools_json TEXT""",
     ),
 ]
 

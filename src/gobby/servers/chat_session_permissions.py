@@ -441,6 +441,8 @@ class ChatSessionPermissionsMixin:
 
         if decision == "approve_always":
             self._approved_tools.add(tool_name)
+            if self._on_approved_tools_persist:
+                self._on_approved_tools_persist(self._approved_tools)
             return PermissionResultAllow(updated_input=input_data)
 
         if decision == "approve":

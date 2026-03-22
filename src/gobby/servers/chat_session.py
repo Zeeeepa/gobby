@@ -114,6 +114,9 @@ class ChatSession(ChatSessionPermissionsMixin):
     )
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
+    _on_approved_tools_persist: Callable[[set[str]], None] | None = field(
+        default=None, repr=False
+    )
     _needs_history_injection: bool = field(default=False, repr=False)
     _last_model: str | None = field(default=None, repr=False)
     _pending_agent_name: str | None = field(default=None, repr=False)

@@ -285,6 +285,8 @@ class CodexChatSessionPermissionsMixin:
 
         if decision == "approve_always":
             self._approved_tools.add(tool_name)
+            if self._on_approved_tools_persist:
+                self._on_approved_tools_persist(self._approved_tools)
             return {"decision": "accept"}
 
         if decision == "approve":
