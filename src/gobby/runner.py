@@ -667,6 +667,7 @@ class GobbyRunner:
                         project_path=str(Path.cwd()),
                         session_manager=self.session_manager,
                         config=self.config.conductor,
+                        execution_manager=self.pipeline_execution_manager,
                     )
                     cron_executor.register_handler("conductor_tick", self.conductor_manager)
                     existing = self.cron_storage.get_job_by_name("gobby:conductor-tick")

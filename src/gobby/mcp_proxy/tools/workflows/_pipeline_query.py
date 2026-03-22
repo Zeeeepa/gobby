@@ -17,6 +17,7 @@ def _execution_brief(execution: PipelineExecution) -> dict[str, Any]:
         "pipeline_name": execution.pipeline_name,
         "status": execution.status.value,
         "created_at": execution.created_at,
+        "has_review": execution.review_json is not None,
     }
 
 
@@ -32,6 +33,7 @@ def _execution_summary(execution: PipelineExecution) -> dict[str, Any]:
         "created_at": execution.created_at,
         "updated_at": execution.updated_at,
         "completed_at": execution.completed_at,
+        "has_review": execution.review_json is not None,
     }
 
 

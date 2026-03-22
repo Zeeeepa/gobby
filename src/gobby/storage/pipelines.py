@@ -203,6 +203,53 @@ class LocalPipelineExecutionManager:
         rows = self.db.fetchall(query, tuple(params))
         return [PipelineExecution.from_row(row) for row in rows]
 
+    def get_unreviewed_completions(self, limit: int = 10) -> list[PipelineExecution]:
+        """Get terminal executions that have no review.
+
+        Returns completed, failed, or cancelled executions where
+        review_json is NULL, ordered by completion time (newest first).
+
+        Args:
+            limit: Maximum number of results
+
+        Returns:
+            List of PipelineExecution instances awaiting review
+        """
+        params: list[Any] = []
+        if self.project_id is None:
+            query = "SELECT * FROM pipeline_executions WHERE project_id IS NULL"
+        else:
+            query = "SELECT * FROM pipeline_executions WHERE project_id = ?"
+            params.append(self.project_id)
+
+        query += (
+            " AND status IN (?, ?, ?)"
+            " AND review_json IS NULL"
+            " ORDER BY completed_at DESC LIMIT ?"
+        )
+        params.extend([
+            ExecutionStatus.COMPLETED.value,
+            ExecutionStatus.FAILED.value,
+            ExecutionStatus.CANCELLED.value,
+            limit,
+        ])
+
+        rows = self.db.fetchall(query, tuple(params))
+        return [PipelineExecution.from_row(row) for row in rows]
+
+    def store_review(self, execution_id: str, review_json: str) -> None:
+        """Store a review JSON blob on a pipeline execution.
+
+        Args:
+            execution_id: Execution ID to update
+            review_json: JSON string containing the review data
+        """
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            "UPDATE pipeline_executions SET review_json = ?, updated_at = ? WHERE id = ?",
+            (review_json, now, execution_id),
+        )
+
     def search_executions(
         self,
         query: str,

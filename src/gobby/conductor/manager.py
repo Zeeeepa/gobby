@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from gobby.config.conductor import ConductorConfig
     from gobby.servers.chat_session import ChatSession
     from gobby.storage.cron_models import CronJob
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -55,11 +56,13 @@ class ConductorManager:
         project_path: str | None,
         session_manager: LocalSessionManager,
         config: ConductorConfig,
+        execution_manager: LocalPipelineExecutionManager | None = None,
     ) -> None:
         self._project_id = project_id
         self._project_path = project_path
         self._session_manager = session_manager
         self._config = config
+        self._execution_manager = execution_manager
         self._session: ChatSession | None = None
         self._busy = False
         self._last_activity: datetime | None = None
@@ -89,13 +92,134 @@ class ConductorManager:
                     parts.append(event.content)
                 elif isinstance(event, DoneEvent):
                     break
-            return f"Conductor: {''.join(parts)[:500]}"
+
+            result = f"Conductor: {''.join(parts)[:500]}"
+
+            # Review completed pipeline executions
+            review_summary = await self._review_completed_pipelines()
+            if review_summary:
+                result += f" | {review_summary}"
+
+            return result
         except Exception as e:
             logger.warning("Conductor tick failed: %s", e)
             await self._destroy_session()
             return f"Conductor tick failed: {e}"
         finally:
             self._busy = False
+
+    async def _review_completed_pipelines(self) -> str | None:
+        """Review unreviewed terminal pipeline executions.
+
+        Queries for completed/failed/cancelled executions without reviews,
+        gathers structured data, sends to LLM for analysis, and stores
+        the combined review. Caps at 5 reviews per tick.
+
+        Returns:
+            Summary string (e.g. "Reviewed 3 executions") or None if nothing to review.
+        """
+        if not self._execution_manager:
+            return None
+
+        try:
+            unreviewed = self._execution_manager.get_unreviewed_completions(limit=5)
+            if not unreviewed:
+                return None
+
+            import json
+
+            from gobby.conductor.pipeline_review import (
+                build_review_json,
+                detect_patterns,
+                format_review_prompt,
+                gather_review_data,
+            )
+
+            reviewed_count = 0
+            stored_reviews: list[dict[str, object]] = []
+
+            for execution in unreviewed:
+                try:
+                    steps = self._execution_manager.get_steps_for_execution(execution.id)
+                    data = gather_review_data(execution, steps)
+                    prompt = format_review_prompt(data)
+
+                    # Send review prompt to conductor LLM session
+                    llm_analysis = await self._get_llm_review(prompt)
+
+                    review_str = build_review_json(data, llm_analysis)
+                    self._execution_manager.store_review(execution.id, review_str)
+                    reviewed_count += 1
+
+                    try:
+                        stored_reviews.append(json.loads(review_str))
+                    except json.JSONDecodeError:
+                        pass
+
+                except Exception as e:
+                    logger.warning(
+                        "Failed to review execution %s: %s", execution.id, e
+                    )
+
+            # Detect cross-execution patterns and append to last review
+            if len(stored_reviews) >= 2:
+                patterns = detect_patterns(stored_reviews)
+                if patterns and unreviewed:
+                    last_execution = unreviewed[reviewed_count - 1]
+                    try:
+                        last_review = stored_reviews[-1]
+                        last_review["cross_execution_patterns"] = patterns
+                        self._execution_manager.store_review(
+                            last_execution.id, json.dumps(last_review, default=str)
+                        )
+                    except Exception as e:
+                        logger.debug("Failed to store cross-execution patterns: %s", e)
+
+            return f"Reviewed {reviewed_count} execution(s)" if reviewed_count else None
+
+        except Exception as e:
+            logger.warning("Pipeline review failed: %s", e)
+            return None
+
+    async def _get_llm_review(self, prompt: str) -> dict[str, object] | None:
+        """Send a review prompt to the conductor LLM and parse JSON response.
+
+        Returns parsed JSON dict on success, None on failure (unparseable
+        response, session error, etc.). Never raises.
+        """
+        import json
+
+        if not self._session:
+            return None
+
+        try:
+            from gobby.llm.claude_models import DoneEvent, TextChunk
+
+            parts: list[str] = []
+            async for event in self._session.send_message(prompt):
+                if isinstance(event, TextChunk):
+                    parts.append(event.content)
+                elif isinstance(event, DoneEvent):
+                    break
+
+            response = "".join(parts).strip()
+
+            # Strip markdown code fences if present
+            if response.startswith("```"):
+                lines = response.split("\n")
+                # Remove first and last lines (fences)
+                lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                response = "\n".join(lines)
+
+            return json.loads(response)
+        except json.JSONDecodeError:
+            logger.debug("LLM review response was not valid JSON")
+            return None
+        except Exception as e:
+            logger.debug("LLM review request failed: %s", e)
+            return None
 
     async def _ensure_session(self) -> ChatSession:
         """Get or create the conductor ChatSession.

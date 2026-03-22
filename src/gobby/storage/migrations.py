@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 164
+BASELINE_VERSION = 167
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -706,7 +706,8 @@ CREATE TABLE pipeline_executions (
     session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
     parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE,
     continuation_prompt TEXT,
-    definition_json TEXT
+    definition_json TEXT,
+    review_json TEXT
 );
 CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
 CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
@@ -1463,6 +1464,11 @@ UPDATE config_store SET value = 'true' WHERE key = 'memory_extraction.enabled'""
         166,
         "Add timeout_seconds to agent_runs for persistence across daemon restarts",
         _add_timeout_seconds_to_agent_runs,
+    ),
+    (
+        167,
+        "Add review_json to pipeline_executions for conductor reviews",
+        "ALTER TABLE pipeline_executions ADD COLUMN review_json TEXT",
     ),
 ]
 
