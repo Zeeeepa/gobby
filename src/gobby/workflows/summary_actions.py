@@ -182,7 +182,9 @@ def _format_structured_context(ctx: HandoffContext) -> str:
         progress_lines = []
         for p in ctx.task_progress[-15:]:
             if isinstance(p, dict):
-                progress_lines.append(f"  - {p.get('action', '?')}: {p.get('title', '?')} ({p.get('id', '?')})")
+                progress_lines.append(
+                    f"  - {p.get('action', '?')}: {p.get('title', '?')} ({p.get('id', '?')})"
+                )
             else:
                 progress_lines.append(f"  - {p}")
         sections.append("Task Progress:\n" + "\n".join(progress_lines))

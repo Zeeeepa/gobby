@@ -517,8 +517,7 @@ class HookManager:
                     block_override = HookResponse(
                         decision="block",
                         reason=(
-                            f"Intercepted by {dr['server']}/{dr['tool']} — "
-                            f"results injected below."
+                            f"Intercepted by {dr['server']}/{dr['tool']} — results injected below."
                         ),
                         context="\n\n".join(extra_context) if extra_context else None,
                     )
@@ -682,7 +681,6 @@ class HookManager:
                     asyncio.run_coroutine_threadsafe(dispatch_all(), self._loop)
                 except Exception as e:
                     self.logger.warning(f"Failed to schedule async webhook: {e}")
-
 
     def _dispatch_mcp_calls(
         self, mcp_calls: list[dict[str, Any]], event: HookEvent

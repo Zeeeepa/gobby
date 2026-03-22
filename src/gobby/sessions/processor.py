@@ -226,12 +226,15 @@ class SessionMessageProcessor:
             return
 
         # Compute incremental stats (no DB message writes)
-        stats = self._stats.get(session_id, {
-            "message_count": 0,
-            "turn_count": 0,
-            "tool_call_count": 0,
-            "last_assistant_content": None,
-        })
+        stats = self._stats.get(
+            session_id,
+            {
+                "message_count": 0,
+                "turn_count": 0,
+                "tool_call_count": 0,
+                "last_assistant_content": None,
+            },
+        )
         for msg in parsed_messages:
             stats["message_count"] = stats.get("message_count", 0) + 1
             if msg.role == "assistant" and msg.content_type == "text":
@@ -267,18 +270,22 @@ class SessionMessageProcessor:
 
         if self.websocket_server:
             for rendered_msg in completed:
-                await self.websocket_server.broadcast({
-                    "type": "session_message",
-                    "session_id": session_id,
-                    "message": rendered_msg.to_dict(),
-                })
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": rendered_msg.to_dict(),
+                    }
+                )
             # Broadcast in-progress turn for live updates (upsert by ID)
             if render_state.current_message:
-                await self.websocket_server.broadcast({
-                    "type": "session_message",
-                    "session_id": session_id,
-                    "message": render_state.current_message.to_dict(),
-                })
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": render_state.current_message.to_dict(),
+                    }
+                )
 
         # Update in-memory state
         new_last_index = parsed_messages[-1].index
@@ -337,12 +344,15 @@ class SessionMessageProcessor:
             return
 
         # Compute incremental stats (no DB message writes)
-        stats = self._stats.get(session_id, {
-            "message_count": 0,
-            "turn_count": 0,
-            "tool_call_count": 0,
-            "last_assistant_content": None,
-        })
+        stats = self._stats.get(
+            session_id,
+            {
+                "message_count": 0,
+                "turn_count": 0,
+                "tool_call_count": 0,
+                "last_assistant_content": None,
+            },
+        )
         for msg in new_messages:
             stats["message_count"] = stats.get("message_count", 0) + 1
             if msg.role == "assistant" and msg.content_type == "text":
@@ -377,17 +387,21 @@ class SessionMessageProcessor:
 
         if self.websocket_server:
             for rendered_msg in completed:
-                await self.websocket_server.broadcast({
-                    "type": "session_message",
-                    "session_id": session_id,
-                    "message": rendered_msg.to_dict(),
-                })
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": rendered_msg.to_dict(),
+                    }
+                )
             if render_state.current_message:
-                await self.websocket_server.broadcast({
-                    "type": "session_message",
-                    "session_id": session_id,
-                    "message": render_state.current_message.to_dict(),
-                })
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": render_state.current_message.to_dict(),
+                    }
+                )
 
         # Update in-memory state
         new_last_index = new_messages[-1].index

@@ -262,9 +262,7 @@ class CodeGraph:
 
     # ── Visualization queries ──────────────────────────────────────
 
-    async def get_file_graph(
-        self, project_id: str, limit: int = 200
-    ) -> dict[str, Any]:
+    async def get_file_graph(self, project_id: str, limit: int = 200) -> dict[str, Any]:
         """Get file-level overview graph for visualization.
 
         Returns CodeFile nodes connected by shared CodeModule imports,
@@ -310,11 +308,13 @@ class CodeGraph:
                 mid = rec["target"]
                 if mid not in node_ids and mid not in module_ids:
                     module_ids.add(mid)
-                    nodes.append({
-                        "id": mid,
-                        "name": mid,
-                        "type": "module",
-                    })
+                    nodes.append(
+                        {
+                            "id": mid,
+                            "name": mid,
+                            "type": "module",
+                        }
+                    )
 
             # Also get file→symbol DEFINES edges
             defines_records = await self._client.execute_read(
@@ -333,19 +333,23 @@ class CodeGraph:
             for r in defines_records:
                 rec = dict(r)
                 sid = rec["target"]
-                links.append({
-                    "source": rec["source"],
-                    "target": sid,
-                    "type": "DEFINES",
-                })
+                links.append(
+                    {
+                        "source": rec["source"],
+                        "target": sid,
+                        "type": "DEFINES",
+                    }
+                )
                 if sid not in node_ids:
-                    nodes.append({
-                        "id": sid,
-                        "name": rec.get("symbol_name", sid),
-                        "type": rec.get("symbol_kind") or "function",
-                        "kind": rec.get("symbol_kind"),
-                        "file_path": rec["source"],
-                    })
+                    nodes.append(
+                        {
+                            "id": sid,
+                            "name": rec.get("symbol_name", sid),
+                            "type": rec.get("symbol_kind") or "function",
+                            "kind": rec.get("symbol_kind"),
+                            "file_path": rec["source"],
+                        }
+                    )
 
             # Add CALLS edges between symbols
             sym_ids = [n["id"] for n in nodes if n["type"] != "file" and n["type"] != "module"]
@@ -369,9 +373,7 @@ class CodeGraph:
             logger.debug(f"get_file_graph failed: {e}")
             return {"nodes": [], "links": []}
 
-    async def get_file_symbols(
-        self, file_path: str, project_id: str
-    ) -> dict[str, Any]:
+    async def get_file_symbols(self, file_path: str, project_id: str) -> dict[str, Any]:
         """Expand a file: its symbols + their call edges.
 
         Returns nodes for the file's symbols and links for DEFINES + CALLS.
@@ -395,11 +397,13 @@ class CodeGraph:
 
             # Add DEFINES edges (file -> symbol)
             for node in nodes:
-                links.append({
-                    "source": file_path,
-                    "target": node["id"],
-                    "type": "DEFINES",
-                })
+                links.append(
+                    {
+                        "source": file_path,
+                        "target": node["id"],
+                        "type": "DEFINES",
+                    }
+                )
 
             # Add CALLS edges between these symbols and others
             if sym_ids:
@@ -418,12 +422,14 @@ class CodeGraph:
                         nid = rec[field]
                         if nid not in sym_ids:
                             sym_ids.add(nid)
-                            nodes.append({
-                                "id": nid,
-                                "name": nid.split(":")[-1] if ":" in nid else nid,
-                                "type": "function",
-                                "kind": "function",
-                            })
+                            nodes.append(
+                                {
+                                    "id": nid,
+                                    "name": nid.split(":")[-1] if ":" in nid else nid,
+                                    "type": "function",
+                                    "kind": "function",
+                                }
+                            )
 
             return {"nodes": nodes, "links": links}
         except Exception as e:
@@ -461,28 +467,34 @@ class CodeGraph:
                 nid = rec["id"]
                 if nid not in seen:
                     seen.add(nid)
-                    nodes.append({
-                        "id": nid,
-                        "name": rec["name"],
-                        "type": rec["kind"] or "function",
-                        "kind": rec["kind"],
-                        "file_path": rec["file_path"],
-                    })
+                    nodes.append(
+                        {
+                            "id": nid,
+                            "name": rec["name"],
+                            "type": rec["kind"] or "function",
+                            "kind": rec["kind"],
+                            "file_path": rec["file_path"],
+                        }
+                    )
 
                 if rec["direction"] == "outgoing":
-                    links.append({
-                        "source": symbol_id,
-                        "target": nid,
-                        "type": "CALLS",
-                        "line": rec["line"],
-                    })
+                    links.append(
+                        {
+                            "source": symbol_id,
+                            "target": nid,
+                            "type": "CALLS",
+                            "line": rec["line"],
+                        }
+                    )
                 else:
-                    links.append({
-                        "source": nid,
-                        "target": symbol_id,
-                        "type": "CALLS",
-                        "line": rec["line"],
-                    })
+                    links.append(
+                        {
+                            "source": nid,
+                            "target": symbol_id,
+                            "type": "CALLS",
+                            "line": rec["line"],
+                        }
+                    )
 
             return {"nodes": nodes, "links": links}
         except Exception as e:
@@ -519,12 +531,14 @@ class CodeGraph:
         if not center_id:
             raise ValueError("Either symbol_name or file_path must be provided")
         center_type = "function" if symbol_name else "file"
-        nodes.append({
-            "id": center_id,
-            "name": center_id,
-            "type": center_type,
-            "blast_distance": 0,
-        })
+        nodes.append(
+            {
+                "id": center_id,
+                "name": center_id,
+                "type": center_type,
+                "blast_distance": 0,
+            }
+        )
         seen_ids.add(center_id)
 
         for r in results:
@@ -533,20 +547,25 @@ class CodeGraph:
                 continue
             seen_ids.add(nid)
 
-            nodes.append({
-                "id": nid,
-                "name": r.get("symbol_name") or r.get("file_path", ""),
-                "type": r.get("kind") or ("file" if r.get("rel_type") == "import" else "function"),
-                "kind": r.get("kind"),
-                "file_path": r.get("file_path"),
-                "blast_distance": r.get("distance", 1),
-            })
-            links.append({
-                "source": nid,
-                "target": center_id,
-                "type": "CALLS" if r.get("rel_type") == "call" else "IMPORTS",
-                "distance": r.get("distance", 1),
-            })
+            nodes.append(
+                {
+                    "id": nid,
+                    "name": r.get("symbol_name") or r.get("file_path", ""),
+                    "type": r.get("kind")
+                    or ("file" if r.get("rel_type") == "import" else "function"),
+                    "kind": r.get("kind"),
+                    "file_path": r.get("file_path"),
+                    "blast_distance": r.get("distance", 1),
+                }
+            )
+            links.append(
+                {
+                    "source": nid,
+                    "target": center_id,
+                    "type": "CALLS" if r.get("rel_type") == "call" else "IMPORTS",
+                    "distance": r.get("distance", 1),
+                }
+            )
 
         return {"nodes": nodes, "links": links, "center": center_id}
 

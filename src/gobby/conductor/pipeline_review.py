@@ -123,7 +123,9 @@ def format_review_prompt(data: ExecutionReviewData) -> str:
     lines.append("")
     lines.append("Timeline:")
     for i, step in enumerate(data.steps, 1):
-        duration_str = f"{step.duration_seconds:.0f}s" if step.duration_seconds is not None else "n/a"
+        duration_str = (
+            f"{step.duration_seconds:.0f}s" if step.duration_seconds is not None else "n/a"
+        )
         entry = f"  {i}. {step.step_id} ({duration_str}, {step.status})"
         if step.error:
             # Truncate long errors for prompt efficiency
@@ -135,13 +137,15 @@ def format_review_prompt(data: ExecutionReviewData) -> str:
 
     lines.append("")
     lines.append("Analyze this execution and respond with JSON (no markdown):")
-    lines.append('{')
+    lines.append("{")
     lines.append('  "quality_signals": [{"signal": "...", "detail": "..."}],')
     lines.append('  "suggestions": ["actionable improvement suggestion"],')
     lines.append('  "summary": "one-sentence execution summary"')
-    lines.append('}')
+    lines.append("}")
     lines.append("")
-    lines.append("Consider: step duration outliers, errors indicating prompt/agent issues vs legitimate failures, unnecessary steps, missing tool restrictions.")
+    lines.append(
+        "Consider: step duration outliers, errors indicating prompt/agent issues vs legitimate failures, unnecessary steps, missing tool restrictions."
+    )
 
     return "\n".join(lines)
 
@@ -222,24 +226,27 @@ def detect_patterns(recent_reviews: list[dict[str, object]]) -> list[dict[str, s
             sorted_d = sorted(durations)
             median = sorted_d[len(sorted_d) // 2]
             if median > 60:
-                patterns.append({
-                    "type": "recurring_slow_step",
-                    "detail": (
-                        f"Step '{step_id}' median {median:.0f}s "
-                        f"across {len(durations)} runs"
-                    ),
-                })
+                patterns.append(
+                    {
+                        "type": "recurring_slow_step",
+                        "detail": (
+                            f"Step '{step_id}' median {median:.0f}s across {len(durations)} runs"
+                        ),
+                    }
+                )
 
     # Detect frequently failing steps (>= 30% failure rate)
     for step_id, fail_count in step_failures.items():
         rate = fail_count / total_executions
         if rate >= 0.3 and fail_count >= 2:
-            patterns.append({
-                "type": "common_failure",
-                "detail": (
-                    f"Step '{step_id}' fails in {fail_count}/{total_executions} "
-                    f"runs ({rate:.0%})"
-                ),
-            })
+            patterns.append(
+                {
+                    "type": "common_failure",
+                    "detail": (
+                        f"Step '{step_id}' fails in {fail_count}/{total_executions} "
+                        f"runs ({rate:.0%})"
+                    ),
+                }
+            )
 
     return patterns

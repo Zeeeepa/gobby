@@ -56,7 +56,9 @@ async def metrics_archive_loop(
             await asyncio.sleep(interval_seconds)
             archived = event_store.archive_old_events(retention_days=retention_days)
             if archived > 0:
-                logger.info(f"Metrics archive: rolled up {archived} events older than {retention_days} days")
+                logger.info(
+                    f"Metrics archive: rolled up {archived} events older than {retention_days} days"
+                )
         except asyncio.CancelledError:
             break
         except Exception as e:

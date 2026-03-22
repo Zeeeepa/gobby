@@ -403,15 +403,12 @@ def reconcile_claimed_tasks(
 
         if pruned:
             logger.info(
-                f"Session {session_id}: reconcile — pruned stale claims: "
-                f"{', '.join(pruned)}"
+                f"Session {session_id}: reconcile — pruned stale claims: {', '.join(pruned)}"
             )
     else:
         # Dict is empty — check DB for tasks we might have lost track of
         try:
-            db_tasks = task_manager.list_tasks(
-                assignee=session_id, status="in_progress"
-            )
+            db_tasks = task_manager.list_tasks(assignee=session_id, status="in_progress")
         except Exception:
             db_tasks = []
 
@@ -419,8 +416,7 @@ def reconcile_claimed_tasks(
             for t in db_tasks:
                 claimed_tasks[t.id] = f"#{t.seq_num}" if t.seq_num else t.id[:8]
             logger.info(
-                f"Session {session_id}: reconcile — rebuilt claimed_tasks "
-                f"from DB: {claimed_tasks}"
+                f"Session {session_id}: reconcile — rebuilt claimed_tasks from DB: {claimed_tasks}"
             )
 
     # Single source of truth: dict drives boolean

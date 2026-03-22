@@ -52,13 +52,9 @@ class CodeIndexTrigger:
         Can be called from any thread. Schedules debounced indexing
         on the event loop.
         """
-        self._loop.call_soon_threadsafe(
-            self._schedule_file, file_path, project_id, root_path
-        )
+        self._loop.call_soon_threadsafe(self._schedule_file, file_path, project_id, root_path)
 
-    def _schedule_file(
-        self, file_path: str, project_id: str, root_path: str
-    ) -> None:
+    def _schedule_file(self, file_path: str, project_id: str, root_path: str) -> None:
         """Schedule or reschedule indexing for a file (runs on event loop)."""
         # Cancel existing flush timer for this project
         if project_id in self._flush_timers:

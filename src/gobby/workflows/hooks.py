@@ -128,8 +128,7 @@ class WorkflowHookHandler:
                 except Exception as e:
                     if event.event_type == HookEventType.STOP:
                         logger.warning(
-                            "Failed to load session variables on STOP — "
-                            "blocking for safety: %s",
+                            "Failed to load session variables on STOP — blocking for safety: %s",
                             e,
                         )
                         return HookResponse(

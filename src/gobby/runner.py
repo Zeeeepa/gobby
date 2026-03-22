@@ -1030,9 +1030,7 @@ class GobbyRunner:
 
             # Start periodic metrics event archiving (every 24 hours, 30-day retention)
             self._metrics_archive_task = asyncio.create_task(
-                metrics_archive_loop(
-                    self.metrics_event_store, lambda: self._shutdown_requested
-                ),
+                metrics_archive_loop(self.metrics_event_store, lambda: self._shutdown_requested),
                 name="metrics-archive",
             )
 

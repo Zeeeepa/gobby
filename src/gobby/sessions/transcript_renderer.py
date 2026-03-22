@@ -390,12 +390,16 @@ def _process_message_block(
         # Create new block
         block = ContentBlock(
             type=block_type,
-            content=block_content if block_type not in ["tool_chain", "image", "document", "tool_reference"] else None,
+            content=block_content
+            if block_type not in ["tool_chain", "image", "document", "tool_reference"]
+            else None,
             source_line=msg.index,
         )
 
         if block_type == "image" or block_type == "document":
-            block.source = block_content if isinstance(block_content, dict) else {"data": str(block_content)}
+            block.source = (
+                block_content if isinstance(block_content, dict) else {"data": str(block_content)}
+            )
 
         if block_type == "tool_reference":
             # For tool_reference, we might have tool_name in msg or content

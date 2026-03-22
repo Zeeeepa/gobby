@@ -349,9 +349,7 @@ class SessionLifecycleManager:
                             f"(archived to {archive_path})"
                         )
                     else:
-                        logger.warning(
-                            f"Transcript backup returned None for {session.id}"
-                        )
+                        logger.warning(f"Transcript backup returned None for {session.id}")
                 except Exception as e:
                     logger.warning(f"Transcript backup failed for {session.id}: {e}")
 
@@ -377,7 +375,11 @@ class SessionLifecycleManager:
 
         # Check if extraction feature is enabled
         extraction_config = getattr(self, "_memory_extraction_config", None)
-        if extraction_config and hasattr(extraction_config, "enabled") and not extraction_config.enabled:
+        if (
+            extraction_config
+            and hasattr(extraction_config, "enabled")
+            and not extraction_config.enabled
+        ):
             return
 
         try:

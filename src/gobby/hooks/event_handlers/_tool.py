@@ -67,7 +67,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
         # Strip gobby: namespace prefix (Skill tool namespace separator)
         skill_name = raw_skill_name
         if skill_name.startswith("gobby:"):
-            skill_name = skill_name[len("gobby:"):]
+            skill_name = skill_name[len("gobby:") :]
 
         # Non-gobby namespace (e.g. "ms-office-suite:pdf") — not ours
         if ":" in skill_name:

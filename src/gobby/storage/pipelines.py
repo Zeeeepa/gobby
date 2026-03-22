@@ -223,16 +223,16 @@ class LocalPipelineExecutionManager:
             params.append(self.project_id)
 
         query += (
-            " AND status IN (?, ?, ?)"
-            " AND review_json IS NULL"
-            " ORDER BY completed_at DESC LIMIT ?"
+            " AND status IN (?, ?, ?) AND review_json IS NULL ORDER BY completed_at DESC LIMIT ?"
         )
-        params.extend([
-            ExecutionStatus.COMPLETED.value,
-            ExecutionStatus.FAILED.value,
-            ExecutionStatus.CANCELLED.value,
-            limit,
-        ])
+        params.extend(
+            [
+                ExecutionStatus.COMPLETED.value,
+                ExecutionStatus.FAILED.value,
+                ExecutionStatus.CANCELLED.value,
+                limit,
+            ]
+        )
 
         rows = self.db.fetchall(query, tuple(params))
         return [PipelineExecution.from_row(row) for row in rows]

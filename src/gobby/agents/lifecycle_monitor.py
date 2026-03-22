@@ -481,7 +481,9 @@ class AgentLifecycleMonitor:
                     try:
                         pane_snapshot = await self._tmux.capture_pane(tmux_name, lines=50) or ""
                     except Exception as e:
-                        logger.debug(f"Failed to capture pane for timed-out agent {agent.run_id}: {e}")
+                        logger.debug(
+                            f"Failed to capture pane for timed-out agent {agent.run_id}: {e}"
+                        )
 
                 # Kill process via registry
                 await self._registry.kill(

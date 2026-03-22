@@ -414,11 +414,11 @@ class SessionCoordinator:
                         flush_task = asyncio.ensure_future(
                             self._message_processor.flush_session(session_id)
                         )
-                        loop.call_later(5.0, lambda: flush_task.cancel() if not flush_task.done() else None)
-                    else:
-                        loop.run_until_complete(
-                            self._message_processor.flush_session(session_id)
+                        loop.call_later(
+                            5.0, lambda: flush_task.cancel() if not flush_task.done() else None
                         )
+                    else:
+                        loop.run_until_complete(self._message_processor.flush_session(session_id))
                 except Exception as e:
                     self.logger.debug(f"Failed to flush session stats for {session_id}: {e}")
 

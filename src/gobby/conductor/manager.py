@@ -157,9 +157,7 @@ class ConductorManager:
                         pass
 
                 except Exception as e:
-                    logger.warning(
-                        "Failed to review execution %s: %s", execution.id, e
-                    )
+                    logger.warning("Failed to review execution %s: %s", execution.id, e)
 
             # Detect cross-execution patterns and append to last review
             if len(stored_reviews) >= 2:

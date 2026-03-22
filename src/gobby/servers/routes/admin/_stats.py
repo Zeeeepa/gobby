@@ -218,8 +218,7 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
             )
             tool_total_row = db.fetchone(
                 "SELECT COUNT(*) as cnt FROM metrics_events "
-                "WHERE event_type = 'tool_call'"
-                + (" AND created_at >= ?" if since else ""),
+                "WHERE event_type = 'tool_call'" + (" AND created_at >= ?" if since else ""),
                 (since.isoformat(),) if since else (),
             )
             metrics_stats["tools"] = {
@@ -248,8 +247,7 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
                 "total_evals": rule_total_row["cnt"] if rule_total_row else 0,
                 "block_count": rule_total_row["blocks"] if rule_total_row else 0,
                 "top_5": [
-                    {"name": r["name"], "evals": r["cnt"], "blocks": r["blocks"]}
-                    for r in rule_rows
+                    {"name": r["name"], "evals": r["cnt"], "blocks": r["blocks"]} for r in rule_rows
                 ],
             }
 

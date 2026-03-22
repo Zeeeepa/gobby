@@ -315,12 +315,14 @@ async def find_duplicate_memories(
                 keep, delete = match, memory
 
             seen_delete_ids.add(delete.id)
-            duplicates.append({
-                "keep_id": keep.id,
-                "delete_id": delete.id,
-                "score": round(score, 4),
-                "delete_content_preview": delete.content[:120],
-            })
+            duplicates.append(
+                {
+                    "keep_id": keep.id,
+                    "delete_id": delete.id,
+                    "score": round(score, 4),
+                    "delete_content_preview": delete.content[:120],
+                }
+            )
 
         # Yield to event loop periodically
         if i % 10 == 9:

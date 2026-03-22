@@ -215,7 +215,6 @@ def show_messages(
             click.echo(f"{role_icon} [{msg['message_index']}] {msg['role']}: {content}")
 
 
-
 @sessions.command("delete")
 @click.argument("session_id")
 @click.confirmation_option(prompt="Are you sure you want to delete this session?")

@@ -70,9 +70,7 @@ class MetricsEventStore:
             ),
         )
 
-    def get_session_tool_breakdown(
-        self, session_id: str
-    ) -> list[dict[str, Any]]:
+    def get_session_tool_breakdown(self, session_id: str) -> list[dict[str, Any]]:
         """Get per-tool call counts and latency for a session."""
         rows = self.db.fetchall(
             """
@@ -277,9 +275,7 @@ class MetricsEventStore:
 
         # For "all" range, include archive totals
         if range_key == "all":
-            result["archive_totals"] = self.get_archive_totals(
-                event_type=event_type, name=name
-            )
+            result["archive_totals"] = self.get_archive_totals(event_type=event_type, name=name)
 
         return result
 

@@ -230,9 +230,7 @@ class SessionControlMixin:
 
         if decision == "approve":
             await asyncio.to_thread(session_manager.update_pending_plan, db_session.id, None)
-            await asyncio.to_thread(
-                session_manager.update_chat_mode, db_session.id, "accept_edits"
-            )
+            await asyncio.to_thread(session_manager.update_chat_mode, db_session.id, "accept_edits")
             try:
                 await websocket.send(
                     json.dumps(
@@ -276,9 +274,7 @@ class SessionControlMixin:
                 )
             except (ConnectionClosed, ConnectionClosedError):
                 pass
-            logger.info(
-                "Recovered plan changes requested for conversation %s", conversation_id[:8]
-            )
+            logger.info("Recovered plan changes requested for conversation %s", conversation_id[:8])
 
     async def _rebroadcast_pending_plans(self, websocket: Any) -> None:
         """Re-broadcast plan_pending_approval for sessions orphaned by daemon restart.

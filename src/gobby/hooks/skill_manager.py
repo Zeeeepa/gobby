@@ -198,9 +198,7 @@ class HookSkillManager:
 
         return None
 
-    def resolve_skill_name(
-        self, name: str, session_id: str | None = None
-    ) -> ParsedSkill | None:
+    def resolve_skill_name(self, name: str, session_id: str | None = None) -> ParsedSkill | None:
         """Resolve a skill name using a resolution chain.
 
         Resolution order:
