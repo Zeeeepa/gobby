@@ -181,7 +181,7 @@ def show_messages(
     # Fetch messages (live JSONL + gzip archive fallback)
     from gobby.sessions.transcript_reader import TranscriptReader
 
-    reader = TranscriptReader(None, session_manager)
+    reader = TranscriptReader(session_manager)
     messages = asyncio.run(
         reader.get_messages(
             session_id=session.id,

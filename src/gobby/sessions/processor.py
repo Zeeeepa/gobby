@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aiofiles
 
@@ -69,7 +69,7 @@ class SessionMessageProcessor:
         self._render_states: dict[str, RenderState] = {}
 
         # Incremental stat accumulators per session
-        self._stats: dict[str, dict[str, int | str | None]] = {}
+        self._stats: dict[str, dict[str, Any]] = {}
 
         self._running = False
         self._task: asyncio.Task[None] | None = None

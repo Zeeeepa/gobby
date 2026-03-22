@@ -211,7 +211,8 @@ class ConductorManager:
                     lines = lines[:-1]
                 response = "\n".join(lines)
 
-            return json.loads(response)
+            result: dict[str, object] = json.loads(response)
+            return result
         except json.JSONDecodeError:
             logger.debug("LLM review response was not valid JSON")
             return None

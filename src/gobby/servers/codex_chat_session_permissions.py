@@ -28,7 +28,8 @@ class CodexChatSessionPermissionsMixin:
 
     Returns Codex-compatible decision dicts:
     {"decision": "accept"} or {"decision": "decline", "reason": "..."}
-    """
+
+    Attributes set by the concrete dataclass (declared here for type-checking)."""
 
     # Attribute type stubs — actual fields live on the CodexChatSession dataclass
     conversation_id: str
@@ -39,6 +40,7 @@ class CodexChatSessionPermissionsMixin:
     _pending_answers: dict[str, str] | None
     _pending_answer_event: asyncio.Event | None
     _approved_tools: set[str]
+    _on_approved_tools_persist: Callable[[set[str]], None] | None
     _tool_approval_config: Any | None
     _tool_approval_callback: Any | None
     _plan_approved: bool

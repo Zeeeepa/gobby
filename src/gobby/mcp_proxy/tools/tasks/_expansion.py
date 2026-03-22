@@ -659,7 +659,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if qa_result is None:
             return {"error": "No QA result in expansion context"}
 
-        return qa_result
+        return dict(qa_result) if isinstance(qa_result, dict) else {"result": qa_result}
 
     registry.register(
         name="save_expansion_qa_result",

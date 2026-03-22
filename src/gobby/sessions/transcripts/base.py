@@ -32,7 +32,7 @@ class TranscriptParserErrorLog:
             self.logger.addHandler(handler)
 
     def log_unknown_block(
-        self, line_num: int, session_id: str | None, block_type: str, raw: dict
+        self, line_num: int, session_id: str | None, block_type: str, raw: dict[str, Any]
     ) -> None:
         """Log format: [ISO timestamp] line:{N} session:{id} — Unknown block type: {type}\n{json}"""
         timestamp = datetime.now(UTC).isoformat()
@@ -91,6 +91,8 @@ class TranscriptParser(Protocol):
     """
 
     error_log: TranscriptParserErrorLog
+
+    def __init__(self, session_id: str | None = None) -> None: ...
 
     def parse_line(self, line: str, index: int) -> ParsedMessage | None:
         """

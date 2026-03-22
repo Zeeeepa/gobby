@@ -368,10 +368,14 @@ class AgentEventHandlerMixin(EventHandlersBase):
         self.logger.debug(log_msg)
 
         # Track pending subagent depth for auto-registration
-        if session_id and subagent_id and self._session_manager:
+        if session_id and subagent_id and self._session_storage:
             try:
-                parent = self._session_manager.get_by_external_id(session_id)
-                parent_depth = getattr(parent, "agent_depth", 0) or 0 if parent else 0
+                row = self._session_storage.db.fetchone(
+                    "SELECT agent_depth FROM sessions WHERE external_id = ? AND status = 'active'"
+                    " ORDER BY updated_at DESC LIMIT 1",
+                    (session_id,),
+                )
+                parent_depth = (row["agent_depth"] or 0) if row else 0
                 self._pending_subagent_depths[subagent_id] = parent_depth + 1
                 self.logger.debug(
                     "Pending subagent depth for %s: %d",

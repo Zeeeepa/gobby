@@ -121,7 +121,7 @@ class MetricsEventStore:
             GROUP BY name
             ORDER BY eval_count DESC
             """,
-            params,
+            tuple(params),
         )
         return [dict(row) for row in rows]
 
@@ -154,7 +154,7 @@ class MetricsEventStore:
             GROUP BY name, event_type
             ORDER BY count DESC
             """,
-            params,
+            tuple(params),
         )
         return [dict(row) for row in rows]
 
@@ -197,7 +197,7 @@ class MetricsEventStore:
             ORDER BY created_at DESC
             LIMIT ?
             """,
-            params,
+            tuple(params),
         )
         return [dict(row) for row in rows]
 
@@ -263,7 +263,7 @@ class MetricsEventStore:
             GROUP BY bucket
             ORDER BY bucket ASC
             """,
-            params,
+            tuple(params),
         )
 
         result: dict[str, Any] = {
@@ -307,7 +307,7 @@ class MetricsEventStore:
             {where}
             ORDER BY call_count DESC
             """,
-            params,
+            tuple(params),
         )
         return [dict(row) for row in rows]
 
