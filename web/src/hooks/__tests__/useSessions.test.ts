@@ -10,6 +10,7 @@ vi.mock('../useWebSocketEvent', () => ({
 import { useSessions } from '../useSessions'
 
 let mockFetch: MockFetchInstance
+let consoleSpy: { log: ReturnType<typeof vi.spyOn>; error: ReturnType<typeof vi.spyOn>; warn: ReturnType<typeof vi.spyOn> }
 
 const SAMPLE_SESSIONS = [
   {
@@ -61,6 +62,11 @@ const SAMPLE_SESSIONS = [
 ]
 
 beforeEach(() => {
+  consoleSpy = {
+    log: vi.spyOn(console, 'log').mockImplementation(() => {}),
+    error: vi.spyOn(console, 'error').mockImplementation(() => {}),
+    warn: vi.spyOn(console, 'warn').mockImplementation(() => {}),
+  }
   mockFetch = createMockFetch()
   mockFetch.mockJsonResponse('/api/sessions', { sessions: SAMPLE_SESSIONS })
   mockFetch.mockJsonResponse('/api/files/projects', [
@@ -70,6 +76,9 @@ beforeEach(() => {
 
 afterEach(() => {
   mockFetch.restore()
+  consoleSpy.log.mockRestore()
+  consoleSpy.error.mockRestore()
+  consoleSpy.warn.mockRestore()
   vi.restoreAllMocks()
 })
 
