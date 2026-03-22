@@ -118,6 +118,16 @@ class SessionMessageProcessor:
         self._parsers[session_id] = get_parser(source, session_id=session_id)
         logger.debug(f"Registered session {session_id} for processing ({source})")
 
+    async def flush_session(self, session_id: str) -> None:
+        """Force an immediate processing pass for a single session.
+
+        Useful when stats need to be up-to-date before reading them
+        (e.g., at SESSION_END before completing an agent run).
+        """
+        transcript_path = self._active_sessions.get(session_id)
+        if transcript_path:
+            await self._process_session(session_id, transcript_path)
+
     def unregister_session(self, session_id: str) -> None:
         """Stop monitoring a session."""
         if session_id in self._active_sessions:

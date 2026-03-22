@@ -403,6 +403,32 @@ class SessionCoordinator:
                 except Exception as e:
                     self.logger.debug(f"tmux kill-session failed for {tmux_session_name}: {e}")
 
+            # Flush message processor to ensure session stats are up-to-date
+            # before reading them. The processor runs on a 2s poll interval, so
+            # SESSION_END can fire before the final stats have been written to DB.
+            session_id = session.id
+            if self._message_processor:
+                try:
+                    import asyncio
+
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        flush_task = asyncio.ensure_future(
+                            self._message_processor.flush_session(session_id)
+                        )
+                        loop.call_later(5.0, lambda: flush_task.cancel() if not flush_task.done() else None)
+                    else:
+                        loop.run_until_complete(
+                            self._message_processor.flush_session(session_id)
+                        )
+                except Exception as e:
+                    self.logger.debug(f"Failed to flush session stats for {session_id}: {e}")
+
+                # Re-fetch session from DB to get updated stats
+                refreshed = self._session_storage.get(session_id) if self._session_storage else None
+                if refreshed:
+                    session = refreshed
+
             # Count tool calls and turns from session stats
             tool_calls_count = getattr(session, "tool_call_count", 0)
             turns_used = getattr(session, "turn_count", 0)

@@ -291,7 +291,7 @@ class TestProcessSession:
 
     @pytest.mark.asyncio
     async def test_process_session_no_parsed_messages(self, processor, tmp_path):
-        """Should update state even when parser returns no messages."""
+        """Should update byte offset even when parser returns no messages."""
         transcript = tmp_path / "transcript.jsonl"
         # Write a line that will be parsed but might not produce a message
         transcript.write_text('{"type": "unknown"}\n')
@@ -303,17 +303,12 @@ class TestProcessSession:
         mock_parser.parse_lines = MagicMock(return_value=[])
         processor._parsers["session-1"] = mock_parser
 
-        processor.message_manager = AsyncMock()
-        processor.message_manager.get_state = AsyncMock(return_value=None)
-        processor.message_manager.store_messages = AsyncMock()
-        processor.message_manager.update_state = AsyncMock()
-
         await processor._process_session("session-1", str(transcript))
 
-        # Should update state (to advance offset) even without messages
-        processor.message_manager.update_state.assert_called_once()
-        # store_messages should not be called
-        processor.message_manager.store_messages.assert_not_called()
+        # Should advance byte offset even without messages
+        assert processor._byte_offsets.get("session-1", 0) > 0
+        # Message index should not have been set (no valid messages)
+        assert "session-1" not in processor._message_indices
 
     @pytest.mark.asyncio
     async def test_process_session_with_existing_state(self, processor, tmp_path):
@@ -325,13 +320,9 @@ class TestProcessSession:
 
         processor.register_session("session-1", str(transcript))
 
-        # Simulate state saying we've processed up to end of msg1
-        processor.message_manager = AsyncMock()
-        processor.message_manager.get_state = AsyncMock(
-            return_value={"last_byte_offset": len(msg1), "last_message_index": 0}
-        )
-        processor.message_manager.store_messages = AsyncMock()
-        processor.message_manager.update_state = AsyncMock()
+        # Simulate state: already processed up to end of msg1
+        processor._byte_offsets["session-1"] = len(msg1)
+        processor._message_indices["session-1"] = 0
 
         # Mock parser
         mock_parser = MagicMock()
@@ -356,8 +347,8 @@ class TestProcessSession:
         call_args = mock_parser.parse_lines.call_args
         assert call_args[1]["start_index"] == 1
 
-        # Should store the parsed message
-        processor.message_manager.store_messages.assert_called_once_with("session-1", [parsed_msg])
+        # Message index should be updated to 1
+        assert processor._message_indices["session-1"] == 1
 
 
 class TestWebSocketBroadcast:
@@ -421,12 +412,6 @@ class TestWebSocketBroadcast:
 
         processor.register_session("session-1", str(transcript))
 
-        # Mock message manager
-        processor.message_manager = AsyncMock()
-        processor.message_manager.get_state = AsyncMock(return_value=None)
-        processor.message_manager.store_messages = AsyncMock()
-        processor.message_manager.update_state = AsyncMock()
-
         # Mock parser
         parsed_msg = ParsedMessage(
             index=0,
@@ -446,8 +431,9 @@ class TestWebSocketBroadcast:
         # Should complete without error (no broadcast)
         await processor._process_session("session-1", str(transcript))
 
-        # Verify store was called (processing worked)
-        processor.message_manager.store_messages.assert_called_once()
+        # Verify processing worked — stats updated and offset advanced
+        assert processor._stats["session-1"]["message_count"] == 1
+        assert processor._byte_offsets.get("session-1", 0) > 0
 
 
 class TestMultipleMessages:
@@ -455,7 +441,7 @@ class TestMultipleMessages:
 
     @pytest.mark.asyncio
     async def test_process_multiple_messages_updates_last_index(self, mock_db, tmp_path):
-        """Should update state with the last message index."""
+        """Should update in-memory state with the last message index."""
         processor = SessionMessageProcessor(mock_db)
         transcript = tmp_path / "transcript.jsonl"
         transcript.write_text(
@@ -465,12 +451,6 @@ class TestMultipleMessages:
         )
 
         processor.register_session("session-1", str(transcript))
-
-        # Mock message manager
-        processor.message_manager = AsyncMock()
-        processor.message_manager.get_state = AsyncMock(return_value=None)
-        processor.message_manager.store_messages = AsyncMock()
-        processor.message_manager.update_state = AsyncMock()
 
         # Mock parser to return 3 messages
         parsed_messages = [
@@ -493,9 +473,9 @@ class TestMultipleMessages:
 
         await processor._process_session("session-1", str(transcript))
 
-        # Verify state was updated with last message index (2)
-        call_args = processor.message_manager.update_state.call_args
-        assert call_args[1]["message_index"] == 2  # Index of last message
+        # Verify in-memory state was updated with last message index (2)
+        assert processor._message_indices["session-1"] == 2
+        assert processor._stats["session-1"]["message_count"] == 3
 
 
 @pytest.mark.unit
@@ -680,22 +660,12 @@ class TestProcessJsonSession:
         transcript.write_text(json.dumps(data))
 
         processor.register_session("session-1", str(transcript), source="gemini")
-        processor.message_manager = AsyncMock()
-        processor.message_manager.get_state = AsyncMock(return_value=None)
-        processor.message_manager.store_messages = AsyncMock()
-        processor.message_manager.update_state = AsyncMock()
 
         await processor._process_json_session("session-1", str(transcript))
 
-        # Should store 2 messages
-        processor.message_manager.store_messages.assert_called_once()
-        stored_msgs = processor.message_manager.store_messages.call_args[0][1]
-        assert len(stored_msgs) == 2
-        assert stored_msgs[0].role == "user"
-        assert stored_msgs[1].role == "assistant"
-
-        # Should update state
-        processor.message_manager.update_state.assert_called_once()
+        # Should have processed 2 messages
+        assert processor._stats["session-1"]["message_count"] == 2
+        assert processor._message_indices["session-1"] == 1
 
         # Should track mtime
         assert "session-1" in processor._last_mtime
@@ -765,20 +735,14 @@ class TestProcessJsonSession:
         transcript.write_text(json.dumps(data))
 
         processor.register_session("session-1", str(transcript), source="gemini")
-        processor.message_manager = AsyncMock()
         # Pretend we already processed up to index 1
-        processor.message_manager.get_state = AsyncMock(
-            return_value={"last_byte_offset": 0, "last_message_index": 1}
-        )
-        processor.message_manager.store_messages = AsyncMock()
-        processor.message_manager.update_state = AsyncMock()
+        processor._message_indices["session-1"] = 1
 
         await processor._process_json_session("session-1", str(transcript))
 
-        # Should only store message at index 2 (Third)
-        stored_msgs = processor.message_manager.store_messages.call_args[0][1]
-        assert len(stored_msgs) == 1
-        assert stored_msgs[0].content == "Third"
+        # Should only have processed 1 new message (Third, at index 2)
+        assert processor._stats["session-1"]["message_count"] == 1
+        assert processor._message_indices["session-1"] == 2
 
     @pytest.mark.asyncio
     async def test_process_json_session_file_not_found(self, mock_db) -> None:
@@ -841,15 +805,10 @@ class TestProcessJsonSession:
         transcript.write_text(json.dumps(data))
 
         processor.register_session("session-1", str(transcript), source="gemini")
-        processor.message_manager = AsyncMock()
-        processor.message_manager.get_state = AsyncMock(return_value=None)
-        processor.message_manager.store_messages = AsyncMock()
-        processor.message_manager.update_state = AsyncMock()
 
         await processor._process_session("session-1", str(transcript))
 
         # Should have processed via JSON path
-        processor.message_manager.store_messages.assert_called_once()
-        stored_msgs = processor.message_manager.store_messages.call_args[0][1]
-        assert len(stored_msgs) == 1
-        assert stored_msgs[0].role == "user"
+        assert processor._stats["session-1"]["message_count"] == 1
+        assert processor._message_indices["session-1"] == 0
+        assert "session-1" in processor._last_mtime
