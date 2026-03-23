@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dropped session_messages table and deleted storage module (#10533)
 - Stripped protocol XML tags from rendered session messages (#10556)
 
-#### Drawbridge Web UI
+#### Web UI
 - Added plan approval frontend with auto-send feedback on request_changes (#10453, #10454, #10455)
 - Added project ID synchronization and sendProjectChange wiring (#10457, #10458)
 - Added expire session button with ConfirmDialog to activities panel (#10447, #10448)
@@ -48,8 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restructured nav: Projects absorbs GitHub, removed GitHub nav item (#10565)
 - Removed Sessions/Tasks tabs from Project UI, hid Sessions/Terminals from sidebar (#10383)
 - Fixed graph edge rendering, switched graph to 3D (#10566, #10567)
-- Implemented 10 Drawbridge UI tasks across activity panel, chat, and sessions (#10470-#10478)
-- Fixed 4 Drawbridge UI issues across activity panel, chat, and sessions (#10485-#10488)
+- Implemented 10 web UI tasks across activity panel, chat, and sessions (#10470-#10478)
+- Fixed 4 web UI issues across activity panel, chat, and sessions (#10485-#10488)
 - Added retry with backoff to fetchProjects (#10456)
 - Web chat session resilience after daemon restart (#10597)
 
@@ -131,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix hook errors: fail closed on critical hook errors in dispatcher (#10581)
 - Fix sanitize relationship types in Neo4j merge_relationship (#10558)
 - Fix spawn-developer and spawn-qa pipeline templates (#10557)
-- Fix Drawbridge UI: plan approval, mobile, CSS, sessions (#10590-#10595, #10598)
+- Fix web UI: plan approval, mobile, CSS, sessions (#10590-#10595, #10598)
 - Fix plan mode display in web chat artifacts panel (#10442)
 - Fix editor background, hooks crash, add vertical resize and pipeline filters (#10437-#10440)
 - Fix nightly lint/type/security errors (#10489)
@@ -148,7 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix 24 TypeScript errors across web frontend (#10610)
 - Fix vitest warnings: localStorage guard, act() wrapping, console suppression (#10609)
 - Fix stale tests across multiple batches after session_messages removal (#10599-#10604, #10617-#10619)
-- Add Playwright verification tests for Drawbridge epic (#10491)
+- Add Playwright verification tests for web UI epic (#10491)
 
 ---
 
