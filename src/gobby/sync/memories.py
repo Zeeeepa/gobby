@@ -14,6 +14,7 @@ Classes:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -390,13 +391,35 @@ class MemoryBackupManager:
             # 3. Merge: file-first, DB overrides shared content
             merged = {**existing_by_content, **db_by_content}
 
-            # 4. Write merged set
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, "w", encoding="utf-8") as f:
-                for data in merged.values():
-                    f.write(json.dumps(data, ensure_ascii=False) + "\n")
+            # 4. Sort deterministically by ID (fall back to content for file-only
+            #    records that may lack an id field) to ensure stable output order
+            sorted_records = sorted(
+                merged.values(),
+                key=lambda r: r.get("id") or r.get("content", ""),
+            )
 
-            return len(merged)
+            # 5. Build output and skip write if content is unchanged
+            new_content = "".join(
+                json.dumps(data, ensure_ascii=False, sort_keys=True) + "\n"
+                for data in sorted_records
+            )
+            new_hash = hashlib.sha256(new_content.encode("utf-8")).digest()
+
+            if file_path.exists():
+                try:
+                    existing_hash = hashlib.sha256(
+                        file_path.read_bytes()
+                    ).digest()
+                    if new_hash == existing_hash:
+                        logger.debug("Memory export unchanged, skipping write")
+                        return len(sorted_records)
+                except OSError:
+                    pass  # File unreadable — overwrite it
+
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(new_content, encoding="utf-8")
+
+            return len(sorted_records)
         except Exception as e:
             logger.error("Failed to export memories: %s", e, exc_info=True)
             return 0
