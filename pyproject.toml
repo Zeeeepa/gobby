@@ -72,6 +72,10 @@ dependencies = [
     # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
     # ~50MB wheel, no torch, auto-detects Metal/CUDA
     "llama-cpp-python>=0.3.0",
+    # LLM provider instrumentation for OpenTelemetry tracing
+    "opentelemetry-instrumentation-anthropic>=0.34.0",
+    "opentelemetry-instrumentation-openai>=0.34.0",
+    "opentelemetry-instrumentation-google-genai>=0.1b0",
 ]
 
 [project.scripts]
@@ -82,13 +86,6 @@ Homepage = "https://github.com/GobbyAI/gobby"
 Repository = "https://github.com/GobbyAI/gobby"
 Documentation = "https://github.com/GobbyAI/gobby#readme"
 Issues = "https://github.com/GobbyAI/gobby/issues"
-
-[project.optional-dependencies]
-llm-tracing = [
-    "opentelemetry-instrumentation-anthropic>=0.34.0",
-    "opentelemetry-instrumentation-openai>=0.34.0",
-    "opentelemetry-instrumentation-google-genai>=0.1b0",
-]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

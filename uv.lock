@@ -1011,7 +1011,7 @@ wheels = [
 
 [[package]]
 name = "gobby"
-version = "0.3.0"
+version = "0.2.30"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -1037,7 +1037,10 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-exporter-prometheus" },
+    { name = "opentelemetry-instrumentation-anthropic" },
+    { name = "opentelemetry-instrumentation-google-genai" },
     { name = "opentelemetry-instrumentation-logging" },
+    { name = "opentelemetry-instrumentation-openai" },
     { name = "opentelemetry-sdk" },
     { name = "opentelemetry-semantic-conventions" },
     { name = "protobuf" },
@@ -1056,13 +1059,6 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
     { name = "wcwidth" },
     { name = "websockets" },
-]
-
-[package.optional-dependencies]
-llm-tracing = [
-    { name = "opentelemetry-instrumentation-anthropic" },
-    { name = "opentelemetry-instrumentation-google-genai" },
-    { name = "opentelemetry-instrumentation-openai" },
 ]
 
 [package.dev-dependencies]
@@ -1108,10 +1104,10 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.28.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.28.0" },
     { name = "opentelemetry-exporter-prometheus", specifier = ">=0.49b0" },
-    { name = "opentelemetry-instrumentation-anthropic", marker = "extra == 'llm-tracing'", specifier = ">=0.34.0" },
-    { name = "opentelemetry-instrumentation-google-genai", marker = "extra == 'llm-tracing'", specifier = ">=0.1b0" },
+    { name = "opentelemetry-instrumentation-anthropic", specifier = ">=0.34.0" },
+    { name = "opentelemetry-instrumentation-google-genai", specifier = ">=0.1b0" },
     { name = "opentelemetry-instrumentation-logging", specifier = ">=0.49b0" },
-    { name = "opentelemetry-instrumentation-openai", marker = "extra == 'llm-tracing'", specifier = ">=0.34.0" },
+    { name = "opentelemetry-instrumentation-openai", specifier = ">=0.34.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.28.0" },
     { name = "opentelemetry-semantic-conventions", specifier = ">=0.49b0" },
     { name = "protobuf", specifier = ">=5.29.6,<6.0.0" },
@@ -1131,7 +1127,6 @@ requires-dist = [
     { name = "wcwidth", specifier = ">=0.2.14" },
     { name = "websockets", specifier = ">=15.0" },
 ]
-provides-extras = ["llm-tracing"]
 
 [package.metadata.requires-dev]
 dev = [
