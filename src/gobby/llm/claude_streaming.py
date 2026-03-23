@@ -24,7 +24,6 @@ from claude_agent_sdk import (
 )
 from claude_agent_sdk.types import StreamEvent
 
-import gobby.llm.sdk_compat  # noqa: F401 — monkey-patches parse_message to handle unknown event types (e.g. rate_limit_event) that crash the SDK's async generator; see sdk_compat.py for details
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
@@ -137,8 +136,7 @@ async def stream_with_mcp_tools(
 
                 output_tokens = usage.get("output_tokens", 0) or 0
 
-                _model_usage = getattr(message, "_model_usage", None)
-                context_window = resolve_context_window(last_model, _model_usage)
+                context_window = resolve_context_window(last_model, None)
 
                 logger.info(
                     "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "

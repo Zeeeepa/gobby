@@ -36,7 +36,6 @@ from claude_agent_sdk.types import (
     UserPromptSubmitHookSpecificOutput,
 )
 
-import gobby.llm.sdk_compat  # noqa: F401 — monkey-patch parse_message
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
@@ -613,10 +612,9 @@ class ChatSession(ChatSessionPermissionsMixin):
                         # (correct for cost tracking; not part of context %)
                         output_tokens = usage.get("output_tokens", 0) or 0
 
-                        _model_usage = getattr(message, "_model_usage", None)
                         context_window = resolve_context_window(
                             self._last_model,
-                            _model_usage,
+                            None,
                             overrides=self._context_window_overrides or None,
                         )
 
