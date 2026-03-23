@@ -302,17 +302,14 @@ def create_handoff(
     - Initial goal
     - Recent activity
 
-    Summary types:
-    - --compact: Fast structured extraction using TranscriptAnalyzer
-    - --full: LLM-powered comprehensive summary
-    - Neither flag: Generate both (default)
+    Generates an LLM-powered summary with code-only fallback on failure.
 
     Output destinations:
     - db: Save to database only
     - file: Write to file only (in --path directory)
     - all: Save to both database and file
 
-    File output: full summary saved as session_*.md, compact as session_compact_*.md.
+    File output: summary saved as session_*.md.
 
     If no session ID is provided, uses the current project's most recent active session.
     """

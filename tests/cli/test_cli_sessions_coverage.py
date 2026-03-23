@@ -312,13 +312,35 @@ def test_create_handoff(
     mock_ctx.git_status = ""
     mock_analyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
+    # Mock generate_session_summaries to avoid LLM calls
+    async def mock_gen_summaries(**kwargs):
+        return {"success": True, "full_length": 100}
+
+    # After generate_session_summaries succeeds, the command re-fetches the session
+    updated_session = Session(
+        id="s1",
+        project_id="p1",
+        status="active",
+        source="claude",
+        created_at="",
+        updated_at="",
+        jsonl_path="/tmp/transcript.jsonl",
+        title=None,
+        external_id=None,
+        machine_id=None,
+        summary_path=None,
+        summary_markdown="# Handoff Summary\nTest content",
+        git_branch=None,
+        parent_session_id=None,
+    )
+    mock_session_manager.get.side_effect = [session, updated_session]
+
     runner = CliRunner()
-    # Use compact only to avoid LLM calls
-    result = runner.invoke(sessions, ["create-handoff", "-s", "s1", "--compact", "--output", "db"])
+    with patch("gobby.cli.sessions.asyncio.run", return_value={"success": True, "full_length": 100}):
+        result = runner.invoke(sessions, ["create-handoff", "-s", "s1", "--output", "db"])
 
     assert result.exit_code == 0
     assert "Created handoff context" in result.output
-    # assert "Compact length:" in result.output  <-- Removed this assertion
 
 
 @pytest.mark.integration
@@ -384,18 +406,14 @@ def test_create_handoff_full_llm_error(
     mock_analyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
     runner = CliRunner()
-    # Request full summary, but mock import error or similar to trigger exception in LLM generation
-    with patch("gobby.config.app.load_config", side_effect=Exception("Config error")):
-        result = runner.invoke(sessions, ["create-handoff", "-s", "s1", "--full", "--output", "db"])
+    # Mock asyncio.run to raise, triggering the fallback path
+    with patch("gobby.cli.sessions.asyncio.run", side_effect=Exception("Config error")):
+        result = runner.invoke(sessions, ["create-handoff", "-s", "s1", "--output", "db"])
 
-    # Should gracefully fail for full summary but might succeed if compact fallback logic exists
-    # If --full is explicitly requested and fails, function returns early
+    # Should gracefully fall back to code-only summary
     assert result.exit_code == 0
-    assert (
-        "Warning: Failed to generate full summary" in result.output
-        or "Config error" in str(result.exception)
-        or result.output
-    )
+    assert "Warning: LLM summary failed" in result.output
+    assert "Created handoff context" in result.output
 
 
 def test_create_handoff_no_session(mock_session_manager, mock_resolve_session) -> None:
@@ -540,7 +558,25 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
         git_branch=None,
         parent_session_id=None,
     )
-    mock_session_manager.get.return_value = session
+
+    # After generate_session_summaries succeeds, the command re-fetches the session
+    updated_session = Session(
+        id="s1",
+        project_id="p1",
+        status="active",
+        source="claude",
+        created_at="",
+        updated_at="",
+        jsonl_path="/tmp/transcript.jsonl",
+        title=None,
+        external_id=None,
+        machine_id=None,
+        summary_path=None,
+        summary_markdown="Full Summary Content",
+        git_branch=None,
+        parent_session_id=None,
+    )
+    mock_session_manager.get.side_effect = [session, updated_session]
 
     # Setup Mocks
     with (
@@ -548,58 +584,31 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
         patch("pathlib.Path.exists", return_value=True),
         patch("gobby.sessions.analyzer.TranscriptAnalyzer") as mock_analyzer,
         patch("subprocess.run"),
-        patch("gobby.sessions.transcripts.claude.ClaudeTranscriptParser") as mock_parser_cls,
-        patch("gobby.llm.claude.ClaudeLLMProvider") as mock_provider_cls,
-        patch("gobby.config.app.load_config") as mock_load_config,
         patch("gobby.cli.sessions.LocalDatabase"),
         patch("gobby.storage.projects.LocalProjectManager"),
-        patch("anyio.run", return_value="Full Summary Content"),
-        patch("gobby.prompts.loader.PromptLoader") as mock_prompt_loader_cls,
     ):
         # Mock file reading
         mock_file = MagicMock()
         mock_file.__enter__.return_value = ['{"role": "user", "content": "hello"}']
         mock_open.return_value = mock_file
 
-        # Mock PromptLoader to return a prompt template
-        mock_prompt_obj = MagicMock()
-        mock_prompt_obj.content = "test prompt"
-        mock_prompt_loader_cls.return_value.load.return_value = mock_prompt_obj
-
-        # Mock Config
-        mock_config = MagicMock()
-        mock_config.session_summary.prompt = "test prompt"
-        mock_load_config.return_value = mock_config
-
-        # Mock Provider
-        mock_provider = MagicMock()
-
-        async def mock_generate(*args, **kwargs):
-            return "Full Summary Content"
-
-        mock_provider.generate_summary = mock_generate
-        mock_provider_cls.return_value = mock_provider
-
-        # Mock Parser
-        mock_parser = MagicMock()
-        mock_parser.extract_turns_since_clear.return_value = [
-            {"message": {"role": "user", "content": "foo"}}
-        ]
-        mock_parser.extract_last_messages.return_value = "last messages"
-        mock_parser_cls.return_value = mock_parser
-
         # Mock Analyzer
         mock_ctx = MagicMock()
         mock_ctx.git_status = "clean"
         mock_analyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
-        runner = CliRunner()
-        result = runner.invoke(sessions, ["create-handoff", "-s", "s1", "--full", "--output", "db"])
+        # Mock asyncio.run to simulate successful summary generation
+        with patch(
+            "gobby.cli.sessions.asyncio.run",
+            return_value={"success": True, "full_length": 100},
+        ):
+            runner = CliRunner()
+            result = runner.invoke(sessions, ["create-handoff", "-s", "s1", "--output", "db"])
 
         assert result.exit_code == 0
         assert "Created handoff context" in result.output
 
-        # Verify update called with full markdown
+        # Verify update_summary was called with the full markdown from the re-fetched session
         mock_session_manager.update_summary.assert_called_once()
         args, kwargs = mock_session_manager.update_summary.call_args
         assert args[0] == "s1"
