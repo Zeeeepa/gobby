@@ -105,11 +105,22 @@ def complete_run(runner: AgentRunner, run_id: str, result: str | None = None) ->
     # Use provided result, or preserve existing result from send_message
     final_result = result if result is not None else (run.result or "")
 
+    # Read session stats (message processor writes these to the sessions table).
+    # The agent_runs table may still have 0/0 at this point since stats are
+    # written to sessions, not agent_runs, during execution.
+    tool_calls_count = run.tool_calls_count or 0
+    turns_used = run.turns_used or 0
+    if run.child_session_id and (tool_calls_count == 0 or turns_used == 0):
+        session = runner._session_storage.get(run.child_session_id)
+        if session:
+            tool_calls_count = getattr(session, "tool_call_count", 0) or tool_calls_count
+            turns_used = getattr(session, "turn_count", 0) or turns_used
+
     runner._run_storage.complete(
         run_id=run_id,
         result=final_result,
-        tool_calls_count=run.tool_calls_count,
-        turns_used=run.turns_used,
+        tool_calls_count=tool_calls_count,
+        turns_used=turns_used,
     )
 
     runner.logger.info(f"Completed agent run {run_id} (self-termination)")
