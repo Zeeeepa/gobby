@@ -25,6 +25,42 @@ _MODE_LEVEL_MAP = {"plan": 0, "accept_edits": 1, "normal": 1, "bypass": 2}
 # e.g., "[main abc1234] Fix the bug" or "[feat/login 9a3b2c1e] Add auth"
 _GIT_COMMIT_RE = re.compile(r"^\[[\w/.#-]+ [a-f0-9]{7,}\]", re.MULTILINE)
 
+# Pattern matching git commit commands in Bash tool_input.command
+_GIT_COMMIT_CMD_RE = re.compile(r"\bgit\s+commit\b")
+
+
+def _extract_shell_output_text(tool_output: Any) -> str:
+    """Extract text content from tool_output, handling both str and dict forms.
+
+    After normalization, ``tool_output`` may be:
+    - A plain string (e.g., ``"[main abc1234] Fix bug\\n 1 file changed"``)
+    - A dict parsed from JSON (e.g., ``{"output": "...", "exitCode": 0}``)
+
+    Returns the extracted text, or empty string if nothing usable found.
+    """
+    if isinstance(tool_output, str):
+        return tool_output
+    if isinstance(tool_output, dict):
+        for key in ("output", "stdout", "content"):
+            val = tool_output.get(key)
+            if isinstance(val, str):
+                return val
+    return ""
+
+
+def _is_git_commit_command(command: str) -> bool:
+    """Check if a command string contains a ``git commit`` invocation."""
+    return bool(_GIT_COMMIT_CMD_RE.search(command))
+
+
+def _looks_like_commit_success(output: str) -> bool:
+    """Check that shell output doesn't indicate a failed/no-op commit."""
+    if not output:
+        return False
+    if "nothing to commit" in output or "nothing added to commit" in output:
+        return False
+    return True
+
 
 def compute_mode_level(chat_mode: str) -> int:
     """Derive numeric mode_level from chat_mode.
@@ -269,13 +305,30 @@ def detect_bash_commit(
     if event.data.get("is_error"):
         return  # Failed commands don't count
 
-    output = event.data.get("tool_output") or ""
-    if not isinstance(output, str):
+    raw_output = event.data.get("tool_output")
+    output = _extract_shell_output_text(raw_output)
+    if not output:
+        if raw_output:
+            logger.debug(
+                "Session %s: detect_bash_commit — unrecognized tool_output type %s",
+                session_id,
+                type(raw_output).__name__,
+            )
         return
 
     if _GIT_COMMIT_RE.search(output):
         variables["task_has_commits"] = True
-        logger.info(f"Session {session_id}: task_has_commits=true (via Bash git commit)")
+        logger.info("Session %s: task_has_commits=true (Bash git commit output)", session_id)
+        return
+
+    # Fallback: command is git commit and output doesn't indicate failure
+    tool_input = event.data.get("tool_input") or {}
+    command = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
+    if command and _is_git_commit_command(command) and _looks_like_commit_success(output):
+        variables["task_has_commits"] = True
+        logger.info(
+            "Session %s: task_has_commits=true (Bash git commit command fallback)", session_id
+        )
 
 
 def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], session_id: str) -> None:

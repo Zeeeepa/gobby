@@ -7,6 +7,9 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.observers import (
+    _extract_shell_output_text,
+    _is_git_commit_command,
+    _looks_like_commit_success,
     detect_bash_commit,
     detect_commit_link,
     detect_mcp_call,
@@ -891,3 +894,207 @@ class TestDetectBashCommit:
         detect_bash_commit(event, variables, SESSION_ID)
 
         assert variables["task_has_commits"] is True
+
+    # ── Dict output tests (post-normalization JSON parsing) ──────────────
+
+    def test_dict_output_with_output_key(self, variables) -> None:
+        """tool_output is a dict after normalization parses JSON string."""
+        event = _make_bash_event_dict(
+            {"output": "[main abc1234] Fix bug\n 1 file changed", "exitCode": 0}
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert variables["task_has_commits"] is True
+
+    def test_dict_output_with_stdout_key(self, variables) -> None:
+        """Some adapters use 'stdout' key."""
+        event = _make_bash_event_dict(
+            {"stdout": "[feat/x 1a2b3c4] Add feature\n 2 files changed"}
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert variables["task_has_commits"] is True
+
+    def test_dict_output_without_commit_pattern(self, variables) -> None:
+        """Dict output that doesn't contain a commit pattern."""
+        event = _make_bash_event_dict(
+            {"output": "total 42\ndrwxr-xr-x  5 user staff  160 Mar 22 10:00 ."},
+            command="ls -la",
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert "task_has_commits" not in variables
+
+    def test_dict_output_with_error(self, variables) -> None:
+        """Dict output with is_error set should be skipped."""
+        event = _make_bash_event_dict(
+            {"output": "error: pathspec 'foo' did not match", "exitCode": 1},
+            is_error=True,
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert "task_has_commits" not in variables
+
+    # ── Integration tests through normalization ──────────────────────────
+
+    def test_full_normalization_flow_json_string(self, variables) -> None:
+        """JSON string tool_response goes through normalization then observer."""
+        from gobby.hooks.normalization import normalize_tool_fields
+
+        raw_data = {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git commit -m 'Fix'"},
+            "tool_response": '{"output": "[main abc1234] Fix bug\\n 1 file changed", "exitCode": 0}',
+        }
+        normalized = normalize_tool_fields(dict(raw_data))
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            source=SessionSource.CLAUDE,
+            session_id="test-session-ext",
+            timestamp=datetime.now(UTC),
+            data=normalized,
+            metadata={"_platform_session_id": SESSION_ID},
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert variables["task_has_commits"] is True
+
+    def test_full_normalization_flow_plain_string(self, variables) -> None:
+        """Plain string tool_result goes through normalization then observer."""
+        from gobby.hooks.normalization import normalize_tool_fields
+
+        raw_data = {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git add . && git commit -m 'Fix'"},
+            "tool_result": "[main abc1234] Fix bug\n 1 file changed, 2 insertions(+)",
+        }
+        normalized = normalize_tool_fields(dict(raw_data))
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            source=SessionSource.CLAUDE,
+            session_id="test-session-ext",
+            timestamp=datetime.now(UTC),
+            data=normalized,
+            metadata={"_platform_session_id": SESSION_ID},
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert variables["task_has_commits"] is True
+
+    # ── Command fallback tests ───────────────────────────────────────────
+
+    def test_command_fallback_when_output_lacks_pattern(self, variables) -> None:
+        """Fallback detects git commit from command when output is truncated."""
+        event = _make_bash_event_dict(
+            {"output": "1 file changed, 2 insertions(+)"},
+            command="git commit -m 'Fix bug'",
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert variables["task_has_commits"] is True
+
+    def test_command_fallback_nothing_to_commit(self, variables) -> None:
+        """Fallback does NOT fire when output says nothing to commit."""
+        event = _make_bash_event_dict(
+            {"output": "On branch main\nnothing to commit, working tree clean"},
+            command="git commit -m 'Fix bug'",
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert "task_has_commits" not in variables
+
+    def test_non_commit_command_no_false_positive(self, variables) -> None:
+        """Non-commit command doesn't trigger fallback."""
+        event = _make_bash_event_dict(
+            {"output": "Some output without commit pattern"},
+            command="git status",
+        )
+        detect_bash_commit(event, variables, SESSION_ID)
+        assert "task_has_commits" not in variables
+
+
+def _make_bash_event_dict(
+    tool_output: dict[str, object],
+    *,
+    tool_name: str = "Bash",
+    command: str = "git commit -m 'msg'",
+    is_error: bool = False,
+) -> HookEvent:
+    """Helper to create a Bash AFTER_TOOL event with dict output (post-normalization)."""
+    data: dict[str, object] = {
+        "tool_name": tool_name,
+        "tool_input": {"command": command},
+        "tool_output": tool_output,
+    }
+    if is_error:
+        data["is_error"] = True
+    return HookEvent(
+        event_type=HookEventType.AFTER_TOOL,
+        source=SessionSource.CLAUDE,
+        session_id="test-session-ext",
+        timestamp=datetime.now(UTC),
+        data=data,
+        metadata={"_platform_session_id": SESSION_ID},
+    )
+
+
+# =============================================================================
+# Tests for helper functions
+# =============================================================================
+
+
+class TestExtractShellOutputText:
+    """Verify _extract_shell_output_text handles all tool_output shapes."""
+
+    def test_string_passthrough(self) -> None:
+        assert _extract_shell_output_text("hello") == "hello"
+
+    def test_dict_output_key(self) -> None:
+        assert _extract_shell_output_text({"output": "hello"}) == "hello"
+
+    def test_dict_stdout_key(self) -> None:
+        assert _extract_shell_output_text({"stdout": "hello"}) == "hello"
+
+    def test_dict_content_key(self) -> None:
+        assert _extract_shell_output_text({"content": "hello"}) == "hello"
+
+    def test_dict_priority_order(self) -> None:
+        assert _extract_shell_output_text({"output": "a", "stdout": "b"}) == "a"
+
+    def test_empty_dict(self) -> None:
+        assert _extract_shell_output_text({}) == ""
+
+    def test_none(self) -> None:
+        assert _extract_shell_output_text(None) == ""
+
+    def test_list(self) -> None:
+        assert _extract_shell_output_text(["hello"]) == ""
+
+
+class TestIsGitCommitCommand:
+    """Verify _is_git_commit_command matches git commit invocations."""
+
+    def test_simple_commit(self) -> None:
+        assert _is_git_commit_command("git commit -m 'msg'") is True
+
+    def test_commit_with_flags(self) -> None:
+        assert _is_git_commit_command("git commit --amend --no-edit") is True
+
+    def test_chained_commands(self) -> None:
+        assert _is_git_commit_command("git add . && git commit -m 'msg'") is True
+
+    def test_not_commit(self) -> None:
+        assert _is_git_commit_command("git status") is False
+
+    def test_empty(self) -> None:
+        assert _is_git_commit_command("") is False
+
+
+class TestLooksLikeCommitSuccess:
+    """Verify _looks_like_commit_success filters failed/no-op commits."""
+
+    def test_normal_output(self) -> None:
+        assert _looks_like_commit_success("1 file changed") is True
+
+    def test_nothing_to_commit(self) -> None:
+        assert _looks_like_commit_success("nothing to commit, working tree clean") is False
+
+    def test_nothing_added(self) -> None:
+        assert _looks_like_commit_success("nothing added to commit") is False
+
+    def test_empty(self) -> None:
+        assert _looks_like_commit_success("") is False
