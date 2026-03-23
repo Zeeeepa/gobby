@@ -407,9 +407,7 @@ class MemoryBackupManager:
 
             if file_path.exists():
                 try:
-                    existing_hash = hashlib.sha256(
-                        file_path.read_bytes()
-                    ).digest()
+                    existing_hash = hashlib.sha256(file_path.read_bytes()).digest()
                     if new_hash == existing_hash:
                         logger.debug("Memory export unchanged, skipping write")
                         return len(sorted_records)

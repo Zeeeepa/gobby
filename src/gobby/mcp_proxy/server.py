@@ -403,7 +403,12 @@ class GobbyDaemonTools:
         self,
         name: str,
         value: str | int | float | bool | list[Any] | dict[str, Any] | None,
-        session_id: Annotated[str, Field(description="Your Gobby Session ID (e.g. #3439). Use the value from 'Gobby Session ID: #N' in your system prompt.")],
+        session_id: Annotated[
+            str,
+            Field(
+                description="Your Gobby Session ID (e.g. #3439). Use the value from 'Gobby Session ID: #N' in your system prompt."
+            ),
+        ],
     ) -> dict[str, Any]:
         """Set a variable. Session-scoped by default. Pass workflow param to scope to a specific workflow instance."""
         if not self._session_manager or not self._session_manager.db:
@@ -424,7 +429,12 @@ class GobbyDaemonTools:
         self,
         name: str | None = None,
         *,
-        session_id: Annotated[str, Field(description="Your Gobby Session ID (e.g. #3439). Use the value from 'Gobby Session ID: #N' in your system prompt.")],
+        session_id: Annotated[
+            str,
+            Field(
+                description="Your Gobby Session ID (e.g. #3439). Use the value from 'Gobby Session ID: #N' in your system prompt."
+            ),
+        ],
     ) -> dict[str, Any]:
         """Get a variable (or all variables). Session-scoped by default. Pass workflow param to read from a specific workflow instance."""
         if not self._session_manager or not self._session_manager.db:

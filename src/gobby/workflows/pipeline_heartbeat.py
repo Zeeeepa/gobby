@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from gobby.storage.agents import LocalAgentRunManager
     from gobby.storage.cron_models import CronJob
     from gobby.storage.pipelines import LocalPipelineExecutionManager
+    from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks._manager import LocalTaskManager
 
 logger = logging.getLogger(__name__)
@@ -38,12 +39,14 @@ class PipelineHeartbeat:
         stall_threshold_seconds: float = 120.0,
         task_manager: LocalTaskManager | None = None,
         agent_run_manager: LocalAgentRunManager | None = None,
+        session_manager: LocalSessionManager | None = None,
     ) -> None:
         self._execution_manager = execution_manager
         self._agent_registry = agent_registry
         self._stall_threshold_seconds = stall_threshold_seconds
         self._task_manager = task_manager
         self._agent_run_manager = agent_run_manager
+        self._session_manager = session_manager
 
     async def __call__(self, job: CronJob) -> str:
         """Cron handler entry point."""
@@ -120,12 +123,26 @@ class PipelineHeartbeat:
             logger.exception("Failed to check alive agents for execution %s", execution.id)
             return False
 
+    def _is_session_alive(self, session_id: str) -> bool:
+        """Check if a session is still alive (active or paused)."""
+        if not self._session_manager:
+            return False
+        try:
+            session = self._session_manager.get(session_id)
+            if session is None:
+                return False
+            return session.status in ("active", "paused")
+        except Exception:
+            logger.exception("Failed to check session liveness for %s", session_id)
+            return True  # Err on side of caution — assume alive
+
     async def check_stale_tasks(self) -> int:
-        """Find in_progress tasks with no alive agent and reset to open.
+        """Find in_progress tasks with no alive agent or session and reset to open.
 
         For each in_progress task that has an assignee:
         1. Check if there's an active agent run (pending/running) for the task
-        2. If not, reset the task to open with no assignee
+        2. If not, check if the assignee session is still alive
+        3. If neither, reset the task to open with no assignee
 
         Returns:
             Number of recovered tasks.
@@ -154,7 +171,13 @@ class PipelineHeartbeat:
                 if has_active:
                     continue
 
-                # No active agent run — task is orphaned.
+                # No active agent run — check if assignee session is still alive.
+                # Interactive CLI sessions don't create agent runs.
+                session_alive = await asyncio.to_thread(self._is_session_alive, task.assignee)
+                if session_alive:
+                    continue
+
+                # No active agent run and no live session — task is orphaned.
                 # If the task has linked commits, the agent did real work
                 # but didn't call mark_task_needs_review — promote to
                 # needs_review instead of wiping the claim entirely.
