@@ -399,8 +399,8 @@ class GobbyRunner:
                         config=self.config.memory_sync,
                     )
                     # No per-change listener — the file is a backup, not a live mirror.
-                    # Export happens at: daemon shutdown, session end, explicit sync_export.
-                    logger.debug("MemorySyncManager initialized (export on shutdown/session-end)")
+                    # Export happens at: pre-commit hook, CLI `memory backup`, or explicit sync_export.
+                    logger.debug("MemorySyncManager initialized (export on commit/CLI only)")
 
                     # Import synced memories before exporting
                     # (e.g. from git on a new machine with more memories than local DB)
@@ -410,14 +410,6 @@ class GobbyRunner:
                             logger.info(f"Imported {imported} memories from sync file")
                     except (OSError, ValueError) as e:
                         logger.warning(f"Memory import failed: {e}")
-
-                    # Force initial synchronous export
-                    # Ensures disk state matches DB state before we start serving
-                    try:
-                        self.memory_sync_manager.export_sync()
-                        logger.info("Initial memory sync export completed")
-                    except (OSError, ValueError) as e:
-                        logger.warning(f"Initial memory sync failed: {e}")
 
                 except Exception as e:
                     logger.error(f"Failed to initialize MemorySyncManager: {e}")
@@ -641,6 +633,7 @@ class GobbyRunner:
                     agent_registry=get_running_agent_registry(),
                     task_manager=self.task_manager,
                     agent_run_manager=LocalAgentRunManager(self.database),
+                    session_manager=self.session_manager,
                 )
                 cron_executor.register_handler("pipeline_heartbeat", heartbeat)
 
