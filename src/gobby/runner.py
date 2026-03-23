@@ -831,9 +831,10 @@ class GobbyRunner:
             # Also update the HTTPServer's broadcaster to use the same websocket_server
             self.http_server.broadcaster.websocket_server = self.websocket_server
 
-            # Pass WebSocket server to message processor if enabled
+            # Pass WebSocket server and session manager to message processor
             if self.message_processor:
                 self.message_processor.websocket_server = self.websocket_server
+                self.message_processor.session_manager = self.session_manager
 
             # Register agent event callback for WebSocket broadcasting
             from gobby.runner_broadcasting import (
