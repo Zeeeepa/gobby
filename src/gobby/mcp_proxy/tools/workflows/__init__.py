@@ -42,6 +42,14 @@ from gobby.mcp_proxy.tools.workflows._rules import (
     list_rules,
     toggle_rule,
 )
+from gobby.mcp_proxy.tools.workflows._variables import (
+    create_variable,
+    delete_variable,
+    export_variable,
+    get_variable_definition,
+    list_variables,
+    update_variable,
+)
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
@@ -332,6 +340,75 @@ def create_workflows_registry(
         if _def_manager is None:
             return {"error": "Rule tools require database connection"}
         return delete_rule(_def_manager, name, force)
+
+    # ── Variable definition CRUD tools ──
+
+    @registry.tool(
+        name="list_variables",
+        description="List variable definitions. Supports filtering by enabled status.",
+    )
+    def _list_variables(
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Variable tools require database connection"}
+        return list_variables(_def_manager, enabled)
+
+    @registry.tool(
+        name="get_variable_definition",
+        description="Get a variable definition by name. Returns the definition details including default value.",
+    )
+    def _get_variable_definition(name: str) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Variable tools require database connection"}
+        return get_variable_definition(_def_manager, name)
+
+    @registry.tool(
+        name="create_variable",
+        description="Create a new variable definition. Validates with VariableDefinitionBody before inserting.",
+    )
+    def _create_variable(
+        name: str,
+        value: Any,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Variable tools require database connection"}
+        return create_variable(_def_manager, name, value, description)
+
+    @registry.tool(
+        name="update_variable",
+        description="Update a variable definition's value or description by name.",
+    )
+    def _update_variable(
+        name: str,
+        value: Any = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Variable tools require database connection"}
+        return update_variable(_def_manager, name, value, description)
+
+    @registry.tool(
+        name="delete_variable",
+        description="Delete a variable definition by name (soft-delete). Bundled variables are protected unless force=True.",
+    )
+    def _delete_variable(
+        name: str,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Variable tools require database connection"}
+        return delete_variable(_def_manager, name, force)
+
+    @registry.tool(
+        name="export_variable",
+        description="Export a variable definition as YAML content.",
+    )
+    def _export_variable(name: str) -> dict[str, Any]:
+        if _def_manager is None:
+            return {"error": "Variable tools require database connection"}
+        return export_variable(_def_manager, name)
 
     # ── Agent definition CRUD tools ──
 

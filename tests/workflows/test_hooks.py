@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from gobby.workflows.git_utils import DirtyFiles
 from gobby.workflows.hooks import WorkflowHookHandler
 
 pytestmark = pytest.mark.unit
@@ -910,12 +911,12 @@ class TestBaselineDirtyFilesSubtraction:
         )
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_not_blocked_when_all_files_in_baseline(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Should not block when all dirty files are in the baseline."""
-        mock_get_dirty.return_value = {"file_a.py", "file_b.py"}
+        mock_get_dirty.return_value = DirtyFiles({"file_a.py", "file_b.py"}, set())
         session_var_manager.set_variable(
             "test-session", "baseline_dirty_files", ["file_a.py", "file_b.py"]
         )
@@ -927,12 +928,12 @@ class TestBaselineDirtyFilesSubtraction:
         assert response.decision == "allow"
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_blocked_when_new_files_beyond_baseline(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Should block when there are files not in the baseline."""
-        mock_get_dirty.return_value = {"file_a.py", "file_b.py", "new_file.py"}
+        mock_get_dirty.return_value = DirtyFiles({"file_a.py", "file_b.py", "new_file.py"}, set())
         session_var_manager.set_variable(
             "test-session", "baseline_dirty_files", ["file_a.py", "file_b.py"]
         )
@@ -944,26 +945,27 @@ class TestBaselineDirtyFilesSubtraction:
         assert response.decision == "block"
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
-    async def test_blocked_when_no_baseline(
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
+    async def test_not_blocked_when_no_baseline_lazy_init(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
-        """Should block when no baseline is stored (backwards compat)."""
-        mock_get_dirty.return_value = {"file_a.py"}
+        """Should NOT block when no baseline is stored — lazy-init captures current dirty files."""
+        mock_get_dirty.return_value = DirtyFiles({"file_a.py"}, set())
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
         response = await handler._evaluate_rules(event)
 
-        assert response.decision == "block"
+        # Lazy-init captures file_a.py as baseline, so dirty - baseline = {} → allow
+        assert response.decision == "allow"
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_not_blocked_when_no_dirty_files(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Should not block when there are no dirty files at all."""
-        mock_get_dirty.return_value = set()
+        mock_get_dirty.return_value = DirtyFiles(set(), set())
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
@@ -974,12 +976,12 @@ class TestBaselineDirtyFilesSubtraction:
     # --- Session-scoped has_dirty_files tests ---
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_scoped_to_session_edits_ignores_other_dirty(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Should block only when session's own edited files are dirty."""
-        mock_get_dirty.return_value = {"a.py", "b.py", "c.py"}
+        mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py", "c.py"}, set())
         session_var_manager.set_variable(
             "test-session", "session_edited_files", ["c.py"]
         )
@@ -992,12 +994,12 @@ class TestBaselineDirtyFilesSubtraction:
         assert response.decision == "block"
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_other_session_files_not_visible(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Should allow when session's edited files are not dirty (committed)."""
-        mock_get_dirty.return_value = {"a.py", "b.py"}
+        mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py"}, set())
         session_var_manager.set_variable(
             "test-session", "session_edited_files", ["c.py"]
         )
@@ -1010,12 +1012,12 @@ class TestBaselineDirtyFilesSubtraction:
         assert response.decision == "allow"
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_session_edits_override_baseline(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Should block when session edited a file that was already in baseline."""
-        mock_get_dirty.return_value = {"a.py"}
+        mock_get_dirty.return_value = DirtyFiles({"a.py"}, set())
         session_var_manager.merge_variables(
             "test-session",
             {
@@ -1032,12 +1034,12 @@ class TestBaselineDirtyFilesSubtraction:
         assert response.decision == "block"
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_concurrent_sessions_isolated(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Two sessions sharing a repo should only see their own edits."""
-        mock_get_dirty.return_value = {"a.py", "b.py"}
+        mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py"}, set())
 
         # Session A edited a.py, Session B edited b.py
         session_var_manager.set_variable(
@@ -1059,12 +1061,12 @@ class TestBaselineDirtyFilesSubtraction:
         assert response_b.decision == "block"
 
     @pytest.mark.asyncio
-    @patch("gobby.workflows.git_utils.get_dirty_files")
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
     async def test_concurrent_session_not_blocked_by_other(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
         """Session should not be blocked by files only another session edited."""
-        mock_get_dirty.return_value = {"a.py", "b.py"}
+        mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py"}, set())
 
         # Session A edited a.py only
         session_var_manager.set_variable(
@@ -1078,7 +1080,173 @@ class TestBaselineDirtyFilesSubtraction:
 
         # Now check: if we ONLY look at session-a's files,
         # and a.py gets committed (removed from dirty), session-a should allow
-        mock_get_dirty.return_value = {"b.py"}
+        mock_get_dirty.return_value = DirtyFiles({"b.py"}, set())
         event_a = self._make_event(session_id="session-a")
         response_a = await handler._evaluate_rules(event_a)
         assert response_a.decision == "allow"  # a.py committed, b.py is not session-a's
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
+    async def test_lazy_init_baseline_persisted_to_session_variables(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Lazy-init baseline should be persisted so future evaluations have it."""
+        mock_get_dirty.return_value = DirtyFiles({"pre_existing.py", "other.py"}, set())
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        await handler._evaluate_rules(event)
+
+        # Baseline should be persisted
+        variables = session_var_manager.get_variables("test-session")
+        assert set(variables.get("baseline_dirty_files", [])) == {"pre_existing.py", "other.py"}
+        assert variables.get("session_edited_files") == []
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
+    async def test_lazy_init_then_new_file_blocks(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """After lazy-init baseline, new dirty files beyond baseline should block."""
+        # First evaluation: captures baseline
+        mock_get_dirty.return_value = DirtyFiles({"pre_existing.py"}, set())
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+        assert response.decision == "allow"
+
+        # Second evaluation: new file appears
+        mock_get_dirty.return_value = DirtyFiles({"pre_existing.py", "new_file.py"}, set())
+        response = await handler._evaluate_rules(event)
+        assert response.decision == "block"
+
+    # --- Untracked file scoping tests ---
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
+    async def test_untracked_files_ignored_when_not_session_edited(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Untracked files not created by this session should not trigger has_dirty_files."""
+        # Untracked screenshots/docs that existed before session
+        mock_get_dirty.return_value = DirtyFiles(set(), {"screenshot.png", "plan.md"})
+        session_var_manager.set_variable(
+            "test-session", "session_edited_files", ["src/main.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        # src/main.py was committed (not in dirty), untracked files aren't ours → allow
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
+    async def test_untracked_files_block_when_session_created_them(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Untracked files created by this session should trigger has_dirty_files."""
+        mock_get_dirty.return_value = DirtyFiles(set(), {"new_module.py"})
+        session_var_manager.set_variable(
+            "test-session", "session_edited_files", ["new_module.py"]
+        )
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        # new_module.py is untracked AND in session_edited_files → block
+        assert response.decision == "block"
+
+    @pytest.mark.asyncio
+    @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
+    async def test_untracked_ignored_in_legacy_fallback(
+        self, mock_get_dirty, db, handler, session_var_manager
+    ) -> None:
+        """Legacy fallback (no session_edited_files) should ignore untracked files entirely."""
+        mock_get_dirty.return_value = DirtyFiles(set(), {"random_file.txt"})
+        session_var_manager.set_variable(
+            "test-session", "baseline_dirty_files", []
+        )
+        # No session_edited_files set → legacy fallback path
+        self._insert_block_on_dirty_rule(db)
+
+        event = self._make_event()
+        response = await handler._evaluate_rules(event)
+
+        # Untracked files ignored in legacy fallback → allow
+        assert response.decision == "allow"
+
+
+class TestStopFailsClosedOnVariableLoadError:
+    """Test that STOP events fail closed when session variables can't be loaded."""
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = tmp_path / "test_var_load.db"
+        database = LocalDatabase(db_path)
+        run_migrations(database)
+        return database
+
+    @pytest.fixture
+    def rule_engine(self, db):
+        from gobby.workflows.rule_engine import RuleEngine
+
+        return RuleEngine(db=db)
+
+    def _make_stop_event(self, session_id: str = "test-session") -> HookEvent:
+        return HookEvent(
+            event_type=HookEventType.STOP,
+            session_id=session_id,
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(),
+            data={},
+        )
+
+    def _make_tool_event(self, session_id: str = "test-session") -> HookEvent:
+        return HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id=session_id,
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(),
+            data={"tool_name": "Read"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_stop_blocked_when_get_variables_fails(self, rule_engine) -> None:
+        """STOP should be blocked when session variables can't be loaded."""
+        from unittest.mock import MagicMock
+
+        mock_var_manager = MagicMock()
+        mock_var_manager.get_variables.side_effect = Exception("DB locked")
+
+        handler = WorkflowHookHandler(rule_engine=rule_engine)
+        handler._session_var_manager = mock_var_manager
+
+        event = self._make_stop_event()
+        response = await handler._evaluate_rules(event)
+
+        assert response.decision == "block"
+        assert "Could not load session state" in response.reason
+
+    @pytest.mark.asyncio
+    async def test_non_stop_allowed_when_get_variables_fails(self, rule_engine) -> None:
+        """Non-STOP events should still be allowed when variables fail to load."""
+        from unittest.mock import MagicMock
+
+        mock_var_manager = MagicMock()
+        mock_var_manager.get_variables.side_effect = Exception("DB locked")
+
+        handler = WorkflowHookHandler(rule_engine=rule_engine)
+        handler._session_var_manager = mock_var_manager
+
+        event = self._make_tool_event()
+        response = await handler._evaluate_rules(event)
+
+        # Non-STOP events should still allow (fail-open)
+        assert response.decision == "allow"

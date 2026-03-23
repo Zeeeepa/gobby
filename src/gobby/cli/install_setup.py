@@ -137,6 +137,23 @@ def run_daemon_setup(project_path: Path) -> None:
     except subprocess.TimeoutExpired:
         click.echo("Warning: Playwright CLI install timed out")
 
+    # Install ClawHub CLI (skill hub search)
+    try:
+        npm_result = subprocess.run(
+            ["npm", "install", "-g", "clawhub"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if npm_result.returncode == 0:
+            click.echo("Installed ClawHub CLI (clawhub)")
+        else:
+            click.echo(f"Warning: Failed to install ClawHub CLI: {npm_result.stderr.strip()}")
+    except FileNotFoundError:
+        click.echo("Warning: npm not found — skipping ClawHub CLI install")
+    except subprocess.TimeoutExpired:
+        click.echo("Warning: ClawHub CLI install timed out")
+
     # Configure VS Code terminal title (any CLI may run inside VS Code's terminal)
     try:
         from .installers.ide_config import configure_ide_terminal_title

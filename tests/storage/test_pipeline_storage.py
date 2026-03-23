@@ -631,3 +631,62 @@ class TestApprovalTimeout:
 
         expired = manager.get_expired_approval_steps()
         assert len(expired) == 0
+
+
+class TestReviewStorage:
+    """Tests for pipeline execution review storage."""
+
+    def test_store_and_retrieve_review(self, manager) -> None:
+        """Store a review and verify it's on the execution."""
+        execution = manager.create_execution(pipeline_name="reviewed-pipeline")
+        manager.update_execution_status(execution.id, ExecutionStatus.COMPLETED)
+
+        review = '{"summary": "all good", "timeline": []}'
+        manager.store_review(execution.id, review)
+
+        updated = manager.get_execution(execution.id)
+        assert updated.review_json == review
+
+    def test_get_unreviewed_completions_returns_terminal_without_review(self, manager) -> None:
+        """Only returns completed/failed/cancelled executions without reviews."""
+        # Completed without review — should be returned
+        e1 = manager.create_execution(pipeline_name="pipeline-1")
+        manager.update_execution_status(e1.id, ExecutionStatus.COMPLETED)
+
+        # Failed without review — should be returned
+        e2 = manager.create_execution(pipeline_name="pipeline-2")
+        manager.update_execution_status(e2.id, ExecutionStatus.FAILED)
+
+        # Completed WITH review — should NOT be returned
+        e3 = manager.create_execution(pipeline_name="pipeline-3")
+        manager.update_execution_status(e3.id, ExecutionStatus.COMPLETED)
+        manager.store_review(e3.id, '{"summary": "done"}')
+
+        # Still running — should NOT be returned
+        e4 = manager.create_execution(pipeline_name="pipeline-4")
+        manager.update_execution_status(e4.id, ExecutionStatus.RUNNING)
+
+        results = manager.get_unreviewed_completions(limit=10)
+        result_ids = {r.id for r in results}
+
+        assert e1.id in result_ids
+        assert e2.id in result_ids
+        assert e3.id not in result_ids
+        assert e4.id not in result_ids
+
+    def test_get_unreviewed_completions_respects_limit(self, manager) -> None:
+        """Limit parameter caps the number of results."""
+        for i in range(5):
+            e = manager.create_execution(pipeline_name=f"pipeline-{i}")
+            manager.update_execution_status(e.id, ExecutionStatus.COMPLETED)
+
+        results = manager.get_unreviewed_completions(limit=2)
+        assert len(results) == 2
+
+    def test_get_unreviewed_completions_includes_cancelled(self, manager) -> None:
+        """Cancelled executions are also reviewable."""
+        e = manager.create_execution(pipeline_name="cancelled-pipeline")
+        manager.update_execution_status(e.id, ExecutionStatus.CANCELLED)
+
+        results = manager.get_unreviewed_completions()
+        assert any(r.id == e.id for r in results)

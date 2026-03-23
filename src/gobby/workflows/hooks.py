@@ -74,6 +74,7 @@ class WorkflowHookHandler:
         Must run BEFORE rule evaluation so conditions have current data.
         """
         from .observers import (
+            detect_bash_commit,
             detect_commit_link,
             detect_mcp_call,
             detect_plan_mode_from_context,
@@ -100,6 +101,7 @@ class WorkflowHookHandler:
                 project_id=event.project_id,
             )
             detect_commit_link(event, variables, session_id)
+            detect_bash_commit(event, variables, session_id)
             detect_mcp_call(event, variables, session_id)
 
         # Plan mode detection (BEFORE_AGENT for system reminder tags)
@@ -126,14 +128,37 @@ class WorkflowHookHandler:
                 try:
                     variables = dict(self._session_var_manager.get_variables(session_id))
                 except Exception as e:
+                    if event.event_type == HookEventType.STOP:
+                        logger.warning(
+                            "Failed to load session variables on STOP — blocking for safety: %s",
+                            e,
+                        )
+                        return HookResponse(
+                            decision="block",
+                            reason="Could not load session state. Try again.",
+                        )
                     logger.debug(f"Could not load session variables for rules: {e}")
 
-            from gobby.workflows.git_utils import get_dirty_files
+            from gobby.workflows.git_utils import get_dirty_files_categorized
             from gobby.workflows.safe_evaluator import LazyBool
 
-            project_path = getattr(event, "project_path", None)
-            if project_path is None and hasattr(event, "metadata"):
-                project_path = event.metadata.get("project_path")
+            project_path = event.cwd  # Live cwd from CLI adapter — correct for worktrees
+            if not project_path:
+                project_path = (
+                    event.metadata.get("project_path") if hasattr(event, "metadata") else None
+                )
+
+            # Lazy-init baseline on first evaluation (rule template may not have fired)
+            if "baseline_dirty_files" not in variables:
+                initial_dirty = sorted(get_dirty_files_categorized(project_path).all)
+                variables["baseline_dirty_files"] = initial_dirty
+                variables.setdefault("session_edited_files", [])
+                # Persist so future evaluations have it
+                if self._session_var_manager and session_id:
+                    self._session_var_manager.merge_variables(
+                        session_id,
+                        {"baseline_dirty_files": initial_dirty, "session_edited_files": []},
+                    )
 
             session_edited = set(variables.get("session_edited_files", []))
             baseline = set(variables.get("baseline_dirty_files", []))
@@ -143,12 +168,20 @@ class WorkflowHookHandler:
                 _base: set[str] = baseline,
                 _path: str | None = project_path,
             ) -> bool:
-                dirty = get_dirty_files(_path)
+                result = get_dirty_files_categorized(_path)
+                # Tracked dirty files (modified/staged/deleted) — always relevant
+                # Untracked files — only count ones this session created
+                dirty_tracked = result.tracked
+                dirty_untracked = result.untracked
                 if _edited:
-                    # Precise: only files this session touched that are still dirty
-                    return bool(_edited & dirty)
+                    # Precise: session-edited tracked files that are still dirty,
+                    # plus any untracked files this session created
+                    session_dirty_tracked = _edited & dirty_tracked
+                    session_dirty_untracked = _edited & dirty_untracked
+                    return bool(session_dirty_tracked or session_dirty_untracked)
                 # Legacy fallback: no per-session tracking, baseline subtraction
-                return bool(dirty - _base)
+                # Only consider tracked dirty files minus baseline
+                return bool(dirty_tracked - _base)
 
             eval_context = {"has_dirty_files": LazyBool(_check_dirty)}
 

@@ -32,31 +32,24 @@ _CLAUDE_IDENTIFIERS = ("opus", "sonnet", "haiku", "claude")
 
 def resolve_context_window(
     model: str | None,
-    model_usage: dict[str, Any] | None,
+    _unused: Any = None,
     overrides: dict[str, int] | None = None,
 ) -> int | None:
     """Resolve the context window size for a model.
 
     Priority order:
-    1. SDK-reported ``contextWindow`` from ``model_usage`` (authoritative from CLI)
-    2. Model-specific context windows for Claude (config overrides > built-in map)
-    3. litellm lookup for non-Claude models only
+    1. Model-specific context windows for Claude (config overrides > built-in map)
+    2. litellm lookup for non-Claude models only
 
     Args:
         model: Model name (e.g. "claude-opus-4-6", "gemini-2.0-flash").
-        model_usage: The ``_model_usage`` dict stashed by sdk_compat, or None.
+        _unused: Deprecated, kept for call-site compat. Ignored.
         overrides: Optional config-driven overrides mapping model substring to
             context window size (e.g. ``{"opus": 1_000_000}``).
 
     Returns:
         Context window size in tokens, or None if unknown.
     """
-    # 1. SDK-reported contextWindow (most authoritative)
-    if isinstance(model_usage, dict):
-        ctx = model_usage.get("contextWindow")
-        if ctx is not None:
-            return int(ctx)
-
     if not model:
         return None
 

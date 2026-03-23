@@ -61,8 +61,8 @@ class SearchConfig(BaseModel):
         description="Search mode: tfidf, embedding, auto, hybrid",
     )
     embedding_model: str = Field(
-        default="text-embedding-3-small",
-        description="LiteLLM model string (e.g., text-embedding-3-small, openai/nomic-embed-text)",
+        default="local/nomic-embed-text-v1.5",
+        description="Embedding model string (e.g., local/nomic-embed-text-v1.5, text-embedding-3-small)",
     )
     embedding_api_base: str | None = Field(
         default=None,

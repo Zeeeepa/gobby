@@ -50,10 +50,10 @@ export function CommandBar({
   onAttach,
   onDetach,
   onOpenPalette,
-  onOpenActiveSessions,
+  onOpenActiveSessions: _onOpenActiveSessions,
   onNewChat,
   onTogglePanel,
-  agents,
+  agents: _agents,
   agentDefinitions = [],
   agentGlobalDefs = [],
   agentProjectDefs = [],
@@ -64,7 +64,6 @@ export function CommandBar({
 }: CommandBarProps) {
   const [showAgentPicker, setShowAgentPicker] = useState(false)
   const isObserving = !!viewingMeta
-  const activeAgentCount = agents.length
 
   const handleNewChat = useCallback(() => {
     if (agentDefinitions.length <= 1) {
@@ -106,18 +105,6 @@ export function CommandBar({
 
       {/* Right cluster — Live activity */}
       <div className="command-bar-right">
-        {activeAgentCount > 0 && (
-          <button
-            type="button"
-            className="command-bar-pill"
-            onClick={onOpenActiveSessions}
-            title="Active sessions (Cmd+Shift+A)"
-          >
-            <span className="command-bar-pill-dot" />
-            <span>{activeAgentCount} Session{activeAgentCount !== 1 ? 's' : ''}</span>
-          </button>
-        )}
-
         <button
           type="button"
           className="command-bar-btn"
@@ -200,7 +187,7 @@ function ObservationSegment({
 
 function PlusIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" clipRule="evenodd" fillRule="evenodd">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" clipRule="evenodd" fillRule="evenodd">
       <path d="M8 1a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2H9v5a1 1 0 1 1-2 0V9H2a1 1 0 0 1 0-2h5V2a1 1 0 0 1 1-1Z" />
     </svg>
   )
@@ -208,7 +195,7 @@ function PlusIcon() {
 
 function PanelIcon({ pinned }: { pinned: boolean }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <line x1="15" y1="3" x2="15" y2="21" />
       {pinned && <line x1="18" y1="9" x2="21" y2="9" opacity="0.5" />}

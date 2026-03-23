@@ -150,6 +150,92 @@ async def _execute_pipeline_background(
             logger.error("Failed to mark execution as failed", exc_info=True)
 
 
+async def cancel_pipeline(
+    execution_manager: PipelineExecutionManager | None,
+    execution_id: str,
+) -> dict[str, Any]:
+    """
+    Cancel a running pipeline execution.
+
+    Marks the execution and any running steps as cancelled, and attempts
+    to kill any spawned agents associated with this pipeline.
+
+    Args:
+        execution_manager: LocalPipelineExecutionManager instance
+        execution_id: ID of the execution to cancel
+
+    Returns:
+        Dict with execution status (cancelled)
+    """
+    if not execution_manager:
+        return {"success": False, "error": "No execution manager configured"}
+
+    # Look up the execution
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        return {"success": False, "error": f"Execution '{execution_id}' not found"}
+
+    if execution.status in (
+        ExecutionStatus.COMPLETED,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.CANCELLED,
+    ):
+        return {
+            "success": False,
+            "error": f"Pipeline already in a terminal state (current status: {execution.status.value})",
+        }
+
+    # 1. Kill spawned agents (via registry)
+    try:
+        from gobby.agents.registry import get_running_agent_registry
+
+        registry = get_running_agent_registry()
+
+        # Kill all agents spawned by this pipeline (tracked via parent_session_id = pipeline's session_id)
+        # Note: Some pipelines share a session with the caller, others create a child session.
+        # We also check for agents associated with this specific execution_id if tracked.
+        agents = registry.list_all()
+        killed_count = 0
+        for agent in agents:
+            # Match by parent session or metadata if available
+            if agent.parent_session_id == execution.session_id:
+                await registry.kill(agent.run_id, signal_name="KILL")
+                killed_count += 1
+
+        if killed_count > 0:
+            logger.info(f"Killed {killed_count} agents associated with pipeline {execution_id[:8]}")
+    except Exception as e:
+        logger.warning(f"Failed to kill agents for pipeline {execution_id}: {e}")
+
+    # 2. Mark running steps as cancelled
+    try:
+        steps = execution_manager.get_steps_for_execution(execution_id)
+        for step in steps:
+            if step.status in (StepStatus.RUNNING, StepStatus.PENDING):
+                execution_manager.update_step_execution(
+                    step_execution_id=step.id,
+                    status=StepStatus.CANCELLED,
+                )
+    except Exception as e:
+        logger.warning(f"Failed to cancel steps for pipeline {execution_id}: {e}")
+
+    # 3. Mark execution as cancelled
+    try:
+        execution_manager.update_execution_status(
+            execution_id=execution_id,
+            status=ExecutionStatus.CANCELLED,
+        )
+    except Exception as e:
+        return {"success": False, "error": f"Failed to update execution status: {e}"}
+
+    return {
+        "success": True,
+        "status": "cancelled",
+        "execution_id": execution_id,
+        "message": f"Pipeline '{execution.pipeline_name}' execution {execution_id[:8]} has been cancelled.",
+    }
+
+
 async def run_pipeline(
     loader: PipelineLoader | None,
     executor: Any | None,
@@ -561,6 +647,14 @@ def get_pipeline_status(
             except json.JSONDecodeError:
                 outputs = execution.outputs_json
 
+        # Parse review if available
+        review = None
+        if execution.review_json:
+            try:
+                review = json.loads(execution.review_json)
+            except json.JSONDecodeError:
+                review = execution.review_json
+
         # Build execution dict
         execution_dict = {
             "id": execution.id,
@@ -574,6 +668,7 @@ def get_pipeline_status(
             "completed_at": execution.completed_at,
             "resume_token": execution.resume_token,
             "session_id": execution.session_id,
+            "review": review,
         }
 
         # Build steps list

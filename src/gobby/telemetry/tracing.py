@@ -10,7 +10,7 @@ import functools
 import inspect
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind, Status, StatusCode
@@ -102,8 +102,8 @@ def traced(
                     raise
 
         if inspect.iscoroutinefunction(func):
-            return async_wrapper  # type: ignore
-        return sync_wrapper  # type: ignore
+            return cast(F, async_wrapper)
+        return cast(F, sync_wrapper)
 
     return decorator
 

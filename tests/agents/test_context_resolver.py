@@ -22,8 +22,8 @@ def mock_session_manager():
 
 
 @pytest.fixture
-def mock_message_manager():
-    """Create a mock message manager."""
+def mock_transcript_reader():
+    """Create a mock transcript reader."""
     return MagicMock()
 
 
@@ -35,11 +35,11 @@ def temp_project():
 
 
 @pytest.fixture
-def resolver(mock_session_manager, mock_message_manager, temp_project):
+def resolver(mock_session_manager, mock_transcript_reader, temp_project):
     """Create a ContextResolver instance."""
     return ContextResolver(
         session_manager=mock_session_manager,
-        message_manager=mock_message_manager,
+        transcript_reader=mock_transcript_reader,
         project_path=temp_project,
     )
 
@@ -78,30 +78,6 @@ class TestResolveSummaryMarkdown:
         assert "Session not found: sess-unknown" in str(exc_info.value)
 
 
-class TestResolveCompactMarkdown:
-    """Tests for compact_markdown resolution."""
-
-    async def test_returns_handoff_context(self, resolver, mock_session_manager):
-        """compact_markdown returns handoff context."""
-        mock_session = MagicMock()
-        mock_session.compact_markdown = "## Handoff\n\nContext here."
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("compact_markdown", "sess-123")
-
-        assert result == "## Handoff\n\nContext here."
-
-    async def test_returns_empty_when_none(self, resolver, mock_session_manager):
-        """compact_markdown returns empty string when None."""
-        mock_session = MagicMock()
-        mock_session.compact_markdown = None
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("compact_markdown", "sess-123")
-
-        assert result == ""
-
-
 class TestResolveSessionId:
     """Tests for session_id:<id> resolution."""
 
@@ -130,9 +106,9 @@ class TestResolveSessionId:
 class TestResolveTranscript:
     """Tests for transcript:<n> resolution."""
 
-    async def test_returns_last_n_messages(self, resolver, mock_message_manager):
+    async def test_returns_last_n_messages(self, resolver, mock_transcript_reader):
         """transcript:<n> returns correct number of messages."""
-        mock_message_manager.get_messages = AsyncMock(
+        mock_transcript_reader.get_messages = AsyncMock(
             return_value=[
                 {"role": "user", "content": "Hello"},
                 {"role": "assistant", "content": "Hi there!"},
@@ -142,7 +118,7 @@ class TestResolveTranscript:
 
         result = await resolver.resolve("transcript:3", "sess-123")
 
-        mock_message_manager.get_messages.assert_called_once_with(
+        mock_transcript_reader.get_messages.assert_called_once_with(
             session_id="sess-123",
             limit=3,
             offset=0,
@@ -151,22 +127,22 @@ class TestResolveTranscript:
         assert "**assistant**: Hi there!" in result
         assert "**user**: Thanks" in result
 
-    async def test_returns_empty_for_no_messages(self, resolver, mock_message_manager):
+    async def test_returns_empty_for_no_messages(self, resolver, mock_transcript_reader):
         """transcript:<n> returns empty string when no messages."""
-        mock_message_manager.get_messages = AsyncMock(return_value=[])
+        mock_transcript_reader.get_messages = AsyncMock(return_value=[])
 
         result = await resolver.resolve("transcript:10", "sess-123")
 
         assert result == ""
 
-    async def test_clamps_to_max(self, resolver, mock_message_manager):
+    async def test_clamps_to_max(self, resolver, mock_transcript_reader):
         """transcript:<n> clamps to max_transcript_messages."""
         resolver._max_transcript_messages = 50
-        mock_message_manager.get_messages = AsyncMock(return_value=[])
+        mock_transcript_reader.get_messages = AsyncMock(return_value=[])
 
         await resolver.resolve("transcript:1000", "sess-123")
 
-        mock_message_manager.get_messages.assert_called_once_with(
+        mock_transcript_reader.get_messages.assert_called_once_with(
             session_id="sess-123",
             limit=50,
             offset=0,
@@ -231,11 +207,11 @@ class TestResolveFile:
 
         assert "not valid UTF-8" in str(exc_info.value) or "binary" in str(exc_info.value)
 
-    async def test_requires_project_path(self, mock_session_manager, mock_message_manager):
+    async def test_requires_project_path(self, mock_session_manager, mock_transcript_reader):
         """file:<path> requires project path to be configured."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
             project_path=None,
         )
 
@@ -249,12 +225,12 @@ class TestContentTruncation:
     """Tests for content truncation across all source types."""
 
     async def test_truncates_long_summary_markdown(
-        self, mock_session_manager, mock_message_manager, temp_project
+        self, mock_session_manager, mock_transcript_reader, temp_project
     ):
         """summary_markdown is truncated when over limit."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
             project_path=temp_project,
             max_content_size=100,
         )
@@ -269,38 +245,18 @@ class TestContentTruncation:
         assert "truncated" in result
         assert "100 bytes remaining" in result
 
-    async def test_truncates_long_compact_markdown(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """compact_markdown is truncated when over limit."""
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            max_content_size=100,
-        )
-
-        mock_session = MagicMock()
-        mock_session.compact_markdown = "B" * 200
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("compact_markdown", "sess-123")
-
-        assert len(result) < 200
-        assert "truncated" in result
-
     async def test_truncates_long_transcript(
-        self, mock_session_manager, mock_message_manager, temp_project
+        self, mock_session_manager, mock_transcript_reader, temp_project
     ):
         """transcript is truncated when over limit."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
             project_path=temp_project,
             max_content_size=100,
         )
 
-        mock_message_manager.get_messages = AsyncMock(
+        mock_transcript_reader.get_messages = AsyncMock(
             return_value=[
                 {"role": "user", "content": "C" * 100},
                 {"role": "assistant", "content": "D" * 100},
@@ -313,12 +269,12 @@ class TestContentTruncation:
         assert "truncated" in result
 
     async def test_no_truncation_under_limit(
-        self, mock_session_manager, mock_message_manager, temp_project
+        self, mock_session_manager, mock_transcript_reader, temp_project
     ):
         """Content under limit is not truncated."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
             project_path=temp_project,
             max_content_size=1000,
         )

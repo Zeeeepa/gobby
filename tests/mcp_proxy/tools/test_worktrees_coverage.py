@@ -704,27 +704,28 @@ class TestCopyProjectJsonToWorktree:
 
         assert not (worktree_path / ".gobby" / "project.json").exists()
 
-    def test_skips_if_target_exists(self, tmp_path) -> None:
-        """Test that existing project.json is not overwritten."""
+    def test_augments_existing_with_parent_path(self, tmp_path) -> None:
+        """Test that existing project.json is overwritten with parent_project_path."""
         # Setup source
         repo_path = tmp_path / "repo"
         repo_gobby = repo_path / ".gobby"
         repo_gobby.mkdir(parents=True)
         (repo_gobby / "project.json").write_text('{"id": "proj-1"}')
 
-        # Setup target with existing file
+        # Setup target with existing file (simulating git-tracked copy)
         worktree_path = tmp_path / "worktree"
         worktree_gobby = worktree_path / ".gobby"
         worktree_gobby.mkdir(parents=True)
-        (worktree_gobby / "project.json").write_text('{"id": "existing"}')
+        (worktree_gobby / "project.json").write_text('{"id": "proj-1"}')
 
         _copy_project_json_to_worktree(repo_path, worktree_path)
 
-        # Verify original is preserved
+        # Verify file is augmented with parent_project_path
         import json
 
         data = json.loads((worktree_gobby / "project.json").read_text())
-        assert data["id"] == "existing"
+        assert data["id"] == "proj-1"
+        assert "parent_project_path" in data
 
 
 class TestInstallProviderHooks:

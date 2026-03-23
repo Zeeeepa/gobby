@@ -192,10 +192,97 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
         except Exception as e:
             logger.warning(f"Failed to get time-filtered memory stats: {e}")
 
+        # --- Metrics Events ---
+        metrics_stats: dict[str, Any] = {
+            "tools": {},
+            "rules": {},
+            "skills": {},
+        }
+        try:
+            # Determine time filter for event queries
+            from datetime import UTC, datetime, timedelta
+
+            since: datetime | None = None
+            if hours is not None and hours > 0:
+                since = datetime.now(UTC) - timedelta(hours=hours)
+            elif hours is None and days > 0:
+                since = datetime.now(UTC) - timedelta(days=days)
+
+            # Tool call stats
+            tool_rows = db.fetchall(
+                "SELECT name, COUNT(*) as cnt FROM metrics_events "
+                "WHERE event_type = 'tool_call'"
+                + (" AND created_at >= ?" if since else "")
+                + " GROUP BY name ORDER BY cnt DESC LIMIT 5",
+                (since.isoformat(),) if since else (),
+            )
+            tool_total_row = db.fetchone(
+                "SELECT COUNT(*) as cnt FROM metrics_events "
+                "WHERE event_type = 'tool_call'" + (" AND created_at >= ?" if since else ""),
+                (since.isoformat(),) if since else (),
+            )
+            metrics_stats["tools"] = {
+                "total_calls": tool_total_row["cnt"] if tool_total_row else 0,
+                "unique_tools": len(tool_rows),
+                "top_5": [{"name": r["name"], "calls": r["cnt"]} for r in tool_rows],
+            }
+
+            # Rule eval stats
+            rule_rows = db.fetchall(
+                "SELECT name, COUNT(*) as cnt, "
+                "SUM(CASE WHEN result = 'block' THEN 1 ELSE 0 END) as blocks "
+                "FROM metrics_events WHERE event_type = 'rule_eval'"
+                + (" AND created_at >= ?" if since else "")
+                + " GROUP BY name ORDER BY cnt DESC LIMIT 5",
+                (since.isoformat(),) if since else (),
+            )
+            rule_total_row = db.fetchone(
+                "SELECT COUNT(*) as cnt, "
+                "SUM(CASE WHEN result = 'block' THEN 1 ELSE 0 END) as blocks "
+                "FROM metrics_events WHERE event_type = 'rule_eval'"
+                + (" AND created_at >= ?" if since else ""),
+                (since.isoformat(),) if since else (),
+            )
+            metrics_stats["rules"] = {
+                "total_evals": (rule_total_row["cnt"] or 0) if rule_total_row else 0,
+                "block_count": (rule_total_row["blocks"] or 0) if rule_total_row else 0,
+                "top_5": [
+                    {"name": r["name"], "evals": r["cnt"], "blocks": r["blocks"]} for r in rule_rows
+                ],
+            }
+
+            # Skill stats
+            skill_rows = db.fetchall(
+                "SELECT name, event_type, COUNT(*) as cnt "
+                "FROM metrics_events WHERE event_type IN ('skill_search', 'skill_invoke')"
+                + (" AND created_at >= ?" if since else "")
+                + " GROUP BY name, event_type ORDER BY cnt DESC LIMIT 5",
+                (since.isoformat(),) if since else (),
+            )
+            skill_total = db.fetchone(
+                "SELECT "
+                "SUM(CASE WHEN event_type = 'skill_search' THEN 1 ELSE 0 END) as searches, "
+                "SUM(CASE WHEN event_type = 'skill_invoke' THEN 1 ELSE 0 END) as invocations "
+                "FROM metrics_events WHERE event_type IN ('skill_search', 'skill_invoke')"
+                + (" AND created_at >= ?" if since else ""),
+                (since.isoformat(),) if since else (),
+            )
+            metrics_stats["skills"] = {
+                "total_searches": (skill_total["searches"] or 0) if skill_total else 0,
+                "total_invocations": (skill_total["invocations"] or 0) if skill_total else 0,
+                "top_5": [
+                    {"name": r["name"], "type": r["event_type"], "count": r["cnt"]}
+                    for r in skill_rows
+                ],
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get metrics event stats: {e}")
+
         return {
             "days": days,
             "hours": hours,
             "tasks": task_stats,
             "sessions": session_stats,
             "memory": memory_stats,
+            "metrics": metrics_stats,
         }

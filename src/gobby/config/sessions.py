@@ -56,7 +56,7 @@ class ContextInjectionConfig(BaseModel):
     default_source: str = Field(
         default="summary_markdown",
         description="Default context source when not specified. "
-        "Options: summary_markdown, compact_markdown, session_id:<id>, "
+        "Options: summary_markdown, session_id:<id>, "
         "transcript:<n>, file:<path>",
     )
     max_file_size: int = Field(

@@ -205,6 +205,61 @@ async def test_rebuild(vector_store: VectorStore) -> None:
 
 
 @pytest.mark.asyncio
+async def test_dimension_mismatch_logs_error(tmp_path, caplog) -> None:
+    """initialize() should log error when collection dim mismatches configured dim."""
+    import logging
+
+    # Create a collection with dim=4
+    store = VectorStore(
+        path=str(tmp_path / "qdrant"),
+        collection_name="dim_test",
+        embedding_dim=4,
+    )
+    await store.initialize()
+    await store.upsert(MEM_1, _make_embedding(1.0, dim=4), {"content": "test"})
+    await store.close()
+
+    # Reopen with different dim — should log error
+    store2 = VectorStore(
+        path=str(tmp_path / "qdrant"),
+        collection_name="dim_test",
+        embedding_dim=768,
+    )
+    with caplog.at_level(logging.ERROR, logger="gobby.memory.vectorstore"):
+        await store2.initialize()
+
+    assert "dimension mismatch" in caplog.text.lower()
+    assert "configured=768" in caplog.text
+    assert "existing=4" in caplog.text
+    await store2.close()
+
+
+@pytest.mark.asyncio
+async def test_dimension_match_no_error(tmp_path, caplog) -> None:
+    """initialize() should NOT log error when dimensions match."""
+    import logging
+
+    store = VectorStore(
+        path=str(tmp_path / "qdrant"),
+        collection_name="match_test",
+        embedding_dim=4,
+    )
+    await store.initialize()
+    await store.close()
+
+    store2 = VectorStore(
+        path=str(tmp_path / "qdrant"),
+        collection_name="match_test",
+        embedding_dim=4,
+    )
+    with caplog.at_level(logging.ERROR, logger="gobby.memory.vectorstore"):
+        await store2.initialize()
+
+    assert "dimension mismatch" not in caplog.text.lower()
+    await store2.close()
+
+
+@pytest.mark.asyncio
 async def test_close(tmp_path) -> None:
     """close() should work without error."""
     store = VectorStore(

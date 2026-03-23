@@ -870,6 +870,35 @@ def create_skills_registry(
                 # Use the first skill if multiple were found
                 parsed_skill = parsed_skill[0]
 
+            # Scan skill content for safety before persisting
+            try:
+                from gobby.skills.scanner import scan_skill_content
+
+                scan_result = scan_skill_content(
+                    content=parsed_skill.content,
+                    name=parsed_skill.name,
+                )
+                if not scan_result["is_safe"]:
+                    findings_summary = "; ".join(
+                        f"[{f['severity']}] {f['title']}"
+                        for f in scan_result["findings"]
+                        if f["severity"] in ("HIGH", "CRITICAL")
+                    )
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Skill failed security scan "
+                            f"(max severity: {scan_result['max_severity']}): "
+                            f"{findings_summary}"
+                        ),
+                        "scan_result": scan_result,
+                    }
+            except ImportError:
+                logger.warning(
+                    "cisco-ai-skill-scanner not installed, skipping security scan for %s",
+                    parsed_skill.name,
+                )
+
             # Determine project ID for the skill
             skill_project_id = project_id if project_scoped else None
 

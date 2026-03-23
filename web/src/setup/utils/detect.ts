@@ -10,6 +10,7 @@ const VERSION_CMDS: Record<string, string[]> = {
   tailscale: ["tailscale", "version"],
   gemini: ["gemini", "--version"],
   codex: ["codex", "--version"],
+  clawhub: ["clawhub", "--cli-version"],
 };
 
 export const REQUIRED_TOOLS = ["python", "node", "uv", "claude", "tmux"];
@@ -22,6 +23,7 @@ export const OPTIONAL_TOOLS = [
   "copilot",
   "windsurf",
   "cursor",
+  "clawhub",
 ];
 
 function which(cmd: string): string | null {

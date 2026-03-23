@@ -9,7 +9,7 @@ Provides tools for managing file annotations on tasks:
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
@@ -52,7 +52,7 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
                 "error": f"Invalid source: {source}. Must be 'expansion', 'manual', or 'observed'."
             }
 
-        annotation_source: AnnotationSource = source  # type: ignore[assignment]
+        annotation_source = cast(AnnotationSource, source)
         results = af_manager.set_files(resolved_id, files, annotation_source)
         return {
             "task_id": resolved_id,

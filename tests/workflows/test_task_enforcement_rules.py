@@ -47,6 +47,7 @@ TASK_ENFORCEMENT_RULES = {
     "block-native-task-tools",
     "require-task-before-edit",
     "require-commit-before-status",
+    "require-clean-tree-before-status",
     "strip-skip-validation-with-commit",
     "block-ask-during-stop-compliance",
     "track-task-claim",
@@ -57,7 +58,7 @@ class TestTaskEnforcementSync:
     """Test that task-enforcement.yaml syncs correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
-        """All 6 task-enforcement rules should sync to workflow_definitions."""
+        """All 7 task-enforcement rules should sync to workflow_definitions."""
         _sync_bundled(db)
 
         rules = manager.list_all(workflow_type="rule")
@@ -344,6 +345,52 @@ class TestIsPlanFile:
         assert is_plan_file("/home/user/.cursor/hooks.json") is False
 
 
+class TestRequireCleanTreeBeforeStatus:
+    """Verify require-clean-tree-before-status blocks on dirty files."""
+
+    def test_blocks_close_task_mcp(self, db, manager) -> None:
+        """Should block gobby-tasks:close_task."""
+        _sync_bundled(db)
+
+        row = manager.get_by_name("require-clean-tree-before-status")
+        assert row is not None
+
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+        assert body.event.value == "before_tool"
+        assert body.effects[0].type == "block"
+        assert "gobby-tasks:close_task" in body.effects[0].mcp_tools
+
+    def test_when_checks_dirty_files(self, db, manager) -> None:
+        """Should check has_dirty_files but not task_has_commits."""
+        _sync_bundled(db)
+
+        row = manager.get_by_name("require-clean-tree-before-status")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        assert body.when is not None
+        assert "has_dirty_files" in body.when
+        assert "task_has_commits" not in body.when
+
+    def test_error_message_mentions_uncommitted(self, db, manager) -> None:
+        """Error message should specifically mention uncommitted changes."""
+        _sync_bundled(db)
+
+        row = manager.get_by_name("require-clean-tree-before-status")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        reason = body.effects[0].reason or ""
+        assert "uncommitted" in reason.lower()
+
+    def test_higher_priority_than_commit_rule(self, db, manager) -> None:
+        """Should fire before require-commit-before-status (lower number = higher priority)."""
+        _sync_bundled(db)
+
+        dirty_rule = manager.get_by_name("require-clean-tree-before-status")
+        commit_rule = manager.get_by_name("require-commit-before-status")
+
+        assert dirty_rule.priority < commit_rule.priority
+
+
 class TestRequireCommitBeforeStatus:
     """Verify require-commit-before-status requires commit before status transitions."""
 
@@ -369,6 +416,25 @@ class TestRequireCommitBeforeStatus:
         assert body.when is not None
         assert "task_has_commits" in body.when
         assert "commit_sha" in body.when
+
+    def test_when_does_not_check_dirty_files(self, db, manager) -> None:
+        """Dirty files condition should be in the separate rule now."""
+        _sync_bundled(db)
+
+        row = manager.get_by_name("require-commit-before-status")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        assert "has_dirty_files" not in body.when
+
+    def test_error_message_mentions_no_commit(self, db, manager) -> None:
+        """Error message should specifically mention no commit linked."""
+        _sync_bundled(db)
+
+        row = manager.get_by_name("require-commit-before-status")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        reason = body.effects[0].reason or ""
+        assert "no commit linked" in reason.lower()
 
 
 class TestStripSkipValidationWithCommit:

@@ -23,6 +23,7 @@ from .mcp import mcp_server
 from .mcp_proxy import mcp_proxy
 from .memory import memory
 from .merge import merge
+from .models import models
 from .pack import pack, unpack
 from .pipelines import pipelines
 from .projects import projects
@@ -92,3 +93,4 @@ cli.add_command(import_cmd)
 cli.add_command(code_index)
 cli.add_command(pack)
 cli.add_command(unpack)
+cli.add_command(models)

@@ -43,6 +43,7 @@ class ServiceContainer:
     # Advanced Features
     memory_manager: MemoryManager | None = None
     llm_service: LLMService | None = None
+    vector_store: Any | None = None  # VectorStore (Qdrant)
 
     # MCP & Agents
     mcp_manager: Any | None = None  # MCPClientManager
@@ -50,7 +51,6 @@ class ServiceContainer:
     metrics_manager: Any | None = None  # ToolMetricsManager
     agent_runner: Any | None = None  # AgentRunner
     message_processor: Any | None = None  # SessionMessageProcessor
-    message_manager: Any | None = None  # LocalSessionMessageManager
 
     # Validation & Git
     task_validator: Any | None = None  # TaskValidator
@@ -69,6 +69,9 @@ class ServiceContainer:
     # Agent Lifecycle
     agent_lifecycle_monitor: Any | None = None  # AgentLifecycleMonitor
 
+    # Communications
+    communications_manager: Any | None = None  # CommunicationsManager
+
     # Cron Scheduler
     cron_storage: Any | None = None  # CronJobStorage
     cron_scheduler: Any | None = None  # CronScheduler
@@ -83,9 +86,15 @@ class ServiceContainer:
     # Config
     config_store: Any | None = None  # ConfigStore
 
+    # Caches (lazily populated by savings, etc.)
+    _savings_tracker: Any | None = None  # SavingsTracker
+
     # Prompts
     prompt_manager: Any | None = None  # LocalPromptManager
     dev_mode: bool = False
+
+    # Transcripts
+    transcript_reader: Any | None = None  # TranscriptReader
 
     # Context
     project_id: str | None = None

@@ -22,12 +22,12 @@ from gobby.hooks.event_handlers._tool import EDIT_TOOLS, ToolEventHandlerMixin
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
+    from gobby.code_index.trigger import CodeIndexTrigger
     from gobby.config.skills import SkillsConfig
     from gobby.config.tasks import WorkflowConfig
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.hooks.skill_manager import HookSkillManager
     from gobby.sessions.manager import SessionManager
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.session_tasks import SessionTaskManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
@@ -58,12 +58,12 @@ class EventHandlers(
         message_processor: Any | None = None,
         task_manager: LocalTaskManager | None = None,
         session_coordinator: SessionCoordinator | None = None,
-        message_manager: LocalSessionMessageManager | None = None,
         skill_manager: HookSkillManager | None = None,
         skills_config: SkillsConfig | None = None,
         workflow_config: WorkflowConfig | None = None,
         get_machine_id: Callable[[], str] | None = None,
         resolve_project_id: Callable[[str | None, str | None], str] | None = None,
+        code_index_trigger: CodeIndexTrigger | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """
@@ -77,12 +77,12 @@ class EventHandlers(
             message_processor: SessionMessageProcessor for message handling
             task_manager: LocalTaskManager for task operations
             session_coordinator: SessionCoordinator for session tracking
-            message_manager: LocalSessionMessageManager for messages
             skill_manager: HookSkillManager for skill discovery
             skills_config: SkillsConfig for skill injection settings
             workflow_config: WorkflowConfig for workflow settings (debug_echo_context)
             get_machine_id: Function to get machine ID
             resolve_project_id: Function to resolve project ID from cwd
+            code_index_trigger: Optional trigger for code indexing on file changes.
             logger: Optional logger instance
         """
         self._session_manager = session_manager
@@ -92,12 +92,13 @@ class EventHandlers(
         self._message_processor = message_processor
         self._task_manager = task_manager
         self._session_coordinator = session_coordinator
-        self._message_manager = message_manager
         self._skill_manager = skill_manager
         self._skills_config = skills_config
         self._workflow_config = workflow_config
         self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
         self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")
+        self._code_index_trigger = code_index_trigger
+        self._pending_subagent_depths: dict[str, int] = {}
         self._dispatch_session_summaries_fn: (
             Callable[[str, bool, threading.Event | None], None] | None
         ) = None

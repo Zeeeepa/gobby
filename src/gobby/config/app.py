@@ -20,16 +20,15 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Internal imports for DaemonConfig fields - NOT re-exported
 from gobby.config.code_index import CodeIndexConfig
+from gobby.config.communications import CommunicationsConfig
 from gobby.config.conductor import ConductorConfig
 from gobby.config.cron import CronConfig
 from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ChatConfig,
     ImportMCPServerConfig,
-    MemoryDedupDecisionConfig,
-    MemoryEntityExtractionConfig,
+    KnowledgeGraphQueueConfig,
     MemoryExtractionConfig,
-    MemoryFactExtractionConfig,
     MergeResolutionConfig,
     MetricsConfig,
     OutputCompressionConfig,
@@ -323,6 +322,10 @@ class DaemonConfig(BaseModel):
         default_factory=LLMProvidersConfig,
         description="Multi-provider LLM configuration",
     )
+    communications: CommunicationsConfig = Field(
+        default_factory=CommunicationsConfig,
+        description="Communications channel configuration",
+    )
     digest: DigestConfig = Field(
         default_factory=DigestConfig,
         description="Rolling digest and title generation configuration",
@@ -343,17 +346,9 @@ class DaemonConfig(BaseModel):
         default_factory=ImportMCPServerConfig,
         description="MCP server import configuration",
     )
-    memory_fact_extraction: MemoryFactExtractionConfig = Field(
-        default_factory=MemoryFactExtractionConfig,
-        description="Memory fact extraction LLM configuration",
-    )
-    memory_dedup_decision: MemoryDedupDecisionConfig = Field(
-        default_factory=MemoryDedupDecisionConfig,
-        description="Memory dedup decision LLM configuration",
-    )
-    memory_entity_extraction: MemoryEntityExtractionConfig = Field(
-        default_factory=MemoryEntityExtractionConfig,
-        description="Memory entity extraction LLM configuration",
+    knowledge_graph_queue: KnowledgeGraphQueueConfig = Field(
+        default_factory=KnowledgeGraphQueueConfig,
+        description="Background knowledge graph processing queue configuration",
     )
     hook_extensions: HookExtensionsConfig = Field(
         default_factory=HookExtensionsConfig,

@@ -29,7 +29,6 @@ class Session:
     jsonl_path: str | None
     summary_path: str | None
     summary_markdown: str | None
-    compact_markdown: str | None  # Handoff context for compaction
     git_branch: str | None
     parent_session_id: str | None
     created_at: str
@@ -63,6 +62,15 @@ class Session:
     chat_mode: str = "plan"
     # Idempotency guard for digest pipeline
     last_digest_input_hash: str | None = None
+    # Stats fields
+    message_count: int = 0
+    turn_count: int = 0
+    tool_call_count: int = 0
+    last_assistant_content: str | None = None
+    # Pending plan file path (for restart recovery)
+    pending_plan_path: str | None = None
+    # JSON array of user-approved tool names (approve_always)
+    approved_tools_json: str | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -78,7 +86,6 @@ class Session:
             jsonl_path=row["jsonl_path"],
             summary_path=row["summary_path"],
             summary_markdown=row["summary_markdown"],
-            compact_markdown=row["compact_markdown"],
             git_branch=row["git_branch"],
             parent_session_id=row["parent_session_id"],
             created_at=row["created_at"],
@@ -106,6 +113,18 @@ class Session:
             chat_mode=row["chat_mode"] if "chat_mode" in row.keys() else "plan",
             last_digest_input_hash=row["last_digest_input_hash"]
             if "last_digest_input_hash" in row.keys()
+            else None,
+            message_count=row["message_count"] if "message_count" in row.keys() else 0,
+            turn_count=row["turn_count"] if "turn_count" in row.keys() else 0,
+            tool_call_count=row["tool_call_count"] if "tool_call_count" in row.keys() else 0,
+            last_assistant_content=row["last_assistant_content"]
+            if "last_assistant_content" in row.keys()
+            else None,
+            pending_plan_path=row["pending_plan_path"]
+            if "pending_plan_path" in row.keys()
+            else None,
+            approved_tools_json=row["approved_tools_json"]
+            if "approved_tools_json" in row.keys()
             else None,
         )
 
@@ -161,7 +180,6 @@ class Session:
             "jsonl_path": self.jsonl_path,
             "summary_path": self.summary_path,
             "summary_markdown": self.summary_markdown,
-            "compact_markdown": self.compact_markdown,
             "git_branch": self.git_branch,
             "parent_session_id": self.parent_session_id,
             "agent_depth": self.agent_depth,
@@ -183,6 +201,12 @@ class Session:
             "last_turn_markdown": self.last_turn_markdown,
             "chat_mode": self.chat_mode,
             "last_digest_input_hash": self.last_digest_input_hash,
+            "message_count": self.message_count,
+            "turn_count": self.turn_count,
+            "tool_call_count": self.tool_call_count,
+            "last_assistant_content": self.last_assistant_content,
+            "pending_plan_path": self.pending_plan_path,
+            "approved_tools_json": self.approved_tools_json,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,
@@ -201,6 +225,9 @@ class Session:
             "git_branch": self.git_branch,
             "model": self.model,
             "had_edits": self.had_edits,
+            "message_count": self.message_count,
+            "turn_count": self.turn_count,
+            "tool_call_count": self.tool_call_count,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,

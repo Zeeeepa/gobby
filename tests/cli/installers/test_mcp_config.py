@@ -294,6 +294,9 @@ class TestRemoveMCPServerTOML:
         assert result["success"] is True
         assert result["removed"] is True
         assert result["backup_path"] is not None
+        content = config.read_text()
+        assert "gobby" not in content
+        assert "other" in content
 
     def test_removes_last_server_cleans_section(self, tmp_path: Path) -> None:
         config = tmp_path / "config.toml"
@@ -301,6 +304,8 @@ class TestRemoveMCPServerTOML:
         result = remove_mcp_server_toml(config)
         assert result["success"] is True
         assert result["removed"] is True
+        content = config.read_text()
+        assert "gobby" not in content
 
     def test_invalid_toml(self, tmp_path: Path) -> None:
         config = tmp_path / "config.toml"
@@ -372,6 +377,7 @@ class TestConfigureProjectMCPServer:
         ):
             result = configure_project_mcp_server(project_path)
         assert result["success"] is False
+        assert "error" in result
 
     def test_backup_failure(self, tmp_path: Path) -> None:
         project_path = tmp_path / "my-project"
@@ -440,6 +446,9 @@ class TestRemoveProjectMCPServer:
         assert result["success"] is True
         assert result["removed"] is True
         assert result["backup_path"] is not None
+        data = json.loads(settings_path.read_text())
+        project_servers = data.get("projects", {}).get(abs_path, {}).get("mcpServers", {})
+        assert "gobby" not in project_servers
 
     def test_invalid_json(self, tmp_path: Path) -> None:
         project_path = tmp_path / "my-project"
@@ -477,20 +486,6 @@ class TestRemoveProjectMCPServer:
 
 class TestInstallDefaultMCPServers:
     """Tests for install_default_mcp_servers."""
-
-    def _patch_db_sync(self) -> tuple:
-        """Return context managers to mock the DB sync at the end of install_default_mcp_servers."""
-        mock_db = MagicMock()
-        mock_mcp_mgr = MagicMock()
-        mock_mcp_mgr.import_from_mcp_json.return_value = 3
-        mock_secret_store = MagicMock()
-        mock_secret_store.exists.return_value = False
-        return (
-            patch("gobby.cli.installers.mcp_config.Path.expanduser"),
-            patch("gobby.storage.database.LocalDatabase", return_value=mock_db),
-            patch("gobby.storage.mcp.LocalMCPManager", return_value=mock_mcp_mgr),
-            patch("gobby.storage.secrets.SecretStore", return_value=mock_secret_store),
-        )
 
     def test_installs_defaults(self, tmp_path: Path) -> None:
         mcp_path = tmp_path / ".gobby" / ".mcp.json"

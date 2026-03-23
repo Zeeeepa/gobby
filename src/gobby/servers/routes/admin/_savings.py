@@ -109,7 +109,7 @@ def _get_tracker(server: "HTTPServer") -> Any:
         db = server.services.database
         model_costs = ModelCostStore(db)
         tracker = SavingsTracker(db=db, model_costs=model_costs)
-        server._savings_tracker = tracker  # type: ignore[attr-defined]
+        server._savings_tracker = tracker
         return tracker
     except Exception as e:
         logger.warning(f"Failed to create SavingsTracker: {e}")

@@ -417,9 +417,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     # BEFORE_AGENT (fire-and-forget). Poll until it arrives.
                     # For /compact: PRE_COMPACT already kicked it off.
                     # Both paths wait for the summary to be generated.
-                    needs_wait = (session_source == "clear" and not parent.summary_markdown) or (
-                        session_source == "compact" and not parent.compact_markdown
-                    )
+                    needs_wait = not parent.summary_markdown
                     if needs_wait:
                         # Ensure generation is started (idempotent if already running)
                         summary_event = threading.Event()
@@ -454,10 +452,10 @@ class SessionEventHandlerMixin(EventHandlersBase):
                         parent = self._session_storage.get(parent_session_id)
 
                     handoff_vars: dict[str, Any] = {}
-                    if parent and session_source == "clear" and parent.summary_markdown:
+                    if parent and parent.summary_markdown:
+                        handoff_vars["session_summary"] = parent.summary_markdown
+                        # Also set full_session_summary (used by inject-previous-session-summary rule)
                         handoff_vars["full_session_summary"] = parent.summary_markdown
-                    elif parent and session_source == "compact" and parent.compact_markdown:
-                        handoff_vars["compact_session_summary"] = parent.compact_markdown
                     if handoff_vars:
                         sv_mgr.merge_variables(session_id, handoff_vars)
 
@@ -1182,10 +1180,8 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     parent_ref = f"#{parent.seq_num}" if parent.seq_num else parent_session_id
                     # Handoff indicator based on session_source
                     indicator = ""
-                    if session_source == "clear":
+                    if session_source in ("clear", "compact"):
                         indicator = " (Handoff)" if parent.summary_markdown else " (No Handoff)"
-                    elif session_source == "compact":
-                        indicator = " (Handoff)" if parent.compact_markdown else " (No Handoff)"
                     system_message += f"\nParent Session ID: {parent_ref}{indicator}"
                 else:
                     system_message += f"\nParent Session ID: {parent_session_id}"

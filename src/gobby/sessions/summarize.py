@@ -1,7 +1,7 @@
 """Shared session summary generation.
 
-Single entry point for producing compact_markdown and summary_markdown
-at session boundaries. Used by:
+Single entry point for producing summary_markdown at session boundaries.
+Used by:
 - MCP set_handoff_context (automated fallback path)
 - hook_manager._dispatch_session_summaries (graceful exit via /clear, /exit, /compact)
 - SessionLifecycleManager (expired sessions safety net)
@@ -27,7 +27,6 @@ TURN_PATTERN = re.compile(r"^### Turn \d+", re.MULTILINE)
 
 class SessionManagerProtocol(Protocol):
     def get(self, session_id: str) -> Any: ...
-    def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Any: ...
     def update_summary(
         self,
         session_id: str,
@@ -52,22 +51,22 @@ async def generate_session_summaries(
     compact_only: bool = False,
     full_only: bool = False,
 ) -> dict[str, Any]:
-    """Generate compact_markdown and summary_markdown for a session.
+    """Generate summary_markdown for a session.
 
-    Reads the transcript, runs TranscriptAnalyzer for compact context,
-    uses LLM for full archival summary, persists to DB, and optionally
+    Reads the transcript, runs TranscriptAnalyzer for context,
+    uses LLM for archival summary, persists to DB, and optionally
     writes files to session_summaries directory.
 
     Args:
         session_id: Platform session ID (UUID).
         session_manager: LocalSessionManager instance.
-        llm_service: LLM service for generating full summaries.
+        llm_service: LLM service for generating summaries.
         db: Database for prompt template loading.
         write_file: Write summary files to disk.
         output_path: Directory for summary files.
         set_handoff_ready: Update session status to handoff_ready.
-        compact_only: Generate compact summary only (TranscriptAnalyzer).
-        full_only: Generate full LLM summary only.
+        compact_only: Ignored (kept for API compatibility).
+        full_only: Ignored (kept for API compatibility).
 
     Returns:
         Dict with success status, markdown lengths, and context summary.
@@ -108,54 +107,27 @@ async def generate_session_summaries(
     # Enrich with real-time git status
     await _enrich_git_context(handoff_ctx, path.parent)
 
-    # Determine what to generate (neither flag = both)
-    generate_compact = compact_only or not full_only
-    generate_full = full_only or not compact_only
+    # Generate full summary
+    full_markdown, full_error = await _generate_full_summary(
+        session=session,
+        turns=turns,
+        handoff_ctx=handoff_ctx,
+        llm_service=llm_service,
+        db=db,
+        session_manager=session_manager,
+    )
 
-    compact_markdown: str | None = None
-    full_markdown: str | None = None
-    full_error: str | None = None
-
-    if generate_compact:
-        compact_markdown, compact_error = await _generate_compact_summary(
-            session=session,
-            turns=turns,
-            handoff_ctx=handoff_ctx,
-            llm_service=llm_service,
-            db=db,
-            session_manager=session_manager,
+    if not full_markdown:
+        # Fallback to code-only renderer when LLM is unavailable
+        logger.warning(
+            "Full LLM summary failed (%s), falling back to code-only",
+            full_error,
         )
-        if not compact_markdown:
-            # Fallback to code-only renderer when LLM is unavailable
-            logger.warning(
-                "Compact LLM summary failed (%s), falling back to code-only",
-                compact_error,
-            )
-            from gobby.sessions.formatting import format_handoff_as_markdown
+        from gobby.sessions.formatting import format_handoff_as_markdown
 
-            compact_markdown = format_handoff_as_markdown(handoff_ctx)
-
-    if generate_full:
-        full_markdown, full_error = await _generate_full_summary(
-            session=session,
-            turns=turns,
-            handoff_ctx=handoff_ctx,
-            llm_service=llm_service,
-            db=db,
-            session_manager=session_manager,
-        )
-        if full_error and full_only and not compact_only:
-            return {
-                "success": False,
-                "error": f"Failed to generate full summary: {full_error}",
-                "session_id": session_id,
-            }
+        full_markdown = format_handoff_as_markdown(handoff_ctx)
 
     # Persist to database
-    if compact_markdown:
-        await asyncio.to_thread(
-            session_manager.update_compact_markdown, session_id, compact_markdown
-        )
     if full_markdown:
         await asyncio.to_thread(
             session_manager.update_summary, session_id, summary_markdown=full_markdown
@@ -169,7 +141,6 @@ async def generate_session_summaries(
     files_written = await _write_files(
         session_id=session_id,
         full_markdown=full_markdown,
-        compact_markdown=compact_markdown,
         write_file=write_file,
         output_path=output_path,
         session_manager=session_manager,
@@ -192,16 +163,15 @@ async def generate_session_summaries(
             logger.warning("Failed to record discovery savings for %s: %s", session_id, e)
 
     logger.info(
-        "Session summaries generated for %s (compact=%d, full=%d chars)",
+        "Session summary generated for %s (%d chars)",
         session_id,
-        len(compact_markdown) if compact_markdown else 0,
         len(full_markdown) if full_markdown else 0,
     )
 
     return {
         "success": True,
         "session_id": session_id,
-        "compact_length": len(compact_markdown) if compact_markdown else 0,
+        "compact_length": 0,  # Kept for API compatibility
         "full_length": len(full_markdown) if full_markdown else 0,
         "full_error": full_error,
         "files_written": files_written,
@@ -338,7 +308,7 @@ async def _generate_full_summary(
         git_diff_summary = get_git_diff_summary()
         structured_context = _format_structured_context(handoff_ctx)
 
-        # Enrich with DB context (same as compact path)
+        # Enrich with DB context
         resolved_db = db or getattr(session_manager, "db", None)
         claimed_tasks = (
             await asyncio.to_thread(_get_claimed_tasks, session.id, resolved_db)
@@ -374,100 +344,6 @@ async def _generate_full_summary(
     except Exception as e:
         logger.error(
             "Failed to generate full summary for session %s: %s",
-            session.id,
-            e,
-            exc_info=True,
-        )
-        return None, str(e)
-
-
-async def _generate_compact_summary(
-    session: Any,
-    turns: list[dict[str, Any]],
-    handoff_ctx: Any,
-    llm_service: LLMServiceProtocol | None,
-    db: DatabaseProtocol | None,
-    session_manager: SessionManagerProtocol,
-) -> tuple[str | None, str | None]:
-    """Generate LLM-based compact handoff summary using handoff/compact prompt.
-
-    Returns:
-        Tuple of (compact_markdown, error_message). One will be None.
-    """
-    try:
-        provider = _resolve_provider(llm_service)
-
-        # Get transcript parser
-        from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
-
-        parser = ClaudeTranscriptParser()
-
-        # Load compact prompt template
-        prompt_template = None
-        try:
-            from gobby.prompts.loader import PromptLoader
-
-            loader = PromptLoader(db=db or getattr(session_manager, "db", None))
-            prompt_obj = loader.load("handoff/compact")
-            prompt_template = prompt_obj.content
-        except FileNotFoundError:
-            pass
-
-        if not prompt_template:
-            return None, "No prompt template found for handoff/compact"
-
-        # Prepare context for LLM
-        from gobby.workflows.git_utils import get_file_changes, get_git_diff_summary
-        from gobby.workflows.summary_actions import (
-            _format_structured_context,
-            format_turns_for_llm,
-        )
-
-        last_turns = parser.extract_turns_since_clear(turns, max_turns=50)
-        last_messages = parser.extract_last_messages(turns, num_pairs=2)
-        last_messages_str = format_turns_for_llm(last_messages) if last_messages else ""
-
-        file_changes = get_file_changes()
-        git_diff_summary = get_git_diff_summary()
-        structured_context = _format_structured_context(handoff_ctx)
-
-        # Enrich with DB context
-        resolved_db = db or getattr(session_manager, "db", None)
-        claimed_tasks = (
-            await asyncio.to_thread(_get_claimed_tasks, session.id, resolved_db)
-            if resolved_db
-            else ""
-        )
-        session_memories = (
-            await asyncio.to_thread(_get_session_memories, session.id, resolved_db)
-            if resolved_db
-            else ""
-        )
-        first_digest_turn, recent_digest_turns = _extract_digest_turns(session.digest_markdown)
-
-        # Get previous compact_markdown for cumulative compression
-        previous_summary = session.compact_markdown or ""
-
-        context = {
-            "transcript_summary": format_turns_for_llm(last_turns),
-            "last_messages": last_messages_str,
-            "git_status": handoff_ctx.git_status or "",
-            "file_changes": file_changes,
-            "git_diff_summary": git_diff_summary,
-            "structured_context": structured_context,
-            "previous_summary": previous_summary,
-            "claimed_tasks": claimed_tasks,
-            "session_memories": session_memories,
-            "first_digest_turn": first_digest_turn,
-            "recent_digest_turns": recent_digest_turns,
-        }
-
-        compact_markdown = await provider.generate_summary(context, prompt_template=prompt_template)
-        return compact_markdown, None
-
-    except Exception as e:
-        logger.error(
-            "Failed to generate compact summary for session %s: %s",
             session.id,
             e,
             exc_info=True,
@@ -621,7 +497,6 @@ def _extract_digest_turns(digest_markdown: str | None) -> tuple[str, str]:
 async def _write_files(
     session_id: str,
     full_markdown: str | None,
-    compact_markdown: str | None,
     write_file: bool,
     output_path: str,
     session_manager: SessionManagerProtocol,
@@ -639,12 +514,5 @@ async def _write_files(
         )
         if full_path:
             files_written.append(full_path)
-
-    if compact_markdown:
-        compact_path: str | None = await _write_summary_file(
-            session_id, compact_markdown, output_path, session_manager, mode="compact"
-        )
-        if compact_path:
-            files_written.append(compact_path)
 
     return files_written

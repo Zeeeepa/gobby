@@ -17,7 +17,6 @@ Test categories:
 from __future__ import annotations
 
 import logging
-import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -138,10 +137,13 @@ class TestSessionLifecycleTransitions:
     def test_reregister_active_sessions(self) -> None:
         """Test re-registering active sessions from storage."""
         mock_session_storage = MagicMock()
-        mock_session_storage.list.return_value = [
-            MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
-            MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="gemini"),
-        ]
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [
+                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
+                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="gemini"),
+            ],
+            "paused": [],
+        }[status]
 
         mock_message_processor = MagicMock()
 
@@ -155,12 +157,39 @@ class TestSessionLifecycleTransitions:
         assert count == 2
         assert mock_message_processor.register_session.call_count == 2
 
+    def test_reregister_includes_paused_sessions(self) -> None:
+        """Test re-registration includes paused sessions."""
+        mock_session_storage = MagicMock()
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [
+                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
+            ],
+            "paused": [
+                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="claude"),
+            ],
+        }[status]
+
+        mock_message_processor = MagicMock()
+
+        coordinator = SessionCoordinator(
+            session_storage=mock_session_storage,
+            message_processor=mock_message_processor,
+        )
+
+        count = coordinator.reregister_active_sessions()
+
+        assert count == 2
+        mock_message_processor.register_session.assert_any_call(
+            "session-2", "/path/to/2.jsonl", source="claude"
+        )
+
     def test_reregister_skips_sessions_without_jsonl_path(self) -> None:
         """Test re-registration skips sessions without jsonl_path."""
         mock_session_storage = MagicMock()
-        mock_session_storage.list.return_value = [
-            MagicMock(id="session-1", jsonl_path=None, source="claude"),
-        ]
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [MagicMock(id="session-1", jsonl_path=None, source="claude")],
+            "paused": [],
+        }[status]
 
         mock_message_processor = MagicMock()
 
@@ -177,10 +206,13 @@ class TestSessionLifecycleTransitions:
     def test_reregister_handles_errors_gracefully(self) -> None:
         """Test re-registration handles individual session errors."""
         mock_session_storage = MagicMock()
-        mock_session_storage.list.return_value = [
-            MagicMock(id="session-1", jsonl_path="/path/1.jsonl", source="claude"),
-            MagicMock(id="session-2", jsonl_path="/path/2.jsonl", source="claude"),
-        ]
+        mock_session_storage.list.side_effect = lambda status, limit: {
+            "active": [
+                MagicMock(id="session-1", jsonl_path="/path/1.jsonl", source="claude"),
+                MagicMock(id="session-2", jsonl_path="/path/2.jsonl", source="claude"),
+            ],
+            "paused": [],
+        }[status]
 
         mock_message_processor = MagicMock()
         mock_message_processor.register_session.side_effect = [
@@ -214,7 +246,6 @@ class TestAgentRunCompletion:
         mock_session = MagicMock()
         mock_session.agent_run_id = "run-123"
         mock_session.summary_markdown = "Summary"
-        mock_session.compact_markdown = None
 
         coordinator.complete_agent_run(mock_session)
 
@@ -261,7 +292,6 @@ class TestAgentRunCompletion:
         mock_session = MagicMock()
         mock_session.agent_run_id = "run-123"
         mock_session.summary_markdown = None
-        mock_session.compact_markdown = None
 
         with patch("gobby.agents.registry.get_running_agent_registry") as mock_get_registry:
             mock_registry = MagicMock()
@@ -277,17 +307,14 @@ class TestAgentRunCompletion:
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
 
-        # Mock DB to return tool call and turn counts
-        mock_row = {"tool_calls": 5, "turns": 3}
-        mock_agent_run_manager.db.fetchone.return_value = mock_row
-
         coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
 
         mock_session = MagicMock()
         mock_session.agent_run_id = "run-456"
         mock_session.id = "sess-789"
         mock_session.summary_markdown = "Done"
-        mock_session.compact_markdown = None
+        mock_session.tool_call_count = 5
+        mock_session.turn_count = 3
 
         coordinator.complete_agent_run(mock_session)
 
@@ -301,21 +328,14 @@ class TestAgentRunCompletion:
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
 
-        # fetchone is called multiple times: result fallback queries, then stats query.
-        # Return None for the fallback queries, then the stats row.
-        mock_agent_run_manager.db.fetchone.side_effect = [
-            None,  # last assistant message fallback
-            None,  # inter_session_messages fallback
-            {"tool_calls": 0, "turns": 0},  # session stats query
-        ]
-
         coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
 
         mock_session = MagicMock()
         mock_session.agent_run_id = "run-ghost"
         mock_session.id = "sess-ghost"
         mock_session.summary_markdown = ""
-        mock_session.compact_markdown = None
+        mock_session.tool_call_count = 0
+        mock_session.turn_count = 0
 
         coordinator.complete_agent_run(mock_session)
 
@@ -326,12 +346,11 @@ class TestAgentRunCompletion:
         assert "no activity" in fail_kwargs["error"].lower()
         mock_agent_run_manager.complete.assert_not_called()
 
-    def test_complete_agent_run_defaults_counts_on_db_error(self) -> None:
-        """DB error counting stats → stats_retrieved=False → falls through to complete()."""
+    def test_complete_agent_run_defaults_counts_when_missing(self) -> None:
+        """Stats attributes from session are passed through to complete()."""
         mock_agent_run_manager = MagicMock()
         mock_agent_run = MagicMock(status="running")
         mock_agent_run_manager.get.return_value = mock_agent_run
-        mock_agent_run_manager.db.fetchone.side_effect = sqlite3.OperationalError("DB error")
 
         coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
 
@@ -339,14 +358,15 @@ class TestAgentRunCompletion:
         mock_session.agent_run_id = "run-456"
         mock_session.id = "sess-789"
         mock_session.summary_markdown = "Done"
-        mock_session.compact_markdown = None
+        mock_session.tool_call_count = 10
+        mock_session.turn_count = 5
 
         coordinator.complete_agent_run(mock_session)
 
-        # When stats retrieval fails, stats_retrieved=False so zero-activity guard
-        # does NOT fire. Falls through to complete() with default counts.
         mock_agent_run_manager.complete.assert_called_once()
-        mock_agent_run_manager.fail.assert_not_called()
+        call_kwargs = mock_agent_run_manager.complete.call_args[1]
+        assert call_kwargs["tool_calls_count"] == 10
+        assert call_kwargs["turns_used"] == 5
 
 
 class TestWorktreeRelease:

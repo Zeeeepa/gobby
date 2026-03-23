@@ -1,32 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import './FilesPage.css'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { CodeMirrorEditor } from './shared/CodeMirrorEditor'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { markdownComponents } from './shared/MarkdownComponents'
+import { codeTheme } from './shared/codeTheme'
 import { undo, redo } from '@codemirror/commands'
 import type { EditorView } from '@codemirror/view'
 import type { FileEntry, OpenFile, Project, GitStatus } from '../hooks/useFiles'
-
-// Custom theme matching the app
-const codeTheme = {
-  ...oneDark,
-  'pre[class*="language-"]': {
-    ...oneDark['pre[class*="language-"]'],
-    background: '#0a0a0a',
-    margin: '0',
-    padding: '1rem',
-    borderRadius: '0',
-    fontSize: '0.9em',
-  },
-  'code[class*="language-"]': {
-    ...oneDark['code[class*="language-"]'],
-    background: 'transparent',
-    fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
-  },
-}
 
 interface FilesPageProps {
   projects: Project[]
@@ -440,8 +422,10 @@ function TreeEntry({ entry, projectId, depth, expandedDirs, loadingDirs, gitFile
     >
       <FileIcon extension={entry.extension?.replace('.', '') || ''} size={14} />
       <span className="files-tree-name" style={gitColor ? { color: gitColor } : undefined}>{entry.name}</span>
-      {entry.size !== undefined && entry.size > 102400 && (
-        <span className="files-tree-size">{formatSize(entry.size)}</span>
+      {gitStatus && (
+        <span className="files-tree-git-badge" style={{ color: gitColor }}>
+          {gitStatus === '??' ? '?' : gitStatus.charAt(0)}
+        </span>
       )}
     </div>
   )

@@ -1,18 +1,36 @@
 import { useState, useMemo, useCallback } from 'react'
 import './ProjectsPage.css'
+import { TabBar } from '../shared/TabBar'
 import { useProjects } from '../../hooks/useProjects'
 import type { ProjectWithStats } from '../../hooks/useProjects'
-import { useFiles } from '../../hooks/useFiles'
+import { useSourceControl } from '../../hooks/useSourceControl'
 import { ProjectOverview } from './ProjectOverview'
 import { ProjectCard } from './ProjectCard'
-import { ProjectDetailView } from './ProjectDetailView'
-import { FilesPage } from '../FilesPage'
-import { TasksPage } from '../tasks/TasksPage'
-import { SessionsPage } from '../sessions/SessionsPage'
-import { useSessions } from '../../hooks/useSessions'
+import { ProjectSettings } from './ProjectSettings'
+import { ProjectSummary } from './ProjectSummary'
+import { BranchesView } from '../source-control/BranchesView'
+import { PullRequestsView } from '../source-control/PullRequestsView'
+import { WorktreesView } from '../source-control/WorktreesView'
+import { ClonesView } from '../source-control/ClonesView'
+import { CICDView } from '../source-control/CICDView'
 
+type ProjectsTab = 'overview' | 'branches' | 'prs' | 'worktrees' | 'clones' | 'cicd' | 'settings'
 type OverviewFilter = 'total' | 'active' | 'tasks' | null
 type ViewMode = 'cards' | 'list'
+
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'branches', label: 'Branches' },
+  { id: 'prs', label: 'Pull Requests' },
+  { id: 'worktrees', label: 'Worktrees' },
+  { id: 'clones', label: 'Clones' },
+  { id: 'cicd', label: 'CI/CD' },
+  { id: 'settings', label: 'Settings' },
+]
+
+interface ProjectsPageProps {
+  projectId?: string | null
+}
 
 function CardsIcon() {
   return (
@@ -35,14 +53,13 @@ function ListIcon() {
   )
 }
 
-export function ProjectsPage() {
+export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
+  const [activeTab, setActiveTab] = useState<ProjectsTab>('overview')
   const {
     projects,
     allProjects,
     isLoading,
     selectedProject,
-    activeSubTab,
-    setActiveSubTab,
     searchText,
     setSearchText,
     selectProject,
@@ -54,13 +71,11 @@ export function ProjectsPage() {
     totalOpenTasks,
   } = useProjects()
 
-  const files = useFiles()
-  const sessionsHook = useSessions()
+  const sc = useSourceControl(projectId ?? null)
 
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>(null)
 
-  // Apply overview filter
   const displayProjects = useMemo(() => {
     if (!overviewFilter) return projects
     if (overviewFilter === 'active') return projects.filter(p => p.session_count > 0)
@@ -68,103 +83,29 @@ export function ProjectsPage() {
     return projects
   }, [projects, overviewFilter])
 
+  // Find the project matching the global selector for settings
+  const activeProject = useMemo(() => {
+    if (selectedProject) return selectedProject
+    if (projectId) return allProjects.find(p => p.id === projectId) ?? null
+    return null
+  }, [selectedProject, projectId, allProjects])
+
   const handleSave = useCallback(async (fields: Record<string, string | null>) => {
-    if (!selectedProject) return false
-    return updateProject(selectedProject.id, fields)
-  }, [selectedProject, updateProject])
+    if (!activeProject) return false
+    return updateProject(activeProject.id, fields)
+  }, [activeProject, updateProject])
 
   const handleDelete = useCallback(async () => {
-    if (!selectedProject) return false
-    return deleteProject(selectedProject.id)
-  }, [selectedProject, deleteProject])
+    if (!activeProject) return false
+    return deleteProject(activeProject.id)
+  }, [activeProject, deleteProject])
 
-  // Render Code tab: FilesPage scoped to one project
-  const renderCodeTab = useCallback(() => {
-    if (!selectedProject) return null
-    const scopedProjects = files.projects.filter(p => p.id === selectedProject.id)
-    if (scopedProjects.length === 0) {
-      return (
-        <div className="projects-detail-empty">
-          {selectedProject.repo_path
-            ? 'Project not found in file explorer. Try refreshing.'
-            : 'No repository path configured for this project.'}
-        </div>
-      )
-    }
-    return (
-      <FilesPage
-        projects={scopedProjects}
-        expandedDirs={files.expandedDirs}
-        expandedProjects={files.expandedProjects}
-        openFiles={files.openFiles}
-        activeFileIndex={files.activeFileIndex}
-        loadingDirs={files.loadingDirs}
-        gitStatuses={files.gitStatuses}
-        onExpandProject={files.expandProject}
-        onExpandDir={files.expandDir}
-        onOpenFile={files.openFile}
-        onCloseFile={files.closeFile}
-        onSetActiveFile={files.setActiveFileIndex}
-        getImageUrl={files.getImageUrl}
-        onToggleEditing={files.toggleEditing}
-        onCancelEditing={files.cancelEditing}
-        onUpdateEditContent={files.updateEditContent}
-        onSaveFile={files.saveFile}
-        onFetchDiff={files.fetchDiff}
-      />
-    )
-  }, [selectedProject, files])
-
-  // Render Tasks tab: TasksPage with projectFilter
-  const renderTasksTab = useCallback(() => {
-    if (!selectedProject) return null
-    return <TasksPage projectFilter={selectedProject.id} />
-  }, [selectedProject])
-
-  // Render Sessions tab: SessionsPage filtered by project
-  const renderSessionsTab = useCallback(() => {
-    if (!selectedProject) return null
-    // Filter sessions to this project
-    const projectSessions = sessionsHook.filteredSessions.filter(
-      s => s.project_id === selectedProject.id
-    )
-    return (
-      <SessionsPage
-        sessions={projectSessions}
-        filters={{ ...sessionsHook.filters, projectId: selectedProject.id }}
-        onFiltersChange={sessionsHook.setFilters}
-        isLoading={sessionsHook.isLoading}
-      />
-    )
-  }, [selectedProject, sessionsHook])
-
-  // Detail view
-  if (selectedProject) {
-    return (
-      <main className="projects-page">
-        <ProjectDetailView
-          project={selectedProject}
-          activeTab={activeSubTab}
-          onTabChange={setActiveSubTab}
-          onBack={deselectProject}
-          onSave={handleSave}
-          onDelete={handleDelete}
-          renderCodeTab={renderCodeTab}
-          renderTasksTab={renderTasksTab}
-          renderSessionsTab={renderSessionsTab}
-        />
-      </main>
-    )
-  }
-
-  // List view
-  return (
-    <main className="projects-page">
-      {/* Toolbar */}
+  const renderOverviewTab = () => (
+    <div className="projects-overview-tab">
+      {/* Project cards toolbar */}
       <div className="projects-toolbar">
         <div className="projects-toolbar-left">
-          <h2 className="projects-toolbar-title">Projects</h2>
-          <span className="projects-toolbar-count">{allProjects.length}</span>
+          <span className="projects-toolbar-count">{allProjects.length} projects</span>
         </div>
         <div className="projects-toolbar-right">
           <div className="projects-view-toggle">
@@ -201,7 +142,7 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      {/* Overview cards */}
+      {/* Stats */}
       <ProjectOverview
         projects={allProjects}
         totalSessions={totalSessions}
@@ -210,7 +151,7 @@ export function ProjectsPage() {
         onFilter={f => setOverviewFilter(f as OverviewFilter)}
       />
 
-      {/* Content */}
+      {/* Project cards/list */}
       <div className="projects-content">
         {isLoading && displayProjects.length === 0 ? (
           <div className="projects-loading">Loading projects...</div>
@@ -239,6 +180,100 @@ export function ProjectsPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Selected project detail */}
+      {selectedProject && (
+        <div className="projects-selected-detail">
+          <div className="projects-selected-header">
+            <button className="projects-selected-close" onClick={deselectProject}>&times;</button>
+            <span className="projects-selected-name">{selectedProject.display_name}</span>
+          </div>
+          <ProjectSummary project={selectedProject} />
+        </div>
+      )}
+    </div>
+  )
+
+  const renderSettingsTab = () => {
+    if (!activeProject) {
+      return (
+        <div className="projects-empty">
+          Select a project from the header to configure settings.
+        </div>
+      )
+    }
+    return (
+      <ProjectSettings
+        project={activeProject}
+        onSave={handleSave}
+        onDelete={handleDelete}
+      />
+    )
+  }
+
+  return (
+    <main className="projects-page">
+      <div className="projects-page-header">
+        <div className="projects-page-title-row">
+          <h2 className="projects-page-title">Projects</h2>
+          {sc.status?.current_branch && (
+            <span className="sc-page__branch-badge">{sc.status.current_branch}</span>
+          )}
+        </div>
+        <TabBar
+          tabs={TABS}
+          activeTab={activeTab}
+          onTabChange={(id) => setActiveTab(id as ProjectsTab)}
+        />
+      </div>
+
+      <div className="projects-page-content">
+        {activeTab === 'overview' && renderOverviewTab()}
+
+        {activeTab === 'branches' && (
+          <BranchesView
+            branches={sc.branches}
+            currentBranch={sc.status?.current_branch || null}
+            fetchCommits={sc.fetchCommits}
+            fetchDiff={sc.fetchDiff}
+          />
+        )}
+
+        {activeTab === 'prs' && (
+          <PullRequestsView
+            prs={sc.prs}
+            githubAvailable={sc.status?.github_available || false}
+            fetchPrs={sc.fetchPrs}
+            fetchPrDetail={sc.fetchPrDetail}
+          />
+        )}
+
+        {activeTab === 'worktrees' && (
+          <WorktreesView
+            worktrees={sc.worktrees}
+            onDelete={sc.deleteWorktree}
+            onSync={sc.syncWorktree}
+            onCleanup={sc.cleanupWorktrees}
+          />
+        )}
+
+        {activeTab === 'clones' && (
+          <ClonesView
+            clones={sc.clones}
+            onDelete={sc.deleteClone}
+            onSync={sc.syncClone}
+          />
+        )}
+
+        {activeTab === 'cicd' && (
+          <CICDView
+            runs={sc.ciRuns}
+            githubAvailable={sc.status?.github_available || false}
+          />
+        )}
+
+        {activeTab === 'settings' && renderSettingsTab()}
       </div>
     </main>
   )

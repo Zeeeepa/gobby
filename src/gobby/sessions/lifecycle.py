@@ -15,12 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from gobby.config.sessions import SessionLifecycleConfig
+from gobby.sessions.summarize import TURN_PATTERN
 from gobby.sessions.transcript_archive import backup_transcript
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 from gobby.storage.database import DatabaseProtocol
-from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -42,19 +42,21 @@ class SessionLifecycleManager:
         memory_manager: Any | None = None,
         llm_service: Any | None = None,
         memory_sync_manager: Any | None = None,
+        kg_queue_config: Any | None = None,
     ):
         self.db = db
         self.config = config
         self.session_manager = LocalSessionManager(db)
-        self.message_manager = LocalSessionMessageManager(db)
         self.memory_manager = memory_manager
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
         self._memory_extraction_config: Any = None
+        self._kg_queue_config = kg_queue_config
 
         self._running = False
         self._expire_task: asyncio.Task[None] | None = None
         self._process_task: asyncio.Task[None] | None = None
+        self._kg_queue_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         """Start background jobs."""
@@ -75,17 +77,28 @@ class SessionLifecycleManager:
             name="session-lifecycle-process",
         )
 
+        # Start KG queue processing job (if memory manager has KG service)
+        if self.memory_manager and getattr(self.memory_manager, "kg_service", None):
+            self._kg_queue_task = asyncio.create_task(
+                self._kg_queue_loop(),
+                name="session-lifecycle-kg-queue",
+            )
+
+        kg_interval = (
+            getattr(self._kg_queue_config, "interval_minutes", 30) if self._kg_queue_config else 30
+        )
         logger.info(
             f"SessionLifecycleManager started "
             f"(expire every {self.config.expire_check_interval_minutes}m, "
-            f"process every {self.config.transcript_processing_interval_minutes}m)"
+            f"process every {self.config.transcript_processing_interval_minutes}m, "
+            f"kg_queue every {kg_interval}m)"
         )
 
     async def stop(self) -> None:
         """Stop background jobs."""
         self._running = False
 
-        tasks = [t for t in [self._expire_task, self._process_task] if t]
+        tasks = [t for t in [self._expire_task, self._process_task, self._kg_queue_task] if t]
         for task in tasks:
             task.cancel()
 
@@ -94,6 +107,7 @@ class SessionLifecycleManager:
 
         self._expire_task = None
         self._process_task = None
+        self._kg_queue_task = None
 
         logger.info("SessionLifecycleManager stopped")
 
@@ -131,6 +145,64 @@ class SessionLifecycleManager:
                 await asyncio.sleep(interval_seconds)
             except asyncio.CancelledError:
                 break
+
+    async def _kg_queue_loop(self) -> None:
+        """Background loop for processing pending KG graph memories."""
+        interval_minutes = (
+            getattr(self._kg_queue_config, "interval_minutes", 30) if self._kg_queue_config else 30
+        )
+        batch_size = (
+            getattr(self._kg_queue_config, "batch_size", 20) if self._kg_queue_config else 20
+        )
+        interval_seconds = interval_minutes * 60
+
+        while self._running:
+            try:
+                await self._process_pending_graph_memories(batch_size)
+            except Exception as e:
+                logger.error(f"Error in KG queue loop: {e}")
+
+            try:
+                await asyncio.sleep(interval_seconds)
+            except asyncio.CancelledError:
+                break
+
+    async def _process_pending_graph_memories(self, batch_size: int = 20) -> int:
+        """Process queued memories for KG extraction.
+
+        Runs on a slow cadence (default 30 min). Processes memories
+        sequentially to avoid bursty LLM calls.
+        """
+        if not self.memory_manager:
+            return 0
+
+        kg_service = getattr(self.memory_manager, "kg_service", None)
+        if not kg_service:
+            return 0
+
+        pending = await asyncio.to_thread(
+            self.memory_manager.get_pending_graph_memories, limit=batch_size
+        )
+        if not pending:
+            return 0
+
+        processed = 0
+        for memory in pending:
+            try:
+                await kg_service.add_to_graph(
+                    memory.content,
+                    memory_id=memory.id,
+                    project_id=memory.project_id,
+                )
+                await asyncio.to_thread(self.memory_manager.mark_graph_processed, memory.id)
+                processed += 1
+            except Exception as e:
+                logger.warning(f"KG processing failed for memory {memory.id}: {e}")
+
+        if processed > 0:
+            logger.info(f"Processed {processed} memories for knowledge graph")
+
+        return processed
 
     async def _expire_stale_sessions(self) -> int:
         """Pause inactive active sessions and expire stale sessions."""
@@ -194,7 +266,14 @@ class SessionLifecycleManager:
             logger.error(f"Failed to purge soft-deleted definitions: {e}")
 
     async def _process_pending_transcripts(self) -> int:
-        """Process transcripts for expired sessions."""
+        """Process transcripts for expired sessions.
+
+        Runs memory extraction and summary generation as separate steps
+        OUTSIDE _process_session_transcript so they execute even when the
+        JSONL file has already been deleted.  transcript_processed is only
+        set when summaries have been generated (or LLM is unavailable),
+        allowing retry on the next cycle if summary generation fails.
+        """
         sessions = self.session_manager.get_pending_transcript_sessions(
             limit=self.config.transcript_processing_batch_size
         )
@@ -206,37 +285,75 @@ class SessionLifecycleManager:
 
         processed = 0
         for session in sessions:
+            agent_depth = getattr(session, "agent_depth", 0) or 0
+            source = getattr(session, "source", "") or ""
+
+            # Turn count fallback: subagents get 1 turn, short Q&A gets 1-2.
+            # By 3+ turns there's likely something worth remembering.
+            digest = getattr(session, "digest_markdown", None)
+            turn_count = len(TURN_PATTERN.findall(digest)) if isinstance(digest, str) else 0
+            skip_llm = agent_depth > 0 or source in ("pipeline", "cron") or turn_count < 3
+
+            # Step 1: Process transcript (reads JSONL, stores messages, aggregates usage)
             try:
                 await self._process_session_transcript(session.id, session.jsonl_path)
+            except Exception as e:
+                logger.error(f"Failed to process transcript for {session.id}: {e}")
+
+            # Skip LLM-heavy steps for non-human sessions — subagents, pipelines,
+            # and cron sessions are ephemeral and not worth the token cost.
+            if skip_llm:
+                self.session_manager.mark_transcript_processed(session.id)
+                processed += 1
+                logger.debug(
+                    f"Processed transcript for {source} session {session.id} "
+                    f"(depth={agent_depth}, skipped memory/summary)"
+                )
+                continue
+
+            # Step 2: Extract memories (best-effort, independent of transcript success)
+            try:
+                await self._extract_memories_if_needed(session.id)
+            except Exception as e:
+                logger.warning(f"Memory extraction failed for {session.id}: {e}")
+
+            # Step 3: Generate summaries (best-effort, independent of transcript success)
+            try:
+                await self._generate_summaries_if_needed(session.id)
+            except Exception as e:
+                logger.warning(f"Summary generation failed for {session.id}: {e}")
+
+            # Step 4: Only mark as processed if summaries succeeded or LLM is unavailable.
+            # This allows retry on the next cycle if summary generation failed.
+            refreshed = self.session_manager.get(session.id)
+            if refreshed and (refreshed.summary_markdown or not self.llm_service):
                 self.session_manager.mark_transcript_processed(session.id)
                 processed += 1
                 logger.debug(f"Processed transcript for session {session.id}")
+            else:
+                logger.info(
+                    f"Deferring transcript_processed for {session.id} — summaries not yet generated"
+                )
 
-                # Best-effort backup of the transcript archive
-                # On success, purge DB messages (gzip is now the source of truth)
-                if session.jsonl_path and session.external_id:
-                    try:
-                        archive_path = await asyncio.to_thread(
-                            backup_transcript,
-                            session.external_id,
-                            session.jsonl_path,
-                            archive_dir,
+            # Step 5: Best-effort backup of the transcript archive
+            # On success, purge DB messages (gzip is now the source of truth)
+            if session.jsonl_path and session.external_id:
+                try:
+                    archive_path = await asyncio.to_thread(
+                        backup_transcript,
+                        session.external_id,
+                        session.jsonl_path,
+                        archive_dir,
+                    )
+                    if archive_path:
+                        logger.debug(
+                            f"Archived transcript for session {session.id} "
+                            f"(archived to {archive_path})"
                         )
-                        if archive_path:
-                            await self.message_manager.purge(session.id)
-                            logger.debug(
-                                f"Purged DB messages for session {session.id} "
-                                f"(archived to {archive_path})"
-                            )
-                        else:
-                            logger.warning(
-                                f"Transcript backup returned None for {session.id}, "
-                                f"retaining DB messages"
-                            )
-                    except Exception as e:
-                        logger.warning(f"Transcript backup failed for {session.id}: {e}")
-            except Exception as e:
-                logger.error(f"Failed to process transcript for {session.id}: {e}")
+                    else:
+                        logger.warning(f"Transcript backup returned None for {session.id}")
+                except Exception as e:
+                    logger.warning(f"Transcript backup failed for {session.id}: {e}")
 
         if processed > 0:
             logger.info(f"Processed {processed} session transcripts")
@@ -258,6 +375,15 @@ class SessionLifecycleManager:
         if not self.memory_manager.config.enabled:
             return
 
+        # Check if extraction feature is enabled
+        extraction_config = getattr(self, "_memory_extraction_config", None)
+        if (
+            extraction_config
+            and hasattr(extraction_config, "enabled")
+            and not extraction_config.enabled
+        ):
+            return
+
         try:
             from gobby.memory.extractor import SessionMemoryExtractor
 
@@ -265,7 +391,7 @@ class SessionLifecycleManager:
                 memory_manager=self.memory_manager,
                 session_manager=self.session_manager,
                 llm_service=self.llm_service,
-                config=getattr(self, "_memory_extraction_config", None),
+                config=extraction_config,
             )
 
             candidates = await extractor.extract(
@@ -364,9 +490,6 @@ class SessionLifecycleManager:
         if not messages:
             return
 
-        # Store messages (upsert - safe for re-processing)
-        await self.message_manager.store_messages(session_id, messages)
-
         # Aggregate usage
         input_tokens = 0
         output_tokens = 0
@@ -416,15 +539,7 @@ class SessionLifecycleManager:
             model=last_model,
         )
 
-        # Update processing state
-        await self.message_manager.update_state(
-            session_id=session_id,
-            byte_offset=sum(len(line.encode("utf-8")) for line in lines),
-            message_index=messages[-1].index,
-        )
-
-        # Extract memories from transcript (ungraceful exit fallback)
-        await self._extract_memories_if_needed(session_id)
-
-        # Generate summaries if missing (ungraceful exit safety net)
-        await self._generate_summaries_if_needed(session_id)
+        # NOTE: Memory extraction and summary generation are now called from
+        # _process_pending_transcripts (the caller), not here.  This ensures
+        # they run even when the JSONL file has already been deleted and this
+        # method returns early at the file-existence check.

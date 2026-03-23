@@ -112,9 +112,10 @@ class LocalSessionManager:
                         id, external_id, machine_id, source, project_id, title,
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
-                        workflow_name, status, created_at, updated_at, seq_num, had_edits
+                        workflow_name, status, created_at, updated_at, seq_num, had_edits,
+                        message_count, turn_count, tool_call_count, last_assistant_content
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0, 0, 0, 0, NULL)
                     """,
                     (
                         session_id,
@@ -328,6 +329,19 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def touch(self, session_id: str) -> None:
+        """Refresh updated_at without changing any other fields.
+
+        Used by the liveness monitor to keep tmux-backed sessions warm
+        so the 30-minute pause timeout doesn't fire while the tmux pane
+        is still alive.
+        """
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            "UPDATE sessions SET updated_at = ? WHERE id = ?",
+            (now, session_id),
+        )
+
     def mark_had_edits(self, session_id: str) -> Session | None:
         """Mark session as having edits."""
         now = datetime.now(UTC).isoformat()
@@ -356,6 +370,33 @@ class LocalSessionManager:
             "UPDATE sessions SET chat_mode = ? WHERE id = ?",
             (chat_mode, session_id),
         )
+
+    def update_pending_plan(self, session_id: str, plan_path: str | None) -> None:
+        """Persist or clear the pending plan file path for restart recovery."""
+        self.db.execute(
+            "UPDATE sessions SET pending_plan_path = ? WHERE id = ?",
+            (plan_path, session_id),
+        )
+
+    def update_approved_tools(self, session_id: str, tools: set[str]) -> None:
+        """Persist the set of user-approved tools as JSON."""
+        import json as _json
+
+        tools_json = _json.dumps(sorted(tools)) if tools else None
+        self.db.execute(
+            "UPDATE sessions SET approved_tools_json = ? WHERE id = ?",
+            (tools_json, session_id),
+        )
+
+    def find_pending_plans(self) -> list[Session]:
+        """Find active web-chat sessions with a pending plan approval."""
+        rows = self.db.fetchall(
+            """SELECT * FROM sessions
+            WHERE status = 'active'
+            AND source IN ('claude_sdk_web_chat', 'codex_web_chat')
+            AND pending_plan_path IS NOT NULL""",
+        )
+        return [Session.from_row(r) for r in rows]
 
     def update_title(self, session_id: str, title: str) -> Session | None:
         """Update session title."""
@@ -437,20 +478,6 @@ class LocalSessionManager:
             (hash_value, now, session_id),
         )
 
-    def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Session | None:
-        """Update session compact handoff markdown."""
-        now = datetime.now(UTC).isoformat()
-        self.db.execute(
-            """
-            UPDATE sessions
-            SET compact_markdown = ?,
-                updated_at = ?
-            WHERE id = ?
-            """,
-            (compact_markdown, now, session_id),
-        )
-        return self.get(session_id)
-
     def update_parent_session_id(self, session_id: str, parent_session_id: str) -> Session | None:
         """Update parent session ID."""
         now = datetime.now(UTC).isoformat()
@@ -511,6 +538,65 @@ class LocalSessionManager:
         values["updated_at"] = datetime.now(UTC).isoformat()
 
         self.db.safe_update("sessions", values, "id = ?", (session_id,))
+        return self.get(session_id)
+
+    def update_stats(
+        self,
+        session_id: str,
+        message_count: int | None = None,
+        turn_count: int | None = None,
+        tool_call_count: int | None = None,
+        last_assistant_content: str | None = None,
+    ) -> Session | None:
+        """Update session stats columns.
+
+        Args:
+            session_id: Session ID
+            message_count: Total message count (optional)
+            turn_count: Assistant turn count (optional)
+            tool_call_count: Tool call count (optional)
+            last_assistant_content: Last assistant text content (optional)
+
+        Returns:
+            Updated session or None if not found
+        """
+        values: dict[str, Any] = {}
+        if message_count is not None:
+            values["message_count"] = message_count
+        if turn_count is not None:
+            values["turn_count"] = turn_count
+        if tool_call_count is not None:
+            values["tool_call_count"] = tool_call_count
+        if last_assistant_content is not None:
+            values["last_assistant_content"] = last_assistant_content
+
+        if not values:
+            return self.get(session_id)
+
+        values["updated_at"] = datetime.now(UTC).isoformat()
+        self.db.safe_update("sessions", values, "id = ?", (session_id,))
+        return self.get(session_id)
+
+    def recalculate_stats(self, session_id: str) -> Session | None:
+        """Recalculate session stats from session_messages table.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Updated session or None if not found
+        """
+        sql = """
+        UPDATE sessions SET
+          message_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id),
+          turn_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND role = 'assistant'),
+          tool_call_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND tool_name IS NOT NULL),
+          last_assistant_content = (SELECT content FROM session_messages WHERE session_id = sessions.id AND role = 'assistant' AND tool_name IS NULL ORDER BY message_index DESC LIMIT 1),
+          updated_at = ?
+        WHERE id = ?
+        """
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(sql, (now, session_id))
         return self.get(session_id)
 
     def list(

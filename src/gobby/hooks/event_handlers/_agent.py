@@ -9,7 +9,7 @@ from gobby.hooks.events import HookEvent, HookResponse, SessionSource
 
 logger = logging.getLogger(__name__)
 
-# Pattern for /gobby or /gobby:skillname with optional args
+# Pattern for /gobby or /gobby skillname with optional args
 _GOBBY_CMD_PATTERN = re.compile(r"^/gobby(?::(\S+))?\s*(.*)?$", re.IGNORECASE | re.DOTALL)
 
 
@@ -121,10 +121,10 @@ class AgentEventHandlerMixin(EventHandlersBase):
         return response
 
     def _intercept_skill_command(self, prompt: str, session_id: str | None = None) -> str | None:
-        """Intercept /gobby and /gobby:skillname commands.
+        """Intercept /gobby and /gobby skillname commands.
 
         Returns context string to inject, or None if not a /gobby command.
-        Supports both colon syntax (/gobby:expand) and space syntax (/gobby expand).
+        Supports space syntax (/gobby expand) and legacy colon syntax.
         """
         match = _GOBBY_CMD_PATTERN.match(prompt)
         if not match:
@@ -134,11 +134,20 @@ class AgentEventHandlerMixin(EventHandlersBase):
         args = (match.group(2) or "").strip()
 
         # Support space syntax: /gobby expand → treat first word of args as skill name
+        # Also supports /gobby skill(s) <name> as a namespace prefix
         resolved = None
         if not skill_name and args and self._skill_manager:
             parts = args.split(None, 1)
             first_word = parts[0]
-            if first_word.lower() != "help":
+            if first_word.lower() in ("skill", "skills"):
+                # /gobby skill(s) <name> → shift to second word
+                if len(parts) > 1:
+                    sub_parts = parts[1].split(None, 1)
+                    skill_name = sub_parts[0]
+                    args = sub_parts[1] if len(sub_parts) > 1 else ""
+                    resolved = self._skill_manager.resolve_skill_name(skill_name)
+                # bare /gobby skills → fall through to help
+            elif first_word.lower() != "help":
                 skill_name = first_word
                 resolved = self._skill_manager.resolve_skill_name(first_word)
                 if resolved:
@@ -148,7 +157,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if not skill_name or skill_name.lower() == "help":
             return self._generate_help_content(session_id)
 
-        # /gobby:skillname → resolve and inject
+        # /gobby skillname → resolve and inject
         if self._skill_manager is None:
             raise RuntimeError("skill_manager not initialized")
         skill = resolved if resolved else self._skill_manager.resolve_skill_name(skill_name)
@@ -216,12 +225,12 @@ class AgentEventHandlerMixin(EventHandlersBase):
         skill_lines = []
         for skill in user_skills:
             desc = skill.description.split(".")[0] if skill.description else ""
-            skill_lines.append(f"- `/gobby:{skill.name}` — {desc}")
+            skill_lines.append(f"- `/gobby {skill.name}` — {desc}")
         skills_list = "\n".join(skill_lines)
 
         fallback = (
             "# Gobby Skills\n\n"
-            "Invoke skills directly with `/gobby:skillname` syntax:\n\n"
+            "Invoke skills directly with `/gobby skillname` syntax:\n\n"
             f"{skills_list}\n\n"
             "**MCP access**: `list_skills()` / `get_skill(name)` on `gobby-skills`.\n"
             "**Hub search**: `search_hub(query)` on `gobby-skills`.\n"
@@ -251,7 +260,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
             lines.append("")
             lines.append("Did you mean:")
             for match in close:
-                lines.append(f"  - `/gobby:{match}`")
+                lines.append(f"  - `/gobby {match}`")
         lines.extend(["", "Run `/gobby` or `/gobby help` to see all available skills."])
         fallback = "\n".join(lines)
 
@@ -341,7 +350,11 @@ class AgentEventHandlerMixin(EventHandlersBase):
         return HookResponse(decision="allow")
 
     def handle_subagent_start(self, event: HookEvent) -> HookResponse:
-        """Handle SUBAGENT_START event."""
+        """Handle SUBAGENT_START event.
+
+        Marks the subagent's session with correct agent_depth so that
+        lifecycle processing can skip LLM-heavy steps for subagents.
+        """
         input_data = event.data
         session_id = event.metadata.get("_platform_session_id")
         agent_id = input_data.get("agent_id")
@@ -353,6 +366,24 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if subagent_id:
             log_msg += f", subagent_id={subagent_id}"
         self.logger.debug(log_msg)
+
+        # Track pending subagent depth for auto-registration
+        if session_id and subagent_id and self._session_storage:
+            try:
+                row = self._session_storage.db.fetchone(
+                    "SELECT agent_depth FROM sessions WHERE external_id = ? AND status = 'active'"
+                    " ORDER BY updated_at DESC LIMIT 1",
+                    (session_id,),
+                )
+                parent_depth = (row["agent_depth"] or 0) if row else 0
+                self._pending_subagent_depths[subagent_id] = parent_depth + 1
+                self.logger.debug(
+                    "Pending subagent depth for %s: %d",
+                    subagent_id,
+                    parent_depth + 1,
+                )
+            except Exception as e:
+                self.logger.debug("Failed to track subagent depth: %s", e)
 
         return HookResponse(decision="allow")
 

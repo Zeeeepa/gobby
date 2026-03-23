@@ -263,7 +263,7 @@ class DaemonProxy:
         self,
         name: str,
         value: str | int | float | bool | None,
-        session_id: str | None = None,
+        session_id: str,
     ) -> dict[str, Any]:
         """Set a session-scoped variable."""
         return await self._request(
@@ -275,7 +275,8 @@ class DaemonProxy:
     async def get_variable(
         self,
         name: str | None = None,
-        session_id: str | None = None,
+        *,
+        session_id: str,
     ) -> dict[str, Any]:
         """Get session-scoped variable(s)."""
         return await self._request(
@@ -418,6 +419,11 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         final_args: dict[str, Any] | None = (
             effective_args if isinstance(effective_args, dict) else None
         )
+        # Strip call_tool's own parameters that LLMs sometimes flatten into
+        # the arguments dict instead of passing as separate parameters.
+        if isinstance(final_args, dict):
+            for leaked_key in ("server_name", "tool_name"):
+                final_args.pop(leaked_key, None)
         return await proxy.call_tool(server_name, tool_name, final_args)
 
     @mcp.tool()
@@ -587,7 +593,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
     async def set_variable(
         name: str,
         value: str | int | float | bool | None,
-        session_id: str | None = None,
+        session_id: str,
     ) -> dict[str, Any]:
         """
         Set a session-scoped variable. Top-level shortcut — no progressive discovery needed.
@@ -604,15 +610,15 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
 
     @mcp.tool()
     async def get_variable(
+        session_id: str,
         name: str | None = None,
-        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Get session-scoped variable(s). Top-level shortcut — no progressive discovery needed.
 
         Args:
-            name: Variable name (omit to get all variables)
             session_id: Session ID (accepts #N, N, UUID, or prefix)
+            name: Variable name (omit to get all variables)
 
         Returns:
             Dict with variable value(s)

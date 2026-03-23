@@ -156,10 +156,11 @@ def _response_to_pre_tool_output(resp: dict[str, Any] | None) -> SyncHookJSONOut
             specific_rewrite["additionalContext"] = _truncate(resp["context"])
         output["hookSpecificOutput"] = specific_rewrite
     elif resp.get("context"):
-        output["hookSpecificOutput"] = PreToolUseHookSpecificOutput(
+        specific_ctx = PreToolUseHookSpecificOutput(
             hookEventName="PreToolUse",
         )
-        output["hookSpecificOutput"]["additionalContext"] = _truncate(resp["context"])  # type: ignore[typeddict-unknown-key]
+        specific_ctx["additionalContext"] = _truncate(resp["context"])
+        output["hookSpecificOutput"] = specific_ctx
     return output
 
 

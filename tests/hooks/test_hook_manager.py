@@ -1,5 +1,6 @@
 """Tests for HookManager edge cases and error handling."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -49,7 +50,7 @@ def mock_components() -> MagicMock:
 
 
 @pytest.fixture
-def make_event() -> callable:
+def make_event() -> Callable[..., HookEvent]:
     """Factory for creating test HookEvents."""
 
     def _make(
@@ -100,7 +101,7 @@ class TestHandleInternalDaemonNotReady:
     def test_handle_returns_allow_when_daemon_not_ready_for_non_critical(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """Non-critical hooks fail-open when daemon is not ready after retries."""
         manager = manager_with_mocks
@@ -121,7 +122,7 @@ class TestHandleInternalDaemonNotReady:
     def test_handle_retries_for_critical_hooks(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """Critical hooks (SESSION_START) retry daemon health checks."""
         manager = manager_with_mocks
@@ -156,7 +157,7 @@ class TestHandleInternalEventHandlerError:
     def test_handler_exception_returns_allow(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """When event handler raises, response should fail-open."""
         manager = manager_with_mocks
@@ -176,7 +177,7 @@ class TestHandleInternalEventHandlerError:
     def test_no_handler_for_event_type(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """Unknown event types fail-open with allow."""
         manager = manager_with_mocks
@@ -195,7 +196,7 @@ class TestHandleSessionStart:
     def test_session_start_runs_handler_before_rules(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """For SESSION_START, handler runs first, then rules."""
         manager = manager_with_mocks
@@ -226,7 +227,7 @@ class TestHandleNonSessionStart:
     def test_non_session_start_runs_rules_before_handler(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """For non-SESSION_START events, rules run first, then handler."""
         manager = manager_with_mocks
@@ -257,7 +258,7 @@ class TestHandleWorkflowBlock:
     def test_rules_block_prevents_handler(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """When rules block, handler is not called."""
         manager = manager_with_mocks
@@ -284,7 +285,7 @@ class TestHandlePostProcessing:
     def test_modified_input_propagated(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """_modified_input from metadata is propagated to response."""
         manager = manager_with_mocks
@@ -313,7 +314,7 @@ class TestHandlePostProcessing:
     def test_input_coerced_flag(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """_input_coerced flag in data triggers auto-approve metadata."""
         manager = manager_with_mocks
@@ -455,7 +456,7 @@ class TestEvaluateWorkflowRules:
     def test_workflow_evaluation_exception_fails_open(
         self,
         manager_with_mocks: HookManager,
-        make_event: callable,
+        make_event: Callable,
     ) -> None:
         """Workflow evaluation exceptions fail-open (return None, None)."""
         manager = manager_with_mocks

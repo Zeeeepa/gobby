@@ -233,12 +233,12 @@ class TestRegisterSessionEdgeCases:
 class TestListSessionsEdgeCases:
     """Tests for list_sessions edge cases and error paths."""
 
-    def test_list_sessions_message_count_failure(
+    def test_list_sessions_without_message_counts(
         self,
         session_storage: LocalSessionManager,
         test_project: dict[str, Any],
     ) -> None:
-        """Test that message count failure is handled gracefully."""
+        """Test that sessions list works without message counts."""
         # Create a session first
         session_storage.register(
             external_id="list-msg-fail",
@@ -247,19 +247,12 @@ class TestListSessionsEdgeCases:
             project_id=test_project["id"],
         )
 
-        # Create server with mock message manager that fails
+        # Create server without transcript_reader
         server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
         )
-
-        # Add a failing message_manager
-        mock_message_manager = AsyncMock()
-        mock_message_manager.get_all_counts = AsyncMock(
-            side_effect=RuntimeError("Message store unavailable")
-        )
-        server.message_manager = mock_message_manager
 
         test_client = TestClient(server.app)
         response = test_client.get("/api/sessions")
@@ -268,9 +261,6 @@ class TestListSessionsEdgeCases:
         assert response.status_code == 200
         data = response.json()
         assert "sessions" in data
-        # Message count should default to 0 when fetch fails
-        for session in data["sessions"]:
-            assert session["message_count"] == 0
 
     def test_list_sessions_internal_error(
         self,
@@ -351,22 +341,22 @@ class TestGetMessagesEdgeCases:
             project_id=test_project["id"],
         )
 
+        # Add a mock transcript_reader
+        mock_reader = AsyncMock()
+        mock_reader.get_messages = AsyncMock(return_value=[])
+        mock_reader.count_messages = AsyncMock(return_value=0)
+
         server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
+            transcript_reader=mock_reader,
         )
-
-        # Add a mock message_manager
-        mock_message_manager = AsyncMock()
-        mock_message_manager.get_messages = AsyncMock(return_value=[])
-        mock_message_manager.count_messages = AsyncMock(return_value=0)
-        server.message_manager = mock_message_manager
 
         test_client = TestClient(server.app)
 
         response = test_client.get(
-            f"/api/sessions/{session.id}/messages?limit=50&offset=10&role=user"
+            f"/api/sessions/{session.id}/messages?limit=50&offset=10&role=user&format=legacy"
         )
 
         assert response.status_code == 200
@@ -377,7 +367,7 @@ class TestGetMessagesEdgeCases:
         assert "response_time_ms" in data
 
         # Verify the parameters were passed correctly
-        mock_message_manager.get_messages.assert_called_once_with(
+        mock_reader.get_messages.assert_called_once_with(
             session_id=session.id, limit=50, offset=10, role="user"
         )
 
@@ -394,19 +384,19 @@ class TestGetMessagesEdgeCases:
             project_id=test_project["id"],
         )
 
+        # Add a failing transcript_reader
+        mock_reader = AsyncMock()
+        mock_reader.get_messages = AsyncMock(side_effect=RuntimeError("Database error"))
+
         server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
+            transcript_reader=mock_reader,
         )
 
-        # Add a failing message_manager
-        mock_message_manager = AsyncMock()
-        mock_message_manager.get_messages = AsyncMock(side_effect=RuntimeError("Database error"))
-        server.message_manager = mock_message_manager
-
         test_client = TestClient(server.app)
-        response = test_client.get(f"/api/sessions/{session.id}/messages")
+        response = test_client.get(f"/api/sessions/{session.id}/messages?format=legacy")
 
         assert response.status_code == 500
 

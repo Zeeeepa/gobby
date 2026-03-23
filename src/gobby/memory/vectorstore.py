@@ -80,6 +80,23 @@ class VectorStore:
                 f"Created Qdrant collection '{self._collection_name}' "
                 f"(dim={self._embedding_dim}, distance=cosine)"
             )
+        else:
+            # Check for dimension mismatch between config and existing collection
+            try:
+                info = await asyncio.to_thread(client.get_collection, self._collection_name)
+                vectors_cfg = info.config.params.vectors
+                existing_dim = vectors_cfg.size if isinstance(vectors_cfg, VectorParams) else None
+                if existing_dim is not None and existing_dim != self._embedding_dim:
+                    logger.error(
+                        f"Embedding dimension mismatch for collection '{self._collection_name}': "
+                        f"configured={self._embedding_dim}, existing={existing_dim}. "
+                        f"Either change embedding_dim in config to {existing_dim}, "
+                        f"or run 'gobby memory rebuild' to re-embed with the new model."
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Could not verify collection dimensions for '{self._collection_name}': {e}"
+                )
 
     def _ensure_client(self) -> QdrantClient:
         """Return the client, raising if not initialized."""
@@ -214,6 +231,47 @@ class VectorStore:
             collection_name=collection_name or self._collection_name,
             points=points,
         )
+
+    async def ensure_collection(
+        self, collection_name: str, embedding_dim: int | None = None
+    ) -> None:
+        """Ensure a named collection exists, creating it if needed.
+
+        Args:
+            collection_name: Collection to ensure
+            embedding_dim: Vector dimension (defaults to instance's _embedding_dim)
+        """
+        client = self._ensure_client()
+        dim = embedding_dim or self._embedding_dim
+        exists = await asyncio.to_thread(client.collection_exists, collection_name)
+        if not exists:
+            await asyncio.to_thread(
+                client.create_collection,
+                collection_name=collection_name,
+                vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+            )
+            logger.info(f"Created Qdrant collection '{collection_name}' (dim={dim})")
+        else:
+            try:
+                info = await asyncio.to_thread(client.get_collection, collection_name)
+                vectors_cfg = info.config.params.vectors
+                existing_dim = vectors_cfg.size if isinstance(vectors_cfg, VectorParams) else None
+                if existing_dim is not None and existing_dim != dim:
+                    # Auto-recreate with correct dimensions
+                    await asyncio.to_thread(
+                        client.delete_collection, collection_name=collection_name
+                    )
+                    await asyncio.to_thread(
+                        client.create_collection,
+                        collection_name=collection_name,
+                        vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+                    )
+                    logger.info(
+                        f"Recreated Qdrant collection '{collection_name}' "
+                        f"(dim changed {existing_dim}→{dim})"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not verify collection '{collection_name}': {e}")
 
     async def delete_collection(self, collection_name: str) -> None:
         """Delete a collection by name."""

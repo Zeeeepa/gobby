@@ -89,7 +89,7 @@ class TestAutoSubscribeLineage:
         )
         registry.register.assert_called_once()
         call_kwargs = registry.register.call_args
-        assert "sess-1" in call_kwargs.kwargs.get("subscribers", call_kwargs[1].get("subscribers", []))
+        assert "sess-1" in call_kwargs.kwargs["subscribers"]
 
     def test_handles_register_error(self) -> None:
         from gobby.mcp_proxy.tools.workflows._pipelines import _auto_subscribe_lineage
@@ -504,7 +504,7 @@ class TestRegisterExposedPipelineTools:
         loader.discover_pipeline_workflows_sync.return_value = [mock_wf]
 
         _register_exposed_pipeline_tools(registry, loader, lambda: None)
-        # No pipeline: tools should be registered
+        # Non-exposed pipeline: tool should NOT be registered
         assert registry.get_schema("pipeline:test") is None
 
     def test_registers_exposed_pipeline_tool(self) -> None:

@@ -1,6 +1,6 @@
 # Rule Templates Reference
 
-This directory contains 14 bundled rule groups. These are **templates** — they are synced to the `workflow_definitions` DB table on daemon start but have `enabled: false` by default. See `../CLAUDE.md` for the template vs active enforcement distinction.
+This directory contains 15 bundled rule groups. These are **templates** — they are synced to the `workflow_definitions` DB table on daemon start but have `enabled: false` by default. See `../CLAUDE.md` for the template vs active enforcement distinction.
 
 ## Rule Groups
 
@@ -19,6 +19,7 @@ This directory contains 14 bundled rule groups. These are **templates** — they
 | `pipeline-enforcement` | `pipeline-enforcement/` | 1 | Auto-run assigned pipeline on session start |
 | `error-recovery` | `error-recovery/` | 1 | Inject recovery guidance after tool failures |
 | `tdd-enforcement` | `tdd-enforcement/` | 2 | TDD one-shot Write nudge, track test file writes |
+| `skill-discovery` | `skill-discovery/` | 1 | Auto-search installed skills on prompt, inject matches + hub search nudge |
 | `deprecated/` | `deprecated/` | — | Old rules excluded from sync |
 
 ## File Convention
@@ -67,6 +68,7 @@ Rules in `worker-safety` and `pipeline-enforcement` have `gobby` but NOT `defaul
 | `context` | context-handoff |
 | `messaging` | messaging |
 | `pipeline` | pipeline-enforcement |
+| `skill-discovery` | skill-discovery |
 
 ## Guides
 

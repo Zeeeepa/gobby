@@ -271,7 +271,7 @@ def _group_pytest_failures(lines: list[str]) -> list[str]:
     for line in lines:
         stripped = line.strip()
         # Capture FAILURES section
-        if re.match(r"^=+ FAILURES =+", stripped):
+        if re.match(r"^=+ (?:FAILURES|ERRORS) =+", stripped):
             in_failure_section = True
             result.append(line)
             continue
@@ -355,7 +355,7 @@ def _group_by_extension(lines: list[str]) -> list[str]:
 
     result: list[str] = []
     for ext, files in sorted(groups.items(), key=lambda x: -len(x[1])):
-        result.append(f"{ext} ({len(files)} files):\n")
+        result.append(f"{ext} ({len(files)} {'file' if len(files) == 1 else 'files'}):\n")
         for f in files[:10]:
             result.append(f"  {f}")
         if len(files) > 10:
@@ -381,7 +381,7 @@ def _group_by_directory(lines: list[str]) -> list[str]:
 
     result: list[str] = []
     for dirname, files in sorted(groups.items(), key=lambda x: -len(x[1])):
-        result.append(f"{dirname}/ ({len(files)} items):\n")
+        result.append(f"{dirname}/ ({len(files)} {'item' if len(files) == 1 else 'items'}):\n")
         for f in files[:10]:
             result.append(f"  {f}")
         if len(files) > 10:

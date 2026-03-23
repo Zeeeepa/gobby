@@ -31,20 +31,72 @@ export const CHAT_MODES: ChatModeInfo[] = [
   },
 ];
 
+export interface ToolResult {
+  content: unknown;
+  content_type: string;  // 'text' | 'json' | 'image' | 'error'
+  truncated: boolean;
+  metadata?: Record<string, unknown>;  // exit_code, line_count, etc.
+}
+
 export interface ToolCall {
   id: string;
   tool_name: string;
   server_name: string;
-  status: "calling" | "completed" | "error" | "pending_approval";
+  tool_type: string;    // NEW: 'bash', 'read', 'edit', 'mcp', etc.
+  status: "calling" | "completed" | "error" | "pending" | "pending_approval";
   arguments?: Record<string, unknown>;
-  result?: unknown;
+  result?: ToolResult;  // NEW: typed result instead of unknown
   error?: string;
+}
+
+/**
+ * Classify a tool name into a canonical type (bash, read, edit, mcp, etc.)
+ * matching the backend logic in transcript_renderer.py.
+ */
+export function classifyTool(toolName: string | null | undefined): string {
+  if (!toolName) return "unknown";
+  const name = toolName.toLowerCase();
+
+  // Built-in tools
+  if (["bash", "sh", "terminal", "shell"].includes(name)) return "bash";
+  if (["read", "read_file", "cat"].includes(name)) return "read";
+  if (["edit", "write", "multiedit", "patch", "sed"].includes(name)) return "edit";
+  if (["grep", "rg", "search"].includes(name)) return "grep";
+  if (["glob", "ls", "list_files", "find"].includes(name)) return "glob";
+
+  // MCP tools: mcp__server__tool
+  if (toolName.startsWith("mcp__")) return "mcp";
+
+  return "unknown";
 }
 
 export type ContentBlock =
   | { type: "text"; content: string }
-  | { type: "tool_chain"; calls: ToolCall[] }
-  | { type: "image"; src: string; alt?: string };
+  | { type: "thinking"; content: string }
+  | { type: "tool_chain"; tool_calls: ToolCall[] }
+  | { type: "tool_reference"; tool_name: string; server_name: string }
+  | { type: "image"; source: { media_type: string; data: string; [key: string]: unknown } }
+  | { type: "document"; source: { name?: string } & Record<string, unknown> }
+  | { type: "web_search_result"; content: Record<string, unknown> }
+  | { type: "unknown"; block_type: string; raw: Record<string, unknown>; source_line?: number };
+
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_tokens?: number;
+  cache_read_tokens?: number;
+  total_cost_usd?: number;
+}
+
+export interface RenderedMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: string;
+  content_blocks?: ContentBlock[];
+  model?: string | null;
+  usage?: TokenUsage | null;
+}
 
 export interface ChatMessage {
   id: string;
@@ -160,6 +212,7 @@ export interface ConversationState {
     tmux_session_name?: string;
   }) => void;
   onKillAgent?: (runId: string) => void;
+  onExpireSession?: (sessionId: string) => void;
   cliSessions?: GobbySession[];
   viewingSessionId?: string | null;
   attachedSessionId?: string | null;

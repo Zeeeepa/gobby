@@ -183,6 +183,100 @@ class TestBlockOnFailure:
         assert all(r["success"] for r in results)
 
 
+class TestBlockOnSuccess:
+    """Tests for block_on_success flag on mcp_calls."""
+
+    def test_block_on_success_blocks_when_call_succeeds(self) -> None:
+        """When block_on_success=True and call succeeds, result is captured with flag."""
+        proxy = AsyncMock()
+        proxy.call_tool = AsyncMock(
+            return_value={
+                "success": True,
+                "result": [{"file_path": "src/foo.py", "line_start": 10, "snippet": "class Foo:"}],
+            }
+        )
+        stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy, loop=None)
+        event = _make_event()
+
+        calls = [
+            {
+                "server": "gobby-code",
+                "tool": "search_content",
+                "arguments": {"query": "TaskValidator"},
+                "inject_result": True,
+                "block_on_failure": False,
+                "block_on_success": True,
+            },
+        ]
+
+        results = stub._dispatch_mcp_calls(calls, event)
+
+        assert len(results) == 1
+        assert results[0]["success"] is True
+        assert results[0]["block_on_success"] is True
+
+    def test_block_on_success_allows_when_call_fails(self) -> None:
+        """When block_on_success=True and call fails, no block — Grep falls through."""
+        proxy = AsyncMock()
+        proxy.call_tool = AsyncMock(
+            return_value={"success": False, "error": "gobby-code unavailable"}
+        )
+        stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy, loop=None)
+        event = _make_event()
+
+        calls = [
+            {
+                "server": "gobby-code",
+                "tool": "search_content",
+                "arguments": {"query": "TaskValidator"},
+                "inject_result": True,
+                "block_on_failure": False,
+                "block_on_success": True,
+            },
+        ]
+
+        results = stub._dispatch_mcp_calls(calls, event)
+
+        assert len(results) == 1
+        assert results[0]["success"] is False
+        assert results[0]["block_on_success"] is True
+
+    def test_block_on_failure_takes_precedence_over_block_on_success(self) -> None:
+        """When both flags set and call fails, block_on_failure fires (checked first)."""
+        proxy = AsyncMock()
+        proxy.call_tool = AsyncMock(
+            return_value={"success": False, "error": "server down"}
+        )
+        stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy, loop=None)
+        event = _make_event()
+
+        calls = [
+            {
+                "server": "gobby-code",
+                "tool": "search_content",
+                "arguments": {"query": "foo"},
+                "inject_result": True,
+                "block_on_failure": True,
+                "block_on_success": True,
+            },
+            {
+                "server": "gobby-code",
+                "tool": "search_symbols",
+                "arguments": {"query": "foo"},
+                "inject_result": True,
+                "block_on_failure": False,
+                "block_on_success": True,
+            },
+        ]
+
+        results = stub._dispatch_mcp_calls(calls, event)
+
+        # block_on_failure stops chain — second call never executes
+        assert len(results) == 1
+        assert results[0]["success"] is False
+        assert results[0]["block_on_failure"] is True
+
+
 class TestProxySelfRouting:
     """Tests for _proxy/* tool routing to ToolProxyService methods."""
 

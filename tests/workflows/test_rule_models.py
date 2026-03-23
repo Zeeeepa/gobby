@@ -184,6 +184,21 @@ class TestRuleEffect:
         assert effect.block_on_failure is True
         assert effect.inject_result is True
 
+    def test_mcp_call_block_on_success(self) -> None:
+        from gobby.workflows.definitions import RuleEffect
+
+        effect = RuleEffect(
+            type="mcp_call",
+            server="gobby-code",
+            tool="search_content",
+            arguments={"query": "TaskValidator"},
+            inject_result=True,
+            block_on_success=True,
+        )
+        assert effect.block_on_success is True
+        assert effect.inject_result is True
+        assert effect.block_on_failure is False
+
     def test_mcp_call_inject_result_defaults_false(self) -> None:
         from gobby.workflows.definitions import RuleEffect
 
@@ -194,6 +209,7 @@ class TestRuleEffect:
         )
         assert effect.inject_result is False
         assert effect.block_on_failure is False
+        assert effect.block_on_success is False
 
     def test_invalid_type_rejected(self) -> None:
         from gobby.workflows.definitions import RuleEffect

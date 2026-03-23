@@ -505,13 +505,9 @@ class TestCreateMemoryPassesMemoryId:
         manager._backend.create = AsyncMock(return_value=mock_record)
 
         manager._kg_service.add_to_graph = AsyncMock()
+        manager.storage.mark_pending_graph = MagicMock()
 
         await manager.create_memory(content="test content")
 
-        # Wait for background task
-        if manager._background_tasks:
-            await asyncio.wait(manager._background_tasks, timeout=1.0)
-
-        manager._kg_service.add_to_graph.assert_called_once_with(
-            "test content", memory_id="test-mem-id", project_id=None
-        )
+        # Graph is now queued via mark_pending_graph, not fired as background task
+        manager.storage.mark_pending_graph.assert_called_once_with("test-mem-id")

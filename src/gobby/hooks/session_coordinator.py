@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sqlite3
 import threading
 import time
 from typing import TYPE_CHECKING, Any
@@ -195,14 +194,17 @@ class SessionCoordinator:
 
     def reregister_active_sessions(self, limit: int = 1000) -> int:
         """
-        Re-register active sessions with the message processor.
+        Re-register active and paused sessions with the message processor.
 
         Called during initialization to restore message processing
-        for sessions that were active before a daemon restart.
+        for sessions that were active before a daemon restart.  Paused
+        sessions are included because their transcripts may not have
+        been fully ingested before the daemon stopped.
 
         Args:
-            limit: Maximum number of sessions to re-register (default 1000).
-                   Sessions beyond this limit will not be re-registered.
+            limit: Maximum number of sessions to re-register per status
+                   (default 1000). Sessions beyond this limit will not
+                   be re-registered.
 
         Returns:
             Number of sessions successfully re-registered
@@ -211,11 +213,13 @@ class SessionCoordinator:
             return 0
 
         try:
-            # Query active sessions from storage
+            # Query active and paused sessions from storage
             active_sessions = self._session_storage.list(status="active", limit=limit)
+            paused_sessions = self._session_storage.list(status="paused", limit=limit)
+            all_sessions = active_sessions + paused_sessions
             registered_count = 0
 
-            for session in active_sessions:
+            for session in all_sessions:
                 jsonl_path = getattr(session, "jsonl_path", None)
                 if not jsonl_path:
                     continue
@@ -230,13 +234,14 @@ class SessionCoordinator:
 
             if registered_count > 0:
                 self.logger.info(
-                    f"Re-registered {registered_count} active sessions with message processor"
+                    f"Re-registered {registered_count} active/paused sessions "
+                    f"with message processor"
                 )
 
             return registered_count
 
         except Exception as e:
-            self.logger.warning(f"Failed to re-register active sessions: {e}")
+            self.logger.warning(f"Failed to re-register active/paused sessions: {e}")
             return 0
 
     def start_agent_run(self, agent_run_id: str) -> bool:
@@ -328,31 +333,11 @@ class SessionCoordinator:
                 return
 
             # Use summary as result if available
-            result = (
-                getattr(session, "summary_markdown", None)
-                or getattr(session, "compact_markdown", None)
-                or ""
-            )
+            result = getattr(session, "summary_markdown", None) or ""
 
             # Fallback: get last assistant message if no summary available
             if not result:
-                try:
-                    db = self._agent_run_manager.db
-                    msg_row = db.fetchone(
-                        """
-                        SELECT content FROM session_messages
-                        WHERE session_id = ? AND role = 'assistant' AND tool_name IS NULL
-                        ORDER BY message_index DESC
-                        LIMIT 1
-                        """,
-                        (session.id,),
-                    )
-                    if msg_row:
-                        result = msg_row["content"]
-                except (sqlite3.Error, ValueError) as e:
-                    self.logger.warning(
-                        f"Failed to get last assistant message for {session.id}: {e}"
-                    )
+                result = getattr(session, "last_assistant_content", None) or ""
 
             # Fallback: check inter_session_messages for send_message data
             if not result:
@@ -418,31 +403,36 @@ class SessionCoordinator:
                 except Exception as e:
                     self.logger.debug(f"tmux kill-session failed for {tmux_session_name}: {e}")
 
-            # Count tool calls and turns from session messages
-            tool_calls_count = 0
-            turns_used = 0
-            stats_retrieved = False
-            try:
-                db = self._agent_run_manager.db
-                row = db.fetchone(
-                    """
-                    SELECT
-                        COUNT(CASE WHEN tool_name IS NOT NULL THEN 1 END) AS tool_calls,
-                        COUNT(CASE WHEN role = 'assistant' THEN 1 END) AS turns
-                    FROM session_messages WHERE session_id = ?
-                    """,
-                    (session.id,),
-                )
-                if row:
-                    tool_calls_count = row["tool_calls"] or 0
-                    turns_used = row["turns"] or 0
-                    stats_retrieved = True
-            except (sqlite3.Error, ValueError) as e:
-                self.logger.warning(f"Failed to count session stats for {session.id}: {e}")
+            # Flush message processor to ensure session stats are up-to-date
+            # before reading them. The processor runs on a 2s poll interval, so
+            # SESSION_END can fire before the final stats have been written to DB.
+            session_id = session.id
+            if self._message_processor:
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        flush_task = asyncio.ensure_future(
+                            self._message_processor.flush_session(session_id)
+                        )
+                        loop.call_later(
+                            5.0, lambda: flush_task.cancel() if not flush_task.done() else None
+                        )
+                    else:
+                        loop.run_until_complete(self._message_processor.flush_session(session_id))
+                except Exception as e:
+                    self.logger.debug(f"Failed to flush session stats for {session_id}: {e}")
+
+                # Re-fetch session from DB to get updated stats
+                refreshed = self._session_storage.get(session_id) if self._session_storage else None
+                if refreshed:
+                    session = refreshed
+
+            # Count tool calls and turns from session stats
+            tool_calls_count = getattr(session, "tool_call_count", 0)
+            turns_used = getattr(session, "turn_count", 0)
 
             # Guard: agent exited cleanly but did nothing — treat as error
-            # Only apply when stats were successfully retrieved to avoid false positives on DB failure
-            if stats_retrieved and tool_calls_count == 0 and turns_used == 0:
+            if tool_calls_count == 0 and turns_used == 0:
                 self._agent_run_manager.fail(
                     run_id=agent_run_id,
                     error="Agent completed with no activity (0 tool calls, 0 turns)",

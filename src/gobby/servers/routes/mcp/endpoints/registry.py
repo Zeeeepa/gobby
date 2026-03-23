@@ -40,7 +40,6 @@ async def embed_mcp_tools(
     try:
         body = await request.json()
         cwd = body.get("cwd")
-        force = body.get("force", False)
 
         # Resolve project_id from cwd
         try:
@@ -58,7 +57,7 @@ async def embed_mcp_tools(
                 stats = await server._tools_handler._semantic_search.embed_all_tools(
                     project_id=project_id,
                     mcp_manager=server._mcp_db_manager,
-                    force=force,
+                    internal_manager=server._internal_manager,
                 )
                 response_time_ms = (time.perf_counter() - start_time) * 1000
                 return {
@@ -322,18 +321,34 @@ async def refresh_mcp_tools(
 
                 # Generate embeddings for new/changed tools
                 if semantic_search and tools_to_embed:
+                    # Look up DB-assigned tool IDs if available, else use synthetic IDs
+                    cached_tools = server._mcp_db_manager.get_cached_tools(
+                        server_name, project_id=project_id
+                    )
+                    tool_id_map = {t.name: t.id for t in cached_tools}
+
                     for tool in tools_to_embed:
+                        tool_name = tool["name"]
+                        tool_id = tool_id_map.get(tool_name)
+                        if not tool_id:
+                            # Deterministic UUID for internal tools not in DB
+                            import uuid
+
+                            tool_id = str(
+                                uuid.uuid5(uuid.NAMESPACE_DNS, f"{server_name}/{tool_name}")
+                            )
                         try:
                             await semantic_search.embed_tool(
-                                server_name=server_name,
-                                tool_name=tool["name"],
-                                description=tool.get("description", ""),
+                                tool_id=tool_id,
+                                name=tool_name,
+                                description=tool.get("description"),
                                 input_schema=tool.get("inputSchema"),
+                                server_name=server_name,
                                 project_id=project_id,
                             )
                             server_stats["embeddings"] += 1
                         except Exception as e:
-                            logger.warning(f"Failed to embed {server_name}/{tool['name']}: {e}")
+                            logger.warning(f"Failed to embed {server_name}/{tool_name}: {e}")
 
                 stats["by_server"][server_name] = server_stats
                 stats["servers_processed"] += 1

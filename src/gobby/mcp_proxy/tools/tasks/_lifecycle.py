@@ -139,8 +139,8 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if session_id:
             try:
                 resolved_session_id = ctx.resolve_session_id(session_id)
-            except ValueError:
-                pass  # Fall back to raw value if resolution fails
+            except ValueError as e:
+                return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
         # Enforce skip_validation constraints:
         # - Cannot skip if a commit_sha is provided (you did real work, validate it)
@@ -664,11 +664,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Task {task_id} not found"}
 
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-        resolved_session_id = session_id
         try:
             resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError:
-            pass  # Fall back to raw value if resolution fails
+        except ValueError as e:
+            return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
         # Check if already claimed by another session
         if task.assignee and task.assignee != resolved_session_id and not force:
@@ -867,11 +866,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             }
 
         # Resolve session_id
-        resolved_session_id = session_id
         try:
             resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError:
-            pass
+        except ValueError as e:
+            return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
         # Build update kwargs
         update_kwargs: dict[str, Any] = {"status": "review_approved"}
@@ -958,11 +956,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Task {task_id} not found"}
 
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-        resolved_session_id = session_id
         try:
             resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError:
-            pass  # Fall back to raw value if resolution fails
+        except ValueError as e:
+            return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
         # Build update kwargs
         update_kwargs: dict[str, Any] = {"status": "needs_review"}

@@ -21,7 +21,6 @@ MOCK_SESSION = Session(
     jsonl_path="/tmp/test.jsonl",
     summary_path=None,
     summary_markdown=None,
-    compact_markdown=None,
     git_branch="main",
     parent_session_id=None,
     created_at=datetime.now(UTC).isoformat(),
@@ -34,12 +33,6 @@ MOCK_SESSION = Session(
 @pytest.fixture
 def mock_session_manager():
     with patch("gobby.cli.sessions.get_session_manager") as mock:
-        yield mock.return_value
-
-
-@pytest.fixture
-def mock_message_manager():
-    with patch("gobby.cli.sessions.get_message_manager") as mock:
         yield mock.return_value
 
 
@@ -112,25 +105,14 @@ def test_delete_session_success(mock_session_manager) -> None:
     mock_session_manager.delete.assert_called_once_with(MOCK_SESSION.id)
 
 
-def test_session_stats(mock_session_manager, mock_message_manager) -> None:
+def test_session_stats(mock_session_manager) -> None:
     """Test 'sessions stats' command."""
     mock_session_manager.list.return_value = [MOCK_SESSION]
-
-    # Mock message_manager.get_all_counts (async)
-    # Since get_all_counts is awaited with asyncio.run, we need to mock it properly.
-    # The command does: asyncio.run(message_manager.get_all_counts())
-    # So get_all_counts needs to be an async func or return a future.
-    # But since it's mocked, we can just return a coroutine.
-    async def mock_counts():
-        return {MOCK_SESSION.id: 10}
-
-    mock_message_manager.get_all_counts.side_effect = mock_counts
 
     runner = CliRunner()
     result = runner.invoke(sessions, ["stats"])
 
     assert result.exit_code == 0
     assert "Total Sessions: 1" in result.output
-    assert "Total Messages: 10" in result.output
     assert "active: 1" in result.output
     assert "claude_code: 1" in result.output

@@ -16,7 +16,7 @@ export interface ProjectWithStats {
   last_activity_at: string | null
 }
 
-export type ProjectSubTab = 'overview' | 'code' | 'tasks' | 'sessions' | 'settings'
+export type ProjectSubTab = 'overview' | 'code' | 'settings'
 
 function getBaseUrl(): string {
   return ''

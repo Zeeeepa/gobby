@@ -8,6 +8,7 @@ import pytest
 
 from gobby.utils.project_context import (
     _current_project_context,
+    ensure_project_json_for_isolation,
     find_project_root,
     get_project_context,
     get_project_mcp_config_path,
@@ -717,3 +718,72 @@ class TestEdgeCases:
         context = get_project_context(special_dir)
         assert context is not None
         assert context["id"] == "special"
+
+
+class TestEnsureProjectJsonForIsolation:
+    """Tests for ensure_project_json_for_isolation."""
+
+    def test_creates_when_missing(self, tmp_path: Path) -> None:
+        """Target has no project.json — copies from source with parent_project_path."""
+        repo = tmp_path / "repo"
+        (repo / ".gobby").mkdir(parents=True)
+        (repo / ".gobby" / "project.json").write_text('{"id": "proj-1", "name": "test"}')
+
+        target = tmp_path / "worktree"
+        target.mkdir()
+
+        ensure_project_json_for_isolation(repo, target)
+
+        result = json.loads((target / ".gobby" / "project.json").read_text())
+        assert result["id"] == "proj-1"
+        assert result["name"] == "test"
+        assert result["parent_project_path"] == str(repo.resolve())
+
+    def test_augments_existing(self, tmp_path: Path) -> None:
+        """Target already has project.json (git-tracked) — overwrites with parent_project_path."""
+        repo = tmp_path / "repo"
+        (repo / ".gobby").mkdir(parents=True)
+        (repo / ".gobby" / "project.json").write_text('{"id": "proj-1", "name": "test"}')
+
+        target = tmp_path / "worktree"
+        (target / ".gobby").mkdir(parents=True)
+        # Simulate git-tracked file without parent_project_path
+        (target / ".gobby" / "project.json").write_text('{"id": "proj-1", "name": "test"}')
+
+        ensure_project_json_for_isolation(repo, target)
+
+        result = json.loads((target / ".gobby" / "project.json").read_text())
+        assert result["id"] == "proj-1"
+        assert result["parent_project_path"] == str(repo.resolve())
+
+    def test_noop_when_source_missing(self, tmp_path: Path) -> None:
+        """Source has no project.json — does nothing."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        target = tmp_path / "worktree"
+        target.mkdir()
+
+        ensure_project_json_for_isolation(repo, target)
+
+        assert not (target / ".gobby" / "project.json").exists()
+
+    def test_handles_errors_gracefully(self, tmp_path: Path) -> None:
+        """Filesystem error during write — logs warning, doesn't raise."""
+        repo = tmp_path / "repo"
+        (repo / ".gobby").mkdir(parents=True)
+        (repo / ".gobby" / "project.json").write_text('{"id": "proj-1"}')
+
+        # Use a path that can't be written to
+        target = tmp_path / "worktree"
+        target.mkdir()
+        gobby_dir = target / ".gobby"
+        gobby_dir.mkdir()
+        # Make directory read-only to force write failure
+        gobby_dir.chmod(0o444)
+
+        try:
+            # Should not raise
+            ensure_project_json_for_isolation(repo, target)
+        finally:
+            gobby_dir.chmod(0o755)

@@ -229,3 +229,40 @@ class TestDbSkillToParsed:
         parsed = _db_skill_to_parsed(skill)
 
         assert parsed.audience_config is None
+
+
+@pytest.mark.integration
+class TestLoadFromDbProjectScoping:
+    """Tests that _load_from_db passes project_id to list_skills."""
+
+    def test_load_from_db_passes_project_id(self) -> None:
+        """project_id is forwarded to storage.list_skills for project-scoped skills."""
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        mock_db = MagicMock()
+        mock_db.fetchall.return_value = []
+
+        manager = HookSkillManager(db=mock_db, project_id="proj-123")
+        skills = manager.discover_core_skills()
+
+        assert isinstance(skills, list)
+        # Verify list_skills was called with project_id
+        call_args = mock_db.fetchall.call_args
+        query = call_args[0][0]
+        params = call_args[0][1]
+        assert "project_id" in query
+        assert "proj-123" in params
+
+    def test_load_from_db_without_project_id_filters_global(self) -> None:
+        """Without project_id, only global skills (project_id IS NULL) are returned."""
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        mock_db = MagicMock()
+        mock_db.fetchall.return_value = []
+
+        manager = HookSkillManager(db=mock_db)
+        manager.discover_core_skills()
+
+        call_args = mock_db.fetchall.call_args
+        query = call_args[0][0]
+        assert "project_id IS NULL" in query

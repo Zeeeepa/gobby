@@ -12,12 +12,20 @@ import { createMockFetch, type MockFetchInstance } from '../../test/mocks/fetch'
 let mockWs: { instances: MockWebSocketInstance[]; MockWebSocket: typeof WebSocket; restore: () => void }
 let mockFetch: MockFetchInstance
 let useChat: typeof import('../useChat').useChat
+let originalLocalStorage: Storage
+let consoleSpy: { log: ReturnType<typeof vi.spyOn>; error: ReturnType<typeof vi.spyOn>; warn: ReturnType<typeof vi.spyOn> }
 
 beforeEach(() => {
+  consoleSpy = {
+    log: vi.spyOn(console, 'log').mockImplementation(() => {}),
+    error: vi.spyOn(console, 'error').mockImplementation(() => {}),
+    warn: vi.spyOn(console, 'warn').mockImplementation(() => {}),
+  }
   mockWs = createMockWebSocket()
   mockFetch = createMockFetch()
   // Mock localStorage — jsdom's localStorage doesn't delegate to Storage.prototype,
   // so vi.spyOn(Storage.prototype, ...) won't intercept calls. Replace the object directly.
+  originalLocalStorage = globalThis.localStorage
   const store: Record<string, string> = {}
   const mockStorage = {
     getItem: vi.fn((key: string) => store[key] ?? null),
@@ -33,6 +41,10 @@ beforeEach(() => {
 afterEach(() => {
   mockWs.restore()
   mockFetch.restore()
+  Object.defineProperty(globalThis, 'localStorage', { value: originalLocalStorage, writable: true, configurable: true })
+  consoleSpy.log.mockRestore()
+  consoleSpy.error.mockRestore()
+  consoleSpy.warn.mockRestore()
   vi.restoreAllMocks()
 })
 
@@ -277,6 +289,7 @@ describe('useChat', () => {
     const msg = assistantMsgs[0]
     expect(msg.toolCalls?.length).toBeGreaterThanOrEqual(1)
     expect(msg.toolCalls?.[0].tool_name).toBe('read_file')
+    expect(msg.toolCalls?.[0].tool_type).toBe('read')
   })
 
   it('stopStreaming stops streaming', async () => {
@@ -423,5 +436,41 @@ describe('useChat', () => {
 
     expect(result.current.contextUsage.totalInputTokens).toBeGreaterThan(0)
     expect(result.current.contextUsage.contextWindow).toBe(200000)
+  })
+
+  it('sends set_project message on connect if projectIdRef is set', async () => {
+    await loadModule()
+    const { result } = renderHook(() => useChat())
+
+    act(() => {
+      result.current.setProjectIdRef('test-project-123')
+    })
+
+    const ws = mockWs.instances[0]
+    act(() => ws.simulateOpen())
+
+    const calls = ws.send.mock.calls.map(c => JSON.parse(c[0]))
+    const projectMsg = calls.find(m => m.type === 'set_project')
+    
+    expect(projectMsg).toBeDefined()
+    expect(projectMsg.project_id).toBe('test-project-123')
+  })
+
+  it('sendProjectChange updates ref and sends WS message', async () => {
+    await loadModule()
+    const { result } = renderHook(() => useChat())
+
+    const ws = mockWs.instances[0]
+    act(() => ws.simulateOpen())
+    ws.send.mockClear()
+
+    act(() => {
+      result.current.sendProjectChange('new-project-456')
+    })
+
+    const calls = ws.send.mock.calls.map(c => JSON.parse(c[0]))
+    const projectMsg = calls.find(m => m.type === 'set_project')
+    expect(projectMsg).toBeDefined()
+    expect(projectMsg.project_id).toBe('new-project-456')
   })
 })

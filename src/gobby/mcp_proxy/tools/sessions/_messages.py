@@ -12,13 +12,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
     from gobby.sessions.transcript_reader import TranscriptReader
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
 
 def register_message_tools(
     registry: InternalToolRegistry,
-    message_manager: LocalSessionMessageManager,
+    message_manager: object | None = None,  # Deprecated, ignored
     session_manager: LocalSessionManager | None = None,
     transcript_reader: TranscriptReader | None = None,
 ) -> None:
@@ -27,11 +26,13 @@ def register_message_tools(
 
     Args:
         registry: The InternalToolRegistry to register tools with
-        message_manager: LocalSessionMessageManager instance for message operations
+        message_manager: Deprecated, ignored
         session_manager: LocalSessionManager for resolving session references
-        transcript_reader: Optional TranscriptReader for DB + gzip fallback reads
+        transcript_reader: Optional TranscriptReader for JSONL + gzip fallback reads
     """
 
+    # Resolves session reference to UUID using the provided session manager.
+    # Accepts #N, N, UUID, or prefix.
     def _resolve_session_id(session_id: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID.
 
@@ -53,8 +54,9 @@ def register_message_tools(
 
     @registry.tool(
         name="get_session_messages",
-        description="Get messages for a session. Falls back to gzip archive if DB messages were purged. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Get messages for a session. Returns rendered messages with content blocks. Accepts #N, N, UUID, or prefix for session_id.",
     )
+    # Entry point for get_session_messages tool
     async def get_session_messages(
         session_id: str,
         limit: int = 50,
@@ -71,26 +73,22 @@ def register_message_tools(
             full_content: If True, returns full content. If False (default), truncates large content.
         """
         try:
-            if not message_manager:
-                raise RuntimeError("Message manager not available")
-
             resolved_id = _resolve_session_id(session_id)
 
-            # Use TranscriptReader (DB + gzip fallback) when available
+            # Use TranscriptReader (JSONL + gzip fallback)
             if transcript_reader:
-                messages = await transcript_reader.get_messages(
+                rendered_messages = await transcript_reader.get_rendered_messages(
                     session_id=resolved_id,
                     limit=limit,
                     offset=offset,
                 )
+                messages = [m.to_dict() for m in rendered_messages]
                 session_total = await transcript_reader.count_messages(resolved_id)
             else:
-                messages = await message_manager.get_messages(
-                    session_id=resolved_id,
-                    limit=limit,
-                    offset=offset,
-                )
-                session_total = await message_manager.count_messages(resolved_id)
+                return {
+                    "success": False,
+                    "error": "Message retrieval not available (TranscriptReader not configured)",
+                }
 
             # Truncate content if not full_content
             if not full_content:
@@ -117,6 +115,16 @@ def register_message_tools(
                         ):
                             tr["content"] = tr["content"][:200] + "... (truncated)"
 
+                    # Also truncate content_blocks if present (from renderer)
+                    if "content_blocks" in msg and msg["content_blocks"]:
+                        for block in msg["content_blocks"]:
+                            if block.get("type") in ["text", "thinking"]:
+                                if (
+                                    isinstance(block.get("content"), str)
+                                    and len(block["content"]) > 500
+                                ):
+                                    block["content"] = block["content"][:500] + "... (truncated)"
+
             return {
                 "success": True,
                 "messages": messages,
@@ -131,7 +139,7 @@ def register_message_tools(
 
     @registry.tool(
         name="search_messages",
-        description="Search messages using text matching (DB-only, does not search gzip archives). Accepts #N, N, UUID, or prefix for session_id.",
+        description="[DEPRECATED] Search messages using text matching. This tool is deprecated and will be removed in a future release. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def search_messages(
         query: str,
@@ -148,31 +156,7 @@ def register_message_tools(
             limit: Max results
             full_content: If True, returns full content. If False (default), truncates large content.
         """
-        try:
-            if not message_manager:
-                raise RuntimeError("Message manager not available")
-
-            resolved_session_id = None
-            if session_id:
-                resolved_session_id = _resolve_session_id(session_id)
-            results = await message_manager.search_messages(
-                query_text=query,
-                session_id=resolved_session_id,
-                limit=limit,
-            )
-
-            # Truncate content if not full_content
-            if not full_content:
-                for msg in results:
-                    if "content" in msg and msg["content"] and isinstance(msg["content"], str):
-                        if len(msg["content"]) > 500:
-                            msg["content"] = msg["content"][:500] + "... (truncated)"
-
-            return {
-                "success": True,
-                "results": results,
-                "count": len(results),
-                "truncated": not full_content,
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        return {
+            "success": False,
+            "error": "search_messages is no longer available (session_messages table removed)",
+        }

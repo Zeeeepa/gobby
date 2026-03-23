@@ -1009,7 +1009,6 @@ class TestSessionStartHandoff:
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
         mock_parent_obj.summary_markdown = "# Summary\nWorked on feature X"
-        mock_parent_obj.compact_markdown = None
 
         # get() called: pre-created check (None), handoff var population (parent),
         # seq_num fetch (new session)
@@ -1037,14 +1036,17 @@ class TestSessionStartHandoff:
         assert response.decision == "allow"
         mock_sv_mgr.merge_variables.assert_any_call(
             "new-sess-456",
-            {"full_session_summary": "# Summary\nWorked on feature X"},
+            {
+                "session_summary": "# Summary\nWorked on feature X",
+                "full_session_summary": "# Summary\nWorked on feature X",
+            },
         )
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
     def test_session_start_compact_sets_compact_session_summary_variable(
         self, mock_sv_mgr_cls: MagicMock, mock_dependencies: dict
     ) -> None:
-        """Test compact_markdown set as compact_session_summary session variable for source='compact'."""
+        """Test summary_markdown set as all session summary variables for source='compact'."""
         mock_sv_mgr = MagicMock()
         mock_sv_mgr.get_variables.return_value = {"auto_inject_handoff": True}
         mock_sv_mgr_cls.return_value = mock_sv_mgr
@@ -1055,8 +1057,7 @@ class TestSessionStartHandoff:
         mock_parent_obj = MagicMock()
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
-        mock_parent_obj.summary_markdown = None
-        mock_parent_obj.compact_markdown = "# Compact\nContinuation of task Y"
+        mock_parent_obj.summary_markdown = "# Compact\nContinuation of task Y"
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 43
@@ -1082,7 +1083,10 @@ class TestSessionStartHandoff:
         assert response.decision == "allow"
         mock_sv_mgr.merge_variables.assert_any_call(
             "new-sess-456",
-            {"compact_session_summary": "# Compact\nContinuation of task Y"},
+            {
+                "session_summary": "# Compact\nContinuation of task Y",
+                "full_session_summary": "# Compact\nContinuation of task Y",
+            },
         )
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
@@ -1107,8 +1111,7 @@ class TestSessionStartHandoff:
         mock_parent_obj = MagicMock()
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
-        mock_parent_obj.summary_markdown = None
-        mock_parent_obj.compact_markdown = "# Compact\nContinuation"
+        mock_parent_obj.summary_markdown = "# Compact\nContinuation"
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 43
@@ -1167,8 +1170,7 @@ class TestSessionStartHandoff:
         mock_parent_obj = MagicMock()
         mock_parent_obj.id = "parent-sess-123"
         mock_parent_obj.seq_num = 42
-        mock_parent_obj.summary_markdown = None
-        mock_parent_obj.compact_markdown = "# Compact\nDone"
+        mock_parent_obj.summary_markdown = "# Compact\nDone"
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 43
@@ -1224,7 +1226,6 @@ class TestSessionStartHandoff:
         mock_parent_obj.id = "parent-sess-500"
         mock_parent_obj.seq_num = 50
         mock_parent_obj.summary_markdown = "# Summary\nCleared session"
-        mock_parent_obj.compact_markdown = None
 
         mock_new_session = MagicMock()
         mock_new_session.seq_num = 51
@@ -2163,3 +2164,144 @@ class TestApplyDebugEcho:
 
         assert hasattr(EventHandlersBase, "_apply_debug_echo")
         assert callable(EventHandlersBase._apply_debug_echo)
+
+
+class TestSkillToolInterception:
+    """Tests for Skill tool call interception in handle_before_tool."""
+
+    @pytest.fixture
+    def parsed_skill(self) -> Any:
+        """Create a mock ParsedSkill for testing."""
+        from gobby.skills.parser import ParsedSkill
+
+        return ParsedSkill(
+            name="test-battery",
+            description="Fire-and-forget orchestrator test battery.",
+            content="# Test Battery\nRun all orchestrator tests.",
+        )
+
+    @pytest.fixture
+    def skill_manager(self, parsed_skill: Any) -> MagicMock:
+        """Create a mock skill manager that resolves test-battery."""
+        manager = MagicMock()
+        manager.resolve_skill_name.return_value = parsed_skill
+        return manager
+
+    @pytest.fixture
+    def handlers_with_skills(
+        self, mock_dependencies: dict[str, Any], skill_manager: MagicMock
+    ) -> EventHandlers:
+        """EventHandlers with a skill manager configured."""
+        mock_dependencies["skill_manager"] = skill_manager
+        return EventHandlers(**mock_dependencies)
+
+    def test_skill_tool_resolves_gobby_skill(
+        self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
+    ) -> None:
+        """Skill tool call with a gobby skill name blocks and injects context."""
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "test-battery"}},
+        )
+        response = handlers_with_skills.handle_before_tool(event)
+
+        assert response.decision == "block"
+        assert '<skill-context name="test-battery">' in response.context
+        assert "# Test Battery" in response.context
+        assert "</skill-context>" in response.context
+        skill_manager.resolve_skill_name.assert_called_once_with("test-battery")
+
+    def test_skill_tool_with_gobby_prefix(
+        self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
+    ) -> None:
+        """Skill tool call with gobby: prefix strips it before resolving."""
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "gobby:test-battery"}},
+        )
+        response = handlers_with_skills.handle_before_tool(event)
+
+        assert response.decision == "block"
+        assert '<skill-context name="test-battery">' in response.context
+        skill_manager.resolve_skill_name.assert_called_once_with("test-battery")
+
+    def test_skill_tool_with_args(
+        self, handlers_with_skills: EventHandlers
+    ) -> None:
+        """Skill tool call with args includes them in context."""
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "Skill",
+                "tool_input": {"skill": "test-battery", "args": "cleanup"},
+            },
+        )
+        response = handlers_with_skills.handle_before_tool(event)
+
+        assert response.decision == "block"
+        assert "User arguments: cleanup" in response.context
+
+    def test_skill_tool_unknown_passes_through(
+        self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
+    ) -> None:
+        """Skill tool call with unknown skill name allows through."""
+        skill_manager.resolve_skill_name.return_value = None
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "unknown-thing"}},
+        )
+        response = handlers_with_skills.handle_before_tool(event)
+
+        assert response.decision == "allow"
+
+    def test_skill_tool_non_gobby_namespace(
+        self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
+    ) -> None:
+        """Skill tool call with non-gobby namespace is not intercepted."""
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "ms-office-suite:pdf"}},
+        )
+        response = handlers_with_skills.handle_before_tool(event)
+
+        assert response.decision == "allow"
+        skill_manager.resolve_skill_name.assert_not_called()
+
+    def test_non_skill_tool_unaffected(
+        self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
+    ) -> None:
+        """Non-Skill tool calls are unaffected."""
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Bash", "tool_input": {"command": "ls"}},
+        )
+        response = handlers_with_skills.handle_before_tool(event)
+
+        assert response.decision == "allow"
+        skill_manager.resolve_skill_name.assert_not_called()
+
+    def test_skill_tool_no_skill_manager(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Skill tool call without skill_manager passes through."""
+        handlers = EventHandlers(**mock_dependencies)  # no skill_manager
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "test-battery"}},
+        )
+        response = handlers.handle_before_tool(event)
+
+        assert response.decision == "allow"
+
+    def test_skill_tool_error_falls_through(
+        self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
+    ) -> None:
+        """Exception during skill resolution falls through to allow."""
+        skill_manager.resolve_skill_name.side_effect = RuntimeError("boom")
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "test-battery"}},
+        )
+        response = handlers_with_skills.handle_before_tool(event)
+
+        assert response.decision == "allow"

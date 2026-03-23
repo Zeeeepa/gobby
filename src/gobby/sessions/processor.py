@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aiofiles
 
@@ -21,11 +21,11 @@ if TYPE_CHECKING:
     from gobby.servers.websocket.server import WebSocketServer
     from gobby.storage.sessions import LocalSessionManager
 
+from gobby.sessions.transcript_renderer import RenderState, render_incremental
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 from gobby.storage.database import DatabaseProtocol
-from gobby.storage.session_messages import LocalSessionMessageManager
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,6 @@ class SessionMessageProcessor:
         session_manager: "LocalSessionManager | None" = None,
     ):
         self.db = db
-        self.message_manager = LocalSessionMessageManager(db)
         self.poll_interval = poll_interval
         self.websocket_server: WebSocketServer | None = websocket_server
         self.session_manager: LocalSessionManager | None = session_manager
@@ -62,8 +61,40 @@ class SessionMessageProcessor:
         # Track last mtime for JSON file sessions (mtime-based change detection)
         self._last_mtime: dict[str, float] = {}
 
+        # Track byte offsets and message indices per session (in-memory)
+        self._byte_offsets: dict[str, int] = {}
+        self._message_indices: dict[str, int] = {}
+
+        # Track render state for incremental rendering per session
+        self._render_states: dict[str, RenderState] = {}
+
+        # Incremental stat accumulators per session
+        self._stats: dict[str, dict[str, Any]] = {}
+
         self._running = False
         self._task: asyncio.Task[None] | None = None
+
+    def _accumulate_stats(self, session_id: str, messages: list[Any]) -> dict[str, Any]:
+        """Accumulate incremental stats from parsed messages."""
+        stats = self._stats.get(
+            session_id,
+            {
+                "message_count": 0,
+                "turn_count": 0,
+                "tool_call_count": 0,
+                "last_assistant_content": None,
+            },
+        )
+        for msg in messages:
+            stats["message_count"] = stats.get("message_count", 0) + 1
+            if msg.role == "assistant" and msg.content_type == "text":
+                stats["turn_count"] = stats.get("turn_count", 0) + 1
+                if isinstance(msg.content, str) and msg.content.strip():
+                    stats["last_assistant_content"] = msg.content.strip()[-500:]
+            if msg.tool_name:
+                stats["tool_call_count"] = stats.get("tool_call_count", 0) + 1
+        self._stats[session_id] = stats
+        return stats
 
     async def start(self) -> None:
         """Start the processing loop."""
@@ -106,8 +137,18 @@ class SessionMessageProcessor:
             # For now, let's assume it might be created shortly.
 
         self._active_sessions[session_id] = transcript_path
-        self._parsers[session_id] = get_parser(source)
+        self._parsers[session_id] = get_parser(source, session_id=session_id)
         logger.debug(f"Registered session {session_id} for processing ({source})")
+
+    async def flush_session(self, session_id: str) -> None:
+        """Force an immediate processing pass for a single session.
+
+        Useful when stats need to be up-to-date before reading them
+        (e.g., at SESSION_END before completing an agent run).
+        """
+        transcript_path = self._active_sessions.get(session_id)
+        if transcript_path:
+            await self._process_session(session_id, transcript_path)
 
     def unregister_session(self, session_id: str) -> None:
         """Stop monitoring a session."""
@@ -116,6 +157,10 @@ class SessionMessageProcessor:
             if session_id in self._parsers:
                 del self._parsers[session_id]
             self._last_mtime.pop(session_id, None)
+            self._render_states.pop(session_id, None)
+            self._stats.pop(session_id, None)
+            self._byte_offsets.pop(session_id, None)
+            self._message_indices.pop(session_id, None)
             logger.debug(f"Unregistered session {session_id}")
 
     async def _loop(self) -> None:
@@ -154,15 +199,9 @@ class SessionMessageProcessor:
             await self._process_json_session(session_id, transcript_path)
             return
 
-        # Get current processing state
-        state = await self.message_manager.get_state(session_id)
-
-        last_offset = 0
-        last_index = -1
-
-        if state:
-            last_offset = state.get("last_byte_offset", 0)
-            last_index = state.get("last_message_index", -1)
+        # Get current processing state (in-memory)
+        last_offset = self._byte_offsets.get(session_id, 0)
+        last_index = self._message_indices.get(session_id, -1)
 
         # Read new content
         new_lines = []
@@ -204,53 +243,59 @@ class SessionMessageProcessor:
         parsed_messages = parser.parse_lines(new_lines, start_index=last_index + 1)
 
         if not parsed_messages:
-            # We read lines but found no valid messages (maybe parse errors or skipped types)
-            # We still update the offset so we don't re-read them endlessly
-            await self.message_manager.update_state(
-                session_id=session_id,
-                byte_offset=valid_offset,
-                message_index=last_index,
-            )
+            # We read lines but found no valid messages — still update offset
+            self._byte_offsets[session_id] = valid_offset
             return
 
-        # Store messages
-        await self.message_manager.store_messages(session_id, parsed_messages)
+        # Compute incremental stats (no DB message writes)
+        stats = self._accumulate_stats(session_id, parsed_messages)
 
-        # Extract and store model from parsed messages (if present)
+        # Write stats to sessions table
         if self.session_manager:
+            self.session_manager.touch(session_id)
+            self.session_manager.update_stats(
+                session_id,
+                message_count=stats.get("message_count", 0),
+                turn_count=stats.get("turn_count", 0),
+                tool_call_count=stats.get("tool_call_count", 0),
+                last_assistant_content=stats.get("last_assistant_content"),
+            )
+            # Extract and store model
             for msg in parsed_messages:
                 if msg.model:
                     self.session_manager.update_model(session_id, msg.model)
-                    break  # Only need the first model found
+                    break
 
-        # Broadcast new messages
-        if self.websocket_server:
-            for msg in parsed_messages:
-                payload = {
-                    "type": "session_message",
-                    "session_id": session_id,
-                    "message": {
-                        "index": msg.index,
-                        "role": msg.role,
-                        "content": msg.content,
-                        "content_type": msg.content_type,
-                        "tool_name": msg.tool_name,
-                        "tool_input": json.dumps(msg.tool_input) if msg.tool_input else None,
-                        "tool_result": json.dumps(msg.tool_result) if msg.tool_result else None,
-                        "tool_use_id": msg.tool_use_id,
-                        "timestamp": msg.timestamp.isoformat(),
-                    },
-                }
-                await self.websocket_server.broadcast(payload)
-
-        # Update state
-        new_last_index = parsed_messages[-1].index
-
-        await self.message_manager.update_state(
-            session_id=session_id,
-            byte_offset=valid_offset,
-            message_index=new_last_index,
+        # Render incrementally and broadcast
+        render_state = self._render_states.get(session_id, RenderState())
+        completed, render_state = render_incremental(
+            parsed_messages, render_state, session_id=session_id
         )
+        self._render_states[session_id] = render_state
+
+        if self.websocket_server:
+            for rendered_msg in completed:
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": rendered_msg.to_dict(),
+                    }
+                )
+            # Broadcast in-progress turn for live updates (upsert by ID)
+            if render_state.current_message:
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": render_state.current_message.to_dict(),
+                    }
+                )
+
+        # Update in-memory state
+        new_last_index = parsed_messages[-1].index
+        self._byte_offsets[session_id] = valid_offset
+        self._message_indices[session_id] = new_last_index
 
         logger.debug(f"Processed {len(parsed_messages)} messages for {session_id}")
 
@@ -294,9 +339,8 @@ class SessionMessageProcessor:
             self._last_mtime[session_id] = current_mtime
             return
 
-        # Get current state to find only new messages
-        state = await self.message_manager.get_state(session_id)
-        last_index = state.get("last_message_index", -1) if state else -1
+        # Get current state to find only new messages (in-memory)
+        last_index = self._message_indices.get(session_id, -1)
 
         new_messages = [m for m in all_messages if m.index > last_index]
 
@@ -304,43 +348,52 @@ class SessionMessageProcessor:
             self._last_mtime[session_id] = current_mtime
             return
 
-        # Store messages
-        await self.message_manager.store_messages(session_id, new_messages)
+        # Compute incremental stats (no DB message writes)
+        stats = self._accumulate_stats(session_id, new_messages)
 
-        # Extract and store model from parsed messages
+        # Write stats and keep session alive
         if self.session_manager:
+            self.session_manager.touch(session_id)
+            self.session_manager.update_stats(
+                session_id,
+                message_count=stats.get("message_count", 0),
+                turn_count=stats.get("turn_count", 0),
+                tool_call_count=stats.get("tool_call_count", 0),
+                last_assistant_content=stats.get("last_assistant_content"),
+            )
             for msg in new_messages:
                 if msg.model:
                     self.session_manager.update_model(session_id, msg.model)
                     break
 
-        # Broadcast new messages
-        if self.websocket_server:
-            for msg in new_messages:
-                payload = {
-                    "type": "session_message",
-                    "session_id": session_id,
-                    "message": {
-                        "index": msg.index,
-                        "role": msg.role,
-                        "content": msg.content,
-                        "content_type": msg.content_type,
-                        "tool_name": msg.tool_name,
-                        "tool_input": json.dumps(msg.tool_input) if msg.tool_input else None,
-                        "tool_result": json.dumps(msg.tool_result) if msg.tool_result else None,
-                        "tool_use_id": msg.tool_use_id,
-                        "timestamp": msg.timestamp.isoformat(),
-                    },
-                }
-                await self.websocket_server.broadcast(payload)
-
-        # Update state — use 0 for byte_offset since JSON doesn't use offsets
-        new_last_index = new_messages[-1].index
-        await self.message_manager.update_state(
-            session_id=session_id,
-            byte_offset=0,
-            message_index=new_last_index,
+        # Render incrementally and broadcast
+        render_state = self._render_states.get(session_id, RenderState())
+        completed, render_state = render_incremental(
+            new_messages, render_state, session_id=session_id
         )
+        self._render_states[session_id] = render_state
+
+        if self.websocket_server:
+            for rendered_msg in completed:
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": rendered_msg.to_dict(),
+                    }
+                )
+            if render_state.current_message:
+                await self.websocket_server.broadcast(
+                    {
+                        "type": "session_message",
+                        "session_id": session_id,
+                        "message": render_state.current_message.to_dict(),
+                    }
+                )
+
+        # Update in-memory state
+        new_last_index = new_messages[-1].index
+        self._message_indices[session_id] = new_last_index
 
         # Track mtime for change detection
         self._last_mtime[session_id] = current_mtime

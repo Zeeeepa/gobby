@@ -2,26 +2,28 @@
 Semantic tool search using embeddings.
 
 Provides infrastructure for embedding-based tool discovery:
-- Tool embedding storage and retrieval
+- Tool embedding storage and retrieval (Qdrant vector store)
 - Cosine similarity search
-- Integration with OpenAI text-embedding-3-small model
 """
+
+from __future__ import annotations
 
 import hashlib
 import logging
 import math
-import struct
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.storage.database import DatabaseProtocol
+
+if TYPE_CHECKING:
+    from gobby.memory.vectorstore import VectorStore
 
 logger = logging.getLogger(__name__)
 
 # Default embedding model
-DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
-DEFAULT_EMBEDDING_DIM = 1536
+DEFAULT_EMBEDDING_MODEL = "local/nomic-embed-text-v1.5"
+DEFAULT_EMBEDDING_DIM = 768
 
 
 def _cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
@@ -70,61 +72,6 @@ class SearchResult:
         }
 
 
-@dataclass
-class ToolEmbedding:
-    """Represents a tool's embedding vector with metadata."""
-
-    id: int
-    tool_id: str
-    server_name: str
-    project_id: str
-    embedding: list[float]
-    embedding_model: str
-    embedding_dim: int
-    text_hash: str
-    created_at: str
-    updated_at: str
-
-    @classmethod
-    def from_row(cls, row: Any) -> "ToolEmbedding":
-        """Create ToolEmbedding from database row."""
-        # Decode embedding from BLOB
-        embedding_blob = row["embedding"]
-        embedding = list(struct.unpack(f"{row['embedding_dim']}f", embedding_blob))
-
-        return cls(
-            id=row["id"],
-            tool_id=row["tool_id"],
-            server_name=row["server_name"],
-            project_id=row["project_id"],
-            embedding=embedding,
-            embedding_model=row["embedding_model"],
-            embedding_dim=row["embedding_dim"],
-            text_hash=row["text_hash"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary (excludes embedding for serialization)."""
-        return {
-            "id": self.id,
-            "tool_id": self.tool_id,
-            "server_name": self.server_name,
-            "project_id": self.project_id,
-            "embedding_model": self.embedding_model,
-            "embedding_dim": self.embedding_dim,
-            "text_hash": self.text_hash,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-        }
-
-
-def _embedding_to_blob(embedding: list[float]) -> bytes:
-    """Convert embedding list to binary BLOB."""
-    return struct.pack(f"{len(embedding)}f", *embedding)
-
-
 def _compute_text_hash(text: str) -> str:
     """Compute SHA-256 hash of text for change detection."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
@@ -166,12 +113,11 @@ class SemanticToolSearch:
     """
     Manages semantic search over MCP tools using embeddings.
 
-    Provides:
-    - Embedding storage and retrieval (tool_embeddings table)
-    - Text hashing for change detection
-    - Cosine similarity search (to be implemented)
-    - Integration with embedding providers (to be implemented)
+    Vectors are stored in Qdrant. Tool metadata (name, description) is
+    looked up from the tools/mcp_servers SQLite tables for search results.
     """
+
+    TOOL_COLLECTION = "tool_embeddings"
 
     def __init__(
         self,
@@ -179,231 +125,87 @@ class SemanticToolSearch:
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         openai_api_key: str | None = None,
+        api_base: str | None = None,
+        vector_store: VectorStore | None = None,
     ):
         """
         Initialize semantic search manager.
 
         Args:
-            db: Database connection
-            embedding_model: Model name for embeddings (default: text-embedding-3-small)
-            embedding_dim: Dimension of embedding vectors (default: 1536)
-            openai_api_key: OpenAI API key (from config or environment)
+            db: Database connection (used for tool metadata lookups in search)
+            embedding_model: Model name for embeddings
+            embedding_dim: Dimension of embedding vectors
+            openai_api_key: API key (not needed for local/ models)
+            api_base: API base URL for embedding endpoint
+            vector_store: Qdrant vector store for embedding storage/search
         """
         self.db = db
         self.embedding_model = embedding_model
         self.embedding_dim = embedding_dim
         self._openai_api_key = openai_api_key
+        self._api_base = api_base
+        self._vector_store = vector_store
 
-    def store_embedding(
+    async def store_embedding(
         self,
         tool_id: str,
         server_name: str,
         project_id: str,
         embedding: list[float],
-        text_hash: str,
-    ) -> ToolEmbedding:
+    ) -> None:
         """
-        Store or update a tool embedding.
+        Store a tool embedding in Qdrant.
 
         Args:
             tool_id: ID of the tool in the tools table
             server_name: Name of the MCP server
             project_id: Project ID
             embedding: Embedding vector as list of floats
-            text_hash: Hash of the text used to generate the embedding
-
-        Returns:
-            ToolEmbedding instance
         """
+        if not self._vector_store:
+            logger.warning("No VectorStore configured — cannot store tool embedding")
+            return
+
+        from datetime import UTC, datetime
+
         now = datetime.now(UTC).isoformat()
-        embedding_blob = _embedding_to_blob(embedding)
 
-        self.db.execute(
-            """
-            INSERT INTO tool_embeddings (
-                tool_id, server_name, project_id, embedding,
-                embedding_model, embedding_dim, text_hash, created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(tool_id) DO UPDATE SET
-                server_name = excluded.server_name,
-                project_id = excluded.project_id,
-                embedding = excluded.embedding,
-                embedding_model = excluded.embedding_model,
-                embedding_dim = excluded.embedding_dim,
-                text_hash = excluded.text_hash,
-                updated_at = excluded.updated_at
-            """,
-            (
-                tool_id,
-                server_name,
-                project_id,
-                embedding_blob,
-                self.embedding_model,
-                len(embedding),
-                text_hash,
-                now,
-                now,
-            ),
+        await self._vector_store.upsert(
+            memory_id=tool_id,
+            embedding=embedding,
+            payload={
+                "server_name": server_name,
+                "project_id": project_id,
+                "embedding_model": self.embedding_model,
+                "updated_at": now,
+            },
+            collection_name=self.TOOL_COLLECTION,
         )
 
-        result = self.get_embedding(tool_id)
-        if result is None:
-            raise RuntimeError(f"Failed to retrieve embedding for tool {tool_id} after store")
-        return result
-
-    def get_embedding(self, tool_id: str) -> ToolEmbedding | None:
+    async def has_embeddings(self, project_id: str) -> bool:
         """
-        Get embedding for a tool.
-
-        Args:
-            tool_id: Tool ID
-
-        Returns:
-            ToolEmbedding or None if not found
-        """
-        row = self.db.fetchone(
-            "SELECT * FROM tool_embeddings WHERE tool_id = ?",
-            (tool_id,),
-        )
-        return ToolEmbedding.from_row(row) if row else None
-
-    def get_embeddings_for_project(self, project_id: str) -> list[ToolEmbedding]:
-        """
-        Get all embeddings for a project.
+        Check if any tool embeddings exist for a project in Qdrant.
 
         Args:
             project_id: Project ID
 
         Returns:
-            List of ToolEmbedding instances
+            True if at least one embedding exists
         """
-        rows = self.db.fetchall(
-            "SELECT * FROM tool_embeddings WHERE project_id = ?",
-            (project_id,),
-        )
-        return [ToolEmbedding.from_row(row) for row in rows]
+        if not self._vector_store:
+            return False
 
-    def get_embeddings_for_server(self, server_name: str, project_id: str) -> list[ToolEmbedding]:
-        """
-        Get all embeddings for a server in a project.
-
-        Args:
-            server_name: Server name
-            project_id: Project ID
-
-        Returns:
-            List of ToolEmbedding instances
-        """
-        rows = self.db.fetchall(
-            "SELECT * FROM tool_embeddings WHERE server_name = ? AND project_id = ?",
-            (server_name, project_id),
-        )
-        return [ToolEmbedding.from_row(row) for row in rows]
-
-    def delete_embedding(self, tool_id: str) -> bool:
-        """
-        Delete embedding for a tool.
-
-        Args:
-            tool_id: Tool ID
-
-        Returns:
-            True if deleted, False if not found
-        """
-        cursor = self.db.execute(
-            "DELETE FROM tool_embeddings WHERE tool_id = ?",
-            (tool_id,),
-        )
-        return cursor.rowcount > 0
-
-    def delete_embeddings_for_server(self, server_name: str, project_id: str) -> int:
-        """
-        Delete all embeddings for a server.
-
-        Args:
-            server_name: Server name
-            project_id: Project ID
-
-        Returns:
-            Number of embeddings deleted
-        """
-        cursor = self.db.execute(
-            "DELETE FROM tool_embeddings WHERE server_name = ? AND project_id = ?",
-            (server_name, project_id),
-        )
-        return cursor.rowcount
-
-    def needs_reembedding(
-        self,
-        tool_id: str,
-        name: str,
-        description: str | None,
-        input_schema: dict[str, Any] | None,
-    ) -> bool:
-        """
-        Check if a tool needs (re)embedding.
-
-        Computes hash of the tool's text representation and compares
-        to stored hash.
-
-        Args:
-            tool_id: Tool ID
-            name: Tool name
-            description: Tool description
-            input_schema: Tool input schema
-
-        Returns:
-            True if embedding is missing or outdated
-        """
-        existing = self.get_embedding(tool_id)
-        if not existing:
-            return True
-
-        current_hash = _compute_text_hash(_build_tool_text(name, description, input_schema))
-        return existing.text_hash != current_hash
-
-    def get_embedding_stats(self, project_id: str | None = None) -> dict[str, Any]:
-        """
-        Get statistics about stored embeddings.
-
-        Args:
-            project_id: Optional project filter
-
-        Returns:
-            Dict with count, servers, and model info
-        """
-        if project_id:
-            count_row = self.db.fetchone(
-                "SELECT COUNT(*) as count FROM tool_embeddings WHERE project_id = ?",
-                (project_id,),
+        try:
+            # Use a dummy query to check for any points with this project_id
+            results = await self._vector_store.search(
+                query_embedding=[0.0] * self.embedding_dim,
+                limit=1,
+                filters={"project_id": project_id},
+                collection_name=self.TOOL_COLLECTION,
             )
-            servers_rows = self.db.fetchall(
-                """
-                SELECT server_name, COUNT(*) as count
-                FROM tool_embeddings
-                WHERE project_id = ?
-                GROUP BY server_name
-                """,
-                (project_id,),
-            )
-        else:
-            count_row = self.db.fetchone("SELECT COUNT(*) as count FROM tool_embeddings", ())
-            servers_rows = self.db.fetchall(
-                """
-                SELECT server_name, COUNT(*) as count
-                FROM tool_embeddings
-                GROUP BY server_name
-                """,
-                (),
-            )
-
-        return {
-            "total_embeddings": count_row["count"] if count_row else 0,
-            "by_server": {row["server_name"]: row["count"] for row in servers_rows},
-            "embedding_model": self.embedding_model,
-            "embedding_dim": self.embedding_dim,
-        }
+            return len(results) > 0
+        except Exception:
+            return False
 
     @staticmethod
     def build_tool_text(
@@ -439,57 +241,32 @@ class SemanticToolSearch:
         """
         return _compute_text_hash(text)
 
-    async def embed_text(self, text: str) -> list[float]:
+    async def embed_text(self, text: str, is_query: bool = False) -> list[float]:
         """
-        Generate embedding for text using OpenAI.
+        Generate embedding for text using the shared embedding router.
 
-        Requires OPENAI_API_KEY in environment (set by LiteLLM provider from config).
+        Routes to local in-process model (local/ prefix) or cloud API
+        (LiteLLM) based on the configured embedding_model.
 
         Args:
             text: Text to embed
-
-        Returns:
-            Embedding vector as list of floats (1536 dimensions)
-
-        Raises:
-            RuntimeError: If OPENAI_API_KEY not set or embedding fails
-        """
-        import os
-
-        api_key = self._openai_api_key or os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY not configured. Set it via gobby-config MCP tools or OPENAI_API_KEY env var"
-            )
-        return await self._embed_text_litellm(text, api_key=api_key)
-
-    async def _embed_text_litellm(self, text: str, api_key: str) -> list[float]:
-        """Generate embedding using LiteLLM (OpenAI API).
-
-        Args:
-            text: Text to embed
-            api_key: OpenAI API key (from Codex auth or environment)
+            is_query: If True, use query prefix (for search); False for indexing
 
         Returns:
             Embedding vector as list of floats
-        """
-        try:
-            import litellm
-        except ImportError as e:
-            raise RuntimeError("litellm package not installed. Run: pip install litellm") from e
 
-        try:
-            response = await litellm.aembedding(
-                model=self.embedding_model,
-                input=[text],
-                api_key=api_key,
-            )
-            embedding: list[float] = response.data[0]["embedding"]
-            logger.debug(f"Generated embedding via LiteLLM with {len(embedding)} dimensions")
-            return embedding
-        except Exception as e:
-            logger.error(f"Failed to generate embedding with LiteLLM: {e}")
-            raise RuntimeError(f"Embedding generation failed: {e}") from e
+        Raises:
+            RuntimeError: If embedding generation fails
+        """
+        from gobby.search.embeddings import generate_embedding
+
+        return await generate_embedding(
+            text=text,
+            model=self.embedding_model,
+            api_base=self._api_base,
+            api_key=self._openai_api_key,
+            is_query=is_query,
+        )
 
     async def embed_tool(
         self,
@@ -499,12 +276,12 @@ class SemanticToolSearch:
         input_schema: dict[str, Any] | None,
         server_name: str,
         project_id: str,
-        force: bool = False,
-    ) -> ToolEmbedding | None:
+    ) -> bool:
         """
         Generate and store embedding for a tool.
 
-        Checks if re-embedding is needed based on content hash.
+        Always embeds — no hash check. At ~5ms per local embedding,
+        re-embedding all tools is fast enough to not need caching.
 
         Args:
             tool_id: Tool ID
@@ -513,51 +290,43 @@ class SemanticToolSearch:
             input_schema: Tool input schema
             server_name: MCP server name
             project_id: Project ID
-            force: Force re-embedding even if content unchanged
 
         Returns:
-            ToolEmbedding if generated, None if skipped (already up-to-date)
+            True if embedded successfully
         """
-        # Check if we need to generate embedding
-        if not force and not self.needs_reembedding(tool_id, name, description, input_schema):
-            logger.debug(f"Tool {name} embedding is up-to-date, skipping")
-            return None
-
-        # Build text and generate embedding
         text = _build_tool_text(name, description, input_schema)
-        text_hash = _compute_text_hash(text)
-
         embedding = await self.embed_text(text)
 
-        # Store embedding
-        return self.store_embedding(
+        await self.store_embedding(
             tool_id=tool_id,
             server_name=server_name,
             project_id=project_id,
             embedding=embedding,
-            text_hash=text_hash,
         )
+        return True
 
     async def embed_all_tools(
         self,
         project_id: str,
         mcp_manager: Any,
-        force: bool = False,
+        internal_manager: Any | None = None,
     ) -> dict[str, Any]:
         """
         Generate embeddings for all tools in a project.
 
-        Iterates through all MCP servers and their tools, generating
-        embeddings for tools that need them.
+        Iterates through both internal registries and external MCP servers,
+        generating embeddings for each tool.
 
         Args:
             project_id: Project ID
-            mcp_manager: LocalMCPManager instance for accessing tools
-            force: Force re-embedding all tools
+            mcp_manager: LocalMCPManager instance for accessing external tools
+            internal_manager: InternalRegistryManager for internal tools (optional)
 
         Returns:
-            Dict with statistics: embedded, skipped, failed, by_server
+            Dict with statistics: embedded, failed, by_server
         """
+        import uuid
+
         from gobby.storage.mcp import LocalMCPManager
 
         if not isinstance(mcp_manager, LocalMCPManager):
@@ -571,34 +340,62 @@ class SemanticToolSearch:
             "by_server": {},
         }
 
-        # Get all servers for the project
+        # Embed internal registry tools (gobby-tasks, gobby-memory, etc.)
+        if internal_manager:
+            for registry in internal_manager.get_all_registries():
+                server_stats = {"embedded": 0, "skipped": 0, "failed": 0}
+
+                for tool_entry in registry.list_tools():
+                    tool_name = tool_entry.get("name", "")
+                    schema = registry.get_schema(tool_name)
+                    description = schema.get("description") if schema else None
+                    input_schema = schema.get("inputSchema") if schema else None
+                    # Deterministic UUID for internal tools (not in DB)
+                    tool_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{registry.name}/{tool_name}"))
+
+                    try:
+                        await self.embed_tool(
+                            tool_id=tool_id,
+                            name=tool_name,
+                            description=description,
+                            input_schema=input_schema,
+                            server_name=registry.name,
+                            project_id=project_id,
+                        )
+
+                        server_stats["embedded"] += 1
+                        stats["embedded"] += 1
+
+                    except Exception as e:
+                        server_stats["failed"] += 1
+                        stats["failed"] += 1
+                        error_msg = f"{registry.name}/{tool_name}: {e}"
+                        stats["errors"].append(error_msg)
+                        logger.error(f"Failed to embed tool {error_msg}")
+
+                stats["by_server"][registry.name] = server_stats
+
+        # Embed external MCP server tools
         servers = mcp_manager.list_servers(project_id=project_id, enabled_only=False)
 
         for server in servers:
             server_stats = {"embedded": 0, "skipped": 0, "failed": 0}
 
-            # Get tools for this server
             tools = mcp_manager.get_cached_tools(server.name, project_id=project_id)
 
             for tool in tools:
                 try:
-                    result = await self.embed_tool(
+                    await self.embed_tool(
                         tool_id=tool.id,
                         name=tool.name,
                         description=tool.description,
                         input_schema=tool.input_schema,
                         server_name=server.name,
                         project_id=project_id,
-                        force=force,
                     )
 
-                    if result:
-                        server_stats["embedded"] += 1
-                        stats["embedded"] += 1
-                        logger.info(f"Embedded tool: {server.name}/{tool.name}")
-                    else:
-                        server_stats["skipped"] += 1
-                        stats["skipped"] += 1
+                    server_stats["embedded"] += 1
+                    stats["embedded"] += 1
 
                 except Exception as e:
                     server_stats["failed"] += 1
@@ -622,8 +419,7 @@ class SemanticToolSearch:
         """
         Search for tools semantically similar to a query.
 
-        Embeds the query and computes cosine similarity against all
-        stored tool embeddings, returning ranked results.
+        Uses Qdrant vector search.
 
         Args:
             query: Search query text
@@ -636,42 +432,41 @@ class SemanticToolSearch:
             List of SearchResult sorted by similarity (descending)
         """
         # Embed the query
-        query_embedding = await self.embed_text(query)
-
-        # Get all embeddings for the project
-        if server_filter:
-            embeddings = self.get_embeddings_for_server(server_filter, project_id)
-        else:
-            embeddings = self.get_embeddings_for_project(project_id)
-
-        if not embeddings:
-            logger.debug(f"No embeddings found for project {project_id}")
-            return []
+        query_embedding = await self.embed_text(query, is_query=True)
 
         # Get tool metadata for results
         tool_info = self._get_tool_info_map(project_id, server_filter)
 
-        # Compute similarities
-        results: list[SearchResult] = []
-        for emb in embeddings:
-            similarity = _cosine_similarity(query_embedding, emb.embedding)
+        if not self._vector_store:
+            logger.warning("No VectorStore configured — tool search unavailable")
+            return []
 
-            if similarity >= min_similarity:
-                tool_data = tool_info.get(emb.tool_id, {})
+        filters: dict[str, str] = {"project_id": project_id}
+        if server_filter:
+            filters["server_name"] = server_filter
+
+        qdrant_results = await self._vector_store.search(
+            query_embedding=query_embedding,
+            limit=top_k,
+            filters=filters,
+            collection_name=self.TOOL_COLLECTION,
+        )
+
+        results: list[SearchResult] = []
+        for tool_id, score in qdrant_results:
+            if score >= min_similarity:
+                tool_data = tool_info.get(tool_id, {})
                 results.append(
                     SearchResult(
-                        tool_id=emb.tool_id,
-                        server_name=emb.server_name,
+                        tool_id=tool_id,
+                        server_name=tool_data.get("server_name", "unknown"),
                         tool_name=tool_data.get("name", "unknown"),
                         description=tool_data.get("description"),
-                        similarity=similarity,
-                        embedding_id=emb.id,
+                        similarity=score,
+                        embedding_id=0,
                     )
                 )
-
-        # Sort by similarity descending and limit
-        results.sort(key=lambda x: x.similarity, reverse=True)
-        return results[:top_k]
+        return results
 
     def _get_tool_info_map(
         self, project_id: str, server_filter: str | None = None
@@ -688,7 +483,7 @@ class SemanticToolSearch:
         """
         if server_filter:
             query = """
-                SELECT t.id, t.name, t.description
+                SELECT t.id, t.name, t.description, s.name as server_name
                 FROM tools t
                 JOIN mcp_servers s ON t.mcp_server_id = s.id
                 WHERE s.project_id = ? AND s.name = ?
@@ -696,11 +491,18 @@ class SemanticToolSearch:
             rows = self.db.fetchall(query, (project_id, server_filter))
         else:
             query = """
-                SELECT t.id, t.name, t.description
+                SELECT t.id, t.name, t.description, s.name as server_name
                 FROM tools t
                 JOIN mcp_servers s ON t.mcp_server_id = s.id
                 WHERE s.project_id = ?
             """
             rows = self.db.fetchall(query, (project_id,))
 
-        return {row["id"]: {"name": row["name"], "description": row["description"]} for row in rows}
+        return {
+            row["id"]: {
+                "name": row["name"],
+                "description": row["description"],
+                "server_name": row["server_name"],
+            }
+            for row in rows
+        }

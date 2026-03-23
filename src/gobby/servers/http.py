@@ -21,7 +21,7 @@ from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
 from gobby.llm import create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
-from gobby.mcp_proxy.semantic_search import SemanticToolSearch
+from gobby.mcp_proxy.semantic_search import DEFAULT_EMBEDDING_MODEL, SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.telemetry.instruments import inc_counter
 from gobby.utils.version import get_version
@@ -68,6 +68,9 @@ class HTTPServer:
 
         # WebSocket server reference (set by GobbyRunner after construction)
         self.websocket_server: WebSocketServer | None = None
+
+        # Lazily-populated caches
+        self._savings_tracker: Any | None = None
 
         self.broadcaster = HookEventBroadcaster(services.websocket_server, services.config)
 
@@ -123,19 +126,19 @@ class HTTPServer:
                 )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
-            # Create TranscriptReader for DB + gzip fallback reads
+            # Create TranscriptReader for JSONL + gzip fallback reads
             transcript_reader = None
-            if services.message_manager and services.session_manager:
+            if services.session_manager:
                 from gobby.sessions.transcript_reader import TranscriptReader
 
                 archive_dir = None
                 if services.config and hasattr(services.config, "sessions"):
                     archive_dir = getattr(services.config.sessions, "transcript_archive_dir", None)
                 transcript_reader = TranscriptReader(
-                    message_manager=services.message_manager,
                     session_manager=services.session_manager,
                     archive_dir=archive_dir,
                 )
+                services.transcript_reader = transcript_reader
 
             # Setup internal registries (gobby-tasks, gobby-memory, gobby-workflows, etc.)
             self._internal_manager = setup_internal_registries(
@@ -146,7 +149,6 @@ class HTTPServer:
                 db=services.mcp_db_manager.db if services.mcp_db_manager else None,
                 sync_manager=services.task_sync_manager,
                 task_validator=services.task_validator,
-                message_manager=services.message_manager,
                 local_session_manager=services.session_manager,
                 metrics_manager=services.metrics_manager,
                 llm_service=services.llm_service,
@@ -184,6 +186,7 @@ class HTTPServer:
                         summarizer=code_indexer.summarizer,
                         config=code_indexer.config,
                         project_id=services.project_id,
+                        db=services.database,
                     )
                     self._internal_manager.add_registry(code_registry)
                     logger.debug("Code index registry initialized")
@@ -210,8 +213,23 @@ class HTTPServer:
                     and services.config.llm_providers.api_keys
                 ):
                     openai_api_key = services.config.llm_providers.api_keys.get("OPENAI_API_KEY")
+                if not openai_api_key and services.database:
+                    try:
+                        from gobby.storage.secrets import SecretStore
+
+                        secret_store = SecretStore(services.database)
+                        openai_api_key = secret_store.get("openai_api_key")
+                    except Exception:
+                        pass  # SecretStore unavailable — fall through to env var
+                _mcp_proxy_cfg = services.config.mcp_client_proxy if services.config else None
                 semantic_search = SemanticToolSearch(
-                    db=services.mcp_db_manager.db, openai_api_key=openai_api_key
+                    db=services.mcp_db_manager.db,
+                    openai_api_key=openai_api_key,
+                    embedding_model=_mcp_proxy_cfg.embedding_model
+                    if _mcp_proxy_cfg
+                    else DEFAULT_EMBEDDING_MODEL,
+                    api_base=_mcp_proxy_cfg.embedding_api_base if _mcp_proxy_cfg else None,
+                    vector_store=getattr(services, "vector_store", None),
                 )
                 logger.debug("Semantic tool search initialized")
 
@@ -295,14 +313,6 @@ class HTTPServer:
         self.services.memory_manager = value
 
     @property
-    def message_manager(self) -> Any:
-        return self.services.message_manager
-
-    @message_manager.setter
-    def message_manager(self, value: Any) -> None:
-        self.services.message_manager = value
-
-    @property
     def message_processor(self) -> Any:
         return self.services.message_processor
 
@@ -317,6 +327,14 @@ class HTTPServer:
     @metrics_manager.setter
     def metrics_manager(self, value: "ToolMetricsManager | None") -> None:
         self.services.metrics_manager = value
+
+    @property
+    def transcript_reader(self) -> Any:
+        return self.services.transcript_reader
+
+    @transcript_reader.setter
+    def transcript_reader(self, value: Any) -> None:
+        self.services.transcript_reader = value
 
     @property
     def _mcp_db_manager(self) -> Any:
@@ -424,6 +442,21 @@ class HTTPServer:
                 "memory_sync_manager": self.services.memory_sync_manager,
                 "task_sync_manager": self.services.task_sync_manager,
             }
+
+            # Create code index trigger for post-edit incremental indexing
+            code_indexer = getattr(self.services, "code_indexer", None)
+            if code_indexer is not None:
+                try:
+                    from gobby.code_index.trigger import CodeIndexTrigger
+
+                    hook_manager_kwargs["code_index_trigger"] = CodeIndexTrigger(
+                        indexer=code_indexer,
+                        loop=asyncio.get_running_loop(),
+                        debounce_seconds=2.0,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to create CodeIndexTrigger: {e}")
+
             if self.services.config:
                 # Pass full log file path from config
                 hook_manager_kwargs["log_file"] = (
@@ -593,6 +626,24 @@ class HTTPServer:
                 except Exception as e:
                     logger.warning(f"Failed to start TmuxPaneMonitor: {e}")
 
+            # Start SessionLivenessMonitor (detects dead CLI sessions via PID checks)
+            try:
+                from gobby.sessions.liveness_monitor import SessionLivenessMonitor
+
+                session_storage = app.state.hook_manager._session_storage
+                liveness_monitor = SessionLivenessMonitor(
+                    session_storage=session_storage,
+                    dispatch_summaries_fn=getattr(
+                        app.state.hook_manager, "_dispatch_session_summaries", None
+                    ),
+                    message_processor=getattr(app.state.hook_manager, "_message_processor", None),
+                )
+                app.state.liveness_monitor = liveness_monitor
+                await liveness_monitor.start()
+                logger.debug("SessionLivenessMonitor started")
+            except Exception as e:
+                logger.warning(f"Failed to start SessionLivenessMonitor: {e}")
+
             # If MCP app exists, wrap its lifespan
             if mcp_app is not None:
                 # Use router.lifespan_context for stable FastMCP version
@@ -616,6 +667,15 @@ class HTTPServer:
                     logger.debug("CodexAppServerClient stopped")
                 except Exception as e:
                     logger.warning(f"Failed to stop CodexAppServerClient: {e}")
+
+            # Stop SessionLivenessMonitor
+            if hasattr(app.state, "liveness_monitor") and app.state.liveness_monitor:
+                try:
+                    await app.state.liveness_monitor.stop()
+                    app.state.liveness_monitor = None
+                    logger.debug("SessionLivenessMonitor stopped")
+                except Exception as e:
+                    logger.warning(f"Failed to stop SessionLivenessMonitor: {e}")
 
             # Stop TmuxPaneMonitor
             try:

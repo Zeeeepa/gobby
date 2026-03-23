@@ -9,6 +9,8 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
+from gobby.hooks.normalization import _SHELL_TOOLS
+
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEvent
     from gobby.storage.tasks import LocalTaskManager
@@ -18,6 +20,46 @@ logger = logging.getLogger(__name__)
 
 
 _MODE_LEVEL_MAP = {"plan": 0, "accept_edits": 1, "normal": 1, "bypass": 2}
+
+# Pattern matching git's commit success output: [branch hash] message
+# e.g., "[main abc1234] Fix the bug" or "[feat/login 9a3b2c1e] Add auth"
+_GIT_COMMIT_RE = re.compile(r"^\[[\w/.#-]+ [a-f0-9]{7,}\]", re.MULTILINE)
+
+# Pattern matching git commit commands in Bash tool_input.command
+_GIT_COMMIT_CMD_RE = re.compile(r"\bgit\s+commit\b")
+
+
+def _extract_shell_output_text(tool_output: Any) -> str:
+    """Extract text content from tool_output, handling both str and dict forms.
+
+    After normalization, ``tool_output`` may be:
+    - A plain string (e.g., ``"[main abc1234] Fix bug\\n 1 file changed"``)
+    - A dict parsed from JSON (e.g., ``{"output": "...", "exitCode": 0}``)
+
+    Returns the extracted text, or empty string if nothing usable found.
+    """
+    if isinstance(tool_output, str):
+        return tool_output
+    if isinstance(tool_output, dict):
+        for key in ("output", "stdout", "content"):
+            val = tool_output.get(key)
+            if isinstance(val, str):
+                return val
+    return ""
+
+
+def _is_git_commit_command(command: str) -> bool:
+    """Check if a command string contains a ``git commit`` invocation."""
+    return bool(_GIT_COMMIT_CMD_RE.search(command))
+
+
+def _looks_like_commit_success(output: str) -> bool:
+    """Check that shell output doesn't indicate a failed/no-op commit."""
+    if not output:
+        return False
+    if "nothing to commit" in output or "nothing added to commit" in output:
+        return False
+    return True
 
 
 def compute_mode_level(chat_mode: str) -> int:
@@ -135,7 +177,7 @@ def detect_task_claim(
         raw_task_id = arguments.get("task_id")
         if raw_task_id and task_manager:
             try:
-                task = task_manager.get_task(raw_task_id)
+                task = task_manager.get_task(raw_task_id, project_id=project_id)
                 if task:
                     task_id = task.id
                 else:
@@ -165,7 +207,7 @@ def detect_task_claim(
     ref = task_id
     if task_manager:
         try:
-            task_obj = task_manager.get_task(task_id)
+            task_obj = task_manager.get_task(task_id, project_id=project_id)
             if task_obj and task_obj.seq_num:
                 ref = f"#{task_obj.seq_num}"
         except Exception as e:
@@ -230,6 +272,61 @@ def detect_commit_link(event: "HookEvent", variables: dict[str, Any], session_id
 
     variables["task_has_commits"] = True
     logger.info(f"Session {session_id}: task_has_commits=true (via {inner_tool})")
+
+
+def detect_bash_commit(event: "HookEvent", variables: dict[str, Any], session_id: str) -> None:
+    """Detect git commit success output from Bash tool invocations.
+
+    Sets ``task_has_commits: true`` when the Bash tool output contains
+    git's commit success pattern (``[branch hash]``), e.g.::
+
+        [main abc1234] Fix the bug
+
+    This complements :func:`detect_commit_link` which only fires on
+    explicit MCP tool calls (``link_commit``, ``close_task``).
+
+    Args:
+        event: The AFTER_TOOL hook event
+        variables: Session variables dict (modified in place)
+        session_id: The platform session ID (for logging)
+    """
+    if variables.get("task_has_commits"):
+        return  # Already set
+
+    if not event.data:
+        return
+
+    tool_name = event.data.get("tool_name", "")
+    if tool_name not in _SHELL_TOOLS:
+        return
+
+    if event.data.get("is_error"):
+        return  # Failed commands don't count
+
+    raw_output = event.data.get("tool_output")
+    output = _extract_shell_output_text(raw_output)
+    if not output:
+        if raw_output:
+            logger.debug(
+                "Session %s: detect_bash_commit — unrecognized tool_output type %s",
+                session_id,
+                type(raw_output).__name__,
+            )
+        return
+
+    if _GIT_COMMIT_RE.search(output):
+        variables["task_has_commits"] = True
+        logger.info("Session %s: task_has_commits=true (Bash git commit output)", session_id)
+        return
+
+    # Fallback: command is git commit and output doesn't indicate failure
+    tool_input = event.data.get("tool_input") or {}
+    command = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
+    if command and _is_git_commit_command(command) and _looks_like_commit_success(output):
+        variables["task_has_commits"] = True
+        logger.info(
+            "Session %s: task_has_commits=true (Bash git commit command fallback)", session_id
+        )
 
 
 def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], session_id: str) -> None:
@@ -365,50 +462,64 @@ def reconcile_claimed_tasks(
     session_id: str,
     task_manager: "LocalTaskManager | None" = None,
 ) -> None:
-    """Reconcile claimed_tasks dict against DB state on STOP events.
+    """Reconcile claimed_tasks against DB, then derive task_claimed from it.
 
-    Fixes two classes of false positives:
-    - task_claimed=True with empty claimed_tasks (set by stale rule side-effect)
-    - Stale entries in claimed_tasks (task closed/reassigned externally)
+    task_claimed is always computed from claimed_tasks — never trusted as a
+    stored value.  This eliminates the class of bugs where the boolean and
+    dict get out of sync.
 
     Must run BEFORE rule evaluation on STOP so the require-task-close gate
     sees accurate state.
     """
     claimed_tasks: dict[str, str] = dict(variables.get("claimed_tasks") or {})
 
-    # Fix inconsistency: task_claimed=True but dict is empty
-    if not claimed_tasks:
-        if variables.get("task_claimed"):
-            logger.info(
-                f"Session {session_id}: reconcile — task_claimed=True with empty "
-                f"claimed_tasks, correcting to False"
-            )
-            variables["task_claimed"] = False
-        return
-
-    # Without a task manager we can't verify DB state — leave as-is
     if not task_manager:
-        logger.debug(f"Session {session_id}: reconcile — no task_manager, skipping DB verification")
+        # Can't verify DB — derive from what we have and move on
+        if not claimed_tasks and variables.get("task_claimed"):
+            logger.debug(
+                f"Session {session_id}: reconcile — no task_manager, "
+                f"clearing task_claimed (empty dict)"
+            )
+        variables["task_claimed"] = bool(claimed_tasks)
         return
 
     from gobby.storage.tasks import TaskNotFoundError
 
-    pruned: list[str] = []
-    for task_uuid, ref in list(claimed_tasks.items()):
+    if claimed_tasks:
+        # Prune entries that are no longer in_progress or assigned to us
+        pruned: list[str] = []
+        for task_uuid, ref in list(claimed_tasks.items()):
+            try:
+                task = task_manager.get_task(task_uuid)
+            except (TaskNotFoundError, ValueError, KeyError):
+                task = None
+
+            if task is None or task.status != "in_progress" or task.assignee != session_id:
+                pruned.append(f"{ref}({task_uuid[:8]})")
+                del claimed_tasks[task_uuid]
+
+        if pruned:
+            logger.info(
+                f"Session {session_id}: reconcile — pruned stale claims: {', '.join(pruned)}"
+            )
+    else:
+        # Dict is empty — check DB for tasks we might have lost track of
         try:
-            task = task_manager.get_task(task_uuid)
-        except (TaskNotFoundError, ValueError, KeyError):
-            task = None
+            db_tasks = task_manager.list_tasks(assignee=session_id, status="in_progress")
+        except Exception as e:
+            logger.warning(f"Session {session_id}: failed to list in-progress tasks: {e}")
+            db_tasks = []
 
-        if task is None or task.status != "in_progress" or task.assignee != session_id:
-            pruned.append(f"{ref}({task_uuid[:8]})")
-            del claimed_tasks[task_uuid]
+        if db_tasks:
+            for t in db_tasks:
+                claimed_tasks[t.id] = f"#{t.seq_num}" if t.seq_num else t.id[:8]
+            logger.info(
+                f"Session {session_id}: reconcile — rebuilt claimed_tasks from DB: {claimed_tasks}"
+            )
 
-    if pruned:
-        logger.info(f"Session {session_id}: reconcile — pruned stale claims: {', '.join(pruned)}")
-
+    # Single source of truth: dict drives boolean
     variables["claimed_tasks"] = claimed_tasks
-    variables["task_claimed"] = len(claimed_tasks) > 0
+    variables["task_claimed"] = bool(claimed_tasks)
 
 
 def detect_mcp_call(event: "HookEvent", variables: dict[str, Any], session_id: str) -> None:

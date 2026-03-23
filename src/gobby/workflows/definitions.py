@@ -77,6 +77,7 @@ class RuleEffect(BaseModel):
         "observe",
         "rewrite_input",
         "compress_output",
+        "load_skill",
     ]
 
     # Per-effect condition (gates this individual effect within a multi-effect rule)
@@ -103,6 +104,7 @@ class RuleEffect(BaseModel):
     background: bool = False
     inject_result: bool = False  # Capture result and inject as agent context
     block_on_failure: bool = False  # Block original tool call if this mcp_call fails
+    block_on_success: bool = False  # Block original tool call if this mcp_call succeeds
 
     # observe — append structured entry to _observations session variable
     category: str | None = None
@@ -115,6 +117,9 @@ class RuleEffect(BaseModel):
     # compress_output — compress tool output after execution (PostToolUse)
     strategy: str | None = None
     max_lines: int | None = None
+
+    # load_skill — resolve and inject a skill's content into agent context
+    skill: str | None = None
 
     def model_post_init(self, __context: Any) -> None:
         """Warn when fields irrelevant to the effect type are set."""
@@ -131,13 +136,22 @@ class RuleEffect(BaseModel):
                 "background",
                 "inject_result",
                 "block_on_failure",
+                "block_on_success",
             },
             "observe": {"category", "message"},
             "rewrite_input": {"input_updates", "auto_approve"},
             "compress_output": {"strategy", "max_lines"},
+            "load_skill": {"skill"},
         }
         # Fields with non-None defaults that shouldn't trigger warnings
-        _default_skip = {"background", "when", "auto_approve", "inject_result", "block_on_failure"}
+        _default_skip = {
+            "background",
+            "when",
+            "auto_approve",
+            "inject_result",
+            "block_on_failure",
+            "block_on_success",
+        }
         relevant = _fields_by_type.get(self.type, set())
         for field_name, field_set in _fields_by_type.items():
             if field_name == self.type:
@@ -242,6 +256,14 @@ class AgentDefinitionBody(BaseModel):
     # Execution
     provider: str = "inherit"
     model: str | None = None
+    api_base: str | None = Field(
+        default=None,
+        description="API base URL for the model endpoint (e.g., http://localhost:1234/v1 for LM Studio)",
+    )
+    api_token: str | None = Field(
+        default=None,
+        description="Auth token for the endpoint. Supports ${ENV_VAR} pattern for env var expansion.",
+    )
     mode: Literal["terminal", "autonomous", "self", "inherit"] = "inherit"
     isolation: Literal["none", "worktree", "clone", "inherit"] | None = "inherit"
     base_branch: str = "inherit"

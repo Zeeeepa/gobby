@@ -167,6 +167,405 @@ class CodeGraph:
             logger.debug(f"get_import_chain failed: {e}")
             return []
 
+    async def find_blast_radius(
+        self,
+        symbol_name: str | None,
+        file_path: str | None,
+        project_id: str,
+        depth: int = 3,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Find the transitive blast radius of changing a symbol or file.
+
+        Walks the call/import graph backwards to find all affected code.
+        Returns list of dicts with: symbol_id, symbol_name, kind, file_path,
+        distance, rel_type ('call' or 'import').
+        """
+        if not self.available:
+            return []
+
+        if bool(symbol_name) == bool(file_path):
+            raise ValueError("Exactly one of symbol_name or file_path must be provided")
+
+        depth = max(1, min(depth, 5))
+        results: list[dict[str, Any]] = []
+
+        try:
+            if symbol_name:
+                # Walk CALLS backwards from the target symbol
+                records = await self._client.execute_read(
+                    f"""MATCH path = (affected:CodeSymbol)-[:CALLS*1..{depth}]->(
+                           target:CodeSymbol {{name: $name, project: $project}})
+                       WITH affected, min(length(path)) AS distance
+                       OPTIONAL MATCH (file:CodeFile)-[:DEFINES]->(affected)
+                       RETURN DISTINCT affected.id AS symbol_id,
+                              affected.name AS symbol_name,
+                              affected.kind AS kind, file.path AS file_path,
+                              distance, 'call' AS rel_type
+                       ORDER BY distance ASC, affected.name ASC
+                       LIMIT $limit""",
+                    {
+                        "name": symbol_name,
+                        "project": project_id,
+                        "limit": limit,
+                    },
+                )
+                results.extend(dict(r) for r in records)
+            else:
+                # Walk CALLS backwards from all symbols defined in the file
+                call_records = await self._client.execute_read(
+                    f"""MATCH (tf:CodeFile {{path: $path, project: $project}})
+                           -[:DEFINES]->(target_sym:CodeSymbol)
+                       MATCH path = (affected:CodeSymbol)-[:CALLS*1..{depth}]->(target_sym)
+                       WITH affected, min(length(path)) AS distance
+                       OPTIONAL MATCH (file:CodeFile)-[:DEFINES]->(affected)
+                       RETURN DISTINCT affected.id AS symbol_id,
+                              affected.name AS symbol_name,
+                              affected.kind AS kind, file.path AS file_path,
+                              distance, 'call' AS rel_type
+                       ORDER BY distance ASC, affected.name ASC
+                       LIMIT $limit""",
+                    {
+                        "path": file_path,
+                        "project": project_id,
+                        "limit": limit,
+                    },
+                )
+                results.extend(dict(r) for r in call_records)
+
+                # Walk IMPORTS backwards from modules this file imports
+                import_records = await self._client.execute_read(
+                    f"""MATCH (tf:CodeFile {{path: $path, project: $project}})
+                           -[:IMPORTS]->(m:CodeModule)
+                       MATCH path = (importer:CodeFile)-[:IMPORTS*1..{depth}]->(m)
+                       WHERE importer.path <> $path
+                       WITH importer, min(length(path)) AS distance
+                       RETURN DISTINCT importer.path AS file_path,
+                              distance, 'import' AS rel_type
+                       ORDER BY distance ASC
+                       LIMIT $limit""",
+                    {
+                        "path": file_path,
+                        "project": project_id,
+                        "limit": limit,
+                    },
+                )
+                results.extend(dict(r) for r in import_records)
+
+        except Exception as e:
+            logger.debug(f"find_blast_radius failed: {e}")
+
+        return results
+
+    # ── Visualization queries ──────────────────────────────────────
+
+    async def get_file_graph(self, project_id: str, limit: int = 200) -> dict[str, Any]:
+        """Get file-level overview graph for visualization.
+
+        Returns CodeFile nodes connected by shared CodeModule imports,
+        resolved to file-to-file edges.
+        """
+        if not self.available:
+            return {"nodes": [], "links": []}
+
+        try:
+            # Get files and their import relationships via shared modules
+            file_records = await self._client.execute_read(
+                """MATCH (f:CodeFile {project: $project})
+                   OPTIONAL MATCH (f)-[:DEFINES]->(s:CodeSymbol)
+                   WITH f, count(s) AS sym_count
+                   RETURN f.path AS id, f.path AS name, 'file' AS type,
+                          f.path AS file_path, sym_count AS symbol_count
+                   ORDER BY f.path
+                   LIMIT $limit""",
+                {"project": project_id, "limit": limit},
+            )
+            nodes = [dict(r) for r in file_records]
+            node_ids = {n["id"] for n in nodes}
+
+            # Get direct file→module IMPORTS edges
+            import_records = await self._client.execute_read(
+                """MATCH (f:CodeFile {project: $project})-[:IMPORTS]->(m:CodeModule {project: $project})
+                   WHERE f.path IN $file_paths
+                   RETURN f.path AS source, m.name AS target, 'IMPORTS' AS type
+                   LIMIT $link_limit""",
+                {
+                    "project": project_id,
+                    "file_paths": list(node_ids),
+                    "link_limit": limit * 5,
+                },
+            )
+
+            links: list[dict[str, Any]] = []
+            module_ids: set[str] = set()
+
+            for r in import_records:
+                rec = dict(r)
+                links.append(rec)
+                mid = rec["target"]
+                if mid not in node_ids and mid not in module_ids:
+                    module_ids.add(mid)
+                    nodes.append(
+                        {
+                            "id": mid,
+                            "name": mid,
+                            "type": "module",
+                        }
+                    )
+
+            # Also get file→symbol DEFINES edges
+            defines_records = await self._client.execute_read(
+                """MATCH (f:CodeFile {project: $project})-[:DEFINES]->(s:CodeSymbol {project: $project})
+                   WHERE f.path IN $file_paths
+                   RETURN f.path AS source, s.id AS target, 'DEFINES' AS type,
+                          s.name AS symbol_name, s.kind AS symbol_kind
+                   LIMIT $link_limit""",
+                {
+                    "project": project_id,
+                    "file_paths": list(node_ids),
+                    "link_limit": limit * 5,
+                },
+            )
+
+            for r in defines_records:
+                rec = dict(r)
+                sid = rec["target"]
+                links.append(
+                    {
+                        "source": rec["source"],
+                        "target": sid,
+                        "type": "DEFINES",
+                    }
+                )
+                if sid not in node_ids:
+                    nodes.append(
+                        {
+                            "id": sid,
+                            "name": rec.get("symbol_name", sid),
+                            "type": rec.get("symbol_kind") or "function",
+                            "kind": rec.get("symbol_kind"),
+                            "file_path": rec["source"],
+                        }
+                    )
+
+            # Add CALLS edges between symbols
+            sym_ids = [n["id"] for n in nodes if n["type"] != "file" and n["type"] != "module"]
+            if sym_ids:
+                call_records = await self._client.execute_read(
+                    """MATCH (s:CodeSymbol {project: $project})-[r:CALLS]->(t:CodeSymbol {project: $project})
+                       WHERE s.id IN $sym_ids OR t.id IN $sym_ids
+                       RETURN s.id AS source, t.id AS target, 'CALLS' AS type
+                       LIMIT $link_limit""",
+                    {
+                        "project": project_id,
+                        "sym_ids": sym_ids,
+                        "link_limit": limit * 3,
+                    },
+                )
+                for r in call_records:
+                    links.append(dict(r))
+
+            return {"nodes": nodes, "links": links}
+        except Exception as e:
+            logger.debug(f"get_file_graph failed: {e}")
+            return {"nodes": [], "links": []}
+
+    async def get_file_symbols(self, file_path: str, project_id: str) -> dict[str, Any]:
+        """Expand a file: its symbols + their call edges.
+
+        Returns nodes for the file's symbols and links for DEFINES + CALLS.
+        """
+        if not self.available:
+            return {"nodes": [], "links": []}
+
+        try:
+            # Get symbols defined in this file
+            sym_records = await self._client.execute_read(
+                """MATCH (f:CodeFile {path: $path, project: $project})
+                          -[:DEFINES]->(s:CodeSymbol)
+                   RETURN s.id AS id, s.name AS name, s.kind AS type,
+                          $path AS file_path, s.kind AS kind""",
+                {"path": file_path, "project": project_id},
+            )
+            nodes: list[dict[str, Any]] = [dict(r) for r in sym_records]
+            sym_ids = {n["id"] for n in nodes}
+
+            links: list[dict[str, Any]] = []
+
+            # Add DEFINES edges (file -> symbol)
+            for node in nodes:
+                links.append(
+                    {
+                        "source": file_path,
+                        "target": node["id"],
+                        "type": "DEFINES",
+                    }
+                )
+
+            # Add CALLS edges between these symbols and others
+            if sym_ids:
+                call_records = await self._client.execute_read(
+                    """MATCH (s:CodeSymbol {project: $project})-[r:CALLS]->(t:CodeSymbol {project: $project})
+                       WHERE s.id IN $sym_ids OR t.id IN $sym_ids
+                       RETURN s.id AS source, t.id AS target, 'CALLS' AS type,
+                              r.line AS line""",
+                    {"project": project_id, "sym_ids": list(sym_ids)},
+                )
+                # Include callee nodes that aren't in our set yet
+                for r in call_records:
+                    rec = dict(r)
+                    links.append(rec)
+                    for field in ("source", "target"):
+                        nid = rec[field]
+                        if nid not in sym_ids:
+                            sym_ids.add(nid)
+                            nodes.append(
+                                {
+                                    "id": nid,
+                                    "name": nid.split(":")[-1] if ":" in nid else nid,
+                                    "type": "function",
+                                    "kind": "function",
+                                }
+                            )
+
+            return {"nodes": nodes, "links": links}
+        except Exception as e:
+            logger.debug(f"get_file_symbols failed: {e}")
+            return {"nodes": [], "links": []}
+
+    async def get_symbol_neighbors(
+        self, symbol_id: str, project_id: str, limit: int = 50
+    ) -> dict[str, Any]:
+        """Expand a symbol: bidirectional callers and callees.
+
+        Returns neighbor nodes and CALLS links.
+        """
+        if not self.available:
+            return {"nodes": [], "links": []}
+
+        try:
+            records = await self._client.execute_read(
+                """MATCH (s:CodeSymbol {id: $id, project: $project})-[r:CALLS]-(neighbor:CodeSymbol)
+                   OPTIONAL MATCH (f:CodeFile)-[:DEFINES]->(neighbor)
+                   RETURN neighbor.id AS id, neighbor.name AS name,
+                          neighbor.kind AS kind,
+                          CASE WHEN startNode(r) = s THEN 'outgoing' ELSE 'incoming' END AS direction,
+                          f.path AS file_path, r.line AS line
+                   LIMIT $limit""",
+                {"id": symbol_id, "project": project_id, "limit": limit},
+            )
+
+            nodes: list[dict[str, Any]] = []
+            links: list[dict[str, Any]] = []
+            seen = set()
+
+            for r in records:
+                rec = dict(r)
+                nid = rec["id"]
+                if nid not in seen:
+                    seen.add(nid)
+                    nodes.append(
+                        {
+                            "id": nid,
+                            "name": rec["name"],
+                            "type": rec["kind"] or "function",
+                            "kind": rec["kind"],
+                            "file_path": rec["file_path"],
+                        }
+                    )
+
+                if rec["direction"] == "outgoing":
+                    links.append(
+                        {
+                            "source": symbol_id,
+                            "target": nid,
+                            "type": "CALLS",
+                            "line": rec["line"],
+                        }
+                    )
+                else:
+                    links.append(
+                        {
+                            "source": nid,
+                            "target": symbol_id,
+                            "type": "CALLS",
+                            "line": rec["line"],
+                        }
+                    )
+
+            return {"nodes": nodes, "links": links}
+        except Exception as e:
+            logger.debug(f"get_symbol_neighbors failed: {e}")
+            return {"nodes": [], "links": []}
+
+    async def get_blast_radius_graph(
+        self,
+        symbol_name: str | None,
+        file_path: str | None,
+        project_id: str,
+        depth: int = 3,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """Get blast radius as visualization-ready graph data.
+
+        Wraps find_blast_radius and returns {nodes, links} with distance
+        metadata for heat-map coloring.
+        """
+        results = await self.find_blast_radius(
+            symbol_name=symbol_name,
+            file_path=file_path,
+            project_id=project_id,
+            depth=depth,
+            limit=limit,
+        )
+
+        nodes: list[dict[str, Any]] = []
+        links: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+
+        # Add the center node
+        center_id = symbol_name or file_path
+        if not center_id:
+            raise ValueError("Either symbol_name or file_path must be provided")
+        center_type = "function" if symbol_name else "file"
+        nodes.append(
+            {
+                "id": center_id,
+                "name": center_id,
+                "type": center_type,
+                "blast_distance": 0,
+            }
+        )
+        seen_ids.add(center_id)
+
+        for r in results:
+            nid = r.get("symbol_id") or r.get("file_path", "")
+            if not nid or nid in seen_ids:
+                continue
+            seen_ids.add(nid)
+
+            nodes.append(
+                {
+                    "id": nid,
+                    "name": r.get("symbol_name") or r.get("file_path", ""),
+                    "type": r.get("kind")
+                    or ("file" if r.get("rel_type") == "import" else "function"),
+                    "kind": r.get("kind"),
+                    "file_path": r.get("file_path"),
+                    "blast_distance": r.get("distance", 1),
+                }
+            )
+            links.append(
+                {
+                    "source": nid,
+                    "target": center_id,
+                    "type": "CALLS" if r.get("rel_type") == "call" else "IMPORTS",
+                    "distance": r.get("distance", 1),
+                }
+            )
+
+        return {"nodes": nodes, "links": links, "center": center_id}
+
     async def clear_project(self, project_id: str) -> None:
         """Remove all graph data for a project."""
         if not self.available:

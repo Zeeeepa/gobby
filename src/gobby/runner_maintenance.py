@@ -43,6 +43,28 @@ async def metrics_cleanup_loop(
             logger.error(f"Error in metrics cleanup loop: {e}")
 
 
+async def metrics_archive_loop(
+    event_store: Any,
+    is_shutdown_requested: Callable[[], bool],
+    retention_days: int = 30,
+) -> None:
+    """Background loop for archiving old metrics events (every 24 hours)."""
+    interval_seconds = 24 * 60 * 60  # 24 hours
+
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+            archived = event_store.archive_old_events(retention_days=retention_days)
+            if archived > 0:
+                logger.info(
+                    f"Metrics archive: rolled up {archived} events older than {retention_days} days"
+                )
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in metrics archive loop: {e}")
+
+
 async def span_cleanup_loop(
     db: Any,
     is_shutdown_requested: Callable[[], bool],

@@ -37,7 +37,6 @@ def _make_session(**overrides) -> MagicMock:
         "jsonl_path": "/tmp/test.jsonl",
         "summary_path": None,
         "summary_markdown": None,
-        "compact_markdown": None,
         "git_branch": "main",
         "parent_session_id": None,
         "created_at": NOW_ISO,
@@ -82,7 +81,7 @@ def mock_server():
     server = MagicMock()
     server.session_manager = MagicMock()
     server.session_manager.db = MagicMock()
-    server.message_manager = AsyncMock()
+    server.transcript_reader = AsyncMock()
     server.llm_service = MagicMock()
     server.resolve_project_id = MagicMock(return_value="proj-123")
     return server
@@ -460,10 +459,7 @@ class TestListSessions:
             _make_session(id="sess-2", title="Session 2"),
         ]
         mock_server.session_manager.list.return_value = sessions
-        mock_server.message_manager.get_all_counts.return_value = {
-            "sess-1": 10,
-            "sess-2": 5,
-        }
+        # message_counts hardcoded to {} after session_messages table removal
 
         response = client.get("/api/sessions")
 
@@ -476,7 +472,7 @@ class TestListSessions:
     def test_list_with_filters(self, client, mock_server) -> None:
         """GET /sessions supports query parameter filters."""
         mock_server.session_manager.list.return_value = []
-        mock_server.message_manager.get_all_counts.return_value = {}
+        # message_counts hardcoded to {} after session_messages table removal
 
         response = client.get(
             "/api/sessions",
@@ -508,7 +504,7 @@ class TestListSessions:
     def test_list_empty(self, client, mock_server) -> None:
         """Returns empty list when no sessions exist."""
         mock_server.session_manager.list.return_value = []
-        mock_server.message_manager.get_all_counts.return_value = {}
+        # message_counts hardcoded to {} after session_messages table removal
 
         response = client.get("/api/sessions")
 
@@ -517,31 +513,17 @@ class TestListSessions:
         assert data["count"] == 0
         assert data["sessions"] == []
 
-    def test_list_handles_message_count_failure(self, client, mock_server) -> None:
-        """Still returns sessions when message count fetch fails."""
+    def test_list_message_count_always_zero(self, client, mock_server) -> None:
+        """message_count is always 0 after session_messages table removal."""
         sessions = [_make_session()]
         mock_server.session_manager.list.return_value = sessions
-        mock_server.message_manager.get_all_counts.side_effect = Exception("boom")
 
         response = client.get("/api/sessions")
 
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 1
-        # message_count defaults to 0 when lookup fails
         assert data["sessions"][0]["message_count"] == 0
-
-    def test_list_no_message_manager(self, client, mock_server) -> None:
-        """Works when message_manager is None (no enrichment)."""
-        sessions = [_make_session()]
-        mock_server.session_manager.list.return_value = sessions
-        mock_server.message_manager = None
-
-        response = client.get("/api/sessions")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["count"] == 1
 
 
 # =============================================================================
@@ -556,7 +538,6 @@ class TestGetSession:
         """Returns session data when found."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_all_counts.return_value = {"sess-abc123": 15}
 
         response = client.get("/api/sessions/sess-abc123")
 
@@ -587,7 +568,7 @@ class TestGetSession:
         """Session data is enriched with activity stats."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_all_counts.return_value = {}
+        # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
             "gobby.servers.routes.sessions._get_session_stats",
@@ -611,7 +592,7 @@ class TestGetSession:
         """Returns session even if stats enrichment fails."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_all_counts.return_value = {}
+        # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
             "gobby.servers.routes.sessions._get_session_stats",
@@ -632,12 +613,13 @@ class TestGetMessages:
     """Test GET /sessions/{session_id}/messages endpoint."""
 
     def test_get_messages_success(self, client, mock_server) -> None:
-        """Returns messages and total count."""
-        mock_server.message_manager.get_messages.return_value = [
-            {"role": "user", "content": "Hello"},
-            {"role": "assistant", "content": "Hi there"},
-        ]
-        mock_server.message_manager.count_messages.return_value = 2
+        """Returns rendered messages and total count."""
+        msg1 = MagicMock()
+        msg1.to_dict.return_value = {"role": "user", "content": "Hello"}
+        msg2 = MagicMock()
+        msg2.to_dict.return_value = {"role": "assistant", "content": "Hi there"}
+        mock_server.transcript_reader.get_rendered_messages.return_value = [msg1, msg2]
+        mock_server.transcript_reader.count_messages.return_value = 2
 
         response = client.get("/api/sessions/sess-abc123/messages")
 
@@ -647,30 +629,31 @@ class TestGetMessages:
         assert len(data["messages"]) == 2
         assert data["total_count"] == 2
         assert "response_time_ms" in data
+        assert data["format"] == "rendered"
 
-    def test_get_messages_with_params(self, client, mock_server) -> None:
-        """Passes limit, offset, role parameters to message_manager."""
-        mock_server.message_manager.get_messages.return_value = []
-        mock_server.message_manager.count_messages.return_value = 0
+    def test_get_messages_legacy_with_params(self, client, mock_server) -> None:
+        """Passes limit, offset, role parameters in legacy format."""
+        mock_server.transcript_reader.get_messages.return_value = []
+        mock_server.transcript_reader.count_messages.return_value = 0
 
         response = client.get(
             "/api/sessions/sess-abc123/messages",
-            params={"limit": 50, "offset": 10, "role": "user"},
+            params={"limit": 50, "offset": 10, "role": "user", "format": "legacy"},
         )
 
         assert response.status_code == 200
-        mock_server.message_manager.get_messages.assert_called_once_with(
+        mock_server.transcript_reader.get_messages.assert_called_once_with(
             session_id="sess-abc123", limit=50, offset=10, role="user"
         )
 
-    def test_get_messages_no_message_manager(self, client, mock_server) -> None:
-        """Returns 503 when message_manager is None."""
-        mock_server.message_manager = None
+    def test_get_messages_no_transcript_reader(self, client, mock_server) -> None:
+        """Returns 503 when transcript_reader is None."""
+        mock_server.transcript_reader = None
 
         response = client.get("/api/sessions/sess-abc123/messages")
 
         assert response.status_code == 503
-        assert "Message manager not available" in response.json()["detail"]
+        assert "Transcript reader not available" in response.json()["detail"]
 
 
 # =============================================================================
@@ -1056,7 +1039,7 @@ class TestSynthesizeTitle:
         """Synthesizes and saves a title from conversation messages."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_messages.return_value = [
+        mock_server.transcript_reader.get_messages.return_value = [
             {"role": "user", "content": "Help me write a CLI"},
             {"role": "assistant", "content": "Sure, let me help with that CLI tool."},
         ]
@@ -1089,9 +1072,9 @@ class TestSynthesizeTitle:
 
         assert response.status_code == 503
 
-    def test_synthesize_title_no_message_manager(self, client, mock_server) -> None:
-        """Returns 503 when message_manager is None."""
-        mock_server.message_manager = None
+    def test_synthesize_title_no_transcript_reader(self, client, mock_server) -> None:
+        """Returns 503 when transcript_reader is None."""
+        mock_server.transcript_reader = None
 
         response = client.post("/api/sessions/sess-abc123/synthesize-title")
 
@@ -1109,7 +1092,7 @@ class TestSynthesizeTitle:
         """Returns 422 when session has no messages."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_messages.return_value = []
+        mock_server.transcript_reader.get_messages.return_value = []
 
         response = client.post("/api/sessions/sess-abc123/synthesize-title")
 
@@ -1120,7 +1103,7 @@ class TestSynthesizeTitle:
         """Returns 422 when there are only tool messages (no user/assistant)."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_messages.return_value = [
+        mock_server.transcript_reader.get_messages.return_value = [
             {"role": "tool", "content": "some tool output"},
         ]
 
@@ -1133,7 +1116,7 @@ class TestSynthesizeTitle:
         """LLM output is stripped of surrounding quotes."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_messages.return_value = [
+        mock_server.transcript_reader.get_messages.return_value = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi"},
         ]
@@ -1151,7 +1134,7 @@ class TestSynthesizeTitle:
         """Falls back to 'Untitled Session' when LLM returns empty string."""
         session = _make_session()
         mock_server.session_manager.get.return_value = session
-        mock_server.message_manager.get_messages.return_value = [
+        mock_server.transcript_reader.get_messages.return_value = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi"},
         ]

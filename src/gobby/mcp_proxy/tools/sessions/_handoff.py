@@ -85,7 +85,6 @@ def register_handoff_tools(
         content: str | None = None,
         to_session: str | None = None,
         notes: str | None = None,
-        compact: bool = False,
         full: bool = False,
         write_file: bool = False,
         output_path: str = ".gobby/session_summaries/",
@@ -99,8 +98,7 @@ def register_handoff_tools(
             content: Agent-authored handoff content (fast path, skips transcript analysis)
             to_session: Target session to send handoff context to via P2P message
             notes: Additional notes to include in handoff
-            compact: Generate compact summary only (TranscriptAnalyzer)
-            full: Generate full LLM summary only
+            full: Generate full LLM summary only (default when content omitted)
             write_file: Also write to file (default: False). DB is always written.
             output_path: Directory for file output (default: .gobby/session_summaries/)
             set_handoff_ready: Set session status to handoff_ready (default: True)
@@ -151,8 +149,7 @@ def register_handoff_tools(
             write_file=write_file,
             output_path=output_path,
             set_handoff_ready=set_handoff_ready,
-            compact_only=compact and not full,
-            full_only=full and not compact,
+            full_only=full,
         )
 
         if not summary_result.get("success"):
@@ -169,9 +166,7 @@ def register_handoff_tools(
             session_after = session_manager.get(session.id)
             send_content = ""
             if session_after:
-                send_content = (
-                    session_after.summary_markdown or session_after.compact_markdown or ""
-                )
+                send_content = session_after.summary_markdown or ""
             if send_content:
                 summary_result["send_result"] = _send_to_peer(session.id, to_session, send_content)
             else:
@@ -248,8 +243,8 @@ def register_handoff_tools(
                 },
             }
 
-        # Get handoff context (prefer summary_markdown, fall back to compact_markdown)
-        context = parent_session.summary_markdown or parent_session.compact_markdown
+        # Get handoff context
+        context = parent_session.summary_markdown
 
         if not context:
             return {
@@ -282,9 +277,7 @@ def register_handoff_tools(
             "session_id": parent_session.id,
             "has_context": True,
             "context": context,
-            "context_type": (
-                "summary_markdown" if parent_session.summary_markdown else "compact_markdown"
-            ),
+            "context_type": "summary_markdown",
             "parent_title": parent_session.title,
             "parent_status": parent_session.status,
             "linked_child": resolved_child_id or link_child_session_id,

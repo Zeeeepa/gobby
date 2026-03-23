@@ -1,15 +1,20 @@
 """Rule engine with single-pass evaluation loop.
 
 Rules are stateless event handlers: event comes in, conditions match, effect fires.
-Five effect types: block, set_variable, inject_context, mcp_call, observe.
+Effect types: block, set_variable, inject_context, mcp_call, observe,
+rewrite_input, compress_output, load_skill.
 """
 
 import json
 import logging
 import re
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.mcp_proxy.metrics_events import MetricsEventStore
 
 import pydantic
 from opentelemetry.trace import Status, StatusCode
@@ -88,10 +93,17 @@ class RuleEngine:
     applies session overrides, evaluates in priority order.
     """
 
-    def __init__(self, db: DatabaseProtocol):
+    def __init__(
+        self,
+        db: DatabaseProtocol,
+        skill_manager: Any | None = None,
+        metrics_event_store: "MetricsEventStore | None" = None,
+    ):
         self.db = db
         self.definition_manager = LocalWorkflowDefinitionManager(db)
         self.instance_manager = WorkflowInstanceManager(db)
+        self._skill_manager = skill_manager
+        self._event_store = metrics_event_store
 
     async def evaluate(
         self,
@@ -239,7 +251,14 @@ class RuleEngine:
                 # Force-allow stop (catastrophic failure bypass — self-clearing)
                 if rule_event == RuleEvent.STOP and variables.get("force_allow_stop"):
                     variables["force_allow_stop"] = False
-                    override_decision = "allow"
+                    if variables.get("task_claimed"):
+                        logger.warning(
+                            "force_allow_stop suppressed — task_claimed=True, "
+                            "deferring to require-task-close rule (session %s)",
+                            session_id,
+                        )
+                    else:
+                        override_decision = "allow"
 
                 # Auto-block stop when a tool just failed (self-clearing)
                 elif rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
@@ -350,6 +369,8 @@ class RuleEngine:
                     # Process effects: non-block effects first, then block (if any)
                     effects = body.resolved_effects
                     deferred_block: RuleEffect | None = None
+                    rule_start = time.perf_counter()
+                    rule_blocked = False
 
                     for effect in effects:
                         # Check per-effect `when` condition
@@ -378,6 +399,7 @@ class RuleEngine:
                     # Now apply deferred block (if any)
                     if deferred_block is not None:
                         if self._should_block(deferred_block, event):
+                            rule_blocked = True
                             block_reason = deferred_block.reason or "Blocked by rule"
                             block_reason = self._render_template(block_reason, ctx, allowed_funcs)
                             block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
@@ -389,8 +411,25 @@ class RuleEngine:
                                 tool_name_lower = event.data.get("tool_name", "").lower()
                                 if tool_name_lower in EDIT_TOOLS:
                                     _clear_edit_write_state(variables)
-                            # First block wins — stop evaluating
-                            break
+
+                    # Record rule evaluation metric
+                    if self._event_store:
+                        rule_latency = (time.perf_counter() - rule_start) * 1000
+                        try:
+                            self._event_store.record_event(
+                                event_type="rule_eval",
+                                name=_row.name,
+                                session_id=session_id,
+                                success=not rule_blocked,
+                                result="block" if rule_blocked else "allow",
+                                latency_ms=rule_latency,
+                            )
+                        except Exception:
+                            pass  # Never let metrics recording break rule evaluation
+
+                    if rule_blocked:
+                        # First block wins — stop evaluating
+                        break
 
                 # 6. Build response — overrides take precedence over rule-evaluated decisions,
                 # but the rule loop always runs so mcp_calls are always collected.
@@ -550,10 +589,9 @@ class RuleEngine:
         elif effect.type == "inject_context":
             # NOTE: inject_context templates render with rule evaluation context:
             # event, variables (flattened to top-level), and helper functions.
-            # Session data (summary_markdown, compact_markdown, task_context) is
-            # populated as session variables by the SESSION_START handler before
-            # rules evaluate, making them available as {{ full_session_summary }},
-            # {{ compact_session_summary }}, {{ task_context }} in templates.
+            # Session data (summary_markdown, task_context) is populated as session
+            # variables by the SESSION_START handler before rules evaluate, making
+            # them available as {{ session_summary }}, {{ task_context }} in templates.
             if effect.template:
                 template_text = self._render_template(effect.template, ctx, allowed_funcs)
                 context_parts.append(template_text)
@@ -586,6 +624,7 @@ class RuleEngine:
                     "background": effect.background,
                     "inject_result": effect.inject_result,
                     "block_on_failure": effect.block_on_failure,
+                    "block_on_success": effect.block_on_success,
                 }
             )
 
@@ -617,6 +656,33 @@ class RuleEngine:
                 "strategy": effect.strategy,
                 "max_lines": effect.max_lines,
             }
+
+        elif effect.type == "load_skill":
+            if effect.skill and self._skill_manager:
+                try:
+                    skill = self._skill_manager.resolve_skill_name(effect.skill)
+                    if skill:
+                        context_parts.append(
+                            f'<skill name="{skill.name}">\n{skill.content}\n</skill>'
+                        )
+                    else:
+                        logger.warning(
+                            "load_skill effect: skill %r not found (rule %s)",
+                            effect.skill,
+                            row.name,
+                        )
+                except Exception:
+                    logger.warning(
+                        "load_skill effect: failed to resolve skill %r (rule %s)",
+                        effect.skill,
+                        row.name,
+                        exc_info=True,
+                    )
+            elif effect.skill and not self._skill_manager:
+                logger.warning(
+                    "load_skill effect: no skill_manager available (rule %s)",
+                    row.name,
+                )
 
     def _build_eval_context(
         self,
@@ -655,6 +721,28 @@ class RuleEngine:
             "tool_input": raw_tool_input,
             "source": event.source.value if event.source else None,
         }
+
+        # Safely inject project context if not in variables
+        if "project" not in variables:
+            project_info = {"name": "Unknown", "id": "unknown", "path": ""}
+            try:
+                session_id = event.metadata.get("_platform_session_id")
+                if session_id:
+                    from gobby.storage.projects import LocalProjectManager
+                    from gobby.storage.sessions import LocalSessionManager
+
+                    session_db = LocalSessionManager(self.db).get(session_id)
+                    if session_db and session_db.project_id:
+                        proj = LocalProjectManager(self.db).get(session_db.project_id)
+                        if proj:
+                            project_info = {
+                                "name": proj.name,
+                                "id": proj.id,
+                                "path": proj.repo_path or "",
+                            }
+            except Exception:
+                pass
+            ctx["project"] = project_info
 
         # Flatten variables at top level for convenience
         for key, val in variables.items():
@@ -980,6 +1068,10 @@ class RuleEngine:
         tool_name = event.data.get("tool_name", "")
         wf_name = instance.workflow_name
 
+        # ToolSearch (Claude Code deferred tool loader) is always allowed — it IS progressive discovery
+        if tool_name == "ToolSearch":
+            return None
+
         # Discovery/infrastructure tools always pass — agents need these in every step
         if tool_name.startswith("mcp__gobby__"):
             mcp_suffix = tool_name[len("mcp__gobby__") :]
@@ -1153,6 +1245,25 @@ class RuleEngine:
                     instance.workflow_name,
                     session_id,
                 )
+
+                # Evaluate exit_condition after transition
+                if definition.exit_condition:
+                    exit_ctx = {
+                        "current_step": instance.current_step,
+                        "vars": instance.variables,
+                        "variables": variables,
+                    }
+                    if self._evaluate_condition(
+                        definition.exit_condition, exit_ctx, "set_variable"
+                    ):
+                        variables["step_workflow_complete"] = True
+                        logger.info(
+                            "Exit condition met for workflow %s (session=%s, step=%s)",
+                            instance.workflow_name,
+                            session_id,
+                            instance.current_step,
+                        )
+
                 return  # First matching transition wins
 
         # Save if variables changed without transition

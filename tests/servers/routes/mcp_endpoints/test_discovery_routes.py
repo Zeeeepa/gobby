@@ -528,7 +528,7 @@ class TestMCPDiscoveryRoutes:
         result_mock.to_dict.return_value = {"tool": "write_file", "score": 0.85}
 
         semantic_search = MagicMock()
-        semantic_search.get_embeddings_for_project.return_value = ["emb1"]
+        semantic_search.has_embeddings = AsyncMock(return_value=True)
         semantic_search.search_tools = AsyncMock(return_value=[result_mock])
 
         mock_server._tools_handler = MagicMock()
@@ -547,7 +547,7 @@ class TestMCPDiscoveryRoutes:
     def test_search_with_all_params(self, client: TestClient, mock_server: MagicMock) -> None:
         """Pass all optional params to search."""
         semantic_search = MagicMock()
-        semantic_search.get_embeddings_for_project.return_value = ["emb1"]
+        semantic_search.has_embeddings = AsyncMock(return_value=True)
         semantic_search.search_tools = AsyncMock(return_value=[])
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler._semantic_search = semantic_search
@@ -576,7 +576,7 @@ class TestMCPDiscoveryRoutes:
         self, client: TestClient, mock_server: MagicMock
     ) -> None:
         semantic_search = MagicMock()
-        semantic_search.get_embeddings_for_project.return_value = []  # No embeddings
+        semantic_search.has_embeddings = AsyncMock(return_value=False)  # No embeddings
 
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler._semantic_search = semantic_search
@@ -598,7 +598,7 @@ class TestMCPDiscoveryRoutes:
     ) -> None:
         """No embeddings but no _mcp_db_manager - should proceed to search (with empty embeddings)."""
         semantic_search = MagicMock()
-        semantic_search.get_embeddings_for_project.return_value = []
+        semantic_search.has_embeddings = AsyncMock(return_value=False)
         semantic_search.search_tools = AsyncMock(return_value=[])
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler._semantic_search = semantic_search
@@ -616,7 +616,7 @@ class TestMCPDiscoveryRoutes:
 
     def test_search_semantic_error(self, client: TestClient, mock_server: MagicMock) -> None:
         semantic_search = MagicMock()
-        semantic_search.get_embeddings_for_project.side_effect = RuntimeError("embed fail")
+        semantic_search.has_embeddings = AsyncMock(side_effect=RuntimeError("embed fail"))
 
         mock_server._tools_handler = MagicMock()
         mock_server._tools_handler._semantic_search = semantic_search

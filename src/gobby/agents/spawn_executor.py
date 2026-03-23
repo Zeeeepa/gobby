@@ -60,11 +60,16 @@ class SpawnRequest:
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
     machine_id: str | None = None
     model: str | None = None  # Model override (e.g., gemini-3-pro-preview)
+    api_base: str | None = None  # API base URL for local model endpoints
+    api_token: str | None = None  # Auth token for the endpoint
 
     # Sandbox configuration
     sandbox_config: SandboxConfig | None = None
     sandbox_args: list[str] | None = None
     sandbox_env: dict[str, str] | None = field(default=None)
+
+    # Timeout
+    timeout_seconds: float | None = None  # Agent timeout (persisted to DB for restart survival)
 
     # Autonomous mode fields
     system_prompt: str | None = None  # Agent system prompt
@@ -159,6 +164,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id
@@ -195,6 +201,12 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
     env = spawn_context.env_vars.copy()
     if sandbox_env:
         env.update(sandbox_env)
+
+    # Map api_base/api_token to Claude-specific env vars
+    if request.api_base:
+        env["ANTHROPIC_BASE_URL"] = request.api_base
+    if request.api_token:
+        env["ANTHROPIC_AUTH_TOKEN"] = request.api_token
 
     # Pass machine_id as env var for sandboxed agents
     if request.machine_id:
@@ -268,6 +280,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id
@@ -299,6 +312,12 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     env = spawn_context.env_vars.copy()
     if sandbox_env:
         env.update(sandbox_env)
+
+    # Map api_base/api_token to Gemini-specific env vars
+    if request.api_base:
+        env["GEMINI_API_BASE"] = request.api_base
+    if request.api_token:
+        env["GEMINI_API_KEY"] = request.api_token
 
     # Pass machine_id as env var for sandboxed agents that can't read ~/.gobby/machine_id
     if request.machine_id:
@@ -453,6 +472,7 @@ async def _spawn_codex_autonomous(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id
@@ -520,6 +540,7 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id

@@ -15,12 +15,12 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
+from gobby.sessions.transcripts.base import BaseTranscriptParser, ParsedMessage, TokenUsage
 
 logger = logging.getLogger(__name__)
 
 
-class GeminiTranscriptParser:
+class GeminiTranscriptParser(BaseTranscriptParser):
     """
     Parses transcript files from Gemini.
 
@@ -29,14 +29,19 @@ class GeminiTranscriptParser:
     - JSON: Native session file (parse_session_json)
     """
 
-    def __init__(self, logger_instance: logging.Logger | None = None):
+    def __init__(
+        self,
+        session_id: str | None = None,
+        logger_instance: logging.Logger | None = None,
+    ):
         """
         Initialize GeminiTranscriptParser.
 
         Args:
+            session_id: Optional session identifier.
             logger_instance: Optional logger instance.
         """
-        self.logger = logger_instance or logger
+        super().__init__(cli_name="gemini", session_id=session_id, logger_instance=logger_instance)
 
     def extract_last_messages(
         self, turns: list[dict[str, Any]], num_pairs: int = 2
@@ -116,13 +121,23 @@ class GeminiTranscriptParser:
 
         try:
             data = json.loads(line)
-        except json.JSONDecodeError:
-            self.logger.debug(f"Invalid JSON at line {index}")
+        except json.JSONDecodeError as e:
+            self.error_log.log_malformed_line(
+                line_num=index,
+                session_id=self.session_id,
+                raw_text=line,
+                error=str(e),
+            )
             return None
 
         # Ensure data is a dict (JSON could be a string, number, etc.)
         if not isinstance(data, dict):
-            self.logger.debug(f"Skipping non-object JSON at line {index}")
+            self.error_log.log_malformed_line(
+                line_num=index,
+                session_id=self.session_id,
+                raw_text=line,
+                error="Line is not a JSON object",
+            )
             return None
 
         # Extract timestamp

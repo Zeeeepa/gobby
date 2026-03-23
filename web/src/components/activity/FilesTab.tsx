@@ -1,28 +1,11 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
+import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { markdownComponents } from '../shared/MarkdownComponents'
 import { CodeMirrorEditor } from '../shared/CodeMirrorEditor'
-
-// Custom theme matching the app (same as FilesPage)
-const codeTheme = {
-  ...oneDark,
-  'pre[class*="language-"]': {
-    ...oneDark['pre[class*="language-"]'],
-    background: '#0a0a0a',
-    margin: '0',
-    padding: '1rem',
-    borderRadius: '0',
-    fontSize: '0.9em',
-  },
-  'code[class*="language-"]': {
-    ...oneDark['code[class*="language-"]'],
-    background: 'transparent',
-    fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
-  },
-}
+import { codeTheme } from '../shared/codeTheme'
 
 interface FilesTabProps {
   projectId?: string | null
@@ -108,6 +91,7 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [childrenMap, setChildrenMap] = useState<Map<string, FileEntry[]>>(new Map())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [topHeight, setTopHeight] = useState(40)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -202,7 +186,10 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: entry.path }),
     })
-    if (!response.ok) return
+    if (!response.ok) {
+      console.error(`Delete failed (${response.status}):`, await response.text().catch(() => ''))
+      return
+    }
     // Refresh parent directory
     const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
@@ -228,7 +215,11 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: renaming.path, new_path: newPath }),
     })
-    if (!response.ok) { setRenaming(null); return }
+    if (!response.ok) {
+      console.error(`Rename failed (${response.status}):`, await response.text().catch(() => ''))
+      setRenaming(null)
+      return
+    }
     setRenaming(null)
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
     loadChildren(parentPath)
@@ -245,8 +236,40 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: entry.path, new_path: newPath }),
     })
-    if (!response.ok) return
+    if (!response.ok) {
+      console.error(`Move failed (${response.status}):`, await response.text().catch(() => ''))
+      return
+    }
     const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
+    setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
+    loadChildren(parentPath)
+  }, [projectId, closeCtxMenu, loadChildren])
+
+  const handleDuplicate = useCallback(async (entry: FileEntry) => {
+    closeCtxMenu()
+    if (!projectId || entry.is_dir) return
+    const baseUrl = getBaseUrl()
+    const readRes = await fetch(`${baseUrl}/api/files/read?project_id=${encodeURIComponent(projectId)}&path=${encodeURIComponent(entry.path)}`)
+    if (!readRes.ok) {
+      console.error(`Read failed (${readRes.status}):`, await readRes.text().catch(() => ''))
+      return
+    }
+    const { content } = await readRes.json()
+    const dotIdx = entry.name.lastIndexOf('.')
+    const newName = dotIdx > 0
+      ? `${entry.name.substring(0, dotIdx)} copy${entry.name.substring(dotIdx)}`
+      : `${entry.name} copy`
+    const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
+    const newPath = parentPath ? `${parentPath}/${newName}` : newName
+    const writeRes = await fetch(`${baseUrl}/api/files/write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, path: newPath, content }),
+    })
+    if (!writeRes.ok) {
+      console.error(`Duplicate failed (${writeRes.status}):`, await writeRes.text().catch(() => ''))
+      return
+    }
     setChildrenMap((prev) => { const next = new Map(prev); next.delete(parentPath); return next })
     loadChildren(parentPath)
   }, [projectId, closeCtxMenu, loadChildren])
@@ -259,7 +282,10 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: projectId, path: selectedFile, content: editContent }),
     })
-    if (!response.ok) return
+    if (!response.ok) {
+      console.error(`Save failed (${response.status}):`, await response.text().catch(() => ''))
+      return
+    }
     setFileContent(editContent)
     setIsEditing(false)
   }, [projectId, selectedFile, editContent])
@@ -352,11 +378,6 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
             if (status) return <GitStatusBadge status={status} />
             return null
           })()}
-          {entry.size != null && (
-            <span className="files-tree-size">
-              {entry.size < 1024 ? `${entry.size}B` : entry.size < 1048576 ? `${(entry.size / 1024).toFixed(0)}K` : `${(entry.size / 1048576).toFixed(1)}M`}
-            </span>
-          )}
         </div>
       </div>
     )
@@ -374,13 +395,18 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
   return (
     <div className="flex flex-col h-full">
       {/* File tree */}
-      <div className={`overflow-y-auto ${selectedFile ? 'max-h-[40%] border-b border-border' : 'flex-1'}`}>
+      <div className={`overflow-y-auto ${selectedFile ? 'border-b border-border' : 'flex-1'}`} style={selectedFile ? { height: `${topHeight}%` } : undefined}>
         {rootEntries.length === 0 ? (
           <div className="activity-tab-empty"><p>No files</p></div>
         ) : (
           rootEntries.map((e) => renderEntry(e, 0))
         )}
       </div>
+
+      {/* Resize handle */}
+      {selectedFile && (
+        <ResizeHandle direction="vertical" onResize={setTopHeight} panelHeight={topHeight} minHeight={15} maxHeight={80} />
+      )}
 
       {/* File viewer */}
       {selectedFile && (
@@ -450,6 +476,9 @@ export const FilesTab = memo(function FilesTab({ projectId, onAddToChat }: Files
               <button className="file-ctx-item" onClick={() => { onAddToChat(ctxMenu.entry.path); closeCtxMenu() }}>
                 Add to chat
               </button>
+            )}
+            {!ctxMenu.entry.is_dir && (
+              <button className="file-ctx-item" onClick={() => handleDuplicate(ctxMenu.entry)}>Duplicate</button>
             )}
             <button className="file-ctx-item" onClick={() => handleRename(ctxMenu.entry)}>Rename</button>
             <button className="file-ctx-item" onClick={() => handleMove(ctxMenu.entry)}>Move</button>

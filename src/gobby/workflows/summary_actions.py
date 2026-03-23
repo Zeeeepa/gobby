@@ -170,15 +170,23 @@ def _format_structured_context(ctx: HandoffContext) -> str:
 
     if ctx.active_gobby_task:
         task = ctx.active_gobby_task
-        sections.append(
-            f"Active Task: {task.get('title', 'Untitled')} "
-            f"(#{task.get('id', '?')}, status: {task.get('status', 'unknown')})"
-        )
+        if isinstance(task, dict):
+            sections.append(
+                f"Active Task: {task.get('title', 'Untitled')} "
+                f"(#{task.get('id', '?')}, status: {task.get('status', 'unknown')})"
+            )
+        else:
+            sections.append(f"Active Task: {task}")
 
     if ctx.task_progress:
-        progress_lines = [
-            f"  - {p['action']}: {p['title']} ({p['id']})" for p in ctx.task_progress[-15:]
-        ]
+        progress_lines = []
+        for p in ctx.task_progress[-15:]:
+            if isinstance(p, dict):
+                progress_lines.append(
+                    f"  - {p.get('action', '?')}: {p.get('title', '?')} ({p.get('id', '?')})"
+                )
+            else:
+                progress_lines.append(f"  - {p}")
         sections.append("Task Progress:\n" + "\n".join(progress_lines))
 
     if ctx.initial_goal:
@@ -188,9 +196,12 @@ def _format_structured_context(ctx: HandoffContext) -> str:
         sections.append("Files Modified:\n" + "\n".join(f"  - {f}" for f in ctx.files_modified))
 
     if ctx.git_commits:
-        commit_lines = [
-            f"  - {c.get('hash', '')[:7]} {c.get('message', '')}" for c in ctx.git_commits[:10]
-        ]
+        commit_lines = []
+        for c in ctx.git_commits[:10]:
+            if isinstance(c, dict):
+                commit_lines.append(f"  - {c.get('hash', '')[:7]} {c.get('message', '')}")
+            else:
+                commit_lines.append(f"  - {c}")
         sections.append("Recent Commits:\n" + "\n".join(commit_lines))
 
     if ctx.recent_activity:

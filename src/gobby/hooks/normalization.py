@@ -175,6 +175,18 @@ def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:
     if "tool_response" in data and "tool_output" not in data:
         data["tool_output"] = data["tool_response"]
 
+    # 2c. Parse string tool_output to dict when possible.
+    # Claude Code sends tool_response as JSON text; observers and rules
+    # expect a dict.  Parse once here so every consumer gets structured data.
+    tool_output = data.get("tool_output")
+    if isinstance(tool_output, str):
+        try:
+            parsed = _json.loads(tool_output)
+            if isinstance(parsed, dict):
+                data["tool_output"] = parsed
+        except (ValueError, TypeError):
+            pass  # Non-JSON text output — leave as string
+
     return data
 
 

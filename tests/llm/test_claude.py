@@ -5,8 +5,10 @@ _retry_async logic, _format_summary_context, _prepare_image_data,
 generate_json, stream_with_mcp_tools, and describe_image.
 """
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -68,7 +70,7 @@ def api_key_config() -> DaemonConfig:
 
 
 @contextmanager
-def mock_claude_sdk(mock_query_func: object) -> object:
+def mock_claude_sdk(mock_query_func: Any) -> Generator[None]:
     """Mock the Claude Agent SDK for testing."""
     with (
         patch("gobby.llm.claude_cli.shutil.which", return_value="/usr/bin/claude"),

@@ -36,7 +36,6 @@ from claude_agent_sdk.types import (
     UserPromptSubmitHookSpecificOutput,
 )
 
-import gobby.llm.sdk_compat  # noqa: F401 — monkey-patch parse_message
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
@@ -57,6 +56,7 @@ from gobby.llm.sdk_utils import (
     parse_server_name as _parse_server_name,
 )
 from gobby.servers.chat_session_helpers import (
+    _PLAN_FILE_PATTERN,
     PendingApproval,
     _find_cli_path,
     _find_mcp_config,
@@ -113,16 +113,17 @@ class ChatSession(ChatSessionPermissionsMixin):
     )
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
+    _on_approved_tools_persist: Callable[[set[str]], None] | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
     _last_model: str | None = field(default=None, repr=False)
-    _message_manager: Any | None = field(default=None, repr=False)
-    _message_manager_source_session_id: str | None = field(default=None, repr=False)
     _pending_agent_name: str | None = field(default=None, repr=False)
     _max_history_message_chars: int = field(default=2000, repr=False)
     _max_history_total_chars: int = field(default=30_000, repr=False)
     _context_window_overrides: dict[str, int] = field(default_factory=dict, repr=False)
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
+    _message_manager_source_session_id: str | None = field(default=None, repr=False)
+    _message_manager: Any | None = field(default=None, repr=False)
     sdk_session_id: str | None = field(default=None, repr=False)
     system_prompt_override: str | None = field(default=None, repr=False)
     resume_session_id: str | None = field(default=None, repr=False)
@@ -343,9 +344,30 @@ class ChatSession(ChatSessionPermissionsMixin):
                 tool_use_id: str | None,
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
+                tool_name = inp.get("tool_name", "")
+                tool_input = inp.get("tool_input", {})
+
+                # Detect plan file writes/reads in plan mode → broadcast to frontend
+                if (
+                    tool_name in ("Write", "Edit", "Read")
+                    and self.chat_mode == "plan"
+                    and not self._plan_approved
+                    and isinstance(tool_input, dict)
+                ):
+                    file_path = tool_input.get("file_path", "")
+                    if _PLAN_FILE_PATTERN.match(file_path):
+                        plan_content = self._read_plan_file()
+                        if plan_content and self._on_plan_ready:
+                            await self._on_plan_ready(plan_content, tool_input)
+                            logger.info(
+                                "Plan file %s, broadcast plan_pending_approval for %s",
+                                "read" if tool_name == "Read" else "written",
+                                self.conversation_id[:8],
+                            )
+
                 data = {
-                    "tool_name": inp.get("tool_name", ""),
-                    "tool_input": inp.get("tool_input", {}),
+                    "tool_name": tool_name,
+                    "tool_input": tool_input,
                     "tool_response": inp.get("tool_response"),
                 }
                 resp = await cb_post(data)
@@ -590,10 +612,9 @@ class ChatSession(ChatSessionPermissionsMixin):
                         # (correct for cost tracking; not part of context %)
                         output_tokens = usage.get("output_tokens", 0) or 0
 
-                        _model_usage = getattr(message, "_model_usage", None)
                         context_window = resolve_context_window(
                             self._last_model,
-                            _model_usage,
+                            None,
                             overrides=self._context_window_overrides or None,
                         )
 

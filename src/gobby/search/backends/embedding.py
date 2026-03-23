@@ -61,7 +61,7 @@ class EmbeddingBackend:
 
     def __init__(
         self,
-        model: str = "text-embedding-3-small",
+        model: str = "local/nomic-embed-text-v1.5",
         api_base: str | None = None,
         api_key: str | None = None,
     ):
@@ -176,6 +176,7 @@ class EmbeddingBackend:
                 model=self._model,
                 api_base=self._api_base,
                 api_key=self._api_key,
+                is_query=True,
             )
         except Exception as e:
             logger.error(f"Failed to embed query: {e}")

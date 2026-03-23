@@ -4,6 +4,7 @@ import { cn } from '../../lib/utils'
 import { Markdown } from './Markdown'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallCards, ToolChainGroup } from './ToolCallCard'
+import { UnknownBlockCard } from './UnknownBlockCard'
 import type { A2UISurfaceState, UserAction } from '../canvas'
 
 interface MessageItemProps {
@@ -66,7 +67,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
           </div>
         )}
 
-        {message.thinkingContent !== undefined && (
+        {message.thinkingContent !== undefined && !(message.contentBlocks && message.contentBlocks.length > 0) && (
           <ThinkingBlock content={message.thinkingContent} messageId={message.id} />
         )}
 
@@ -82,11 +83,14 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
                   </div>
                 )
               }
+              if (block.type === 'thinking') {
+                return <ThinkingBlock key={`${message.id}-b${i}`} content={block.content} messageId={message.id} />
+              }
               if (block.type === 'tool_chain') {
                 return (
                   <ToolChainGroup
                     key={`${message.id}-b${i}`}
-                    toolCalls={block.calls}
+                    toolCalls={block.tool_calls}
                     onRespond={onRespondToQuestion}
                     onRespondToApproval={onRespondToApproval}
                     canvasSurfaces={canvasSurfaces}
@@ -94,11 +98,45 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
                   />
                 )
               }
+              if (block.type === 'tool_reference') {
+                return (
+                  <div key={`${message.id}-b${i}`} className="my-1 text-xs text-muted-foreground italic">
+                    Referencing tool: {block.tool_name} ({block.server_name})
+                  </div>
+                )
+              }
               if (block.type === 'image') {
+                const { source } = block
+                const src = source?.data ? `data:${source.media_type};base64,${source.data}` : ''
+                if (!src) return null
                 return (
                   <div key={`${message.id}-b${i}`} className="my-2">
-                    <img src={block.src} alt={block.alt || 'Image'} className="max-w-full rounded-lg border border-border" />
+                    <img src={src} alt="Image content" className="max-w-full rounded-lg border border-border" />
                   </div>
+                )
+              }
+              if (block.type === 'document') {
+                return (
+                  <div key={`${message.id}-b${i}`} className="my-1 p-2 rounded bg-muted/50 border border-border text-xs flex items-center gap-2">
+                    <span className="font-medium text-foreground">Document:</span>
+                    <span className="truncate">{block.source?.name || 'Unknown'}</span>
+                  </div>
+                )
+              }
+              if (block.type === 'web_search_result') {
+                return (
+                  <div key={`${message.id}-b${i}`} className="my-1 p-2 rounded bg-accent/10 border border-accent/20 text-xs italic">
+                    Search result included.
+                  </div>
+                )
+              }
+              if (block.type === 'unknown') {
+                return (
+                  <UnknownBlockCard
+                    key={`${message.id}-b${i}`}
+                    blockType={block.block_type}
+                    raw={block.raw}
+                  />
                 )
               }
               return null

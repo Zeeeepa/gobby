@@ -100,6 +100,40 @@ class TestSpawnRequest:
         assert request.sandbox_args == ["--settings", '{"sandbox":{"enabled":true}}']
         assert request.sandbox_env == {"SEATBELT_PROFILE": "restrictive-closed"}
 
+    def test_spawn_request_api_base_defaults_to_none(self) -> None:
+        """Test SpawnRequest api_base and api_token default to None."""
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="claude",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+        )
+
+        assert request.api_base is None
+        assert request.api_token is None
+
+    def test_spawn_request_accepts_api_base_and_token(self) -> None:
+        """Test SpawnRequest accepts api_base and api_token for local models."""
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="claude",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+            api_base="http://localhost:1234/v1",
+            api_token="sk-local",
+        )
+
+        assert request.api_base == "http://localhost:1234/v1"
+        assert request.api_token == "sk-local"
+
 
 class TestSpawnResult:
     """Tests for SpawnResult dataclass."""
@@ -958,12 +992,14 @@ class TestExecuteSpawnErrorPaths:
         ):
             result = await execute_spawn(request)
 
-        assert result.success is True
-        assert result.status == "running"
-        assert result.child_session_id == "child-sess"
-        # Cancel the background task
-        if result.process:
-            result.process.cancel()
+        try:
+            assert result.success is True
+            assert result.status == "running"
+            assert result.child_session_id == "child-sess"
+        finally:
+            # Cancel the background task
+            if result.process:
+                result.process.cancel()
 
     @pytest.mark.asyncio
     async def test_autonomous_spawn_success(self) -> None:
@@ -1002,12 +1038,14 @@ class TestExecuteSpawnErrorPaths:
         ):
             result = await execute_spawn(request)
 
-        assert result.success is True
-        assert result.status == "running"
-        assert result.run_id == "run-auto"
-        # Cancel the background task
-        if result.process:
-            result.process.cancel()
+        try:
+            assert result.success is True
+            assert result.status == "running"
+            assert result.run_id == "run-auto"
+        finally:
+            # Cancel the background task
+            if result.process:
+                result.process.cancel()
 
     @pytest.mark.asyncio
     async def test_claude_terminal_passes_machine_id_env(self) -> None:

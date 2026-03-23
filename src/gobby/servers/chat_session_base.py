@@ -45,8 +45,12 @@ class ChatSessionProtocol(Protocol):
     _tool_approval_callback: Callable[..., Any] | None
     _session_manager_ref: Any
     _on_mode_persist: Callable[[str], None] | None
+    _on_approved_tools_persist: Callable[[set[str]], None] | None
+    _approved_tools: set[str]
+    _plan_file_path: str | None
     _pending_agent_name: str | None
     _plan_approval_completed: bool
+    _context_window_overrides: dict[str, int]
     _accumulated_output_tokens: int
     _accumulated_cost_usd: float
     _message_manager_source_session_id: str | None

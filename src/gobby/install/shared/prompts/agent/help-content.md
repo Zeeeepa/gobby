@@ -6,7 +6,7 @@ required_variables: [skills_list]
 ---
 # Gobby Skills
 
-Invoke skills directly with `/gobby:skillname` syntax:
+Invoke skills directly with `/gobby skillname` syntax:
 
 {{ skills_list }}
 

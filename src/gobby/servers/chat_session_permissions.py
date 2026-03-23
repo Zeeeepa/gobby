@@ -27,8 +27,7 @@ logger = logging.getLogger(__name__)
 class ChatSessionPermissionsMixin:
     """Tool permission, approval, and plan mode logic for ChatSession.
 
-    Declares attribute types expected from the concrete ChatSession dataclass.
-    """
+    Declares attribute types expected from the concrete ChatSession dataclass."""
 
     # Attribute type stubs — actual fields live on the ChatSession dataclass
     conversation_id: str
@@ -39,6 +38,7 @@ class ChatSessionPermissionsMixin:
     _pending_answers: dict[str, str] | None
     _pending_answer_event: asyncio.Event | None
     _approved_tools: set[str]
+    _on_approved_tools_persist: Callable[[set[str]], None] | None
     _tool_approval_config: Any | None
     _tool_approval_callback: Any | None
     _plan_approved: bool
@@ -82,57 +82,23 @@ class ChatSessionPermissionsMixin:
                 await self._on_mode_changed("plan", "agent_requested")
             return PermissionResultAllow(updated_input=input_data)
         if tool_name == "ExitPlanMode":
-            # Read plan file content if one was written during plan mode
-            plan_content = self._read_plan_file()
-
-            if not plan_content:
-                return PermissionResultDeny(
-                    message="No plan file found. Write your plan to .gobby/plans/*.md before calling ExitPlanMode."
-                )
-
-            # Broadcast plan_pending_approval to frontend
-            if self._on_plan_ready:
-                await self._on_plan_ready(plan_content, input_data)
-
-            # Block until user approves or requests changes
-            self._pending_plan_event = asyncio.Event()
-            self._pending_plan_decision = None
-            try:
-                await asyncio.wait_for(self._pending_plan_event.wait(), timeout=600.0)
-            except TimeoutError:
-                self._pending_plan_decision = "request_changes"
-                self._plan_feedback = (
-                    "Plan approval timed out — no response received. Please re-submit your plan."
-                )
-                logger.warning("ExitPlanMode timed out for session %s", self.conversation_id)
-
-            if self._pending_plan_decision is None:
-                logger.warning(
-                    "ExitPlanMode resolved without explicit decision for session %s — denying",
-                    self.conversation_id,
-                )
-                self._plan_feedback = (
-                    self._plan_feedback
-                    or "No approval decision received. Please review and approve the plan."
-                )
-
-            decision = self._pending_plan_decision or "request_changes"
-            self._pending_plan_event = None
-            self._pending_plan_decision = None
-
-            if decision == "approve":
-                self._plan_approval_completed = True  # Signal streaming loop
-                self.set_chat_mode("accept_edits")
-                if self._on_mode_changed:
-                    await self._on_mode_changed("accept_edits", "plan_approved")
+            # ExitPlanMode is a CLI-internal tool that the SDK may handle
+            # before this callback fires. Plan approval is now triggered
+            # automatically when the agent writes a plan file (PostToolUse
+            # hook detects .gobby/plans/*.md writes).
+            # If the agent calls it AFTER writing the plan, allow it to
+            # succeed (return success) so the agent finishes its turn.
+            if self._plan_file_path or self._read_plan_file():
                 return PermissionResultAllow(updated_input=input_data)
-            else:
-                # request_changes — deny the tool so agent stays in plan mode
-                feedback = self._plan_feedback or "User requested changes."
-                self._plan_feedback = None
-                if self.chat_mode == "plan" and self._on_mode_changed:
-                    await self._on_mode_changed("plan", "plan_changes_requested")
-                return PermissionResultDeny(message=feedback)
+
+            # If no plan found, deny with instructions
+            return PermissionResultDeny(
+                message=(
+                    "Plan approval is handled automatically when you write to "
+                    ".gobby/plans/*.md. Do not call ExitPlanMode — just write "
+                    "the plan file and tell the user it is ready for review."
+                )
+            )
 
         # Plan mode: block write tools until the plan is approved
         if self.chat_mode == "plan" and not self._plan_approved:
@@ -425,9 +391,10 @@ class ChatSessionPermissionsMixin:
             "3. Implementation order",
             "4. Verification steps",
             "",
-            "When your plan is complete, you MUST call the ExitPlanMode tool to submit it for user approval.",
-            "Write the plan to a .gobby/plans/*.md file first, then call ExitPlanMode.",
-            "The user will see your plan and approve or request changes before you proceed.",
+            "When your plan is complete, write it to a .gobby/plans/<name>.md file.",
+            "The plan will automatically appear in the user's artifact panel for review.",
+            "After writing the plan, tell the user it is ready for their review and STOP — do not call any more tools.",
+            "Do NOT call ExitPlanMode — plan approval is handled automatically when you write the plan file.",
         ]
 
         if self._plan_feedback:
@@ -474,6 +441,8 @@ class ChatSessionPermissionsMixin:
 
         if decision == "approve_always":
             self._approved_tools.add(tool_name)
+            if self._on_approved_tools_persist:
+                self._on_approved_tools_persist(self._approved_tools)
             return PermissionResultAllow(updated_input=input_data)
 
         if decision == "approve":

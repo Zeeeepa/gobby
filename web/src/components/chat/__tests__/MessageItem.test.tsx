@@ -78,7 +78,7 @@ describe('MessageItem', () => {
         message={makeMessage({
           content: '',
           toolCalls: [
-            { id: 'tc-1', tool_name: 'read_file', server_name: 'builtin', status: 'completed' },
+            { id: 'tc-1', tool_name: 'read_file', server_name: 'builtin', tool_type: 'read', status: 'completed' },
           ],
         })}
       />,
@@ -97,8 +97,8 @@ describe('MessageItem', () => {
             { type: 'text', content: 'First text' },
             {
               type: 'tool_chain',
-              calls: [
-                { id: 'tc-1', tool_name: 'read', server_name: 'b', status: 'completed' },
+              tool_calls: [
+                { id: 'tc-1', tool_name: 'read', server_name: 'b', tool_type: 'read', status: 'completed' },
               ],
             },
             { type: 'text', content: 'Second text' },
@@ -118,14 +118,18 @@ describe('MessageItem', () => {
         message={makeMessage({
           content: '',
           contentBlocks: [
-            { type: 'image', src: 'data:image/png;base64,abc', alt: 'screenshot' },
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/png', data: 'abc' }
+            },
           ],
         })}
       />,
     )
 
-    const img = screen.getByAltText('screenshot')
+    const img = screen.getByAltText('Image content')
     expect(img).toBeTruthy()
+    expect(img.getAttribute('src')).toBe('data:image/png;base64,abc')
   })
 
   it('shows streaming cursor when isStreaming', () => {

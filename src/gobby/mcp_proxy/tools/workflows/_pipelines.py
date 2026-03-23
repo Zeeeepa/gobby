@@ -21,6 +21,7 @@ from gobby.mcp_proxy.tools.workflows._definitions import (
 from gobby.mcp_proxy.tools.workflows._pipeline_discovery import list_pipelines
 from gobby.mcp_proxy.tools.workflows._pipeline_execution import (
     approve_pipeline,
+    cancel_pipeline,
     get_pipeline_status,
     reject_pipeline,
     resume_pipeline,
@@ -387,6 +388,21 @@ def register_pipeline_tools(
             executor=executor,
             token=token,
             rejected_by=rejected_by,
+        )
+
+    @registry.tool(
+        name="cancel_pipeline",
+        description="Cancel a running pipeline execution and kill associated agents.",
+    )
+    async def _cancel_pipeline(
+        execution_id: str,
+    ) -> dict[str, Any]:
+        em = _get_execution_manager()
+        if em is None:
+            return {"success": False, "error": "Pipeline execution manager not available"}
+        return await cancel_pipeline(
+            execution_manager=em,
+            execution_id=execution_id,
         )
 
     @registry.tool(

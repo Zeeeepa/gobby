@@ -34,12 +34,6 @@ def mock_session_manager() -> Generator[MagicMock]:
 
 
 @pytest.fixture
-def mock_message_manager() -> Generator[MagicMock]:
-    with patch("gobby.cli.sessions.get_message_manager") as mock:
-        yield mock.return_value
-
-
-@pytest.fixture
 def mock_resolve_session() -> Generator[MagicMock]:
     with patch("gobby.cli.sessions.resolve_session_id") as mock:
         mock.side_effect = lambda x, **kw: x if x else "current-session"
@@ -61,7 +55,6 @@ def _make_session(**overrides: Any) -> Session:
         "jsonl_path": None,
         "summary_path": None,
         "summary_markdown": None,
-        "compact_markdown": None,
         "git_branch": None,
         "parent_session_id": None,
     }
@@ -81,15 +74,6 @@ class TestManagerCreation:
         from gobby.cli.sessions import get_session_manager
 
         result = get_session_manager()
-        mock_mgr_cls.assert_called_once()
-        assert result == mock_mgr_cls.return_value
-
-    @patch("gobby.cli.sessions.LocalDatabase")
-    @patch("gobby.cli.sessions.LocalSessionMessageManager")
-    def test_get_message_manager(self, mock_mgr_cls: MagicMock, mock_db: MagicMock) -> None:
-        from gobby.cli.sessions import get_message_manager
-
-        result = get_message_manager()
         mock_mgr_cls.assert_called_once()
         assert result == mock_mgr_cls.return_value
 
@@ -204,64 +188,73 @@ class TestShowSessionDetails:
 
 
 class TestMessagesEdgeCases:
+    @patch("gobby.sessions.transcript_reader.TranscriptReader")
     def test_messages_json(
         self,
+        mock_reader_cls: MagicMock,
         runner: CliRunner,
         mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock,
         mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
         msgs = [{"role": "user", "content": "hi", "message_index": 1}]
-        mock_message_manager.get_messages = AsyncMock(return_value=msgs)
+        mock_reader = mock_reader_cls.return_value
+        mock_reader.get_messages = AsyncMock(return_value=msgs)
+        mock_reader.count_messages = AsyncMock(return_value=1)
         result = runner.invoke(sessions, ["messages", "sess-abc123", "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data) == 1
 
+    @patch("gobby.sessions.transcript_reader.TranscriptReader")
     def test_messages_empty(
         self,
+        mock_reader_cls: MagicMock,
         runner: CliRunner,
         mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock,
         mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
-        mock_message_manager.get_messages = AsyncMock(return_value=[])
+        mock_reader = mock_reader_cls.return_value
+        mock_reader.get_messages = AsyncMock(return_value=[])
         result = runner.invoke(sessions, ["messages", "sess-abc123"])
         assert result.exit_code == 0
         assert "No messages found" in result.output
 
+    @patch("gobby.sessions.transcript_reader.TranscriptReader")
     def test_messages_with_tool(
         self,
+        mock_reader_cls: MagicMock,
         runner: CliRunner,
         mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock,
         mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
         msgs = [{"role": "tool", "content": "result", "message_index": 1, "tool_name": "read_file"}]
-        mock_message_manager.get_messages = AsyncMock(return_value=msgs)
-        mock_message_manager.count_messages = AsyncMock(return_value=1)
+        mock_reader = mock_reader_cls.return_value
+        mock_reader.get_messages = AsyncMock(return_value=msgs)
+        mock_reader.count_messages = AsyncMock(return_value=1)
         result = runner.invoke(sessions, ["messages", "sess-abc123"])
         assert result.exit_code == 0
         assert "read_file" in result.output
 
+    @patch("gobby.sessions.transcript_reader.TranscriptReader")
     def test_messages_long_content_truncated(
         self,
+        mock_reader_cls: MagicMock,
         runner: CliRunner,
         mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock,
         mock_resolve_session: MagicMock,
     ) -> None:
         session = _make_session()
         mock_session_manager.get.return_value = session
         msgs = [{"role": "user", "content": "x" * 300, "message_index": 1}]
-        mock_message_manager.get_messages = AsyncMock(return_value=msgs)
-        mock_message_manager.count_messages = AsyncMock(return_value=1)
+        mock_reader = mock_reader_cls.return_value
+        mock_reader.get_messages = AsyncMock(return_value=msgs)
+        mock_reader.count_messages = AsyncMock(return_value=1)
         result = runner.invoke(sessions, ["messages", "sess-abc123"])
         assert result.exit_code == 0
         assert "..." in result.output
@@ -270,56 +263,11 @@ class TestMessagesEdgeCases:
         self,
         runner: CliRunner,
         mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock,
         mock_resolve_session: MagicMock,
     ) -> None:
         mock_session_manager.get.return_value = None
         result = runner.invoke(sessions, ["messages", "sess-bad"])
         assert "Session not found" in result.output
-
-
-# =============================================================================
-# search - edge cases
-# =============================================================================
-
-
-class TestSearchEdgeCases:
-    def test_search_json(self, runner: CliRunner, mock_message_manager: MagicMock) -> None:
-        msgs = [{"role": "user", "content": "found", "session_id": "s1"}]
-        mock_message_manager.search_messages = AsyncMock(return_value=msgs)
-        result = runner.invoke(sessions, ["search", "query", "--json"])
-        assert result.exit_code == 0
-        data = json.loads(result.output)
-        assert len(data) == 1
-
-    def test_search_empty(self, runner: CliRunner, mock_message_manager: MagicMock) -> None:
-        mock_message_manager.search_messages = AsyncMock(return_value=[])
-        result = runner.invoke(sessions, ["search", "nothing"])
-        assert result.exit_code == 0
-        assert "No messages found" in result.output
-
-    def test_search_long_content(self, runner: CliRunner, mock_message_manager: MagicMock) -> None:
-        msgs = [{"role": "user", "content": "x" * 200, "session_id": "s1"}]
-        mock_message_manager.search_messages = AsyncMock(return_value=msgs)
-        result = runner.invoke(sessions, ["search", "query"])
-        assert result.exit_code == 0
-        assert "..." in result.output
-
-    @patch("gobby.cli.sessions.resolve_session_id", side_effect=lambda x, **kw: x)
-    def test_search_with_session_filter(
-        self, mock_resolve: MagicMock, runner: CliRunner, mock_message_manager: MagicMock
-    ) -> None:
-        mock_message_manager.search_messages = AsyncMock(return_value=[])
-        result = runner.invoke(sessions, ["search", "query", "--session", "sess-1"])
-        assert result.exit_code == 0
-
-    @patch("gobby.cli.sessions.resolve_project_ref", return_value="proj-1")
-    def test_search_with_project_filter(
-        self, mock_resolve: MagicMock, runner: CliRunner, mock_message_manager: MagicMock
-    ) -> None:
-        mock_message_manager.search_messages = AsyncMock(return_value=[])
-        result = runner.invoke(sessions, ["search", "query", "--project", "myproj"])
-        assert result.exit_code == 0
 
 
 # =============================================================================
@@ -350,17 +298,15 @@ class TestStatsWithProject:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_session_manager: MagicMock,
-        mock_message_manager: MagicMock,
     ) -> None:
         s1 = _make_session(status="active", source="claude")
         mock_session_manager.list.return_value = [s1]
-        mock_message_manager.get_all_counts = AsyncMock(return_value={"sess-abc123": 5})
         result = runner.invoke(sessions, ["stats", "--project", "myproj"])
         assert result.exit_code == 0
         assert "Total Sessions: 1" in result.output
 
     def test_stats_empty(
-        self, runner: CliRunner, mock_session_manager: MagicMock, mock_message_manager: MagicMock
+        self, runner: CliRunner, mock_session_manager: MagicMock
     ) -> None:
         mock_session_manager.list.return_value = []
         result = runner.invoke(sessions, ["stats"])

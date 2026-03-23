@@ -10,7 +10,7 @@ import asyncio
 import logging
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.agents.isolation import (
     SpawnConfig,
@@ -119,8 +119,9 @@ async def spawn_agent_impl(
         _raw_isolation = agent_body.isolation
     if _raw_isolation in (None, "inherit"):
         _raw_isolation = "none"
-    effective_isolation: Literal["none", "worktree", "clone"] = (
-        _raw_isolation if _raw_isolation in ("none", "worktree", "clone") else "none"  # type: ignore[assignment]
+    effective_isolation = cast(
+        Literal["none", "worktree", "clone"],
+        _raw_isolation if _raw_isolation in ("none", "worktree", "clone") else "none",
     )
 
     _raw_provider: str | None = provider
@@ -143,14 +144,29 @@ async def spawn_agent_impl(
     if _raw_mode is None and agent_body:
         _raw_mode = agent_body.mode
     if _raw_mode in (None, "inherit"):
-        _raw_mode = "self"
-    effective_mode: Literal["terminal", "autonomous", "self"] = (
-        _raw_mode if _raw_mode in VALID_MODES else "self"  # type: ignore[assignment]
+        _raw_mode = "terminal"
+    effective_mode = cast(
+        Literal["terminal", "autonomous", "self"],
+        _raw_mode if _raw_mode in VALID_MODES else "terminal",
     )
 
     effective_model = model
     if effective_model is None and agent_body:
         effective_model = agent_body.model
+
+    # Resolve api_base/api_token from agent definition (with ${ENV_VAR} expansion)
+    effective_api_base: str | None = None
+    effective_api_token: str | None = None
+    if agent_body:
+        effective_api_base = agent_body.api_base
+        if agent_body.api_token:
+            token = agent_body.api_token
+            if token.startswith("${") and token.endswith("}"):
+                import os
+
+                effective_api_token = os.environ.get(token[2:-1])
+            else:
+                effective_api_token = token
 
     effective_timeout = timeout
     if effective_timeout is None and agent_body and agent_body.timeout:
@@ -315,6 +331,7 @@ async def spawn_agent_impl(
             isolation_type="worktree",
             extra={"main_repo_path": resolved_project_path, "reused_worktree": True},
         )
+        effective_isolation = "worktree"
         handler = get_isolation_handler("none")
     elif clone_id and clone_storage:
         existing_clone = clone_storage.get(clone_id)
@@ -338,6 +355,7 @@ async def spawn_agent_impl(
             isolation_type="clone",
             extra={"source_repo": resolved_project_path, "reused_clone": True},
         )
+        effective_isolation = "clone"
         handler = get_isolation_handler("none")
     else:
         # Normal isolation flow
@@ -452,12 +470,15 @@ async def spawn_agent_impl(
         session_manager=runner.child_session_manager,
         machine_id=get_machine_id() or "unknown",
         model=effective_model,
+        api_base=effective_api_base,
+        api_token=effective_api_token,
         sandbox_config=effective_sandbox_config,
         # Autonomous mode fields
         system_prompt=agent_body.instructions if agent_body else None,
         max_turns=max_turns
         or (agent_body.max_turns if agent_body and agent_body.max_turns else None),
         agent_run_manager=runner.run_storage,
+        timeout_seconds=effective_timeout,
     )
 
     # 11b. Pre-register with RunningAgentRegistry before spawn
@@ -569,6 +590,15 @@ async def spawn_agent_impl(
                     variables=dict(agent_body.step_variables),
                 )
                 WorkflowInstanceManager(db).save_instance(step_instance)
+
+                # Initialize step_workflow_complete so the require-step-completion
+                # rule can gate agent stop until the exit_condition is met.
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                SessionVariableManager(db).set_variable(
+                    spawn_result.child_session_id, "step_workflow_complete", False
+                )
+
                 logger.info(
                     "Created step workflow instance %s for session %s (agent=%s, step=%s)",
                     step_wf_name,

@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.merge_resolutions import MergeResolutionManager
     from gobby.storage.pipelines import LocalPipelineExecutionManager
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
@@ -47,7 +46,6 @@ def setup_internal_registries(
     db: DatabaseProtocol | None = None,
     sync_manager: TaskSyncManager | None = None,
     task_validator: TaskValidator | None = None,
-    message_manager: LocalSessionMessageManager | None = None,
     local_session_manager: LocalSessionManager | None = None,
     metrics_manager: ToolMetricsManager | None = None,
     llm_service: LLMService | None = None,
@@ -82,7 +80,6 @@ def setup_internal_registries(
         db: Database connection for registries that only need storage (skills)
         sync_manager: Task sync manager for git sync
         task_validator: Task validator for validation
-        message_manager: Message storage manager
         local_session_manager: Local session manager for session CRUD
         metrics_manager: Tool metrics manager for metrics operations
         llm_service: LLM service for AI-powered operations
@@ -135,12 +132,10 @@ def setup_internal_registries(
             logger.debug("Tasks registry initialized")
 
     # Initialize sessions registry (messages + session CRUD)
-    # Register if either message_manager or local_session_manager is available
-    if message_manager is not None or local_session_manager is not None:
+    if local_session_manager is not None:
         from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 
         session_messages_registry = create_session_messages_registry(
-            message_manager=message_manager,
             session_manager=local_session_manager,
             llm_service=llm_service,
             config=_config,
@@ -174,6 +169,7 @@ def setup_internal_registries(
     from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
     workflows_registry = create_workflows_registry(
+        loader=workflow_loader,
         session_manager=local_session_manager,
         db=getattr(local_session_manager, "db", None) if local_session_manager else None,
         executor_getter=lambda: pipeline_executor,
@@ -203,6 +199,7 @@ def setup_internal_registries(
             metrics_manager=metrics_manager,
             session_storage=local_session_manager,
             daily_budget_usd=daily_budget_usd,
+            event_store=metrics_manager.event_store,
         )
         manager.add_registry(metrics_registry)
         logger.debug("Metrics registry initialized with token tracking")

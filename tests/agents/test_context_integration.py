@@ -27,22 +27,21 @@ def mock_session_manager():
     parent = MagicMock()
     parent.id = "sess-parent"
     parent.summary_markdown = "# Parent Summary\n\nThis is context."
-    parent.compact_markdown = "## Handoff\n\nCompact context here."
     manager.get.return_value = parent
     return manager
 
 
 @pytest.fixture
-def mock_message_manager():
-    """Create a mock message manager."""
-    manager = MagicMock()
-    manager.get_messages = AsyncMock(
+def mock_transcript_reader():
+    """Create a mock transcript reader."""
+    reader = MagicMock()
+    reader.get_messages = AsyncMock(
         return_value=[
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
         ]
     )
-    return manager
+    return reader
 
 
 @pytest.fixture
@@ -59,11 +58,11 @@ def temp_project():
 class TestContextResolverIntegration:
     """Integration tests for ContextResolver with all source types."""
 
-    async def test_resolves_summary_markdown(self, mock_session_manager, mock_message_manager):
+    async def test_resolves_summary_markdown(self, mock_session_manager, mock_transcript_reader):
         """Resolves summary_markdown from parent session."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
         )
 
         result = await resolver.resolve("summary_markdown", "sess-parent")
@@ -71,23 +70,11 @@ class TestContextResolverIntegration:
         assert "Parent Summary" in result
         assert "This is context" in result
 
-    async def test_resolves_compact_markdown(self, mock_session_manager, mock_message_manager):
-        """Resolves compact_markdown from parent session."""
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-        )
-
-        result = await resolver.resolve("compact_markdown", "sess-parent")
-
-        assert "Handoff" in result
-        assert "Compact context" in result
-
-    async def test_resolves_transcript(self, mock_session_manager, mock_message_manager):
+    async def test_resolves_transcript(self, mock_session_manager, mock_transcript_reader):
         """Resolves transcript from parent session."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
         )
 
         result = await resolver.resolve("transcript:5", "sess-parent")
@@ -95,11 +82,11 @@ class TestContextResolverIntegration:
         assert "**user**: Hello" in result
         assert "**assistant**: Hi there!" in result
 
-    async def test_resolves_file(self, mock_session_manager, mock_message_manager, temp_project):
+    async def test_resolves_file(self, mock_session_manager, mock_transcript_reader, temp_project):
         """Resolves file content from project."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
             project_path=temp_project,
         )
 
@@ -108,11 +95,11 @@ class TestContextResolverIntegration:
         assert "File Context" in result
         assert "Content from file" in result
 
-    async def test_resolves_session_id(self, mock_session_manager, mock_message_manager):
+    async def test_resolves_session_id(self, mock_session_manager, mock_transcript_reader):
         """Resolves summary from specific session by ID."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
         )
 
         await resolver.resolve("session_id:sess-target", "sess-parent")
@@ -164,13 +151,13 @@ class TestAgentsRegistryContextIntegration:
 class TestErrorHandling:
     """Tests for error handling in context injection flow."""
 
-    async def test_handles_missing_session(self, mock_session_manager, mock_message_manager):
+    async def test_handles_missing_session(self, mock_session_manager, mock_transcript_reader):
         """Handles missing session gracefully."""
         mock_session_manager.get.return_value = None
 
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
         )
 
         from gobby.agents.context import ContextResolutionError
@@ -180,11 +167,11 @@ class TestErrorHandling:
 
         assert "Session not found" in str(exc_info.value)
 
-    async def test_handles_invalid_source_format(self, mock_session_manager, mock_message_manager):
+    async def test_handles_invalid_source_format(self, mock_session_manager, mock_transcript_reader):
         """Handles invalid source format gracefully."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
         )
 
         from gobby.agents.context import ContextResolutionError
@@ -195,12 +182,12 @@ class TestErrorHandling:
         assert "Unknown context source format" in str(exc_info.value)
 
     async def test_handles_file_not_found(
-        self, mock_session_manager, mock_message_manager, temp_project
+        self, mock_session_manager, mock_transcript_reader, temp_project
     ):
         """Handles missing file gracefully."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
+            transcript_reader=mock_transcript_reader,
             project_path=temp_project,
         )
 

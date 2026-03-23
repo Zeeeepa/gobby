@@ -1,0 +1,17 @@
+name: block-escaped-quotes
+description: "Detect and block escaped quotes in tool arguments to prevent JSON parsing errors."
+type: rule
+enabled: true
+
+# Matches any tool call that contains escaped quotes in its arguments
+when: "event.event_type == 'pre-tool-use' and regex_search(r'\\\"', str(event.data.get('tool_input', {})))"
+
+action:
+  decision: block
+  reason: |
+    Your tool call contains escaped quotes (`\"`) in the arguments, which causes JSON parsing errors in the MCP proxy.
+    
+    To fix this:
+    - DO NOT escape quotes inside JSON strings. 
+    - Use raw strings if your client supports them, or simply provide the string value without backslash escapes.
+    - Example: Use {"pattern": "match me"} NOT {"pattern": "match \"me\""}.

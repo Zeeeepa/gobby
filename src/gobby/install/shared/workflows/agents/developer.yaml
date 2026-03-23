@@ -17,6 +17,15 @@ instructions: |
      then call mark_task_needs_review to submit for QA
   3. TERMINATE: Call kill_agent to shut down
 
+  PLAN CONTEXT:
+  - If your task description includes a "Plan reference:" line with a file path,
+    you may Read that file to understand the broader design and motivation.
+  - Your task DESCRIPTION is your scope — follow it, not the plan.
+  - The plan may differ from your task because the expansion was adapted
+    to the actual codebase. Trust your task description over the plan.
+  - Do NOT implement other sections of the plan.
+  - Do NOT modify the plan file itself.
+
   CRITICAL RULES:
   - Do NOT call close_task — blocked by workflow. Only mark_task_needs_review.
   - Do NOT call git push — the merge agent handles pushing.

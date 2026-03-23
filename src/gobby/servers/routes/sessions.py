@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from gobby.servers.models import SessionRegisterRequest
+from gobby.sessions.terminal_kill import kill_terminal_session
 from gobby.sessions.transcript_archive import get_archive_dir, restore_transcript
 from gobby.telemetry.instruments import inc_counter
 
@@ -438,13 +439,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 exclude_subagents=exclude_subagents,
             )
 
-            # Fetch message counts if message manager is available
-            message_counts = {}
-            if server.message_manager:
-                try:
-                    message_counts = await server.message_manager.get_all_counts()
-                except Exception as e:
-                    logger.warning(f"Failed to fetch message counts: {e}")
+            # message_counts no longer available (session_messages table removed)
+            message_counts: dict[str, int] = {}
 
             # Build resumability info if requested
             resumability: dict[str, tuple[bool, str | None]] = {}
@@ -581,14 +577,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
             session_data = session.to_dict()
 
-            # Enrich with message count (same as list endpoint)
-            if server.message_manager:
-                try:
-                    counts = await server.message_manager.get_all_counts()
-                    session_data["message_count"] = counts.get(session.id, 0)
-                except Exception as e:
-                    logger.warning(f"Failed to fetch message count: {e}")
-                    session_data["message_count"] = 0
+            # message_count no longer available (session_messages table removed)
+            session_data["message_count"] = 0
 
             # Enrich with activity stats
             try:
@@ -617,6 +607,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         limit: int = 100,
         offset: int = 0,
         role: str | None = None,
+        format: str = Query("rendered", pattern="^(rendered|legacy)$"),
     ) -> dict[str, Any]:
         """
         Get messages for a session.
@@ -626,6 +617,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             limit: Max messages to return (default 100)
             offset: Pagination offset
             role: Filter by role (user, assistant, tool)
+            format: Response format - 'rendered' (default) or 'legacy' (flat rows)
 
         Returns:
             List of messages and total count key
@@ -633,14 +625,28 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         start_time = time.perf_counter()
 
         try:
-            if server.message_manager is None:
-                raise HTTPException(status_code=503, detail="Message manager not available")
+            if format == "legacy":
+                if server.transcript_reader is None:
+                    raise HTTPException(status_code=503, detail="Transcript reader not available")
 
-            messages = await server.message_manager.get_messages(
-                session_id=session_id, limit=limit, offset=offset, role=role
-            )
+                messages = await server.transcript_reader.get_messages(
+                    session_id=session_id, limit=limit, offset=offset, role=role
+                )
+                count = await server.transcript_reader.count_messages(session_id)
+            else:
+                if server.transcript_reader is None:
+                    raise HTTPException(status_code=503, detail="Transcript reader not available")
 
-            count = await server.message_manager.count_messages(session_id)
+                # Note: role filter not yet supported in rendered format (groups turns)
+                # If role filter is needed, legacy format must be used.
+                rendered = await server.transcript_reader.get_rendered_messages(
+                    session_id=session_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                messages = [m.to_dict() for m in rendered]
+                count = await server.transcript_reader.count_messages(session_id)
+
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
             return {
@@ -648,6 +654,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 "messages": messages,
                 "total_count": count,
                 "response_time_ms": response_time_ms,
+                "format": format,
             }
 
         except HTTPException:
@@ -792,6 +799,40 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Update session status error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/{session_id}/expire")
+    async def expire_session(session_id: str) -> dict[str, Any]:
+        """Expire a session, killing any associated terminal/tmux pane."""
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            if session.status == "expired":
+                return {"status": "already_expired", "session_id": session_id}
+
+            # Kill tmux pane / terminal process if present
+            terminal_killed = False
+            if session.terminal_context:
+                terminal_killed = await kill_terminal_session(session.terminal_context, session_id)
+
+            server.session_manager.update_status(session_id, "expired")
+            await _broadcast_session("session_expired", session_id)
+
+            return {
+                "status": "expired",
+                "session_id": session_id,
+                "terminal_killed": terminal_killed,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Expire session error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/update_summary")
     async def update_session_summary(request: Request) -> dict[str, Any]:
         """
@@ -845,15 +886,15 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 raise HTTPException(status_code=503, detail="Session manager not available")
             if server.llm_service is None:
                 raise HTTPException(status_code=503, detail="LLM service not available")
-            if server.message_manager is None:
-                raise HTTPException(status_code=503, detail="Message manager not available")
+            if server.transcript_reader is None:
+                raise HTTPException(status_code=503, detail="Transcript reader not available")
 
             session = server.session_manager.get(session_id)
             if session is None:
                 raise HTTPException(status_code=404, detail="Session not found")
 
-            # Read recent messages from DB
-            messages = await server.message_manager.get_messages(
+            # Read recent messages from transcript (JSONL / archive)
+            messages = await server.transcript_reader.get_messages(
                 session_id=session_id, limit=20, offset=0
             )
             if not messages:
@@ -1004,7 +1045,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             from gobby.sessions.transcripts import get_parser
             from gobby.workflows.summary_actions import generate_summary
 
-            transcript_processor = get_parser(session.source or "claude")
+            transcript_processor = get_parser(session.source or "claude", session_id=session_id)
 
             result = await generate_summary(
                 session_manager=server.session_manager,

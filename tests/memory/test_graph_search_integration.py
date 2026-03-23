@@ -302,7 +302,7 @@ class TestSearchGraphUpgraded:
 
         assert len(results) == 1
         assert results[0]["name"] == "Python"
-        mock_embed_fn.assert_called_with("programming language")
+        mock_embed_fn.assert_called_with("programming language", is_query=True)
 
     async def test_falls_back_to_substring_on_vector_failure(
         self,

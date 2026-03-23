@@ -29,7 +29,6 @@ from gobby.storage.clones import LocalCloneManager
 from gobby.storage.database import DatabaseProtocol, LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.migrations import run_migrations
-from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
@@ -104,6 +103,7 @@ class GobbyRunner:
         self._vector_rebuild_task: asyncio.Task[None] | None = None
         self._zombie_messages_task: asyncio.Task[None] | None = None
         self._span_cleanup_task: asyncio.Task[None] | None = None
+        self._metrics_archive_task: asyncio.Task[None] | None = None
         self._metric_snapshot_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
@@ -141,7 +141,6 @@ class GobbyRunner:
             logger.warning(f"Failed to populate model costs: {e}")
 
         self.session_manager = LocalSessionManager(self.database)
-        self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 
@@ -247,18 +246,25 @@ class GobbyRunner:
                     path=qdrant_path if not self.config.memory.qdrant_url else None,
                     url=self.config.memory.qdrant_url,
                     api_key=self.config.memory.qdrant_api_key,
+                    embedding_dim=self.config.memory.embedding_dim,
                 )
                 embed_fn: Callable[..., Any] | None = None
                 if self.llm_service:
                     from functools import partial
 
-                    _mem_api_key = self._resolve_embedding_api_key(
-                        self.config.memory.embedding_model
+                    _mem_api_key = (
+                        self.config.memory.embedding_api_key
+                        or self._resolve_embedding_api_key(self.config.memory.embedding_model)
                     )
+                    _mem_embed_kwargs: dict[str, Any] = {
+                        "model": self.config.memory.embedding_model,
+                        "api_key": _mem_api_key,
+                    }
+                    if self.config.memory.embedding_api_base:
+                        _mem_embed_kwargs["api_base"] = self.config.memory.embedding_api_base
                     embed_fn = partial(
                         generate_embedding,
-                        model=self.config.memory.embedding_model,
-                        api_key=_mem_api_key,
+                        **_mem_embed_kwargs,
                     )
 
                 self.memory_manager = MemoryManager(
@@ -304,13 +310,22 @@ class GobbyRunner:
                     _ci_model = (
                         self.config.memory.embedding_model
                         if hasattr(self.config, "memory")
-                        else "text-embedding-3-small"
+                        else "local/nomic-embed-text-v1.5"
                     )
-                    _ci_api_key = self._resolve_embedding_api_key(_ci_model)
+                    _ci_api_key = (
+                        self.config.memory.embedding_api_key
+                        if hasattr(self.config, "memory") and self.config.memory.embedding_api_key
+                        else self._resolve_embedding_api_key(_ci_model)
+                    )
+                    _ci_embed_kwargs: dict[str, Any] = {
+                        "model": _ci_model,
+                        "api_key": _ci_api_key,
+                    }
+                    if hasattr(self.config, "memory") and self.config.memory.embedding_api_base:
+                        _ci_embed_kwargs["api_base"] = self.config.memory.embedding_api_base
                     ci_embed_fn = partial(
                         generate_embedding,
-                        model=_ci_model,
-                        api_key=_ci_api_key,
+                        **_ci_embed_kwargs,
                     )
 
                 ci_vector_store = self.vector_store if ci_config.embedding_enabled else None
@@ -345,8 +360,12 @@ class GobbyRunner:
 
         # Tool Metrics Manager for tracking call statistics
         from gobby.mcp_proxy.metrics import ToolMetricsManager
+        from gobby.mcp_proxy.metrics_events import MetricsEventStore
 
-        self.metrics_manager = ToolMetricsManager(self.database)
+        self.metrics_event_store = MetricsEventStore(self.database)
+        self.metrics_manager = ToolMetricsManager(
+            self.database, event_store=self.metrics_event_store
+        )
 
         # MCPClientManager loads servers from database on init
         self.mcp_proxy = MCPClientManager(
@@ -653,6 +672,7 @@ class GobbyRunner:
                         project_path=str(Path.cwd()),
                         session_manager=self.session_manager,
                         config=self.config.conductor,
+                        execution_manager=self.pipeline_execution_manager,
                     )
                     cron_executor.register_handler("conductor_tick", self.conductor_manager)
                     existing = self.cron_storage.get_job_by_name("gobby:conductor-tick")
@@ -716,6 +736,23 @@ class GobbyRunner:
         except Exception as e:
             logger.error(f"Failed to initialize CronScheduler: {e}")
 
+        # Communications Manager
+        self.communications_manager: Any | None = None
+        if hasattr(self.config, "communications") and self.config.communications.enabled:
+            try:
+                from gobby.communications.manager import CommunicationsManager
+                from gobby.storage.communications import LocalCommunicationsStore
+
+                comms_store = LocalCommunicationsStore(self.database)
+                self.communications_manager = CommunicationsManager(
+                    config=self.config.communications,
+                    store=comms_store,
+                    secret_store=self.secret_store,
+                )
+                logger.debug("CommunicationsManager initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize CommunicationsManager: {e}")
+
         # HTTP Server
         # Bundle services into container
         services = ServiceContainer(
@@ -728,12 +765,12 @@ class GobbyRunner:
             memory_sync_manager=self.memory_sync_manager,
             memory_manager=self.memory_manager,
             llm_service=self.llm_service,
+            vector_store=self.vector_store,
             mcp_manager=self.mcp_proxy,
             mcp_db_manager=self.mcp_db_manager,
             metrics_manager=self.metrics_manager,
             agent_runner=self.agent_runner,
             message_processor=self.message_processor,
-            message_manager=self.message_manager,
             task_validator=self.task_validator,
             worktree_storage=self.worktree_storage,
             clone_storage=self.clone_storage,
@@ -744,6 +781,7 @@ class GobbyRunner:
             pipeline_execution_manager=self.pipeline_execution_manager,
             completion_registry=self.completion_registry,
             agent_lifecycle_monitor=self.agent_lifecycle_monitor,
+            communications_manager=self.communications_manager,
             code_indexer=self.code_indexer,
             cron_storage=self.cron_storage,
             cron_scheduler=self.cron_scheduler,
@@ -801,7 +839,6 @@ class GobbyRunner:
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
                 session_manager=self.session_manager,
-                message_manager=self.message_manager,
                 daemon_config=self.config,
                 internal_manager=self.http_server._internal_manager,
             )
@@ -812,9 +849,10 @@ class GobbyRunner:
             # Also update the HTTPServer's broadcaster to use the same websocket_server
             self.http_server.broadcaster.websocket_server = self.websocket_server
 
-            # Pass WebSocket server to message processor if enabled
+            # Pass WebSocket server and session manager to message processor
             if self.message_processor:
                 self.message_processor.websocket_server = self.websocket_server
+                self.message_processor.session_manager = self.session_manager
 
             # Register agent event callback for WebSocket broadcasting
             from gobby.runner_broadcasting import (
@@ -852,6 +890,10 @@ class GobbyRunner:
             if model.startswith(prefix):
                 return self.secret_store.get(secret_name)
 
+        # Local in-process models don't need an API key
+        if model.startswith("local/"):
+            return None
+
         # Ollama models don't need an API key
         if model.startswith("ollama/"):
             return None
@@ -878,6 +920,7 @@ class GobbyRunner:
             cleanup_zombie_messages_loop,
             expire_approval_timeouts_loop,
             metric_snapshot_loop,
+            metrics_archive_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
             savings_rollup_loop,
@@ -935,6 +978,13 @@ class GobbyRunner:
             if self.vector_store:
                 try:
                     await self.vector_store.initialize()
+                    # Ensure tool_embeddings collection exists (shared Qdrant instance)
+                    from gobby.mcp_proxy.semantic_search import SemanticToolSearch
+
+                    await self.vector_store.ensure_collection(
+                        SemanticToolSearch.TOOL_COLLECTION,
+                        self.config.memory.embedding_dim,
+                    )
                     qdrant_count = await self.vector_store.count()
                     if qdrant_count == 0 and self.memory_manager:
                         sqlite_memories = self.memory_manager.storage.list_memories(limit=10000)
@@ -962,6 +1012,13 @@ class GobbyRunner:
             # Start Message Processor
             if self.message_processor:
                 await self.message_processor.start()
+
+            # Start Communications Manager
+            if self.communications_manager:
+                try:
+                    await self.communications_manager.start()
+                except Exception as e:
+                    logger.error(f"CommunicationsManager start failed: {e}")
 
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
@@ -996,6 +1053,12 @@ class GobbyRunner:
             self._metrics_cleanup_task = asyncio.create_task(
                 metrics_cleanup_loop(self.metrics_manager, lambda: self._shutdown_requested),
                 name="metrics-cleanup",
+            )
+
+            # Start periodic metrics event archiving (every 24 hours, 30-day retention)
+            self._metrics_archive_task = asyncio.create_task(
+                metrics_archive_loop(self.metrics_event_store, lambda: self._shutdown_requested),
+                name="metrics-archive",
             )
 
             # Start periodic span cleanup (every 24 hours, 7-day retention)
@@ -1219,6 +1282,12 @@ class GobbyRunner:
                 except TimeoutError:
                     logger.warning("Message processor shutdown timed out")
 
+            if self.communications_manager:
+                try:
+                    await asyncio.wait_for(self.communications_manager.stop(), timeout=5.0)
+                except TimeoutError:
+                    logger.warning("CommunicationsManager shutdown timed out")
+
             if websocket_task:
                 websocket_task.cancel()
                 try:
@@ -1243,6 +1312,14 @@ class GobbyRunner:
                 self._metrics_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel metrics archive task
+            if self._metrics_archive_task and not self._metrics_archive_task.done():
+                self._metrics_archive_task.cancel()
+                try:
+                    await asyncio.wait_for(self._metrics_archive_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 

@@ -37,7 +37,6 @@ if TYPE_CHECKING:
     from gobby.hooks.event_handlers import EventHandlers
     from gobby.hooks.webhooks import WebhookDispatcher
     from gobby.storage.inter_session_messages import InterSessionMessageManager
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.workflows.hooks import WorkflowHookHandler
 
@@ -72,9 +71,10 @@ class WebSocketServer(
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
         session_manager: "LocalSessionManager | None" = None,
-        message_manager: "LocalSessionMessageManager | None" = None,
         daemon_config: Any = None,
         internal_manager: Any = None,
+        # Deprecated: kept for backwards-compat callers, ignored
+        message_manager: object | None = None,
     ):
         """
         Initialize WebSocket server.
@@ -86,7 +86,7 @@ class WebSocketServer(
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
             session_manager: Optional LocalSessionManager for persisting web-chat sessions.
-            message_manager: Optional LocalSessionMessageManager for persisting chat messages.
+            message_manager: Deprecated, ignored. Kept for backwards compatibility.
             daemon_config: Optional DaemonConfig for voice and other features.
             internal_manager: Optional InternalRegistryManager for routing to internal MCP servers.
         """
@@ -96,7 +96,6 @@ class WebSocketServer(
         self.stop_registry = stop_registry
         self.internal_manager = internal_manager
         self.session_manager = session_manager
-        self.message_manager = message_manager
         self.daemon_config = daemon_config
         self.workflow_handler: WorkflowHookHandler | None = None
         self.event_handlers: EventHandlers | None = None
@@ -185,6 +184,9 @@ class WebSocketServer(
                     }
                 )
             )
+
+            # Re-broadcast pending plan approvals for sessions orphaned by restart
+            await self._rebroadcast_pending_plans(websocket)
 
             # Message processing loop
             async for message in websocket:

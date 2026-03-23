@@ -16,7 +16,6 @@ from gobby.mcp_proxy.instructions import build_gobby_instructions
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.services.recommendation import RecommendationService, SearchMode
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
-from gobby.mcp_proxy.services.system import SystemService
 from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
 from gobby.utils.project_context import get_project_context
 
@@ -46,9 +45,11 @@ class GobbyDaemonTools:
         self._mcp_manager = mcp_manager  # Store for project_id access
         self._semantic_search = semantic_search  # Store for direct search access
         self._session_manager = session_manager  # Store for per-call project resolution
+        self.daemon_port = daemon_port
+        self.websocket_port = websocket_port
+        self.start_time = start_time
 
         # Initialize services
-        self.system_service = SystemService(mcp_manager, daemon_port, websocket_port, start_time)
         self.tool_proxy = ToolProxyService(
             mcp_manager,
             internal_manager=internal_manager,
@@ -66,8 +67,18 @@ class GobbyDaemonTools:
     # --- System Tools ---
 
     async def status(self) -> dict[str, Any]:
-        """Get daemon status."""
-        return self.system_service.get_status()
+        """Get the current status of the Gobby daemon."""
+        import time
+
+        uptime = time.time() - self.start_time
+        return {
+            "success": True,
+            "running": True,
+            "healthy": True,
+            "http_port": self.daemon_port,
+            "websocket_port": self.websocket_port,
+            "uptime_seconds": round(uptime, 2),
+        }
 
     async def list_mcp_servers(self) -> dict[str, Any]:
         """List configured MCP servers."""
@@ -202,9 +213,13 @@ class GobbyDaemonTools:
                 )
 
         # At this point arguments is dict or None (str case handled above)
-        effective_arguments: dict[str, Any] | None = (
-            arguments if isinstance(arguments, dict) else None
-        )
+        # Strip call_tool's own parameters that LLMs sometimes flatten into
+        # the arguments dict instead of passing as separate parameters.
+        effective_arguments: dict[str, Any] | None = None
+        if isinstance(arguments, dict):
+            effective_arguments = dict(arguments)  # Shallow copy to avoid modifying original
+            for leaked_key in ("server_name", "tool_name", "session_id"):
+                effective_arguments.pop(leaked_key, None)
 
         try:
             result = await self.tool_proxy.call_tool(
@@ -324,65 +339,6 @@ class GobbyDaemonTools:
             project_id=project_id,
         )
 
-    # --- Fallback Resolver ---
-
-    async def get_tool_alternatives(
-        self,
-        server_name: str,
-        tool_name: str,
-        error_message: str | None = None,
-        top_k: int = 5,
-    ) -> dict[str, Any]:
-        """Get alternative tool suggestions when a tool fails.
-
-        Uses semantic similarity and historical success rates to suggest
-        similar tools that might work as alternatives.
-
-        Args:
-            server_name: Server where the tool failed
-            tool_name: Name of the failed tool
-            error_message: Optional error message for context-aware matching
-            top_k: Maximum number of alternatives to return (default: 5)
-
-        Returns:
-            Dict with alternative tool suggestions and scores
-        """
-        project_id = self._mcp_manager.project_id
-        if not project_id:
-            ctx = get_project_context()
-            project_id = ctx.get("id") if ctx else None
-        if not project_id:
-            return {
-                "success": False,
-                "error": "No project_id available. Run 'gobby init' first.",
-            }
-
-        fallback_resolver = self.tool_proxy._fallback_resolver
-        if not fallback_resolver:
-            return {
-                "success": False,
-                "error": "Fallback resolver not configured",
-            }
-
-        try:
-            suggestions = await fallback_resolver.find_alternatives_for_error(
-                server_name=server_name,
-                tool_name=tool_name,
-                error_message=error_message or "Tool call failed",
-                project_id=project_id,
-                top_k=top_k,
-            )
-
-            return {
-                "success": True,
-                "failed_tool": f"{server_name}/{tool_name}",
-                "alternatives": suggestions,
-                "count": len(suggestions),
-            }
-        except Exception as e:
-            logger.error(f"Failed to get tool alternatives: {e}")
-            return {"success": False, "error": str(e)}
-
     # --- Semantic Search ---
 
     async def search_tools(
@@ -483,28 +439,6 @@ class GobbyDaemonTools:
             workflow=None,
         )
 
-    async def save_variable_template(
-        self,
-        name: str,
-        definition: dict[str, Any],
-        *,
-        make_global: bool = False,
-    ) -> dict[str, Any]:
-        """Save a variable definition as a YAML template for persistence. Writes to .gobby/workflows/variables/ (project) or ~/.gobby/workflows/variables/ (global)."""
-        if not self._session_manager or not self._session_manager.db:
-            return {"success": False, "error": "Session manager not available"}
-
-        from gobby.mcp_proxy.tools.workflows._variables import (
-            save_variable_template as _save_var_tmpl,
-        )
-
-        return _save_var_tmpl(
-            self._session_manager.db,
-            name,
-            definition,
-            make_global=make_global,
-        )
-
     # Hook Extension tools migrated to gobby-plugins internal registry
     # (see src/gobby/mcp_proxy/tools/plugins/)
 
@@ -532,16 +466,12 @@ def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
     # Recommendation
     mcp.add_tool(tools_handler.recommend_tools)
 
-    # Fallback Resolver
-    mcp.add_tool(tools_handler.get_tool_alternatives)
-
     # Semantic Search
     mcp.add_tool(tools_handler.search_tools)
 
     # Session Variables
     mcp.add_tool(tools_handler.set_variable)
     mcp.add_tool(tools_handler.get_variable)
-    mcp.add_tool(tools_handler.save_variable_template)
 
     # Hook Extension tools are now in gobby-plugins internal registry
 

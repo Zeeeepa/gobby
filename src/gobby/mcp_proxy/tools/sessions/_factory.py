@@ -6,6 +6,7 @@ into a unified registry.
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -19,14 +20,12 @@ from gobby.mcp_proxy.tools.sessions._transcripts import register_transcript_tool
 
 if TYPE_CHECKING:
     from gobby.sessions.transcript_reader import TranscriptReader
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
 __all__ = ["create_session_messages_registry"]
 
 
 def create_session_messages_registry(
-    message_manager: LocalSessionMessageManager | None = None,
     session_manager: LocalSessionManager | None = None,
     llm_service: Any | None = None,
     transcript_processor: Any | None = None,
@@ -35,31 +34,40 @@ def create_session_messages_registry(
     worktree_manager: Any | None = None,
     inter_session_message_manager: Any | None = None,
     transcript_reader: TranscriptReader | None = None,
+    # Deprecated: kept for backwards-compat callers, ignored
+    message_manager: object | None = None,
 ) -> InternalToolRegistry:
     """
     Create a sessions tool registry with session and message tools.
 
     Args:
-        message_manager: LocalSessionMessageManager instance for message operations
         session_manager: LocalSessionManager instance for session CRUD
         llm_service: LLM service for handoff generation (optional)
         transcript_processor: Transcript processor for handoff generation (optional)
         config: DaemonConfig for settings (optional)
         db: Database for dependency injection (optional)
         worktree_manager: Worktree manager for context enrichment (optional)
+        transcript_reader: TranscriptReader for JSONL + gzip fallback reads (optional)
+        message_manager: Deprecated, ignored. Kept for backwards compatibility.
 
     Returns:
         InternalToolRegistry with all session tools registered
     """
+    if message_manager is not None:
+        warnings.warn(
+            "message_manager is deprecated and ignored",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     registry = InternalToolRegistry(
         name="gobby-sessions",
         description="Session management and message querying - CRUD, retrieval, search",
     )
 
     # --- Message Tools ---
-    # Only register if message_manager is available
-    if message_manager is not None:
-        register_message_tools(registry, message_manager, session_manager, transcript_reader)
+    # Register if transcript_reader or session_manager is available
+    if transcript_reader is not None or session_manager is not None:
+        register_message_tools(registry, None, session_manager, transcript_reader)
 
     # --- Handoff Tools ---
     # Only register if session_manager is available

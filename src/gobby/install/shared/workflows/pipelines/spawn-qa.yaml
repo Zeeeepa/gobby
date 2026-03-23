@@ -1,4 +1,5 @@
 name: spawn-qa
+type: pipeline
 description: |
   Thin dispatch pipeline: spawns a QA reviewer agent for a given task.
   The conductor can invoke this via run_pipeline for tracked dispatch,
@@ -26,16 +27,15 @@ inputs:
     description: "Worktree ID for isolation (empty = auto-create)"
 
 steps:
-  - name: spawn
-    type: mcp
-    server: gobby-agents
-    tool: spawn_agent
-    args:
-      prompt: "Review task {{ inputs.task_id }}. Check the implementation, run tests, validate quality, and approve or reject."
-      agent_definition: qa-reviewer
-      provider: "{{ inputs.provider }}"
-      model: "{{ inputs.model }}"
-      worktree_id: "{{ inputs.worktree_id }}"
-      session_variables:
-        assigned_task_id: "{{ inputs.task_id }}"
-    output: spawn_result
+  - id: spawn
+    mcp:
+      server: gobby-agents
+      tool: spawn_agent
+      arguments:
+        prompt: "Review task ${{ inputs.task_id }}. Check the implementation, run tests, validate quality, and approve or reject."
+        agent_definition: qa-reviewer
+        provider: "${{ inputs.provider }}"
+        model: "${{ inputs.model }}"
+        worktree_id: "${{ inputs.worktree_id }}"
+        session_variables:
+          assigned_task_id: "${{ inputs.task_id }}"

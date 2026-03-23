@@ -775,3 +775,17 @@ class TestStepEnforcementAfterTransition:
 
         response = await engine.evaluate(event, session_id="test-session", variables=variables)
         assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_toolsearch_allowed_in_restricted_step(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """ToolSearch (Claude Code deferred tool loader) should always be allowed."""
+        _setup_step_workflow(db, manager, instance_mgr, current_step="claim")
+        event = _make_event(
+            data={"tool_name": "ToolSearch"},
+        )
+        variables: dict[str, Any] = {}
+
+        response = await engine.evaluate(event, session_id="test-session", variables=variables)
+        assert response.decision == "allow"

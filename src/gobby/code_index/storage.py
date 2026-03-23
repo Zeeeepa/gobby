@@ -9,7 +9,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.code_index.models import IndexedFile, IndexedProject, Symbol
+from gobby.code_index.models import ContentChunk, IndexedFile, IndexedProject, Symbol
 from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
@@ -426,3 +426,221 @@ class CodeIndexStorage:
             (project_id,),
         )
         return row["cnt"] if row else 0
+
+    # ── Content Chunks ──────────────────────────────────────────────
+
+    def upsert_content_chunks(self, chunks: list[ContentChunk]) -> int:
+        """Insert or update content chunks. Returns count of upserted rows."""
+        if not chunks:
+            return 0
+
+        rows = [
+            (
+                chunk.id,
+                chunk.project_id,
+                chunk.file_path,
+                chunk.chunk_index,
+                chunk.line_start,
+                chunk.line_end,
+                chunk.content,
+                chunk.language,
+                chunk.created_at,
+            )
+            for chunk in chunks
+        ]
+        with self.db.transaction() as conn:
+            conn.executemany(
+                """INSERT INTO code_content_chunks (
+                    id, project_id, file_path, chunk_index,
+                    line_start, line_end, content, language, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    content = excluded.content,
+                    line_start = excluded.line_start,
+                    line_end = excluded.line_end
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def delete_content_chunks_for_file(self, project_id: str, file_path: str) -> None:
+        """Delete all content chunks for a file."""
+        self.db.execute(
+            "DELETE FROM code_content_chunks WHERE project_id = ? AND file_path = ?",
+            (project_id, file_path),
+        )
+
+    def delete_content_chunks_for_project(self, project_id: str) -> None:
+        """Delete all content chunks for a project."""
+        self.db.execute(
+            "DELETE FROM code_content_chunks WHERE project_id = ?",
+            (project_id,),
+        )
+
+    # ── Graph visualization fallbacks ────────────────────────────────
+
+    def get_file_symbol_tree(self, project_id: str, limit: int = 200) -> dict[str, Any]:
+        """Build file→symbol containment graph from SQLite.
+
+        Fallback for when Neo4j is unavailable. No call/import edges,
+        but still browsable as a file-to-symbol tree.
+        """
+        file_rows = self.db.fetchall(
+            """SELECT f.file_path, f.language, f.symbol_count
+               FROM code_indexed_files f
+               WHERE f.project_id = ?
+               ORDER BY f.file_path
+               LIMIT ?""",
+            (project_id, limit),
+        )
+
+        nodes: list[dict[str, Any]] = []
+        links: list[dict[str, Any]] = []
+        file_paths = []
+
+        for row in file_rows:
+            fp = row["file_path"]
+            file_paths.append(fp)
+            nodes.append(
+                {
+                    "id": fp,
+                    "name": fp,
+                    "type": "file",
+                    "file_path": fp,
+                    "language": row["language"],
+                    "symbol_count": row["symbol_count"] or 0,
+                }
+            )
+
+        # Get top-level symbols for each file (limit to avoid explosion)
+        if file_paths:
+            placeholders = ",".join("?" for _ in file_paths)
+            sym_rows = self.db.fetchall(
+                f"""SELECT id, name, kind, file_path, line_start, signature
+                    FROM code_symbols
+                    WHERE project_id = ? AND file_path IN ({placeholders})
+                      AND parent_symbol_id IS NULL
+                    ORDER BY file_path, line_start""",
+                (project_id, *file_paths),
+            )
+            for row in sym_rows:
+                nodes.append(
+                    {
+                        "id": row["id"],
+                        "name": row["name"],
+                        "type": row["kind"] or "function",
+                        "kind": row["kind"],
+                        "file_path": row["file_path"],
+                        "line_start": row["line_start"],
+                        "signature": row["signature"],
+                    }
+                )
+                links.append(
+                    {
+                        "source": row["file_path"],
+                        "target": row["id"],
+                        "type": "DEFINES",
+                    }
+                )
+
+        return {"nodes": nodes, "links": links}
+
+    def search_symbols_for_graph(
+        self, query: str, project_id: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Search symbols and return in graph-node format.
+
+        Uses existing FTS and name search, returns results formatted
+        for graph visualization.
+        """
+        # Try FTS first, fall back to name search
+        symbols = self.search_symbols_fts(query, project_id, limit=limit)
+        if not symbols:
+            symbols = self.search_symbols_by_name(query, project_id, limit=limit)
+
+        return [
+            {
+                "id": sym.id,
+                "name": sym.name,
+                "type": sym.kind or "function",
+                "kind": sym.kind,
+                "file_path": sym.file_path,
+                "line_start": sym.line_start,
+                "signature": sym.signature,
+            }
+            for sym in symbols
+        ]
+
+    def search_content_fts(
+        self,
+        query: str,
+        project_id: str,
+        file_path: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Full-text search across file content chunks.
+
+        Returns dicts with file_path, line_start, line_end, snippet, language.
+        """
+        if not query.strip():
+            return []
+
+        # Escape FTS5 special characters for safe querying
+        safe_query = query.replace('"', '""')
+
+        try:
+            if file_path:
+                rows = self.db.fetchall(
+                    """SELECT
+                        c.file_path, c.line_start, c.line_end, c.language,
+                        snippet(code_content_fts, 0, '>>>', '<<<', '...', 40) as snippet
+                    FROM code_content_fts fts
+                    JOIN code_content_chunks c ON c.rowid = fts.rowid
+                    WHERE code_content_fts MATCH ?
+                      AND c.project_id = ?
+                      AND c.file_path = ?
+                    ORDER BY rank
+                    LIMIT ?""",
+                    (f'"{safe_query}"', project_id, file_path, limit),
+                )
+            else:
+                rows = self.db.fetchall(
+                    """SELECT
+                        c.file_path, c.line_start, c.line_end, c.language,
+                        snippet(code_content_fts, 0, '>>>', '<<<', '...', 40) as snippet
+                    FROM code_content_fts fts
+                    JOIN code_content_chunks c ON c.rowid = fts.rowid
+                    WHERE code_content_fts MATCH ?
+                      AND c.project_id = ?
+                    ORDER BY rank
+                    LIMIT ?""",
+                    (f'"{safe_query}"', project_id, limit),
+                )
+        except Exception as e:
+            logger.debug(f"Content FTS search failed, falling back to LIKE: {e}")
+            # Fallback to LIKE search
+            like_query = f"%{query}%"
+            params: list[Any] = [project_id, like_query]
+            sql = """SELECT file_path, line_start, line_end, language,
+                        substr(content, max(1, instr(content, ?) - 60), 120) as snippet
+                     FROM code_content_chunks
+                     WHERE project_id = ? AND content LIKE ?"""
+            if file_path:
+                sql += " AND file_path = ?"
+                params = [query, project_id, like_query, file_path]
+            else:
+                params = [query, project_id, like_query]
+            sql += " LIMIT ?"
+            params.append(limit)
+            rows = self.db.fetchall(sql, tuple(params))
+
+        return [
+            {
+                "file_path": row["file_path"],
+                "line_start": row["line_start"],
+                "line_end": row["line_end"],
+                "snippet": row["snippet"],
+                "language": row["language"],
+            }
+            for row in rows
+        ]

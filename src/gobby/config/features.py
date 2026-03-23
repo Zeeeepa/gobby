@@ -18,14 +18,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
     "ChatConfig",
+    "KnowledgeGraphQueueConfig",
     "ReviewConfig",
     "ToolSummarizerConfig",
     "RecommendToolsConfig",
     "ImportMCPServerConfig",
-    "MemoryDedupDecisionConfig",
-    "MemoryEntityExtractionConfig",
     "MemoryExtractionConfig",
-    "MemoryFactExtractionConfig",
     "MergeResolutionConfig",
     "MetricsConfig",
     "OutputCompressionConfig",
@@ -120,6 +118,10 @@ class TaskDescriptionConfig(BaseModel):
 class MemoryExtractionConfig(BaseModel):
     """Configuration for session memory extraction LLM calls."""
 
+    enabled: bool = Field(
+        default=True,
+        description="Enable session memory extraction pipeline",
+    )
     provider: str = Field(
         default="claude",
         description="LLM provider to use for memory extraction",
@@ -156,66 +158,18 @@ class SkillDescriptionConfig(BaseModel):
     )
 
 
-class MemoryFactExtractionConfig(BaseModel):
-    """Configuration for memory fact extraction LLM calls."""
+class KnowledgeGraphQueueConfig(BaseModel):
+    """Configuration for background KG processing queue."""
 
-    enabled: bool = Field(
-        default=True,
-        description="Enable LLM-based fact extraction from memory content",
+    interval_minutes: int = Field(
+        default=30,
+        ge=1,
+        description="How often to process the KG queue (minutes)",
     )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for fact extraction",
-    )
-    model: str = Field(
-        default="haiku",
-        description="Model to use for fact extraction (fast/cheap recommended)",
-    )
-    prompt_path: str | None = Field(
-        default=None,
-        description="Path to custom fact extraction prompt (e.g., 'memory/fact_extraction')",
-    )
-
-
-class MemoryDedupDecisionConfig(BaseModel):
-    """Configuration for memory deduplication decision LLM calls."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable LLM-based dedup decision for memories",
-    )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for dedup decisions",
-    )
-    model: str = Field(
-        default="haiku",
-        description="Model to use for dedup decisions (fast/cheap recommended)",
-    )
-    prompt_path: str | None = Field(
-        default=None,
-        description="Path to custom dedup decision prompt (e.g., 'memory/dedup_decision')",
-    )
-
-
-class MemoryEntityExtractionConfig(BaseModel):
-    """Configuration for memory entity extraction LLM calls."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable LLM-based entity extraction from memories",
-    )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for entity extraction",
-    )
-    model: str = Field(
-        default="haiku",
-        description="Model to use for entity extraction (fast/cheap recommended)",
-    )
-    prompt_path: str | None = Field(
-        default=None,
-        description="Path to custom entity extraction prompt (e.g., 'memory/entity_extraction')",
+    batch_size: int = Field(
+        default=20,
+        ge=1,
+        description="Max memories to process per KG queue cycle",
     )
 
 

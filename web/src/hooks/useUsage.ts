@@ -47,7 +47,7 @@ export function useUsage(hours: number, projectId?: string) {
   useEffect(() => {
     setIsLoading(true)
     fetchUsage()
-      .catch(() => {})
+      .catch((err) => { console.error('Usage fetch failed:', err) })
       .finally(() => setIsLoading(false))
     const interval = setInterval(fetchUsage, 30_000)
     return () => {

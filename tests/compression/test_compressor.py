@@ -75,6 +75,68 @@ class TestOutputCompressor:
         r = c.compress("pytest tests/ -v", pytest_output)
         assert r.strategy_name == "pytest"
         assert r.compressed_chars < r.original_chars
+        # Failure details must be preserved
+        assert "assert 1 == 2" in r.compressed
+        assert "FAILED tests/test_thing.py::test_thing" in r.compressed
+
+    def test_pytest_preserves_all_failure_tracebacks(self) -> None:
+        """Multiple failure blocks are all preserved, not truncated."""
+        output = "=== test session starts ===\n"
+        output += "collected 110 items\n\n"
+        output += "".join(f"tests/test_{i}.py PASSED\n" for i in range(100))
+        output += "=== FAILURES ===\n"
+        for i in range(10):
+            output += f"_______ test_fail_{i} _______\n"
+            output += f"    def test_fail_{i}():\n"
+            output += f">       assert {i} == {i + 1}\n"
+            output += f"E       AssertionError: assert {i} == {i + 1}\n\n"
+        output += "=== short test summary ===\n"
+        output += "".join(
+            f"FAILED tests/test_fail_{i}.py::test_fail_{i}\n" for i in range(10)
+        )
+        output += "=== 10 failed, 100 passed ===\n"
+
+        c = OutputCompressor(min_length=100)
+        r = c.compress("pytest tests/ -v", output)
+        assert r.strategy_name == "pytest"
+        # Every failure traceback must survive
+        for i in range(10):
+            assert f"test_fail_{i}" in r.compressed
+            assert f"assert {i} == {i + 1}" in r.compressed
+
+    def test_pytest_errors_section_preserved(self) -> None:
+        """ERRORS section (collection/fixture errors) survives compression."""
+        output = "=== test session starts ===\n"
+        output += "collected 50 items / 1 error\n\n"
+        output += "".join(f"tests/test_{i}.py PASSED\n" for i in range(50))
+        output += "=== ERRORS ===\n"
+        output += "_______ ERROR collecting tests/test_broken.py _______\n"
+        output += "ImportError: cannot import name 'missing_module'\n"
+        output += "=== short test summary ===\n"
+        output += "ERROR tests/test_broken.py\n"
+        output += "=== 50 passed, 1 error ===\n"
+
+        c = OutputCompressor(min_length=100)
+        r = c.compress("pytest tests/ -v", output)
+        assert r.strategy_name == "pytest"
+        assert "ImportError" in r.compressed
+        assert "missing_module" in r.compressed
+
+    def test_pytest_all_pass_compresses_to_summary(self) -> None:
+        """All-pass output is compressed (passes filtered, summary kept)."""
+        output = "=== test session starts ===\n"
+        output += "platform linux -- Python 3.13\n"
+        output += "collected 200 items\n\n"
+        output += "".join(f"tests/test_{i}.py PASSED\n" for i in range(200))
+        output += "=== 200 passed ===\n"
+
+        c = OutputCompressor(min_length=100)
+        r = c.compress("pytest tests/ -v", output)
+        assert r.strategy_name == "pytest"
+        assert r.compressed_chars < r.original_chars
+        assert "200 passed" in r.compressed
+        # PASSED lines should be gone
+        assert "PASSED" not in r.compressed
 
     def test_fallback_truncation(self) -> None:
         """Unknown commands get fallback truncation."""

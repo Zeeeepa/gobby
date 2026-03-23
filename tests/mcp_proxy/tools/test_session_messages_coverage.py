@@ -40,13 +40,14 @@ def create_test_registry(
     message_manager: Any = None,
     session_manager: Any = None,
     inter_session_message_manager: Any = None,
+    transcript_reader: Any = None,
 ) -> SessionMessagesTestRegistry:
     """Create a test-friendly registry by wrapping the real factory."""
     # Create the real registry
     real_registry = create_session_messages_registry(
-        message_manager=message_manager,
         session_manager=session_manager,
         inter_session_message_manager=inter_session_message_manager,
+        transcript_reader=transcript_reader,
     )
 
     # Create test registry with same tools
@@ -293,14 +294,15 @@ class TestGetSessionMessages:
     @pytest.mark.asyncio
     async def test_get_messages_success(self):
         """Test successful message retrieval."""
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = [
-            {"id": 1, "content": "Hello", "role": "user"},
-            {"id": 2, "content": "Hi", "role": "assistant"},
-        ]
-        message_manager.count_messages.return_value = 2
+        mock_msg1 = MagicMock()
+        mock_msg1.to_dict.return_value = {"id": 1, "content": "Hello", "role": "user"}
+        mock_msg2 = MagicMock()
+        mock_msg2.to_dict.return_value = {"id": 2, "content": "Hi", "role": "assistant"}
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = [mock_msg1, mock_msg2]
+        transcript_reader.count_messages.return_value = 2
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123")
@@ -309,21 +311,18 @@ class TestGetSessionMessages:
         assert result["total_count"] == 2
         assert result["returned_count"] == 2
         assert len(result["messages"]) == 2
-        message_manager.get_messages.assert_called_once_with(
-            session_id="sess-123", limit=50, offset=0
-        )
 
     @pytest.mark.asyncio
     async def test_get_messages_truncates_content(self):
         """Test that large content is truncated when full_content=False."""
         long_content = "x" * 600  # More than 500 chars
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = [
-            {"id": 1, "content": long_content, "role": "user"},
-        ]
-        message_manager.count_messages.return_value = 1
+        mock_msg = MagicMock()
+        mock_msg.to_dict.return_value = {"id": 1, "content": long_content, "role": "user"}
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = [mock_msg]
+        transcript_reader.count_messages.return_value = 1
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123", full_content=False)
@@ -338,13 +337,13 @@ class TestGetSessionMessages:
     async def test_get_messages_full_content(self):
         """Test that content is not truncated when full_content=True."""
         long_content = "x" * 600
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = [
-            {"id": 1, "content": long_content, "role": "user"},
-        ]
-        message_manager.count_messages.return_value = 1
+        mock_msg = MagicMock()
+        mock_msg.to_dict.return_value = {"id": 1, "content": long_content, "role": "user"}
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = [mock_msg]
+        transcript_reader.count_messages.return_value = 1
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123", full_content=True)
@@ -357,18 +356,18 @@ class TestGetSessionMessages:
     async def test_get_messages_truncates_tool_calls(self):
         """Test that tool call input is truncated."""
         long_input = "y" * 300
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = [
-            {
-                "id": 1,
-                "content": "test",
-                "role": "assistant",
-                "tool_calls": [{"name": "Edit", "input": long_input}],
-            },
-        ]
-        message_manager.count_messages.return_value = 1
+        mock_msg = MagicMock()
+        mock_msg.to_dict.return_value = {
+            "id": 1,
+            "content": "test",
+            "role": "assistant",
+            "tool_calls": [{"name": "Edit", "input": long_input}],
+        }
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = [mock_msg]
+        transcript_reader.count_messages.return_value = 1
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123", full_content=False)
@@ -380,18 +379,18 @@ class TestGetSessionMessages:
     async def test_get_messages_truncates_tool_result(self):
         """Test that tool result content is truncated."""
         long_result = "z" * 300
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = [
-            {
-                "id": 1,
-                "content": "test",
-                "role": "user",
-                "tool_result": {"content": long_result},
-            },
-        ]
-        message_manager.count_messages.return_value = 1
+        mock_msg = MagicMock()
+        mock_msg.to_dict.return_value = {
+            "id": 1,
+            "content": "test",
+            "role": "user",
+            "tool_result": {"content": long_result},
+        }
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = [mock_msg]
+        transcript_reader.count_messages.return_value = 1
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123", full_content=False)
@@ -402,28 +401,25 @@ class TestGetSessionMessages:
     @pytest.mark.asyncio
     async def test_get_messages_with_pagination(self):
         """Test message retrieval with pagination."""
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = []
-        message_manager.count_messages.return_value = 100
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = []
+        transcript_reader.count_messages.return_value = 100
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123", limit=10, offset=20)
 
         assert result["limit"] == 10
         assert result["offset"] == 20
-        message_manager.get_messages.assert_called_once_with(
-            session_id="sess-123", limit=10, offset=20
-        )
 
     @pytest.mark.asyncio
     async def test_get_messages_error(self):
         """Test error handling in get_session_messages."""
-        message_manager = AsyncMock()
-        message_manager.get_messages.side_effect = Exception("Database error")
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.side_effect = Exception("Database error")
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123")
@@ -433,71 +429,19 @@ class TestGetSessionMessages:
 
 
 class TestSearchMessages:
-    """Tests for search_messages tool."""
+    """Tests for search_messages tool — now deprecated, always returns error."""
 
     @pytest.mark.asyncio
-    async def test_search_messages_success(self):
-        """Test successful message search."""
-        message_manager = AsyncMock()
-        message_manager.search_messages.return_value = [
-            {"id": 1, "content": "Found match", "role": "user"},
-        ]
-
-        registry = create_test_registry(message_manager=message_manager)
+    async def test_search_messages_returns_deprecation_error(self):
+        """Test that search_messages returns a deprecation error."""
+        session_manager = MagicMock()
+        registry = create_test_registry(session_manager=session_manager)
         search = registry.get_tool("search_messages")
 
         result = await search(query="match")
 
-        assert result["success"] is True
-        assert result["count"] == 1
-        assert len(result["results"]) == 1
-        message_manager.search_messages.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_search_messages_with_session_filter(self):
-        """Test search with session ID filter."""
-        message_manager = AsyncMock()
-        message_manager.search_messages.return_value = []
-
-        registry = create_test_registry(message_manager=message_manager)
-        search = registry.get_tool("search_messages")
-
-        await search(query="test", session_id="sess-123")
-
-        message_manager.search_messages.assert_called_once_with(
-            query_text="test", session_id="sess-123", limit=20
-        )
-
-    @pytest.mark.asyncio
-    async def test_search_messages_truncates_content(self):
-        """Test that search results are truncated."""
-        long_content = "x" * 600
-        message_manager = AsyncMock()
-        message_manager.search_messages.return_value = [
-            {"id": 1, "content": long_content, "role": "user"},
-        ]
-
-        registry = create_test_registry(message_manager=message_manager)
-        search = registry.get_tool("search_messages")
-
-        result = await search(query="test", full_content=False)
-
-        assert result["truncated"] is True
-        assert "... (truncated)" in result["results"][0]["content"]
-
-    @pytest.mark.asyncio
-    async def test_search_messages_error(self):
-        """Test error handling in search_messages."""
-        message_manager = AsyncMock()
-        message_manager.search_messages.side_effect = Exception("Search failed")
-
-        registry = create_test_registry(message_manager=message_manager)
-        search = registry.get_tool("search_messages")
-
-        result = await search(query="test")
-
         assert result["success"] is False
-        assert "Search failed" in result["error"]
+        assert "no longer available" in result["error"]
 
 
 # ============================================================================
@@ -514,7 +458,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-123"
         mock_session.summary_markdown = "## Summary"
-        mock_session.compact_markdown = "## Compact"
         mock_session.title = "Test Session"
         mock_session.status = "handoff_ready"
         session_manager.resolve_session_reference.return_value = "sess-123"
@@ -531,26 +474,6 @@ class TestGetHandoffContext:
         assert result["has_context"] is True
         assert result["context"] == "## Summary"
         assert result["context_type"] == "summary_markdown"
-
-    def test_get_falls_back_to_compact(self) -> None:
-        """Test that compact_markdown is used when summary_markdown is None."""
-        session_manager = MagicMock()
-        mock_session = MagicMock()
-        mock_session.id = "sess-123"
-        mock_session.summary_markdown = None
-        mock_session.compact_markdown = "## Compact"
-        mock_session.title = "Test"
-        mock_session.status = "handoff_ready"
-        session_manager.resolve_session_reference.return_value = "sess-123"
-        session_manager.get.return_value = mock_session
-
-        registry = create_test_registry(session_manager=session_manager)
-        get_context = registry.get_tool("get_handoff_context")
-
-        result = get_context(session_id="sess-123")
-
-        assert result["context"] == "## Compact"
-        assert result["context_type"] == "compact_markdown"
 
     def test_get_handoff_context_session_not_found(self) -> None:
         """Test error when session not found by ID."""
@@ -589,7 +512,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-456"
         mock_session.summary_markdown = "## Context"
-        mock_session.compact_markdown = None
         mock_session.title = "Test"
         mock_session.status = "handoff_ready"
         session_manager.find_parent.return_value = mock_session
@@ -613,7 +535,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-latest"
         mock_session.summary_markdown = "## Summary"
-        mock_session.compact_markdown = None
         mock_session.title = "Latest"
         mock_session.status = "handoff_ready"
         session_manager.list.return_value = [mock_session]
@@ -645,7 +566,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-123"
         mock_session.summary_markdown = None
-        mock_session.compact_markdown = None
         session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
@@ -663,7 +583,6 @@ class TestGetHandoffContext:
         mock_session = MagicMock()
         mock_session.id = "sess-parent"
         mock_session.summary_markdown = "## Context"
-        mock_session.compact_markdown = None
         mock_session.title = "Parent"
         mock_session.status = "handoff_ready"
         session_manager.get.return_value = mock_session
@@ -1100,10 +1019,10 @@ class TestRegistryCreation:
         # With no managers, only the registry shell is created
         assert len(registry) == 0
 
-    def test_create_registry_with_message_manager(self) -> None:
-        """Test creating registry with message manager only."""
-        message_manager = MagicMock()
-        registry = create_session_messages_registry(message_manager=message_manager)
+    def test_create_registry_with_transcript_reader(self) -> None:
+        """Test creating registry with transcript reader only."""
+        transcript_reader = MagicMock()
+        registry = create_session_messages_registry(transcript_reader=transcript_reader)
 
         # Should have message tools
         tools = registry.list_tools()
@@ -1125,11 +1044,11 @@ class TestRegistryCreation:
         assert "set_handoff_context" in tool_names
 
     def test_create_registry_with_both_managers(self) -> None:
-        """Test creating registry with both managers."""
-        message_manager = MagicMock()
+        """Test creating registry with transcript reader and session manager."""
+        transcript_reader = MagicMock()
         session_manager = MagicMock()
         registry = create_session_messages_registry(
-            message_manager=message_manager,
+            transcript_reader=transcript_reader,
             session_manager=session_manager,
         )
 
@@ -1157,14 +1076,15 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_get_messages_empty_content(self):
         """Test handling messages with empty content."""
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = [
-            {"id": 1, "content": "", "role": "user"},
-            {"id": 2, "content": None, "role": "assistant"},
-        ]
-        message_manager.count_messages.return_value = 2
+        mock_msg1 = MagicMock()
+        mock_msg1.to_dict.return_value = {"id": 1, "content": "", "role": "user"}
+        mock_msg2 = MagicMock()
+        mock_msg2.to_dict.return_value = {"id": 2, "content": None, "role": "assistant"}
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = [mock_msg1, mock_msg2]
+        transcript_reader.count_messages.return_value = 2
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123")
@@ -1175,13 +1095,13 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_get_messages_non_string_content(self):
         """Test handling messages with non-string content."""
-        message_manager = AsyncMock()
-        message_manager.get_messages.return_value = [
-            {"id": 1, "content": ["block1", "block2"], "role": "assistant"},
-        ]
-        message_manager.count_messages.return_value = 1
+        mock_msg = MagicMock()
+        mock_msg.to_dict.return_value = {"id": 1, "content": ["block1", "block2"], "role": "assistant"}
+        transcript_reader = AsyncMock()
+        transcript_reader.get_rendered_messages.return_value = [mock_msg]
+        transcript_reader.count_messages.return_value = 1
 
-        registry = create_test_registry(message_manager=message_manager)
+        registry = create_test_registry(transcript_reader=transcript_reader)
         get_messages = registry.get_tool("get_session_messages")
 
         result = await get_messages(session_id="sess-123", full_content=False)

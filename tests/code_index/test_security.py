@@ -168,3 +168,42 @@ def test_has_secret_extension_normal_file() -> None:
 def test_has_secret_extension_keystore() -> None:
     """.keystore file is flagged."""
     assert has_secret_extension(Path("app.keystore")) is True
+
+
+# ── should_exclude: substring false-positive regression ────────────────
+
+
+def test_should_exclude_build_directory() -> None:
+    """A directory named 'build' IS excluded."""
+    path = Path("build/output/bundle.js")
+    assert should_exclude(path, ["build"]) is True
+
+
+def test_should_exclude_dist_directory() -> None:
+    """A directory named 'dist' IS excluded."""
+    path = Path("dist/index.js")
+    assert should_exclude(path, ["dist"]) is True
+
+
+def test_should_exclude_no_substring_match_builder() -> None:
+    """Files with 'build' as a substring should NOT be excluded."""
+    path = Path("src/gobby/tasks/tree_builder.py")
+    assert should_exclude(path, ["build"]) is False
+
+
+def test_should_exclude_no_substring_match_build_verification() -> None:
+    """Files with 'build' in their name should NOT be excluded."""
+    path = Path("src/gobby/tasks/build_verification.py")
+    assert should_exclude(path, ["build"]) is False
+
+
+def test_should_exclude_no_substring_match_command_builder() -> None:
+    """Files with 'builder' in their name should NOT be excluded."""
+    path = Path("src/gobby/agents/spawners/command_builder.py")
+    assert should_exclude(path, ["build"]) is False
+
+
+def test_should_exclude_no_substring_match_dist_setup() -> None:
+    """Directories with 'dist' as a prefix should NOT be excluded."""
+    path = Path("web/dist-setup/cli.mjs")
+    assert should_exclude(path, ["dist"]) is False

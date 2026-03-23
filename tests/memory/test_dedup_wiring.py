@@ -63,10 +63,10 @@ class TestDedupServiceInitialization:
         manager = _make_manager(has_llm=True, has_vector_store=True, has_embed_fn=True)
         assert manager._dedup_service is not None
 
-    def test_no_dedup_service_without_llm(self) -> None:
-        """DedupService is None when no LLM service."""
+    def test_dedup_service_created_without_llm(self) -> None:
+        """DedupService is created even without LLM (uses vector similarity only)."""
         manager = _make_manager(has_llm=False, has_vector_store=True, has_embed_fn=True)
-        assert manager._dedup_service is None
+        assert manager._dedup_service is not None
 
     def test_no_dedup_service_without_vector_store(self) -> None:
         """DedupService is None when no VectorStore."""

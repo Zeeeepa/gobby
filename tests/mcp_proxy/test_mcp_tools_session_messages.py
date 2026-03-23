@@ -1,21 +1,16 @@
-from datetime import UTC
-from unittest.mock import ANY, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
-from gobby.storage.session_messages import LocalSessionMessageManager
+from gobby.sessions.transcript_reader import TranscriptReader
+from gobby.sessions.transcript_renderer import ContentBlock, RenderedMessage
 from gobby.storage.session_models import Session
 from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
-
-
-@pytest.fixture
-def mock_message_manager():
-    manager = MagicMock(spec=LocalSessionMessageManager)
-    return manager
 
 
 @pytest.fixture
@@ -27,102 +22,129 @@ def mock_session_manager():
 
 
 @pytest.fixture
-def session_messages_registry(mock_message_manager):
-    """Registry with only message manager (backward compatibility)."""
-    return create_session_messages_registry(message_manager=mock_message_manager)
+def mock_transcript_reader():
+    reader = MagicMock(spec=TranscriptReader)
+    reader.get_rendered_messages = AsyncMock()
+    reader.count_messages = AsyncMock()
+    return reader
 
 
 @pytest.fixture
-def full_sessions_registry(mock_message_manager, mock_session_manager):
-    """Registry with both message and session managers."""
+def renderer_registry(mock_transcript_reader):
+    """Registry with transcript_reader (primary renderer path)."""
+    return create_session_messages_registry(transcript_reader=mock_transcript_reader)
+
+
+@pytest.fixture
+def full_sessions_registry(mock_session_manager):
+    """Registry with session manager."""
     return create_session_messages_registry(
-        message_manager=mock_message_manager,
         session_manager=mock_session_manager,
     )
 
 
-def test_create_session_messages_registry_returns_registry(session_messages_registry) -> None:
+def test_create_session_messages_registry_returns_registry(renderer_registry) -> None:
     """Test that create_session_messages_registry returns an InternalToolRegistry."""
-    assert isinstance(session_messages_registry, InternalToolRegistry)
-    assert session_messages_registry.name == "gobby-sessions"
-
-
-def test_session_messages_registry_has_all_tools(session_messages_registry) -> None:
-    """Test that all expected tools are registered."""
-    expected_tools = [
-        "get_session_messages",
-        "search_messages",
-    ]
-
-    tools_list = session_messages_registry.list_tools()
-    tool_names = [t["name"] for t in tools_list]
-
-    for tool_name in expected_tools:
-        assert tool_name in tool_names, f"Missing tool: {tool_name}"
+    assert isinstance(renderer_registry, InternalToolRegistry)
+    assert renderer_registry.name == "gobby-sessions"
 
 
 @pytest.mark.asyncio
-async def test_get_session_messages(mock_message_manager, session_messages_registry):
-    """Test get_session_messages tool execution."""
-    # Mock return values
-    mock_message_manager.count_messages.return_value = 10
-    mock_message_manager.get_messages.return_value = [{"role": "user", "content": "hello"}]
+async def test_get_session_messages_renderer_path(mock_transcript_reader, renderer_registry):
+    """Test get_session_messages uses transcript_reader.get_rendered_messages when available."""
+    rendered = RenderedMessage(
+        id="msg-1",
+        role="assistant",
+        content="Hello world",
+        timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+        content_blocks=[ContentBlock(type="text", content="Hello world")],
+    )
+    mock_transcript_reader.get_rendered_messages.return_value = [rendered]
+    mock_transcript_reader.count_messages.return_value = 1
 
-    result = await session_messages_registry.call(
-        "get_session_messages", {"session_id": "sess-123", "limit": 5, "offset": 0}
+    result = await renderer_registry.call(
+        "get_session_messages", {"session_id": "sess-123", "limit": 10, "offset": 0}
     )
 
-    mock_message_manager.count_messages.assert_called_with("sess-123")
-    mock_message_manager.get_messages.assert_called_with(session_id="sess-123", limit=5, offset=0)
+    mock_transcript_reader.get_rendered_messages.assert_called_with(
+        session_id="sess-123", limit=10, offset=0
+    )
+    mock_transcript_reader.count_messages.assert_called_with("sess-123")
+    assert result["success"] is True
+    assert result["total_count"] == 1
+    assert len(result["messages"]) == 1
+    msg = result["messages"][0]
+    assert msg["role"] == "assistant"
+    assert msg["content_blocks"][0]["type"] == "text"
+    assert msg["content_blocks"][0]["content"] == "Hello world"
+
+
+@pytest.mark.asyncio
+async def test_get_session_messages_renderer_truncates_content_blocks(
+    mock_transcript_reader, renderer_registry
+):
+    """Test that content_blocks text is truncated when full_content=False."""
+    long_text = "x" * 1000
+    rendered = RenderedMessage(
+        id="msg-1",
+        role="assistant",
+        content=long_text,
+        timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+        content_blocks=[ContentBlock(type="text", content=long_text)],
+    )
+    mock_transcript_reader.get_rendered_messages.return_value = [rendered]
+    mock_transcript_reader.count_messages.return_value = 1
+
+    result = await renderer_registry.call(
+        "get_session_messages",
+        {"session_id": "sess-123", "limit": 10, "offset": 0, "full_content": False},
+    )
 
     assert result["success"] is True
-    assert result["total_count"] == 10
-    assert len(result["messages"]) == 1
+    msg = result["messages"][0]
+    # Top-level content truncated at 500
+    assert msg["content"].endswith("... (truncated)")
+    assert len(msg["content"]) < 1000
+    # content_blocks text truncated at 500
+    block_content = msg["content_blocks"][0]["content"]
+    assert block_content.endswith("... (truncated)")
+    assert len(block_content) < 1000
 
 
 @pytest.mark.asyncio
-async def test_get_session_messages_not_found(mock_message_manager, session_messages_registry):
-    """Test get_session_messages handles errors gracefully."""
-    mock_message_manager.count_messages.return_value = 0
-    mock_message_manager.get_messages.return_value = []
+async def test_get_session_messages_renderer_full_content(
+    mock_transcript_reader, renderer_registry
+):
+    """Test that content_blocks are NOT truncated when full_content=True."""
+    long_text = "x" * 1000
+    rendered = RenderedMessage(
+        id="msg-1",
+        role="assistant",
+        content=long_text,
+        timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+        content_blocks=[ContentBlock(type="text", content=long_text)],
+    )
+    mock_transcript_reader.get_rendered_messages.return_value = [rendered]
+    mock_transcript_reader.count_messages.return_value = 1
 
-    result = await session_messages_registry.call(
-        "get_session_messages", {"session_id": "sess-123"}
+    result = await renderer_registry.call(
+        "get_session_messages",
+        {"session_id": "sess-123", "limit": 10, "offset": 0, "full_content": True},
     )
 
-    assert result["total_count"] == 0
-    assert result["messages"] == []
+    assert result["success"] is True
+    msg = result["messages"][0]
+    assert msg["content"] == long_text
+    assert msg["content_blocks"][0]["content"] == long_text
 
 
-@pytest.mark.asyncio
-async def test_search_messages(mock_message_manager, session_messages_registry):
-    """Test search_messages tool execution."""
-    mock_message_manager.search_messages.return_value = [
-        {"content": "found it", "session_id": "s1"}
-    ]
-
-    result = await session_messages_registry.call("search_messages", {"query": "found"})
-
-    mock_message_manager.search_messages.assert_called_with(
-        query_text="found", session_id=None, limit=20
-    )
-
-    assert result["count"] == 1
-    assert result["results"][0]["content"] == "found it"
-
-
-@pytest.mark.asyncio
-async def test_search_messages_with_session_filter(mock_message_manager, session_messages_registry):
-    """Test search_messages tool execution WITH session filter."""
-    mock_message_manager.search_messages.return_value = []
-
-    await session_messages_registry.call(
-        "search_messages", {"query": "found", "session_id": "sess-123"}
-    )
-
-    mock_message_manager.search_messages.assert_called_with(
-        query_text="found", session_id="sess-123", limit=20
-    )
+def test_registry_without_managers_has_no_message_tools():
+    """Test that registry with no message_manager or transcript_reader has no message tools."""
+    registry = create_session_messages_registry()
+    tools_list = registry.list_tools()
+    tool_names = [t["name"] for t in tools_list]
+    assert "get_session_messages" not in tool_names
+    assert "search_messages" not in tool_names
 
 
 # --- Session CRUD Tool Tests ---
@@ -131,8 +153,6 @@ async def test_search_messages_with_session_filter(mock_message_manager, session
 def test_full_registry_has_session_tools(full_sessions_registry) -> None:
     """Test that full registry has all session and handoff tools."""
     expected_tools = [
-        "get_session_messages",
-        "search_messages",
         "get_session",
         "list_sessions",
         "session_stats",
@@ -148,14 +168,13 @@ def test_full_registry_has_session_tools(full_sessions_registry) -> None:
         assert tool_name in tool_names, f"Missing tool: {tool_name}"
 
 
-def test_registry_without_session_manager_lacks_crud_tools(session_messages_registry) -> None:
+def test_registry_without_session_manager_lacks_crud_tools(renderer_registry) -> None:
     """Test that registry without session_manager doesn't have CRUD tools."""
-    tools_list = session_messages_registry.list_tools()
+    tools_list = renderer_registry.list_tools()
     tool_names = [t["name"] for t in tools_list]
 
-    # Should have message tools
+    # Should have message tools (via transcript_reader)
     assert "get_session_messages" in tool_names
-    assert "search_messages" in tool_names
 
     # Should NOT have session CRUD tools
     assert "get_session" not in tool_names
@@ -282,7 +301,6 @@ async def test_get_handoff_context_by_session_id(mock_session_manager, full_sess
     """Test get_handoff_context tool returns summary_markdown preferentially."""
     mock_session = _make_mock_session("sess-abc")
     mock_session.summary_markdown = "## Summary\n\nTest handoff content"
-    mock_session.compact_markdown = "## Compact"
     mock_session.title = "Test Session"
     mock_session.status = "handoff_ready"
     mock_session_manager.resolve_session_reference.return_value = "sess-abc"
@@ -299,13 +317,15 @@ async def test_get_handoff_context_by_session_id(mock_session_manager, full_sess
 
 
 @pytest.mark.asyncio
-async def test_get_handoff_context_falls_back_to_compact(
+async def test_get_handoff_context_no_summary_returns_no_context(
     mock_session_manager, full_sessions_registry
 ):
-    """Test get_handoff_context uses compact_markdown when summary is None."""
+    """Test get_handoff_context returns has_context=False when summary_markdown is None.
+
+    compact_markdown fallback was removed in migration 163.
+    """
     mock_session = _make_mock_session("sess-abc")
     mock_session.summary_markdown = None
-    mock_session.compact_markdown = "## Compact Context"
     mock_session.title = "Test"
     mock_session.status = "handoff_ready"
     mock_session_manager.resolve_session_reference.return_value = "sess-abc"
@@ -313,9 +333,7 @@ async def test_get_handoff_context_falls_back_to_compact(
 
     result = await full_sessions_registry.call("get_handoff_context", {"session_id": "sess-abc"})
 
-    assert result["has_context"] is True
-    assert result["context"] == "## Compact Context"
-    assert result["context_type"] == "compact_markdown"
+    assert result["has_context"] is False
 
 
 @pytest.mark.asyncio
@@ -335,7 +353,6 @@ async def test_get_handoff_context_no_context(mock_session_manager, full_session
     """Test get_handoff_context when session has no handoff context."""
     mock_session = _make_mock_session("sess-abc")
     mock_session.summary_markdown = None
-    mock_session.compact_markdown = None
     mock_session_manager.resolve_session_reference.return_value = "sess-abc"
     mock_session_manager.get.return_value = mock_session
 
@@ -350,7 +367,6 @@ async def test_get_handoff_context_most_recent(mock_session_manager, full_sessio
     """Test get_handoff_context finds most recent handoff_ready session."""
     mock_session = _make_mock_session("sess-recent", status="handoff_ready")
     mock_session.summary_markdown = "## Recent Context"
-    mock_session.compact_markdown = None
     mock_session.title = "Recent Session"
     mock_session.status = "handoff_ready"
     mock_session_manager.list.return_value = [mock_session]
@@ -367,7 +383,6 @@ async def test_get_handoff_context_links_child(mock_session_manager, full_sessio
     """Test get_handoff_context can link a child session to the parent."""
     mock_session = _make_mock_session("sess-parent", status="handoff_ready")
     mock_session.summary_markdown = "## Context"
-    mock_session.compact_markdown = None
     mock_session.title = "Parent"
     mock_session.status = "handoff_ready"
     mock_session_manager.get.return_value = mock_session

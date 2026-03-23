@@ -32,6 +32,7 @@ import { SlashCommandModal } from "./components/command-browser/SlashCommandModa
 import { ResumeSessionModal } from "./components/chat/ResumeSessionModal";
 import type { GobbySession } from "./hooks/useSessions";
 import type { CommandPaletteAction } from "./components/chat/CommandPalette";
+import { FilesProvider } from "./contexts/FilesContext";
 
 // Lazy-load non-default page components for code splitting
 const SessionsPage = lazy(() =>
@@ -78,6 +79,9 @@ const WorkflowsPage = lazy(() =>
 );
 const GitHubPage = lazy(() =>
   import("./components/source-control/GitHubPage").then((m) => ({ default: m.GitHubPage })),
+);
+const CodePage = lazy(() =>
+  import("./components/code/CodePage").then((m) => ({ default: m.CodePage })),
 );
 const ReportsPage = lazy(() =>
   import("./components/workflows/ReportsPage").then((m) => ({ default: m.ReportsPage })),
@@ -234,6 +238,8 @@ export default function App() {
     contextUsage,
     sendMessage,
     sendMode,
+    sendProjectChange,
+    setProjectIdRef,
     sendWorktreeChange,
     stopStreaming,
     clearHistory,
@@ -299,7 +305,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     const hash = window.location.hash.slice(1);
     const validTabs = new Set([
-      "dashboard", "chat", "sessions", "terminals", "projects",
+      "dashboard", "chat", "code", "sessions", "terminals", "projects",
       "tasks", "workflows", "reports", "source-control", "cron",
       "traces", "memory", "skills", "mcp", "configuration",
     ]);
@@ -539,6 +545,14 @@ export default function App() {
     }));
   }, [effectiveProjectId, projectReady]);
 
+  // Keep useChat's projectIdRef in sync with App's effectiveProjectId
+  useEffect(() => {
+    setProjectIdRef(effectiveProjectId);
+    if (effectiveProjectId) {
+      sendProjectChange(effectiveProjectId);
+    }
+  }, [effectiveProjectId, setProjectIdRef, sendProjectChange]);
+
   // Web-chat sessions for main conversation list
   const webChatSessions = useMemo(
     () =>
@@ -555,6 +569,13 @@ export default function App() {
     if (!projectReady) return;
     if (initialReconciliationDone.current) return;
     if (!effectiveProjectId || sessionsHook.isLoading) return;
+
+    // Guard: ensure fetched sessions belong to the current project.
+    // After a project switch, the fetch for the new project may still be in-flight
+    // while webChatSessions contains stale data from the old project.
+    const sessionsMatchProject = webChatSessions.length === 0 ||
+      webChatSessions.some((s) => s.project_id === effectiveProjectId);
+    if (!sessionsMatchProject) return;
 
     initialReconciliationDone.current = true;
 
@@ -733,6 +754,24 @@ export default function App() {
     [showToast],
   );
 
+  /* Expire a session (CLI sessions — kills tmux + marks expired) */
+  const handleExpireSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        const res = await fetch(
+          `/api/sessions/${encodeURIComponent(sessionId)}/expire`,
+          { method: "POST" },
+        );
+        if (!res.ok) {
+          showToast("Failed to expire session");
+        }
+      } catch {
+        showToast("Failed to expire session");
+      }
+    },
+    [showToast],
+  );
+
   /* "Ask Gobby about this session" from Sessions page */
   const handleAskGobby = useCallback(
     (context: string) => {
@@ -888,7 +927,8 @@ export default function App() {
       { id: 'restart', label: 'Restart Daemon', icon: '\u21BB', category: 'action', onSelect: () => {
         addSystemMessage("Restarting daemon...");
         const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-        fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch(() => {
+        fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch((err) => {
+          console.error("Restart request failed:", err);
           addSystemMessage("Failed to restart daemon");
         });
       }},
@@ -944,18 +984,16 @@ export default function App() {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: <DashboardIcon /> },
     { id: "chat", label: "Chat", icon: <ChatIcon /> },
-    { id: "sessions", label: "Sessions", icon: <SessionsIcon /> },
-    { id: "terminals", label: "Terminals", icon: <TerminalIcon /> },
     {
-      id: "projects",
-      label: "Projects",
-      icon: <ProjectsIcon />,
+      id: "code",
+      label: "Code",
+      icon: <CodeIcon />,
       separator: true,
     },
     { id: "tasks", label: "Tasks", icon: <TasksIcon /> },
     { id: "workflows", label: "Workflows", icon: <WorkflowsIcon /> },
     { id: "reports", label: "Reports", icon: <ReportsIcon /> },
-    { id: "source-control", label: "GitHub", icon: <GitHubIcon /> },
+    { id: "projects", label: "Projects", icon: <ProjectsIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
     { id: "traces", label: "Traces", icon: <TracesIcon /> },
     {
@@ -1027,6 +1065,7 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
       />
 
+      <FilesProvider>
       <AppErrorBoundary
         activeTab={activeTab}
         onReturnToChat={() => setActiveTab("chat")}
@@ -1102,6 +1141,7 @@ export default function App() {
                 agents,
                 onNavigateToAgent: handleNavigateToAgent,
                 onKillAgent: handleKillAgent,
+                onExpireSession: handleExpireSession,
                 // cliSessions hidden — agent-spawned terminals bleed into list (#9219).
                 // Backend code intact; re-enable by uncommenting and passing cliSessions.
                 // See commits: 65433c67, 401f2751, 206b27d1, 2769d980, 46ad405b
@@ -1154,8 +1194,10 @@ export default function App() {
               resizeTerminal={tmux.resizeTerminal}
               onOutput={tmux.onOutput}
             />
+          ) : activeTab === "code" ? (
+            <CodePage projectId={effectiveProjectId} />
           ) : activeTab === "projects" ? (
-            <ProjectsPage />
+            <ProjectsPage projectId={effectiveProjectId} />
           ) : activeTab === "tasks" ? (
             <TasksPage projectFilter={effectiveProjectId} />
           ) : activeTab === "memory" ? (
@@ -1187,6 +1229,7 @@ export default function App() {
           )}
         </Suspense>
       </AppErrorBoundary>
+      </FilesProvider>
 
       <Settings
         isOpen={settingsOpen}
@@ -1267,43 +1310,6 @@ function DashboardIcon() {
   );
 }
 
-function SessionsIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-      <line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
-  );
-}
-
-function TerminalIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="4 17 10 11 4 5" />
-      <line x1="12" y1="19" x2="20" y2="19" />
-    </svg>
-  );
-}
-
 function ComingSoonPage({ title }: { title: string }) {
   return (
     <main className="coming-soon-page">
@@ -1329,6 +1335,24 @@ function TasksIcon() {
     >
       <path d="M9 11l3 3L22 4" />
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+function CodeIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
     </svg>
   );
 }
@@ -1446,23 +1470,6 @@ function CronIcon() {
     >
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
-
-function GitHubIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
     </svg>
   );
 }

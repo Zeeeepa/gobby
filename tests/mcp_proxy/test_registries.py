@@ -46,7 +46,6 @@ def test_setup_with_all_managers_none() -> None:
         memory_manager=None,
         task_manager=None,
         sync_manager=None,
-        message_manager=None,
         local_session_manager=None,
         metrics_manager=None,
         agent_runner=None,
@@ -130,22 +129,6 @@ def test_setup_with_worktree_storage_only() -> None:
     registries = manager.get_all_registries()
     registry_names = [r.name for r in registries]
     assert "gobby-worktrees" in registry_names
-
-
-def test_setup_sessions_with_message_manager() -> None:
-    """Test sessions registry is created with message_manager."""
-    mock_config = MagicMock()
-    mock_config.get_gobby_tasks_config.return_value.enabled = False
-    message_manager = MagicMock()
-
-    manager = setup_internal_registries(
-        _config=mock_config,
-        message_manager=message_manager,
-    )
-
-    registries = manager.get_all_registries()
-    registry_names = [r.name for r in registries]
-    assert "gobby-sessions" in registry_names
 
 
 def test_setup_sessions_with_local_session_manager() -> None:

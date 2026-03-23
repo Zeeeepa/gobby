@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.hooks.skill_manager import HookSkillManager
     from gobby.sessions.manager import SessionManager
-    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.session_tasks import SessionTaskManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
@@ -31,11 +30,12 @@ class EventHandlersBase:
     _message_processor: Any | None
     _task_manager: LocalTaskManager | None
     _session_coordinator: SessionCoordinator | None
-    _message_manager: LocalSessionMessageManager | None
     _skill_manager: HookSkillManager | None
     _skills_config: SkillsConfig | None
     _get_machine_id: Callable[[], str]
     _resolve_project_id: Callable[[str | None, str | None], str]
+    _code_index_trigger: Any | None
+    _pending_subagent_depths: dict[str, int]
     _dispatch_session_summaries_fn: Callable[[str, bool, threading.Event | None], None] | None
     logger: logging.Logger
     _handler_map: dict[HookEventType, Callable[[HookEvent], HookResponse]]

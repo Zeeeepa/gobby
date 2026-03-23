@@ -55,8 +55,12 @@ class TestCopyProjectJsonToWorktree:
         assert data["id"] == "proj-123"
         assert data["name"] == "test-project"
 
-    def test_does_not_overwrite_existing_project_json(self, tmp_path: Path) -> None:
-        """Verify existing worktree project.json is not overwritten."""
+    def test_overwrites_existing_project_json(self, tmp_path: Path) -> None:
+        """Verify existing worktree project.json is overwritten with source data.
+
+        ensure_project_json_for_isolation always overwrites so that
+        parent_project_path is correct even for git-tracked copies.
+        """
         # Setup main repo
         main_repo = tmp_path / "main_repo"
         main_repo.mkdir()
@@ -78,12 +82,14 @@ class TestCopyProjectJsonToWorktree:
         # Call the function
         _copy_project_json_to_worktree(main_repo, worktree)
 
-        # Verify original content is preserved
+        # Verify source content overwrites existing
         with open(worktree_project_json) as f:
             data = json.load(f)
 
-        assert data["id"] == "existing-id", "Original ID should be preserved"
-        assert data["parent_project_path"] == "/some/old/path", "Original parent path preserved"
+        assert data["id"] == "new-id", "Source ID should overwrite existing"
+        assert data["parent_project_path"] == str(main_repo.resolve()), (
+            "parent_project_path should point to source repo"
+        )
 
     def test_no_project_json_in_main_repo(self, tmp_path: Path) -> None:
         """Verify function handles missing project.json in main repo gracefully."""

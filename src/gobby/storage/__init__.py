@@ -1,5 +1,6 @@
 """Local storage layer for Gobby daemon."""
 
+from gobby.storage.communications import LocalCommunicationsStore
 from gobby.storage.database import LocalDatabase
 from gobby.storage.inter_session_messages import InterSessionMessageManager
 from gobby.storage.mcp import LocalMCPManager
@@ -11,6 +12,7 @@ from gobby.storage.tasks import LocalTaskManager
 
 __all__ = [
     "InterSessionMessageManager",
+    "LocalCommunicationsStore",
     "LocalDatabase",
     "LocalMCPManager",
     "LocalProjectManager",

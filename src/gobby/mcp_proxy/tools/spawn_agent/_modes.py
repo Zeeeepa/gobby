@@ -87,6 +87,7 @@ async def _handle_self_persona(
             )
             WorkflowInstanceManager(db).save_instance(step_instance)
             changes["_step_workflow_name"] = step_wf_name
+            changes["step_workflow_complete"] = False
             logger.info(
                 "Created step workflow instance %s for session %s (agent=%s, step=%s)",
                 step_wf_name,

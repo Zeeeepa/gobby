@@ -264,7 +264,7 @@ class TestImportWorkflow:
             "/api/workflows/import",
             json={"yaml_content": "not: valid: yaml: [[["},
         )
-        assert resp.status_code in (400, 500)
+        assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------
@@ -287,16 +287,30 @@ class TestVariables:
     def test_set_variable_no_session_manager(self, client: TestClient) -> None:
         resp = client.post(
             "/api/workflows/variables/set",
-            json={"name": "foo", "value": "bar"},
+            json={"name": "foo", "value": "bar", "session_id": "#1"},
         )
         assert resp.status_code == 503
 
     def test_get_variable_no_session_manager(self, client: TestClient) -> None:
         resp = client.post(
             "/api/workflows/variables/get",
-            json={"name": "foo"},
+            json={"name": "foo", "session_id": "#1"},
         )
         assert resp.status_code == 503
+
+    def test_set_variable_missing_session_id(self, client: TestClient) -> None:
+        resp = client.post(
+            "/api/workflows/variables/set",
+            json={"name": "foo", "value": "bar"},
+        )
+        assert resp.status_code == 422
+
+    def test_get_variable_missing_session_id(self, client: TestClient) -> None:
+        resp = client.post(
+            "/api/workflows/variables/get",
+            json={"name": "foo"},
+        )
+        assert resp.status_code == 422
 
     def test_set_variable_with_session_manager(self, temp_db) -> None:
         mock_sm = MagicMock()
@@ -313,7 +327,7 @@ class TestVariables:
         ):
             resp = c.post(
                 "/api/workflows/variables/set",
-                json={"name": "foo", "value": "bar"},
+                json={"name": "foo", "value": "bar", "session_id": "#1"},
             )
         assert resp.status_code == 200
 
@@ -332,7 +346,7 @@ class TestVariables:
         ):
             resp = c.post(
                 "/api/workflows/variables/get",
-                json={"name": "foo"},
+                json={"name": "foo", "session_id": "#1"},
             )
         assert resp.status_code == 200
 
@@ -362,8 +376,8 @@ class TestMoveWorkflow:
             "/api/workflows/nonexistent/move-to-project",
             json={"project_id": "proj-1"},
         )
-        assert resp.status_code in (400, 404)
+        assert resp.status_code == 404
 
     def test_move_to_global_not_found(self, client: TestClient) -> None:
         resp = client.post("/api/workflows/nonexistent/move-to-global")
-        assert resp.status_code in (400, 404)
+        assert resp.status_code == 404

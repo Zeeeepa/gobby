@@ -34,6 +34,7 @@ def create_http_server(
     codex_client: Any | None = None,
     database: Any | None = None,
     span_storage: Any | None = None,
+    transcript_reader: Any | None = None,
 ) -> HTTPServer:
     """
     Create an HTTPServer instance with the new ServiceContainer API.
@@ -74,6 +75,7 @@ def create_http_server(
         git_manager=git_manager,
         project_id=project_id,
         websocket_server=websocket_server,
+        transcript_reader=transcript_reader,
     )
 
     return HTTPServer(

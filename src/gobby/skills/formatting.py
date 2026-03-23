@@ -120,6 +120,7 @@ _format_skills_with_formats = format_skills_with_formats
 def recommend_skills_for_task(
     task: dict[str, Any] | None,
     db: DatabaseProtocol | None = None,
+    project_id: str | None = None,
 ) -> list[str]:
     """Recommend relevant skills based on task category.
 
@@ -131,6 +132,7 @@ def recommend_skills_for_task(
         db: Optional database instance for DB-backed skill loading.
             When provided, skills are read from the unified DB instead
             of falling back to filesystem discovery.
+        project_id: Optional project ID for loading project-scoped skills.
 
     Returns:
         List of recommended skill names for this task.
@@ -141,7 +143,7 @@ def recommend_skills_for_task(
     from gobby.hooks.skill_manager import HookSkillManager
 
     try:
-        manager = HookSkillManager(db=db)
+        manager = HookSkillManager(db=db, project_id=project_id)
         category = task.get("category")
         return manager.recommend_skills(category=category)
     except (ImportError, ValueError, KeyError, RuntimeError) as e:

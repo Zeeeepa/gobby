@@ -13,6 +13,10 @@ interface ArtifactPanelProps {
   artifact: Artifact
   width?: number  // undefined = full width (mobile)
   onClose: () => void
+  onMinimize?: () => void
+  onMaximize?: () => void
+  isMaximized?: boolean
+  onBack?: () => void
   onUpdateContent?: (id: string, content: string) => void
   onSetVersion: (id: string, index: number) => void
   planPendingApproval?: boolean
@@ -20,7 +24,20 @@ interface ArtifactPanelProps {
   onRequestPlanChanges?: (feedback: string) => void
 }
 
-export const ArtifactPanel = memo(function ArtifactPanel({ artifact, width, onClose, onUpdateContent, onSetVersion, planPendingApproval, onApprovePlan, onRequestPlanChanges }: ArtifactPanelProps) {
+export const ArtifactPanel = memo(function ArtifactPanel({
+  artifact,
+  width,
+  onClose,
+  onMinimize,
+  onMaximize,
+  isMaximized,
+  onBack,
+  onUpdateContent,
+  onSetVersion,
+  planPendingApproval,
+  onApprovePlan,
+  onRequestPlanChanges
+}: ArtifactPanelProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [showSource, setShowSource] = useState(false)
 
@@ -82,6 +99,11 @@ export const ArtifactPanel = memo(function ArtifactPanel({ artifact, width, onCl
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+        {onBack && (
+          <Button size="icon" variant="ghost" onClick={onBack} title="Back to history">
+            <BackIcon />
+          </Button>
+        )}
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-foreground truncate">{artifact.title}</div>
           <div className="flex items-center gap-1.5 mt-0.5">
@@ -91,25 +113,32 @@ export const ArtifactPanel = memo(function ArtifactPanel({ artifact, width, onCl
             )}
           </div>
         </div>
-        <Button size="icon" variant="ghost" onClick={handleCopy} title="Copy">
-          <CopyIcon />
-        </Button>
-        <Button size="icon" variant="ghost" onClick={handleDownload} title="Download">
-          <DownloadIcon />
-        </Button>
-        {isEditable && (
-          <Button size="icon" variant="ghost" onClick={() => setIsEditing(!isEditing)} title={isEditing ? 'View' : 'Edit'}>
-            {isEditing ? <ViewIcon /> : <EditIcon />}
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="ghost" onClick={handleCopy} title="Copy">
+            <CopyIcon />
           </Button>
-        )}
-        {isTextReadOnly && (
-          <Button size="icon" variant="ghost" onClick={() => setShowSource(!showSource)} title={showSource ? 'Preview' : 'Source'}>
-            {showSource ? <ViewIcon /> : <SourceIcon />}
+          <Button size="icon" variant="ghost" onClick={handleDownload} title="Download">
+            <DownloadIcon />
           </Button>
-        )}
-        <Button size="icon" variant="ghost" onClick={onClose} title="Close panel">
-          <CloseIcon />
-        </Button>
+          {isEditable && (
+            <Button size="icon" variant="ghost" onClick={() => setIsEditing(!isEditing)} title={isEditing ? 'View' : 'Edit'}>
+              {isEditing ? <ViewIcon /> : <EditIcon />}
+            </Button>
+          )}
+          {isTextReadOnly && (
+            <Button size="icon" variant="ghost" onClick={() => setShowSource(!showSource)} title={showSource ? 'Preview' : 'Source'}>
+              {showSource ? <ViewIcon /> : <SourceIcon />}
+            </Button>
+          )}
+          {onMaximize && (
+            <Button size="icon" variant="ghost" onClick={onMaximize} title={isMaximized ? 'Restore' : 'Maximize'}>
+              {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" onClick={onMinimize ?? onClose} title="Minimize to history">
+            <MinimizeIcon />
+          </Button>
+        </div>
       </div>
 
       {/* Content */}
@@ -172,11 +201,35 @@ function DownloadIcon() {
   )
 }
 
-function CloseIcon() {
+function BackIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  )
+}
+
+function MinimizeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function MaximizeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    </svg>
+  )
+}
+
+function RestoreIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 8V4h12v12h-4" />
+      <rect x="4" y="8" width="12" height="12" rx="2" ry="2" />
     </svg>
   )
 }

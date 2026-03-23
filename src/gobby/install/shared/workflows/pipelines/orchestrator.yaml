@@ -1,13 +1,13 @@
 name: orchestrator
 type: pipeline
-version: "5.2"
+version: "5.7"
 description: |
   Tick-based orchestration pipeline. Each cron tick does one pass:
   scan task state, dispatch agents, exit. The cron schedule IS the loop.
   Idempotent — safe to fire repeatedly.
 
-  Uses clone-based isolation. One shared clone per epic, created on
-  first tick, reused on subsequent ticks. Agents work in the shared clone.
+  Supports worktree, clone, and none isolation modes via the `isolation` input.
+  One shared isolation env per epic, created on first tick, reused on subsequent ticks.
 
 outputs:
   orchestration_complete: "${{ done_check.output.orchestration_complete if done_check.output else false }}"
@@ -20,13 +20,14 @@ inputs:
   task_id: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
-  developer_provider: "gemini"  # Comma-separated for fallback rotation, e.g. "gemini,claude"
-  qa_provider: "claude"  # Comma-separated for fallback rotation, e.g. "claude,gemini"
+  developer_provider: "gemini"
+  qa_provider: "claude"
   developer_model: null
   qa_model: "opus"
   agent_timeout: 1200
   max_concurrent: 5
   merge_target: null
+  isolation: "worktree"
 
 steps:
   # --- RE-ENTRANCY GUARD ---
@@ -114,24 +115,53 @@ steps:
               (not standalone_check.output.is_standalone and len(scan_open.output.tasks) == 0 and len(scan_in_progress.output.tasks) == 0 and len(scan_needs_review.output.tasks) == 0)
             }}
 
-  # --- CLONE (first tick creates, subsequent ticks reuse) ---
+  # --- ISOLATION: get existing worktree or clone ---
+  - id: get_worktree
+    condition: "${{ inputs.isolation == 'worktree' }}"
+    mcp:
+      server: gobby-worktrees
+      tool: get_worktree_by_task
+      arguments:
+        task_id: "${{ inputs.task_id }}"
+
   - id: get_clone
+    condition: "${{ inputs.isolation == 'clone' }}"
     mcp:
       server: gobby-clones
       tool: get_clone_by_task
       arguments:
         task_id: "${{ inputs.task_id }}"
 
+  - id: has_isolation
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        data:
+          exists: "${{ bool(get_worktree.output and get_worktree.output.worktree) or bool(get_clone.output and get_clone.output.clone) }}"
+
   - id: get_task_info
-    condition: "${{ not done_check.output.orchestration_complete and not get_clone.output.clone }}"
+    condition: "${{ not done_check.output.orchestration_complete and not has_isolation.output.exists }}"
     mcp:
       server: gobby-tasks
       tool: get_task
       arguments:
         task_id: "${{ inputs.task_id }}"
 
+  # --- ISOLATION: create worktree or clone ---
+  - id: create_worktree
+    condition: "${{ not done_check.output.orchestration_complete and inputs.isolation == 'worktree' and not has_isolation.output.exists }}"
+    mcp:
+      server: gobby-worktrees
+      tool: create_worktree
+      arguments:
+        branch_name: "${{ 'epic-' + str(get_task_info.output.seq_num) if get_task_info.output.task_type == 'epic' else 'task-' + str(get_task_info.output.seq_num) }}"
+        base_branch: "${{ inputs.merge_target or current_branch }}"
+        task_id: "${{ inputs.task_id }}"
+        use_local: true
+
   - id: create_clone
-    condition: "${{ not done_check.output.orchestration_complete and not get_clone.output.clone }}"
+    condition: "${{ not done_check.output.orchestration_complete and inputs.isolation == 'clone' and not has_isolation.output.exists }}"
     mcp:
       server: gobby-clones
       tool: create_clone
@@ -142,13 +172,15 @@ steps:
         task_id: "${{ inputs.task_id }}"
         use_local: true
 
-  - id: resolve_clone_id
+  # --- RESOLVE ISOLATION IDs ---
+  - id: resolve_isolation_id
     mcp:
       server: gobby-workflows
       tool: pipeline_eval
       arguments:
         data:
-          clone_id: "${{ get_clone.output.clone.id if get_clone.output.clone else (create_clone.output.clone.id if create_clone.output else '') }}"
+          worktree_id: "${{ get_worktree.output.worktree.id if (get_worktree.output and get_worktree.output.worktree) else (create_worktree.output.worktree_id if create_worktree.output else '') }}"
+          clone_id: "${{ get_clone.output.clone.id if (get_clone.output and get_clone.output.clone) else (create_clone.output.clone.id if create_clone.output else '') }}"
 
   # --- DISPATCH DEVS ---
   - id: count_active
@@ -178,7 +210,8 @@ steps:
       arguments:
         suggestions: "${{ suggest_tasks.output.suggestions }}"
         agent: "${{ inputs.developer_agent }}"
-        clone_id: "${{ resolve_clone_id.output.clone_id }}"
+        clone_id: "${{ resolve_isolation_id.output.clone_id }}"
+        worktree_id: "${{ resolve_isolation_id.output.worktree_id }}"
         provider: "${{ inputs.developer_provider }}"
         model: "${{ inputs.developer_model }}"
         timeout: "${{ inputs.agent_timeout }}"
@@ -186,8 +219,25 @@ steps:
         mode: "terminal"
 
   # --- DISPATCH QA (for needs_review tasks) ---
-  - id: annotate_observed
+  - id: check_qa_running
     condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 }}"
+    mcp:
+      server: gobby-agents
+      tool: list_running_agents
+      arguments:
+        parent_session_id: "${{ session_id }}"
+
+  - id: qa_gate
+    condition: "${{ check_qa_running.output and len(check_qa_running.output.agents) > 0 }}"
+    mcp:
+      server: gobby-workflows
+      tool: pipeline_eval
+      arguments:
+        data:
+          qa_already_running: "${{ len([a for a in check_qa_running.output.agents if a.get('provider', '') == inputs.qa_provider]) > 0 }}"
+
+  - id: annotate_observed
+    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
     mcp:
       server: gobby-tasks
       tool: update_observed_files
@@ -196,7 +246,7 @@ steps:
         require_commits: true
 
   - id: dispatch_qa
-    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 }}"
+    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
     mcp:
       server: gobby-agents
       tool: spawn_agent
@@ -204,24 +254,34 @@ steps:
         prompt: "${{ 'Review task ' + scan_needs_review.output.tasks[0].ref + ': ' + scan_needs_review.output.tasks[0].title }}"
         agent: "${{ inputs.qa_agent }}"
         task_id: "${{ scan_needs_review.output.tasks[0].id }}"
-        clone_id: "${{ resolve_clone_id.output.clone_id }}"
+        clone_id: "${{ resolve_isolation_id.output.clone_id }}"
+        worktree_id: "${{ resolve_isolation_id.output.worktree_id }}"
         provider: "${{ inputs.qa_provider }}"
         model: "${{ inputs.qa_model }}"
         timeout: "${{ inputs.agent_timeout }}"
         parent_session_id: "${{ session_id }}"
         mode: "terminal"
 
-  # --- MERGE (when all done) ---
+  # --- MERGE & CLOSE ---
+  - id: merge_worktree
+    condition: "${{ done_check.output.orchestration_complete and inputs.isolation == 'worktree' and resolve_isolation_id.output.worktree_id }}"
+    mcp:
+      server: gobby-worktrees
+      tool: merge_worktree
+      arguments:
+        worktree_id: "${{ resolve_isolation_id.output.worktree_id }}"
+        target_branch: "${{ inputs.merge_target }}"
+
   - id: merge_clone
-    condition: "${{ done_check.output.orchestration_complete and resolve_clone_id.output and resolve_clone_id.output.clone_id }}"
+    condition: "${{ done_check.output.orchestration_complete and inputs.isolation == 'clone' and resolve_isolation_id.output.clone_id }}"
     invoke_pipeline:
       name: merge-clone
       arguments:
-        clone_id: "${{ resolve_clone_id.output.clone_id }}"
+        clone_id: "${{ resolve_isolation_id.output.clone_id }}"
         target_branch: "${{ inputs.merge_target }}"
 
   - id: close_epic
-    condition: "${{ done_check.output.orchestration_complete and merge_clone.output and not merge_clone.output.get('error') }}"
+    condition: "${{ done_check.output.orchestration_complete and ((merge_worktree.output and not merge_worktree.output.get('error')) or (merge_clone.output and not merge_clone.output.get('error'))) }}"
     mcp:
       server: gobby-tasks
       tool: close_task

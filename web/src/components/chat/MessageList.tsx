@@ -1,9 +1,8 @@
-import { useCallback, useImperativeHandle, useRef, forwardRef } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ChatMessage } from '../../types/chat'
 import { MessageItem } from './MessageItem'
 import { MessageErrorBoundary } from './MessageErrorBoundary'
-import { PlanApprovalBar } from './PlanApprovalBar'
 import type { A2UISurfaceState, UserAction } from '../canvas'
 
 interface MessageListProps {
@@ -13,9 +12,6 @@ interface MessageListProps {
   isLoadingMessages?: boolean
   onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
   onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
-  planPendingApproval?: boolean
-  onApprovePlan?: () => void
-  onRequestPlanChanges?: (feedback: string) => void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
@@ -24,7 +20,7 @@ export interface MessageListHandle {
   scrollToBottom: () => void
 }
 
-export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({ messages, isStreaming, isThinking, isLoadingMessages, onRespondToQuestion, onRespondToApproval, planPendingApproval, onApprovePlan, onRequestPlanChanges, canvasSurfaces, onCanvasInteraction }, ref) {
+export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({ messages, isStreaming, isThinking, isLoadingMessages, onRespondToQuestion, onRespondToApproval, canvasSurfaces, onCanvasInteraction }, ref) {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const userScrolledUpRef = useRef(false)
 
@@ -39,16 +35,26 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
     userScrolledUpRef.current = !atBottom
   }, [])
 
+  useEffect(() => {
+    if (isStreaming && !userScrolledUpRef.current) {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
+    }
+  }, [isStreaming, messages])
+
+  // Scroll to bottom on new messages (non-streaming appends)
+  useEffect(() => {
+    if (!userScrolledUpRef.current && messages.length > 0) {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
+    }
+  }, [messages.length])
+
   const Footer = useCallback(() => (
     <>
       {isThinking && (messages.length === 0 || messages[messages.length - 1].role === 'user') && (
         <ThinkingIndicator />
       )}
-      {planPendingApproval && onApprovePlan && onRequestPlanChanges && (
-        <PlanApprovalBar onApprove={onApprovePlan} onRequestChanges={onRequestPlanChanges} />
-      )}
     </>
-  ), [isThinking, messages, planPendingApproval, onApprovePlan, onRequestPlanChanges])
+  ), [isThinking, messages])
 
   // Stable reference for itemContent to avoid Virtuoso re-renders
   const itemContent = useCallback((index: number, message: ChatMessage) => (
@@ -88,8 +94,11 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
       className="chat-scaled flex-1 min-h-0 overflow-x-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]"
       data={messages}
       itemContent={itemContent}
-      followOutput="smooth"
-      atBottomThreshold={150}
+      followOutput={() => {
+        if (userScrolledUpRef.current) return false
+        return 'smooth'
+      }}
+      atBottomThreshold={400}
       atBottomStateChange={handleAtBottomStateChange}
       overscan={400}
       increaseViewportBy={200}

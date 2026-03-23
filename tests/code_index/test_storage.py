@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gobby.code_index.models import IndexedFile, IndexedProject, Symbol
+from gobby.code_index.models import ContentChunk, IndexedFile, IndexedProject, Symbol
 from gobby.code_index.storage import CodeIndexStorage
 
 pytestmark = pytest.mark.unit
@@ -323,3 +323,105 @@ def test_count_files(code_storage: CodeIndexStorage) -> None:
             )
         )
     assert code_storage.count_files("proj-1") == 2
+
+
+# ── Content Chunks ─────────────────────────────────────────────────────
+
+
+def _make_chunks(project_id: str = "proj-1", file_path: str = "src/app.py") -> list[ContentChunk]:
+    """Helper to create sample content chunks."""
+    return [
+        ContentChunk(
+            id=ContentChunk.make_id(project_id, file_path, 0),
+            project_id=project_id,
+            file_path=file_path,
+            chunk_index=0,
+            line_start=1,
+            line_end=100,
+            content='import os\nfrom pathlib import Path\n\ndef greet(name: str) -> str:\n    """Return a greeting."""\n    return f"Hello, {name}!"\n',
+            language="python",
+        ),
+        ContentChunk(
+            id=ContentChunk.make_id(project_id, file_path, 1),
+            project_id=project_id,
+            file_path=file_path,
+            chunk_index=1,
+            line_start=91,
+            line_end=150,
+            content='class Calculator:\n    """A simple calculator."""\n    def add(self, a: int, b: int) -> int:\n        return a + b\n',
+            language="python",
+        ),
+    ]
+
+
+def test_upsert_content_chunks(code_storage: CodeIndexStorage) -> None:
+    """Content chunks can be upserted."""
+    chunks = _make_chunks()
+    count = code_storage.upsert_content_chunks(chunks)
+    assert count == 2
+
+
+def test_upsert_empty_chunks(code_storage: CodeIndexStorage) -> None:
+    """Upserting empty list returns 0."""
+    assert code_storage.upsert_content_chunks([]) == 0
+
+
+def test_delete_content_chunks_for_file(code_storage: CodeIndexStorage) -> None:
+    """Deleting chunks for a file removes only that file's chunks."""
+    chunks1 = _make_chunks(file_path="a.py")
+    chunks2 = _make_chunks(file_path="b.py")
+    code_storage.upsert_content_chunks(chunks1)
+    code_storage.upsert_content_chunks(chunks2)
+
+    code_storage.delete_content_chunks_for_file("proj-1", "a.py")
+
+    # b.py chunks should still exist
+    results = code_storage.search_content_fts("Calculator", "proj-1")
+    file_paths = {r["file_path"] for r in results}
+    assert "a.py" not in file_paths
+    assert "b.py" in file_paths
+
+
+def test_delete_content_chunks_for_project(code_storage: CodeIndexStorage) -> None:
+    """Deleting chunks for a project removes all chunks."""
+    code_storage.upsert_content_chunks(_make_chunks())
+    code_storage.delete_content_chunks_for_project("proj-1")
+
+    results = code_storage.search_content_fts("greet", "proj-1")
+    assert results == []
+
+
+def test_search_content_fts_finds_text(code_storage: CodeIndexStorage) -> None:
+    """FTS search finds text in content chunks."""
+    code_storage.upsert_content_chunks(_make_chunks())
+
+    results = code_storage.search_content_fts("greeting", "proj-1")
+    assert len(results) >= 1
+    assert results[0]["file_path"] == "src/app.py"
+    assert results[0]["language"] == "python"
+    assert "line_start" in results[0]
+
+
+def test_search_content_fts_filter_by_file(code_storage: CodeIndexStorage) -> None:
+    """FTS search can be filtered to a specific file."""
+    chunks1 = _make_chunks(file_path="a.py")
+    chunks2 = _make_chunks(file_path="b.py")
+    code_storage.upsert_content_chunks(chunks1)
+    code_storage.upsert_content_chunks(chunks2)
+
+    results = code_storage.search_content_fts("Calculator", "proj-1", file_path="a.py")
+    assert all(r["file_path"] == "a.py" for r in results)
+
+
+def test_search_content_fts_empty_query(code_storage: CodeIndexStorage) -> None:
+    """Empty query returns no results."""
+    code_storage.upsert_content_chunks(_make_chunks())
+    assert code_storage.search_content_fts("", "proj-1") == []
+    assert code_storage.search_content_fts("   ", "proj-1") == []
+
+
+def test_search_content_fts_no_match(code_storage: CodeIndexStorage) -> None:
+    """Query with no matching content returns empty list."""
+    code_storage.upsert_content_chunks(_make_chunks())
+    results = code_storage.search_content_fts("zzz_nonexistent_zzz", "proj-1")
+    assert results == []

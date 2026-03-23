@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 158
+BASELINE_VERSION = 169
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -202,7 +202,8 @@ CREATE TABLE agent_runs (
     tmux_session_name TEXT,
     mode TEXT DEFAULT 'terminal',
     worktree_id TEXT,
-    clone_id TEXT
+    clone_id TEXT,
+    timeout_seconds REAL
 );
 CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
 CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
@@ -221,7 +222,6 @@ CREATE TABLE sessions (
     jsonl_path TEXT,
     summary_path TEXT,
     summary_markdown TEXT,
-    compact_markdown TEXT,
     git_branch TEXT,
     parent_session_id TEXT REFERENCES sessions(id),
     transcript_processed BOOLEAN DEFAULT FALSE,
@@ -245,6 +245,12 @@ CREATE TABLE sessions (
     last_turn_markdown TEXT,
     chat_mode TEXT DEFAULT 'plan',
     last_digest_input_hash TEXT,
+    message_count INTEGER DEFAULT 0,
+    turn_count INTEGER DEFAULT 0,
+    tool_call_count INTEGER DEFAULT 0,
+    last_assistant_content TEXT,
+    pending_plan_path TEXT,
+    approved_tools_json TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -261,26 +267,6 @@ CREATE INDEX idx_sessions_workflow ON sessions(workflow_name);
 CREATE INDEX idx_sessions_agent_run ON sessions(agent_run_id);
 CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(project_id, seq_num);
 CREATE UNIQUE INDEX idx_sessions_unique ON sessions(external_id, machine_id, source, project_id);
-
-CREATE TABLE session_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    message_index INTEGER NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    content_type TEXT DEFAULT 'text',
-    tool_name TEXT,
-    tool_input TEXT,
-    tool_result TEXT,
-    tool_use_id TEXT,
-    timestamp TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(session_id, message_index)
-);
-CREATE INDEX idx_session_messages_session ON session_messages(session_id);
-CREATE INDEX idx_session_messages_role ON session_messages(role);
-CREATE INDEX idx_session_messages_timestamp ON session_messages(timestamp);
-CREATE INDEX idx_session_messages_tool ON session_messages(tool_name);
 
 CREATE TABLE session_message_state (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
@@ -481,11 +467,13 @@ CREATE TABLE memories (
     last_accessed_at TEXT,
     tags TEXT,
     media TEXT,
+    graph_processed INTEGER DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_memories_project ON memories(project_id);
 CREATE INDEX idx_memories_type ON memories(memory_type);
+CREATE INDEX idx_memories_graph_pending ON memories(graph_processed) WHERE graph_processed = 0;
 
 CREATE TABLE session_memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -720,7 +708,8 @@ CREATE TABLE pipeline_executions (
     session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
     parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE,
     continuation_prompt TEXT,
-    definition_json TEXT
+    definition_json TEXT,
+    review_json TEXT
 );
 CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
 CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
@@ -990,6 +979,101 @@ CREATE TABLE metric_snapshots (
     metrics_json TEXT NOT NULL
 );
 CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp);
+
+CREATE TABLE comms_channels (
+    id TEXT PRIMARY KEY,
+    channel_type TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    webhook_secret TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE comms_identities (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    external_user_id TEXT NOT NULL,
+    external_username TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(channel_id, external_user_id)
+);
+CREATE INDEX idx_comms_identities_channel ON comms_identities(channel_id);
+CREATE INDEX idx_comms_identities_external_user ON comms_identities(external_user_id);
+CREATE INDEX idx_comms_identities_session ON comms_identities(session_id);
+
+CREATE TABLE comms_messages (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    identity_id TEXT REFERENCES comms_identities(id) ON DELETE SET NULL,
+    direction TEXT NOT NULL CHECK(direction IN ('inbound', 'outbound')),
+    content TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'text',
+    platform_message_id TEXT,
+    platform_thread_id TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'sent',
+    error TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_messages_channel_created ON comms_messages(channel_id, created_at);
+CREATE INDEX idx_comms_messages_session ON comms_messages(session_id);
+CREATE INDEX idx_comms_messages_direction ON comms_messages(direction);
+
+CREATE TABLE comms_routing_rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    channel_id TEXT REFERENCES comms_channels(id) ON DELETE CASCADE,
+    event_pattern TEXT NOT NULL DEFAULT '*',
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    priority INTEGER DEFAULT 0,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
+CREATE INDEX idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);
+
+CREATE TABLE metrics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT,
+    session_id TEXT,
+    server_name TEXT,
+    name TEXT NOT NULL,
+    success INTEGER NOT NULL DEFAULT 1,
+    latency_ms REAL,
+    result TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now'))
+);
+CREATE INDEX idx_me_type_created ON metrics_events(event_type, created_at);
+CREATE INDEX idx_me_session ON metrics_events(session_id, created_at);
+CREATE INDEX idx_me_name ON metrics_events(name, event_type);
+CREATE INDEX idx_me_created ON metrics_events(created_at);
+
+CREATE TABLE metrics_events_archive (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    server_name TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL,
+    call_count INTEGER NOT NULL DEFAULT 0,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    total_latency_ms REAL NOT NULL DEFAULT 0,
+    block_count INTEGER NOT NULL DEFAULT 0,
+    allow_count INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(event_type, project_id, server_name, name)
+);
 """
 
 
@@ -1056,8 +1140,50 @@ def _setup_code_symbols_fts(db: LocalDatabase) -> None:
     """)
 
 
+def _setup_code_content_fts(db: LocalDatabase) -> None:
+    """Create FTS5 virtual table and triggers for code content chunks.
+
+    Follows the same pattern as _setup_code_symbols_fts.
+    """
+    conn = db.connection
+    conn.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS code_content_fts USING fts5(
+            content, file_path, language,
+            content='code_content_chunks', content_rowid='rowid'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS code_content_ai AFTER INSERT ON code_content_chunks BEGIN
+            INSERT INTO code_content_fts(rowid, content, file_path, language)
+            VALUES (new.rowid, new.content, new.file_path, new.language);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS code_content_ad AFTER DELETE ON code_content_chunks BEGIN
+            INSERT INTO code_content_fts(code_content_fts, rowid, content, file_path, language)
+            VALUES ('delete', old.rowid, old.content, old.file_path, old.language);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS code_content_au AFTER UPDATE ON code_content_chunks BEGIN
+            INSERT INTO code_content_fts(code_content_fts, rowid, content, file_path, language)
+            VALUES ('delete', old.rowid, old.content, old.file_path, old.language);
+            INSERT INTO code_content_fts(rowid, content, file_path, language)
+            VALUES (new.rowid, new.content, new.file_path, new.language);
+        END;
+
+        INSERT OR IGNORE INTO code_content_fts(rowid, content, file_path, language)
+        SELECT rowid, content, file_path, language FROM code_content_chunks;
+    """)
+
+
 # Migrations beyond v133.
 # Add new migrations here. Do not modify the baseline schema above.
+def _add_timeout_seconds_to_agent_runs(db: LocalDatabase) -> None:
+    """Add timeout_seconds column if not already present (baseline schema may include it)."""
+    rows = db.connection.execute("PRAGMA table_info(agent_runs)").fetchall()
+    existing = {row[1] for row in rows}
+    if "timeout_seconds" not in existing:
+        db.execute("ALTER TABLE agent_runs ADD COLUMN timeout_seconds REAL")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         134,
@@ -1366,6 +1492,187 @@ CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp)""",
 );
 CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id ON skill_files(skill_id);
 CREATE INDEX IF NOT EXISTS idx_skill_files_type ON skill_files(file_type)""",
+    ),
+    (
+        159,
+        "Add code_content_chunks table and FTS5 virtual table for full-text content search",
+        """CREATE TABLE IF NOT EXISTS code_content_chunks (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    line_start INTEGER NOT NULL,
+    line_end INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    language TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(project_id, file_path, chunk_index)
+);
+CREATE INDEX IF NOT EXISTS idx_ccc_project ON code_content_chunks(project_id);
+CREATE INDEX IF NOT EXISTS idx_ccc_file ON code_content_chunks(project_id, file_path)""",
+    ),
+    (
+        160,
+        "Add FTS5 triggers for code_content_chunks",
+        _setup_code_content_fts,
+    ),
+    (
+        161,
+        "Add message_count, turn_count, tool_call_count, last_assistant_content columns to sessions table + backfill",
+        """ALTER TABLE sessions ADD COLUMN message_count INTEGER DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN turn_count INTEGER DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN tool_call_count INTEGER DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN last_assistant_content TEXT;
+UPDATE sessions SET
+  message_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id),
+  turn_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND role = 'assistant'),
+  tool_call_count = (SELECT COUNT(*) FROM session_messages WHERE session_id = sessions.id AND tool_name IS NOT NULL),
+  last_assistant_content = (SELECT content FROM session_messages WHERE session_id = sessions.id AND role = 'assistant' AND tool_name IS NULL ORDER BY message_index DESC LIMIT 1)""",
+    ),
+    (
+        162,
+        "Add graph_processed column to memories table for KG queue processing",
+        """ALTER TABLE memories ADD COLUMN graph_processed INTEGER DEFAULT 1;
+CREATE INDEX IF NOT EXISTS idx_memories_graph_pending ON memories(graph_processed) WHERE graph_processed = 0""",
+    ),
+    (
+        163,
+        "Drop compact_markdown column from sessions table",
+        "ALTER TABLE sessions DROP COLUMN compact_markdown",
+    ),
+    (
+        164,
+        "Drop session_messages table (messages now served from JSONL/archive)",
+        """DROP TABLE IF EXISTS session_messages;
+DROP INDEX IF EXISTS idx_session_messages_session;
+DROP INDEX IF EXISTS idx_session_messages_role;
+DROP INDEX IF EXISTS idx_session_messages_timestamp;
+DROP INDEX IF EXISTS idx_session_messages_tool""",
+    ),
+    (
+        165,
+        "Re-enable memory extraction and remove deprecated memory configs",
+        """DELETE FROM config_store WHERE key LIKE 'memory_fact_extraction.%';
+DELETE FROM config_store WHERE key LIKE 'memory_dedup_decision.%';
+DELETE FROM config_store WHERE key LIKE 'memory_entity_extraction.%';
+UPDATE config_store SET value = 'true' WHERE key = 'memory_extraction.enabled'""",
+    ),
+    (
+        166,
+        "Add timeout_seconds to agent_runs for persistence across daemon restarts",
+        _add_timeout_seconds_to_agent_runs,
+    ),
+    (
+        167,
+        "Add review_json to pipeline_executions for conductor reviews",
+        "ALTER TABLE pipeline_executions ADD COLUMN review_json TEXT",
+    ),
+    (
+        168,
+        "Add metrics_events and metrics_events_archive tables",
+        """CREATE TABLE IF NOT EXISTS metrics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT,
+    session_id TEXT,
+    server_name TEXT,
+    name TEXT NOT NULL,
+    success INTEGER NOT NULL DEFAULT 1,
+    latency_ms REAL,
+    result TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_me_type_created ON metrics_events(event_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_me_session ON metrics_events(session_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_me_name ON metrics_events(name, event_type);
+CREATE INDEX IF NOT EXISTS idx_me_created ON metrics_events(created_at);
+
+CREATE TABLE IF NOT EXISTS metrics_events_archive (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    server_name TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL,
+    call_count INTEGER NOT NULL DEFAULT 0,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    total_latency_ms REAL NOT NULL DEFAULT 0,
+    block_count INTEGER NOT NULL DEFAULT 0,
+    allow_count INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(event_type, project_id, server_name, name)
+)""",
+    ),
+    (
+        169,
+        "Add pending_plan_path and approved_tools_json to sessions for restart resilience",
+        """ALTER TABLE sessions ADD COLUMN pending_plan_path TEXT;
+ALTER TABLE sessions ADD COLUMN approved_tools_json TEXT""",
+    ),
+    (
+        170,
+        "Add communications tables for multi-channel support",
+        """CREATE TABLE IF NOT EXISTS comms_channels (
+    id TEXT PRIMARY KEY,
+    channel_type TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    webhook_secret TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS comms_identities (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    external_user_id TEXT NOT NULL,
+    external_username TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(channel_id, external_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_comms_identities_channel ON comms_identities(channel_id);
+CREATE INDEX IF NOT EXISTS idx_comms_identities_external_user ON comms_identities(external_user_id);
+CREATE INDEX IF NOT EXISTS idx_comms_identities_session ON comms_identities(session_id);
+
+CREATE TABLE IF NOT EXISTS comms_messages (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES comms_channels(id) ON DELETE CASCADE,
+    identity_id TEXT REFERENCES comms_identities(id) ON DELETE SET NULL,
+    direction TEXT NOT NULL CHECK(direction IN ('inbound', 'outbound')),
+    content TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'text',
+    platform_message_id TEXT,
+    platform_thread_id TEXT,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'sent',
+    error TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_comms_messages_channel_created ON comms_messages(channel_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_comms_messages_session ON comms_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_comms_messages_direction ON comms_messages(direction);
+
+CREATE TABLE IF NOT EXISTS comms_routing_rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    channel_id TEXT REFERENCES comms_channels(id) ON DELETE CASCADE,
+    event_pattern TEXT NOT NULL DEFAULT '*',
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    priority INTEGER DEFAULT 0,
+    enabled INTEGER DEFAULT 1,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
+CREATE INDEX IF NOT EXISTS idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);""",
     ),
 ]
 

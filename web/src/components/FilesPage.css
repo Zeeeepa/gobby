@@ -126,6 +126,15 @@
   flex-shrink: 0;
 }
 
+.files-tree-git-badge {
+  margin-left: auto;
+  font-size: calc(var(--font-size-base) * 0.625);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
 .files-tree-loading {
   padding: 0.25rem 0.5rem;
   font-size: calc(var(--font-size-base) * 0.75);

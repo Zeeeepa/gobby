@@ -18,6 +18,7 @@ const INSTALL_HINTS: Record<string, string> = {
   uv: "curl -LsSf https://astral.sh/uv/install.sh | sh",
   claude: "npm install -g @anthropic-ai/claude-code",
   tmux: process.platform === "darwin" ? "brew install tmux" : "sudo apt install tmux",
+  clawhub: "npm install -g clawhub",
 };
 
 export function SystemCheck({ state, setState, onNext }: StepProps): React.ReactElement {

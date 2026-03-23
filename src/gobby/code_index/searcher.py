@@ -136,7 +136,7 @@ class CodeSearcher:
         if self._embed_fn is None or self._vector_store is None:
             return []
 
-        embedding = await self._embed_fn(query)
+        embedding = await self._embed_fn(query, is_query=True)
         if embedding is None:
             return []
 
@@ -195,3 +195,23 @@ class CodeSearcher:
                 limit=limit,
             )
         return [sym.to_brief() for sym in results]
+
+    def search_content(
+        self,
+        query: str,
+        project_id: str,
+        file_path: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Full-text search across file content chunks.
+
+        Searches the actual content of indexed files — comments, string
+        literals, config values, JSX templates, etc. Complements
+        search_text() which only searches symbol metadata.
+        """
+        return self._storage.search_content_fts(
+            query=query,
+            project_id=project_id,
+            file_path=file_path,
+            limit=limit,
+        )

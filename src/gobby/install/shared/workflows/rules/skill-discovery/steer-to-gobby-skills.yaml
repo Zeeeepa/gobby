@@ -1,0 +1,18 @@
+name: steer-to-gobby-skills
+description: "Instruct agents to use gobby-skills MCP server instead of native Skill tools or /gobby commands."
+type: rule
+enabled: true
+
+# Matches if the agent tries to use a native 'Skill' tool or a /gobby command
+when: "event.event_type == 'pre-tool-use' and (event.data.get('tool_name') == 'Skill' or event.data.get('tool_name') == 'Task' or (event.data.get('tool_name') == 'Bash' and regex_search(r'^/gobby', event.data.get('tool_input', {}).get('command', ''))))"
+
+action:
+  decision: block
+  reason: |
+    Do NOT use native `Skill` tools or `/gobby` commands for skill invocation. 
+    
+    Instead, use the `gobby-skills` MCP server:
+    - `list_skills()`: Discover available skills.
+    - `get_skill(name="skill-name")`: Load instructions and resources for a skill.
+    
+    Once a skill is loaded via `get_skill`, you should follow the expert procedural guidance provided in the `<activated_skill>` tags.

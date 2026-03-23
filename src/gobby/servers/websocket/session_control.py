@@ -10,8 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
-import signal
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -24,79 +22,10 @@ from gobby.servers.websocket.models import (
     CLEANUP_INTERVAL_SECONDS,
     IDLE_TIMEOUT_SECONDS,
 )
+from gobby.sessions.terminal_kill import kill_terminal_session
 from gobby.sessions.transcript_archive import restore_transcript
 
 logger = logging.getLogger(__name__)
-
-
-async def _kill_terminal_session(terminal_ctx: dict[str, Any], session_id: str) -> bool:
-    """Kill a plain terminal CLI session using its terminal context.
-
-    Tries tmux pane kill first (cleanest — kills just that pane), then
-    falls back to PID-based SIGTERM.
-
-    Args:
-        terminal_ctx: Session's terminal_context dict (tmux_pane, parent_pid, etc.)
-        session_id: Session ID for logging.
-
-    Returns:
-        True if any kill method succeeded.
-    """
-    # 1. Try tmux pane kill (sends SIGHUP to process in pane)
-    tmux_pane = terminal_ctx.get("tmux_pane")
-    if tmux_pane:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "tmux",
-                "kill-pane",
-                "-t",
-                str(tmux_pane),
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
-            if proc.returncode == 0:
-                logger.info(
-                    "Killed terminal session %s via tmux pane %s",
-                    session_id[:8],
-                    tmux_pane,
-                )
-                return True
-            else:
-                logger.debug(
-                    "tmux kill-pane failed for %s: %s",
-                    tmux_pane,
-                    stderr.decode().strip() if stderr else "unknown",
-                )
-        except TimeoutError:
-            logger.warning("tmux kill-pane timed out for pane %s", tmux_pane)
-        except FileNotFoundError:
-            logger.debug("tmux not available, skipping pane kill")
-        except Exception as e:
-            logger.warning("tmux kill-pane error for %s: %s", tmux_pane, e)
-
-    # 2. Fallback: PID-based kill
-    parent_pid = terminal_ctx.get("parent_pid")
-    if parent_pid:
-        try:
-            pid = int(parent_pid)
-            os.kill(pid, signal.SIGTERM)
-            logger.info(
-                "Killed terminal session %s via SIGTERM to PID %d",
-                session_id[:8],
-                pid,
-            )
-            return True
-        except ProcessLookupError:
-            logger.debug("PID %s already dead for session %s", parent_pid, session_id[:8])
-        except (ValueError, OSError) as e:
-            logger.warning("PID kill failed for session %s: %s", session_id[:8], e)
-
-    logger.debug(
-        "No kill method available for session %s (no tmux_pane or parent_pid)",
-        session_id[:8],
-    )
-    return False
 
 
 class SessionControlMixin:
@@ -180,6 +109,12 @@ class SessionControlMixin:
         decision = data.get("decision", "")
 
         session = self._chat_sessions.get(conversation_id_raw) if conversation_id_raw else None
+
+        # Recovery path: no in-memory session (daemon restarted)
+        if session is None and conversation_id_raw:
+            await self._handle_recovered_plan_approval(websocket, conversation_id_raw, data)
+            return
+
         if session is None or conversation_id_raw is None:
             logger.warning(
                 "plan_approval_response for unknown conversation: %s", conversation_id_raw
@@ -187,10 +122,20 @@ class SessionControlMixin:
             return
         conversation_id: str = conversation_id_raw
 
+        # Helper to clear pending_plan_path in DB after approval/rejection
+        async def _clear_pending_plan() -> None:
+            sm = getattr(self, "session_manager", None)
+            if sm and session.db_session_id:
+                try:
+                    await asyncio.to_thread(sm.update_pending_plan, session.db_session_id, None)
+                except Exception:
+                    logger.debug("Failed to clear pending_plan_path", exc_info=True)
+
         if decision == "approve":
             if session.has_pending_plan:
                 # ExitPlanMode is blocking — unblock it with the approval
                 session.provide_plan_decision("approve")
+                await _clear_pending_plan()
                 logger.info(
                     "Plan approved (ExitPlanMode unblocked) for conversation %s",
                     conversation_id[:8],
@@ -199,6 +144,7 @@ class SessionControlMixin:
                 # Legacy path: plan approval before ExitPlanMode was called
                 session.approve_plan()
                 session.set_chat_mode("accept_edits")
+                await _clear_pending_plan()
                 try:
                     await websocket.send(
                         json.dumps(
@@ -223,12 +169,158 @@ class SessionControlMixin:
             if session.has_pending_plan:
                 # ExitPlanMode is blocking — deny it so agent stays in plan mode
                 session.provide_plan_decision("request_changes")
+                await _clear_pending_plan()
                 logger.info(
                     "Plan changes requested (ExitPlanMode denied) for conversation %s",
                     conversation_id[:8],
                 )
             else:
-                logger.info("Plan changes requested for conversation %s", conversation_id[:8])
+                await _clear_pending_plan()
+                try:
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "mode_changed",
+                                "conversation_id": conversation_id,
+                                "mode": "plan",
+                                "reason": "plan_changes_requested",
+                            }
+                        )
+                    )
+                except (ConnectionClosed, ConnectionClosedError):
+                    pass
+                logger.info(
+                    "Plan changes requested (legacy) for conversation %s", conversation_id[:8]
+                )
+
+    async def _handle_recovered_plan_approval(
+        self, websocket: Any, conversation_id: str, data: dict[str, Any]
+    ) -> None:
+        """Handle plan approval for a session orphaned by daemon restart.
+
+        The SDK conversation is dead. We update DB state and notify the frontend
+        so it can start a new conversation with the correct mode.
+        """
+        decision = data.get("decision", "")
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            logger.warning("Recovered plan approval: no session_manager available")
+            return
+
+        # Look up DB session by external_id (= conversation_id for web-chat)
+        db_session = None
+        for source in ("claude_sdk_web_chat", "codex_web_chat"):
+            try:
+                db_session = await asyncio.to_thread(
+                    session_manager.find_active_by_external_id, conversation_id, source
+                )
+                if db_session:
+                    break
+            except Exception:
+                pass
+
+        if not db_session or not db_session.pending_plan_path:
+            logger.warning(
+                "Recovered plan approval: no DB session with pending plan for %s",
+                conversation_id[:8],
+            )
+            return
+
+        plan_path = db_session.pending_plan_path
+
+        if decision == "approve":
+            await asyncio.to_thread(session_manager.update_pending_plan, db_session.id, None)
+            await asyncio.to_thread(session_manager.update_chat_mode, db_session.id, "accept_edits")
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "mode_changed",
+                            "conversation_id": conversation_id,
+                            "mode": "accept_edits",
+                            "reason": "plan_approved",
+                        }
+                    )
+                )
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "plan_approved_recovered",
+                            "conversation_id": conversation_id,
+                            "plan_path": plan_path,
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            logger.info(
+                "Recovered plan approved for conversation %s (db=%s)",
+                conversation_id[:8],
+                db_session.id[:8],
+            )
+
+        elif decision == "request_changes":
+            await asyncio.to_thread(session_manager.update_pending_plan, db_session.id, None)
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "mode_changed",
+                            "conversation_id": conversation_id,
+                            "mode": "plan",
+                            "reason": "plan_changes_requested",
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            logger.info("Recovered plan changes requested for conversation %s", conversation_id[:8])
+
+    async def _rebroadcast_pending_plans(self, websocket: Any) -> None:
+        """Re-broadcast plan_pending_approval for sessions orphaned by daemon restart.
+
+        After restart, _chat_sessions is empty but DB sessions may have
+        pending_plan_path set. For each, read the plan file from disk and
+        send plan_pending_approval to the reconnecting client.
+        """
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            return
+
+        try:
+            pending = await asyncio.to_thread(session_manager.find_pending_plans)
+        except Exception as e:
+            logger.warning("Failed to query pending plans: %s", e)
+            return
+
+        for db_session in pending:
+            plan_path = db_session.pending_plan_path
+            if not plan_path:
+                continue
+            try:
+                content = await asyncio.to_thread(Path(plan_path).read_text, "utf-8")
+            except Exception:
+                logger.warning("Pending plan file missing: %s, clearing", plan_path)
+                try:
+                    await asyncio.to_thread(
+                        session_manager.update_pending_plan, db_session.id, None
+                    )
+                except Exception:
+                    pass
+                continue
+
+            msg = json.dumps(
+                {
+                    "type": "plan_pending_approval",
+                    "conversation_id": db_session.external_id,
+                    "plan_content": content,
+                    "recovered": True,
+                }
+            )
+            try:
+                await websocket.send(msg)
+            except (ConnectionClosed, ConnectionClosedError):
+                break
 
     async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle continue_in_chat message to resume a CLI session in the web chat UI.
@@ -322,7 +414,7 @@ class SessionControlMixin:
             if not killed and source_session:
                 terminal_ctx = source_session.terminal_context
                 if terminal_ctx:
-                    term_killed = await _kill_terminal_session(terminal_ctx, source_session_id)
+                    term_killed = await kill_terminal_session(terminal_ctx, source_session_id)
                     if term_killed:
                         await asyncio.sleep(0.5)
                         # Mark source session as expired
@@ -366,26 +458,7 @@ class SessionControlMixin:
             await self._send_error(websocket, f"Failed to create session: {e}")
             return
 
-        # Fall back to history injection if no SDK resume available
-        if not sdk_resume_id:
-            message_manager = getattr(self, "message_manager", None)
-            if message_manager:
-                try:
-                    max_idx = await message_manager.get_max_message_index(source_session_id)
-                    if max_idx >= 0:
-                        session._message_manager_source_session_id = source_session_id
-                        session._needs_history_injection = True
-                        session._message_manager = message_manager
-                        logger.info(
-                            "Cross-session history injection enabled for continuation",
-                            extra={
-                                "source": source_session_id[:8],
-                                "target": conversation_id[:8],
-                                "max_idx": max_idx,
-                            },
-                        )
-                except Exception as e:
-                    logger.warning(f"Failed to set up history injection: {e}")
+        # History injection via message_manager removed (session_messages table dropped)
 
         # Set parent_session_id on the DB record for lineage tracking
         if session.db_session_id and session_manager:
@@ -742,13 +815,16 @@ class SessionControlMixin:
             )
             return
 
-        # Mark session as completed in database
+        # Mark session as completed in database and clear pending plan
         if session.db_session_id:
             session_manager = getattr(self, "session_manager", None)
             if session_manager:
                 try:
                     await asyncio.to_thread(
                         session_manager.update, session.db_session_id, status="completed"
+                    )
+                    await asyncio.to_thread(
+                        session_manager.update_pending_plan, session.db_session_id, None
                     )
                 except Exception as e:
                     logger.warning(f"Failed to update session status on clear: {e}")
@@ -802,6 +878,9 @@ class SessionControlMixin:
             try:
                 if session_manager:
                     await asyncio.to_thread(session_manager.update, db_session_id, status="expired")
+                    await asyncio.to_thread(
+                        session_manager.update_pending_plan, db_session_id, None
+                    )
             except Exception as e:
                 logger.warning(f"Failed to soft-delete session from DB: {e}")
 
@@ -844,31 +923,9 @@ class SessionControlMixin:
             await self._send_error(websocket, f"Session not found: {session_id}", code="NOT_FOUND")
             return
 
-        # Load recent messages
-        message_manager = getattr(self, "message_manager", None)
+        # Message loading via message_manager removed (session_messages table dropped)
         messages: list[dict[str, Any]] = []
         total_count = 0
-        if message_manager:
-            try:
-                raw_messages = await message_manager.get_messages(session_id, limit=100)
-                messages = [
-                    {
-                        "id": m.get("id", ""),
-                        "role": m.get("role", ""),
-                        "content": m.get("content", ""),
-                        "content_type": m.get("content_type"),
-                        "tool_name": m.get("tool_name"),
-                        "tool_input": m.get("tool_input"),
-                        "tool_result": m.get("tool_result"),
-                        "tool_use_id": m.get("tool_use_id"),
-                        "timestamp": m.get("timestamp", ""),
-                        "message_index": m.get("message_index"),
-                    }
-                    for m in raw_messages
-                ]
-                total_count = len(messages)
-            except Exception as e:
-                logger.warning(f"Failed to load messages for session {session_id}: {e}")
 
         # Auto-subscribe to session-scoped events
         if not hasattr(websocket, "subscriptions") or websocket.subscriptions is None:
@@ -1065,13 +1122,18 @@ class SessionControlMixin:
                     await self._fire_session_end(conv_id)
                     session = self._chat_sessions.pop(conv_id)
                     await self._cancel_active_chat(conv_id)
-                    # Mark as paused in database before stopping
+                    # Mark as paused in database and clear pending plan before stopping
                     if session.db_session_id:
                         session_manager = getattr(self, "session_manager", None)
                         if session_manager:
                             try:
                                 await asyncio.to_thread(
                                     session_manager.update, session.db_session_id, status="paused"
+                                )
+                                await asyncio.to_thread(
+                                    session_manager.update_pending_plan,
+                                    session.db_session_id,
+                                    None,
                                 )
                             except Exception as e:
                                 logger.warning(f"Failed to update session status: {e}")

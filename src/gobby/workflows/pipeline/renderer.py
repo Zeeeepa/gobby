@@ -12,7 +12,14 @@ from gobby.workflows.templates import TemplateEngine
 logger = logging.getLogger(__name__)
 
 # Common helper functions for expression evaluation in pipelines.
-_PIPELINE_EVAL_FUNCS: dict[str, Any] = {"len": len, "bool": bool, "str": str, "int": int}
+_PIPELINE_EVAL_FUNCS: dict[str, Any] = {
+    "len": len,
+    "bool": bool,
+    "str": str,
+    "int": int,
+    "any": any,
+    "all": all,
+}
 
 # Env-var suffixes that indicate sensitive values (case-insensitive check).
 _SENSITIVE_SUFFIXES = (

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ToolCall } from '../../../types/chat'
+import { classifyTool } from '../../../types/chat'
 import { groupToolCalls, extractBase64Image } from '../ToolCallCard'
 import type { ToolCallGroup, ToolCallSingle } from '../ToolCallCard'
 
@@ -7,6 +8,7 @@ function makeCall(overrides: Partial<ToolCall> & { id: string; tool_name: string
   return {
     server_name: 'builtin',
     status: 'completed',
+    tool_type: classifyTool(overrides.tool_name),
     ...overrides,
   }
 }
@@ -33,7 +35,7 @@ describe('groupToolCalls', () => {
     expect(result).toHaveLength(1)
     expect(result[0].kind).toBe('group')
     const group = result[0] as ToolCallGroup
-    expect(group.calls).toHaveLength(2)
+    expect(group.tool_calls).toHaveLength(2)
     expect(group.toolName).toBe('Read')
     expect(group.displayName).toBe('Read')
   })
@@ -47,7 +49,7 @@ describe('groupToolCalls', () => {
     const result = groupToolCalls(calls)
     expect(result).toHaveLength(1)
     const group = result[0] as ToolCallGroup
-    expect(group.calls).toHaveLength(3)
+    expect(group.tool_calls).toHaveLength(3)
   })
 
   it('does not group different tool types', () => {
@@ -74,10 +76,10 @@ describe('groupToolCalls', () => {
     const result = groupToolCalls(calls)
     expect(result).toHaveLength(3)
     expect(result[0].kind).toBe('group')
-    expect((result[0] as ToolCallGroup).calls).toHaveLength(3)
+    expect((result[0] as ToolCallGroup).tool_calls).toHaveLength(3)
     expect((result[0] as ToolCallGroup).displayName).toBe('Read')
     expect(result[1].kind).toBe('group')
-    expect((result[1] as ToolCallGroup).calls).toHaveLength(2)
+    expect((result[1] as ToolCallGroup).tool_calls).toHaveLength(2)
     expect((result[1] as ToolCallGroup).displayName).toBe('Bash')
     expect(result[2].kind).toBe('single')
   })
@@ -124,11 +126,11 @@ describe('groupToolCalls', () => {
     const result = groupToolCalls(calls)
     expect(result).toHaveLength(3)
     expect(result[0].kind).toBe('group')
-    expect((result[0] as ToolCallGroup).calls).toHaveLength(2)
+    expect((result[0] as ToolCallGroup).tool_calls).toHaveLength(2)
     expect(result[1].kind).toBe('single')
     expect((result[1] as ToolCallSingle).call.status).toBe('pending_approval')
     expect(result[2].kind).toBe('group')
-    expect((result[2] as ToolCallGroup).calls).toHaveLength(2)
+    expect((result[2] as ToolCallGroup).tool_calls).toHaveLength(2)
   })
 
   it('sets hasErrors when any call in group has error status', () => {
@@ -201,7 +203,7 @@ describe('groupToolCalls', () => {
     const result = groupToolCalls(calls)
     expect(result).toHaveLength(1)
     expect(result[0].kind).toBe('group')
-    expect((result[0] as ToolCallGroup).calls).toHaveLength(10)
+    expect((result[0] as ToolCallGroup).tool_calls).toHaveLength(10)
   })
 })
 

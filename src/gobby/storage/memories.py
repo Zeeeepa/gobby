@@ -291,6 +291,34 @@ class LocalMemoryManager:
         self._notify_listeners()
         return True
 
+    def mark_pending_graph(self, memory_id: str) -> None:
+        """Mark a memory as pending KG graph processing."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE memories SET graph_processed = 0 WHERE id = ?",
+                (memory_id,),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Memory not found: {memory_id}")
+
+    def mark_graph_processed(self, memory_id: str) -> None:
+        """Mark a memory as having been processed by the KG pipeline."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE memories SET graph_processed = 1 WHERE id = ?",
+                (memory_id,),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Memory not found: {memory_id}")
+
+    def get_pending_graph_memories(self, limit: int = 20) -> list[Memory]:
+        """Get memories pending KG graph processing."""
+        rows = self.db.fetchall(
+            "SELECT * FROM memories WHERE graph_processed = 0 ORDER BY created_at ASC LIMIT ?",
+            (limit,),
+        )
+        return [Memory.from_row(row) for row in rows]
+
     def count_memories(self, project_id: str | None = None) -> int:
         """Return the total number of memories using COUNT(*).
 

@@ -77,16 +77,15 @@ class ModelCostStore:
         logger.info(f"Populated model_costs table with {len(rows)} models from LiteLLM")
         return len(rows)
 
-    def _apply_anthropic_overrides(self, conn: DatabaseProtocol | sqlite3.Connection | None = None) -> None:
+    def _apply_anthropic_overrides(self, conn: DatabaseProtocol | sqlite3.Connection) -> None:
         """Override LiteLLM pricing with Anthropic's known current rates.
 
         Guards against stale or missing entries in the LiteLLM registry.
         Prices are per-token (USD).
 
         Args:
-            conn: Optional database connection to use (for transactional consistency).
+            conn: Database connection to use (for transactional consistency).
         """
-        executor = conn if conn is not None else self.db
         # fmt: off
         overrides: list[tuple[str, float, float, float, float]] = [
             # (model_prefix, input, output, cache_read, cache_creation)
@@ -96,7 +95,7 @@ class ModelCostStore:
         ]
         # fmt: on
         for prefix, inp, out, cr, cc in overrides:
-            executor.execute(
+            conn.execute(
                 """
                 UPDATE model_costs
                 SET input_cost_per_token = ?,

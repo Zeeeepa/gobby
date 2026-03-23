@@ -13,7 +13,7 @@ import asyncio
 import logging
 import os
 import signal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from gobby.agents.idle_detector import IdleDetector
 from gobby.agents.prompt_detector import PromptDetector
@@ -154,14 +154,30 @@ class AgentLifecycleMonitor:
         # Brief initial delay to let agents finish spawning on startup
         await asyncio.sleep(5.0)
 
+        iteration = 0
         while self._running:
             try:
+                logger.debug(f"Lifecycle check iteration {iteration}")
                 await self.check_trust_prompts()  # Fast unblock before other checks
                 await self.check_loop_prompts()  # Dismiss loop detection prompts
                 await self.check_dead_agents()
                 await self.check_expired_agents()
                 await self.check_idle_agents()
                 await self.check_provider_stalls()
+
+                # Periodic stale run cleanup — safety net for agents the
+                # liveness check misses (e.g. after daemon restart)
+                if iteration > 0 and iteration % 10 == 0:
+                    try:
+                        cleaned = await asyncio.to_thread(
+                            self._agent_run_manager.cleanup_stale_runs
+                        )
+                        if cleaned:
+                            logger.info(f"Cleaned up {cleaned} stale agent runs")
+                    except Exception as e:
+                        logger.warning(f"Stale run cleanup failed: {e}")
+
+                iteration += 1
             except Exception as e:
                 logger.error(f"Agent lifecycle check error: {e}")
 
@@ -258,7 +274,22 @@ class AgentLifecycleMonitor:
                 assert tmux_name is not None  # guaranteed by filter above
                 alive = await self._tmux.has_session(tmux_name)
                 if alive:
-                    continue
+                    # Tmux session exists, but check if the agent process is still running
+                    if agent.pid:
+                        try:
+                            os.kill(agent.pid, 0)  # Signal 0 = check if process exists
+                        except ProcessLookupError:
+                            # Process is dead but tmux lingers — treat as dead agent
+                            logger.info(
+                                f"Agent {agent.run_id} PID {agent.pid} dead "
+                                f"but tmux '{tmux_name}' alive — cleaning up"
+                            )
+                        except PermissionError:
+                            continue  # Process exists but we can't signal it — it's alive
+                        else:
+                            continue  # Process is alive
+                    else:
+                        continue  # No PID to check, trust tmux liveness
 
                 logger.info(
                     f"Detected dead tmux session '{agent.tmux_session_name}' "
@@ -337,7 +368,7 @@ class AgentLifecycleMonitor:
             a for a in agents if a.task is not None and a.mode in ("autonomous", "in_process")
         ]
         for agent in task_agents:
-            task: asyncio.Task[object] = agent.task  # type: ignore[assignment]
+            task = cast(asyncio.Task[object], agent.task)
             if not task.done():
                 continue
 
@@ -443,6 +474,17 @@ class AgentLifecycleMonitor:
                     f"Agent {agent.run_id} exceeded timeout ({age:.1f}s > {agent.timeout_seconds}s). Killing..."
                 )
 
+                # Capture terminal output before kill for post-mortem diagnostics
+                pane_snapshot = ""
+                tmux_name = agent.tmux_session_name
+                if tmux_name:
+                    try:
+                        pane_snapshot = await self._tmux.capture_pane(tmux_name, lines=50) or ""
+                    except Exception as e:
+                        logger.debug(
+                            f"Failed to capture pane for timed-out agent {agent.run_id}: {e}"
+                        )
+
                 # Kill process via registry
                 await self._registry.kill(
                     agent.run_id,
@@ -451,11 +493,14 @@ class AgentLifecycleMonitor:
                     close_terminal=True,
                 )
 
-                # Mark DB record as timeout
+                # Mark DB record as timeout, including last terminal output
+                error_msg = f"Agent exceeded {agent.timeout_seconds}s timeout"
+                if pane_snapshot:
+                    error_msg += f"\n\n--- Last terminal output ---\n{pane_snapshot[-2000:]}"
                 await asyncio.to_thread(
                     self._agent_run_manager.fail,
                     agent.run_id,
-                    error=f"Agent exceeded {agent.timeout_seconds}s timeout",
+                    error=error_msg,
                 )
 
                 # Remove from in-memory registry if kill() didn't
@@ -707,6 +752,7 @@ class AgentLifecycleMonitor:
                         worktree_id=run.worktree_id,
                         clone_id=run.clone_id,
                         task_id=run.task_id,
+                        timeout_seconds=run.timeout_seconds,
                     )
                 )
                 logger.info(

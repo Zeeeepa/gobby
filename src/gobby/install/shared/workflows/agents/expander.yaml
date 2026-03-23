@@ -30,6 +30,13 @@ instructions: |
 
   4. TERMINATE: Call kill_agent to shut down.
 
+  PLAN FILE:
+  - If your spawn prompt includes "Plan file: <path>" (not "none"),
+    include it as a top-level "plan_file" field in the expansion spec:
+    {"plan_file": "docs/plans/foo.md", "subtasks": [...]}
+  - This causes execute_expansion to inject a plan reference into
+    each subtask description so implementing agents can read the plan.
+
   CRITICAL RULES:
   - Do NOT call execute_expansion — that's the pipeline's job.
   - Do NOT call close_task or create_task — you only produce specs.

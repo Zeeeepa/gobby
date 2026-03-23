@@ -270,6 +270,15 @@ class WorktreeIsolationHandler(IsolationHandler):
             provider=config.provider,
         )
 
+        # Ensure project.json has parent_project_path for workflow discovery
+        from gobby.utils.project_context import ensure_project_json_for_isolation
+
+        await asyncio.to_thread(
+            ensure_project_json_for_isolation,
+            self._git_manager.repo_path,
+            worktree_path,
+        )
+
         # Patch MCP config so agents use the main repo's gobby code
         await _patch_mcp_config_for_isolation(
             main_repo_path=self._git_manager.repo_path,
@@ -531,6 +540,15 @@ class CloneIsolationHandler(IsolationHandler):
             source_repo_path=config.project_path,
             clone_path=clone_path,
             provider=config.provider,
+        )
+
+        # Ensure project.json has parent_project_path for workflow discovery
+        from gobby.utils.project_context import ensure_project_json_for_isolation
+
+        await asyncio.to_thread(
+            ensure_project_json_for_isolation,
+            config.project_path,
+            clone_path,
         )
 
         # Patch MCP config so agents use the main repo's gobby code

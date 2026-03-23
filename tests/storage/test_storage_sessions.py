@@ -86,6 +86,43 @@ class TestLocalSessionManager:
         assert session.jsonl_path == "/path/to/transcript.jsonl"
         assert session.git_branch == "main"
 
+        # Verify stats columns
+        assert session.message_count == 0
+        assert session.turn_count == 0
+        assert session.tool_call_count == 0
+        assert session.last_assistant_content is None
+
+    def test_register_session_has_stats_columns(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ) -> None:
+        """Test that a newly registered session has the stats columns."""
+        session = session_manager.register(
+            external_id="stats-check",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        # Verify Session object has fields
+        assert hasattr(session, "message_count")
+        assert hasattr(session, "turn_count")
+        assert hasattr(session, "tool_call_count")
+        assert hasattr(session, "last_assistant_content")
+
+        # Verify values from DB
+        row = session_manager.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session.id,))
+        assert "message_count" in row.keys()
+        assert "turn_count" in row.keys()
+        assert "tool_call_count" in row.keys()
+        assert "last_assistant_content" in row.keys()
+
+        assert row["message_count"] == 0
+        assert row["turn_count"] == 0
+        assert row["tool_call_count"] == 0
+        assert row["last_assistant_content"] is None
+
     def test_register_upserts_on_conflict(
         self,
         session_manager: LocalSessionManager,
@@ -225,6 +262,40 @@ class TestLocalSessionManager:
         updated = session_manager.update_title(session.id, "New Title")
         assert updated is not None
         assert updated.title == "New Title"
+
+    def test_update_stats(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ) -> None:
+        """Test updating session stats."""
+        session = session_manager.register(
+            external_id="stats-update-test",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        updated = session_manager.update_stats(
+            session.id,
+            message_count=10,
+            turn_count=5,
+            tool_call_count=3,
+            last_assistant_content="Testing stats update.",
+        )
+
+        assert updated is not None
+        assert updated.message_count == 10
+        assert updated.turn_count == 5
+        assert updated.tool_call_count == 3
+        assert updated.last_assistant_content == "Testing stats update."
+
+        # Verify DB persisted
+        row = session_manager.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session.id,))
+        assert row["message_count"] == 10
+        assert row["turn_count"] == 5
+        assert row["tool_call_count"] == 3
+        assert row["last_assistant_content"] == "Testing stats update."
 
     @pytest.mark.unit
     def test_update_model(
@@ -451,23 +522,6 @@ class TestLocalSessionManager:
         # Should be pending again
         pending = session_manager.get_pending_transcript_sessions()
         assert len(pending) == 1
-
-    def test_update_compact_markdown(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ) -> None:
-        """Test updating compact markdown."""
-        session = session_manager.register(
-            external_id="compact-test",
-            machine_id="machine",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-
-        updated = session_manager.update_compact_markdown(session.id, "# Compact")
-        assert updated is not None
-        assert updated.compact_markdown == "# Compact"
 
     def test_update_parent_session_id(
         self,
@@ -1049,7 +1103,6 @@ class TestLocalSessionManager:
         )
 
         # Update other fields
-        session_manager.update_compact_markdown(session.id, "# Compact")
         session_manager.update_summary(session.id, "/summary.md", "# Summary")
 
         # Retrieve and convert to dict
@@ -1066,7 +1119,6 @@ class TestLocalSessionManager:
         assert "jsonl_path" in d
         assert "summary_path" in d
         assert "summary_markdown" in d
-        assert "compact_markdown" in d
         assert "git_branch" in d
         assert "parent_session_id" in d
         assert "agent_depth" in d

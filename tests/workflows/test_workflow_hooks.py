@@ -1,9 +1,10 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.hook_manager import HookManager
+from gobby.workflows.git_utils import DirtyFiles
 from gobby.workflows.hooks import WorkflowHookHandler
 
 pytestmark = pytest.mark.unit
@@ -187,3 +188,50 @@ class TestWorkflowHookHandlerDisabled:
 
         response = handler.handle(event)
         assert response.decision == "allow"
+
+
+class TestProjectPathResolution:
+    """Verify project_path for dirty file checks uses event.cwd."""
+
+    @pytest.mark.asyncio
+    async def test_dirty_files_uses_event_cwd_for_worktree(self) -> None:
+        """get_dirty_files should receive event.cwd, not None or metadata.project_path.
+
+        This ensures worktree agents get dirty file checks scoped to their
+        worktree directory, not the daemon's cwd.
+        """
+        from unittest.mock import AsyncMock
+
+        worktree_path = "/tmp/worktrees/agent-worktree-123"
+        handler = WorkflowHookHandler(loop=None)
+        # Wire up a mock rule engine with async evaluate
+        mock_engine = MagicMock()
+        mock_engine.evaluate = AsyncMock(return_value=HookResponse(decision="allow"))
+        mock_engine.db = MagicMock()
+        handler.rule_engine = mock_engine
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id=MOCK_EXTERNAL_ID,
+            source=SessionSource.CLAUDE,
+            timestamp=None,  # type: ignore
+            data={"tool_name": "Edit"},
+            cwd=worktree_path,
+        )
+
+        with patch("gobby.workflows.git_utils.get_dirty_files_categorized") as mock_dirty:
+            mock_dirty.return_value = DirtyFiles(set(), set())
+            # Call _evaluate_rules directly (async) to avoid threading issues
+            await handler._evaluate_rules(event)
+
+            # Get the eval_context that was passed to rule_engine.evaluate
+            assert mock_engine.evaluate.called
+            call_kwargs = mock_engine.evaluate.call_args
+            eval_context = call_kwargs.kwargs.get("eval_context", {})
+            # Force the LazyBool to evaluate, which triggers get_dirty_files_categorized
+            assert "has_dirty_files" in eval_context
+            bool(eval_context["has_dirty_files"])
+            assert mock_dirty.call_count >= 1
+            # Every call should use event.cwd, not None
+            for call in mock_dirty.call_args_list:
+                assert call[0][0] == worktree_path

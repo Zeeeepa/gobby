@@ -245,6 +245,17 @@ class ChatSessionMixin:
                 except (ConnectionClosed, ConnectionClosedError):
                     pass
 
+            # Persist pending plan path to DB for recovery after daemon restart
+            _sm = getattr(self, "session_manager", None)
+            _s = self._chat_sessions.get(conversation_id)
+            if _sm and _s and _s.db_session_id and getattr(_s, "_plan_file_path", None):
+                try:
+                    await asyncio.to_thread(
+                        _sm.update_pending_plan, _s.db_session_id, _s._plan_file_path
+                    )
+                except Exception:
+                    logger.debug("Failed to persist pending_plan_path", exc_info=True)
+
         session._on_plan_ready = _notify_plan_ready
 
         # Wire config from daemon
@@ -255,7 +266,7 @@ class ChatSessionMixin:
                 session._tool_approval_config = tool_approval_cfg
             ctx_overrides = getattr(daemon_cfg, "context_window_overrides", None)
             if ctx_overrides:
-                session._context_window_overrides = ctx_overrides  # type: ignore[attr-defined]
+                session._context_window_overrides = ctx_overrides
 
         # Apply daemon config default chat mode (lowest priority — overridden below)
         if daemon_cfg is not None:
@@ -271,7 +282,6 @@ class ChatSessionMixin:
         # Register in database BEFORE start() so that db_session_id is available
         # for the CLI subprocess env vars (GOBBY_SESSION_ID) during start().
         session_manager = getattr(self, "session_manager", None)
-        _is_new_registration = False
         if session_manager:
             try:
                 db_session = await asyncio.to_thread(
@@ -284,23 +294,29 @@ class ChatSessionMixin:
                 session.db_session_id = db_session.id
                 session.seq_num = db_session.seq_num
                 session._session_manager_ref = session_manager
-                _is_new_registration = True
+
+                # Restore persisted state from DB (safe for both new and returning
+                # sessions — new rows have defaults that won't clobber anything).
+                if db_session.chat_mode and db_session.chat_mode != "plan":
+                    session.chat_mode = db_session.chat_mode
+                if db_session.usage_output_tokens:
+                    session._accumulated_output_tokens = db_session.usage_output_tokens
+                if db_session.usage_total_cost_usd:
+                    session._accumulated_cost_usd = db_session.usage_total_cost_usd
+                if db_session.approved_tools_json:
+                    try:
+                        session._approved_tools = set(json.loads(db_session.approved_tools_json))
+                    except (ValueError, TypeError):
+                        logger.debug("Malformed approved_tools_json, ignoring")
+                if db_session.pending_plan_path:
+                    session._plan_file_path = db_session.pending_plan_path
+
                 logger.info(
                     f"Registered web-chat session {db_session.id} "
                     f"(conv={conversation_id[:8]}, project={project_id or PERSONAL_PROJECT_ID})"
                 )
             except Exception as e:
                 logger.warning(f"Failed to register web-chat session in DB: {e}")
-
-        # Override chat mode with DB-persisted value (for returning sessions only —
-        # new registrations just have the column default which would clobber daemon config)
-        if session_manager and session.db_session_id and not _is_new_registration:
-            try:
-                db_session = await asyncio.to_thread(session_manager.get, session.db_session_id)
-                if db_session and db_session.chat_mode:
-                    session.chat_mode = db_session.chat_mode
-            except Exception as e:
-                logger.debug("Failed to get DB session: %s", e)
 
         # Override with pending mode (highest priority — user toggled before session existed)
         pending_modes = getattr(self, "_pending_modes", {})
@@ -320,6 +336,14 @@ class ChatSessionMixin:
                     logger.debug("Failed to persist chat_mode", exc_info=True)
 
             session._on_mode_persist = _persist_mode
+
+            def _persist_approved_tools(tools: set[str]) -> None:
+                try:
+                    _sm.update_approved_tools(_db_sid, tools)
+                except Exception:
+                    logger.debug("Failed to persist approved_tools", exc_info=True)
+
+            session._on_approved_tools_persist = _persist_approved_tools
 
         # Persist pending_mode to DB now that the callback is wired
         if pending_mode and session._on_mode_persist:
@@ -376,26 +400,7 @@ class ChatSessionMixin:
         await session.start(model=model)
         self._chat_sessions[conversation_id] = session
 
-        # Detect returning sessions and set up history injection (ChatSession only —
-        # CodexChatSession injects history via context_prefix, not SDK hooks)
-        message_manager = getattr(self, "message_manager", None)
-        if message_manager and session.db_session_id and isinstance(session, ChatSession):
-            try:
-                max_idx = await message_manager.get_max_message_index(session.db_session_id)
-                if max_idx >= 0:
-                    session.message_index = max_idx + 1
-                    session._needs_history_injection = True
-                    session._message_manager = message_manager
-                    logger.info(
-                        "Returning session detected; history injection enabled",
-                        extra={"max_idx": max_idx, "conversation_id": conversation_id[:8]},
-                    )
-            except Exception as e:
-                logger.warning(
-                    "Failed to check message history",
-                    extra={"conversation_id": conversation_id[:8]},
-                    exc_info=e,
-                )
+        # History injection via message_manager removed (session_messages table dropped)
 
         # Fire SESSION_START (informational, fire-and-forget)
         start_data: dict[str, Any] = {}

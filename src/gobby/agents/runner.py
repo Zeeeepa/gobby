@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry.trace import Status, StatusCode
 
 from gobby.agents import runner_queries as _queries
-from gobby.agents.registry import RunningAgent
+from gobby.agents.registry import RunningAgent, get_running_agent_registry
 from gobby.agents.runner_models import AgentConfig, AgentRunContext
 from gobby.agents.runner_tracking import RunTracker
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
@@ -550,6 +550,13 @@ class AgentRunner:
                 # Remove from in-memory tracking
                 self._tracker.untrack(agent_run.id)
 
+                # Remove from global agent registry so lifecycle monitor doesn't see a zombie
+                try:
+                    registry = get_running_agent_registry()
+                    registry.remove(agent_run.id, status=result.status)
+                except Exception as e:
+                    self.logger.debug(f"Registry removal for {agent_run.id}: {e}")
+
                 # Notify completion registry
                 await self._notify_completion(
                     agent_run.id, result.status, result.output, result.error
@@ -578,6 +585,13 @@ class AgentRunner:
                 self._session_storage.update_status(child_session.id, "failed")
                 # Remove from in-memory tracking
                 self._tracker.untrack(agent_run.id)
+
+                # Remove from global agent registry
+                try:
+                    registry = get_running_agent_registry()
+                    registry.remove(agent_run.id, status="failed")
+                except Exception as e2:
+                    self.logger.debug(f"Registry removal for {agent_run.id}: {e2}")
 
                 # Notify completion registry
                 await self._notify_completion(agent_run.id, "error", None, str(e))
