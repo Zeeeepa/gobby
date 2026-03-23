@@ -313,9 +313,7 @@ class HookSkillManager:
                     },
                 )
             except Exception as e:
-                logging.getLogger(__name__).debug(
-                    f"Failed to record skill_search event: {e}"
-                )
+                logging.getLogger(__name__).debug(f"Failed to record skill_search event: {e}")
 
         return results
 

@@ -74,9 +74,7 @@ class SessionMessageProcessor:
         self._running = False
         self._task: asyncio.Task[None] | None = None
 
-    def _accumulate_stats(
-        self, session_id: str, messages: list[Any]
-    ) -> dict[str, Any]:
+    def _accumulate_stats(self, session_id: str, messages: list[Any]) -> dict[str, Any]:
         """Accumulate incremental stats from parsed messages."""
         stats = self._stats.get(
             session_id,

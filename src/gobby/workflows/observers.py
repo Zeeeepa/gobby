@@ -274,9 +274,7 @@ def detect_commit_link(event: "HookEvent", variables: dict[str, Any], session_id
     logger.info(f"Session {session_id}: task_has_commits=true (via {inner_tool})")
 
 
-def detect_bash_commit(
-    event: "HookEvent", variables: dict[str, Any], session_id: str
-) -> None:
+def detect_bash_commit(event: "HookEvent", variables: dict[str, Any], session_id: str) -> None:
     """Detect git commit success output from Bash tool invocations.
 
     Sets ``task_has_commits: true`` when the Bash tool output contains

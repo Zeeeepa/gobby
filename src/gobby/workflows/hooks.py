@@ -150,9 +150,7 @@ class WorkflowHookHandler:
 
             # Lazy-init baseline on first evaluation (rule template may not have fired)
             if "baseline_dirty_files" not in variables:
-                initial_dirty = sorted(
-                    get_dirty_files_categorized(project_path).all
-                )
+                initial_dirty = sorted(get_dirty_files_categorized(project_path).all)
                 variables["baseline_dirty_files"] = initial_dirty
                 variables.setdefault("session_edited_files", [])
                 # Persist so future evaluations have it
