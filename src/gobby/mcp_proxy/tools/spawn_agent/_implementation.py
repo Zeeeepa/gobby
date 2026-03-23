@@ -143,9 +143,9 @@ async def spawn_agent_impl(
     if _raw_mode is None and agent_body:
         _raw_mode = agent_body.mode
     if _raw_mode in (None, "inherit"):
-        _raw_mode = "self"
+        _raw_mode = "terminal"
     effective_mode: Literal["terminal", "autonomous", "self"] = (
-        _raw_mode if _raw_mode in VALID_MODES else "self"  # type: ignore[assignment]
+        _raw_mode if _raw_mode in VALID_MODES else "terminal"  # type: ignore[assignment]
     )
 
     effective_model = model
