@@ -8,6 +8,150 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.30]
+
+### Features
+
+#### Communications System
+- Added communications models, config, and robust hydration (#10352)
+- Added communications adapter ABC and registry (#10354)
+- Added rate limiter with synchronous API and message router with storage layer (#10355)
+- Added CommunicationsManager with daemon wiring (#10356)
+
+#### Transcript Renderer
+- Added TranscriptRenderer data models and grouping logic (#10517)
+- Added typed tool classification system and result metadata extraction (#10518)
+- Added TranscriptParserErrorLog wired into parsers and renderer (#10519)
+- Added rendered message support to TranscriptReader (#10520)
+- Swapped /messages endpoint to renderer with legacy fallback (#10521)
+- Added RenderedMessage shape alignment across backend and TypeScript types (#10523)
+- Wired renderer into processor for WebSocket broadcast (#10522)
+- Updated ToolCallCard to consume tool_type and metadata (#10526)
+- Added UnknownBlockCard component with collapsible raw JSON viewer (#10527)
+- Updated useSessionDetail for upsert and rendered shape (#10524)
+- Deleted transcriptAdapter, switched to inline RenderedMessage mapping (#10528)
+- Removed store_messages, compute stats in processor (#10530)
+- Updated session_coordinator for stats from sessions table (#10531)
+- Updated MCP get_session_messages to use TranscriptReader renderer (#10532)
+- Added stats columns to sessions table via migration (#10529)
+- Dropped session_messages table and deleted storage module (#10533)
+- Stripped protocol XML tags from rendered session messages (#10556)
+
+#### Drawbridge Web UI
+- Added plan approval frontend with auto-send feedback on request_changes (#10453, #10454, #10455)
+- Added project ID synchronization and sendProjectChange wiring (#10457, #10458)
+- Added expire session button with ConfirmDialog to activities panel (#10447, #10448)
+- Added Code tab with File Editor and Code Graph Explorer (#10564, #10565)
+- Added code graph visualization endpoints (#10563)
+- Added git status badges to file tree and reverted to FilesPage editor (#10568)
+- Added artifact panel minimize/maximize and session history (#10443)
+- Restructured nav: Projects absorbs GitHub, removed GitHub nav item (#10565)
+- Removed Sessions/Tasks tabs from Project UI, hid Sessions/Terminals from sidebar (#10383)
+- Fixed graph edge rendering, switched graph to 3D (#10566, #10567)
+- Implemented 10 Drawbridge UI tasks across activity panel, chat, and sessions (#10470-#10478)
+- Fixed 4 Drawbridge UI issues across activity panel, chat, and sessions (#10485-#10488)
+- Added retry with backoff to fetchProjects (#10456)
+- Web chat session resilience after daemon restart (#10597)
+
+#### Code Index
+- Added blast_radius impact analysis tool (#10559)
+- Added post-edit incremental code index hook (#10560)
+- Moved tool embeddings to Qdrant-only, removed SQLite fallback (#10502, #10504)
+- Shipped local embeddings as default backend (#10497)
+- Added local embedding and per-agent model endpoint support (#10480-#10484)
+- Added full-text content search to code index (#10450)
+- Updated code-index skill with search_content documentation (#10451)
+- Added block_on_success interceptor for grep-on-indexed-files rule (#10553)
+
+#### Orchestration & Pipelines
+- Added isolation mode input to orchestrator pipeline (worktree/clone) (#10546)
+- Added worktree isolation to orchestrator pipeline template (#10570)
+- Added isolation mode prompt to test-battery wizard (#10569)
+- Added QA concurrency gate to orchestrator pipeline (#10493)
+- Added expansion QA agent to expand-task pipeline (#10534)
+- Added pipeline execution review to conductor heartbeat (#10535)
+- Added any/all operators to pipeline expression evaluator (#10544)
+- Rewrote test-battery skill as fire-and-forget with cleanup mode (#10571)
+
+#### Agent Lifecycle
+- Defaulted spawn_agent mode to 'terminal' instead of 'self' (#10625)
+- Copied session stats to agent_runs in complete_run (#10624)
+- Force-kill spawned agents after persistent daemon loss (#10575)
+- Persisted agent timeout_seconds to DB for restart survival (#10573)
+- Fixed agent lifecycle gaps: worktree_path, stats race, zombie cleanup, timeout diagnostics (#10577, #10578)
+
+#### Rule Engine & Skills
+- Added load_skill rule effect type (#10536)
+- Added skill discovery rule, ClawdHub onboarding, and install_skill security scanning (#10506)
+- Separated stop enforcement for interactive vs agent sessions (#10539)
+- Intercepted Skill tool calls for gobby skills and removed legacy colon syntax (#10586)
+- Added /gobby skill(s) subcommand routing (#10589)
+
+#### Memory
+- Added nightly memory cleanup pipeline (#10572)
+- Lowered nightly memory cleanup stale threshold from 90d to 30d (#10585)
+- Collapsed memory extraction pipeline — removed LLM cascade (#10548)
+- Re-enabled memory extraction and removed deprecated memory configs (#10554)
+
+#### Metrics & Observability
+- Added metrics event log with per-session tool breakdown, rule/skill tracking (#10508)
+
+#### Infrastructure
+- Added variable definition CRUD to gobby-workflows and removed dead top-level tools (#10494)
+- Added session liveness monitor and fixed lifecycle summary generation (#10449)
+- Made SessionLivenessMonitor tmux-aware to prevent premature session expiry (#10495)
+- Added live JSONL fallback and paused session re-registration (#10498)
+- Linked plan files to expanded subtasks via plan_file reference (#10538)
+- Nightly agents: close tasks with validation instead of orphaning in needs_review (#10537)
+- Make session_id required in set_variable/get_variable schemas (#10298, #10441)
+
+### Fixes
+- Fix task_has_commits not set when commit happens via Bash (#10615)
+- Fix task claim resolution and heartbeat stale task recovery (#10621, #10622)
+- Fix session stats never written — inject session_manager into processor (#10623)
+- Fix require-task-close stop gate intermittent bypass on default agents (#10596)
+- Fix has_dirty_files blocking sessions for pre-existing dirty files (#10505, #10606)
+- Fix HookSkillManager excluding project-scoped skills (#10603)
+- Fix memory injection rule not injecting memories (#10436)
+- Fix orchestrator pipeline expression error (replace any() with len check) (#10545)
+- Fix daemon startup crash: _session_manager accessed before assignment
+- Fix summary crash, skip non-human sessions in lifecycle processing (#10547)
+- Fix compress CLI to handle shell redirections and flag-like args (#10587)
+- Fix compress exit code propagation and session_id resolution errors (#10550, #10551)
+- Fix Gemini transcript race condition and clean up compact_session_summary (#10576, #10580)
+- Fix llama-cpp-python segfault from concurrent thread access (#10500)
+- Fix reindex_embeddings to recreate collection on dim change (#10499)
+- Fix project identification in isolated environments (#10465)
+- Fix 6 bugs across rule engine, secrets, agents, pipelines (#10462-#10469)
+- Fix embed_all_tools to include internal registry tools (#10503)
+- Fix stripped leaked server_name/tool_name from call_tool arguments (#10511)
+- Fix CodeRabbit review findings: bugs and nits across Python, frontend, tests (#10444, #10583, #10620)
+- Fix syntax highlighting for bash and toml in CodeMirror editor
+- Fix yaml.YAMLError in workflow import route to return 400 (#10446)
+- Fix hook errors: fail closed on critical hook errors in dispatcher (#10581)
+- Fix sanitize relationship types in Neo4j merge_relationship (#10558)
+- Fix spawn-developer and spawn-qa pipeline templates (#10557)
+- Fix Drawbridge UI: plan approval, mobile, CSS, sessions (#10590-#10595, #10598)
+- Fix plan mode display in web chat artifacts panel (#10442)
+- Fix editor background, hooks crash, add vertical resize and pipeline filters (#10437-#10440)
+- Fix nightly lint/type/security errors (#10489)
+- Fix parse string tool_output to dict in MCP field normalization (#10608)
+- Preserve test failure details in output compression (#10579, #10582)
+- Fix CodeMirror oneDark change that broke Vite HMR (#10432)
+
+### Refactoring
+- Drop session_messages table and migrate to TranscriptRenderer pipeline (#10533)
+- Remove package-install-interactive rule template (#10507)
+- Widen CodeRegistryContext.db type to accept DatabaseProtocol (#10614)
+- Replace specific bmad .gitignore entries with wildcard (#10540)
+- Fix 45 mypy errors across 15 source files (#10611)
+- Fix 24 TypeScript errors across web frontend (#10610)
+- Fix vitest warnings: localStorage guard, act() wrapping, console suppression (#10609)
+- Fix stale tests across multiple batches after session_messages removal (#10599-#10604, #10617-#10619)
+- Add Playwright verification tests for Drawbridge epic (#10491)
+
+---
+
 ## [0.2.29]
 
 ### Features
