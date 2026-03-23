@@ -74,6 +74,7 @@ class WorkflowHookHandler:
         Must run BEFORE rule evaluation so conditions have current data.
         """
         from .observers import (
+            detect_bash_commit,
             detect_commit_link,
             detect_mcp_call,
             detect_plan_mode_from_context,
@@ -100,6 +101,7 @@ class WorkflowHookHandler:
                 project_id=event.project_id,
             )
             detect_commit_link(event, variables, session_id)
+            detect_bash_commit(event, variables, session_id)
             detect_mcp_call(event, variables, session_id)
 
         # Plan mode detection (BEFORE_AGENT for system reminder tags)

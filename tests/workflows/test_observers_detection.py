@@ -7,6 +7,7 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.observers import (
+    detect_bash_commit,
     detect_commit_link,
     detect_mcp_call,
     detect_plan_mode_from_context,
@@ -774,5 +775,119 @@ class TestDetectCommitLink:
         )
 
         detect_commit_link(event, variables, SESSION_ID)
+
+        assert variables["task_has_commits"] is True
+
+
+# =============================================================================
+# Tests for detect_bash_commit
+# =============================================================================
+
+
+def _make_bash_event(
+    tool_output: str,
+    *,
+    tool_name: str = "Bash",
+    command: str = "git commit -m 'msg'",
+    is_error: bool = False,
+) -> HookEvent:
+    """Helper to create a Bash AFTER_TOOL event with string output."""
+    data: dict[str, object] = {
+        "tool_name": tool_name,
+        "tool_input": {"command": command},
+        "tool_output": tool_output,
+    }
+    if is_error:
+        data["is_error"] = True
+    return HookEvent(
+        event_type=HookEventType.AFTER_TOOL,
+        source=SessionSource.CLAUDE,
+        session_id="test-session-ext",
+        timestamp=datetime.now(UTC),
+        data=data,
+        metadata={"_platform_session_id": SESSION_ID},
+    )
+
+
+class TestDetectBashCommit:
+    """Verify detect_bash_commit sets task_has_commits from Bash git output."""
+
+    def test_git_commit_output_sets_task_has_commits(self, variables) -> None:
+        event = _make_bash_event(
+            "[main abc1234] Fix bug\n 1 file changed, 2 insertions(+)"
+        )
+
+        detect_bash_commit(event, variables, SESSION_ID)
+
+        assert variables["task_has_commits"] is True
+
+    def test_git_commit_branch_with_slash(self, variables) -> None:
+        event = _make_bash_event(
+            "[feat/login 9a3b2c1e] Add auth\n 3 files changed"
+        )
+
+        detect_bash_commit(event, variables, SESSION_ID)
+
+        assert variables["task_has_commits"] is True
+
+    def test_skips_when_already_set(self, variables) -> None:
+        variables["task_has_commits"] = True
+        event = _make_bash_event("[main def5678] Another\n 1 file changed")
+
+        detect_bash_commit(event, variables, SESSION_ID)
+
+        assert variables["task_has_commits"] is True
+
+    def test_skips_on_error(self, variables) -> None:
+        event = _make_bash_event(
+            "error: pathspec 'foo' did not match\nExit code: 1",
+            is_error=True,
+        )
+
+        detect_bash_commit(event, variables, SESSION_ID)
+
+        assert "task_has_commits" not in variables
+
+    def test_ignores_non_bash_tools(self, variables) -> None:
+        event = _make_bash_event(
+            "[main abc1234] looks like commit but isn't",
+            tool_name="Read",
+            command="",
+        )
+
+        detect_bash_commit(event, variables, SESSION_ID)
+
+        assert "task_has_commits" not in variables
+
+    def test_ignores_output_without_commit_pattern(self, variables) -> None:
+        event = _make_bash_event(
+            "total 42\ndrwxr-xr-x  5 user staff  160 Mar 22 10:00 .",
+            command="ls -la",
+        )
+
+        detect_bash_commit(event, variables, SESSION_ID)
+
+        assert "task_has_commits" not in variables
+
+    def test_multiline_output_with_commit(self, variables) -> None:
+        output = (
+            "On branch main\n"
+            "Changes to be committed:\n"
+            "  modified: foo.py\n"
+            "[main 1a2b3c4d] gobby-#42 Fix the thing\n"
+            " 1 file changed, 5 insertions(+), 2 deletions(-)\n"
+        )
+        event = _make_bash_event(output, command="git add . && git commit -m 'Fix'")
+
+        detect_bash_commit(event, variables, SESSION_ID)
+
+        assert variables["task_has_commits"] is True
+
+    def test_branch_with_hash_in_name(self, variables) -> None:
+        event = _make_bash_event(
+            "[gobby-#42 abc1234def] Fix\n 1 file changed"
+        )
+
+        detect_bash_commit(event, variables, SESSION_ID)
 
         assert variables["task_has_commits"] is True
