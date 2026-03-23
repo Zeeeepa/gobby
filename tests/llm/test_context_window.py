@@ -1,9 +1,11 @@
 """Tests for resolve_context_window in gobby.llm.claude_models.
 
 Verifies the priority order:
-1. SDK-reported contextWindow from _model_usage (authoritative)
-2. Static 200K for Claude models (never trust litellm for these)
+1. Config overrides (model substring -> context window)
+2. Built-in Claude family map (opus=1M, sonnet/haiku=200K)
 3. litellm lookup for non-Claude models only
+
+Note: SDK-reported contextWindow (2nd arg) is deprecated and ignored.
 """
 
 from unittest.mock import MagicMock, patch
@@ -22,11 +24,11 @@ pytestmark = pytest.mark.unit
 class TestResolveContextWindow:
     """Tests for resolve_context_window()."""
 
-    def test_sdk_context_window_takes_priority(self) -> None:
-        """SDK-reported contextWindow should be used first, even for Claude models."""
+    def test_sdk_context_window_ignored(self) -> None:
+        """SDK-reported contextWindow (2nd arg) is deprecated and ignored."""
         model_usage = {"contextWindow": 180_000}
         result = resolve_context_window("claude-opus-4-6", model_usage)
-        assert result == 180_000
+        assert result == 1_000_000  # Built-in map, _unused ignored
 
     def test_sdk_1m_context_window_trusted(self) -> None:
         """If the SDK reports 1M context window, trust it (user may have the beta)."""
@@ -82,11 +84,11 @@ class TestResolveContextWindow:
         """None model with no SDK usage should return None."""
         assert resolve_context_window(None, None) is None
 
-    def test_none_model_with_sdk_usage(self) -> None:
-        """None model but with SDK usage should return the SDK value."""
+    def test_none_model_with_sdk_usage_ignored(self) -> None:
+        """None model — SDK usage (2nd arg) is ignored, returns None."""
         model_usage = {"contextWindow": 200_000}
         result = resolve_context_window(None, model_usage)
-        assert result == 200_000
+        assert result is None
 
     def test_empty_model_usage_dict(self) -> None:
         """Empty model_usage dict (no contextWindow key) should fall through."""
@@ -115,12 +117,12 @@ class TestResolveContextWindow:
         assert resolve_context_window("claude-opus-4-6", None, overrides=overrides) == 500_000
         assert resolve_context_window("claude-sonnet-4-6", None, overrides=overrides) == 200_000
 
-    def test_sdk_still_wins_over_overrides(self) -> None:
-        """SDK-reported contextWindow should still beat config overrides."""
+    def test_overrides_win_sdk_ignored(self) -> None:
+        """Config overrides win; SDK-reported contextWindow (2nd arg) is ignored."""
         overrides = {"opus": 500_000}
         model_usage = {"contextWindow": 180_000}
         result = resolve_context_window("claude-opus-4-6", model_usage, overrides=overrides)
-        assert result == 180_000
+        assert result == 500_000  # Overrides win, _unused ignored
 
     def test_unknown_claude_model_returns_default(self) -> None:
         """A Claude model not matching any family should return CLAUDE_DEFAULT_CONTEXT_WINDOW."""

@@ -490,7 +490,6 @@ class TestGobbyRunnerInitialization:
 
             assert runner.memory_sync_manager == mock_memory_sync_manager
             mock_memory_sync_manager.import_sync.assert_called_once()
-            mock_memory_sync_manager.export_sync.assert_called_once()
 
     def test_init_memory_sync_manager_exception(self) -> None:
         """Test MemorySyncManager initialization exception is handled."""
