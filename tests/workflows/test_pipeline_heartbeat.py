@@ -11,6 +11,7 @@ import pytest
 from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.pipelines import LocalPipelineExecutionManager
+from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks._manager import LocalTaskManager
 from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
 from gobby.workflows.pipeline_state import ExecutionStatus
@@ -188,17 +189,24 @@ def agent_run_manager(temp_db: LocalDatabase) -> LocalAgentRunManager:
 
 
 @pytest.fixture
+def session_manager(temp_db: LocalDatabase) -> LocalSessionManager:
+    return LocalSessionManager(temp_db)
+
+
+@pytest.fixture
 def heartbeat_with_tasks(
     exec_manager: LocalPipelineExecutionManager,
     agent_registry: RunningAgentRegistry,
     task_manager: LocalTaskManager,
     agent_run_manager: LocalAgentRunManager,
+    session_manager: LocalSessionManager,
 ) -> PipelineHeartbeat:
     return PipelineHeartbeat(
         execution_manager=exec_manager,
         agent_registry=agent_registry,
         task_manager=task_manager,
         agent_run_manager=agent_run_manager,
+        session_manager=session_manager,
     )
 
 
@@ -326,3 +334,66 @@ async def test_stale_task_no_managers_returns_zero(
     """Heartbeat without task/agent_run managers skips stale task check."""
     recovered = await heartbeat.check_stale_tasks()
     assert recovered == 0
+
+
+# --- Interactive session protection tests ---
+
+
+@pytest.mark.asyncio
+async def test_interactive_session_task_not_recovered(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task assigned to a live interactive session → not touched."""
+    _seed_db(temp_db)
+    # SESSION_ID is seeded as 'active' — simulates an interactive CLI session
+    task_id = _create_in_progress_task(task_manager, assignee=SESSION_ID)
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 0
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "in_progress"
+    assert task.assignee == SESSION_ID
+
+
+@pytest.mark.asyncio
+async def test_expired_session_task_recovered(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task assigned to an expired session → reset to open."""
+    _seed_db(temp_db)
+    # Mark the session as expired (simulates SessionLivenessMonitor detecting dead PID)
+    temp_db.execute("UPDATE sessions SET status = 'expired' WHERE id = ?", (SESSION_ID,))
+    task_id = _create_in_progress_task(task_manager, assignee=SESSION_ID)
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 1
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "open"
+    assert task.assignee is None
+
+
+@pytest.mark.asyncio
+async def test_nonexistent_session_task_recovered(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task assigned to unknown session → reset to open."""
+    _seed_db(temp_db)
+    task_id = _create_in_progress_task(task_manager, assignee="sess-does-not-exist")
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 1
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "open"
+    assert task.assignee is None
