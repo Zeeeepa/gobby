@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from gobby.code_index.storage import CodeIndexStorage
     from gobby.code_index.summarizer import SymbolSummarizer
     from gobby.config.code_index import CodeIndexConfig
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol, LocalDatabase
 
 
 @dataclass
@@ -26,4 +26,4 @@ class CodeRegistryContext:
     summarizer: SymbolSummarizer | None = None
     config: CodeIndexConfig | None = None
     project_id: str | None = None
-    db: LocalDatabase | None = None
+    db: LocalDatabase | DatabaseProtocol | None = None
