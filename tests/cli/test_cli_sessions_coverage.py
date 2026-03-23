@@ -16,12 +16,6 @@ def mock_session_manager():
 
 
 @pytest.fixture
-def mock_message_manager():
-    with patch("gobby.cli.sessions.get_message_manager") as mock:
-        yield mock.return_value
-
-
-@pytest.fixture
 def mock_resolve_session():
     with patch("gobby.cli.sessions.resolve_session_id") as mock:
         mock.side_effect = lambda x: x if x else "current-session-id"
@@ -182,7 +176,7 @@ def test_delete_session_not_found(mock_session_manager, mock_resolve_session) ->
     assert "Session not found" in result.output
 
 
-def test_session_stats(mock_session_manager, mock_message_manager) -> None:
+def test_session_stats(mock_session_manager) -> None:
     s1 = Session(
         id="s1",
         project_id="p1",
@@ -217,22 +211,18 @@ def test_session_stats(mock_session_manager, mock_message_manager) -> None:
     )
     mock_session_manager.list.return_value = [s1, s2]
 
-    mock_message_manager.get_all_counts.side_effect = lambda: async_return({"s1": 10, "s2": 5})
-
     runner = CliRunner()
     result = runner.invoke(sessions, ["stats"])
 
     assert result.exit_code == 0
     assert "Total Sessions: 2" in result.output
-    # 10 + 5 = 15 total messages
-    assert "Total Messages: 15" in result.output
     assert "active: 1" in result.output
     assert "completed: 1" in result.output
     assert "claude: 1" in result.output
     assert "gemini: 1" in result.output
 
 
-def test_show_messages(mock_session_manager, mock_message_manager, mock_resolve_session) -> None:
+def test_show_messages(mock_session_manager, mock_resolve_session) -> None:
     session = Session(
         id="s1",
         project_id="p1",
@@ -255,28 +245,20 @@ def test_show_messages(mock_session_manager, mock_message_manager, mock_resolve_
         {"role": "user", "content": "hello", "message_index": 1},
         {"role": "assistant", "content": "hi", "message_index": 2},
     ]
-    mock_message_manager.get_messages.side_effect = lambda **kwargs: async_return(msgs)
-    mock_message_manager.count_messages.side_effect = lambda session_id: async_return(2)
 
-    runner = CliRunner()
-    result = runner.invoke(sessions, ["messages", "s1"])
+    with patch("gobby.sessions.transcript_reader.TranscriptReader") as mock_reader_cls:
+        mock_reader = MagicMock()
+        mock_reader_cls.return_value = mock_reader
+        mock_reader.get_messages = lambda **kwargs: async_return(msgs)
+        mock_reader.count_messages = lambda session_id: async_return(2)
+
+        runner = CliRunner()
+        result = runner.invoke(sessions, ["messages", "s1"])
 
     assert result.exit_code == 0
     assert "Messages for session s1" in result.output
     assert "user: hello" in result.output
     assert "assistant: hi" in result.output
-
-
-def test_search_messages(mock_message_manager, mock_resolve_session) -> None:
-    msgs = [{"role": "user", "content": "found it", "session_id": "s1"}]
-    mock_message_manager.search_messages.side_effect = lambda **kwargs: async_return(msgs)
-
-    runner = CliRunner()
-    result = runner.invoke(sessions, ["search", "query"])
-
-    assert result.exit_code == 0
-    assert "Found 1 messages" in result.output
-    assert "found it" in result.output
 
 
 @pytest.mark.integration
