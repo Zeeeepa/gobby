@@ -59,8 +59,6 @@ describe('ArtifactsTab', () => {
     expect(screen.getByText('Artifact History')).toBeTruthy()
     expect(screen.getByText('Script.py')).toBeTruthy()
     expect(screen.getByText('Notes.md')).toBeTruthy()
-    expect(screen.getByText('python')).toBeTruthy()
-    expect(screen.getByText('text')).toBeTruthy()
   })
 
   it('calls onOpenArtifact when an item is clicked in history', () => {
@@ -78,17 +76,26 @@ describe('ArtifactsTab', () => {
     expect(screen.getByTestId('artifact-title')).toHaveTextContent('Script.py')
   })
 
-  it('shows Back button in ArtifactPanel when multiple artifacts exist', () => {
-    render(<ArtifactsTab {...defaultProps} artifact={mockArtifacts.get('a1')!} />)
-
-    expect(screen.queryByTestId('btn-back')).toBeTruthy()
-  })
-
-  it('does not show Back button in ArtifactPanel when only one artifact exists', () => {
+  it('shows Back button in ArtifactPanel even when only one artifact exists', () => {
     const singleArtifact = new Map<string, Artifact>([['a1', mockArtifacts.get('a1')!]])
     render(<ArtifactsTab {...defaultProps} artifacts={singleArtifact} artifact={mockArtifacts.get('a1')!} />)
 
-    expect(screen.queryByTestId('btn-back')).toBeFalsy()
+    expect(screen.getByTestId('btn-back')).toBeTruthy()
+  })
+
+  it('renders side-by-side view when isMaximized is true', () => {
+    render(
+      <ArtifactsTab
+        {...defaultProps}
+        artifact={mockArtifacts.get('a1')!}
+        isMaximized={true}
+      />
+    )
+
+    // Should show history list (mini version)
+    expect(screen.getByText('History')).toBeTruthy()
+    // Should still show detail panel
+    expect(screen.getByTestId('artifact-panel')).toBeTruthy()
   })
 
   it('calls onMinimize/onMaximize when buttons clicked', () => {

@@ -33,11 +33,11 @@ export const ArtifactsTab = memo(function ArtifactsTab({
 }: ArtifactsTabProps) {
   const artifactList = Array.from(artifacts.values()).reverse()
 
-  if (!artifact) {
+  const renderHistory = (isMini = false) => {
     if (artifactList.length === 0) {
       return (
         <div className="activity-tab-empty">
-          <p>No artifact open</p>
+          <p>No artifacts found</p>
           <p className="text-xs text-muted-foreground mt-1">
             Artifacts appear here when code, text, or plans are generated
           </p>
@@ -46,35 +46,37 @@ export const ArtifactsTab = memo(function ArtifactsTab({
     }
 
     return (
-      <div className="flex flex-col h-full bg-background">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 className="text-sm font-semibold">Artifact History</h2>
-          <span className="text-xs text-muted-foreground">{artifactList.length} items</span>
+      <div className={`flex flex-col h-full bg-background ${isMini ? 'border-r border-border w-64' : ''}`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
+          <h2 className="text-sm font-semibold truncate">{isMini ? 'History' : 'Artifact History'}</h2>
+          {!isMini && <span className="text-xs text-muted-foreground shrink-0">{artifactList.length} items</span>}
         </div>
         <div className="flex-1 overflow-y-auto">
           {artifactList.map((a) => (
             <button
               key={a.id}
               onClick={() => onOpenArtifact(a.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors border-b border-border/50 group"
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors border-b border-border/50 group ${artifact?.id === a.id ? 'bg-muted/50' : ''}`}
             >
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                <div className={`text-sm font-medium truncate transition-colors ${artifact?.id === a.id ? 'text-primary' : 'group-hover:text-primary'}`}>
                   {a.title}
                 </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-muted-foreground/10">
+                <div className="flex items-center gap-2 mt-1 overflow-hidden">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-muted-foreground/10 shrink-0">
                     {a.type}
                   </span>
-                  {a.language && (
-                    <span className="text-[10px] text-muted-foreground font-mono">{a.language}</span>
+                  {!isMini && a.language && (
+                    <span className="text-[10px] text-muted-foreground font-mono truncate">{a.language}</span>
                   )}
-                  <span className="text-[10px] text-muted-foreground ml-auto">
-                    v{a.versions.length}
-                  </span>
+                  {!isMini && (
+                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                      v{a.versions.length}
+                    </span>
+                  )}
                 </div>
               </div>
-              <ChevronRightIcon />
+              {!isMini && <ChevronRightIcon />}
             </button>
           ))}
         </div>
@@ -82,6 +84,35 @@ export const ArtifactsTab = memo(function ArtifactsTab({
     )
   }
 
+  if (!artifact) {
+    return renderHistory(false)
+  }
+
+  // Side-by-side view when maximized
+  if (isMaximized) {
+    return (
+      <div className="flex h-full overflow-hidden bg-background">
+        {renderHistory(true)}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <ArtifactPanel
+            artifact={artifact}
+            onClose={onClose}
+            onMinimize={onMinimize}
+            onMaximize={onMaximize}
+            isMaximized={isMaximized}
+            onBack={() => onClose()}
+            onUpdateContent={onUpdateContent}
+            onSetVersion={onSetVersion}
+            planPendingApproval={planPendingApproval}
+            onApprovePlan={onApprovePlan}
+            onRequestPlanChanges={onRequestPlanChanges}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Mobile/Standard single view
   return (
     <ArtifactPanel
       artifact={artifact}
@@ -89,7 +120,7 @@ export const ArtifactsTab = memo(function ArtifactsTab({
       onMinimize={onMinimize}
       onMaximize={onMaximize}
       isMaximized={isMaximized}
-      onBack={artifactList.length > 1 ? () => onClose() : undefined}
+      onBack={() => onClose()}
       onUpdateContent={onUpdateContent}
       onSetVersion={onSetVersion}
       planPendingApproval={planPendingApproval}

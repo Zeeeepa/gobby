@@ -111,7 +111,7 @@ export function ActivityPanel({
             artifact={activeArtifact}
             onOpenArtifact={onOpenArtifact}
             onClose={onCloseArtifact}
-            onMinimize={() => onPinnedChange(false)}
+            onMinimize={onCloseArtifact}
             onMaximize={handleMaximize}
             isMaximized={panelWidth >= 800}
             onUpdateContent={onUpdateArtifactContent}

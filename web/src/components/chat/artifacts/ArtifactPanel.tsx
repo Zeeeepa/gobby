@@ -135,14 +135,9 @@ export const ArtifactPanel = memo(function ArtifactPanel({
               {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
             </Button>
           )}
-          {onMinimize && (
-            <Button size="icon" variant="ghost" onClick={onMinimize} title="Minimize">
+          {(onMinimize || onClose) && (
+            <Button size="icon" variant="ghost" onClick={onMinimize || onClose} title="Minimize to history">
               <MinimizeIcon />
-            </Button>
-          )}
-          {!onMinimize && (
-            <Button size="icon" variant="ghost" onClick={onClose} title="Close panel">
-              <CloseIcon />
             </Button>
           )}
         </div>
@@ -237,15 +232,6 @@ function RestoreIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 8V4h12v12h-4" />
       <rect x="4" y="8" width="12" height="12" rx="2" ry="2" />
-    </svg>
-  )
-}
-
-function CloseIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   )
 }
