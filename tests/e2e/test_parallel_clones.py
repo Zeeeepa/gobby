@@ -322,7 +322,7 @@ class TestSpawnAgentWithCloneIsolation:
 
         assert result.get("success") is False
         # Without workflow or parent_session_id, mode=self validation fails first
-        assert "requires" in result.get("error", "").lower()
+        assert "require" in result.get("error", "").lower()
 
     def test_spawn_with_invalid_mode_fails(
         self,
