@@ -46,6 +46,7 @@ class StepStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     SKIPPED = "skipped"
+    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -70,6 +71,7 @@ class PipelineExecution:
     parent_execution_id: str | None = None  # For nested pipeline invocations
     continuation_prompt: str | None = None  # Instructions for wake notification
     definition_json: str | None = None  # Snapshot of pipeline definition at execution time
+    review_json: str | None = None  # Conductor review of execution
 
     @classmethod
     def from_row(cls, row: Any) -> PipelineExecution:
@@ -91,6 +93,7 @@ class PipelineExecution:
             if "continuation_prompt" in row.keys()
             else None,
             definition_json=row["definition_json"] if "definition_json" in row.keys() else None,
+            review_json=row["review_json"] if "review_json" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -110,6 +113,7 @@ class PipelineExecution:
             "parent_execution_id": self.parent_execution_id,
             "continuation_prompt": self.continuation_prompt,
             "definition_json": self.definition_json,
+            "review_json": self.review_json,
         }
 
 

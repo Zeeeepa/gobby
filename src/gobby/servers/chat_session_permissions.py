@@ -27,8 +27,7 @@ logger = logging.getLogger(__name__)
 class ChatSessionPermissionsMixin:
     """Tool permission, approval, and plan mode logic for ChatSession.
 
-    Declares attribute types expected from the concrete ChatSession dataclass.
-    """
+    Declares attribute types expected from the concrete ChatSession dataclass."""
 
     # Attribute type stubs — actual fields live on the ChatSession dataclass
     conversation_id: str
@@ -39,6 +38,7 @@ class ChatSessionPermissionsMixin:
     _pending_answers: dict[str, str] | None
     _pending_answer_event: asyncio.Event | None
     _approved_tools: set[str]
+    _on_approved_tools_persist: Callable[[set[str]], None] | None
     _tool_approval_config: Any | None
     _tool_approval_callback: Any | None
     _plan_approved: bool
@@ -441,6 +441,8 @@ class ChatSessionPermissionsMixin:
 
         if decision == "approve_always":
             self._approved_tools.add(tool_name)
+            if self._on_approved_tools_persist:
+                self._on_approved_tools_persist(self._approved_tools)
             return PermissionResultAllow(updated_input=input_data)
 
         if decision == "approve":

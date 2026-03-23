@@ -48,7 +48,7 @@ variables:
     description: Default enforce_tool_schema_check to true
   auto_inject_handoff:
     value: true
-    description: Default auto_inject_handoff to true (populate full_session_summary/compact_session_summary template vars on session start)
+    description: Default auto_inject_handoff to true (populate session_summary/full_session_summary template vars on session start)
   servers_listed:
     value: true
     description: "Pre-seed servers_listed (internal servers are known at startup)"

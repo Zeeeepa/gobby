@@ -27,6 +27,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -297,6 +298,75 @@ def extract_reason(result: dict[str, Any]) -> str:
     )
 
 
+# ── Agent Daemon Failure Tracking ───────────────────────────────────────
+
+_DAEMON_FAILURE_DIR = Path("/tmp/gobby-agent-failures")
+_MAX_DAEMON_FAILURES = 3
+
+
+def _track_daemon_failure(agent_run_id: str) -> int:
+    """Track consecutive daemon-down failures for a spawned agent.
+
+    Returns the current failure count after incrementing.
+    """
+    _DAEMON_FAILURE_DIR.mkdir(parents=True, exist_ok=True)
+    failure_file = _DAEMON_FAILURE_DIR / agent_run_id
+    count = 0
+    if failure_file.exists():
+        try:
+            count = int(failure_file.read_text().strip())
+        except (ValueError, OSError):
+            pass
+    count += 1
+    try:
+        failure_file.write_text(str(count))
+    except OSError:
+        pass
+    return count
+
+
+def _reset_daemon_failures(agent_run_id: str) -> None:
+    """Reset the daemon failure counter on successful connection."""
+    failure_file = _DAEMON_FAILURE_DIR / agent_run_id
+    try:
+        failure_file.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _force_kill_agent() -> None:
+    """Force-kill the spawned agent process tree.
+
+    Tries tmux kill-pane first (cleanest in tmux context), then
+    falls back to killing the process group.
+    """
+    import subprocess as sp
+
+    # Inside tmux: kill the pane (takes down the CLI and shell)
+    if os.environ.get("TMUX"):
+        try:
+            sp.run(
+                ["tmux", "kill-pane"],
+                timeout=5,
+                stdout=sp.DEVNULL,
+                stderr=sp.DEVNULL,
+            )
+            return
+        except Exception:
+            pass
+
+    # Fallback: kill the process group (all processes in the tmux pane
+    # share a group under the shell leader)
+    try:
+        os.killpg(os.getpgid(os.getppid()), signal.SIGTERM)
+    except Exception:
+        # Last resort: kill direct parent
+        try:
+            os.kill(os.getppid(), signal.SIGTERM)
+        except Exception:
+            pass
+
+
 # ── Daemon Health Check ─────────────────────────────────────────────────
 
 
@@ -518,10 +588,22 @@ async def main() -> int:
     if not await check_daemon_running():
         # Spawned agents must stop immediately — without the daemon, hook
         # enforcement is unavailable and the agent is off-rails.
-        if os.environ.get("GOBBY_AGENT_RUN_ID"):
+        agent_run_id = os.environ.get("GOBBY_AGENT_RUN_ID")
+        if agent_run_id:
+            failures = _track_daemon_failure(agent_run_id)
+            if failures >= _MAX_DAEMON_FAILURES:
+                print(
+                    f"\nGobby daemon persistently unavailable "
+                    f"({failures} consecutive hook failures). "
+                    f"Force-terminating agent {agent_run_id}.",
+                    file=sys.stderr,
+                )
+                _force_kill_agent()
+                # If kill didn't work, fall through to block
             print(
                 "\nGobby daemon is not running. "
-                "Spawned agent tools are blocked — stop immediately.",
+                "Spawned agent tools are blocked — stop immediately. "
+                f"(failure {failures}/{_MAX_DAEMON_FAILURES})",
                 file=sys.stderr,
             )
             return 2
@@ -542,6 +624,11 @@ async def main() -> int:
                 )
             )
             return 0
+
+    # Daemon is running — reset failure counter for spawned agents
+    agent_run_id = os.environ.get("GOBBY_AGENT_RUN_ID")
+    if agent_run_id:
+        _reset_daemon_failures(agent_run_id)
 
     # Setup logger for dispatcher
     logger = logging.getLogger(config.logger_name)
@@ -655,21 +742,53 @@ async def main() -> int:
             logger.error(
                 f"Daemon returned error: status={response.status_code}, detail={error_detail}"
             )
+            # Fail closed for critical hooks (stop gates, session lifecycle) —
+            # if the rule engine couldn't evaluate, block rather than allow
+            if hook_type in config.critical_hooks:
+                print(
+                    f"\nHook error on critical hook '{hook_type}' — blocking to fail safe. "
+                    f"Detail: {error_detail}",
+                    file=sys.stderr,
+                )
+                return 2
             print(json.dumps({"status": "error", "message": f"Daemon error: {error_detail}"}))
             return 1
 
     except httpx.ConnectError:
         logger.error("Failed to connect to daemon (unreachable)")
+        # Fail closed for critical hooks — daemon is reachable (passed check_daemon_running)
+        # but connection failed, so enforcement state is unknown
+        if hook_type in config.critical_hooks:
+            print(
+                f"\nDaemon connection failed on critical hook '{hook_type}' — blocking to fail safe.",
+                file=sys.stderr,
+            )
+            return 2
         print(json.dumps({"status": "error", "message": "Daemon unreachable"}))
         return 1
 
     except httpx.TimeoutException:
         logger.error(f"Hook execution timeout: {hook_type}")
+        # Fail closed for critical hooks — rule engine may have been evaluating a stop gate
+        if hook_type in config.critical_hooks:
+            print(
+                f"\nHook timeout on critical hook '{hook_type}' — blocking to fail safe.",
+                file=sys.stderr,
+            )
+            return 2
         print(json.dumps({"status": "error", "message": "Hook execution timeout"}))
         return 1
 
     except Exception as e:
         logger.error(f"Hook execution failed: {e}", exc_info=True)
+        # Fail closed for critical hooks
+        if hook_type in config.critical_hooks:
+            print(
+                f"\nHook failure on critical hook '{hook_type}' — blocking to fail safe. "
+                f"Error: {e}",
+                file=sys.stderr,
+            )
+            return 2
         print(json.dumps({"status": "error", "message": str(e)}))
         return 1
 

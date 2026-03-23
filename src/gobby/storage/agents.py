@@ -44,6 +44,7 @@ class AgentRun:
     mode: str = "terminal"
     worktree_id: str | None = None
     clone_id: str | None = None
+    timeout_seconds: float | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> AgentRun:
@@ -77,6 +78,7 @@ class AgentRun:
             mode=row["mode"] if "mode" in row.keys() and row["mode"] else "terminal",
             worktree_id=row["worktree_id"] if "worktree_id" in row.keys() else None,
             clone_id=row["clone_id"] if "clone_id" in row.keys() else None,
+            timeout_seconds=row["timeout_seconds"] if "timeout_seconds" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -126,6 +128,7 @@ class LocalAgentRunManager:
         child_session_id: str | None = None,
         run_id: str | None = None,
         task_id: str | None = None,
+        timeout_seconds: float | None = None,
     ) -> AgentRun:
         """
         Create a new agent run.
@@ -151,9 +154,10 @@ class LocalAgentRunManager:
             """
             INSERT OR REPLACE INTO agent_runs (
                 id, parent_session_id, child_session_id, workflow_name,
-                provider, model, status, prompt, task_id, created_at, updated_at
+                provider, model, status, prompt, task_id, timeout_seconds,
+                created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
@@ -164,6 +168,7 @@ class LocalAgentRunManager:
                 model,
                 prompt,
                 task_id,
+                timeout_seconds,
                 now,
                 now,
             ),

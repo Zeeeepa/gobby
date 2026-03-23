@@ -67,9 +67,12 @@ class CodeIndexTrigger:
         self._root_paths[project_id] = root_path
 
         # Set new flush timer
+        def _schedule_flush(pid: str = project_id) -> None:
+            self._loop.create_task(self._flush(pid))
+
         self._flush_timers[project_id] = self._loop.call_later(
             self._debounce_seconds,
-            lambda pid=project_id: self._loop.create_task(self._flush(pid)),
+            _schedule_flush,
         )
 
     async def _flush(self, project_id: str) -> None:

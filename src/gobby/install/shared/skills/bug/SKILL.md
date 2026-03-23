@@ -10,22 +10,22 @@ metadata:
       autonomous: full
 ---
 
-# /gobby:bug - Create Bug Task
+# /gobby bug - Create Bug Task
 
 Create a bug/defect task with the provided title and optional description.
 
 ## Usage
 
 ```text
-/gobby:bug <title>
-/gobby:bug <title> - <description>
+/gobby bug <title>
+/gobby bug <title> - <description>
 ```
 
 ## Examples
 
 ```text
-/gobby:bug Fix login timeout
-/gobby:bug Database connection drops - Users report intermittent connection failures after 5 minutes of inactivity
+/gobby bug Fix login timeout
+/gobby bug Database connection drops - Users report intermittent connection failures after 5 minutes of inactivity
 ```
 
 ## Tool Schema Reminder

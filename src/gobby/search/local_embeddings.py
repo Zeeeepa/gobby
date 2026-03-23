@@ -262,9 +262,9 @@ class LocalEmbeddingModel:
                 output = self._llama.embed(text)
                 # llama-cpp-python returns list[float] for single input
                 if isinstance(output[0], float):
-                    results.append(output)  # type: ignore[arg-type]
+                    results.append(output)
                 else:
-                    results.append(output[0])  # type: ignore[arg-type]
+                    results.append(output[0])
             return results
 
 

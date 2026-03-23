@@ -109,6 +109,12 @@ class SessionControlMixin:
         decision = data.get("decision", "")
 
         session = self._chat_sessions.get(conversation_id_raw) if conversation_id_raw else None
+
+        # Recovery path: no in-memory session (daemon restarted)
+        if session is None and conversation_id_raw:
+            await self._handle_recovered_plan_approval(websocket, conversation_id_raw, data)
+            return
+
         if session is None or conversation_id_raw is None:
             logger.warning(
                 "plan_approval_response for unknown conversation: %s", conversation_id_raw
@@ -116,10 +122,20 @@ class SessionControlMixin:
             return
         conversation_id: str = conversation_id_raw
 
+        # Helper to clear pending_plan_path in DB after approval/rejection
+        async def _clear_pending_plan() -> None:
+            sm = getattr(self, "session_manager", None)
+            if sm and session.db_session_id:
+                try:
+                    await asyncio.to_thread(sm.update_pending_plan, session.db_session_id, None)
+                except Exception:
+                    logger.debug("Failed to clear pending_plan_path", exc_info=True)
+
         if decision == "approve":
             if session.has_pending_plan:
                 # ExitPlanMode is blocking — unblock it with the approval
                 session.provide_plan_decision("approve")
+                await _clear_pending_plan()
                 logger.info(
                     "Plan approved (ExitPlanMode unblocked) for conversation %s",
                     conversation_id[:8],
@@ -128,6 +144,7 @@ class SessionControlMixin:
                 # Legacy path: plan approval before ExitPlanMode was called
                 session.approve_plan()
                 session.set_chat_mode("accept_edits")
+                await _clear_pending_plan()
                 try:
                     await websocket.send(
                         json.dumps(
@@ -152,11 +169,13 @@ class SessionControlMixin:
             if session.has_pending_plan:
                 # ExitPlanMode is blocking — deny it so agent stays in plan mode
                 session.provide_plan_decision("request_changes")
+                await _clear_pending_plan()
                 logger.info(
                     "Plan changes requested (ExitPlanMode denied) for conversation %s",
                     conversation_id[:8],
                 )
             else:
+                await _clear_pending_plan()
                 try:
                     await websocket.send(
                         json.dumps(
@@ -173,6 +192,135 @@ class SessionControlMixin:
                 logger.info(
                     "Plan changes requested (legacy) for conversation %s", conversation_id[:8]
                 )
+
+    async def _handle_recovered_plan_approval(
+        self, websocket: Any, conversation_id: str, data: dict[str, Any]
+    ) -> None:
+        """Handle plan approval for a session orphaned by daemon restart.
+
+        The SDK conversation is dead. We update DB state and notify the frontend
+        so it can start a new conversation with the correct mode.
+        """
+        decision = data.get("decision", "")
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            logger.warning("Recovered plan approval: no session_manager available")
+            return
+
+        # Look up DB session by external_id (= conversation_id for web-chat)
+        db_session = None
+        for source in ("claude_sdk_web_chat", "codex_web_chat"):
+            try:
+                db_session = await asyncio.to_thread(
+                    session_manager.find_active_by_external_id, conversation_id, source
+                )
+                if db_session:
+                    break
+            except Exception:
+                pass
+
+        if not db_session or not db_session.pending_plan_path:
+            logger.warning(
+                "Recovered plan approval: no DB session with pending plan for %s",
+                conversation_id[:8],
+            )
+            return
+
+        plan_path = db_session.pending_plan_path
+
+        if decision == "approve":
+            await asyncio.to_thread(session_manager.update_pending_plan, db_session.id, None)
+            await asyncio.to_thread(session_manager.update_chat_mode, db_session.id, "accept_edits")
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "mode_changed",
+                            "conversation_id": conversation_id,
+                            "mode": "accept_edits",
+                            "reason": "plan_approved",
+                        }
+                    )
+                )
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "plan_approved_recovered",
+                            "conversation_id": conversation_id,
+                            "plan_path": plan_path,
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            logger.info(
+                "Recovered plan approved for conversation %s (db=%s)",
+                conversation_id[:8],
+                db_session.id[:8],
+            )
+
+        elif decision == "request_changes":
+            await asyncio.to_thread(session_manager.update_pending_plan, db_session.id, None)
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "mode_changed",
+                            "conversation_id": conversation_id,
+                            "mode": "plan",
+                            "reason": "plan_changes_requested",
+                        }
+                    )
+                )
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+            logger.info("Recovered plan changes requested for conversation %s", conversation_id[:8])
+
+    async def _rebroadcast_pending_plans(self, websocket: Any) -> None:
+        """Re-broadcast plan_pending_approval for sessions orphaned by daemon restart.
+
+        After restart, _chat_sessions is empty but DB sessions may have
+        pending_plan_path set. For each, read the plan file from disk and
+        send plan_pending_approval to the reconnecting client.
+        """
+        session_manager = getattr(self, "session_manager", None)
+        if not session_manager:
+            return
+
+        try:
+            pending = await asyncio.to_thread(session_manager.find_pending_plans)
+        except Exception as e:
+            logger.warning("Failed to query pending plans: %s", e)
+            return
+
+        for db_session in pending:
+            plan_path = db_session.pending_plan_path
+            if not plan_path:
+                continue
+            try:
+                content = await asyncio.to_thread(Path(plan_path).read_text, "utf-8")
+            except Exception:
+                logger.warning("Pending plan file missing: %s, clearing", plan_path)
+                try:
+                    await asyncio.to_thread(
+                        session_manager.update_pending_plan, db_session.id, None
+                    )
+                except Exception:
+                    pass
+                continue
+
+            msg = json.dumps(
+                {
+                    "type": "plan_pending_approval",
+                    "conversation_id": db_session.external_id,
+                    "plan_content": content,
+                    "recovered": True,
+                }
+            )
+            try:
+                await websocket.send(msg)
+            except (ConnectionClosed, ConnectionClosedError):
+                break
 
     async def _handle_continue_in_chat(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle continue_in_chat message to resume a CLI session in the web chat UI.
@@ -667,13 +815,16 @@ class SessionControlMixin:
             )
             return
 
-        # Mark session as completed in database
+        # Mark session as completed in database and clear pending plan
         if session.db_session_id:
             session_manager = getattr(self, "session_manager", None)
             if session_manager:
                 try:
                     await asyncio.to_thread(
                         session_manager.update, session.db_session_id, status="completed"
+                    )
+                    await asyncio.to_thread(
+                        session_manager.update_pending_plan, session.db_session_id, None
                     )
                 except Exception as e:
                     logger.warning(f"Failed to update session status on clear: {e}")
@@ -727,6 +878,9 @@ class SessionControlMixin:
             try:
                 if session_manager:
                     await asyncio.to_thread(session_manager.update, db_session_id, status="expired")
+                    await asyncio.to_thread(
+                        session_manager.update_pending_plan, db_session_id, None
+                    )
             except Exception as e:
                 logger.warning(f"Failed to soft-delete session from DB: {e}")
 
@@ -968,13 +1122,18 @@ class SessionControlMixin:
                     await self._fire_session_end(conv_id)
                     session = self._chat_sessions.pop(conv_id)
                     await self._cancel_active_chat(conv_id)
-                    # Mark as paused in database before stopping
+                    # Mark as paused in database and clear pending plan before stopping
                     if session.db_session_id:
                         session_manager = getattr(self, "session_manager", None)
                         if session_manager:
                             try:
                                 await asyncio.to_thread(
                                     session_manager.update, session.db_session_id, status="paused"
+                                )
+                                await asyncio.to_thread(
+                                    session_manager.update_pending_plan,
+                                    session.db_session_id,
+                                    None,
                                 )
                             except Exception as e:
                                 logger.warning(f"Failed to update session status: {e}")

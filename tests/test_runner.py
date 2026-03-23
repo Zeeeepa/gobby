@@ -78,7 +78,6 @@ def create_base_patches(
         patch("gobby.runner.LocalDatabase"),
         patch("gobby.runner.run_migrations"),
         patch("gobby.runner.LocalSessionManager"),
-        patch("gobby.runner.LocalSessionMessageManager"),
         patch("gobby.runner.LocalTaskManager"),
         patch("gobby.runner.SessionTaskManager"),
         patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),

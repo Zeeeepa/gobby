@@ -180,6 +180,24 @@ def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None)
         return ""
 
 
+class DirtyFiles:
+    """Categorized dirty files from git status."""
+
+    __slots__ = ("tracked", "untracked")
+
+    def __init__(self, tracked: set[str], untracked: set[str]) -> None:
+        self.tracked = tracked
+        self.untracked = untracked
+
+    @property
+    def all(self) -> set[str]:
+        """All dirty files (tracked + untracked)."""
+        return self.tracked | self.untracked
+
+    def __bool__(self) -> bool:
+        return bool(self.tracked or self.untracked)
+
+
 def get_dirty_files(project_path: str | None = None) -> set[str]:
     """
     Get the set of dirty files from git status --porcelain.
@@ -191,6 +209,23 @@ def get_dirty_files(project_path: str | None = None) -> set[str]:
 
     Returns:
         Set of dirty file paths (relative to repo root)
+    """
+    return get_dirty_files_categorized(project_path).all
+
+
+def get_dirty_files_categorized(project_path: str | None = None) -> DirtyFiles:
+    """
+    Get dirty files from git status, split into tracked and untracked.
+
+    Tracked: modified, staged, deleted, renamed (any status except ??).
+    Untracked: new files not yet added to git (??).
+    Excludes .gobby/ files from both sets.
+
+    Args:
+        project_path: Path to the project directory
+
+    Returns:
+        DirtyFiles with .tracked and .untracked sets
     """
     if project_path is None:
         logger.debug(
@@ -209,9 +244,10 @@ def get_dirty_files(project_path: str | None = None) -> set[str]:
 
         if result.returncode != 0:
             logger.warning(f"get_dirty_files: git status failed: {result.stderr}")
-            return set()
+            return DirtyFiles(set(), set())
 
-        dirty_files = set()
+        tracked = set()
+        untracked = set()
         # Split by newline first, don't strip() the whole string as it removes
         # the leading space from git status format (e.g., " M file.py")
         for line in result.stdout.split("\n"):
@@ -219,23 +255,28 @@ def get_dirty_files(project_path: str | None = None) -> set[str]:
             if not line:
                 continue
             # Format is "XY filename" or "XY filename -> newname" for renames
+            status = line[:2]
             # Skip the status prefix (first 3 chars: 2 status chars + space)
             filepath = line[3:].split(" -> ")[0]  # Handle renames
             # Exclude .gobby/ files
-            if not filepath.startswith(".gobby/"):
-                dirty_files.add(filepath)
+            if filepath.startswith(".gobby/"):
+                continue
+            if status == "??":
+                untracked.add(filepath)
+            else:
+                tracked.add(filepath)
 
-        return dirty_files
+        return DirtyFiles(tracked, untracked)
 
     except subprocess.TimeoutExpired:
         logger.warning("get_dirty_files: git status timed out")
-        return set()
+        return DirtyFiles(set(), set())
     except FileNotFoundError:
         logger.warning("get_dirty_files: git not found")
-        return set()
+        return DirtyFiles(set(), set())
     except Exception as e:
         logger.error(f"get_dirty_files: Error running git status: {e}")
-        return set()
+        return DirtyFiles(set(), set())
 
 
 def get_task_session_liveness(

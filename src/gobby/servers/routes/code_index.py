@@ -184,6 +184,11 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
         limit: int = Query(50, description="Max neighbors"),
     ) -> JSONResponse:
         """Expand a symbol to show its callers and callees."""
+        if not project_id:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "project_id is required"},
+            )
         indexer, pid = _get_indexer_and_project(project_id)
         if indexer is None:
             return JSONResponse(
@@ -218,6 +223,12 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
             return JSONResponse(
                 status_code=400,
                 content={"error": "Either symbol_name or file_path required"},
+            )
+
+        if symbol_name and file_path:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Provide either symbol_name or file_path, not both"},
             )
 
         if indexer.graph is None or not indexer.graph.available:

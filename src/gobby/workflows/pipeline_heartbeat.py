@@ -154,16 +154,37 @@ class PipelineHeartbeat:
                 if has_active:
                     continue
 
-                # No active agent run — task is orphaned, reset it
-                await asyncio.to_thread(
-                    self._task_manager.update_task, task.id, status="open", assignee=None
-                )
-                logger.warning(
-                    "Heartbeat: recovered stale task %s (#%s) — "
-                    "reset to open (no active agent run)",
-                    task.id,
-                    task.seq_num,
-                )
+                # No active agent run — task is orphaned.
+                # If the task has linked commits, the agent did real work
+                # but didn't call mark_task_needs_review — promote to
+                # needs_review instead of wiping the claim entirely.
+                has_commits = bool(getattr(task, "commits", None))
+                if has_commits:
+                    await asyncio.to_thread(
+                        self._task_manager.update_task,
+                        task.id,
+                        status="needs_review",
+                        assignee=None,
+                    )
+                    logger.info(
+                        "Heartbeat: promoted stale task %s (#%s) to needs_review "
+                        "(has commits, no active agent run)",
+                        task.id,
+                        task.seq_num,
+                    )
+                else:
+                    await asyncio.to_thread(
+                        self._task_manager.update_task,
+                        task.id,
+                        status="open",
+                        assignee=None,
+                    )
+                    logger.warning(
+                        "Heartbeat: recovered stale task %s (#%s) — "
+                        "reset to open (no active agent run, no commits)",
+                        task.id,
+                        task.seq_num,
+                    )
                 recovered += 1
             except Exception:
                 logger.exception("Heartbeat: error checking task %s for staleness", task.id)

@@ -121,6 +121,14 @@ class TranscriptReader:
         # Deprecated: kept for backwards-compat callers, ignored
         message_manager: object | None = None,
     ):
+        if message_manager is not None:
+            import warnings
+
+            warnings.warn(
+                "message_manager is deprecated and ignored",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self._session_manager = session_manager
         self._archive_dir = archive_dir
 

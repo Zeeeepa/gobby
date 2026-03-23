@@ -137,26 +137,18 @@ export function ActivityPanel({
     return (
       <div className="activity-panel-mobile-overlay">
         <div className="activity-panel">
-          {/* Tab strip with close button */}
+          {/* Dropdown selector with close button */}
           <div className="activity-panel-tabs">
-            <TooltipProvider delayDuration={200}>
-              <div className="activity-panel-tab-strip">
-                {TABS.map((tab) => (
-                  <Tooltip key={tab.id}>
-                    <TooltipTrigger asChild>
-                      <button
-                        className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
-                        onClick={() => onTabChange(tab.id)}
-                      >
-                        <span className="activity-panel-tab-icon">{tab.icon}</span>
-                        <span className="activity-panel-tab-label">{tab.label}</span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">{tab.label}</TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-            </TooltipProvider>
+            <select
+              className="activity-panel-mobile-select"
+              value={activeTab}
+              onChange={(e) => onTabChange(e.target.value as ActivityTab)}
+              aria-label="Select activity tab"
+            >
+              {TABS.map((tab) => (
+                <option key={tab.id} value={tab.id}>{tab.label}</option>
+              ))}
+            </select>
             <button
               className="activity-panel-close"
               onClick={handleClose}
@@ -225,7 +217,7 @@ export function ActivityPanel({
 }
 
 // Hooks for persisting panel state
-export function useActivityPanel() {
+export function useActivityPanel(isMobile = false) {
   const [isPinned, setIsPinned] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_PINNED)
@@ -267,8 +259,11 @@ export function useActivityPanel() {
     try { localStorage.setItem(STORAGE_KEY_TAB, activeTab) } catch { /* ignore */ }
   }, [activeTab])
 
-  // Auto-collapse on narrow viewport
+  // Auto-collapse on narrow viewport (desktop side panel only — mobile
+  // overlay is position:fixed and doesn't affect chat layout, so collapsing
+  // it on resize events just fights with programmatic showTab pins)
   useEffect(() => {
+    if (isMobile) return
     const handleResize = () => {
       if (window.innerWidth < 1100 && isPinned) {
         setIsPinned(false)
@@ -276,7 +271,7 @@ export function useActivityPanel() {
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [isPinned])
+  }, [isPinned, isMobile])
 
   const showTab = useCallback((tab: ActivityTab) => {
     setActiveTab(tab)

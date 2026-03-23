@@ -114,6 +114,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     )
     _tool_approval_config: Any | None = field(default=None, repr=False)
     _tool_approval_callback: Any | None = field(default=None, repr=False)
+    _on_approved_tools_persist: Callable[[set[str]], None] | None = field(default=None, repr=False)
     _needs_history_injection: bool = field(default=False, repr=False)
     _last_model: str | None = field(default=None, repr=False)
     _pending_agent_name: str | None = field(default=None, repr=False)
@@ -122,6 +123,8 @@ class ChatSession(ChatSessionPermissionsMixin):
     _context_window_overrides: dict[str, int] = field(default_factory=dict, repr=False)
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
+    _message_manager_source_session_id: str | None = field(default=None, repr=False)
+    _message_manager: Any | None = field(default=None, repr=False)
     sdk_session_id: str | None = field(default=None, repr=False)
     system_prompt_override: str | None = field(default=None, repr=False)
     resume_session_id: str | None = field(default=None, repr=False)
@@ -345,9 +348,9 @@ class ChatSession(ChatSessionPermissionsMixin):
                 tool_name = inp.get("tool_name", "")
                 tool_input = inp.get("tool_input", {})
 
-                # Detect plan file writes in plan mode → broadcast to frontend
+                # Detect plan file writes/reads in plan mode → broadcast to frontend
                 if (
-                    tool_name in ("Write", "Edit")
+                    tool_name in ("Write", "Edit", "Read")
                     and self.chat_mode == "plan"
                     and not self._plan_approved
                     and isinstance(tool_input, dict)
@@ -358,7 +361,8 @@ class ChatSession(ChatSessionPermissionsMixin):
                         if plan_content and self._on_plan_ready:
                             await self._on_plan_ready(plan_content, tool_input)
                             logger.info(
-                                "Plan file written, broadcast plan_pending_approval for %s",
+                                "Plan file %s, broadcast plan_pending_approval for %s",
+                                "read" if tool_name == "Read" else "written",
                                 self.conversation_id[:8],
                             )
 

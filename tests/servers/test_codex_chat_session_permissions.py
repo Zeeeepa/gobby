@@ -40,6 +40,7 @@ class FakeCodexSession(CodexChatSessionPermissionsMixin):
         self._pending_answers = None
         self._pending_answer_event = None
         self._approved_tools: set[str] = set()
+        self._on_approved_tools_persist = None
         self._tool_approval_config = None
         self._tool_approval_callback = None
         self._plan_approved = False

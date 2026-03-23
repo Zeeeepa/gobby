@@ -24,7 +24,6 @@ def _make_session(**overrides: Any) -> Session:
         "jsonl_path": "/tmp/transcripts/sess.jsonl",
         "summary_path": "/tmp/summaries/sess.md",
         "summary_markdown": "# Summary\nLong markdown content...",
-        "compact_markdown": "# Compact\nHandoff context...",
         "git_branch": "main",
         "parent_session_id": None,
         "created_at": "2026-01-22T00:00:00+00:00",
@@ -82,7 +81,6 @@ class TestSessionToBrief:
 
         brief = session.to_brief()
         assert "summary_markdown" not in brief
-        assert "compact_markdown" not in brief
         assert "digest_markdown" not in brief
         assert "last_turn_markdown" not in brief
         assert "original_prompt" not in brief

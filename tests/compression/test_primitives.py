@@ -323,6 +323,44 @@ class TestGroupLines:
         text = "".join(result)
         assert "5 passed" in text
 
+    def test_pytest_failures_extracts_errors_section(self) -> None:
+        """ERRORS section (collection/fixture errors) is preserved."""
+        lines = [
+            "collected 3 items / 1 error\n",
+            "======= ERRORS =======\n",
+            "_______ ERROR collecting tests/test_broken.py _______\n",
+            "ImportError: cannot import name 'missing'\n",
+            "======= short test summary =======\n",
+            "ERROR tests/test_broken.py\n",
+            "======= 1 error =======\n",
+        ]
+        result = group_lines(lines, mode="pytest_failures")
+        text = "".join(result)
+        assert "ERRORS" in text
+        assert "ImportError" in text
+        assert "1 error" in text
+
+    def test_pytest_failures_mixed_failures_and_errors(self) -> None:
+        """Both FAILURES and ERRORS sections are captured."""
+        lines = [
+            "======= FAILURES =======\n",
+            "_______ test_thing _______\n",
+            "    assert 1 == 2\n",
+            "======= ERRORS =======\n",
+            "_______ ERROR collecting tests/test_broken.py _______\n",
+            "ImportError: cannot import name 'missing'\n",
+            "======= short test summary =======\n",
+            "FAILED tests/test_a.py::test_thing\n",
+            "ERROR tests/test_broken.py\n",
+            "======= 1 failed, 1 error =======\n",
+        ]
+        result = group_lines(lines, mode="pytest_failures")
+        text = "".join(result)
+        assert "FAILURES" in text
+        assert "assert 1 == 2" in text
+        assert "ERRORS" in text
+        assert "ImportError" in text
+
     def test_pytest_failures_no_failures_falls_back(self) -> None:
         """When no FAILURES section, falls back to test_failures logic."""
         lines = ["test_a ... ok\n", "1 passed\n"]

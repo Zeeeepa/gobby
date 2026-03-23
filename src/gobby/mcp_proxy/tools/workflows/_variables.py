@@ -65,7 +65,7 @@ def set_variable(
     db: DatabaseProtocol,
     name: str,
     value: str | int | float | bool | list[Any] | dict[str, Any] | None,
-    session_id: str | None = None,
+    session_id: str,
     workflow: str | None = None,
     instance_manager: WorkflowInstanceManager | None = None,
     session_var_manager: SessionVariableManager | None = None,
@@ -82,7 +82,7 @@ def set_variable(
         db: LocalDatabase instance
         name: Variable name (e.g., "session_epic", "is_worktree")
         value: Variable value (string, number, boolean, or null)
-        session_id: Session reference (accepts #N, N, UUID, or prefix)
+        session_id: Session reference (accepts #N, N, UUID, or prefix). Required to prevent cross-session variable bleed.
         workflow: Optional workflow name to scope the variable to
         instance_manager: Optional WorkflowInstanceManager for workflow-scoped writes
         session_var_manager: Optional SessionVariableManager for session-scoped writes
@@ -90,12 +90,6 @@ def set_variable(
     Returns:
         Success status and updated variables
     """
-    # Require explicit session_id to prevent cross-session bleed
-    if not session_id:
-        return {
-            "success": False,
-            "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
-        }
 
     # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
     try:
@@ -147,7 +141,7 @@ def get_variable(
     session_manager: LocalSessionManager,
     db: DatabaseProtocol,
     name: str | None = None,
-    session_id: str | None = None,
+    session_id: str = "",
     workflow: str | None = None,
     instance_manager: WorkflowInstanceManager | None = None,
     session_var_manager: SessionVariableManager | None = None,
@@ -162,7 +156,7 @@ def get_variable(
         session_manager: LocalSessionManager instance
         db: LocalDatabase instance
         name: Variable name to get (if None, returns all variables)
-        session_id: Session reference (accepts #N, N, UUID, or prefix)
+        session_id: Session reference (accepts #N, N, UUID, or prefix). Required to prevent cross-session variable bleed.
         workflow: Optional workflow name to scope the read to
         instance_manager: Optional WorkflowInstanceManager for workflow-scoped reads
         session_var_manager: Optional SessionVariableManager for session-scoped reads

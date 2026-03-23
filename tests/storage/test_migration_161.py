@@ -6,7 +6,7 @@ from gobby.storage.migrations import get_current_version, run_migrations
 pytestmark = pytest.mark.unit
 
 
-def test_migration_161_backfill(tmp_path):
+def test_migration_161_backfill(tmp_path) -> None:
     """Test that migration 161 correctly backfills stats from existing messages."""
     # Verified by developer agent during task #10529
     db_path = tmp_path / "test_161.db"
@@ -60,6 +60,46 @@ def test_migration_161_backfill(tmp_path):
     CREATE TABLE memories (
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL
+    );
+    """)
+
+    # config_store table needed by migration 165 (deletes deprecated memory configs)
+    db.execute("""
+    CREATE TABLE config_store (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'user',
+        is_secret INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """)
+
+    # agent_runs table needed by migration 166 (adds timeout_seconds column)
+    db.execute("""
+    CREATE TABLE agent_runs (
+        id TEXT PRIMARY KEY,
+        agent_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending'
+    );
+    """)
+
+    # pipeline_executions table needed by migration 167 (adds review_json column)
+    db.execute("""
+    CREATE TABLE pipeline_executions (
+        id TEXT PRIMARY KEY,
+        pipeline_name TEXT NOT NULL,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        inputs_json TEXT,
+        outputs_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT,
+        resume_token TEXT UNIQUE,
+        session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE,
+        continuation_prompt TEXT,
+        definition_json TEXT
     );
     """)
 
@@ -122,7 +162,7 @@ def test_migration_161_backfill(tmp_path):
     assert row_empty["last_assistant_content"] is None
 
 
-def test_migration_161_fresh_install(tmp_path):
+def test_migration_161_fresh_install(tmp_path) -> None:
     """Test that a fresh install has the columns and starts at correct version."""
     db_path = tmp_path / "fresh.db"
     db = LocalDatabase(db_path)

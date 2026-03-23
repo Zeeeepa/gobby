@@ -201,6 +201,47 @@ class TestInterceptSkillCommand:
         result = handler._intercept_skill_command("/gobby:expand --tdd")
         assert "User arguments: --tdd" in result
 
+    def test_gobby_skills_namespace(self) -> None:
+        handler = _TestHandler()
+        mock_skill = MagicMock()
+        mock_skill.name = "bridge"
+        mock_skill.content = "# Bridge skill"
+        handler._skill_manager.resolve_skill_name.return_value = mock_skill
+
+        result = handler._intercept_skill_command("/gobby skills bridge")
+        assert result is not None
+        assert "bridge" in result
+        assert "# Bridge skill" in result
+        handler._skill_manager.resolve_skill_name.assert_called_with("bridge")
+
+    def test_gobby_skill_singular_namespace(self) -> None:
+        handler = _TestHandler()
+        mock_skill = MagicMock()
+        mock_skill.name = "bridge"
+        mock_skill.content = "# Bridge skill"
+        handler._skill_manager.resolve_skill_name.return_value = mock_skill
+
+        result = handler._intercept_skill_command("/gobby skill bridge")
+        assert result is not None
+        assert "bridge" in result
+
+    def test_gobby_skills_namespace_with_args(self) -> None:
+        handler = _TestHandler()
+        mock_skill = MagicMock()
+        mock_skill.name = "bridge"
+        mock_skill.content = "# Bridge"
+        handler._skill_manager.resolve_skill_name.return_value = mock_skill
+
+        result = handler._intercept_skill_command("/gobby skills bridge --verbose")
+        assert result is not None
+        assert "User arguments: --verbose" in result
+
+    def test_gobby_skills_bare_returns_help(self) -> None:
+        handler = _TestHandler()
+        with patch.object(handler, "_generate_help_content", return_value="help text"):
+            result = handler._intercept_skill_command("/gobby skills")
+        assert result == "help text"
+
 
 # ---------------------------------------------------------------------------
 # _suggest_skills tests

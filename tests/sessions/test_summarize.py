@@ -18,14 +18,12 @@ def _make_session(
     jsonl_path: str | None = None,
     source: str = "claude",
     summary_markdown: str | None = None,
-    compact_markdown: str | None = None,
 ) -> MagicMock:
     session = MagicMock()
     session.id = session_id
     session.jsonl_path = jsonl_path
     session.source = source
     session.summary_markdown = summary_markdown
-    session.compact_markdown = compact_markdown
     return session
 
 

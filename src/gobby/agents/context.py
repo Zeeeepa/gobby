@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -73,7 +74,14 @@ class ContextResolver:
             max_transcript_messages: Maximum transcript messages to fetch.
             truncation_suffix: Suffix template when content is truncated.
             transcript_reader: Optional TranscriptReader for DB + gzip fallback reads.
+            message_manager: Deprecated, ignored. Kept for backwards compatibility.
         """
+        if message_manager is not None:
+            warnings.warn(
+                "message_manager is deprecated and ignored",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self._session_manager = session_manager
         self._project_path = Path(project_path) if project_path else None
         self._truncation_suffix = truncation_suffix

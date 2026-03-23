@@ -2719,6 +2719,16 @@
   letter-spacing: 0.05em;
 }
 
+.session-type-badge--interactive {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+
+.session-type-badge--autonomous {
+  background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
+  color: var(--warning, #f59e0b);
+}
+
 .session-kill-btn {
   display: flex;
   align-items: center;
@@ -2799,6 +2809,19 @@
 .activity-panel-mobile-overlay .activity-panel {
   flex: 1;
   border-left: none;
+}
+
+.activity-panel-mobile-select {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  margin: 0.375rem 0.75rem;
+  flex: 1;
+  min-width: 0;
+  appearance: auto;
 }
 
 .activity-panel-close {

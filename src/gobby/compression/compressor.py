@@ -148,7 +148,6 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
                 },
             ),
             (group_lines, {"mode": "pytest_failures"}),
-            (truncate, {"head": 50, "tail": 20}),
         ],
     ),
     (
@@ -168,7 +167,6 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
                 },
             ),
             (group_lines, {"mode": "test_failures"}),
-            (truncate, {"head": 50, "tail": 20}),
         ],
     ),
     (
@@ -187,7 +185,6 @@ _COMMAND_PIPELINES: list[tuple[str, str, PipelineSpec]] = [
                 },
             ),
             (group_lines, {"mode": "test_failures"}),
-            (truncate, {"head": 50, "tail": 20}),
         ],
     ),
     # === Linters ===

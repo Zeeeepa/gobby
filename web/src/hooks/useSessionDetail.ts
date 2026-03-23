@@ -123,9 +123,10 @@ export function useSessionDetail(sessionId: string | null) {
         updated[existingIdx] = newMessage
         return updated
       }
+      // Only increment total for genuinely new messages, not upserts
+      setTotalMessages((p) => p + 1)
       return [...prev, newMessage]
     })
-    setTotalMessages((prev) => prev + 1)
   }, []))
 
   const hasMore = false

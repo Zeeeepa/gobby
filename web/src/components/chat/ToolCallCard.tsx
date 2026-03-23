@@ -148,8 +148,15 @@ export function getToolSummary(call: ToolCall): string | null {
     case 'search_tools':
       return args.query ? `"${truncStr(args.query as string, 60)}"` : null
 
+    case 'Agent': {
+      const desc = args.description as string
+      const agentType = args.subagent_type as string
+      const parts = [agentType, desc ? truncStr(desc, 50) : null].filter(Boolean)
+      return parts.length > 0 ? parts.join(': ') : null
+    }
+
     default:
-      if (call.server_name && call.server_name !== 'builtin') {
+      if (call.server_name && call.server_name !== 'builtin' && call.server_name !== 'unknown') {
         return `${call.server_name}.${name}`
       }
       return null

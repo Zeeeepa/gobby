@@ -246,7 +246,6 @@ class TestAgentRunCompletion:
         mock_session = MagicMock()
         mock_session.agent_run_id = "run-123"
         mock_session.summary_markdown = "Summary"
-        mock_session.compact_markdown = None
 
         coordinator.complete_agent_run(mock_session)
 
@@ -293,7 +292,6 @@ class TestAgentRunCompletion:
         mock_session = MagicMock()
         mock_session.agent_run_id = "run-123"
         mock_session.summary_markdown = None
-        mock_session.compact_markdown = None
 
         with patch("gobby.agents.registry.get_running_agent_registry") as mock_get_registry:
             mock_registry = MagicMock()
@@ -315,7 +313,6 @@ class TestAgentRunCompletion:
         mock_session.agent_run_id = "run-456"
         mock_session.id = "sess-789"
         mock_session.summary_markdown = "Done"
-        mock_session.compact_markdown = None
         mock_session.tool_call_count = 5
         mock_session.turn_count = 3
 
@@ -337,7 +334,6 @@ class TestAgentRunCompletion:
         mock_session.agent_run_id = "run-ghost"
         mock_session.id = "sess-ghost"
         mock_session.summary_markdown = ""
-        mock_session.compact_markdown = None
         mock_session.tool_call_count = 0
         mock_session.turn_count = 0
 
@@ -362,7 +358,6 @@ class TestAgentRunCompletion:
         mock_session.agent_run_id = "run-456"
         mock_session.id = "sess-789"
         mock_session.summary_markdown = "Done"
-        mock_session.compact_markdown = None
         mock_session.tool_call_count = 10
         mock_session.turn_count = 5
 

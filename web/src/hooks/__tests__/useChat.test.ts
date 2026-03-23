@@ -13,8 +13,14 @@ let mockWs: { instances: MockWebSocketInstance[]; MockWebSocket: typeof WebSocke
 let mockFetch: MockFetchInstance
 let useChat: typeof import('../useChat').useChat
 let originalLocalStorage: Storage
+let consoleSpy: { log: ReturnType<typeof vi.spyOn>; error: ReturnType<typeof vi.spyOn>; warn: ReturnType<typeof vi.spyOn> }
 
 beforeEach(() => {
+  consoleSpy = {
+    log: vi.spyOn(console, 'log').mockImplementation(() => {}),
+    error: vi.spyOn(console, 'error').mockImplementation(() => {}),
+    warn: vi.spyOn(console, 'warn').mockImplementation(() => {}),
+  }
   mockWs = createMockWebSocket()
   mockFetch = createMockFetch()
   // Mock localStorage — jsdom's localStorage doesn't delegate to Storage.prototype,
@@ -36,6 +42,9 @@ afterEach(() => {
   mockWs.restore()
   mockFetch.restore()
   Object.defineProperty(globalThis, 'localStorage', { value: originalLocalStorage, writable: true, configurable: true })
+  consoleSpy.log.mockRestore()
+  consoleSpy.error.mockRestore()
+  consoleSpy.warn.mockRestore()
   vi.restoreAllMocks()
 })
 

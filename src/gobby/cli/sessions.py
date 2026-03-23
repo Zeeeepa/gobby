@@ -181,7 +181,7 @@ def show_messages(
     # Fetch messages (live JSONL + gzip archive fallback)
     from gobby.sessions.transcript_reader import TranscriptReader
 
-    reader = TranscriptReader(None, session_manager)
+    reader = TranscriptReader(session_manager)
     messages = asyncio.run(
         reader.get_messages(
             session_id=session.id,
@@ -302,17 +302,14 @@ def create_handoff(
     - Initial goal
     - Recent activity
 
-    Summary types:
-    - --compact: Fast structured extraction using TranscriptAnalyzer
-    - --full: LLM-powered comprehensive summary
-    - Neither flag: Generate both (default)
+    Generates an LLM-powered summary with code-only fallback on failure.
 
     Output destinations:
     - db: Save to database only
     - file: Write to file only (in --path directory)
     - all: Save to both database and file
 
-    File output: full summary saved as session_*.md, compact as session_compact_*.md.
+    File output: summary saved as session_*.md.
 
     If no session ID is provided, uses the current project's most recent active session.
     """

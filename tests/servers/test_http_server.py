@@ -457,10 +457,10 @@ class TestSessionEndpoints:
             assert session["source"] == "claude"
 
     def test_get_messages_without_manager(self, client: TestClient) -> None:
-        """Test getting messages when message manager not available."""
+        """Test getting messages when transcript reader not available."""
         response = client.get("/api/sessions/test-session/messages")
         assert response.status_code == 503
-        assert "Message manager not available" in response.json()["detail"]
+        assert "Transcript reader not available" in response.json()["detail"]
 
     def test_list_sessions_without_manager(
         self,

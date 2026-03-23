@@ -129,6 +129,11 @@ class MemoryManager:
         return self._kg_service
 
     @property
+    def vector_store(self) -> Any | None:
+        """Get the vector store."""
+        return self._vector_store
+
+    @property
     def embed_fn(self) -> Callable[..., Any] | None:
         """Get the embedding function."""
         return self._embed_fn

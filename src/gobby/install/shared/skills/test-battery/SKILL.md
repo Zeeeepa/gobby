@@ -267,7 +267,7 @@ for agent in agents.agents:
 
 Kill orphaned tmux sessions:
 ```bash
-tmux -L gobby list-sessions 2>/dev/null | grep -v attached | cut -d: -f1 | xargs -I{} tmux -L gobby kill-session -t {}
+tmux -L gobby list-sessions 2>/dev/null | grep -v attached | cut -d: -f1 | while read -r sess; do tmux -L gobby kill-session -t "$sess" 2>/dev/null; done
 ```
 
 #### 5. Merge Isolation Environment

@@ -85,7 +85,8 @@ export function useCodeGraph() {
       const res = await fetch(`${getBaseUrl()}/api/code-index/graph?${params}`)
       if (!res.ok) return null
       return await res.json()
-    } catch {
+    } catch (e) {
+      console.error('useCodeGraph: fetchFileGraph failed', e)
       return null
     }
   }, [])
@@ -99,7 +100,8 @@ export function useCodeGraph() {
       const res = await fetch(`${getBaseUrl()}/api/code-index/graph/file/${encodeURIComponent(filePath)}?${params}`)
       if (!res.ok) return null
       return await res.json()
-    } catch {
+    } catch (e) {
+      console.error('useCodeGraph: expandFile failed', e)
       return null
     }
   }, [])
@@ -113,7 +115,8 @@ export function useCodeGraph() {
       const res = await fetch(`${getBaseUrl()}/api/code-index/graph/symbol/${encodeURIComponent(symbolId)}/neighbors?${params}`)
       if (!res.ok) return null
       return await res.json()
-    } catch {
+    } catch (e) {
+      console.error('useCodeGraph: expandSymbol failed', e)
       return null
     }
   }, [])
@@ -126,11 +129,12 @@ export function useCodeGraph() {
       const params = new URLSearchParams({ project_id: projectId })
       if (opts.symbolName) params.set('symbol_name', opts.symbolName)
       if (opts.filePath) params.set('file_path', opts.filePath)
-      if (opts.depth) params.set('depth', String(opts.depth))
+      if (opts.depth !== undefined && opts.depth !== null) params.set('depth', String(opts.depth))
       const res = await fetch(`${getBaseUrl()}/api/code-index/graph/blast-radius?${params}`)
       if (!res.ok) return null
       return await res.json()
-    } catch {
+    } catch (e) {
+      console.error('useCodeGraph: fetchBlastRadius failed', e)
       return null
     }
   }, [])
@@ -145,7 +149,8 @@ export function useCodeGraph() {
       if (!res.ok) return []
       const data = await res.json()
       return data.results || []
-    } catch {
+    } catch (e) {
+      console.error('useCodeGraph: searchSymbols failed', e)
       return []
     }
   }, [])

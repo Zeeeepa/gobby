@@ -67,6 +67,10 @@ class Session:
     turn_count: int = 0
     tool_call_count: int = 0
     last_assistant_content: str | None = None
+    # Pending plan file path (for restart recovery)
+    pending_plan_path: str | None = None
+    # JSON array of user-approved tool names (approve_always)
+    approved_tools_json: str | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -115,6 +119,12 @@ class Session:
             tool_call_count=row["tool_call_count"] if "tool_call_count" in row.keys() else 0,
             last_assistant_content=row["last_assistant_content"]
             if "last_assistant_content" in row.keys()
+            else None,
+            pending_plan_path=row["pending_plan_path"]
+            if "pending_plan_path" in row.keys()
+            else None,
+            approved_tools_json=row["approved_tools_json"]
+            if "approved_tools_json" in row.keys()
             else None,
         )
 
@@ -195,6 +205,8 @@ class Session:
             "turn_count": self.turn_count,
             "tool_call_count": self.tool_call_count,
             "last_assistant_content": self.last_assistant_content,
+            "pending_plan_path": self.pending_plan_path,
+            "approved_tools_json": self.approved_tools_json,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,

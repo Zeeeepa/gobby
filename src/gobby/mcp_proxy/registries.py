@@ -199,6 +199,7 @@ def setup_internal_registries(
             metrics_manager=metrics_manager,
             session_storage=local_session_manager,
             daily_budget_usd=daily_budget_usd,
+            event_store=metrics_manager.event_store,
         )
         manager.add_registry(metrics_registry)
         logger.debug("Metrics registry initialized with token tracking")

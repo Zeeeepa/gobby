@@ -806,7 +806,7 @@ class TestCallToolByName:
 
         assert result["result"] == "success"
         mock_mcp_manager.call_tool.assert_called_once_with(
-            "ext-server", "ext_tool", {"arg": "value"}
+            "ext-server", "ext_tool", {"arg": "value"}, session_id=None
         )
 
     @pytest.mark.asyncio

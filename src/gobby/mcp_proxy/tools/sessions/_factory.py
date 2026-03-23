@@ -6,6 +6,7 @@ into a unified registry.
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -47,10 +48,17 @@ def create_session_messages_registry(
         db: Database for dependency injection (optional)
         worktree_manager: Worktree manager for context enrichment (optional)
         transcript_reader: TranscriptReader for JSONL + gzip fallback reads (optional)
+        message_manager: Deprecated, ignored. Kept for backwards compatibility.
 
     Returns:
         InternalToolRegistry with all session tools registered
     """
+    if message_manager is not None:
+        warnings.warn(
+            "message_manager is deprecated and ignored",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     registry = InternalToolRegistry(
         name="gobby-sessions",
         description="Session management and message querying - CRUD, retrieval, search",

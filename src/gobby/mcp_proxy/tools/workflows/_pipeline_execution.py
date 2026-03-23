@@ -647,6 +647,14 @@ def get_pipeline_status(
             except json.JSONDecodeError:
                 outputs = execution.outputs_json
 
+        # Parse review if available
+        review = None
+        if execution.review_json:
+            try:
+                review = json.loads(execution.review_json)
+            except json.JSONDecodeError:
+                review = execution.review_json
+
         # Build execution dict
         execution_dict = {
             "id": execution.id,
@@ -660,6 +668,7 @@ def get_pipeline_status(
             "completed_at": execution.completed_at,
             "resume_token": execution.resume_token,
             "session_id": execution.session_id,
+            "review": review,
         }
 
         # Build steps list

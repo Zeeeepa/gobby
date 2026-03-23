@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, act, waitFor } from '@testing-library/react'
 import App from '../App'
 
 // Mock all hooks used by App.tsx
@@ -158,24 +158,13 @@ describe('App wiring', () => {
   })
 
   it('calls sendProjectChange and setProjectIdRef when effectiveProjectId is set', async () => {
-    // We need to wait for project resolution logic in App
-    render(<App />)
-    
-    // The resolution logic in App has several useEffects and depends on mock return values.
-    // In our mock, defaultProjectId will resolve eventually.
-    
-    // Since we're verifying the useEffect wiring:
-    // useEffect(() => {
-    //   setProjectIdRef(effectiveProjectId);
-    //   if (effectiveProjectId) {
-    //     sendProjectChange(effectiveProjectId);
-    //   }
-    // }, [effectiveProjectId, setProjectIdRef, sendProjectChange]);
-    
-    // We expect it to be called with 'p1' (from mock) or whatever default resolves.
-    
-    // Given the complexity of App.tsx, we might need to wait or just check if it was called at all.
-    expect(mockSetProjectIdRef).toHaveBeenCalled()
-    expect(mockSendProjectChange).toHaveBeenCalled()
+    await act(async () => {
+      render(<App />)
+    })
+
+    await waitFor(() => {
+      expect(mockSetProjectIdRef).toHaveBeenCalled()
+      expect(mockSendProjectChange).toHaveBeenCalled()
+    })
   })
 })

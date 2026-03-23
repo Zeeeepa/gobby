@@ -1082,3 +1082,125 @@ class TestClaimedTaskReconciliation:
         # Should not modify — can't verify without DB
         assert variables["task_claimed"] is True
         assert variables["claimed_tasks"] == {"uuid-1": "#10"}
+
+    def test_reconcile_rebuilds_from_db_when_dict_empty(self) -> None:
+        """Empty dict + task_manager → should rebuild claimed_tasks from DB."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+        db_task = _make_task("uuid-db", status="in_progress", assignee="sess-1")
+        db_task.seq_num = 42
+        task_manager.list_tasks.return_value = [db_task]
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is True
+        assert variables["claimed_tasks"] == {"uuid-db": "#42"}
+        task_manager.list_tasks.assert_called_once_with(
+            assignee="sess-1", status="in_progress"
+        )
+
+    def test_reconcile_rebuilds_with_no_seq_num(self) -> None:
+        """DB task without seq_num should use truncated UUID as ref."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+        db_task = _make_task("abcdef12-3456-7890-abcd-ef1234567890", status="in_progress", assignee="sess-1")
+        db_task.seq_num = None
+        task_manager.list_tasks.return_value = [db_task]
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is True
+        assert variables["claimed_tasks"] == {"abcdef12-3456-7890-abcd-ef1234567890": "abcdef12"}
+
+    def test_reconcile_clears_when_db_has_no_tasks(self) -> None:
+        """Empty dict + DB confirms no tasks → task_claimed should be False."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.observers import reconcile_claimed_tasks
+
+        task_manager = MagicMock()
+        task_manager.list_tasks.return_value = []
+
+        variables: dict[str, object] = {
+            "task_claimed": True,
+            "claimed_tasks": {},
+        }
+        reconcile_claimed_tasks(variables, "sess-1", task_manager=task_manager)
+
+        assert variables["task_claimed"] is False
+        assert variables["claimed_tasks"] == {}
+
+
+class TestForceAllowStopWithTaskClaimed:
+    """Test that force_allow_stop does NOT bypass require-task-close when task_claimed=True."""
+
+    @pytest.mark.asyncio
+    async def test_force_allow_suppressed_when_task_claimed(self, db) -> None:
+        """force_allow_stop with task_claimed=True should NOT override to allow."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "force_allow_stop": True,
+            "task_claimed": True,
+            "claimed_tasks": {"uuid-1": "#10"},
+            "stop_attempts": 0,
+        }
+
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, "sess-1", variables)
+
+        # force_allow_stop should be cleared but NOT set override_decision
+        assert variables.get("force_allow_stop") is False
+        # Without a require-task-close rule installed, response is allow
+        # (the override was suppressed, rule eval proceeds normally)
+        # The key assertion: force_allow_stop was consumed without setting override
+        assert response.decision == "allow"  # No rules loaded = allow
+
+    @pytest.mark.asyncio
+    async def test_force_allow_works_without_task_claimed(self, db) -> None:
+        """force_allow_stop without task_claimed should still override to allow."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "force_allow_stop": True,
+            "tool_block_pending": True,
+            "task_claimed": False,
+        }
+
+        event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(event, "sess-1", variables)
+
+        assert response.decision == "allow"
+        assert variables.get("force_allow_stop") is False
+
+    @pytest.mark.asyncio
+    async def test_force_allow_stop_is_still_cleared_when_suppressed(self, db) -> None:
+        """force_allow_stop should be self-clearing even when suppressed by task_claimed."""
+        engine = RuleEngine(db)
+        variables: dict[str, object] = {
+            "force_allow_stop": True,
+            "task_claimed": True,
+            "claimed_tasks": {"uuid-1": "#10"},
+        }
+
+        event = _make_event(HookEventType.STOP)
+        await engine.evaluate(event, "sess-1", variables)
+
+        assert variables.get("force_allow_stop") is False
+
+        # Second stop — force_allow_stop is gone, no double-clearing
+        variables["force_allow_stop"] = False
+        await engine.evaluate(event, "sess-1", variables)
+        assert variables.get("force_allow_stop") is False

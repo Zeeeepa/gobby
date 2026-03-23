@@ -200,6 +200,28 @@ class TestToolOutputNormalization:
         result = normalize_mcp_fields(data)
         assert "tool_output" not in result
 
+    def test_string_tool_output_parsed_to_dict(self) -> None:
+        """Claude Code sends tool_response as JSON string — should be parsed."""
+        data = {
+            "tool_response": '{"success": true, "result": {"id": "abc-123", "ref": "#42"}}',
+        }
+        result = normalize_mcp_fields(data)
+        assert isinstance(result["tool_output"], dict)
+        assert result["tool_output"]["success"] is True
+        assert result["tool_output"]["result"]["id"] == "abc-123"
+
+    def test_string_tool_output_non_json_left_as_string(self) -> None:
+        """Non-JSON tool output (e.g. plain text) should remain a string."""
+        data = {"tool_response": "Error: file not found"}
+        result = normalize_mcp_fields(data)
+        assert result["tool_output"] == "Error: file not found"
+
+    def test_string_tool_output_json_array_left_as_string(self) -> None:
+        """JSON arrays should not be coerced (only dicts are useful)."""
+        data = {"tool_response": '[1, 2, 3]'}
+        result = normalize_mcp_fields(data)
+        assert result["tool_output"] == '[1, 2, 3]'
+
 
 class TestCombinedNormalization:
     """Tests verifying all normalizations work together."""

@@ -67,7 +67,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
           </div>
         )}
 
-        {message.thinkingContent !== undefined && (
+        {message.thinkingContent !== undefined && !(message.contentBlocks && message.contentBlocks.length > 0) && (
           <ThinkingBlock content={message.thinkingContent} messageId={message.id} />
         )}
 
@@ -106,8 +106,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
                 )
               }
               if (block.type === 'image') {
-                // Backend provides source: Record<string, unknown> (Anthropic/SDK shape)
-                const source = block.source as any
+                const { source } = block
                 const src = source?.data ? `data:${source.media_type};base64,${source.data}` : ''
                 if (!src) return null
                 return (
@@ -120,7 +119,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
                 return (
                   <div key={`${message.id}-b${i}`} className="my-1 p-2 rounded bg-muted/50 border border-border text-xs flex items-center gap-2">
                     <span className="font-medium text-foreground">Document:</span>
-                    <span className="truncate">{(block.source as any)?.name || 'Unknown'}</span>
+                    <span className="truncate">{block.source?.name || 'Unknown'}</span>
                   </div>
                 )
               }

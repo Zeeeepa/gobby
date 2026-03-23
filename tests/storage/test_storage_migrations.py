@@ -55,7 +55,6 @@ def test_migrations_fresh_db(tmp_path) -> None:
         "tasks",
         "task_dependencies",
         "session_tasks",
-        "session_messages",
         "memories",
         "tool_embeddings",
         "task_validation_history",

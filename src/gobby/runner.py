@@ -103,6 +103,7 @@ class GobbyRunner:
         self._vector_rebuild_task: asyncio.Task[None] | None = None
         self._zombie_messages_task: asyncio.Task[None] | None = None
         self._span_cleanup_task: asyncio.Task[None] | None = None
+        self._metrics_archive_task: asyncio.Task[None] | None = None
         self._metric_snapshot_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
@@ -359,8 +360,12 @@ class GobbyRunner:
 
         # Tool Metrics Manager for tracking call statistics
         from gobby.mcp_proxy.metrics import ToolMetricsManager
+        from gobby.mcp_proxy.metrics_events import MetricsEventStore
 
-        self.metrics_manager = ToolMetricsManager(self.database)
+        self.metrics_event_store = MetricsEventStore(self.database)
+        self.metrics_manager = ToolMetricsManager(
+            self.database, event_store=self.metrics_event_store
+        )
 
         # MCPClientManager loads servers from database on init
         self.mcp_proxy = MCPClientManager(
@@ -667,6 +672,7 @@ class GobbyRunner:
                         project_path=str(Path.cwd()),
                         session_manager=self.session_manager,
                         config=self.config.conductor,
+                        execution_manager=self.pipeline_execution_manager,
                     )
                     cron_executor.register_handler("conductor_tick", self.conductor_manager)
                     existing = self.cron_storage.get_job_by_name("gobby:conductor-tick")
@@ -843,9 +849,10 @@ class GobbyRunner:
             # Also update the HTTPServer's broadcaster to use the same websocket_server
             self.http_server.broadcaster.websocket_server = self.websocket_server
 
-            # Pass WebSocket server to message processor if enabled
+            # Pass WebSocket server and session manager to message processor
             if self.message_processor:
                 self.message_processor.websocket_server = self.websocket_server
+                self.message_processor.session_manager = self.session_manager
 
             # Register agent event callback for WebSocket broadcasting
             from gobby.runner_broadcasting import (
@@ -913,6 +920,7 @@ class GobbyRunner:
             cleanup_zombie_messages_loop,
             expire_approval_timeouts_loop,
             metric_snapshot_loop,
+            metrics_archive_loop,
             metrics_cleanup_loop,
             rebuild_vector_store,
             savings_rollup_loop,
@@ -1045,6 +1053,12 @@ class GobbyRunner:
             self._metrics_cleanup_task = asyncio.create_task(
                 metrics_cleanup_loop(self.metrics_manager, lambda: self._shutdown_requested),
                 name="metrics-cleanup",
+            )
+
+            # Start periodic metrics event archiving (every 24 hours, 30-day retention)
+            self._metrics_archive_task = asyncio.create_task(
+                metrics_archive_loop(self.metrics_event_store, lambda: self._shutdown_requested),
+                name="metrics-archive",
             )
 
             # Start periodic span cleanup (every 24 hours, 7-day retention)
@@ -1298,6 +1312,14 @@ class GobbyRunner:
                 self._metrics_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel metrics archive task
+            if self._metrics_archive_task and not self._metrics_archive_task.done():
+                self._metrics_archive_task.cancel()
+                try:
+                    await asyncio.wait_for(self._metrics_archive_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 

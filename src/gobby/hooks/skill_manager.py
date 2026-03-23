@@ -16,6 +16,7 @@ from gobby.skills.loader import SkillLoader
 from gobby.skills.parser import ParsedSkill, extract_audience_config
 
 if TYPE_CHECKING:
+    from gobby.metrics.event_store import MetricsEventStore
     from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
@@ -86,14 +87,24 @@ class HookSkillManager:
         ```
     """
 
-    def __init__(self, db: DatabaseProtocol | None = None) -> None:
+    def __init__(
+        self,
+        db: DatabaseProtocol | None = None,
+        metrics_event_store: MetricsEventStore | None = None,
+        project_id: str | None = None,
+    ) -> None:
         """Initialize the skill manager.
 
         Args:
             db: Optional database for DB-backed loading. Falls back to
                 filesystem when None.
+            metrics_event_store: Optional MetricsEventStore for recording
+                skill search/invoke events.
+            project_id: Optional project ID for loading project-scoped skills.
         """
         self._db = db
+        self._event_store = metrics_event_store
+        self._project_id = project_id
 
         # Path to built-in skills: src/gobby/hooks/ -> src/gobby/install/shared/skills/
         self._base_dir = Path(__file__).parent.parent
@@ -145,6 +156,7 @@ class HookSkillManager:
 
         storage = LocalSkillManager(self._db)
         db_skills = storage.list_skills(
+            project_id=self._project_id,
             enabled=True,
             include_templates=False,
             include_deleted=False,
@@ -187,7 +199,7 @@ class HookSkillManager:
 
         return None
 
-    def resolve_skill_name(self, name: str) -> ParsedSkill | None:
+    def resolve_skill_name(self, name: str, session_id: str | None = None) -> ParsedSkill | None:
         """Resolve a skill name using a resolution chain.
 
         Resolution order:
@@ -197,33 +209,56 @@ class HookSkillManager:
 
         Args:
             name: The skill name to resolve.
+            session_id: Optional session ID for metrics tracking.
 
         Returns:
             ParsedSkill if resolved, None otherwise.
         """
         skills = self.discover_core_skills()
         name_lower = name.lower()
+        resolved: ParsedSkill | None = None
 
         # 1. Exact match
         for skill in skills:
             if skill.name.lower() == name_lower:
-                return skill
+                resolved = skill
+                break
 
         # 2. With gobby- prefix
-        prefixed = f"gobby-{name_lower}"
-        for skill in skills:
-            if skill.name.lower() == prefixed:
-                return skill
+        if resolved is None:
+            prefixed = f"gobby-{name_lower}"
+            for skill in skills:
+                if skill.name.lower() == prefixed:
+                    resolved = skill
+                    break
 
         # 3. Prefix/startswith match (only if unambiguous)
-        matches = [s for s in skills if s.name.lower().startswith(name_lower)]
-        if len(matches) == 1:
-            return matches[0]
+        if resolved is None:
+            matches = [s for s in skills if s.name.lower().startswith(name_lower)]
+            if len(matches) == 1:
+                resolved = matches[0]
 
-        return None
+        # Record skill invoke event
+        if self._event_store and resolved:
+            try:
+                self._event_store.record_event(
+                    event_type="skill_invoke",
+                    name=resolved.name,
+                    session_id=session_id,
+                    success=True,
+                )
+            except Exception as e:
+                logging.getLogger(__name__).debug(
+                    f"Failed to record skill_invoke event for {resolved.name}: {e}"
+                )
+
+        return resolved
 
     def match_triggers(
-        self, prompt: str, threshold: float = 0.5
+        self,
+        prompt: str,
+        threshold: float = 0.5,
+        session_id: str | None = None,
     ) -> list[tuple[ParsedSkill, float]]:
         """Match a prompt against skill trigger keywords.
 
@@ -233,6 +268,7 @@ class HookSkillManager:
         Args:
             prompt: The user's prompt text.
             threshold: Minimum score to include (default 0.5).
+            session_id: Optional session ID for metrics tracking.
 
         Returns:
             List of (skill, score) tuples above threshold, sorted descending by score.
@@ -261,6 +297,26 @@ class HookSkillManager:
                 results.append((skill, score))
 
         results.sort(key=lambda x: x[1], reverse=True)
+
+        # Record skill search event
+        if self._event_store and results:
+            try:
+                self._event_store.record_event(
+                    event_type="skill_search",
+                    name=results[0][0].name,  # top match
+                    session_id=session_id,
+                    success=True,
+                    metadata={
+                        "query": prompt[:200],
+                        "match_count": len(results),
+                        "top_score": round(results[0][1], 2),
+                    },
+                )
+            except Exception as e:
+                logging.getLogger(__name__).debug(
+                    f"Failed to record skill_search event: {e}"
+                )
+
         return results
 
     def _build_trigger_index(self) -> None:

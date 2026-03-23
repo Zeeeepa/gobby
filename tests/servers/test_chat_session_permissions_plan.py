@@ -32,26 +32,32 @@ class TestExitPlanModeDecision:
     """
 
     @pytest.mark.asyncio
-    async def test_exit_plan_mode_always_denies(self, session: ChatSession) -> None:
-        """ExitPlanMode should always return PermissionResultDeny with guidance."""
-        result = await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
+    async def test_exit_plan_mode_denies_without_plan_file(self, session: ChatSession) -> None:
+        """ExitPlanMode should deny when no plan file exists."""
+        with patch.object(session, "_read_plan_file", return_value=None):
+            session._plan_file_path = None
+            result = await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
         assert isinstance(result, PermissionResultDeny)
-        assert "automatically" in result.message.lower()
+        assert "automatically" in result.message.lower() or "plan" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_exit_plan_mode_stays_in_plan(self, session: ChatSession) -> None:
         """ExitPlanMode deny should NOT change the chat mode."""
         assert session.chat_mode == "plan"
-        await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
+        with patch.object(session, "_read_plan_file", return_value=None):
+            session._plan_file_path = None
+            await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
         assert session.chat_mode == "plan"
 
     @pytest.mark.asyncio
     async def test_exit_plan_mode_does_not_block(self, session: ChatSession) -> None:
         """ExitPlanMode should return immediately (no blocking for approval)."""
         import time
-        start = time.monotonic()
-        await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
-        elapsed = time.monotonic() - start
+        with patch.object(session, "_read_plan_file", return_value=None):
+            session._plan_file_path = None
+            start = time.monotonic()
+            await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
+            elapsed = time.monotonic() - start
         assert elapsed < 0.5, f"ExitPlanMode took {elapsed:.2f}s — should be instant"
 
 

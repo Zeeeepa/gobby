@@ -46,7 +46,6 @@ def _make_session(
     session_id: str = "sess-uuid-1",
     status: str = "active",
     summary_markdown: str | None = None,
-    compact_markdown: str | None = None,
     parent_session_id: str | None = None,
     seq_num: int | None = 10,
     project_id: str | None = "proj-1",
@@ -58,7 +57,6 @@ def _make_session(
     session.id = session_id
     session.status = status
     session.summary_markdown = summary_markdown
-    session.compact_markdown = compact_markdown
     session.parent_session_id = parent_session_id
     session.seq_num = seq_num
     session.project_id = project_id

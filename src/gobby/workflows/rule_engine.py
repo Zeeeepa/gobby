@@ -8,9 +8,13 @@ rewrite_input, compress_output, load_skill.
 import json
 import logging
 import re
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.mcp_proxy.metrics_events import MetricsEventStore
 
 import pydantic
 from opentelemetry.trace import Status, StatusCode
@@ -93,11 +97,13 @@ class RuleEngine:
         self,
         db: DatabaseProtocol,
         skill_manager: Any | None = None,
+        metrics_event_store: "MetricsEventStore | None" = None,
     ):
         self.db = db
         self.definition_manager = LocalWorkflowDefinitionManager(db)
         self.instance_manager = WorkflowInstanceManager(db)
         self._skill_manager = skill_manager
+        self._event_store = metrics_event_store
 
     async def evaluate(
         self,
@@ -245,7 +251,14 @@ class RuleEngine:
                 # Force-allow stop (catastrophic failure bypass — self-clearing)
                 if rule_event == RuleEvent.STOP and variables.get("force_allow_stop"):
                     variables["force_allow_stop"] = False
-                    override_decision = "allow"
+                    if variables.get("task_claimed"):
+                        logger.warning(
+                            "force_allow_stop suppressed — task_claimed=True, "
+                            "deferring to require-task-close rule (session %s)",
+                            session_id,
+                        )
+                    else:
+                        override_decision = "allow"
 
                 # Auto-block stop when a tool just failed (self-clearing)
                 elif rule_event == RuleEvent.STOP and variables.get("tool_block_pending"):
@@ -356,6 +369,8 @@ class RuleEngine:
                     # Process effects: non-block effects first, then block (if any)
                     effects = body.resolved_effects
                     deferred_block: RuleEffect | None = None
+                    rule_start = time.perf_counter()
+                    rule_blocked = False
 
                     for effect in effects:
                         # Check per-effect `when` condition
@@ -384,6 +399,7 @@ class RuleEngine:
                     # Now apply deferred block (if any)
                     if deferred_block is not None:
                         if self._should_block(deferred_block, event):
+                            rule_blocked = True
                             block_reason = deferred_block.reason or "Blocked by rule"
                             block_reason = self._render_template(block_reason, ctx, allowed_funcs)
                             block_reason = f"Rule enforced by Gobby: [{_row.name}]\n{block_reason}"
@@ -395,8 +411,25 @@ class RuleEngine:
                                 tool_name_lower = event.data.get("tool_name", "").lower()
                                 if tool_name_lower in EDIT_TOOLS:
                                     _clear_edit_write_state(variables)
-                            # First block wins — stop evaluating
-                            break
+
+                    # Record rule evaluation metric
+                    if self._event_store:
+                        rule_latency = (time.perf_counter() - rule_start) * 1000
+                        try:
+                            self._event_store.record_event(
+                                event_type="rule_eval",
+                                name=_row.name,
+                                session_id=session_id,
+                                success=not rule_blocked,
+                                result="block" if rule_blocked else "allow",
+                                latency_ms=rule_latency,
+                            )
+                        except Exception:
+                            pass  # Never let metrics recording break rule evaluation
+
+                    if rule_blocked:
+                        # First block wins — stop evaluating
+                        break
 
                 # 6. Build response — overrides take precedence over rule-evaluated decisions,
                 # but the rule loop always runs so mcp_calls are always collected.

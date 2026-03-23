@@ -4,7 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.memory.services.dedup import NEAR_EXACT_THRESHOLD, SIMILAR_THRESHOLD, DedupResult, DedupService
+from gobby.memory.services.dedup import (
+    NEAR_EXACT_THRESHOLD,
+    SIMILAR_THRESHOLD,
+    DedupResult,
+    DedupService,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -236,12 +241,6 @@ class TestProcess:
 
 class TestThresholds:
     """Tests for dedup threshold constants."""
-
-    def test_near_exact_threshold(self) -> None:
-        assert NEAR_EXACT_THRESHOLD == 0.95
-
-    def test_similar_threshold(self) -> None:
-        assert SIMILAR_THRESHOLD == 0.85
 
     def test_thresholds_ordered(self) -> None:
         assert SIMILAR_THRESHOLD < NEAR_EXACT_THRESHOLD

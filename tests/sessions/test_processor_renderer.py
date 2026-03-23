@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from gobby.sessions.processor import SessionMessageProcessor
-from gobby.sessions.transcript_renderer import RenderState
+from gobby.sessions.transcript_renderer import RenderState, render_incremental
 from gobby.sessions.transcripts.base import ParsedMessage
-
 
 pytestmark = pytest.mark.unit
 
@@ -34,7 +33,7 @@ def _make_parsed(
         tool_use_id=tool_use_id,
         tool_input=tool_input,
         tool_result=tool_result,
-        timestamp=datetime(2026, 3, 20, 12, 0, index, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 3, 20, 12, 0, index, tzinfo=UTC),
         raw_json=None,
     )
 
@@ -72,8 +71,6 @@ class TestRenderedBroadcast:
         user_msg = _make_parsed(0, role="user", content="hi")
         assistant_msg = _make_parsed(1, role="assistant", content="hello back")
 
-        from gobby.sessions.transcript_renderer import render_incremental
-
         state = RenderState()
         completed, state = render_incremental([user_msg, assistant_msg], state, session_id="sess-1")
 
@@ -93,7 +90,7 @@ class TestRenderedBroadcast:
             id="test-1",
             role="assistant",
             content="hello",
-            timestamp=datetime(2026, 3, 20, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 3, 20, tzinfo=UTC),
         )
         d = msg.to_dict()
         assert "id" in d

@@ -329,6 +329,7 @@ async def spawn_agent_impl(
             isolation_type="worktree",
             extra={"main_repo_path": resolved_project_path, "reused_worktree": True},
         )
+        effective_isolation = "worktree"
         handler = get_isolation_handler("none")
     elif clone_id and clone_storage:
         existing_clone = clone_storage.get(clone_id)
@@ -352,6 +353,7 @@ async def spawn_agent_impl(
             isolation_type="clone",
             extra={"source_repo": resolved_project_path, "reused_clone": True},
         )
+        effective_isolation = "clone"
         handler = get_isolation_handler("none")
     else:
         # Normal isolation flow
@@ -474,6 +476,7 @@ async def spawn_agent_impl(
         max_turns=max_turns
         or (agent_body.max_turns if agent_body and agent_body.max_turns else None),
         agent_run_manager=runner.run_storage,
+        timeout_seconds=effective_timeout,
     )
 
     # 11b. Pre-register with RunningAgentRegistry before spawn

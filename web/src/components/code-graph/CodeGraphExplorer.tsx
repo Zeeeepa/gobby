@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
 import SpriteText from 'three-spritetext'
 import { useCodeGraph, mergeCodeGraphData } from '../../hooks/useCodeGraph'
-import type { CodeGraphData, CodeGraphNode } from '../../hooks/useCodeGraph'
-import { IS_MOBILE, IS_IOS } from '../../utils/platform'
+import type { CodeGraphData, CodeGraphNode, CodeGraphSearchResult } from '../../hooks/useCodeGraph'
+import { IS_MOBILE } from '../../utils/platform'
 import './CodeGraphExplorer.css'
 
 interface CodeGraphExplorerProps {
@@ -101,10 +101,15 @@ function edgeColor(relType: string): string {
   return EDGE_COLORS[relType] || 'rgba(120,120,120,0.4)'
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
-  const fgRef = useRef<any>(null)
+  // react-force-graph-3d does not export a usable instance type
+  const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [graphData, setGraphData] = useState<CodeGraphData>({ nodes: [], links: [] })
@@ -112,7 +117,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
   const [blastMode, setBlastMode] = useState(false)
   const [blastData, setBlastData] = useState<Set<string> | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<CodeGraphSearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [webglError, setWebglError] = useState(false)
@@ -133,6 +138,13 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     return () => window.removeEventListener('error', handleError)
   }, [])
 
+  // Clean up search debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    }
+  }, [])
+
   // Resize observer
   useEffect(() => {
     const container = containerRef.current
@@ -151,6 +163,9 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     setIsLoading(true)
     fetchFileGraph(projectId).then(data => {
       if (data) setGraphData(data)
+    }).catch(e => {
+      console.error('CodeGraphExplorer: fetchFileGraph failed', e)
+    }).finally(() => {
       setIsLoading(false)
     })
   }, [projectId, fetchFileGraph])
@@ -166,7 +181,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     fg.d3Force('link')?.distance(80)
     fg.d3Force('center')?.strength(0.05)
     if (IS_MOBILE) {
-      try { fg.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2)) } catch { /* noop */ }
+      try { fg.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2)) } catch (e) { console.warn('CodeGraphExplorer: setPixelRatio failed', e) }
     }
   }, [forceData])
 
@@ -242,7 +257,8 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
       const node = fgRef.current.graphData().nodes.find((n: any) => n.id === result.id)
       if (node) {
         const distance = 200
-        const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z)
+        const hyp = Math.hypot(node.x, node.y, node.z)
+        const distRatio = hyp === 0 ? 1 : 1 + distance / hyp
         fgRef.current.cameraPosition(
           { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
           node, 1000
@@ -258,9 +274,11 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
 
   // Toggle blast radius mode
   const toggleBlastMode = useCallback(() => {
-    setBlastMode(prev => !prev)
-    if (blastMode) setBlastData(null)
-  }, [blastMode])
+    setBlastMode(prev => {
+      if (prev) setBlastData(null)
+      return !prev
+    })
+  }, [])
 
   // 3D node rendering — SpriteText (same pattern as KnowledgeGraph)
   const nodeThreeObject = useCallback((node: any) => {
@@ -364,7 +382,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
                 className="code-graph-search-result"
                 onClick={() => handleSearchResultClick(r)}
               >
-                <span className="code-graph-search-kind" style={{ color: NODE_COLORS[r.kind] || '#6b7280' }}>
+                <span className="code-graph-search-kind" style={{ color: (r.kind ? NODE_COLORS[r.kind] : undefined) || '#6b7280' }}>
                   {r.kind || r.type}
                 </span>
                 <span className="code-graph-search-name">{r.name}</span>
@@ -435,10 +453,11 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
         nodeThreeObjectExtend={false}
         onNodeClick={handleNodeClick}
         nodeLabel={(node: any) => {
-          const parts = [`<b>${node.name}</b>`]
-          if (node.kind) parts.push(`<br/><span style="color:${NODE_COLORS[node.type] || '#6b7280'};text-transform:uppercase;font-size:9px">${node.kind}</span>`)
-          if (node.signature) parts.push(`<br/><span style="color:#e6b450;font-size:9px">${node.signature}</span>`)
-          if (node.file_path && node.type !== 'file') parts.push(`<br/><span style="color:#888;font-size:9px">${node.file_path}${node.line_start ? ':' + node.line_start : ''}</span>`)
+          const name = escapeHtml(String(node.name || ''))
+          const parts = [`<b>${name}</b>`]
+          if (node.kind) parts.push(`<br/><span style="color:${NODE_COLORS[node.type] || '#6b7280'};text-transform:uppercase;font-size:9px">${escapeHtml(String(node.kind))}</span>`)
+          if (node.signature) parts.push(`<br/><span style="color:#e6b450;font-size:9px">${escapeHtml(String(node.signature))}</span>`)
+          if (node.file_path && node.type !== 'file') parts.push(`<br/><span style="color:#888;font-size:9px">${escapeHtml(String(node.file_path))}${node.line_start ? ':' + node.line_start : ''}</span>`)
           return `<div style="text-align:center;font-family:monospace;font-size:11px;line-height:1.4">${parts.join('')}</div>`
         }}
         linkSource="source"

@@ -138,8 +138,7 @@ def ctx_with_graph(
 async def test_blast_radius_requires_symbol_or_file(ctx_no_graph) -> None:
     """Returns error when neither symbol_name nor file_path provided."""
     registry = create_impact_registry(ctx_no_graph)
-    tool = registry._tools["blast_radius"]
-    result = await tool.func(symbol_name="", file_path="")
+    result = await registry.call("blast_radius", {"symbol_name": "", "file_path": ""})
     assert "error" in result
 
 
@@ -147,8 +146,7 @@ async def test_blast_radius_requires_symbol_or_file(ctx_no_graph) -> None:
 async def test_blast_radius_rejects_both_symbol_and_file(ctx_no_graph) -> None:
     """Returns error when both symbol_name and file_path provided."""
     registry = create_impact_registry(ctx_no_graph)
-    tool = registry._tools["blast_radius"]
-    result = await tool.func(symbol_name="foo", file_path="bar.py")
+    result = await registry.call("blast_radius", {"symbol_name": "foo", "file_path": "bar.py"})
     assert "error" in result
 
 
@@ -269,12 +267,13 @@ async def test_blast_radius_depth_clamping(ctx_with_graph, mock_graph) -> None:
     mock_graph._client.execute_read = AsyncMock(return_value=[])
 
     registry = create_impact_registry(ctx_with_graph)
-    tool = registry._tools["blast_radius"]
-    result = await tool.func(symbol_name="foo", depth=0, include_tasks=False)
+    result = await registry.call(
+        "blast_radius", {"symbol_name": "foo", "depth": 0, "include_tasks": False}
+    )
     assert result["query"]["depth"] == 0  # query echoes input
 
-    # The actual clamping happens inside CodeGraph.find_blast_radius
-    # Verify it was called (graph traversal ran without error)
+    # The actual clamping happens inside CodeGraph.find_blast_radius (depth = max(1, min(depth, 5)))
+    # Graph traversal ran without error
     assert result["summary"]["affected_files"] == 0
 
 

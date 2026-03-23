@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ResizeHandle } from '../chat/artifacts/ResizeHandle'
+import { SourceIcon } from '../shared/SourceIcon'
 import type { GobbySession } from '../../hooks/useSessions'
 import { useSessionDetail } from '../../hooks/useSessionDetail'
 import { useConfirmDialog } from '../../hooks/useConfirmDialog'
@@ -203,14 +204,12 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
               onClick={() => handleSelect(entry.id)}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
+                <SourceIcon source={entry.provider} size={14} />
                 <span className="text-sm text-foreground truncate">{displayLabel}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="session-type-badge">
+                <span className={`session-type-badge ${entry.sessionMode === 'autonomous' ? 'session-type-badge--autonomous' : 'session-type-badge--interactive'}`}>
                   {entry.sessionMode === 'autonomous' ? 'Autonomous' : 'Interactive'}
-                </span>
-                <span className="session-type-badge">
-                  {isPaused ? 'Paused' : 'Active'}
                 </span>
                 <button
                   className="session-expire-btn"

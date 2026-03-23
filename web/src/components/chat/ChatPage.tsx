@@ -72,7 +72,7 @@ export function ChatPage({
 
   const isMobile = useIsMobile();
   const canvas = useCanvasPanel();
-  const activity = useActivityPanel();
+  const activity = useActivityPanel(isMobile);
 
   // Modals
   const [showCommandPalette, setShowCommandPalette] = useState(false);

@@ -44,9 +44,9 @@
 }
 
 .code-graph-btn.active {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: #ef4444;
-  color: #ef4444;
+  background: color-mix(in srgb, var(--destructive, #ef4444) 15%, transparent);
+  border-color: var(--destructive, #ef4444);
+  color: var(--destructive, #ef4444);
 }
 
 /* Search - top left */

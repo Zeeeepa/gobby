@@ -80,7 +80,7 @@ class TestPlanModeSync:
             if row.name in PLAN_MODE_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
                 for effect in body.resolved_effects:
-                    assert effect.type == "set_variable"
+                    assert effect.type in {"set_variable", "load_skill"}
 
 
 class TestHandlePlanModeEntry:
@@ -96,11 +96,13 @@ class TestHandlePlanModeEntry:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
         effects = body.resolved_effects
-        assert len(effects) == 2
+        assert len(effects) == 3
         assert effects[0].variable == "plan_mode"
         assert effects[0].value is True
         assert effects[1].variable == "mode_level"
         assert effects[1].value == 0
+        assert effects[2].type == "load_skill"
+        assert effects[2].skill == "plan"
 
     def test_when_condition_matches_enter_plan_mode(self, db, manager) -> None:
         """Should fire when tool_name is EnterPlanMode."""

@@ -85,7 +85,10 @@ def register_message_tools(
                 messages = [m.to_dict() for m in rendered_messages]
                 session_total = await transcript_reader.count_messages(resolved_id)
             else:
-                raise RuntimeError("Message retrieval not available")
+                return {
+                    "success": False,
+                    "error": "Message retrieval not available (TranscriptReader not configured)",
+                }
 
             # Truncate content if not full_content
             if not full_content:

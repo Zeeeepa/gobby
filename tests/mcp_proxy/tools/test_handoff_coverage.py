@@ -20,7 +20,6 @@ def _make_session(
     *,
     id: str = "sess-uuid-1",
     summary_markdown: str | None = None,
-    compact_markdown: str | None = None,
     jsonl_path: str | None = None,
     title: str = "Test Session",
     status: str = "active",
@@ -31,7 +30,6 @@ def _make_session(
     session = MagicMock()
     session.id = id
     session.summary_markdown = summary_markdown
-    session.compact_markdown = compact_markdown
     session.jsonl_path = jsonl_path
     session.title = title
     session.status = status

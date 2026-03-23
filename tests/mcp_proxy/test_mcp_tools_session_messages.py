@@ -69,6 +69,7 @@ async def test_get_session_messages_renderer_path(mock_transcript_reader, render
     mock_transcript_reader.get_rendered_messages.assert_called_with(
         session_id="sess-123", limit=10, offset=0
     )
+    mock_transcript_reader.count_messages.assert_called_with("sess-123")
     assert result["success"] is True
     assert result["total_count"] == 1
     assert len(result["messages"]) == 1
@@ -300,7 +301,6 @@ async def test_get_handoff_context_by_session_id(mock_session_manager, full_sess
     """Test get_handoff_context tool returns summary_markdown preferentially."""
     mock_session = _make_mock_session("sess-abc")
     mock_session.summary_markdown = "## Summary\n\nTest handoff content"
-    mock_session.compact_markdown = "## Compact"
     mock_session.title = "Test Session"
     mock_session.status = "handoff_ready"
     mock_session_manager.resolve_session_reference.return_value = "sess-abc"
@@ -353,7 +353,6 @@ async def test_get_handoff_context_no_context(mock_session_manager, full_session
     """Test get_handoff_context when session has no handoff context."""
     mock_session = _make_mock_session("sess-abc")
     mock_session.summary_markdown = None
-    mock_session.compact_markdown = None
     mock_session_manager.resolve_session_reference.return_value = "sess-abc"
     mock_session_manager.get.return_value = mock_session
 
@@ -368,7 +367,6 @@ async def test_get_handoff_context_most_recent(mock_session_manager, full_sessio
     """Test get_handoff_context finds most recent handoff_ready session."""
     mock_session = _make_mock_session("sess-recent", status="handoff_ready")
     mock_session.summary_markdown = "## Recent Context"
-    mock_session.compact_markdown = None
     mock_session.title = "Recent Session"
     mock_session.status = "handoff_ready"
     mock_session_manager.list.return_value = [mock_session]
@@ -385,7 +383,6 @@ async def test_get_handoff_context_links_child(mock_session_manager, full_sessio
     """Test get_handoff_context can link a child session to the parent."""
     mock_session = _make_mock_session("sess-parent", status="handoff_ready")
     mock_session.summary_markdown = "## Context"
-    mock_session.compact_markdown = None
     mock_session.title = "Parent"
     mock_session.status = "handoff_ready"
     mock_session_manager.get.return_value = mock_session

@@ -68,6 +68,9 @@ class SpawnRequest:
     sandbox_args: list[str] | None = None
     sandbox_env: dict[str, str] | None = field(default=None)
 
+    # Timeout
+    timeout_seconds: float | None = None  # Agent timeout (persisted to DB for restart survival)
+
     # Autonomous mode fields
     system_prompt: str | None = None  # Agent system prompt
     max_turns: int | None = None  # From agent definition
@@ -161,6 +164,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id
@@ -276,6 +280,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id
@@ -467,6 +472,7 @@ async def _spawn_codex_autonomous(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id
@@ -534,6 +540,7 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        timeout_seconds=request.timeout_seconds,
     )
 
     gobby_session_id = spawn_context.session_id

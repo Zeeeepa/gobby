@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -32,10 +32,10 @@ class TranscriptParserErrorLog:
             self.logger.addHandler(handler)
 
     def log_unknown_block(
-        self, line_num: int, session_id: str | None, block_type: str, raw: dict
+        self, line_num: int, session_id: str | None, block_type: str, raw: dict[str, Any]
     ) -> None:
         """Log format: [ISO timestamp] line:{N} session:{id} — Unknown block type: {type}\n{json}"""
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         session_str = session_id if session_id else "unknown"
         json_raw = json.dumps(raw)
         msg = f"[{timestamp}] line:{line_num} session:{session_str} — Unknown block type: {block_type}\n{json_raw}"
@@ -45,7 +45,7 @@ class TranscriptParserErrorLog:
         self, line_num: int, session_id: str | None, raw_text: str, error: str
     ) -> None:
         """Log format: [ISO timestamp] line:{N} session:{id} — Malformed line: {error}\n{raw_text}"""
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         session_str = session_id if session_id else "unknown"
         msg = f"[{timestamp}] line:{line_num} session:{session_str} — Malformed line: {error}\n{raw_text}"
         self.logger.info(msg)
@@ -91,6 +91,8 @@ class TranscriptParser(Protocol):
     """
 
     error_log: TranscriptParserErrorLog
+
+    def __init__(self, session_id: str | None = None) -> None: ...
 
     def parse_line(self, line: str, index: int) -> ParsedMessage | None:
         """

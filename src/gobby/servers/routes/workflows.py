@@ -353,13 +353,13 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
 
         name: str
         value: str | int | float | bool | None = None
-        session_id: str | None = None
+        session_id: str
 
     class GetVariableRequest(BaseModel):
         """Request body for getting session variable(s)."""
 
         name: str | None = None
-        session_id: str | None = None
+        session_id: str
 
     @router.post("/variables/set")
     async def set_variable(request: SetVariableRequest) -> dict[str, Any]:

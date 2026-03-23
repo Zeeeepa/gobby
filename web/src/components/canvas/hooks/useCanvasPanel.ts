@@ -10,12 +10,28 @@ export interface CanvasPanelState {
 
 const STORAGE_KEY = 'gobby-canvas-panel-width';
 
+const safeGetItem = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const safeSetItem = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable (SSR, restricted env, etc.)
+  }
+};
+
 export const useCanvasPanel = () => {
   const [activeCanvas, setActiveCanvas] = useState<CanvasPanelState | null>(null);
   const [panelWidth, setPanelWidthState] = useState(600);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = safeGetItem(STORAGE_KEY);
     if (stored) {
       setPanelWidthState(parseInt(stored, 10));
     }
@@ -24,7 +40,7 @@ export const useCanvasPanel = () => {
   const setPanelWidth = useCallback((width: number) => {
     const clamped = Math.max(400, Math.min(1200, width));
     setPanelWidthState(clamped);
-    localStorage.setItem(STORAGE_KEY, clamped.toString());
+    safeSetItem(STORAGE_KEY, clamped.toString());
   }, []);
 
   const openCanvas = useCallback((state: CanvasPanelState) => {
