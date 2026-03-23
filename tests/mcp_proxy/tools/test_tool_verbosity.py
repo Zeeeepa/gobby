@@ -100,17 +100,24 @@ async def test_session_message_truncation():
     """Verify get_session_messages truncates large content."""
     mock_session_manager = MagicMock()
 
-    class FakeMessageManager:
-        async def get_messages(self, *args, **kwargs):
-            return [{"role": "user", "content": "A" * 1000, "tool_calls": []}]
+    class FakeRenderedMessage:
+        def __init__(self, data: dict):
+            self._data = data
+
+        def to_dict(self):
+            return dict(self._data)
+
+    class FakeTranscriptReader:
+        async def get_rendered_messages(self, *args, **kwargs):
+            return [FakeRenderedMessage({"role": "user", "content": "A" * 1000, "tool_calls": []})]
 
         async def count_messages(self, *args, **kwargs):
             return 1
 
-    mock_msg_manager = FakeMessageManager()
+    mock_reader = FakeTranscriptReader()
 
     registry = create_session_messages_registry(
-        message_manager=mock_msg_manager, session_manager=mock_session_manager
+        transcript_reader=mock_reader, session_manager=mock_session_manager
     )
 
     # Test default truncation
