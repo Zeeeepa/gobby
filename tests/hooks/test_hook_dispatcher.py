@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import os
 import sys
-from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+pytestmark = pytest.mark.unit
 
 # The dispatcher lives outside the package tree — import via path manipulation
 sys.path.insert(
@@ -27,7 +26,6 @@ sys.path.insert(
 )
 
 import hook_dispatcher  # noqa: E402
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
 

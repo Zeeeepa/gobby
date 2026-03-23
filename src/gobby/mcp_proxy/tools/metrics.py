@@ -442,7 +442,7 @@ def create_metrics_registry(
     )
     def get_metrics_timeseries(
         event_type: str = "tool_call",
-        range: str = "24h",
+        time_range: str = "24h",
         name: str | None = None,
         session_id: str | None = None,
     ) -> dict[str, Any]:
@@ -450,7 +450,7 @@ def create_metrics_registry(
 
         Args:
             event_type: Event type to query (tool_call, rule_eval, skill_search, skill_invoke).
-            range: Time range - 1h, 6h, 12h, 24h, 7d, 30d, or all.
+            time_range: Time range - 1h, 6h, 12h, 24h, 7d, 30d, or all.
             name: Optional tool/rule/skill name to filter by.
             session_id: Optional session ID to filter by.
 
@@ -462,7 +462,7 @@ def create_metrics_registry(
         try:
             result = event_store.get_timeseries(
                 event_type=event_type,
-                range_key=range,
+                range_key=time_range,
                 name=name,
                 session_id=session_id,
             )

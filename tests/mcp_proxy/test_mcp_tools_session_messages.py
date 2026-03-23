@@ -69,6 +69,7 @@ async def test_get_session_messages_renderer_path(mock_transcript_reader, render
     mock_transcript_reader.get_rendered_messages.assert_called_with(
         session_id="sess-123", limit=10, offset=0
     )
+    mock_transcript_reader.count_messages.assert_called_with("sess-123")
     assert result["success"] is True
     assert result["total_count"] == 1
     assert len(result["messages"]) == 1

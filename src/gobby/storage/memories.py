@@ -294,18 +294,22 @@ class LocalMemoryManager:
     def mark_pending_graph(self, memory_id: str) -> None:
         """Mark a memory as pending KG graph processing."""
         with self.db.transaction() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE memories SET graph_processed = 0 WHERE id = ?",
                 (memory_id,),
             )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Memory not found: {memory_id}")
 
     def mark_graph_processed(self, memory_id: str) -> None:
         """Mark a memory as having been processed by the KG pipeline."""
         with self.db.transaction() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE memories SET graph_processed = 1 WHERE id = ?",
                 (memory_id,),
             )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Memory not found: {memory_id}")
 
     def get_pending_graph_memories(self, limit: int = 20) -> list[Memory]:
         """Get memories pending KG graph processing."""

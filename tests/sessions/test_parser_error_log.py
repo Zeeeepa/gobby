@@ -54,7 +54,7 @@ def test_renderer_logs_unknown_block(tmp_path, monkeypatch):
     error_log = TranscriptParserErrorLog(cli_name)
 
     # Mock a ParsedMessage with an unknown content_type
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     msg = ParsedMessage(
         index=5,
@@ -64,7 +64,7 @@ def test_renderer_logs_unknown_block(tmp_path, monkeypatch):
         tool_name=None,
         tool_input=None,
         tool_result=None,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(UTC),
         raw_json={"type": "magic_block", "extra": "data"},
     )
 

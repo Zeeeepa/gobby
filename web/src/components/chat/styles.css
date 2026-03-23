@@ -2725,8 +2725,8 @@
 }
 
 .session-type-badge--autonomous {
-  background: color-mix(in srgb, #f59e0b 15%, transparent);
-  color: #f59e0b;
+  background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
+  color: var(--warning, #f59e0b);
 }
 
 .session-kill-btn {

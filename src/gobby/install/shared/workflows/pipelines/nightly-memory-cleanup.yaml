@@ -47,11 +47,7 @@ steps:
   # --- SKIP IF NOTHING TO CLEAN ---
   - id: nothing_to_clean
     condition: "${{ steps.audit.output.total_found == 0 }}"
-    mcp:
-      server: gobby-workflows
-      tool: fail_pipeline
-      arguments:
-        message: "No memories to clean up - all clean"
+    prompt: "No memories to clean up — all clean. Nothing to do."
 
   # --- CLEANUP PHASE ---
   - id: cleanup

@@ -74,6 +74,30 @@ class SessionMessageProcessor:
         self._running = False
         self._task: asyncio.Task[None] | None = None
 
+    def _accumulate_stats(
+        self, session_id: str, messages: list[Any]
+    ) -> dict[str, Any]:
+        """Accumulate incremental stats from parsed messages."""
+        stats = self._stats.get(
+            session_id,
+            {
+                "message_count": 0,
+                "turn_count": 0,
+                "tool_call_count": 0,
+                "last_assistant_content": None,
+            },
+        )
+        for msg in messages:
+            stats["message_count"] = stats.get("message_count", 0) + 1
+            if msg.role == "assistant" and msg.content_type == "text":
+                stats["turn_count"] = stats.get("turn_count", 0) + 1
+                if isinstance(msg.content, str) and msg.content.strip():
+                    stats["last_assistant_content"] = msg.content.strip()[-500:]
+            if msg.tool_name:
+                stats["tool_call_count"] = stats.get("tool_call_count", 0) + 1
+        self._stats[session_id] = stats
+        return stats
+
     async def start(self) -> None:
         """Start the processing loop."""
         if self._running:
@@ -226,24 +250,7 @@ class SessionMessageProcessor:
             return
 
         # Compute incremental stats (no DB message writes)
-        stats = self._stats.get(
-            session_id,
-            {
-                "message_count": 0,
-                "turn_count": 0,
-                "tool_call_count": 0,
-                "last_assistant_content": None,
-            },
-        )
-        for msg in parsed_messages:
-            stats["message_count"] = stats.get("message_count", 0) + 1
-            if msg.role == "assistant" and msg.content_type == "text":
-                stats["turn_count"] = stats.get("turn_count", 0) + 1
-                if isinstance(msg.content, str) and msg.content.strip():
-                    stats["last_assistant_content"] = msg.content.strip()[-500:]
-            if msg.tool_name:
-                stats["tool_call_count"] = stats.get("tool_call_count", 0) + 1
-        self._stats[session_id] = stats
+        stats = self._accumulate_stats(session_id, parsed_messages)
 
         # Write stats to sessions table
         if self.session_manager:
@@ -344,24 +351,7 @@ class SessionMessageProcessor:
             return
 
         # Compute incremental stats (no DB message writes)
-        stats = self._stats.get(
-            session_id,
-            {
-                "message_count": 0,
-                "turn_count": 0,
-                "tool_call_count": 0,
-                "last_assistant_content": None,
-            },
-        )
-        for msg in new_messages:
-            stats["message_count"] = stats.get("message_count", 0) + 1
-            if msg.role == "assistant" and msg.content_type == "text":
-                stats["turn_count"] = stats.get("turn_count", 0) + 1
-                if isinstance(msg.content, str) and msg.content.strip():
-                    stats["last_assistant_content"] = msg.content.strip()[-500:]
-            if msg.tool_name:
-                stats["tool_call_count"] = stats.get("tool_call_count", 0) + 1
-        self._stats[session_id] = stats
+        stats = self._accumulate_stats(session_id, new_messages)
 
         # Write stats and keep session alive
         if self.session_manager:

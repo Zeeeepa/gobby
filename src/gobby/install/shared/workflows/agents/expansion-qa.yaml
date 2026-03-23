@@ -98,9 +98,17 @@ steps:
         action: set_variable
         variable: qa_result_saved
         value: true
+    on_mcp_error:
+      - server: gobby-tasks
+        tool: save_expansion_qa_result
+        action: set_variable
+        variable: qa_result_failed
+        value: true
     transitions:
       - to: terminate
         when: "vars.qa_result_saved"
+      - to: terminate
+        when: "vars.qa_result_failed"
 
   - name: terminate
     description: "Self-terminate by calling kill_agent"

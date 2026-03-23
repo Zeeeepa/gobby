@@ -22,6 +22,7 @@ from gobby.hooks.event_handlers._tool import EDIT_TOOLS, ToolEventHandlerMixin
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
+    from gobby.code_index.trigger import CodeIndexTrigger
     from gobby.config.skills import SkillsConfig
     from gobby.config.tasks import WorkflowConfig
     from gobby.hooks.session_coordinator import SessionCoordinator
@@ -62,7 +63,7 @@ class EventHandlers(
         workflow_config: WorkflowConfig | None = None,
         get_machine_id: Callable[[], str] | None = None,
         resolve_project_id: Callable[[str | None, str | None], str] | None = None,
-        code_index_trigger: Any | None = None,
+        code_index_trigger: CodeIndexTrigger | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """

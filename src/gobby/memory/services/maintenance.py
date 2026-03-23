@@ -6,6 +6,7 @@ Cleanup functions added for nightly memory hygiene pipeline (#10572).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from collections.abc import Callable
@@ -451,7 +452,8 @@ async def execute_cleanup(
 
     # --- Stale ---
     if "stale" in active:
-        stale = find_stale_memories(
+        stale = await asyncio.to_thread(
+            find_stale_memories,
             db=memory_manager.db,
             max_age_days=max_stale_age_days,
             project_id=project_id,
@@ -467,11 +469,11 @@ async def execute_cleanup(
 
     # --- Duplicates ---
     if "duplicates" in active:
-        if memory_manager._vector_store and memory_manager._embed_fn:
+        if memory_manager.vector_store and memory_manager.embed_fn:
             dupes = await find_duplicate_memories(
                 storage=memory_manager.storage,
-                vector_store=memory_manager._vector_store,
-                embed_fn=memory_manager._embed_fn,
+                vector_store=memory_manager.vector_store,
+                embed_fn=memory_manager.embed_fn,
                 project_id=project_id,
                 similarity_threshold=similarity_threshold,
                 limit=limit_per_category,
@@ -505,7 +507,8 @@ async def execute_cleanup(
 
     # --- Orphaned ---
     if "orphaned" in active:
-        orphaned = find_orphaned_memories(
+        orphaned = await asyncio.to_thread(
+            find_orphaned_memories,
             db=memory_manager.db,
             min_age_days=max_stale_age_days,
             project_id=project_id,

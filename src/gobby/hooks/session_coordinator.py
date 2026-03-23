@@ -430,11 +430,9 @@ class SessionCoordinator:
             # Count tool calls and turns from session stats
             tool_calls_count = getattr(session, "tool_call_count", 0)
             turns_used = getattr(session, "turn_count", 0)
-            stats_retrieved = True
 
             # Guard: agent exited cleanly but did nothing — treat as error
-            # Only apply when stats were successfully retrieved to avoid false positives on DB failure
-            if stats_retrieved and tool_calls_count == 0 and turns_used == 0:
+            if tool_calls_count == 0 and turns_used == 0:
                 self._agent_run_manager.fail(
                     run_id=agent_run_id,
                     error="Agent completed with no activity (0 tool calls, 0 turns)",

@@ -366,6 +366,9 @@ class Neo4jClient:
         """
         # Sanitize LLM-extracted relationship types: replace non-alphanumeric characters with underscores
         rel_type = re.sub(r"[^A-Za-z0-9_]", "_", rel_type)
+        # Cypher identifiers cannot start with a digit
+        if rel_type and rel_type[0].isdigit():
+            rel_type = "_" + rel_type
         _validate_cypher_identifier(rel_type, "relationship type")
         props = dict(properties or {})
         cypher = (

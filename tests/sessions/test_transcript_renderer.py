@@ -15,15 +15,15 @@ pytestmark = pytest.mark.unit
 
 
 def make_msg(
-    index,
-    role,
-    content,
-    content_type="text",
-    tool_use_id=None,
-    tool_name=None,
-    tool_input=None,
-    tool_result=None,
-):
+    index: int,
+    role: str,
+    content: str,
+    content_type: str = "text",
+    tool_use_id: str | None = None,
+    tool_name: str | None = None,
+    tool_input: dict | None = None,
+    tool_result: str | None = None,
+) -> ParsedMessage:
     return ParsedMessage(
         index=index,
         role=role,

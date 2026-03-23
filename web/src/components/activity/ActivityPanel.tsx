@@ -126,6 +126,7 @@ export function ActivityPanel({
               className="activity-panel-mobile-select"
               value={activeTab}
               onChange={(e) => onTabChange(e.target.value as ActivityTab)}
+              aria-label="Select activity tab"
             >
               {TABS.map((tab) => (
                 <option key={tab.id} value={tab.id}>{tab.label}</option>

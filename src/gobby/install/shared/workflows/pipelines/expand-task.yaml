@@ -28,6 +28,7 @@ inputs:
   provider: "claude"
   model: null
   wait_timeout: 600
+  qa_wait_timeout: 120
 
 outputs:
   created: "${{ steps.execute.output.created }}"
@@ -100,7 +101,7 @@ steps:
   - id: wait_qa
     wait:
       completion_id: "${{ steps.spawn_qa.output.run_id }}"
-      timeout: "${{ inputs.wait_timeout }}"
+      timeout: "${{ inputs.qa_wait_timeout }}"
 
   # --- 8. Check QA result ---
   - id: check_qa

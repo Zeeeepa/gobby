@@ -231,6 +231,7 @@ class TestDbSkillToParsed:
         assert parsed.audience_config is None
 
 
+@pytest.mark.integration
 class TestLoadFromDbProjectScoping:
     """Tests that _load_from_db passes project_id to list_skills."""
 

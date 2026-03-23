@@ -244,8 +244,8 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
                 (since.isoformat(),) if since else (),
             )
             metrics_stats["rules"] = {
-                "total_evals": rule_total_row["cnt"] if rule_total_row else 0,
-                "block_count": rule_total_row["blocks"] if rule_total_row else 0,
+                "total_evals": (rule_total_row["cnt"] or 0) if rule_total_row else 0,
+                "block_count": (rule_total_row["blocks"] or 0) if rule_total_row else 0,
                 "top_5": [
                     {"name": r["name"], "evals": r["cnt"], "blocks": r["blocks"]} for r in rule_rows
                 ],
@@ -268,8 +268,8 @@ def register_stats_routes(router: APIRouter, server: "HTTPServer") -> None:
                 (since.isoformat(),) if since else (),
             )
             metrics_stats["skills"] = {
-                "total_searches": skill_total["searches"] if skill_total else 0,
-                "total_invocations": skill_total["invocations"] if skill_total else 0,
+                "total_searches": (skill_total["searches"] or 0) if skill_total else 0,
+                "total_invocations": (skill_total["invocations"] or 0) if skill_total else 0,
                 "top_5": [
                     {"name": r["name"], "type": r["event_type"], "count": r["cnt"]}
                     for r in skill_rows

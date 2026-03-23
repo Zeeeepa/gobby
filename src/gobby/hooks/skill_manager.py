@@ -16,6 +16,7 @@ from gobby.skills.loader import SkillLoader
 from gobby.skills.parser import ParsedSkill, extract_audience_config
 
 if TYPE_CHECKING:
+    from gobby.metrics.event_store import MetricsEventStore
     from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ class HookSkillManager:
     def __init__(
         self,
         db: DatabaseProtocol | None = None,
-        metrics_event_store: Any | None = None,
+        metrics_event_store: MetricsEventStore | None = None,
         project_id: str | None = None,
     ) -> None:
         """Initialize the skill manager.
@@ -246,8 +247,10 @@ class HookSkillManager:
                     session_id=session_id,
                     success=True,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).debug(
+                    f"Failed to record skill_invoke event for {resolved.name}: {e}"
+                )
 
         return resolved
 
@@ -309,8 +312,10 @@ class HookSkillManager:
                         "top_score": round(results[0][1], 2),
                     },
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).debug(
+                    f"Failed to record skill_search event: {e}"
+                )
 
         return results
 

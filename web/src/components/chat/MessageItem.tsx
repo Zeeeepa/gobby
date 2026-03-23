@@ -119,7 +119,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
                 return (
                   <div key={`${message.id}-b${i}`} className="my-1 p-2 rounded bg-muted/50 border border-border text-xs flex items-center gap-2">
                     <span className="font-medium text-foreground">Document:</span>
-                    <span className="truncate">{(block.source as any)?.name || 'Unknown'}</span>
+                    <span className="truncate">{block.source?.name || 'Unknown'}</span>
                   </div>
                 )
               }

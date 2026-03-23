@@ -194,8 +194,8 @@ class CodeGraph:
             if symbol_name:
                 # Walk CALLS backwards from the target symbol
                 records = await self._client.execute_read(
-                    """MATCH path = (affected:CodeSymbol)-[:CALLS*1..$depth]->(
-                           target:CodeSymbol {name: $name, project: $project})
+                    f"""MATCH path = (affected:CodeSymbol)-[:CALLS*1..{depth}]->(
+                           target:CodeSymbol {{name: $name, project: $project}})
                        WITH affected, min(length(path)) AS distance
                        OPTIONAL MATCH (file:CodeFile)-[:DEFINES]->(affected)
                        RETURN DISTINCT affected.id AS symbol_id,
@@ -207,7 +207,6 @@ class CodeGraph:
                     {
                         "name": symbol_name,
                         "project": project_id,
-                        "depth": depth,
                         "limit": limit,
                     },
                 )
@@ -215,9 +214,9 @@ class CodeGraph:
             else:
                 # Walk CALLS backwards from all symbols defined in the file
                 call_records = await self._client.execute_read(
-                    """MATCH (tf:CodeFile {path: $path, project: $project})
+                    f"""MATCH (tf:CodeFile {{path: $path, project: $project}})
                            -[:DEFINES]->(target_sym:CodeSymbol)
-                       MATCH path = (affected:CodeSymbol)-[:CALLS*1..$depth]->(target_sym)
+                       MATCH path = (affected:CodeSymbol)-[:CALLS*1..{depth}]->(target_sym)
                        WITH affected, min(length(path)) AS distance
                        OPTIONAL MATCH (file:CodeFile)-[:DEFINES]->(affected)
                        RETURN DISTINCT affected.id AS symbol_id,
@@ -229,7 +228,6 @@ class CodeGraph:
                     {
                         "path": file_path,
                         "project": project_id,
-                        "depth": depth,
                         "limit": limit,
                     },
                 )
@@ -237,9 +235,9 @@ class CodeGraph:
 
                 # Walk IMPORTS backwards from modules this file imports
                 import_records = await self._client.execute_read(
-                    """MATCH (tf:CodeFile {path: $path, project: $project})
+                    f"""MATCH (tf:CodeFile {{path: $path, project: $project}})
                            -[:IMPORTS]->(m:CodeModule)
-                       MATCH path = (importer:CodeFile)-[:IMPORTS*1..$depth]->(m)
+                       MATCH path = (importer:CodeFile)-[:IMPORTS*1..{depth}]->(m)
                        WHERE importer.path <> $path
                        WITH importer, min(length(path)) AS distance
                        RETURN DISTINCT importer.path AS file_path,
@@ -249,7 +247,6 @@ class CodeGraph:
                     {
                         "path": file_path,
                         "project": project_id,
-                        "depth": depth,
                         "limit": limit,
                     },
                 )

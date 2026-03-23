@@ -9,6 +9,8 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
+from gobby.hooks.normalization import _SHELL_TOOLS
+
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEvent
     from gobby.storage.tasks import LocalTaskManager
@@ -18,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 _MODE_LEVEL_MAP = {"plan": 0, "accept_edits": 1, "normal": 1, "bypass": 2}
+
+# Pattern matching git's commit success output: [branch hash] message
+# e.g., "[main abc1234] Fix the bug" or "[feat/login 9a3b2c1e] Add auth"
+_GIT_COMMIT_RE = re.compile(r"^\[[\w/.#-]+ [a-f0-9]{7,}\]", re.MULTILINE)
 
 
 def compute_mode_level(chat_mode: str) -> int:
@@ -232,6 +238,46 @@ def detect_commit_link(event: "HookEvent", variables: dict[str, Any], session_id
     logger.info(f"Session {session_id}: task_has_commits=true (via {inner_tool})")
 
 
+def detect_bash_commit(
+    event: "HookEvent", variables: dict[str, Any], session_id: str
+) -> None:
+    """Detect git commit success output from Bash tool invocations.
+
+    Sets ``task_has_commits: true`` when the Bash tool output contains
+    git's commit success pattern (``[branch hash]``), e.g.::
+
+        [main abc1234] Fix the bug
+
+    This complements :func:`detect_commit_link` which only fires on
+    explicit MCP tool calls (``link_commit``, ``close_task``).
+
+    Args:
+        event: The AFTER_TOOL hook event
+        variables: Session variables dict (modified in place)
+        session_id: The platform session ID (for logging)
+    """
+    if variables.get("task_has_commits"):
+        return  # Already set
+
+    if not event.data:
+        return
+
+    tool_name = event.data.get("tool_name", "")
+    if tool_name not in _SHELL_TOOLS:
+        return
+
+    if event.data.get("is_error"):
+        return  # Failed commands don't count
+
+    output = event.data.get("tool_output") or ""
+    if not isinstance(output, str):
+        return
+
+    if _GIT_COMMIT_RE.search(output):
+        variables["task_has_commits"] = True
+        logger.info(f"Session {session_id}: task_has_commits=true (via Bash git commit)")
+
+
 def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], session_id: str) -> None:
     """Detect plan mode from system reminders or CLI-specific markers.
 
@@ -409,7 +455,8 @@ def reconcile_claimed_tasks(
         # Dict is empty — check DB for tasks we might have lost track of
         try:
             db_tasks = task_manager.list_tasks(assignee=session_id, status="in_progress")
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Session {session_id}: failed to list in-progress tasks: {e}")
             db_tasks = []
 
         if db_tasks:

@@ -304,10 +304,8 @@ class ChatSessionMixin:
                 if db_session.usage_total_cost_usd:
                     session._accumulated_cost_usd = db_session.usage_total_cost_usd
                 if db_session.approved_tools_json:
-                    import json as _json
-
                     try:
-                        session._approved_tools = set(_json.loads(db_session.approved_tools_json))
+                        session._approved_tools = set(json.loads(db_session.approved_tools_json))
                     except (ValueError, TypeError):
                         logger.debug("Malformed approved_tools_json, ignoring")
                 if db_session.pending_plan_path:

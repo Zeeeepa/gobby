@@ -755,7 +755,7 @@ def create_memory_registry(
         Equivalent to cleanup_memories with dry_run=True.
 
         Args:
-            max_stale_age_days: Memories older than this with 0 access are stale (default: 90)
+            max_stale_age_days: Memories older than this with 0 access are stale (default: 30)
             categories: Which categories to audit (default: all).
                 Valid: "stale", "duplicates", "code_derivable", "orphaned"
         """
@@ -790,7 +790,7 @@ def create_memory_registry(
 
         Args:
             dry_run: If true, report what would be cleaned without deleting (default: false)
-            max_stale_age_days: Memories older than this with 0 access are stale (default: 90)
+            max_stale_age_days: Memories older than this with 0 access are stale (default: 30)
             similarity_threshold: Vector similarity threshold for duplicate detection (default: 0.95)
             categories: Which categories to clean (default: all).
                 Valid: "stale", "duplicates", "code_derivable", "orphaned"

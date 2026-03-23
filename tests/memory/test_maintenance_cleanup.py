@@ -23,7 +23,7 @@ pytestmark = pytest.mark.unit
 # ---------------------------------------------------------------------------
 
 def _make_memory(
-    id: str = "mem-1",
+    memory_id: str = "mem-1",
     content: str = "Some valuable insight",
     memory_type: str = "fact",
     access_count: int = 0,
@@ -34,7 +34,7 @@ def _make_memory(
     tags: list[str] | None = None,
 ) -> MagicMock:
     m = MagicMock()
-    m.id = id
+    m.id = memory_id
     m.content = content
     m.memory_type = memory_type
     m.access_count = access_count
@@ -47,7 +47,7 @@ def _make_memory(
 
 
 def _make_db_row(
-    id: str = "mem-1",
+    memory_id: str = "mem-1",
     content: str = "Some valuable insight",
     memory_type: str = "fact",
     access_count: int = 0,
@@ -61,7 +61,7 @@ def _make_db_row(
     media: str | None = None,
 ) -> dict:
     return {
-        "id": id,
+        "id": memory_id,
         "content": content,
         "memory_type": memory_type,
         "access_count": access_count,
@@ -95,7 +95,7 @@ class TestFindStaleMemories:
     def test_finds_old_unaccessed_memories(self) -> None:
         old_date = (datetime.now(UTC) - timedelta(days=120)).isoformat()
         db = MagicMock()
-        db.fetchall.return_value = [_row(id="stale-1", created_at=old_date)]
+        db.fetchall.return_value = [_row(memory_id="stale-1", created_at=old_date)]
 
         result = find_stale_memories(db, max_age_days=30)
 
@@ -145,8 +145,8 @@ class TestFindStaleMemories:
 class TestFindDuplicateMemories:
     @pytest.mark.asyncio
     async def test_detects_near_exact_duplicates(self) -> None:
-        mem_a = _make_memory(id="a", content="hello world", access_count=5)
-        mem_b = _make_memory(id="b", content="hello world!", access_count=1)
+        mem_a = _make_memory(memory_id="a", content="hello world", access_count=5)
+        mem_b = _make_memory(memory_id="b", content="hello world!", access_count=1)
 
         storage = MagicMock()
         storage.list_memories.return_value = [mem_a, mem_b]
@@ -171,8 +171,8 @@ class TestFindDuplicateMemories:
 
     @pytest.mark.asyncio
     async def test_keeps_higher_access_count(self) -> None:
-        mem_a = _make_memory(id="a", content="fact 1", access_count=1)
-        mem_b = _make_memory(id="b", content="fact 1 dup", access_count=10)
+        mem_a = _make_memory(memory_id="a", content="fact 1", access_count=1)
+        mem_b = _make_memory(memory_id="b", content="fact 1 dup", access_count=10)
 
         storage = MagicMock()
         storage.list_memories.return_value = [mem_a, mem_b]
@@ -195,7 +195,7 @@ class TestFindDuplicateMemories:
 
     @pytest.mark.asyncio
     async def test_below_threshold_not_flagged(self) -> None:
-        mem = _make_memory(id="a")
+        mem = _make_memory(memory_id="a")
         storage = MagicMock()
         storage.list_memories.return_value = [mem]
 
@@ -238,7 +238,7 @@ class TestFindCodeDerivableMemories:
         "`models.py`",
     ])
     def test_detects_code_derivable_patterns(self, content: str) -> None:
-        mem = _make_memory(id="cd-1", content=content)
+        mem = _make_memory(memory_id="cd-1", content=content)
         storage = MagicMock()
         storage.list_memories.return_value = [mem]
 
@@ -254,7 +254,7 @@ class TestFindCodeDerivableMemories:
         "File uploads should be validated server-side, not just client-side",
     ])
     def test_preserves_valuable_memories(self, content: str) -> None:
-        mem = _make_memory(id="val-1", content=content)
+        mem = _make_memory(memory_id="val-1", content=content)
         storage = MagicMock()
         storage.list_memories.return_value = [mem]
 
@@ -265,7 +265,7 @@ class TestFindCodeDerivableMemories:
     def test_skips_long_content(self) -> None:
         """Memories over 200 chars are not flagged even if they match patterns."""
         long_content = "File src/main.py contains " + "x" * 200
-        mem = _make_memory(id="long-1", content=long_content)
+        mem = _make_memory(memory_id="long-1", content=long_content)
         storage = MagicMock()
         storage.list_memories.return_value = [mem]
 
@@ -283,7 +283,7 @@ class TestFindOrphanedMemories:
         old_date = (datetime.now(UTC) - timedelta(days=120)).isoformat()
         db = MagicMock()
         db.fetchall.return_value = [
-            _row(id="orphan-1", source_session_id="dead-session", created_at=old_date),
+            _row(memory_id="orphan-1", source_session_id="dead-session", created_at=old_date),
         ]
 
         result = find_orphaned_memories(db, min_age_days=90)
@@ -337,7 +337,7 @@ class TestExecuteCleanup:
     async def test_dry_run_does_not_delete(self) -> None:
         mgr = self._make_manager()
         old_date = (datetime.now(UTC) - timedelta(days=120)).isoformat()
-        mgr.db.fetchall.return_value = [_row(id="stale-1", created_at=old_date)]
+        mgr.db.fetchall.return_value = [_row(memory_id="stale-1", created_at=old_date)]
 
         report = await execute_cleanup(mgr, dry_run=True, categories=["stale"])
 
@@ -350,9 +350,9 @@ class TestExecuteCleanup:
     async def test_deletes_when_not_dry_run(self) -> None:
         mgr = self._make_manager()
         old_date = (datetime.now(UTC) - timedelta(days=120)).isoformat()
-        stale_row = _row(id="stale-1", created_at=old_date)
+        stale_row = _row(memory_id="stale-1", created_at=old_date)
         mgr.db.fetchall.return_value = [stale_row]
-        mgr.storage.get_memory.return_value = _make_memory(id="stale-1", access_count=0)
+        mgr.storage.get_memory.return_value = _make_memory(memory_id="stale-1", access_count=0)
 
         report = await execute_cleanup(mgr, dry_run=False, categories=["stale"])
 
@@ -364,9 +364,9 @@ class TestExecuteCleanup:
         """Stale memories accessed between scan and delete should be skipped."""
         mgr = self._make_manager()
         old_date = (datetime.now(UTC) - timedelta(days=120)).isoformat()
-        mgr.db.fetchall.return_value = [_row(id="stale-1", created_at=old_date)]
+        mgr.db.fetchall.return_value = [_row(memory_id="stale-1", created_at=old_date)]
         # Memory was accessed since scan
-        mgr.storage.get_memory.return_value = _make_memory(id="stale-1", access_count=3)
+        mgr.storage.get_memory.return_value = _make_memory(memory_id="stale-1", access_count=3)
 
         report = await execute_cleanup(mgr, dry_run=False, categories=["stale"])
 
@@ -380,13 +380,13 @@ class TestExecuteCleanup:
         old_date = (datetime.now(UTC) - timedelta(days=120)).isoformat()
 
         # Memory appears in both stale and orphaned
-        stale_row = _row(id="both-1", created_at=old_date, source_session_id="dead")
+        stale_row = _row(memory_id="both-1", created_at=old_date, source_session_id="dead")
         mgr.db.fetchall.return_value = [stale_row]
 
         # Code-derivable also finds it
-        derivable_mem = _make_memory(id="both-1", content="File main.py contains entry")
+        derivable_mem = _make_memory(memory_id="both-1", content="File main.py contains entry")
         mgr.storage.list_memories.return_value = [derivable_mem]
-        mgr.storage.get_memory.return_value = _make_memory(id="both-1", access_count=0)
+        mgr.storage.get_memory.return_value = _make_memory(memory_id="both-1", access_count=0)
 
         report = await execute_cleanup(
             mgr, dry_run=False,

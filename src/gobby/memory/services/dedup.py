@@ -119,6 +119,8 @@ class DedupService:
                     existing = self.storage.get_memory(memory_id)
                 except ValueError:
                     continue
+                # TODO: Replace length heuristic with semantic richness comparison
+                # Length is a rough proxy — longer content isn't always richer.
                 if existing and len(content) > len(existing.content):
                     updated = self.storage.update_memory(memory_id, content=content)
                     await self._embed_and_upsert(memory_id, content, project_id)

@@ -8,6 +8,7 @@ import pytest
 from gobby.mcp_proxy.metrics_events import MetricsEventStore
 
 if TYPE_CHECKING:
+    from gobby.mcp_proxy.tools.internal import InternalToolRegistry
     from gobby.storage.database import LocalDatabase
 
 pytestmark = pytest.mark.unit
@@ -326,7 +327,7 @@ class TestMCPTools:
     """Test the new MCP tool functions."""
 
     @pytest.fixture
-    def registry(self, temp_db: "LocalDatabase"):
+    def registry(self, temp_db: "LocalDatabase") -> "InternalToolRegistry":
         from gobby.mcp_proxy.metrics import ToolMetricsManager
         from gobby.mcp_proxy.tools.metrics import create_metrics_registry
 
@@ -385,7 +386,7 @@ class TestMCPTools:
         event_store.record_event(event_type="tool_call", name="Read", latency_ms=10.0)
 
         result = await registry.call("get_metrics_timeseries", {
-            "event_type": "tool_call", "range": "1h"
+            "event_type": "tool_call", "time_range": "1h"
         })
         assert result["success"] is True
         assert result["bucket_size"] == "minute"

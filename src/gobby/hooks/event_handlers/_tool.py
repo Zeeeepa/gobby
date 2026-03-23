@@ -153,7 +153,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
                                             root_path=event.cwd or "",
                                         )
                                 except Exception as e:
-                                    logger.debug(f"Failed to trigger code index update: {e}")
+                                    self.logger.debug(f"Failed to trigger code index update: {e}")
 
                         # Check if session has any claimed tasks before marking had_edits
                         has_claimed_task = False

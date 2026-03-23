@@ -103,6 +103,7 @@ class GobbyRunner:
         self._vector_rebuild_task: asyncio.Task[None] | None = None
         self._zombie_messages_task: asyncio.Task[None] | None = None
         self._span_cleanup_task: asyncio.Task[None] | None = None
+        self._metrics_archive_task: asyncio.Task[None] | None = None
         self._metric_snapshot_task: asyncio.Task[None] | None = None
 
         # Initialize local storage with dual-write if in project context
@@ -1279,6 +1280,14 @@ class GobbyRunner:
                 self._metrics_cleanup_task.cancel()
                 try:
                     await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
+            # Cancel metrics archive task
+            if self._metrics_archive_task and not self._metrics_archive_task.done():
+                self._metrics_archive_task.cancel()
+                try:
+                    await asyncio.wait_for(self._metrics_archive_task, timeout=2.0)
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 

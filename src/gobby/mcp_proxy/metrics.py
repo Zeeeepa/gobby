@@ -75,7 +75,7 @@ class ToolMetricsManager:
                 latency_ms=latency_ms,
             )
         except Exception as e:
-            logger.error(f"Failed to record event: {e}")
+            logger.warning(f"Failed to record event: {e}")
 
         # 3. OTel Observability
         attributes = {

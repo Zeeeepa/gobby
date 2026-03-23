@@ -51,7 +51,6 @@ class ServiceContainer:
     metrics_manager: Any | None = None  # ToolMetricsManager
     agent_runner: Any | None = None  # AgentRunner
     message_processor: Any | None = None  # SessionMessageProcessor
-    message_manager: Any | None = None  # Removed (LocalSessionMessageManager dropped)
 
     # Validation & Git
     task_validator: Any | None = None  # TaskValidator

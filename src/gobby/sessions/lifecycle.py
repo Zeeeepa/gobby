@@ -180,7 +180,9 @@ class SessionLifecycleManager:
         if not kg_service:
             return 0
 
-        pending = self.memory_manager.get_pending_graph_memories(limit=batch_size)
+        pending = await asyncio.to_thread(
+            self.memory_manager.get_pending_graph_memories, limit=batch_size
+        )
         if not pending:
             return 0
 
@@ -192,7 +194,7 @@ class SessionLifecycleManager:
                     memory_id=memory.id,
                     project_id=memory.project_id,
                 )
-                self.memory_manager.mark_graph_processed(memory.id)
+                await asyncio.to_thread(self.memory_manager.mark_graph_processed, memory.id)
                 processed += 1
             except Exception as e:
                 logger.warning(f"KG processing failed for memory {memory.id}: {e}")

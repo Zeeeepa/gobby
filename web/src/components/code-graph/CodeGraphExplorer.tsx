@@ -108,7 +108,8 @@ function escapeHtml(s: string): string {
 // ── Component ──────────────────────────────────────────────────
 
 export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
-  const fgRef = useRef<any>(null)
+  // react-force-graph-3d does not export a usable instance type
+  const fgRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [graphData, setGraphData] = useState<CodeGraphData>({ nodes: [], links: [] })
@@ -162,6 +163,9 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     setIsLoading(true)
     fetchFileGraph(projectId).then(data => {
       if (data) setGraphData(data)
+    }).catch(e => {
+      console.error('CodeGraphExplorer: fetchFileGraph failed', e)
+    }).finally(() => {
       setIsLoading(false)
     })
   }, [projectId, fetchFileGraph])
@@ -177,7 +181,7 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     fg.d3Force('link')?.distance(80)
     fg.d3Force('center')?.strength(0.05)
     if (IS_MOBILE) {
-      try { fg.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2)) } catch { /* noop */ }
+      try { fg.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2)) } catch (e) { console.warn('CodeGraphExplorer: setPixelRatio failed', e) }
     }
   }, [forceData])
 

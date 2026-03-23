@@ -129,7 +129,7 @@ export function useCodeGraph() {
       const params = new URLSearchParams({ project_id: projectId })
       if (opts.symbolName) params.set('symbol_name', opts.symbolName)
       if (opts.filePath) params.set('file_path', opts.filePath)
-      if (opts.depth) params.set('depth', String(opts.depth))
+      if (opts.depth !== undefined && opts.depth !== null) params.set('depth', String(opts.depth))
       const res = await fetch(`${getBaseUrl()}/api/code-index/graph/blast-radius?${params}`)
       if (!res.ok) return null
       return await res.json()

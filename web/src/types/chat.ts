@@ -76,7 +76,7 @@ export type ContentBlock =
   | { type: "tool_chain"; tool_calls: ToolCall[] }
   | { type: "tool_reference"; tool_name: string; server_name: string }
   | { type: "image"; source: { media_type: string; data: string; [key: string]: unknown } }
-  | { type: "document"; source: Record<string, unknown> }
+  | { type: "document"; source: { name?: string } & Record<string, unknown> }
   | { type: "web_search_result"; content: Record<string, unknown> }
   | { type: "unknown"; block_type: string; raw: Record<string, unknown>; source_line?: number };
 
