@@ -141,7 +141,7 @@ def detect_task_claim(
         raw_task_id = arguments.get("task_id")
         if raw_task_id and task_manager:
             try:
-                task = task_manager.get_task(raw_task_id)
+                task = task_manager.get_task(raw_task_id, project_id=project_id)
                 if task:
                     task_id = task.id
                 else:
@@ -171,7 +171,7 @@ def detect_task_claim(
     ref = task_id
     if task_manager:
         try:
-            task_obj = task_manager.get_task(task_id)
+            task_obj = task_manager.get_task(task_id, project_id=project_id)
             if task_obj and task_obj.seq_num:
                 ref = f"#{task_obj.seq_num}"
         except Exception as e:

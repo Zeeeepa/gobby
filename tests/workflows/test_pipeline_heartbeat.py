@@ -251,6 +251,47 @@ async def test_stale_task_with_terminal_agent_run_recovered(
 
 
 @pytest.mark.asyncio
+async def test_stale_task_with_commits_promoted_to_needs_review(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    agent_run_manager: LocalAgentRunManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task with linked commits but no live agent → needs_review."""
+    _seed_db(temp_db)
+    task_id = _create_in_progress_task(task_manager)
+
+    # Create a terminal agent run
+    agent_run_manager.create(
+        parent_session_id=SESSION_ID,
+        provider="gemini",
+        prompt="implement feature",
+        task_id=task_id,
+    )
+    runs = temp_db.fetchall("SELECT id FROM agent_runs WHERE task_id = ?", (task_id,))
+    run_id = runs[0]["id"]
+    agent_run_manager.start(run_id)
+    agent_run_manager.complete(run_id, result="done")
+
+    # Link a commit to the task — agent did real work
+    # Write directly to DB since link_commit validates against git
+    import json
+
+    row = temp_db.fetchone("SELECT commits FROM tasks WHERE id = ?", (task_id,))
+    commits = json.loads(row["commits"]) if row["commits"] else []
+    commits.append("abc123de")
+    temp_db.execute("UPDATE tasks SET commits = ? WHERE id = ?", (json.dumps(commits), task_id))
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 1
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "needs_review"
+    assert task.assignee is None
+
+
+@pytest.mark.asyncio
 async def test_task_with_active_agent_run_not_recovered(
     heartbeat_with_tasks: PipelineHeartbeat,
     task_manager: LocalTaskManager,
