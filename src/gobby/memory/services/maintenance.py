@@ -530,6 +530,7 @@ async def execute_cleanup(
     else:
         deleted = 0
         errors = 0
+        deleted_per_category: dict[str, int] = {}
         for memory_id in delete_ids:
             # Re-check stale memories haven't been accessed since the scan
             category = delete_ids[memory_id]
@@ -546,6 +547,7 @@ async def execute_cleanup(
                 result = await memory_manager.delete_memory(memory_id)
                 if result:
                     deleted += 1
+                    deleted_per_category[category] = deleted_per_category.get(category, 0) + 1
             except Exception as e:
                 logger.warning(f"Failed to delete memory {memory_id}: {e}")
                 errors += 1
@@ -553,5 +555,10 @@ async def execute_cleanup(
         report["total_deleted"] = deleted
         if errors:
             report["delete_errors"] = errors
+
+        # Add per-category deleted counts to their report sections
+        for cat, count in deleted_per_category.items():
+            if cat in report:
+                report[cat]["deleted"] = count
 
     return report
