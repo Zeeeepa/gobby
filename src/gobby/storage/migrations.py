@@ -979,6 +979,39 @@ CREATE TABLE metric_snapshots (
     metrics_json TEXT NOT NULL
 );
 CREATE INDEX idx_metric_snapshots_ts ON metric_snapshots(timestamp);
+
+CREATE TABLE metrics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT,
+    session_id TEXT,
+    server_name TEXT,
+    name TEXT NOT NULL,
+    success INTEGER NOT NULL DEFAULT 1,
+    latency_ms REAL,
+    result TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now'))
+);
+CREATE INDEX idx_me_type_created ON metrics_events(event_type, created_at);
+CREATE INDEX idx_me_session ON metrics_events(session_id, created_at);
+CREATE INDEX idx_me_name ON metrics_events(name, event_type);
+CREATE INDEX idx_me_created ON metrics_events(created_at);
+
+CREATE TABLE metrics_events_archive (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    server_name TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL,
+    call_count INTEGER NOT NULL DEFAULT 0,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    total_latency_ms REAL NOT NULL DEFAULT 0,
+    block_count INTEGER NOT NULL DEFAULT 0,
+    allow_count INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(event_type, project_id, server_name, name)
+);
 """
 
 

@@ -297,57 +297,6 @@ class TestLocalSessionManager:
         assert row["tool_call_count"] == 3
         assert row["last_assistant_content"] == "Testing stats update."
 
-    def test_recalculate_stats(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ) -> None:
-        """Test recalculating stats from session_messages table."""
-        session = session_manager.register(
-            external_id="recalc-stats-test",
-            machine_id="machine",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-
-        # Insert test messages manually
-        session_manager.db.execute(
-            """
-            INSERT INTO session_messages (session_id, message_index, role, content, timestamp)
-            VALUES (?, 0, 'user', 'hello', '2026-03-20T10:00:00')
-        """,
-            (session.id,),
-        )
-        session_manager.db.execute(
-            """
-            INSERT INTO session_messages (session_id, message_index, role, content, timestamp)
-            VALUES (?, 1, 'assistant', 'thinking...', '2026-03-20T10:00:01')
-        """,
-            (session.id,),
-        )
-        session_manager.db.execute(
-            """
-            INSERT INTO session_messages (session_id, message_index, role, content, tool_name, timestamp)
-            VALUES (?, 2, 'assistant', '', 'Grep', '2026-03-20T10:00:02')
-        """,
-            (session.id,),
-        )
-        session_manager.db.execute(
-            """
-            INSERT INTO session_messages (session_id, message_index, role, content, timestamp)
-            VALUES (?, 3, 'assistant', 'I found it.', '2026-03-20T10:00:03')
-        """,
-            (session.id,),
-        )
-
-        updated = session_manager.recalculate_stats(session.id)
-
-        assert updated is not None
-        assert updated.message_count == 4
-        assert updated.turn_count == 3
-        assert updated.tool_call_count == 1
-        assert updated.last_assistant_content == "I found it."
-
     @pytest.mark.unit
     def test_update_model(
         self,

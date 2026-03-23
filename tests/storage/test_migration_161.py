@@ -83,6 +83,26 @@ def test_migration_161_backfill(tmp_path) -> None:
     );
     """)
 
+    # pipeline_executions table needed by migration 167 (adds review_json column)
+    db.execute("""
+    CREATE TABLE pipeline_executions (
+        id TEXT PRIMARY KEY,
+        pipeline_name TEXT NOT NULL,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        inputs_json TEXT,
+        outputs_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT,
+        resume_token TEXT UNIQUE,
+        session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE,
+        continuation_prompt TEXT,
+        definition_json TEXT
+    );
+    """)
+
     # 2. Insert test data
     session_id = "sess-1"
     db.execute(
