@@ -69,6 +69,9 @@ class HTTPServer:
         # WebSocket server reference (set by GobbyRunner after construction)
         self.websocket_server: WebSocketServer | None = None
 
+        # Lazily-populated caches
+        self._savings_tracker: Any | None = None
+
         self.broadcaster = HookEventBroadcaster(services.websocket_server, services.config)
 
         self._start_time: float = time.time()

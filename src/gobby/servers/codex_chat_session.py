@@ -86,6 +86,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
     _pending_agent_name: str | None = field(default=None, repr=False)
     _session_manager_ref: Any | None = field(default=None, repr=False)
     _plan_approval_completed: bool = field(default=False, repr=False)
+    _context_window_overrides: dict[str, int] = field(default_factory=dict, repr=False)
     _accumulated_output_tokens: int = field(default=0, repr=False)
     _accumulated_cost_usd: float = field(default=0.0, repr=False)
     _message_manager_source_session_id: str | None = field(default=None, repr=False)
@@ -268,14 +269,13 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                     # Fire post-tool callback
                     if self._on_post_tool:
                         loop = asyncio.get_running_loop()
-                        t: asyncio.Task[None] = loop.create_task(
-                            self._on_post_tool(  # type: ignore[arg-type]
-                                {
-                                    "tool_name": tool_name,
-                                    "tool_input": item.get("metadata", {}),
-                                }
-                            )
+                        post_tool_awaitable = self._on_post_tool(
+                            {
+                                "tool_name": tool_name,
+                                "tool_input": item.get("metadata", {}),
+                            }
                         )
+                        t = asyncio.ensure_future(post_tool_awaitable, loop=loop)
                         t.add_done_callback(_on_fire_and_forget_error)
 
             def _on_turn_completed(method: str, params: dict[str, Any]) -> None:

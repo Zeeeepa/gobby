@@ -13,7 +13,7 @@ import asyncio
 import logging
 import os
 import signal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from gobby.agents.idle_detector import IdleDetector
 from gobby.agents.prompt_detector import PromptDetector
@@ -368,7 +368,7 @@ class AgentLifecycleMonitor:
             a for a in agents if a.task is not None and a.mode in ("autonomous", "in_process")
         ]
         for agent in task_agents:
-            task: asyncio.Task[object] = agent.task  # type: ignore[assignment]
+            task = cast(asyncio.Task[object], agent.task)
             if not task.done():
                 continue
 

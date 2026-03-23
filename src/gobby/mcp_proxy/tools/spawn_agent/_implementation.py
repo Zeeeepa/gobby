@@ -10,7 +10,7 @@ import asyncio
 import logging
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.agents.isolation import (
     SpawnConfig,
@@ -119,8 +119,9 @@ async def spawn_agent_impl(
         _raw_isolation = agent_body.isolation
     if _raw_isolation in (None, "inherit"):
         _raw_isolation = "none"
-    effective_isolation: Literal["none", "worktree", "clone"] = (
-        _raw_isolation if _raw_isolation in ("none", "worktree", "clone") else "none"  # type: ignore[assignment]
+    effective_isolation = cast(
+        Literal["none", "worktree", "clone"],
+        _raw_isolation if _raw_isolation in ("none", "worktree", "clone") else "none",
     )
 
     _raw_provider: str | None = provider
@@ -144,8 +145,9 @@ async def spawn_agent_impl(
         _raw_mode = agent_body.mode
     if _raw_mode in (None, "inherit"):
         _raw_mode = "terminal"
-    effective_mode: Literal["terminal", "autonomous", "self"] = (
-        _raw_mode if _raw_mode in VALID_MODES else "terminal"  # type: ignore[assignment]
+    effective_mode = cast(
+        Literal["terminal", "autonomous", "self"],
+        _raw_mode if _raw_mode in VALID_MODES else "terminal",
     )
 
     effective_model = model

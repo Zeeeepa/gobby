@@ -561,6 +561,7 @@ def install_default_mcp_servers() -> dict[str, Any]:
 
     # Resolve optional_secret_args via secret store (lazy init)
     secret_store = None
+    secret_store_init_failed = False
 
     # Add default servers if not already present
     for server in DEFAULT_MCP_SERVERS:
@@ -571,15 +572,15 @@ def install_default_mcp_servers() -> dict[str, Any]:
             args = list(server.get("args") or [])
             optional_secret_args = server.get("optional_secret_args", {})
             for secret_name, extra_args in optional_secret_args.items():
-                if secret_store is None:
+                if secret_store is None and not secret_store_init_failed:
                     try:
                         from gobby.storage.database import LocalDatabase
                         from gobby.storage.secrets import SecretStore
 
                         secret_store = SecretStore(LocalDatabase())
                     except (ImportError, OSError):
-                        secret_store = False  # type: ignore[assignment]
-                if secret_store and secret_store.exists(secret_name):
+                        secret_store_init_failed = True
+                if secret_store is not None and secret_store.exists(secret_name):
                     secret_value = secret_store.get(secret_name)
                     if secret_value:
                         args.extend(extra_args + [secret_value])

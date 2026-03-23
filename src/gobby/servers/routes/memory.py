@@ -5,7 +5,7 @@ Provides CRUD, search, and stats endpoints for the memory system.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -252,7 +252,7 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
         """Regenerate embedding vectors for all stored memories."""
         try:
             result = await server.memory_manager.reindex_embeddings()
-            return result  # type: ignore[no-any-return]
+            return cast(dict[str, Any], result)
         except Exception as e:
             logger.error(f"Failed to reindex embeddings: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e

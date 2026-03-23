@@ -86,6 +86,9 @@ class ServiceContainer:
     # Config
     config_store: Any | None = None  # ConfigStore
 
+    # Caches (lazily populated by savings, etc.)
+    _savings_tracker: Any | None = None  # SavingsTracker
+
     # Prompts
     prompt_manager: Any | None = None  # LocalPromptManager
     dev_mode: bool = False

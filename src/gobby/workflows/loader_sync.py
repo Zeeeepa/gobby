@@ -11,7 +11,7 @@ import concurrent.futures
 import threading
 from collections.abc import Coroutine
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast, runtime_checkable
 
 if TYPE_CHECKING:
     from .definitions import PipelineDefinition, WorkflowDefinition
@@ -100,7 +100,7 @@ class WorkflowLoaderSyncMixin:
     @property
     def _async_self(self) -> _WorkflowLoaderProtocol:
         """Cast self to the protocol so mypy knows the async methods exist."""
-        return self  # type: ignore[return-value]
+        return cast(_WorkflowLoaderProtocol, self)
 
     def load_workflow_sync(
         self,

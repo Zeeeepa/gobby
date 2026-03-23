@@ -84,8 +84,9 @@ class VectorStore:
             # Check for dimension mismatch between config and existing collection
             try:
                 info = await asyncio.to_thread(client.get_collection, self._collection_name)
-                existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
-                if existing_dim != self._embedding_dim:
+                vectors_cfg = info.config.params.vectors
+                existing_dim = vectors_cfg.size if isinstance(vectors_cfg, VectorParams) else None
+                if existing_dim is not None and existing_dim != self._embedding_dim:
                     logger.error(
                         f"Embedding dimension mismatch for collection '{self._collection_name}': "
                         f"configured={self._embedding_dim}, existing={existing_dim}. "
@@ -253,8 +254,9 @@ class VectorStore:
         else:
             try:
                 info = await asyncio.to_thread(client.get_collection, collection_name)
-                existing_dim = info.config.params.vectors.size  # type: ignore[union-attr]
-                if existing_dim != dim:
+                vectors_cfg = info.config.params.vectors
+                existing_dim = vectors_cfg.size if isinstance(vectors_cfg, VectorParams) else None
+                if existing_dim is not None and existing_dim != dim:
                     # Auto-recreate with correct dimensions
                     await asyncio.to_thread(
                         client.delete_collection, collection_name=collection_name

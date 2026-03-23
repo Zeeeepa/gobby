@@ -266,7 +266,7 @@ class ChatSessionMixin:
                 session._tool_approval_config = tool_approval_cfg
             ctx_overrides = getattr(daemon_cfg, "context_window_overrides", None)
             if ctx_overrides:
-                session._context_window_overrides = ctx_overrides  # type: ignore[attr-defined]
+                session._context_window_overrides = ctx_overrides
 
         # Apply daemon config default chat mode (lowest priority — overridden below)
         if daemon_cfg is not None:
