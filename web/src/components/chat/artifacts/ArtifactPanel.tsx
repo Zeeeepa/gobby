@@ -135,11 +135,9 @@ export const ArtifactPanel = memo(function ArtifactPanel({
               {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
             </Button>
           )}
-          {(onMinimize || onClose) && (
-            <Button size="icon" variant="ghost" onClick={onMinimize || onClose} title="Minimize to history">
-              <MinimizeIcon />
-            </Button>
-          )}
+          <Button size="icon" variant="ghost" onClick={onMinimize ?? onClose} title="Minimize to history">
+            <MinimizeIcon />
+          </Button>
         </div>
       </div>
 

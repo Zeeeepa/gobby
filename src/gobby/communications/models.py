@@ -119,7 +119,7 @@ class CommsMessage:
             id=data["id"],
             channel_id=data.get("channel_id", "unknown"),
             identity_id=data.get("identity_id"),
-            direction=data.get("direction", "outbound"),  # type: ignore[arg-type]
+            direction=data.get("direction", "outbound"),
             content=data.get("content", ""),
             content_type=data.get("content_type", "text"),
             platform_message_id=data.get("platform_message_id"),

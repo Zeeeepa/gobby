@@ -62,6 +62,7 @@ export function ChatPage({
     (activeSession?.seq_num != null ? `#${activeSession.seq_num}` : null);
 
   const {
+    artifacts,
     activeArtifact,
     createArtifact,
     updateArtifact,
