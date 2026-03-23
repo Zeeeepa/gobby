@@ -69,6 +69,9 @@ class ServiceContainer:
     # Agent Lifecycle
     agent_lifecycle_monitor: Any | None = None  # AgentLifecycleMonitor
 
+    # Communications
+    communications_manager: Any | None = None  # CommunicationsManager
+
     # Cron Scheduler
     cron_storage: Any | None = None  # CronJobStorage
     cron_scheduler: Any | None = None  # CronScheduler

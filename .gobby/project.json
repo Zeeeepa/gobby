@@ -31,5 +31,6 @@
       "fail_fast": false,
       "timeout": 1800
     }
-  }
+  },
+  "parent_project_path": "/Users/josh/Projects/gobby"
 }

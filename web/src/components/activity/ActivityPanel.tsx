@@ -35,7 +35,9 @@ interface ActivityPanelProps {
   activeTab: ActivityTab
   onTabChange: (tab: ActivityTab) => void
   // Artifacts tab props
+  artifacts: Map<string, Artifact>
   activeArtifact: Artifact | null
+  onOpenArtifact: (id: string) => void
   onCloseArtifact: () => void
   onUpdateArtifactContent?: (id: string, content: string) => void
   onSetArtifactVersion: (id: string, index: number) => void
@@ -62,7 +64,9 @@ export function ActivityPanel({
   onWidthChange,
   activeTab,
   onTabChange,
+  artifacts,
   activeArtifact,
+  onOpenArtifact,
   onCloseArtifact,
   onUpdateArtifactContent,
   onSetArtifactVersion,
@@ -82,6 +86,14 @@ export function ActivityPanel({
   // Mobile: close handler
   const handleClose = () => onPinnedChange(false)
 
+  const handleMaximize = () => {
+    if (panelWidth < 800) {
+      onWidthChange(Math.min(1200, window.innerWidth - 100))
+    } else {
+      onWidthChange(480)
+    }
+  }
+
   const tabContent = () => {
     switch (activeTab) {
       case 'sessions':
@@ -95,8 +107,13 @@ export function ActivityPanel({
       case 'artifacts':
         return (
           <ArtifactsTab
+            artifacts={artifacts}
             artifact={activeArtifact}
+            onOpenArtifact={onOpenArtifact}
             onClose={onCloseArtifact}
+            onMinimize={onCloseArtifact}
+            onMaximize={handleMaximize}
+            isMaximized={panelWidth >= 800}
             onUpdateContent={onUpdateArtifactContent}
             onSetVersion={onSetArtifactVersion}
             planPendingApproval={planPendingApproval}

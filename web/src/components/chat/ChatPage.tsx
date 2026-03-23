@@ -309,7 +309,9 @@ export function ChatPage({
         onWidthChange={activity.setPanelWidth}
         activeTab={activity.activeTab}
         onTabChange={activity.setActiveTab}
+        artifacts={artifacts}
         activeArtifact={activeArtifact}
+        onOpenArtifact={openArtifact}
         onCloseArtifact={closeArtifactPanel}
         onUpdateArtifactContent={updateArtifact}
         onSetArtifactVersion={setVersion}
