@@ -57,7 +57,6 @@ class TestGobbyDaemonToolsInit:
             internal_manager=mock_internal_manager,
         )
 
-        assert handler.system_service is not None
         assert handler.tool_proxy is not None
         assert handler.server_mgmt is not None
         assert handler.recommendation is not None
@@ -96,10 +95,6 @@ class TestGobbyDaemonToolsStatus:
     @pytest.mark.asyncio
     async def test_status_returns_daemon_info(self, mock_mcp_manager, mock_internal_manager):
         """Test that status returns daemon status info."""
-        # Mock the manager methods used by SystemService
-        mock_mcp_manager.get_server_health.return_value = {}
-        mock_mcp_manager.get_lazy_connection_states.return_value = {}
-
         handler = GobbyDaemonTools(
             mcp_manager=mock_mcp_manager,
             daemon_port=8787,
@@ -113,18 +108,13 @@ class TestGobbyDaemonToolsStatus:
         assert "running" in result
         assert "http_port" in result
         assert "websocket_port" in result
-        assert "mcp_servers" in result
+        assert result["running"] is True
+        assert result["http_port"] == 8787
+        assert result["websocket_port"] == 8788
 
     @pytest.mark.asyncio
-    async def test_status_includes_mcp_servers(self, mock_mcp_manager, mock_internal_manager):
-        """Test that status includes MCP server connection states."""
-        # Mock server health data
-        mock_mcp_manager.get_server_health.return_value = {
-            "test-server": {"state": "connected", "health": "healthy"}
-        }
-        mock_mcp_manager.get_lazy_connection_states.return_value = {}
-        mock_mcp_manager.connections = {"test-server": MagicMock()}
-
+    async def test_status_includes_uptime(self, mock_mcp_manager, mock_internal_manager):
+        """Test that status includes uptime information."""
         handler = GobbyDaemonTools(
             mcp_manager=mock_mcp_manager,
             daemon_port=8787,
@@ -135,9 +125,8 @@ class TestGobbyDaemonToolsStatus:
 
         result = await handler.status()
 
-        assert "mcp_servers" in result
-        assert "test-server" in result["mcp_servers"]
-        assert result["mcp_servers"]["test-server"]["state"] == "connected"
+        assert "uptime_seconds" in result
+        assert result["uptime_seconds"] > 0
 
 
 class TestGobbyDaemonToolsListMcpServers:
