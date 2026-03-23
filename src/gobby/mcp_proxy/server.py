@@ -6,10 +6,11 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent
+from pydantic import Field
 
 from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.instructions import build_gobby_instructions
@@ -402,7 +403,7 @@ class GobbyDaemonTools:
         self,
         name: str,
         value: str | int | float | bool | list[Any] | dict[str, Any] | None,
-        session_id: str,
+        session_id: Annotated[str, Field(description="Your Gobby Session ID (e.g. #3439). Use the value from 'Gobby Session ID: #N' in your system prompt.")],
     ) -> dict[str, Any]:
         """Set a variable. Session-scoped by default. Pass workflow param to scope to a specific workflow instance."""
         if not self._session_manager or not self._session_manager.db:
@@ -423,7 +424,7 @@ class GobbyDaemonTools:
         self,
         name: str | None = None,
         *,
-        session_id: str,
+        session_id: Annotated[str, Field(description="Your Gobby Session ID (e.g. #3439). Use the value from 'Gobby Session ID: #N' in your system prompt.")],
     ) -> dict[str, Any]:
         """Get a variable (or all variables). Session-scoped by default. Pass workflow param to read from a specific workflow instance."""
         if not self._session_manager or not self._session_manager.db:
