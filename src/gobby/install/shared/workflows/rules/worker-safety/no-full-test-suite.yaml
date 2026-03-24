@@ -1,0 +1,62 @@
+tags: [worker-safety, enforcement, gobby]
+
+rules:
+  no-full-pytest-suite:
+    description: "Block spawned agents from running the full pytest suite."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bpytest\\b"
+        command_not_pattern: "\\bpytest\\s+\\S+\\.py\\b|\\bpytest\\s+\\S*tests/\\w+[/\\s]|\\bpytest\\s.*-k\\s"
+        reason: >-
+          Running the full pytest suite is not allowed for agents.
+          Target specific test files (pytest tests/path/test_file.py)
+          or use filters (pytest -k 'pattern').
+
+  no-full-vitest-suite:
+    description: "Block spawned agents from running the full vitest suite."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\b(vitest|jest)\\b"
+        command_not_pattern: "\\b(vitest|jest)\\s+\\S+\\.(ts|js|tsx|jsx)\\b|\\b(vitest|jest)\\s.*(-t|--testNamePattern|--testPathPattern)\\s"
+        reason: >-
+          Running the full test suite is not allowed for agents.
+          Target specific test files or use filters.
+
+  no-full-cargo-test:
+    description: "Block spawned agents from running the full cargo test suite."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bcargo\\s+test\\b"
+        command_not_pattern: "\\bcargo\\s+test\\s+\\S|\\bcargo\\s+test\\s.*-p\\s"
+        reason: >-
+          Running the full cargo test suite is not allowed for agents.
+          Target specific tests or packages (cargo test <name>, cargo test -p <package>).
+
+  no-full-go-test:
+    description: "Block spawned agents from running the full go test suite."
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: "variables.get('is_spawned_agent')"
+    effects:
+      - type: block
+        tools: [Bash]
+        command_pattern: "\\bgo\\s+test\\s+\\./\\.\\.\\.\\b"
+        reason: >-
+          Running 'go test ./...' is not allowed for agents.
+          Target specific packages (go test ./pkg/...).
