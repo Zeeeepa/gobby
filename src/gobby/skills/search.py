@@ -129,7 +129,18 @@ class SkillSearch:
 
         # State tracking
         self._indexed = False
+        self._index_attempted = False  # True once index_skills has been called at least once
         self._pending_updates = 0
+
+    @property
+    def is_indexed(self) -> bool:
+        """Whether the search index has been built (with at least one skill)."""
+        return self._indexed
+
+    @property
+    def index_attempted(self) -> bool:
+        """Whether index_skills has been called at least once (even with empty list)."""
+        return self._index_attempted
 
     @property
     def mode(self) -> str:
@@ -211,6 +222,7 @@ class SkillSearch:
         Args:
             skills: List of skills to index
         """
+        self._index_attempted = True
         if not skills:
             self._skill_names.clear()
             self._skill_meta.clear()
@@ -264,6 +276,7 @@ class SkillSearch:
             List of SkillSearchResult objects, sorted by similarity descending
         """
         if not self._indexed:
+            logger.debug("search_async called but index not built; returning empty results")
             return []
 
         # Get more results than top_k if filtering

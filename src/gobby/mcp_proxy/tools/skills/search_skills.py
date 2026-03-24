@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 from typing import Any
@@ -112,8 +113,10 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                     sv_mgr = SessionVariableManager(ctx.db)
                     sv = sv_mgr.get_variables(resolved_id)
                     active_names = sv.get("_active_skill_names") if sv else None
-                except Exception:
-                    pass
+                except Exception as sv_err:
+                    logger.warning(
+                        f"Failed to resolve session variables for {session_id}: {sv_err}"
+                    )
 
             # Build filters
             filters = None
@@ -125,11 +128,18 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                     allowed_names=active_names,
                 )
 
-            # Ensure index is fresh before searching
-            indexer.ensure_fresh()
+            # Ensure index is fresh before searching (run in thread to avoid blocking event loop)
+            await asyncio.to_thread(indexer.ensure_fresh)
 
             # Perform search
             results = await ctx.search.search_async(query=query, top_k=top_k, filters=filters)
+
+            # Surface clear error when index was never built (startup failure)
+            if not results and not ctx.search.index_attempted:
+                return {
+                    "success": False,
+                    "error": "Skill search index is not available. Index has not been built.",
+                }
 
             # Batch-fetch skills to avoid N+1 queries
             skill_ids = [r.skill_id for r in results]
@@ -166,4 +176,5 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                 "results": result_list,
             }
         except Exception as e:
+            logger.error(f"search_skills failed for query={query!r}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
