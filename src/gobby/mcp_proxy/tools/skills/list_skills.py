@@ -36,6 +36,7 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
             enabled: Optional enabled status filter (True/False/None for all)
             include_templates: If True, also show template skills (default False)
             limit: Maximum skills to return (default 50)
+            session_id: Optional session ID for filtering by active skills in the session
 
         Returns:
             Dict with success status and list of skill metadata

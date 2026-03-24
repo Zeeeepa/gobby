@@ -15,7 +15,7 @@ from pathlib import Path
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.tasks._crud import get_task, update_task
-from gobby.storage.tasks._models import Task
+from gobby.storage.tasks._models import Task, TaskHasChildrenError, TaskHasDependentsError
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +310,7 @@ def delete_task(
         # Check for children
         row = db.fetchone("SELECT 1 FROM tasks WHERE parent_task_id = ?", (task_id,))
         if row:
-            raise ValueError(f"Task {task_id} has children. Use cascade=True to delete.")
+            raise TaskHasChildrenError(f"Task {task_id} has children. Use cascade=True to delete.")
 
     if not cascade and not unlink:
         # Check for dependents (tasks that depend on this task)
@@ -326,7 +326,7 @@ def delete_task(
             refs_str = ", ".join(refs) if refs else str(len(dependent_rows)) + " task(s)"
             if len(dependent_rows) > 5:
                 refs_str += f" and {len(dependent_rows) - 5} more"
-            raise ValueError(
+            raise TaskHasDependentsError(
                 f"Task {task_id} has {len(dependent_rows)} dependent task(s): {refs_str}. "
                 f"Use cascade=True to delete dependents, or unlink=True to preserve them."
             )

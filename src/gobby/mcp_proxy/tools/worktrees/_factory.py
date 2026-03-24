@@ -6,7 +6,7 @@ them into a unified registry.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.worktrees._cleanup import create_cleanup_registry
@@ -17,6 +17,7 @@ from gobby.mcp_proxy.tools.worktrees._lifecycle import create_lifecycle_registry
 from gobby.mcp_proxy.tools.worktrees._sync import create_sync_registry
 
 if TYPE_CHECKING:
+    from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.worktrees.git import WorktreeGitManager
@@ -26,7 +27,7 @@ def create_worktrees_registry(
     worktree_storage: LocalWorktreeManager,
     git_manager: WorktreeGitManager | None = None,
     project_id: str | None = None,
-    session_manager: Any | None = None,
+    session_manager: LocalSessionManager | None = None,
     task_manager: LocalTaskManager | None = None,
 ) -> InternalToolRegistry:
     """Create a worktree tool registry with all worktree-related tools.
@@ -63,7 +64,6 @@ def create_worktrees_registry(
         create_cleanup_registry,
     ):
         sub_registry = sub_factory(ctx)
-        for tool_name, tool in sub_registry._tools.items():
-            registry._tools[tool_name] = tool
+        registry.merge_from(sub_registry)
 
     return registry

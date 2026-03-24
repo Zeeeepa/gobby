@@ -321,6 +321,9 @@ class InternalToolRegistry:
 
     def merge_from(self, other: "InternalToolRegistry") -> None:
         """Merge all tools from another registry into this one."""
+        for name in other._tools:
+            if name in self._tools:
+                logger.debug(f"Tool {name!r} overwritten during merge from {other.name!r}")
         self._tools.update(other._tools)
 
     def __contains__(self, tool_name: object) -> bool:

@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-from typing import Any
 
 from gobby.hooks.events import HookEvent, HookResponse
 from gobby.hooks.webhooks import WebhookDispatcher, WebhookResult
@@ -54,7 +53,7 @@ def dispatch_webhooks_sync(
     webhook_dispatcher: WebhookDispatcher,
     logger: logging.Logger,
     blocking_only: bool = False,
-) -> list[Any]:
+) -> list[WebhookResult]:
     """Dispatch webhooks synchronously (for blocking webhooks).
 
     Args:

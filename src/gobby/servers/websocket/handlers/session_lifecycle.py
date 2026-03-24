@@ -78,7 +78,7 @@ async def handle_clear_chat(
                     session_manager.update_pending_plan, session.db_session_id, None
                 )
             except Exception as e:
-                logger.warning(f"Failed to update session status on clear: {e}")
+                logger.warning(f"Failed to update session status on clear: {e}", exc_info=True)
 
     # Fire SESSION_END before teardown
     await mixin._fire_session_end(conversation_id)
@@ -154,7 +154,9 @@ async def cleanup_idle_sessions(mixin: SessionControlMixin) -> None:
                 # Fire SESSION_END before teardown (needs session in dict for lookup)
                 await mixin._fire_session_end(conv_id)
                 await mixin._cancel_active_chat(conv_id)
-                session = mixin._chat_sessions.pop(conv_id)
+                session = mixin._chat_sessions.pop(conv_id, None)
+                if session is None:
+                    continue
                 # Mark as paused in database and clear pending plan before stopping
                 if session.db_session_id:
                     session_manager = getattr(mixin, "session_manager", None)

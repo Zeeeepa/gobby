@@ -557,9 +557,11 @@ def init_orchestration(runner: GobbyRunner) -> None:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await proc.communicate()
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
         if proc.returncode != 0:
-            raise RuntimeError(f"tmux send-keys to {pane_id} failed: {stderr.decode()}")
+            raise RuntimeError(
+                f"tmux send-keys to {pane_id} failed: {stderr.decode(errors='replace')}"
+            )
 
     runner.wake_dispatcher = WakeDispatcher(
         session_manager=runner.session_manager,

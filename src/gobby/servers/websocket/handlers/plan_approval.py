@@ -142,8 +142,8 @@ async def handle_recovered_plan_approval(
             )
             if db_session:
                 break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to find session for source={source}: {e}")
 
     if not db_session or not db_session.pending_plan_path:
         logger.warning(

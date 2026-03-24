@@ -75,6 +75,18 @@ class TaskNotFoundError(Exception):
     pass
 
 
+class TaskHasChildrenError(ValueError):
+    """Raised when deleting a task that has children without cascade."""
+
+    pass
+
+
+class TaskHasDependentsError(ValueError):
+    """Raised when deleting a task that has dependents without cascade/unlink."""
+
+    pass
+
+
 @dataclass
 class Task:
     id: str

@@ -56,11 +56,10 @@ def _make_stop_signal(**overrides) -> MagicMock:
     """Create a mock StopSignal matching what the route code expects."""
     now = datetime.now(UTC)
     defaults = {
-        "signal_id": "sig-abc123",
         "session_id": "sess-abc123",
         "reason": "External stop request",
         "source": "http_api",
-        "signaled_at": now,
+        "requested_at": now,
         "acknowledged": False,
         "acknowledged_at": None,
     }
@@ -1339,7 +1338,7 @@ class TestStopSession:
         data = response.json()
         assert data["status"] == "stop_signaled"
         assert data["session_id"] == "sess-abc123"
-        assert data["signal_id"] == "sig-abc123"
+        assert data["signal_id"] == "sess-abc123"
         assert data["reason"] == "External stop request"
 
     def test_stop_signal_empty_body(self, client, mock_hook_manager) -> None:
@@ -1404,7 +1403,7 @@ class TestGetStopSignal:
         data = response.json()
         assert data["has_signal"] is True
         assert data["session_id"] == "sess-abc123"
-        assert data["signal_id"] == "sig-abc123"
+        assert data["signal_id"] == "sess-abc123"
         assert data["acknowledged"] is False
         assert data["acknowledged_at"] is None
 

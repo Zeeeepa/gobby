@@ -298,10 +298,10 @@ def register_analytics_routes(
             return {
                 "status": "stop_signaled",
                 "session_id": session_id,
-                "signal_id": signal.signal_id,
+                "signal_id": signal.session_id,
                 "reason": signal.reason,
                 "source": signal.source,
-                "signaled_at": signal.signaled_at.isoformat(),
+                "signaled_at": signal.requested_at.isoformat(),
             }
 
         except HTTPException:
@@ -344,10 +344,10 @@ def register_analytics_routes(
             return {
                 "has_signal": True,
                 "session_id": session_id,
-                "signal_id": signal.signal_id,
+                "signal_id": signal.session_id,
                 "reason": signal.reason,
                 "source": signal.source,
-                "signaled_at": signal.signaled_at.isoformat(),
+                "signaled_at": signal.requested_at.isoformat(),
                 "acknowledged": signal.acknowledged,
                 "acknowledged_at": (
                     signal.acknowledged_at.isoformat() if signal.acknowledged_at else None

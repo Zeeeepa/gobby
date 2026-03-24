@@ -148,63 +148,38 @@ def install_provider_hooks(
     if not provider:
         return False
 
+    # Registry: (module_path, function_name, uses_mode_param)
+    _PROVIDER_INSTALLERS: dict[str, tuple[str, str, bool]] = {
+        "claude": ("gobby.cli.installers.claude", "install_claude", True),
+        "cursor": ("gobby.cli.installers.cursor", "install_cursor", True),
+        "windsurf": ("gobby.cli.installers.windsurf", "install_windsurf", True),
+        "copilot": ("gobby.cli.installers.copilot", "install_copilot", True),
+        "gemini": ("gobby.cli.installers.gemini", "install_gemini", False),
+        "antigravity": ("gobby.cli.installers.antigravity", "install_antigravity", False),
+        # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
+    }
+
+    entry = _PROVIDER_INSTALLERS.get(provider)
+    if not entry:
+        return False
+
+    module_path, func_name, uses_mode = entry
     worktree_path_obj = Path(worktree_path)
     try:
-        if provider == "claude":
-            from gobby.cli.installers.claude import install_claude
+        import importlib
 
-            result = install_claude(worktree_path_obj, mode="project")
-            if result["success"]:
-                logger.info(f"Installed Claude hooks in worktree: {worktree_path}")
-                return True
-            else:
-                logger.warning(f"Failed to install Claude hooks: {result.get('error')}")
-        elif provider == "cursor":
-            from gobby.cli.installers.cursor import install_cursor
-
-            result = install_cursor(worktree_path_obj, mode="project")
-            if result["success"]:
-                logger.info(f"Installed Cursor hooks in worktree: {worktree_path}")
-                return True
-            else:
-                logger.warning(f"Failed to install Cursor hooks: {result.get('error')}")
-        elif provider == "windsurf":
-            from gobby.cli.installers.windsurf import install_windsurf
-
-            result = install_windsurf(worktree_path_obj, mode="project")
-            if result["success"]:
-                logger.info(f"Installed Windsurf hooks in worktree: {worktree_path}")
-                return True
-            else:
-                logger.warning(f"Failed to install Windsurf hooks: {result.get('error')}")
-        elif provider == "copilot":
-            from gobby.cli.installers.copilot import install_copilot
-
-            result = install_copilot(worktree_path_obj, mode="project")
-            if result["success"]:
-                logger.info(f"Installed Copilot hooks in worktree: {worktree_path}")
-                return True
-            else:
-                logger.warning(f"Failed to install Copilot hooks: {result.get('error')}")
-        elif provider == "gemini":
-            from gobby.cli.installers.gemini import install_gemini
-
-            result = install_gemini(worktree_path_obj)
-            if result["success"]:
-                logger.info(f"Installed Gemini hooks in worktree: {worktree_path}")
-                return True
-            else:
-                logger.warning(f"Failed to install Gemini hooks: {result.get('error')}")
-        elif provider == "antigravity":
-            from gobby.cli.installers.antigravity import install_antigravity
-
-            result = install_antigravity(worktree_path_obj)
-            if result["success"]:
-                logger.info(f"Installed Antigravity hooks in worktree: {worktree_path}")
-                return True
-            else:
-                logger.warning(f"Failed to install Antigravity hooks: {result.get('error')}")
-        # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
+        mod = importlib.import_module(module_path)
+        installer = getattr(mod, func_name)
+        result = (
+            installer(worktree_path_obj, mode="project")
+            if uses_mode
+            else installer(worktree_path_obj)
+        )
+        if result["success"]:
+            logger.info(f"Installed {provider} hooks in worktree: {worktree_path}")
+            return True
+        else:
+            logger.warning(f"Failed to install {provider} hooks: {result.get('error')}")
     except Exception as e:
         logger.warning(f"Failed to install {provider} hooks in worktree: {e}")
     return False

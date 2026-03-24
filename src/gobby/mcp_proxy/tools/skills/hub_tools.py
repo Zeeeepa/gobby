@@ -15,7 +15,7 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
         name="list_hubs",
         description="List all configured skill hubs. Returns hub names and types.",
     )
-    async def list_hubs() -> dict[str, Any]:
+    def list_hubs() -> dict[str, Any]:
         """
         List all configured skill hubs.
 

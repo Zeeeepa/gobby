@@ -9,6 +9,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.tasks import TaskNotFoundError
+from gobby.storage.tasks._models import TaskHasChildrenError, TaskHasDependentsError
 
 
 def register_delete_task(registry: InternalToolRegistry, ctx: RegistryContext) -> None:
@@ -35,24 +36,23 @@ def register_delete_task(registry: InternalToolRegistry, ctx: RegistryContext) -
             deleted = ctx.task_manager.delete_task(resolved_id, cascade=cascade, unlink=unlink)
             if not deleted:
                 return {"error": f"Task {task_id} not found"}
+        except TaskHasDependentsError as e:
+            return {
+                "success": False,
+                "error": "has_dependents",
+                "message": str(e),
+                "suggestion": f"Use cascade=True to delete task {ref} and its dependents, "
+                f"or unlink=True to preserve dependent tasks.",
+            }
+        except TaskHasChildrenError as e:
+            return {
+                "success": False,
+                "error": "has_children",
+                "message": str(e),
+                "suggestion": f"Use cascade=True to delete task {ref} and all its subtasks.",
+            }
         except ValueError as e:
-            error_msg = str(e)
-            if "dependent task(s)" in error_msg:
-                return {
-                    "success": False,
-                    "error": "has_dependents",
-                    "message": error_msg,
-                    "suggestion": f"Use cascade=True to delete task {ref} and its dependents, "
-                    f"or unlink=True to preserve dependent tasks.",
-                }
-            elif "has children" in error_msg:
-                return {
-                    "success": False,
-                    "error": "has_children",
-                    "message": error_msg,
-                    "suggestion": f"Use cascade=True to delete task {ref} and all its subtasks.",
-                }
-            return {"error": error_msg}
+            return {"error": str(e)}
 
         return {
             "success": True,

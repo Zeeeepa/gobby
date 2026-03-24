@@ -232,9 +232,10 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
     # Uses parsed_names collected during the main loop above (no re-parsing).
     tag_filter = '%"gobby"%'
 
+    valid_types_sql = ", ".join(f"'{t}'" for t in VALID_WORKFLOW_TYPES)
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source = 'template' AND workflow_type IN ('workflow', 'pipeline') "
+        f"WHERE source = 'template' AND workflow_type IN ({valid_types_sql}) "
         "AND tags LIKE ? AND deleted_at IS NULL",
         (tag_filter,),
     )

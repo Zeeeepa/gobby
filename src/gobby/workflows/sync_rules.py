@@ -418,8 +418,10 @@ def _sync_single_rule(
                 from gobby.storage.workflow_definitions import WorkflowDefinitionRow
 
                 template = WorkflowDefinitionRow.from_row(template_row)
-                if template.deleted_at:
-                    manager.restore(template.id)
+                # No need to check template.deleted_at — query already filters deleted_at IS NULL
+                def_changed = template.definition_json != definition_json
+                tags_changed = set(file_tags or []) != set(template.tags or [])
+                if def_changed or tags_changed:
                     manager.update(
                         template.id,
                         name=rule_name,
@@ -427,42 +429,18 @@ def _sync_single_rule(
                         workflow_type="rule",
                         project_id=None,
                         description=description,
-                        enabled=False,
+                        enabled=template.enabled,
                         priority=priority,
                         sources=file_sources,
                         tags=file_tags,
                         source="template",
                     )
-                    logger.info(
-                        "Restored soft-deleted template behind installed copy",
-                        extra={"rule": rule_name},
-                    )
+                    # Propagate to the installed copy that shadows this template
+                    if existing.source == "installed":
+                        propagate_to_installed(manager, rule_name, definition_json, tags=file_tags)
                     result["updated"] += 1
                 else:
-                    def_changed = template.definition_json != definition_json
-                    tags_changed = set(file_tags or []) != set(template.tags or [])
-                    if def_changed or tags_changed:
-                        manager.update(
-                            template.id,
-                            name=rule_name,
-                            definition_json=definition_json,
-                            workflow_type="rule",
-                            project_id=None,
-                            description=description,
-                            enabled=template.enabled,
-                            priority=priority,
-                            sources=file_sources,
-                            tags=file_tags,
-                            source="template",
-                        )
-                        # Propagate to the installed copy that shadows this template
-                        if existing.source == "installed":
-                            propagate_to_installed(
-                                manager, rule_name, definition_json, tags=file_tags
-                            )
-                        result["updated"] += 1
-                    else:
-                        result["skipped"] += 1
+                    result["skipped"] += 1
             else:
                 # No template row exists — create one
                 manager.create(

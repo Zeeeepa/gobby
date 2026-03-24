@@ -62,7 +62,7 @@ class TestListHubsTool:
         registry = create_skills_registry(db, hub_manager=mock_hub_manager)
         tool = registry.get_tool("list_hubs")
 
-        result = await tool()
+        result = tool()
 
         assert result["success"] is True
         assert result["count"] == 3
@@ -76,7 +76,7 @@ class TestListHubsTool:
         registry = create_skills_registry(db, hub_manager=mock_hub_manager)
         tool = registry.get_tool("list_hubs")
 
-        result = await tool()
+        result = tool()
 
         assert result["success"] is True
         hubs = result["hubs"]
@@ -99,7 +99,7 @@ class TestListHubsTool:
         registry = create_skills_registry(db)
         tool = registry.get_tool("list_hubs")
 
-        result = await tool()
+        result = tool()
 
         assert result["success"] is True
         assert result["count"] == 0

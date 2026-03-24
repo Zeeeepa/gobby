@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Generator
+from collections.abc import Iterator
 from io import StringIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -34,7 +34,7 @@ CLAUDE_CONFIG = hook_dispatcher.CLI_CONFIGS["claude"]
 
 
 @pytest.fixture()
-def _patch_daemon_running() -> Generator[None]:
+def _patch_daemon_running() -> Iterator[None]:
     """Assume daemon is running for all tests."""
     with patch.object(
         hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=True

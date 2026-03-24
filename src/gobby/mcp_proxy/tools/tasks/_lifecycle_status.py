@@ -5,6 +5,7 @@ tool registrations.
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -122,8 +123,6 @@ def register_escalate_task(registry: InternalToolRegistry, ctx: RegistryContext)
         Returns:
             Empty dict on success, or error dict with details.
         """
-        from datetime import UTC, datetime
-
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:

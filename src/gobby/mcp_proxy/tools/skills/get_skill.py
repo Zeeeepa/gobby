@@ -63,8 +63,8 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                         session_id, project_id=ctx.project_id
                     )
                     ctx.session_manager.record_skills_used(resolved_id, [skill.name])
-                except Exception:
-                    pass  # Best-effort tracking; don't fail the skill lookup
+                except Exception as e:
+                    logger.debug(f"Best-effort skill tracking failed for session {session_id}: {e}")
 
             # Build response
             skill_data: dict[str, Any] = {

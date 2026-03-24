@@ -36,7 +36,10 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
             skill = None
             if skill_id:
                 try:
-                    skill = ctx.storage.get_skill(skill_id, include_deleted=True)
+                    found = ctx.storage.get_skill(skill_id, include_deleted=True)
+                    # Only accept templates — non-template skills can't be "installed from template"
+                    if found and getattr(found, "source", None) == "template":
+                        skill = found
                 except ValueError:
                     pass
 

@@ -3,6 +3,7 @@
 Handles registration, listing, lookup, status updates, expiry, and renaming.
 """
 
+import json
 import logging
 import subprocess  # nosec B404 # subprocess needed for git commit counting
 import time
@@ -274,7 +275,7 @@ def register_core_routes(
         """
         try:
             body = await request.json()
-        except Exception:
+        except (ValueError, json.JSONDecodeError):
             raise HTTPException(status_code=400, detail="Invalid JSON") from None
 
         external_id = body.get("session_id")

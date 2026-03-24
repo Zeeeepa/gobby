@@ -46,8 +46,14 @@ def create_cleanup_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Dict with list of stale worktrees.
         """
-        hours = int(hours) if isinstance(hours, str) else hours
-        limit = int(limit) if isinstance(limit, str) else limit
+        try:
+            hours = int(hours) if isinstance(hours, str) else hours
+        except ValueError:
+            return {"success": False, "error": f"Invalid value for hours: {hours!r}"}
+        try:
+            limit = int(limit) if isinstance(limit, str) else limit
+        except ValueError:
+            return {"success": False, "error": f"Invalid value for limit: {limit!r}"}
 
         _, resolved_project_id, error = resolve_project_context(
             project_path, ctx.git_manager, ctx.project_id

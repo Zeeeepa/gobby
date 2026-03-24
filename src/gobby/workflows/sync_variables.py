@@ -61,6 +61,7 @@ def sync_bundled_variables(
         return result
 
     manager = LocalWorkflowDefinitionManager(db)
+    parsed_names: set[str] = set()  # Collected during main loop for orphan scan
 
     for yaml_file in sorted(variables_path.glob("*.yaml")):
         try:
@@ -80,6 +81,8 @@ def sync_bundled_variables(
             file_tags = data.get("tags") or []
             if tag not in file_tags:
                 file_tags = [*file_tags, tag]
+
+            parsed_names.update(variables_dict.keys())
 
             for var_name, var_data in variables_dict.items():
                 if not isinstance(var_data, dict):
@@ -106,18 +109,10 @@ def sync_bundled_variables(
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
-    # Orphan cleanup: collect all variable names from disk, soft-delete DB rows
-    # whose names are no longer present on disk.
+    # Orphan cleanup: soft-delete DB rows whose names are no longer on disk.
+    # Uses parsed_names collected during the main loop above (no re-parsing).
     # Scoped by gobby tag to prevent cross-tag cascade damage.
     tag_filter = f'%"{tag}"%'
-    on_disk: set[str] = set()
-    for yf in sorted(variables_path.glob("*.yaml")):
-        try:
-            d = yaml.safe_load(yf.read_text(encoding="utf-8"))
-            if isinstance(d, dict) and isinstance(d.get("variables"), dict):
-                on_disk.update(d["variables"].keys())
-        except Exception as e:
-            logger.debug(f"Failed to parse {yf.name} during orphan scan: {e}")
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
@@ -128,7 +123,7 @@ def sync_bundled_variables(
     result["orphaned"] = 0
     orphaned_names: set[str] = set()
     for row in orphan_rows:
-        if row["name"] not in on_disk:
+        if row["name"] not in parsed_names:
             manager.delete(row["id"])
             orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled variable", extra={"variable": row["name"]})
@@ -240,7 +235,7 @@ def _sync_single_variable(
                 result["updated"] += 1
         else:
             template_row = manager.db.fetchone(
-                "SELECT * FROM workflow_definitions WHERE name = ? AND source = 'template'",
+                "SELECT * FROM workflow_definitions WHERE name = ? AND source = 'template' AND deleted_at IS NULL",
                 (var_name,),
             )
             if template_row:
