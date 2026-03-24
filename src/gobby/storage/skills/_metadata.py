@@ -164,6 +164,24 @@ class SkillMetadataMixin:
             raise ValueError(f"Skill {skill_id} not found")
         return Skill.from_row(row)
 
+    def get_skills_by_ids(self, skill_ids: list[str]) -> list[Skill]:
+        """Get multiple skills by ID in a single query.
+
+        Args:
+            skill_ids: List of skill IDs to fetch.
+
+        Returns:
+            List of found Skills (missing/deleted IDs are silently skipped).
+        """
+        if not skill_ids:
+            return []
+        placeholders = ",".join("?" * len(skill_ids))
+        rows = self.db.fetchall(
+            f"SELECT * FROM skills WHERE id IN ({placeholders}) AND deleted_at IS NULL",
+            tuple(skill_ids),
+        )
+        return [Skill.from_row(row) for row in rows]
+
     def get_by_name(
         self,
         name: str,

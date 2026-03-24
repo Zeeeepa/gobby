@@ -153,24 +153,32 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
         )
 
         if merge_result.returncode != 0:
-            merge_output = merge_result.stdout + merge_result.stderr
-            if "CONFLICT" in merge_output:
+            # Detect unmerged (conflicted) files via git index — more reliable
+            # than parsing human-readable merge output for "CONFLICT" strings
+            unmerged_result = await asyncio.to_thread(
+                resolved_git_mgr._run_git,
+                ["diff", "--name-only", "--diff-filter=U"],
+                cwd=wt_path,
+                timeout=10,
+            )
+            conflicted_files = [
+                f.strip() for f in unmerged_result.stdout.strip().split("\n") if f.strip()
+            ]
+            if conflicted_files:
                 await asyncio.to_thread(
                     resolved_git_mgr._run_git, ["merge", "--abort"], cwd=wt_path, timeout=10
                 )
-                conflict_lines = [
-                    line.strip() for line in merge_output.split("\n") if "CONFLICT" in line
-                ]
                 return {
                     "success": False,
                     "has_conflicts": True,
-                    "conflicted_files": conflict_lines,
+                    "conflicted_files": conflicted_files,
                     "error": "merge_conflict",
                     "message": (
-                        f"Merge conflicts detected in {len(conflict_lines)} file(s). "
+                        f"Merge conflicts detected in {len(conflicted_files)} file(s). "
                         "Use gobby-merge tools to resolve."
                     ),
                 }
+            merge_output = merge_result.stdout + merge_result.stderr
             return {
                 "success": False,
                 "has_conflicts": False,

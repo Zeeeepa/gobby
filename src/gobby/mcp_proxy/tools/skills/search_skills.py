@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -17,32 +18,56 @@ logger = logging.getLogger(__name__)
 _MAX_SKILL_INDEX = 10_000
 
 
-def _setup_indexing(ctx: SkillsContext) -> None:
-    """Index all skills and wire up change-driven re-indexing."""
+class _SkillIndexer:
+    """Manages skill search indexing with dirty-flag debouncing.
 
-    def _index_skills() -> None:
-        """Index all skills for search."""
-        skills = ctx.storage.list_skills(
-            project_id=ctx.project_id,
+    Marks the index dirty on skill mutations. The index is rebuilt lazily
+    at search time, coalescing rapid mutations into a single rebuild.
+    """
+
+    def __init__(self, ctx: SkillsContext) -> None:
+        self._ctx = ctx
+        self._dirty = False
+        self._lock = threading.Lock()
+
+    def build(self) -> None:
+        """Rebuild the search index from all skills."""
+        skills = self._ctx.storage.list_skills(
+            project_id=self._ctx.project_id,
             limit=_MAX_SKILL_INDEX,
             include_global=True,
         )
-        ctx.search.index_skills(skills)
+        self._ctx.search.index_skills(skills)
+        with self._lock:
+            self._dirty = False
 
-    # Index on registry creation
-    _index_skills()
+    def mark_dirty(self, event: ChangeEvent) -> None:
+        """Mark index as stale (called on skill mutations)."""
+        with self._lock:
+            self._dirty = True
 
-    # Wire up change notifier to re-index on any skill mutation
-    def _on_skill_change(event: ChangeEvent) -> None:
-        """Re-index skills when any skill is created, updated, or deleted."""
-        _index_skills()
+    def ensure_fresh(self) -> None:
+        """Rebuild index if dirty. Called before searches."""
+        with self._lock:
+            needs_rebuild = self._dirty
+        if needs_rebuild:
+            self.build()
 
-    ctx.notifier.add_listener(_on_skill_change)
+
+def _setup_indexing(ctx: SkillsContext) -> _SkillIndexer:
+    """Index all skills and wire up change-driven re-indexing.
+
+    Returns the indexer so the search tool can call ensure_fresh().
+    """
+    indexer = _SkillIndexer(ctx)
+    indexer.build()
+    ctx.notifier.add_listener(indexer.mark_dirty)
+    return indexer
 
 
 def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
     """Register the search_skills tool on the registry and set up indexing."""
-    _setup_indexing(ctx)
+    indexer = _setup_indexing(ctx)
 
     @registry.tool(
         name="search_skills",
@@ -100,18 +125,20 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                     allowed_names=active_names,
                 )
 
+            # Ensure index is fresh before searching
+            indexer.ensure_fresh()
+
             # Perform search
             results = await ctx.search.search_async(query=query, top_k=top_k, filters=filters)
+
+            # Batch-fetch skills to avoid N+1 queries
+            skill_ids = [r.skill_id for r in results]
+            skills_by_id = {s.id: s for s in ctx.storage.get_skills_by_ids(skill_ids)}
 
             # Format results with skill metadata
             result_list = []
             for r in results:
-                # Look up skill to get description, category, tags
-                skill = None
-                try:
-                    skill = ctx.storage.get_skill(r.skill_id)
-                except ValueError:
-                    pass
+                skill = skills_by_id.get(r.skill_id)
 
                 # Get category and tags from metadata
                 category_value = None

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -15,8 +16,15 @@ from gobby.worktrees.git import WorktreeGitManager
 
 logger = logging.getLogger(__name__)
 
-# Cache for WorktreeGitManager instances per repo path
-_git_manager_cache: dict[str, WorktreeGitManager] = {}
+
+@lru_cache(maxsize=64)
+def _get_cached_git_manager(path: str) -> WorktreeGitManager:
+    """Get or create a cached WorktreeGitManager for a repo path.
+
+    Thread-safe via lru_cache's internal lock. Raises ValueError
+    if the path is not a valid git repository (not cached on error).
+    """
+    return WorktreeGitManager(path)
 
 
 def get_worktree_base_dir() -> Path:
@@ -82,13 +90,12 @@ def resolve_project_context(
         resolved_project_id = project_ctx.get("id")
         resolved_path = project_ctx.get("project_path", str(path))
 
-        if resolved_path not in _git_manager_cache:
-            try:
-                _git_manager_cache[resolved_path] = WorktreeGitManager(resolved_path)
-            except ValueError as e:
-                return None, None, f"Invalid git repository: {e}"
+        try:
+            git_mgr = _get_cached_git_manager(resolved_path)
+        except ValueError as e:
+            return None, None, f"Invalid git repository: {e}"
 
-        return _git_manager_cache[resolved_path], resolved_project_id, None
+        return git_mgr, resolved_project_id, None
 
     # Fall back to defaults
     if default_git_manager is not None and default_project_id is not None:
@@ -99,12 +106,11 @@ def resolve_project_context(
     if ctx and ctx.get("id"):
         resolved_path = ctx.get("project_path")
         if resolved_path:
-            if resolved_path not in _git_manager_cache:
-                try:
-                    _git_manager_cache[resolved_path] = WorktreeGitManager(resolved_path)
-                except ValueError as e:
-                    return None, None, f"Failed to initialize git manager for {resolved_path}: {e}"
-            return _git_manager_cache[resolved_path], ctx["id"], None
+            try:
+                git_mgr = _get_cached_git_manager(resolved_path)
+            except ValueError as e:
+                return None, None, f"Failed to initialize git manager for {resolved_path}: {e}"
+            return git_mgr, ctx["id"], None
 
     return (
         None,

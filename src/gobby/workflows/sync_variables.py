@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-from gobby.workflows.sync_rules import _ensure_tag_on_installed, _propagate_to_installed
+from gobby.workflows.sync_rules import ensure_tag_on_installed, propagate_to_installed
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ def sync_bundled_variables(
                 "Soft-deleted installed copy of orphaned variable", extra={"variable": name}
             )
 
-    _ensure_tag_on_installed(manager, "variable")
+    ensure_tag_on_installed(manager, "variable")
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
@@ -236,7 +236,7 @@ def _sync_single_variable(
                     source="template",
                     tags=file_tags,
                 )
-                _propagate_to_installed(manager, var_name, definition_json)
+                propagate_to_installed(manager, var_name, definition_json)
                 result["updated"] += 1
         else:
             template_row = manager.db.fetchone(
@@ -276,7 +276,7 @@ def _sync_single_variable(
                         tags=file_tags,
                     )
                     if existing.source == "installed":
-                        _propagate_to_installed(manager, var_name, definition_json)
+                        propagate_to_installed(manager, var_name, definition_json)
                     result["updated"] += 1
                 else:
                     result["skipped"] += 1

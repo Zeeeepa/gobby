@@ -194,7 +194,7 @@ def sync_bundled_rules(
             result["cascaded"] += 1
             logger.info("Soft-deleted installed copy of orphaned rule", extra={"rule": name})
 
-    _ensure_tag_on_installed(manager, "rule", tag)
+    ensure_tag_on_installed(manager, "rule", tag)
 
     # Propagate tags from templates to installed copies where they've drifted
     # (fixes bug #9657: create_rule doesn't propagate definition_json tags to row-level tags)
@@ -228,7 +228,7 @@ def sync_bundled_rules(
     return result
 
 
-def _ensure_tag_on_installed(
+def ensure_tag_on_installed(
     manager: LocalWorkflowDefinitionManager,
     workflow_type: str,
     tag: str = "gobby",
@@ -252,10 +252,10 @@ def _ensure_tag_on_installed(
 
 
 # Backwards-compatible alias
-_ensure_gobby_tag_on_installed = _ensure_tag_on_installed
+ensure_gobby_tag_on_installed = ensure_tag_on_installed
 
 
-def _propagate_to_installed(
+def propagate_to_installed(
     manager: LocalWorkflowDefinitionManager,
     rule_name: str,
     definition_json: str,
@@ -287,7 +287,7 @@ def _propagate_to_installed(
             )
 
 
-def _resolve_sync_placeholders(definition_json: str) -> str:
+def resolve_sync_placeholders(definition_json: str) -> str:
     """Replace sync-time placeholders in a rule definition.
 
     Currently supports:
@@ -348,7 +348,7 @@ def _sync_single_rule(
     except ValidationError as ve:
         raise ValueError(f"Invalid rule definition: {ve}") from ve
 
-    definition_json = _resolve_sync_placeholders(json.dumps(body_dict))
+    definition_json = resolve_sync_placeholders(json.dumps(body_dict))
     priority = rule_data.get("priority", 100)
     description = rule_data.get("description")
     enabled = rule_data.get("enabled", False)
@@ -404,7 +404,7 @@ def _sync_single_rule(
                     source="template",
                 )
                 # Propagate changes to installed copy (preserve enabled)
-                _propagate_to_installed(manager, rule_name, definition_json, tags=file_tags)
+                propagate_to_installed(manager, rule_name, definition_json, tags=file_tags)
                 result["updated"] += 1
         else:
             # Non-template copy shadows the template row — get_by_name prefers
@@ -457,7 +457,7 @@ def _sync_single_rule(
                         )
                         # Propagate to the installed copy that shadows this template
                         if existing.source == "installed":
-                            _propagate_to_installed(
+                            propagate_to_installed(
                                 manager, rule_name, definition_json, tags=file_tags
                             )
                         result["updated"] += 1

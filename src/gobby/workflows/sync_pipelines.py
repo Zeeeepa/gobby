@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
-from gobby.workflows.sync_rules import _ensure_tag_on_installed, _propagate_to_installed
+from gobby.workflows.sync_rules import ensure_tag_on_installed, propagate_to_installed
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
                             tags=["gobby"],
                         )
                         # Propagate definition changes to installed copy
-                        _propagate_to_installed(manager, name, definition_json)
+                        propagate_to_installed(manager, name, definition_json)
                         logger.info("Updated bundled workflow definition", extra={"workflow": name})
                         result["updated"] += 1
                 else:
@@ -186,7 +186,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
                                 source="template",
                                 tags=["gobby"],
                             )
-                            _propagate_to_installed(manager, name, definition_json)
+                            propagate_to_installed(manager, name, definition_json)
                             logger.info(
                                 "Updated shadowed workflow template and propagated",
                                 extra={"workflow": name},
@@ -265,8 +265,8 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
                 "Soft-deleted installed copy of orphaned workflow", extra={"workflow": name}
             )
 
-    _ensure_tag_on_installed(manager, "workflow")
-    _ensure_tag_on_installed(manager, "pipeline")
+    ensure_tag_on_installed(manager, "workflow")
+    ensure_tag_on_installed(manager, "pipeline")
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(

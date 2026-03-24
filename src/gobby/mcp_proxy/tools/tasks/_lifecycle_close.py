@@ -19,8 +19,8 @@ from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
 )
 from gobby.mcp_proxy.tools.tasks._notifications import notify_parent_on_status_change
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
+from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import TaskNotFoundError
-from gobby.storage.worktrees import LocalWorktreeManager
 
 logger = logging.getLogger(__name__)
 
@@ -160,8 +160,6 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # Also skip for parent tasks with all children closed (no direct edits expected)
         if not is_parent_all_closed and resolved_session_id and not skip_validation:
             try:
-                from gobby.storage.sessions import LocalSessionManager
-
                 session_manager = LocalSessionManager(ctx.task_manager.db)
                 session = session_manager.get(resolved_session_id)
 
@@ -315,8 +313,6 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # The commit accounts for this task's edits; subsequent tasks start clean
         if resolved_session_id and (bool(task.commits) or bool(commit_sha)):
             try:
-                from gobby.storage.sessions import LocalSessionManager
-
                 session_manager = LocalSessionManager(ctx.task_manager.db)
                 session_manager.clear_had_edits(resolved_session_id)
             except Exception as e:
@@ -325,8 +321,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # Update worktree status based on closure reason (case-insensitive)
         try:
             reason_normalized = reason.lower()
-            worktree_manager = LocalWorktreeManager(ctx.task_manager.db)
-            wt = worktree_manager.get_by_task(resolved_id)
+            wt = ctx.worktree_manager.get_by_task(resolved_id)
             if wt:
                 if reason_normalized in (
                     "wont_fix",
@@ -334,9 +329,9 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                     "duplicate",
                     "already_implemented",
                 ):
-                    worktree_manager.mark_abandoned(wt.id)
+                    ctx.worktree_manager.mark_abandoned(wt.id)
                 elif reason_normalized == "completed":
-                    worktree_manager.mark_merged(wt.id)
+                    ctx.worktree_manager.mark_merged(wt.id)
         except Exception as e:
             logger.debug(f"Best-effort worktree update failed during close: {e}")
 

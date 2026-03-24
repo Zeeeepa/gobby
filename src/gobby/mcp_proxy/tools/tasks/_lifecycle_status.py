@@ -12,7 +12,6 @@ from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._notifications import notify_parent_on_status_change
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.tasks import TaskNotFoundError
-from gobby.storage.worktrees import LocalWorktreeManager
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +66,12 @@ def register_reopen_task(registry: InternalToolRegistry, ctx: RegistryContext) -
             try:
                 from gobby.storage.worktrees import WorktreeStatus
 
-                worktree_manager = LocalWorktreeManager(ctx.task_manager.db)
-                wt = worktree_manager.get_by_task(resolved_id)
+                wt = ctx.worktree_manager.get_by_task(resolved_id)
                 if wt and wt.status in (
                     WorktreeStatus.MERGED.value,
                     WorktreeStatus.ABANDONED.value,
                 ):
-                    worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
+                    ctx.worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
             except Exception as e:
                 logger.debug(f"Best-effort reopen worktree update failed: {e}")
 

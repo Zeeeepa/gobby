@@ -319,6 +319,14 @@ class InternalToolRegistry:
         """Return full tool metadata (name, description, schema, func) by name."""
         return self._tools.get(name)
 
+    def merge_from(self, other: "InternalToolRegistry") -> None:
+        """Merge all tools from another registry into this one."""
+        self._tools.update(other._tools)
+
+    def __contains__(self, tool_name: object) -> bool:
+        """Check if a tool is registered by name."""
+        return tool_name in self._tools
+
     def __len__(self) -> int:
         """Return number of registered tools."""
         return len(self._tools)
@@ -411,7 +419,7 @@ class InternalRegistryManager:
             Server name if found, None otherwise
         """
         for registry in self._registries.values():
-            if tool_name in registry._tools:
+            if tool_name in registry:
                 return registry.name
         return None
 

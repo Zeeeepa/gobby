@@ -7,11 +7,12 @@ used across worktree tool modules.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
+    from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.worktrees.git import WorktreeGitManager
@@ -27,7 +28,7 @@ class RegistryContext:
     worktree_storage: LocalWorktreeManager
     git_manager: WorktreeGitManager | None = None
     project_id: str | None = None
-    session_manager: Any | None = None
+    session_manager: LocalSessionManager | None = None
     task_manager: LocalTaskManager | None = None
 
     def resolve_session_id(self, ref: str) -> str:
