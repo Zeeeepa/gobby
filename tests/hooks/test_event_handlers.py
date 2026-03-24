@@ -2239,10 +2239,10 @@ class TestSkillToolInterception:
         assert response.decision == "block"
         assert "User arguments: cleanup" in response.context
 
-    def test_skill_tool_unknown_passes_through(
+    def test_skill_tool_unknown_blocks_with_error(
         self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
     ) -> None:
-        """Skill tool call with unknown skill name allows through."""
+        """Skill tool call with unknown skill name blocks with helpful error."""
         skill_manager.resolve_skill_name.return_value = None
         event = make_event(
             HookEventType.BEFORE_TOOL,
@@ -2250,7 +2250,9 @@ class TestSkillToolInterception:
         )
         response = handlers_with_skills.handle_before_tool(event)
 
-        assert response.decision == "allow"
+        assert response.decision == "block"
+        assert "unknown-thing" in response.context
+        assert "search_skills" in response.context or "search_hub" in response.context
 
     def test_skill_tool_non_gobby_namespace(
         self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
@@ -2289,10 +2291,10 @@ class TestSkillToolInterception:
 
         assert response.decision == "allow"
 
-    def test_skill_tool_error_falls_through(
+    def test_skill_tool_error_blocks_not_allows(
         self, handlers_with_skills: EventHandlers, skill_manager: MagicMock
     ) -> None:
-        """Exception during skill resolution falls through to allow."""
+        """Exception during skill resolution blocks with error, never falls through."""
         skill_manager.resolve_skill_name.side_effect = RuntimeError("boom")
         event = make_event(
             HookEventType.BEFORE_TOOL,
@@ -2300,4 +2302,117 @@ class TestSkillToolInterception:
         )
         response = handlers_with_skills.handle_before_tool(event)
 
-        assert response.decision == "allow"
+        assert response.decision == "block"
+        assert "error" in response.context.lower() or "failed" in response.context.lower()
+
+    def test_skill_tool_tier2_mcp_fallback(
+        self, mock_dependencies: dict[str, Any], skill_manager: MagicMock
+    ) -> None:
+        """Tier 2: When local resolve fails, falls back to gobby-skills MCP get_skill."""
+        skill_manager.resolve_skill_name.return_value = None
+        mock_call_tool = MagicMock(
+            return_value={
+                "success": True,
+                "skill": {"name": "playwright", "content": "# Playwright\nBrowser automation."},
+            }
+        )
+        mock_dependencies["skill_manager"] = skill_manager
+        mock_dependencies["call_tool"] = mock_call_tool
+        handlers = EventHandlers(**mock_dependencies)
+
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "playwright"}},
+        )
+        response = handlers.handle_before_tool(event)
+
+        assert response.decision == "block"
+        assert '<skill-context name="playwright">' in response.context
+        assert "Browser automation" in response.context
+        mock_call_tool.assert_any_call("gobby-skills", "get_skill", {"name": "playwright"})
+
+    def test_skill_tool_tier3_hub_nudge(
+        self, mock_dependencies: dict[str, Any], skill_manager: MagicMock
+    ) -> None:
+        """Tier 3: When tiers 1-2 fail, shows hub results with MCP install syntax."""
+        skill_manager.resolve_skill_name.return_value = None
+
+        def _mock_call(server: str, tool: str, args: dict) -> dict:
+            if tool == "get_skill":
+                return {"success": False}
+            if tool == "search_hub":
+                return {
+                    "success": True,
+                    "results": [
+                        {
+                            "display_name": "playwright-cli",
+                            "slug": "playwright-cli",
+                            "description": "Browser automation via Playwright",
+                            "hub_name": "clawdhub",
+                        }
+                    ],
+                }
+            return {"success": False}
+
+        mock_dependencies["skill_manager"] = skill_manager
+        mock_dependencies["call_tool"] = _mock_call
+        handlers = EventHandlers(**mock_dependencies)
+
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "playwright"}},
+        )
+        response = handlers.handle_before_tool(event)
+
+        assert response.decision == "block"
+        assert "playwright-cli" in response.context
+        assert "call_tool(" in response.context
+        assert "install_skill" in response.context
+        # Must NOT contain slash commands (agents can't use them)
+        assert "/gobby" not in response.context
+
+    def test_skill_tool_tier4_nothing_found_blocks(
+        self, mock_dependencies: dict[str, Any], skill_manager: MagicMock
+    ) -> None:
+        """Tier 4: When nothing found anywhere, blocks with search suggestions."""
+        skill_manager.resolve_skill_name.return_value = None
+
+        def _mock_call(server: str, tool: str, args: dict) -> dict:
+            return {"success": False}
+
+        mock_dependencies["skill_manager"] = skill_manager
+        mock_dependencies["call_tool"] = _mock_call
+        handlers = EventHandlers(**mock_dependencies)
+
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "nonexistent"}},
+        )
+        response = handlers.handle_before_tool(event)
+
+        assert response.decision == "block"
+        assert "nonexistent" in response.context
+        assert "search_skills" in response.context
+        assert "search_hub" in response.context
+
+    def test_skill_tool_no_manager_but_has_call_tool(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Without skill_manager but with call_tool, tier 2 still works."""
+        mock_call_tool = MagicMock(
+            return_value={
+                "success": True,
+                "skill": {"name": "playwright", "content": "# Playwright skill"},
+            }
+        )
+        mock_dependencies["call_tool"] = mock_call_tool
+        handlers = EventHandlers(**mock_dependencies)  # no skill_manager
+
+        event = make_event(
+            HookEventType.BEFORE_TOOL,
+            data={"tool_name": "Skill", "tool_input": {"skill": "playwright"}},
+        )
+        response = handlers.handle_before_tool(event)
+
+        assert response.decision == "block"
+        assert '<skill-context name="playwright">' in response.context

@@ -224,6 +224,9 @@ class HookManagerFactory:
 
         hook_assembler = HookTranscriptAssembler()
 
+        # Build synchronous call_tool wrapper for EventHandlers skill fallback
+        call_tool_fn = cls._build_sync_call_tool(tool_proxy_getter, loop, hook_logger)
+
         event_handlers = EventHandlers(
             session_manager=session_mgr,
             workflow_handler=workflow_components.handler,
@@ -234,6 +237,7 @@ class HookManagerFactory:
             session_coordinator=session_coordinator,
             skill_manager=workflow_components.skill_manager,
             skills_config=config.skills if config else None,
+            call_tool=call_tool_fn,
             workflow_config=config.workflow if config else None,
             get_machine_id=get_machine_id,
             resolve_project_id=resolve_project_id,
@@ -268,6 +272,47 @@ class HookManagerFactory:
             hook_assembler=hook_assembler,
             event_handlers=event_handlers,
         )
+
+    @staticmethod
+    def _build_sync_call_tool(
+        tool_proxy_getter: Any | None,
+        loop: asyncio.AbstractEventLoop | None,
+        logger: logging.Logger,
+    ) -> Any:
+        """Build a synchronous call_tool callable for EventHandlers.
+
+        Wraps the async tool_proxy_getter in a blocking closure so
+        event handlers can make MCP calls (e.g., gobby-skills fallback)
+        from the synchronous hook dispatch context.
+
+        Returns None if tool_proxy_getter or loop is unavailable.
+        """
+        if not tool_proxy_getter or not loop:
+            return None
+
+        def _sync_call_tool(server: str, tool: str, args: dict[str, Any]) -> dict[str, Any] | None:
+            proxy = tool_proxy_getter()
+            if not proxy:
+                return None
+
+            async def _do() -> dict[str, Any]:
+                return await proxy.call_tool(server, tool, args)
+
+            if loop.is_running():
+                try:
+                    future = asyncio.run_coroutine_threadsafe(_do(), loop)
+                    return future.result(timeout=10)
+                except Exception as e:
+                    logger.debug("_sync_call_tool: threadsafe failed: %s", e)
+                    return None
+            else:
+                try:
+                    return asyncio.run(_do())
+                except Exception as e:
+                    logger.debug("_sync_call_tool: asyncio.run failed: %s", e)
+                    return None
+
+        return _sync_call_tool
 
     @staticmethod
     def _create_database(config: Any | None) -> LocalDatabase:

@@ -32,6 +32,7 @@ class EventHandlersBase:
     _session_coordinator: SessionCoordinator | None
     _skill_manager: HookSkillManager | None
     _skills_config: SkillsConfig | None
+    _call_tool: Callable[[str, str, dict[str, Any]], dict[str, Any] | None] | None
     _get_machine_id: Callable[[], str]
     _resolve_project_id: Callable[[str | None, str | None], str]
     _code_index_trigger: Any | None
