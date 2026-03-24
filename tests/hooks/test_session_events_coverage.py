@@ -495,7 +495,7 @@ class TestSelectAndFormatAgentSkills:
             ),
             patch("gobby.skills.injector.SkillInjector.select_skills") as mock_select,
             patch(
-                "gobby.skills.formatting._format_skills_with_formats",
+                "gobby.skills.formatting.render_skills_for_context",
                 return_value="formatted-content",
             ),
         ):

@@ -57,7 +57,7 @@ def select_and_format_agent_skills(
         (formatted_text, skills_count, injected_skill_names)
     """
     from gobby.hooks.skill_manager import _db_skill_to_parsed
-    from gobby.skills.formatting import _format_skills_with_formats
+    from gobby.skills.formatting import render_skills_for_context
     from gobby.skills.injector import AgentContext, SkillInjector, SkillProfile
 
     eligible = (
@@ -79,7 +79,7 @@ def select_and_format_agent_skills(
         return None, 0, []
 
     injected_names = [skill.name for skill, fmt in selected if fmt in ("full", "content")]
-    formatted = _format_skills_with_formats(selected)
+    formatted = render_skills_for_context(selected)
     return formatted, len(selected), injected_names
 
 

@@ -66,7 +66,7 @@ def format_skills_markdown_table(skills_list: list[Any]) -> str:
     return "\n".join(lines)
 
 
-def format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> str:
+def render_skills_for_context(skills_with_formats: list[tuple[Any, str]]) -> str:
     """Format skills with pre-resolved injection formats.
 
     Like _format_skills() but uses the format resolved by SkillInjector
@@ -126,8 +126,9 @@ def format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> st
     return "\n\n".join(parts)
 
 
-# Backwards-compatible alias — callers used the underscore-prefixed name
-_format_skills_with_formats = format_skills_with_formats
+# Backwards-compatible aliases
+_format_skills_with_formats = render_skills_for_context
+format_skills_with_formats = render_skills_for_context
 
 
 def recommend_skills_for_task(
