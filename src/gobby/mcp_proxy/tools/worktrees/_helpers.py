@@ -45,6 +45,8 @@ def generate_worktree_path(branch_name: str, project_name: str | None = None) ->
     base = get_worktree_base_dir()
     safe_branch = re.sub(r'[\\:*?"<>|\s/]', "-", branch_name)
     safe_branch = re.sub(r"-{2,}", "-", safe_branch).strip("-")
+    if not safe_branch:
+        safe_branch = "unnamed-branch"
 
     if project_name:
         return str(base / project_name / safe_branch)

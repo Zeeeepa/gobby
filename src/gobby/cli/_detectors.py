@@ -27,7 +27,10 @@ def _is_cursor_installed() -> bool:
     if sys.platform == "darwin":
         return Path("/Applications/Cursor.app").exists()
     elif sys.platform == "win32":
-        return Path(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor").exists()
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if not local_appdata:
+            return False
+        return Path(local_appdata, "Programs", "cursor").exists()
     else:
         # Linux - check common locations
         return (Path.home() / ".local" / "share" / "cursor").exists() or shutil.which(
@@ -41,12 +44,30 @@ def _is_windsurf_installed() -> bool:
     if sys.platform == "darwin":
         return Path("/Applications/Windsurf.app").exists()
     elif sys.platform == "win32":
-        return Path(os.environ.get("LOCALAPPDATA", ""), "Programs", "windsurf").exists()
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if not local_appdata:
+            return False
+        return Path(local_appdata, "Programs", "windsurf").exists()
     else:
         return shutil.which("windsurf") is not None
 
 
 def _is_copilot_cli_installed() -> bool:
     """Check if GitHub Copilot CLI is installed."""
-    # Check for gh copilot extension or standalone CLI
-    return shutil.which("gh") is not None or shutil.which("github-copilot-cli") is not None
+    # Check for standalone CLI first
+    if shutil.which("github-copilot-cli") is not None:
+        return True
+    # Check for gh copilot extension (gh alone is not sufficient)
+    if shutil.which("gh") is not None:
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["gh", "copilot", "--version"],
+                capture_output=True,
+                timeout=5,
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+    return False

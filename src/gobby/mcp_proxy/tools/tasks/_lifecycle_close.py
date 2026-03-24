@@ -340,7 +340,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         except Exception as e:
             logger.debug(f"Best-effort worktree update failed during close: {e}")
 
-        return {}
+        return {"success": True}
 
     registry.register(
         name="close_task",

@@ -69,7 +69,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
 
     register_core_routes(router, server, _get_session_manager, _broadcast_session)
     register_lifecycle_routes(router, server, _get_session_manager, _broadcast_session)
-    register_message_routes(router, server, _get_session_manager, _broadcast_session)
+    register_message_routes(router, server, _get_session_manager)
     register_analytics_routes(router, server, _get_session_manager, _broadcast_session)
 
     return router

@@ -151,10 +151,10 @@ async def cleanup_idle_sessions(mixin: SessionControlMixin) -> None:
                 if (now - session.last_activity).total_seconds() > IDLE_TIMEOUT_SECONDS
             ]
             for conv_id in stale_ids:
-                # Fire SESSION_END before popping (needs session in dict for lookup)
+                # Fire SESSION_END before teardown (needs session in dict for lookup)
                 await mixin._fire_session_end(conv_id)
-                session = mixin._chat_sessions.pop(conv_id)
                 await mixin._cancel_active_chat(conv_id)
+                session = mixin._chat_sessions.pop(conv_id)
                 # Mark as paused in database and clear pending plan before stopping
                 if session.db_session_id:
                     session_manager = getattr(mixin, "session_manager", None)

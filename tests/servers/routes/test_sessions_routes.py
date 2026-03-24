@@ -176,7 +176,7 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at="2026-02-10T12:00:00+00:00",
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
         with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
@@ -228,7 +228,7 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at="2026-02-10T12:00:00+00:00",
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
         with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
@@ -249,7 +249,7 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at="2026-02-10T12:00:00+00:00",
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
         with patch(
             "gobby.servers.routes.sessions.core.subprocess.run",
@@ -267,7 +267,7 @@ class TestGetCommitCount:
             created_at=datetime(2026, 2, 10, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2026, 2, 10, 12, 0, 0, tzinfo=UTC),
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
         with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
@@ -287,7 +287,7 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at=None,
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
         with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
@@ -317,7 +317,7 @@ class TestGetCommitCount:
             created_at=datetime(2026, 2, 10, 10, 0, 0),  # no tzinfo
             updated_at=datetime(2026, 2, 10, 12, 0, 0),  # no tzinfo
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
         with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()

@@ -143,7 +143,7 @@ def _notify_daemon_reload() -> None:
         else:
             click.echo(f"Daemon reload returned status {response.status_code}", err=True)
     except Exception as e:
-        logger.debug(f"Could not notify daemon: {e}")
+        logger.debug(f"Could not notify daemon: {e}", exc_info=True)
         click.echo("Daemon not reachable; reload will happen on next restart")
 
 

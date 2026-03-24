@@ -79,6 +79,7 @@ def create_merge_registry(
         if not source_branch:
             return {"success": False, "error": "source_branch is required"}
 
+        resolution = None
         try:
             # Create resolution record
             resolution = merge_storage.create_resolution(
@@ -146,7 +147,7 @@ def create_merge_registry(
 
         except Exception as e:
             logger.exception(
-                f"Error starting merge for worktree_id={worktree_id}, resolution_id={(resolution.id if 'resolution' in dir() else 'N/A')}",
+                f"Error starting merge for worktree_id={worktree_id}, resolution_id={resolution.id if resolution is not None else 'N/A'}",
             )
             return {"success": False, "error": str(e)}
 

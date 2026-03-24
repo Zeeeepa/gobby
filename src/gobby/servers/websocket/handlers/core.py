@@ -109,7 +109,8 @@ class HandlerMixin:
                 if registry:
                     try:
                         result = await registry.call(tool_name, args)
-                    except ValueError:
+                    except ValueError as e:
+                        logger.debug(f"Registry miss for {tool_name}, falling back to MCP: {e}")
                         result = await self.mcp_manager.call_tool(mcp_name, tool_name, args)
                 else:
                     result = await self.mcp_manager.call_tool(mcp_name, tool_name, args)

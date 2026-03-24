@@ -144,11 +144,11 @@ class TemplatingMixin:
         if not session_id:
             return 0
         row = self.db.fetchone(
-            "SELECT COUNT(*) FROM inter_session_messages "
+            "SELECT COUNT(*) AS cnt FROM inter_session_messages "
             "WHERE to_session = ? AND delivered_at IS NULL",
             (session_id,),
         )
-        return row[0] if row else 0
+        return row["cnt"] if row else 0
 
     # Patterns indicating unrecoverable failures where the agent should stop immediately
     _CATASTROPHIC_PATTERNS = [

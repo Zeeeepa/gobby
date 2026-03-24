@@ -55,8 +55,9 @@ def register_delete_task(registry: InternalToolRegistry, ctx: RegistryContext) -
             return {"error": error_msg}
 
         return {
+            "success": True,
             "ref": ref,
-            "deleted_task_id": resolved_id,  # UUID at end
+            "deleted_task_id": resolved_id,
         }
 
     registry.register(

@@ -124,7 +124,25 @@ def create_create_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"success": False, "error": result.error or "Failed to create git worktree"}
 
         # Resolve task_id (#N -> UUID) before DB insert
-        resolved_task_id = ctx.resolve_task_id(task_id) if task_id else None
+        resolved_task_id = None
+        if task_id:
+            try:
+                resolved_task_id = ctx.resolve_task_id(task_id)
+            except ValueError as e:
+                # Clean up the git worktree we just created
+                try:
+                    await asyncio.to_thread(
+                        resolved_git_mgr.delete_worktree,
+                        worktree_path,
+                        force=True,
+                        delete_branch=True,
+                        branch_name=branch_name,
+                    )
+                except Exception as cleanup_err:
+                    logger.warning(
+                        f"Failed to clean up worktree after task resolution failure: {cleanup_err}"
+                    )
+                return {"success": False, "error": f"Invalid task reference: {e}"}
 
         # Record in database -- clean up git worktree on failure
         try:
@@ -151,8 +169,12 @@ def create_create_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"success": False, "error": f"Failed to record worktree in database: {db_err}"}
 
         # Copy project.json and install provider hooks
-        copy_project_json_to_worktree(resolved_git_mgr.repo_path, worktree.worktree_path)
-        hooks_installed = install_provider_hooks(provider, worktree.worktree_path)
+        hooks_installed = False
+        try:
+            copy_project_json_to_worktree(resolved_git_mgr.repo_path, worktree.worktree_path)
+            hooks_installed = install_provider_hooks(provider, worktree.worktree_path)
+        except Exception as post_err:
+            logger.warning(f"Post-creation setup failed for worktree {worktree.id}: {post_err}")
 
         return {
             "success": True,

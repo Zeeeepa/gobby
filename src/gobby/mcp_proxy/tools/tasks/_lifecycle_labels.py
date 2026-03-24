@@ -23,7 +23,7 @@ def register_add_label(registry: InternalToolRegistry, ctx: RegistryContext) -> 
         task = ctx.task_manager.add_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        return {}
+        return {"success": True, "task_id": resolved_id}
 
     registry.register(
         name="add_label",
@@ -55,7 +55,7 @@ def register_remove_label(registry: InternalToolRegistry, ctx: RegistryContext) 
         task = ctx.task_manager.remove_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        return {}
+        return {"success": True, "task_id": resolved_id}
 
     registry.register(
         name="remove_label",

@@ -80,7 +80,10 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Dict with list of worktrees.
         """
-        limit = int(limit) if isinstance(limit, str) else limit
+        try:
+            limit = int(limit) if isinstance(limit, str) else limit
+        except ValueError:
+            return {"success": False, "error": f"Invalid limit value: {limit!r}"}
 
         resolved_session_id = agent_session_id
         if agent_session_id:
@@ -133,7 +136,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"success": False, "error": error}
 
         if resolved_project_id is None:
-            raise RuntimeError("Project ID unexpectedly None")
+            return {"success": False, "error": "Project ID unexpectedly None"}
 
         counts = ctx.worktree_storage.count_by_status(resolved_project_id)
 
@@ -157,7 +160,10 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Dict with worktree details or not found.
         """
-        resolved_task_id = ctx.resolve_task_id(task_id)
+        try:
+            resolved_task_id = ctx.resolve_task_id(task_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
         worktree = ctx.worktree_storage.get_by_task(resolved_task_id)
         if not worktree:
             return {"success": True, "worktree": None}

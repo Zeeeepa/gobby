@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from gobby.sessions.transcript_archive import get_archive_dir, restore_transcript
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable
 
     from gobby.servers.http import HTTPServer
 
@@ -24,7 +24,6 @@ def register_message_routes(
     router: APIRouter,
     server: "HTTPServer",
     get_session_manager: "Callable[[], Any]",
-    broadcast_session: "Callable[..., Awaitable[None]]",
 ) -> None:
     """Register message and transcript routes on the router."""
 

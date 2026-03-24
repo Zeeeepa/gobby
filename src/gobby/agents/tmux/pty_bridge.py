@@ -111,7 +111,10 @@ class TmuxPTYBridge:
             async with self._lock:
                 self._bridges[streaming_id] = bridge
         except Exception:
-            os.close(master_fd)
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
             try:
                 proc.terminate()
                 await asyncio.wait_for(proc.wait(), timeout=2.0)

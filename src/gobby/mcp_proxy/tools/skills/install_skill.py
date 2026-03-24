@@ -165,7 +165,11 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
             if isinstance(parsed_skill, list):
                 if len(parsed_skill) == 0:
                     return {"success": False, "error": "No skills found in source"}
-                # Use the first skill if multiple were found
+                if len(parsed_skill) > 1:
+                    logger.warning(
+                        f"Multiple skills found ({len(parsed_skill)}), using first: "
+                        f"{parsed_skill[0].get('name', 'unknown')}"
+                    )
                 parsed_skill = parsed_skill[0]
 
             # Scan skill content for safety before persisting

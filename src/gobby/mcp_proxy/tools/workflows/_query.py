@@ -146,7 +146,9 @@ def list_workflows(
                 )
                 seen_names.add(row.name)
         except Exception as e:
-            logger.warning(f"DB workflow query failed, falling back to filesystem: {e}")
+            logger.warning(
+                f"DB workflow query failed, falling back to filesystem: {e}", exc_info=True
+            )
 
     # Merge with filesystem discovery
     search_dirs = list(loader.global_dirs)

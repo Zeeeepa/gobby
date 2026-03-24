@@ -150,7 +150,7 @@ def register_analytics_routes(
             if title_config:
                 try:
                     provider, model, _ = server.llm_service.get_provider_for_feature(title_config)
-                except (ValueError, Exception):
+                except Exception:
                     provider = server.llm_service.get_default_provider()
                     model = "haiku"
             else:

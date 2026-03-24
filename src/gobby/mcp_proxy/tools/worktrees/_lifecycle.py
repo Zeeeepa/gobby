@@ -211,7 +211,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not worktree:
             return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
-        resolved_task_id = ctx.resolve_task_id(task_id)
+        try:
+            resolved_task_id = ctx.resolve_task_id(task_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
         updated = ctx.worktree_storage.update(worktree_id, task_id=resolved_task_id)
         if not updated:
             return {"success": False, "error": "Failed to link task to worktree"}

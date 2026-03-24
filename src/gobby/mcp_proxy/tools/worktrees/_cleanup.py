@@ -100,11 +100,15 @@ def create_cleanup_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Dict with cleanup results.
         """
+
+        def _parse_bool(value: bool | str) -> bool:
+            if isinstance(value, bool):
+                return value
+            return value.lower() in ("true", "1", "yes", "on")
+
         hours = int(hours) if isinstance(hours, str) else hours
-        dry_run = dry_run in (True, "true", "True", "1") if isinstance(dry_run, str) else dry_run
-        delete_git = (
-            delete_git in (True, "true", "True", "1") if isinstance(delete_git, str) else delete_git
-        )
+        dry_run = _parse_bool(dry_run)
+        delete_git = _parse_bool(delete_git)
 
         resolved_git_manager, resolved_project_id, error = resolve_project_context(
             project_path, ctx.git_manager, ctx.project_id

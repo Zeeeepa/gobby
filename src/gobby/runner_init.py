@@ -200,9 +200,8 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
                 try:
                     loop = asyncio.get_running_loop()
                     loop.create_task(runner.websocket_server.broadcast_trace_event(span))
-                except RuntimeError:
-                    # No running loop (likely shutdown or too early)
-                    pass
+                except RuntimeError as e:
+                    logger.debug(f"Trace broadcast skipped (no running loop): {e}")
 
         add_span_storage_exporter(runner.span_storage, broadcast_callback=_broadcast_proxy)
         logger.debug("Local span storage exporter wired to OTel")
