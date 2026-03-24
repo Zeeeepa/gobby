@@ -176,7 +176,6 @@ class TestContinueInChatTerminalKill:
         host = self._make_host()
         host.session_manager = session_manager
         host.agent_run_manager = None
-        host._check_resume_blocked = AsyncMock(return_value=None)
 
         # Mock the agent registry to return nothing
         mock_registry = MagicMock()
@@ -194,10 +193,15 @@ class TestContinueInChatTerminalKill:
                 return_value=mock_registry,
             ),
             patch(
-                "gobby.servers.websocket.session_control.kill_terminal_session",
+                "gobby.servers.websocket.handlers.session_observe.kill_terminal_session",
                 new_callable=AsyncMock,
                 return_value=True,
             ) as mock_kill,
+            patch(
+                "gobby.servers.websocket.handlers.session_observe.check_resume_blocked",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             await SessionControlMixin._handle_continue_in_chat(
                 host,
@@ -239,7 +243,6 @@ class TestContinueInChatTerminalKill:
         host = self._make_host()
         host.session_manager = session_manager
         host.agent_run_manager = None
-        host._check_resume_blocked = AsyncMock(return_value=None)
 
         mock_run = MagicMock()
         mock_run.id = "agent-1"
@@ -260,9 +263,14 @@ class TestContinueInChatTerminalKill:
                 new_callable=AsyncMock,
             ) as mock_kill_agent,
             patch(
-                "gobby.servers.websocket.session_control.kill_terminal_session",
+                "gobby.servers.websocket.handlers.session_observe.kill_terminal_session",
                 new_callable=AsyncMock,
             ) as mock_kill_terminal,
+            patch(
+                "gobby.servers.websocket.handlers.session_observe.check_resume_blocked",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             mock_arm_cls.return_value.get_by_session.return_value = mock_run
             await SessionControlMixin._handle_continue_in_chat(

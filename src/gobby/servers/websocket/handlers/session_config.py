@@ -1,0 +1,278 @@
+"""Session configuration handlers for WebSocket session control.
+
+Handles set_mode, set_project, set_worktree, and set_agent message types.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.servers.websocket.session_control import SessionControlMixin
+
+logger = logging.getLogger(__name__)
+
+
+async def handle_set_mode(mixin: SessionControlMixin, websocket: Any, data: dict[str, Any]) -> None:
+    """Handle set_mode message to change chat mode for a conversation.
+
+    Message format:
+    {
+        "type": "set_mode",
+        "mode": "normal" | "accept_edits" | "bypass" | "plan",
+        "conversation_id": "stable-id"
+    }
+    """
+    conversation_id: str | None = data.get("conversation_id")
+    mode: str = str(data.get("mode", "bypass"))
+    valid_modes = {"normal", "accept_edits", "bypass", "plan"}
+    if mode not in valid_modes:
+        await mixin._send_error(websocket, f"Invalid mode: {mode}. Must be one of {valid_modes}")
+        return
+
+    # Track which conversation this client is in (for scoped broadcasts)
+    if conversation_id:
+        client_info = mixin.clients.get(websocket)
+        if client_info is not None:
+            client_info["conversation_id"] = conversation_id
+
+    session = mixin._chat_sessions.get(conversation_id) if conversation_id else None
+    if session is not None and conversation_id:
+        session.set_chat_mode(mode)
+        # If user toggles away from plan while ExitPlanMode is blocking,
+        # cancel the pending approval to unblock the streaming loop.
+        if mode != "plan" and session.has_pending_plan:
+            session.provide_plan_decision("request_changes")
+        # Sync mode_level to session variables
+        db_sid = getattr(session, "db_session_id", None)
+        if db_sid:
+            try:
+                from gobby.workflows.observers import compute_mode_level
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                sm = getattr(mixin, "session_manager", None)
+                db = getattr(sm, "db", None) if sm else None
+                if db is None:
+                    from gobby.storage.database import LocalDatabase
+
+                    db = LocalDatabase()
+                svm = SessionVariableManager(db)
+                svm.merge_variables(
+                    db_sid,
+                    {"chat_mode": mode, "mode_level": compute_mode_level(mode)},
+                )
+            except Exception as e:
+                logger.warning(f"Failed to sync mode_level on mode change: {e}")
+        logger.info(f"Chat mode set to '{mode}' for conversation {conversation_id[:8]}")
+    elif conversation_id:
+        # Store mode for when session is created
+        mixin._pending_modes[conversation_id] = mode
+        logger.debug(f"Chat mode '{mode}' queued for future conversation {conversation_id[:8]}")
+
+
+async def handle_set_project(
+    mixin: SessionControlMixin, websocket: Any, data: dict[str, Any]
+) -> None:
+    """Handle set_project message to switch the project for a conversation.
+
+    Stops the existing CLI subprocess so the next message creates a fresh
+    session with the correct CWD and project context. Conversation history
+    is preserved via database-backed history injection.
+
+    Message format:
+    {
+        "type": "set_project",
+        "project_id": "uuid-or-_personal",
+        "conversation_id": "stable-id"
+    }
+    """
+    conversation_id = data.get("conversation_id")
+    new_project_id = data.get("project_id")
+
+    if not conversation_id or not new_project_id:
+        await mixin._send_error(websocket, "set_project requires conversation_id and project_id")
+        return
+
+    session = mixin._chat_sessions.get(conversation_id)
+    old_project_id = getattr(session, "project_id", None) if session else None
+
+    if session:
+        await mixin._cancel_active_chat(conversation_id)
+        if session.db_session_id:
+            session_manager = getattr(mixin, "session_manager", None)
+            if session_manager:
+                try:
+                    await asyncio.to_thread(
+                        session_manager.update,
+                        session.db_session_id,
+                        status="paused",
+                        project_id=new_project_id,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update session on project switch: {e}")
+        await session.stop()
+        mixin._chat_sessions.pop(conversation_id, None)
+
+    await websocket.send(
+        json.dumps(
+            {
+                "type": "project_switched",
+                "conversation_id": conversation_id,
+                "old_project_id": old_project_id,
+                "new_project_id": new_project_id,
+            }
+        )
+    )
+    logger.info(
+        f"Project switched for conversation {conversation_id[:8]}: "
+        f"{old_project_id} -> {new_project_id}"
+    )
+
+
+async def handle_set_worktree(
+    mixin: SessionControlMixin, websocket: Any, data: dict[str, Any]
+) -> None:
+    """Handle set_worktree message to switch the worktree for a conversation.
+
+    Stops the existing CLI subprocess so the next message creates a fresh
+    session with the worktree's CWD. Conversation history is preserved via
+    database-backed history injection.
+
+    Message format:
+    {
+        "type": "set_worktree",
+        "conversation_id": "stable-id",
+        "worktree_path": "/absolute/path/to/worktree",
+        "worktree_id": "optional-db-uuid"
+    }
+    """
+    from gobby.servers.websocket.chat._session import _resolve_git_branch
+
+    conversation_id = data.get("conversation_id")
+    worktree_path = data.get("worktree_path")
+    worktree_id = data.get("worktree_id")
+
+    if not conversation_id:
+        await mixin._send_error(websocket, "set_worktree requires conversation_id")
+        return
+
+    # Resolve worktree_path from DB if only worktree_id provided
+    if not worktree_path and worktree_id:
+        session_manager = getattr(mixin, "session_manager", None)
+        if session_manager:
+            try:
+                from gobby.storage.worktrees import LocalWorktreeManager
+
+                wm = LocalWorktreeManager(session_manager.db)
+                wt = wm.get(worktree_id)
+                if wt:
+                    worktree_path = wt.worktree_path
+            except Exception as e:
+                logger.warning(f"Failed to resolve worktree {worktree_id}: {e}")
+
+    if not worktree_path:
+        await mixin._send_error(websocket, "set_worktree requires worktree_path or worktree_id")
+        return
+
+    if not os.path.isdir(worktree_path):
+        await mixin._send_error(websocket, f"Worktree path does not exist: {worktree_path}")
+        return
+
+    # Tear down existing session (same pattern as set_project)
+    session = mixin._chat_sessions.get(conversation_id)
+    if session:
+        await mixin._cancel_active_chat(conversation_id)
+        if session.db_session_id:
+            session_manager = getattr(mixin, "session_manager", None)
+            if session_manager:
+                try:
+                    await asyncio.to_thread(
+                        session_manager.update,
+                        session.db_session_id,
+                        status="paused",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update session on worktree switch: {e}")
+        await session.stop()
+        mixin._chat_sessions.pop(conversation_id, None)
+
+    # Store worktree path for next session creation
+    mixin._pending_worktree_paths[conversation_id] = worktree_path
+
+    # Resolve the branch name for the new worktree
+    new_branch, _ = await _resolve_git_branch(worktree_path)
+
+    await websocket.send(
+        json.dumps(
+            {
+                "type": "worktree_switched",
+                "conversation_id": conversation_id,
+                "new_branch": new_branch,
+                "worktree_path": worktree_path,
+            }
+        )
+    )
+    logger.info(
+        f"Worktree switched for conversation {conversation_id[:8]}: "
+        f"branch={new_branch}, path={worktree_path}"
+    )
+
+
+async def handle_set_agent(
+    mixin: SessionControlMixin, websocket: Any, data: dict[str, Any]
+) -> None:
+    """Handle set_agent message to switch the active agent for a conversation.
+
+    Stops the existing CLI subprocess so the next message creates a fresh
+    session with the new agent context. Conversation history is preserved
+    via database-backed history injection.
+
+    Message format:
+    {
+        "type": "set_agent",
+        "conversation_id": "stable-id",
+        "agent_name": "agent-definition-name"
+    }
+    """
+    conversation_id = data.get("conversation_id")
+    agent_name = data.get("agent_name")
+
+    if not conversation_id or not agent_name:
+        await mixin._send_error(websocket, "set_agent requires conversation_id and agent_name")
+        return
+
+    # Tear down existing session (same pattern as set_worktree)
+    session = mixin._chat_sessions.get(conversation_id)
+    if session:
+        await mixin._cancel_active_chat(conversation_id)
+        if session.db_session_id:
+            session_manager = getattr(mixin, "session_manager", None)
+            if session_manager:
+                try:
+                    await asyncio.to_thread(
+                        session_manager.update,
+                        session.db_session_id,
+                        status="paused",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update session on agent switch: {e}")
+        await session.stop()
+        mixin._chat_sessions.pop(conversation_id, None)
+
+    # Store agent name for next session creation
+    mixin._pending_agents[conversation_id] = agent_name
+
+    await websocket.send(
+        json.dumps(
+            {
+                "type": "agent_changed",
+                "conversation_id": conversation_id,
+                "agent_name": agent_name,
+            }
+        )
+    )
+    logger.info(f"Agent switched for conversation {conversation_id[:8]}: {agent_name}")
