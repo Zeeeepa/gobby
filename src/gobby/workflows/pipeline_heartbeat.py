@@ -124,14 +124,25 @@ class PipelineHeartbeat:
             return False
 
     def _is_session_alive(self, session_id: str) -> bool:
-        """Check if a session is still alive (active or paused)."""
+        """Check if a session is still alive.
+
+        Interactive sessions (agent_depth == 0) are alive when active or paused
+        (user is between prompts). Agent sessions (agent_depth > 0) are only
+        alive when active — a paused agent session with no active run is dead.
+        """
         if not self._session_manager:
             return False
         try:
             session = self._session_manager.get(session_id)
             if session is None:
                 return False
-            return session.status in ("active", "paused")
+            if session.status == "active":
+                return True
+            if session.status == "paused":
+                # Agent sessions with no active run are dead (process exited)
+                # Interactive sessions are alive (user is thinking)
+                return getattr(session, "agent_depth", 0) == 0
+            return False
         except Exception:
             logger.exception("Failed to check session liveness for %s", session_id)
             return True  # Err on side of caution — assume alive

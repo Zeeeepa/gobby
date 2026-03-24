@@ -381,6 +381,52 @@ async def test_expired_session_task_recovered(
 
 
 @pytest.mark.asyncio
+async def test_paused_agent_session_task_recovered(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task assigned to a paused agent session (depth > 0) → reset to open."""
+    _seed_db(temp_db)
+    # Mark session as paused with agent_depth > 0 (dead agent session)
+    temp_db.execute(
+        "UPDATE sessions SET status = 'paused', agent_depth = 1 WHERE id = ?", (SESSION_ID,)
+    )
+    task_id = _create_in_progress_task(task_manager, assignee=SESSION_ID)
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 1
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "open"
+    assert task.assignee is None
+
+
+@pytest.mark.asyncio
+async def test_paused_interactive_session_task_not_recovered(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task assigned to a paused interactive session (depth 0) → not touched."""
+    _seed_db(temp_db)
+    # Mark session as paused with agent_depth 0 (interactive user between prompts)
+    temp_db.execute(
+        "UPDATE sessions SET status = 'paused', agent_depth = 0 WHERE id = ?", (SESSION_ID,)
+    )
+    task_id = _create_in_progress_task(task_manager, assignee=SESSION_ID)
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 0
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "in_progress"
+    assert task.assignee == SESSION_ID
+
+
+@pytest.mark.asyncio
 async def test_nonexistent_session_task_recovered(
     heartbeat_with_tasks: PipelineHeartbeat,
     task_manager: LocalTaskManager,
