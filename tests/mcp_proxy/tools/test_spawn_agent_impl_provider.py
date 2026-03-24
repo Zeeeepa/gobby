@@ -68,9 +68,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -85,7 +82,6 @@ class TestProviderResolution:
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -124,9 +120,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -141,7 +134,6 @@ class TestProviderResolution:
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -174,9 +166,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -191,7 +180,6 @@ class TestProviderResolution:
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -224,9 +212,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -241,7 +226,6 @@ class TestProviderResolution:
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -293,9 +277,6 @@ class TestSpawnAutoClaimAssignee:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -310,7 +291,6 @@ class TestSpawnAutoClaimAssignee:
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -353,9 +333,6 @@ class TestSpawnAutoClaimAssignee:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -370,7 +347,6 @@ class TestSpawnAutoClaimAssignee:
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -415,9 +391,6 @@ class TestSpawnAutoClaimAssignee:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -432,7 +405,6 @@ class TestSpawnAutoClaimAssignee:
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
