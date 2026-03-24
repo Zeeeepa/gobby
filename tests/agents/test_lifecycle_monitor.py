@@ -23,6 +23,12 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def registry() -> RunningAgentRegistry:
+    """Registry fixture retained for test helpers that still populate it.
+
+    The lifecycle monitor itself no longer reads from the registry (DB-driven),
+    but some test helpers still use it to set up in-memory state for assertions.
+    TODO: Remove once all tests are migrated to DB-only setup.
+    """
     return RunningAgentRegistry()
 
 
@@ -47,12 +53,12 @@ def sample_session(
 
 @pytest.fixture
 def monitor(
-    registry: RunningAgentRegistry,
     agent_run_manager: LocalAgentRunManager,
+    temp_db: LocalDatabase,
 ) -> AgentLifecycleMonitor:
     return AgentLifecycleMonitor(
-        agent_registry=registry,
         agent_run_manager=agent_run_manager,
+        db=temp_db,
         check_interval_seconds=1.0,
     )
 

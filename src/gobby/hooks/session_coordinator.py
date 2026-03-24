@@ -303,20 +303,6 @@ class SessionCoordinator:
 
         self.logger.debug(f"Completing agent run {agent_run_id} for session {session.id}")
 
-        # Remove from in-memory running agents registry
-        # Capture tmux_session_name before removal for result fallback
-        tmux_session_name: str | None = None
-        try:
-            from gobby.agents.registry import get_running_agent_registry
-
-            running_registry = get_running_agent_registry()
-            removed = running_registry.remove(agent_run_id)
-            if removed:
-                tmux_session_name = removed.tmux_session_name
-                self.logger.debug(f"Unregistered running agent {agent_run_id} from registry")
-        except Exception as e:
-            self.logger.warning(f"Failed to unregister agent from running registry: {e}")
-
         if not self._agent_run_manager:
             return
 
@@ -365,6 +351,7 @@ class SessionCoordinator:
             # Fallback: capture terminal output from tmux session.
             # remain-on-exit is set on agent sessions so the pane persists
             # after the process exits, keeping the scrollback buffer available.
+            tmux_session_name = agent_run.tmux_session_name
             if not result and tmux_session_name:
                 try:
                     import subprocess

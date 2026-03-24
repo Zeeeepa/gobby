@@ -12,7 +12,6 @@ import logging
 import os
 from typing import Any
 
-from gobby.agents.registry import get_running_agent_registry
 from gobby.mcp_proxy.manager import MCPClientManager
 
 logger = logging.getLogger(__name__)
@@ -328,33 +327,29 @@ class HandlerMixin:
                     logger.warning(f"Failed to write to tmux bridge {run_id}: {e}")
                 return
 
-        registry = get_running_agent_registry()
-        # Look up by run_id
-        agent = registry.get(run_id)
+        # Look up agent run from DB to get tmux_session_name
+        from gobby.storage.agents import LocalAgentRunManager
 
-        if not agent:
+        db = getattr(self, "_db", None) or getattr(getattr(self, "session_manager", None), "db", None)
+        if not db:
+            logger.warning(f"No database available to look up agent {run_id}")
+            return
+
+        run = LocalAgentRunManager(db).get(run_id)
+        if not run:
             # Be silent on missing agent to avoid spamming errors if frontend is out of sync
             # or if agent just died.
             return
 
-        # Route input to tmux session or PTY
-        if agent.tmux_session_name:
+        # Route input to tmux session (all agents use tmux mode)
+        if run.tmux_session_name:
             try:
                 from gobby.agents.tmux import get_tmux_session_manager
 
                 mgr = get_tmux_session_manager()
-                await mgr.send_keys(agent.tmux_session_name, input_data)
+                await mgr.send_keys(run.tmux_session_name, input_data)
             except Exception as e:
                 logger.warning(f"Failed to send keys to tmux agent {run_id}: {e}")
             return
 
-        if agent.master_fd is None:
-            logger.warning(f"Agent {run_id} has no PTY master_fd")
-            return
-
-        try:
-            # Write key/input to PTY off the event loop
-            encoded_data = input_data.encode("utf-8")
-            await asyncio.to_thread(os.write, agent.master_fd, encoded_data)
-        except OSError as e:
-            logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
+        logger.warning(f"Agent {run_id} has no tmux_session_name — cannot route input")

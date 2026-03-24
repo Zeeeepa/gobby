@@ -102,8 +102,8 @@ class TmuxPaneMonitor:
                 logger.exception("TmuxPaneMonitor poll error (continuing)")
 
     async def _check_panes(self) -> None:
-        """Core detection: cross-reference live tmux sessions with registry."""
-        from gobby.agents.registry import get_running_agent_registry
+        """Core detection: cross-reference live tmux sessions with DB agent runs."""
+        from gobby.storage.agents import LocalAgentRunManager
 
         # 1. Prune expired entries from recently-ended set
         now = time.monotonic()
@@ -122,10 +122,16 @@ class TmuxPaneMonitor:
             return
         live_lookup = {s.name: s for s in live_sessions}
 
-        # 3. Get all agents with a tmux_session_name
-        registry = get_running_agent_registry()
-        agents = registry.list_all()
-        tmux_agents = [a for a in agents if a.tmux_session_name]
+        # 3. Get all active agent runs with a tmux_session_name from DB
+        if not self._session_storage:
+            return
+        try:
+            arm = LocalAgentRunManager(self._session_storage.db)
+            all_runs = arm.list_active()
+        except Exception:
+            logger.warning("TmuxPaneMonitor: failed to list active agent runs", exc_info=True)
+            return
+        tmux_agents = [r for r in all_runs if r.tmux_session_name]
 
         if not tmux_agents:
             return
@@ -156,23 +162,24 @@ class TmuxPaneMonitor:
 
             if live_info and not live_info.pane_dead and not pid_dead:
                 continue
-            if agent.session_id in self._recently_ended:
+            child_sid = agent.child_session_id or agent.id
+            if child_sid in self._recently_ended:
                 continue
 
             logger.info(
                 "Detected dead tmux pane for agent session=%s (tmux=%s)",
-                agent.session_id,
+                child_sid,
                 agent.tmux_session_name,
             )
 
             # Look up the session to get external_id and source
-            session = self._lookup_session(agent.session_id)
+            session = self._lookup_session(child_sid)
             if session is None:
                 logger.warning(
                     "Cannot synthesize session_end: session %s not found in DB",
-                    agent.session_id,
+                    child_sid,
                 )
-                self._recently_ended[agent.session_id] = now
+                self._recently_ended[child_sid] = now
                 continue
 
             event = HookEvent(
@@ -190,9 +197,9 @@ class TmuxPaneMonitor:
             try:
                 self._callback(event)
             except Exception:
-                logger.exception("TmuxPaneMonitor: callback error for session %s", agent.session_id)
+                logger.exception("TmuxPaneMonitor: callback error for session %s", child_sid)
 
-            self._recently_ended[agent.session_id] = now
+            self._recently_ended[child_sid] = now
 
     def _lookup_session(self, session_id: str) -> Session | None:
         """Look up a session from the database."""

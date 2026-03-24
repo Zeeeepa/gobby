@@ -154,11 +154,20 @@ class TestAdminRoutesExtended:
             # Verify DB insert
             mock_server.session_manager.db.execute.assert_called()
 
-    @patch("gobby.agents.registry.get_running_agent_registry")
-    def test_register_test_agent(self, mock_get_registry, client, mock_server) -> None:
+    @patch("gobby.storage.agents.LocalAgentRunManager")
+    def test_register_test_agent(self, mock_arm_cls, client, mock_server) -> None:
         """Test POST /test/register-agent endpoint."""
-        mock_registry = MagicMock()
-        mock_get_registry.return_value = mock_registry
+        mock_arm = MagicMock()
+        mock_run = MagicMock()
+        mock_run.to_dict.return_value = {
+            "run_id": "ar-test",
+            "id": "ar-test",
+            "session_id": "sess-test",
+            "parent_session_id": "parent-test",
+            "mode": "terminal",
+        }
+        mock_arm.get.return_value = mock_run
+        mock_arm_cls.return_value = mock_arm
 
         payload = {
             "run_id": "ar-test",
@@ -173,22 +182,22 @@ class TestAdminRoutesExtended:
         assert data["status"] == "success"
         assert data["agent"]["run_id"] == "ar-test"
 
-        mock_registry.add.assert_called()
+        mock_arm.create.assert_called_once()
+        mock_arm.start.assert_called_once_with("ar-test")
 
-    @patch("gobby.agents.registry.get_running_agent_registry")
-    def test_unregister_test_agent(self, mock_get_registry, client, mock_server) -> None:
+    @patch("gobby.storage.agents.LocalAgentRunManager")
+    def test_unregister_test_agent(self, mock_arm_cls, client, mock_server) -> None:
         """Test DELETE /test/unregister-agent/{run_id} endpoint."""
-        mock_registry = MagicMock()
-        mock_agent = MagicMock()
-        mock_registry.remove.return_value = mock_agent
-        mock_get_registry.return_value = mock_registry
+        mock_arm = MagicMock()
+        mock_arm.get.return_value = MagicMock()  # agent found
+        mock_arm_cls.return_value = mock_arm
 
         response = client.delete("/api/admin/test/unregister-agent/ar-test")
         assert response.status_code == 200
         data = response.json()
 
         assert data["status"] == "success"
-        mock_registry.remove.assert_called_with("ar-test")
+        mock_arm.fail.assert_called_once_with("ar-test", error="Unregistered via test endpoint")
 
     def test_set_session_usage(self, client, mock_server) -> None:
         """Test POST /test/set-session-usage endpoint."""

@@ -185,22 +185,17 @@ async def cancel_pipeline(
             "error": f"Pipeline already in a terminal state (current status: {execution.status.value})",
         }
 
-    # 1. Kill spawned agents (via registry)
+    # 1. Kill spawned agents (via DB)
     try:
-        from gobby.agents.registry import get_running_agent_registry
+        from gobby.agents.kill import kill_agent
+        from gobby.storage.agents import LocalAgentRunManager
 
-        registry = get_running_agent_registry()
-
-        # Kill all agents spawned by this pipeline (tracked via parent_session_id = pipeline's session_id)
-        # Note: Some pipelines share a session with the caller, others create a child session.
-        # We also check for agents associated with this specific execution_id if tracked.
-        agents = registry.list_all()
+        arm = LocalAgentRunManager(execution_manager.db)
+        active_runs = arm.list_by_parent(execution.session_id) if execution.session_id else []
         killed_count = 0
-        for agent in agents:
-            # Match by parent session or metadata if available
-            if agent.parent_session_id == execution.session_id:
-                await registry.kill(agent.run_id, signal_name="KILL")
-                killed_count += 1
+        for run in active_runs:
+            await kill_agent(run, execution_manager.db, signal_name="KILL")
+            killed_count += 1
 
         if killed_count > 0:
             logger.info(f"Killed {killed_count} agents associated with pipeline {execution_id[:8]}")

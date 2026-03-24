@@ -392,21 +392,24 @@ class SessionControlMixin:
         # 3. Kill running agent/terminal that owns this session before resuming
         if sdk_resume_id:
             killed = False
-            # Try agent registry first (Gobby-spawned agents)
+            # Check DB for active agent run on this session
             try:
-                from gobby.agents.registry import get_running_agent_registry
+                from gobby.agents.kill import kill_agent
+                from gobby.storage.agents import LocalAgentRunManager
 
-                registry = get_running_agent_registry()
-                running = registry.get_by_session(source_session_id)
-                if running:
-                    logger.info(
-                        "Killing agent %s (mode=%s) before resume",
-                        running.run_id,
-                        running.mode,
-                    )
-                    await registry.kill(running.run_id, close_terminal=True)
-                    killed = True
-                    await asyncio.sleep(0.5)
+                session_manager = getattr(self, "session_manager", None)
+                if session_manager:
+                    arm = LocalAgentRunManager(session_manager.db)
+                    run = arm.get_by_session(source_session_id)
+                    if run:
+                        logger.info(
+                            "Killing agent %s (mode=%s) before resume",
+                            run.id,
+                            run.mode,
+                        )
+                        await kill_agent(run, session_manager.db, close_terminal=True)
+                        killed = True
+                        await asyncio.sleep(0.5)
             except Exception as e:
                 logger.warning(f"Failed to kill running agent before resume: {e}")
 
@@ -496,18 +499,7 @@ class SessionControlMixin:
         """
         session_id = source_session.id
 
-        # 1. Active agent (in-memory registry)
-        try:
-            from gobby.agents.registry import get_running_agent_registry
-
-            registry = get_running_agent_registry()
-            running = registry.get_by_session(session_id)
-            if running:
-                return f"session has an active agent ({running.mode})"
-        except Exception as e:
-            logger.debug("Resume block check failed for %s: %s", session_id, e)
-
-        # 2. Active agent (DB fallback — pending/running agent_runs)
+        # 1. Active agent (DB check — pending/running agent_runs)
         session_manager = getattr(self, "session_manager", None)
         if session_manager:
             try:
@@ -522,7 +514,7 @@ class SessionControlMixin:
             except Exception as e:
                 logger.debug("Resume block check failed for %s: %s", session_id, e)
 
-            # 3. Active pipeline
+            # 2. Active pipeline
             try:
                 row = session_manager.db.fetchone(
                     "SELECT id FROM pipeline_executions "

@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
 
 if TYPE_CHECKING:
-    from gobby.agents.registry import RunningAgentRegistry
     from gobby.storage.agents import LocalAgentRunManager
     from gobby.storage.cron_models import CronJob
     from gobby.storage.pipelines import LocalPipelineExecutionManager
@@ -35,17 +34,15 @@ class PipelineHeartbeat:
     def __init__(
         self,
         execution_manager: LocalPipelineExecutionManager,
-        agent_registry: RunningAgentRegistry,
+        agent_run_manager: LocalAgentRunManager,
         stall_threshold_seconds: float = 120.0,
         task_manager: LocalTaskManager | None = None,
-        agent_run_manager: LocalAgentRunManager | None = None,
         session_manager: LocalSessionManager | None = None,
     ) -> None:
         self._execution_manager = execution_manager
-        self._agent_registry = agent_registry
+        self._agent_run_manager = agent_run_manager
         self._stall_threshold_seconds = stall_threshold_seconds
         self._task_manager = task_manager
-        self._agent_run_manager = agent_run_manager
         self._session_manager = session_manager
 
     async def __call__(self, job: CronJob) -> str:
@@ -111,14 +108,14 @@ class PipelineHeartbeat:
     def _has_alive_agents(self, execution: PipelineExecution) -> bool:
         """Check if any agents are alive for a pipeline execution.
 
-        Checks RunningAgentRegistry for agents whose parent session
+        Checks agent_runs DB table for active agents whose parent session
         matches the execution's session_id.
         """
         if not execution.session_id:
             return False
         try:
-            agents = self._agent_registry.list_by_parent(execution.session_id)
-            return len(agents) > 0
+            runs = self._agent_run_manager.list_by_parent(execution.session_id)
+            return len(runs) > 0
         except Exception:
             logger.exception("Failed to check alive agents for execution %s", execution.id)
             return False

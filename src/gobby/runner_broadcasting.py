@@ -17,14 +17,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Module-level reference so broadcast_agent_event can be called directly
+# from spawn and completion paths without going through the registry.
+_agent_event_callback: Any | None = None
+
 
 def setup_agent_event_broadcasting(websocket_server: WebSocketServer) -> None:
     """Set up WebSocket broadcasting for agent lifecycle events, PTY reading, and tmux streaming."""
     from gobby.agents.pty_reader import get_pty_reader_manager
-    from gobby.agents.registry import get_running_agent_registry
     from gobby.agents.tmux import get_tmux_output_reader
 
-    registry = get_running_agent_registry()
     pty_manager = get_pty_reader_manager()
     tmux_reader = get_tmux_output_reader()
 
@@ -38,7 +40,11 @@ def setup_agent_event_broadcasting(websocket_server: WebSocketServer) -> None:
     tmux_reader.set_output_callback(broadcast_terminal_output)
 
     def broadcast_agent_event(event_type: str, run_id: str, data: dict[str, Any]) -> None:
-        """Broadcast agent events via WebSocket (non-blocking)."""
+        """Broadcast agent events via WebSocket (non-blocking).
+
+        Can be called directly — no registry dependency. The ``data`` dict
+        should contain tmux_session_name, session_id, parent_session_id, etc.
+        """
         if not websocket_server:
             return
 
@@ -66,39 +72,26 @@ def setup_agent_event_broadcasting(websocket_server: WebSocketServer) -> None:
             except Exception as e:
                 logger.warning(f"Failed to broadcast agent event {event_type}: {e}")
 
-        # Handle PTY reader start/stop for agents with PTY (legacy)
-        if event_type == "agent_started" and data.get("master_fd") is not None:
-            agent = registry.get(run_id)
-            if agent and agent.master_fd is not None:
-                _agent = agent  # bind for closure type narrowing
-
-                async def start_pty_reader() -> None:
-                    await pty_manager.start_reader(_agent)
-
-                task = asyncio.create_task(start_pty_reader())
-                task.add_done_callback(_log_broadcast_exception)
-
         # Handle tmux output reader start for tmux terminal agents
         if event_type == "agent_started":
-            agent = registry.get(run_id)
-            if agent and agent.tmux_session_name:
-                session_name = agent.tmux_session_name
+            tmux_name = data.get("tmux_session_name")
+            if tmux_name:
+                _tmux_name = tmux_name  # bind for closure
 
                 async def start_tmux_reader() -> None:
-                    await tmux_reader.start_reader(run_id, session_name)
+                    await tmux_reader.start_reader(run_id, _tmux_name)
 
                 task = asyncio.create_task(start_tmux_reader())
                 task.add_done_callback(_log_broadcast_exception)
 
                 # Notify Terminals page so it auto-refreshes
-                _created_name = session_name
                 _ws = websocket_server
 
                 async def broadcast_tmux_created() -> None:
                     if _ws:
                         await _ws.broadcast_tmux_session_event(
                             event="session_created",
-                            session_name=_created_name,
+                            session_name=_tmux_name,
                             socket="gobby",
                         )
 
@@ -157,8 +150,22 @@ def setup_agent_event_broadcasting(websocket_server: WebSocketServer) -> None:
         )
         task.add_done_callback(_log_broadcast_exception)
 
-    registry.add_event_callback(broadcast_agent_event)
+    # Store module-level reference for direct invocation from spawn/completion paths
+    global _agent_event_callback  # noqa: PLW0603
+    _agent_event_callback = broadcast_agent_event
+
     logger.debug("Agent event broadcasting and PTY reading enabled")
+
+
+def fire_agent_event(event_type: str, run_id: str, data: dict[str, Any]) -> None:
+    """Fire an agent lifecycle event for broadcasting.
+
+    Call this from spawn code (agent_started) and completion code
+    (agent_completed, agent_failed, etc.) to trigger WebSocket broadcasts.
+    No-op if broadcasting hasn't been set up yet.
+    """
+    if _agent_event_callback is not None:
+        _agent_event_callback(event_type, run_id, data)
 
 
 def setup_pipeline_event_broadcasting(
