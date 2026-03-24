@@ -220,14 +220,16 @@ class SessionCoordinator:
             registered_count = 0
 
             for session in all_sessions:
-                jsonl_path = getattr(session, "jsonl_path", None)
-                if not jsonl_path:
+                transcript_path = getattr(session, "transcript_path", None)
+                if not transcript_path:
                     continue
 
                 try:
                     # Determine source from session (default to claude)
                     source = getattr(session, "source", "claude") or "claude"
-                    self._message_processor.register_session(session.id, jsonl_path, source=source)
+                    self._message_processor.register_session(
+                        session.id, transcript_path, source=source
+                    )
                     registered_count += 1
                 except Exception as e:
                     self.logger.warning(f"Failed to re-register session {session.id}: {e}")

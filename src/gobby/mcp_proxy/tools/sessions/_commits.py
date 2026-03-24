@@ -81,8 +81,8 @@ def register_commits_tools(
 
         # Get working directory from transcript path or project
         cwd = None
-        if session.jsonl_path:
-            cwd = str(Path(session.jsonl_path).parent)
+        if session.transcript_path:
+            cwd = str(Path(session.transcript_path).parent)
 
         # Format timestamps for git --since/--until
         # Git expects ISO format or relative dates

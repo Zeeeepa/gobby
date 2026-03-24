@@ -836,12 +836,7 @@ class TestMacOSStatus:
         # state = running first, then nested state = active (the bug scenario)
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout=(
-                "\tstate = running\n"
-                "\tpid = 99999\n"
-                "\t\tstate = active\n"
-                "\t\tstate = active\n"
-            ),
+            stdout=("\tstate = running\n\tpid = 99999\n\t\tstate = active\n\t\tstate = active\n"),
             stderr="",
         )
 

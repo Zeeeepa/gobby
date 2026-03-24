@@ -81,7 +81,7 @@ class SessionManager:
         source: str,
         project_id: str,
         parent_session_id: str | None = None,
-        jsonl_path: str | None = None,
+        transcript_path: str | None = None,
         title: str | None = None,
         git_branch: str | None = None,
         project_path: str | None = None,
@@ -98,7 +98,7 @@ class SessionManager:
             source: CLI source identifier (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot") - REQUIRED
             project_id: Project ID (required - sessions must belong to a project)
             parent_session_id: Optional parent session ID for handoff
-            jsonl_path: Optional path to session transcript JSONL file
+            transcript_path: Optional path to session transcript JSONL file
             title: Optional session title/summary
             git_branch: Optional git branch name
             project_path: Optional project path (for git extraction if git_branch not provided)
@@ -130,7 +130,7 @@ class SessionManager:
                 source=source,
                 project_id=project_id,
                 title=title,
-                jsonl_path=jsonl_path,
+                transcript_path=transcript_path,
                 git_branch=git_branch,
                 parent_session_id=parent_session_id,
                 terminal_context=terminal_context,
@@ -150,7 +150,7 @@ class SessionManager:
                     "machine_id": machine_id,
                     "source": source,
                     "parent_session_id": parent_session_id,
-                    "jsonl_path": jsonl_path,
+                    "transcript_path": transcript_path,
                     "project_id": project_id,
                     "title": title,
                     "git_branch": git_branch,
@@ -405,7 +405,7 @@ class SessionManager:
                 "project_id": session.project_id,
                 "title": session.title,
                 "status": session.status,
-                "jsonl_path": session.jsonl_path,
+                "transcript_path": session.transcript_path,
                 "summary_path": session.summary_path,
                 "git_branch": session.git_branch,
                 "parent_session_id": session.parent_session_id,

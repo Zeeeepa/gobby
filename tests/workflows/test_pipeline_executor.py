@@ -2555,7 +2555,9 @@ class TestEmitEvent:
     """Tests for _emit_event error suppression."""
 
     @pytest.mark.asyncio
-    async def test_emit_event_no_callback(self, mock_db, mock_execution_manager, mock_llm_service) -> None:
+    async def test_emit_event_no_callback(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
         executor = PipelineExecutor(

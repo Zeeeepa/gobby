@@ -218,9 +218,9 @@ class TestToolOutputNormalization:
 
     def test_string_tool_output_json_array_left_as_string(self) -> None:
         """JSON arrays should not be coerced (only dicts are useful)."""
-        data = {"tool_response": '[1, 2, 3]'}
+        data = {"tool_response": "[1, 2, 3]"}
         result = normalize_mcp_fields(data)
-        assert result["tool_output"] == '[1, 2, 3]'
+        assert result["tool_output"] == "[1, 2, 3]"
 
 
 class TestCombinedNormalization:

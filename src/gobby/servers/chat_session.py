@@ -128,7 +128,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     system_prompt_override: str | None = field(default=None, repr=False)
     resume_session_id: str | None = field(default=None, repr=False)
     _session_manager_ref: Any | None = field(default=None, repr=False)
-    _jsonl_path_captured: bool = field(default=False, repr=False)
+    _transcript_path_captured: bool = field(default=False, repr=False)
 
     # Lifecycle callbacks — set by ChatMixin to bridge SDK hooks to workflow engine
     _on_before_agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]] | None = field(
@@ -247,21 +247,21 @@ class ChatSession(ChatSessionPermissionsMixin):
                 ctx: HookContext,
             ) -> SyncHookJSONOutput:
                 # Capture transcript_path on first invocation
-                if not self._jsonl_path_captured and self._session_manager_ref:
+                if not self._transcript_path_captured and self._session_manager_ref:
                     transcript_path = inp.get("transcript_path")
                     if transcript_path and self.db_session_id:
                         try:
                             self._session_manager_ref.update(
-                                self.db_session_id, jsonl_path=str(transcript_path)
+                                self.db_session_id, transcript_path=str(transcript_path)
                             )
-                            self._jsonl_path_captured = True
+                            self._transcript_path_captured = True
                             logger.debug(
-                                "Captured jsonl_path for session %s: %s",
+                                "Captured transcript_path for session %s: %s",
                                 self.db_session_id[:8],
                                 transcript_path,
                             )
                         except Exception as e:
-                            logger.warning("Failed to capture jsonl_path: %s", e)
+                            logger.warning("Failed to capture transcript_path: %s", e)
 
                 data = {"prompt": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}
                 resp = await cb(data)

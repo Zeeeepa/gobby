@@ -170,9 +170,7 @@ class TestGetUsageSummary:
         assert gemini_usage["input_tokens"] == 5000
         assert gemini_usage["sessions"] == 1
 
-    def test_get_usage_summary_passes_project_id(
-        self, mock_session_storage: MagicMock
-    ) -> None:
+    def test_get_usage_summary_passes_project_id(self, mock_session_storage: MagicMock) -> None:
         """Project ID is forwarded to storage layer."""
         from gobby.sessions.token_tracker import SessionTokenTracker
 

@@ -67,7 +67,11 @@ class TestGatherReviewData:
         execution = _make_execution()
         steps = [
             _make_step("build", completed_at="2026-03-22T10:00:12+00:00"),
-            _make_step("test", started_at="2026-03-22T10:00:12+00:00", completed_at="2026-03-22T10:01:30+00:00"),
+            _make_step(
+                "test",
+                started_at="2026-03-22T10:00:12+00:00",
+                completed_at="2026-03-22T10:01:30+00:00",
+            ),
         ]
 
         data = gather_review_data(execution, steps)
@@ -141,7 +145,9 @@ class TestFormatReviewPrompt:
             status="completed",
             total_duration_seconds=145.0,
             steps=[
-                StepTimeline(step_id="build", status="completed", duration_seconds=12.0, error=None),
+                StepTimeline(
+                    step_id="build", status="completed", duration_seconds=12.0, error=None
+                ),
                 StepTimeline(step_id="test", status="completed", duration_seconds=78.0, error=None),
             ],
             errors=[],
@@ -162,7 +168,9 @@ class TestFormatReviewPrompt:
             status="failed",
             total_duration_seconds=30.0,
             steps=[
-                StepTimeline(step_id="lint", status="failed", duration_seconds=5.0, error="SyntaxError"),
+                StepTimeline(
+                    step_id="lint", status="failed", duration_seconds=5.0, error="SyntaxError"
+                ),
             ],
             errors=[{"step_id": "lint", "error": "SyntaxError"}],
         )
@@ -180,7 +188,9 @@ class TestFormatReviewPrompt:
             status="failed",
             total_duration_seconds=10.0,
             steps=[
-                StepTimeline(step_id="run", status="failed", duration_seconds=10.0, error=long_error),
+                StepTimeline(
+                    step_id="run", status="failed", duration_seconds=10.0, error=long_error
+                ),
             ],
             errors=[],
         )
@@ -201,7 +211,11 @@ class TestBuildReviewJson:
             pipeline_name="test",
             status="completed",
             total_duration_seconds=100.0,
-            steps=[StepTimeline(step_id="build", status="completed", duration_seconds=100.0, error=None)],
+            steps=[
+                StepTimeline(
+                    step_id="build", status="completed", duration_seconds=100.0, error=None
+                )
+            ],
             errors=[],
         )
         llm_analysis = {
@@ -225,7 +239,9 @@ class TestBuildReviewJson:
             pipeline_name="test",
             status="completed",
             total_duration_seconds=50.0,
-            steps=[StepTimeline(step_id="run", status="completed", duration_seconds=50.0, error=None)],
+            steps=[
+                StepTimeline(step_id="run", status="completed", duration_seconds=50.0, error=None)
+            ],
             errors=[],
         )
 
@@ -256,7 +272,9 @@ class TestDetectPatterns:
     """Tests for detect_patterns."""
 
     def test_no_patterns_with_single_review(self) -> None:
-        reviews = [{"timeline": [{"step_id": "build", "status": "completed", "duration_seconds": 100}]}]
+        reviews = [
+            {"timeline": [{"step_id": "build", "status": "completed", "duration_seconds": 100}]}
+        ]
         assert detect_patterns(reviews) == []
 
     def test_detects_recurring_slow_step(self) -> None:

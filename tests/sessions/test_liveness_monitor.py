@@ -88,9 +88,7 @@ class TestCheckSessions:
             {"id": "s1", "terminal_context": json.dumps({"parent_pid": 99999})},
         ]
 
-        with patch.object(
-            SessionLivenessMonitor, "_is_pid_alive", return_value=False
-        ):
+        with patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=False):
             await monitor._check_sessions()
 
         mock_dispatch_fn.assert_called_once_with("s1", False, None)
@@ -104,9 +102,7 @@ class TestCheckSessions:
             {"id": "s1", "terminal_context": json.dumps({"parent_pid": 99999})},
         ]
 
-        with patch.object(
-            SessionLivenessMonitor, "_is_pid_alive", return_value=True
-        ):
+        with patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=True):
             await monitor._check_sessions()
 
         mock_dispatch_fn.assert_not_called()
@@ -121,15 +117,15 @@ class TestCheckSessions:
 
         monitor.mark_recently_handled("s1")
 
-        with patch.object(
-            SessionLivenessMonitor, "_is_pid_alive", return_value=False
-        ):
+        with patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=False):
             await monitor._check_sessions()
 
         mock_dispatch_fn.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_handles_missing_parent_pid(self, monitor, mock_session_storage, mock_dispatch_fn):
+    async def test_handles_missing_parent_pid(
+        self, monitor, mock_session_storage, mock_dispatch_fn
+    ):
         """Sessions without parent_pid in terminal_context are skipped."""
         mock_session_storage.db.fetchall.return_value = [
             {"id": "s1", "terminal_context": json.dumps({"tmux_pane": "%1"})},
@@ -170,16 +166,16 @@ class TestCheckSessions:
         def pid_check(pid):
             return pid == 100  # 100 is alive, 200 is dead
 
-        with patch.object(
-            SessionLivenessMonitor, "_is_pid_alive", side_effect=pid_check
-        ):
+        with patch.object(SessionLivenessMonitor, "_is_pid_alive", side_effect=pid_check):
             await monitor._check_sessions()
 
         mock_dispatch_fn.assert_called_once_with("dead", False, None)
         mock_session_storage.update_status.assert_called_once_with("dead", "expired")
 
     @pytest.mark.asyncio
-    async def test_recently_handled_ttl_expiry(self, monitor, mock_session_storage, mock_dispatch_fn):
+    async def test_recently_handled_ttl_expiry(
+        self, monitor, mock_session_storage, mock_dispatch_fn
+    ):
         """Entries in recently-handled set expire after TTL."""
         import time
 
@@ -190,9 +186,7 @@ class TestCheckSessions:
             {"id": "s1", "terminal_context": json.dumps({"parent_pid": 99999})},
         ]
 
-        with patch.object(
-            SessionLivenessMonitor, "_is_pid_alive", return_value=False
-        ):
+        with patch.object(SessionLivenessMonitor, "_is_pid_alive", return_value=False):
             await monitor._check_sessions()
 
         # TTL expired, so s1 should be processed again
@@ -206,9 +200,7 @@ class TestCheckSessions:
         mock_session_storage.db.fetchall.return_value = [
             {
                 "id": "s1",
-                "terminal_context": json.dumps(
-                    {"parent_pid": 99999, "tmux_pane": "%6"}
-                ),
+                "terminal_context": json.dumps({"parent_pid": 99999, "tmux_pane": "%6"}),
             },
         ]
 
@@ -232,9 +224,7 @@ class TestCheckSessions:
         mock_session_storage.db.fetchall.return_value = [
             {
                 "id": "s1",
-                "terminal_context": json.dumps(
-                    {"parent_pid": 99999, "tmux_pane": "%6"}
-                ),
+                "terminal_context": json.dumps({"parent_pid": 99999, "tmux_pane": "%6"}),
             },
         ]
 
@@ -274,9 +264,7 @@ class TestCheckSessions:
         mock_session_storage.db.fetchall.return_value = [
             {
                 "id": "s1",
-                "terminal_context": json.dumps(
-                    {"parent_pid": 99999, "tmux_pane": "%6"}
-                ),
+                "terminal_context": json.dumps({"parent_pid": 99999, "tmux_pane": "%6"}),
             },
         ]
         mock_session_storage.touch.side_effect = Exception("DB error")

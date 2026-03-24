@@ -792,7 +792,7 @@ class TestGetSessionCommits:
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+        mock_session.transcript_path = "/tmp/test/transcript.jsonl"
         mock_session.created_at = "2024-01-01T10:00:00+00:00"
         mock_session.updated_at = "2024-01-01T12:00:00+00:00"
         session_manager.get.return_value = mock_session
@@ -832,7 +832,7 @@ class TestGetSessionCommits:
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+        mock_session.transcript_path = "/tmp/test/transcript.jsonl"
         mock_session.created_at = "2024-01-01T10:00:00+00:00"
         mock_session.updated_at = "2024-01-01T12:00:00+00:00"
         session_manager.get.return_value = mock_session
@@ -855,7 +855,7 @@ class TestGetSessionCommits:
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+        mock_session.transcript_path = "/tmp/test/transcript.jsonl"
         mock_session.created_at = "2024-01-01T10:00:00+00:00"
         mock_session.updated_at = "2024-01-01T12:00:00+00:00"
         session_manager.get.return_value = mock_session
@@ -876,7 +876,7 @@ class TestGetSessionCommits:
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+        mock_session.transcript_path = "/tmp/test/transcript.jsonl"
         mock_session.created_at = "2024-01-01T10:00:00+00:00"
         mock_session.updated_at = "2024-01-01T12:00:00+00:00"
         session_manager.get.return_value = mock_session
@@ -898,7 +898,7 @@ class TestGetSessionCommits:
 
         mock_session = MagicMock()
         mock_session.id = "sess-123-full"
-        mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+        mock_session.transcript_path = "/tmp/test/transcript.jsonl"
         mock_session.created_at = "2024-01-01T10:00:00+00:00"
         mock_session.updated_at = "2024-01-01T12:00:00+00:00"
 
@@ -921,7 +921,7 @@ class TestGetSessionCommits:
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+        mock_session.transcript_path = "/tmp/test/transcript.jsonl"
         mock_session.created_at = datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)
         mock_session.updated_at = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         session_manager.get.return_value = mock_session
@@ -1096,7 +1096,11 @@ class TestEdgeCases:
     async def test_get_messages_non_string_content(self):
         """Test handling messages with non-string content."""
         mock_msg = MagicMock()
-        mock_msg.to_dict.return_value = {"id": 1, "content": ["block1", "block2"], "role": "assistant"}
+        mock_msg.to_dict.return_value = {
+            "id": 1,
+            "content": ["block1", "block2"],
+            "role": "assistant",
+        }
         transcript_reader = AsyncMock()
         transcript_reader.get_rendered_messages.return_value = [mock_msg]
         transcript_reader.count_messages.return_value = 1

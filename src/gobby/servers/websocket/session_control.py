@@ -430,14 +430,14 @@ class SessionControlMixin:
 
         # --- Restore transcript from backup if original is missing ---
         if sdk_resume_id and source_session:
-            jsonl_path = source_session.jsonl_path
-            if jsonl_path and source_session.external_id:
-                original_exists = await asyncio.to_thread(lambda: Path(jsonl_path).is_file())
+            transcript_path = source_session.transcript_path
+            if transcript_path and source_session.external_id:
+                original_exists = await asyncio.to_thread(lambda: Path(transcript_path).is_file())
                 if not original_exists:
                     restored = await asyncio.to_thread(
                         restore_transcript,
                         source_session.external_id,
-                        jsonl_path,
+                        transcript_path,
                     )
                     if not restored:
                         logger.warning(

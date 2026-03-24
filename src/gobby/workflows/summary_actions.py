@@ -397,7 +397,7 @@ async def generate_summary(
     if not current_session:
         return {"error": "Session not found"}
 
-    transcript_path = getattr(current_session, "jsonl_path", None)
+    transcript_path = getattr(current_session, "transcript_path", None)
     if not transcript_path:
         logger.warning(f"generate_summary: No transcript path for session {session_id}")
         return {"error": "No transcript path"}

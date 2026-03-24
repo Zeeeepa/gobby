@@ -344,11 +344,11 @@ def create_handoff(
             return
 
     # Check for transcript
-    if not session.jsonl_path:
+    if not session.transcript_path:
         click.echo(f"Session {session.id[:12]} has no transcript path.", err=True)
         return
 
-    path = Path(session.jsonl_path)
+    path = Path(session.transcript_path)
     if not path.exists():
         click.echo(f"Transcript file not found: {path}", err=True)
         return
@@ -532,10 +532,10 @@ def restore_transcript(
                 external_id = archive_file.stem.replace(".jsonl", "")
                 # Look up session by external_id
                 row = db.fetchone(
-                    "SELECT id, jsonl_path FROM sessions WHERE external_id = ?",
+                    "SELECT id, transcript_path FROM sessions WHERE external_id = ?",
                     (external_id,),
                 )
-                if not row or not row["jsonl_path"]:
+                if not row or not row["transcript_path"]:
                     results.append(
                         {
                             "external_id": external_id,
@@ -544,10 +544,14 @@ def restore_transcript(
                         }
                     )
                     continue
-                restored = _restore(external_id, row["jsonl_path"])
+                restored = _restore(external_id, row["transcript_path"])
                 if restored:
                     results.append(
-                        {"session_id": row["id"], "path": row["jsonl_path"], "status": "restored"}
+                        {
+                            "session_id": row["id"],
+                            "path": row["transcript_path"],
+                            "status": "restored",
+                        }
                     )
                 else:
                     results.append(
@@ -560,9 +564,9 @@ def restore_transcript(
             if not session or not session.external_id:
                 click.echo("Session not found or missing external_id.", err=True)
                 raise SystemExit(1)
-            restore_path = target_path or session.jsonl_path
+            restore_path = target_path or session.transcript_path
             if not restore_path:
-                click.echo("No jsonl_path for session.", err=True)
+                click.echo("No transcript_path for session.", err=True)
                 raise SystemExit(1)
             restored = _restore(session.external_id, restore_path)
             if restored:

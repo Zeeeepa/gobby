@@ -416,7 +416,7 @@ class TestSessionStartAndHelpers:
             )
 
             handler._session_storage.update.assert_called_with(
-                session_id="sess-1", jsonl_path="/tmp/t.json", status="active"
+                session_id="sess-1", transcript_path="/tmp/t.json", status="active"
             )
             handler._session_manager.cache_session_mapping.assert_called_once()
             handler._session_coordinator.start_agent_run.assert_called_with("run-1")
@@ -528,7 +528,10 @@ class TestSessionMoreCoverage:
             ),
             patch("gobby.skills.manager.SkillManager.list_skills", return_value=[]),
             patch.object(handler, "_build_agent_changes") as mock_build,
-            patch("gobby.workflows.state_manager.SessionVariableManager.get_variables", return_value={}),
+            patch(
+                "gobby.workflows.state_manager.SessionVariableManager.get_variables",
+                return_value={},
+            ),
             patch("gobby.workflows.state_manager.SessionVariableManager.merge_variables"),
             patch(
                 "gobby.hooks.event_handlers._session.select_and_format_agent_skills",
@@ -615,7 +618,7 @@ class TestSessionMoreCoverage:
                 machine_id=handler._get_machine_id(),
                 project_id=handler._resolve_project_id(),
                 parent_session_id="parent-1",
-                jsonl_path=None,
+                transcript_path=None,
                 source="claude",
                 project_path=None,
                 terminal_context=None,

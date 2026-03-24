@@ -32,7 +32,7 @@ def _get_session_stats(db: "DatabaseProtocol", session: Any) -> dict[str, int]:
 
     Args:
         db: Database connection
-        session: Session object with id, created_at, updated_at, jsonl_path
+        session: Session object with id, created_at, updated_at, transcript_path
 
     Returns:
         Dict with tasks_closed, memories_created, commit_count
@@ -85,7 +85,7 @@ def _get_commit_count(db: "DatabaseProtocol", session: Any) -> int:
     Returns:
         Number of commits, or 0 if git is unavailable
     """
-    # Resolve cwd from project repo_path (jsonl_path parent is not a git repo)
+    # Resolve cwd from project repo_path (transcript_path parent is not a git repo)
     cwd = None
     if session.project_id:
         try:
@@ -309,7 +309,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 machine_id=machine_id,
                 source=request_data.source or "Claude Code",
                 project_id=project_id,
-                jsonl_path=request_data.jsonl_path,
+                transcript_path=request_data.transcript_path,
                 title=request_data.title,
                 git_branch=git_branch,
                 parent_session_id=request_data.parent_session_id,
@@ -1266,8 +1266,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             session = sm.get_session(session_id)
 
             # Try original JSONL path first
-            if session and session.jsonl_path and os.path.isfile(session.jsonl_path):
-                with open(session.jsonl_path, "rb") as f:
+            if session and session.transcript_path and os.path.isfile(session.transcript_path):
+                with open(session.transcript_path, "rb") as f:
                     raw = f.read()
                 return Response(
                     content=raw,
@@ -1302,22 +1302,22 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         try:
             sm = _get_session_manager()
             session = sm.get_session(session_id)
-            if not session or not session.external_id or not session.jsonl_path:
+            if not session or not session.external_id or not session.transcript_path:
                 raise HTTPException(
                     status_code=404,
-                    detail="Session not found or missing external_id/jsonl_path",
+                    detail="Session not found or missing external_id/transcript_path",
                 )
-            restored = restore_transcript(session.external_id, session.jsonl_path)
+            restored = restore_transcript(session.external_id, session.transcript_path)
             if not restored:
                 raise HTTPException(
                     status_code=404,
                     detail="No transcript archive found or original still exists",
                 )
-            size = os.path.getsize(session.jsonl_path)
+            size = os.path.getsize(session.transcript_path)
             return {
                 "status": "restored",
                 "session_id": session_id,
-                "path": session.jsonl_path,
+                "path": session.transcript_path,
                 "size": size,
             }
         except HTTPException:

@@ -1834,7 +1834,6 @@ class TestGobbyRunnerShutdownExtended:
             mock_mcp_manager.disconnect_all.assert_called_once()
 
 
-
 class TestGobbyRunnerInitEdgeCases:
     """Edge case tests for GobbyRunner initialization."""
 

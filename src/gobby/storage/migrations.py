@@ -34,7 +34,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 169
+BASELINE_VERSION = 171
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v134) have been removed.
@@ -219,7 +219,7 @@ CREATE TABLE sessions (
     project_id TEXT NOT NULL REFERENCES projects(id),
     title TEXT,
     status TEXT DEFAULT 'active',
-    jsonl_path TEXT,
+    transcript_path TEXT,
     summary_path TEXT,
     summary_markdown TEXT,
     git_branch TEXT,
@@ -1673,6 +1673,11 @@ CREATE TABLE IF NOT EXISTS comms_routing_rules (
 );
 CREATE INDEX IF NOT EXISTS idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
 CREATE INDEX IF NOT EXISTS idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);""",
+    ),
+    (
+        171,
+        "Rename jsonl_path to transcript_path in sessions table",
+        "ALTER TABLE sessions RENAME COLUMN jsonl_path TO transcript_path",
     ),
 ]
 

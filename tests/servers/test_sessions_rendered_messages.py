@@ -14,15 +14,18 @@ from tests.servers.conftest import create_http_server
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def session_storage(temp_db: LocalDatabase) -> LocalSessionManager:
     """Create session storage."""
     return LocalSessionManager(temp_db)
 
+
 @pytest.fixture
 def project_storage(temp_db: LocalDatabase) -> LocalProjectManager:
     """Create project storage."""
     return LocalProjectManager(temp_db)
+
 
 @pytest.fixture
 def test_project(project_storage: LocalProjectManager, temp_dir: Path) -> dict[str, Any]:
@@ -34,6 +37,7 @@ def test_project(project_storage: LocalProjectManager, temp_dir: Path) -> dict[s
     (gobby_dir / "project.json").write_text(f'{{"id": "{project.id}", "name": "test-project"}}')
 
     return project.to_dict()
+
 
 class TestGetMessagesRendered:
     """Tests for sessions_get_messages with format=rendered."""

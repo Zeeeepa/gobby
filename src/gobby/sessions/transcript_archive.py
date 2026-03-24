@@ -33,22 +33,22 @@ def get_archive_dir(override: str | None = None) -> Path:
 
 def backup_transcript(
     external_id: str,
-    jsonl_path: str,
+    transcript_path: str,
     archive_dir: str | None = None,
 ) -> str | None:
     """Gzip-compress a JSONL transcript to the archive directory.
 
     Args:
         external_id: Session external ID (used as archive filename).
-        jsonl_path: Path to the source JSONL file.
+        transcript_path: Path to the source JSONL file.
         archive_dir: Override for archive directory.
 
     Returns:
         Archive file path on success, None on failure.
     """
-    source = Path(jsonl_path)
+    source = Path(transcript_path)
     if not source.is_file():
-        logger.debug("Transcript source not found, skipping backup: %s", jsonl_path)
+        logger.debug("Transcript source not found, skipping backup: %s", transcript_path)
         return None
 
     dest_dir = get_archive_dir(archive_dir)
@@ -57,10 +57,10 @@ def backup_transcript(
     try:
         with open(source, "rb") as f_in, gzip.open(dest, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-        logger.debug("Backed up transcript %s -> %s", jsonl_path, dest)
+        logger.debug("Backed up transcript %s -> %s", transcript_path, dest)
         return str(dest)
     except Exception as e:
-        logger.warning("Failed to backup transcript %s: %s", jsonl_path, e)
+        logger.warning("Failed to backup transcript %s: %s", transcript_path, e)
         # Clean up partial file
         try:
             dest.unlink(missing_ok=True)

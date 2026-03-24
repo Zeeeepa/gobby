@@ -39,7 +39,7 @@ def register_transcript_tools(
 
         Args:
             session_id: Session reference (#N, UUID, or prefix)
-            target_path: Optional override path. If None, restores to original jsonl_path.
+            target_path: Optional override path. If None, restores to original transcript_path.
 
         Returns:
             Dict with status, path, and size.
@@ -59,9 +59,9 @@ def register_transcript_tools(
         if not session or not session.external_id:
             return {"error": "Session not found or missing external_id", "session_id": resolved_id}
 
-        restore_path = target_path or session.jsonl_path
+        restore_path = target_path or session.transcript_path
         if not restore_path:
-            return {"error": "No jsonl_path for session", "session_id": resolved_id}
+            return {"error": "No transcript_path for session", "session_id": resolved_id}
 
         restored = restore_transcript(session.external_id, restore_path)
         if not restored:

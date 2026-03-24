@@ -53,6 +53,7 @@ class TestExitPlanModeDecision:
     async def test_exit_plan_mode_does_not_block(self, session: ChatSession) -> None:
         """ExitPlanMode should return immediately (no blocking for approval)."""
         import time
+
         with patch.object(session, "_read_plan_file", return_value=None):
             session._plan_file_path = None
             start = time.monotonic()
@@ -107,9 +108,7 @@ class TestReadPlanFileResolution:
 
     def test_no_plan_file_returns_none(self, tmp_path) -> None:
         """Should return None when no plan file exists anywhere."""
-        session = ChatSession(
-            conversation_id="test-missing", project_path=str(tmp_path)
-        )
+        session = ChatSession(conversation_id="test-missing", project_path=str(tmp_path))
 
         # Mock Path.home to an empty temp dir so fallback scan doesn't
         # find real plan files in ~/.claude/plans/ etc.

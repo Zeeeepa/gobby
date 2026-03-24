@@ -79,7 +79,7 @@ async def generate_session_summaries(
         return {"success": False, "error": "No session found", "session_id": session_id}
 
     # Get transcript path
-    transcript_path = session.jsonl_path
+    transcript_path = session.transcript_path
     if not transcript_path:
         return {
             "success": False,

@@ -162,7 +162,7 @@ class TestContinueInChatTerminalKill:
         source_session = MagicMock()
         source_session.external_id = "cli-session-123"
         source_session.project_id = "proj-1"
-        source_session.jsonl_path = None
+        source_session.transcript_path = None
         source_session.terminal_context = {"tmux_pane": "%5", "parent_pid": "999"}
 
         session_manager = MagicMock()
@@ -227,7 +227,7 @@ class TestContinueInChatTerminalKill:
         source_session = MagicMock()
         source_session.external_id = "cli-session-123"
         source_session.project_id = "proj-1"
-        source_session.jsonl_path = None
+        source_session.transcript_path = None
         source_session.terminal_context = {"tmux_pane": "%5"}
 
         session_manager = MagicMock()

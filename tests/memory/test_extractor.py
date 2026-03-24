@@ -55,7 +55,7 @@ class TestSessionMemoryExtractor:
         manager = MagicMock()
         session = MagicMock()
         session.project_id = "proj-123"
-        session.jsonl_path = None
+        session.transcript_path = None
         manager.get.return_value = session
         return manager
 
@@ -322,7 +322,9 @@ class TestSessionMemoryExtractor:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_analyze_with_config_provider(self, mock_memory_manager, mock_session_manager) -> None:
+    async def test_analyze_with_config_provider(
+        self, mock_memory_manager, mock_session_manager
+    ) -> None:
         """_analyze_with_llm uses config provider when available."""
         mock_llm_service = MagicMock()
         mock_provider = MagicMock()
@@ -344,12 +346,16 @@ class TestSessionMemoryExtractor:
         mock_llm_service.get_provider_for_feature.assert_called_once_with(config)
 
     @pytest.mark.asyncio
-    async def test_analyze_with_config_provider_fallback(self, mock_memory_manager, mock_session_manager) -> None:
+    async def test_analyze_with_config_provider_fallback(
+        self, mock_memory_manager, mock_session_manager
+    ) -> None:
         """_analyze_with_llm falls back to default provider when config provider fails."""
         mock_llm_service = MagicMock()
         mock_llm_service.get_provider_for_feature.side_effect = ValueError("No provider")
         mock_provider = MagicMock()
-        mock_provider.generate_text = AsyncMock(return_value='[{"content": "Fallback", "tags": []}]')
+        mock_provider.generate_text = AsyncMock(
+            return_value='[{"content": "Fallback", "tags": []}]'
+        )
         mock_llm_service.get_default_provider.return_value = mock_provider
         mock_loader = MagicMock()
         mock_loader.render.return_value = "prompt"
@@ -367,14 +373,18 @@ class TestSessionMemoryExtractor:
         assert result[0].content == "Fallback"
 
     @pytest.mark.asyncio
-    async def test_store_memories_with_null_project_id(self, extractor, mock_memory_manager) -> None:
+    async def test_store_memories_with_null_project_id(
+        self, extractor, mock_memory_manager
+    ) -> None:
         """_store_memories logs warning when project_id is None."""
         candidates = [MemoryCandidate("Test memory", "fact", ["tag"])]
         await extractor._store_memories(candidates, session_id="sess-1", project_id=None)
         mock_memory_manager.create_memory.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_store_memories_handles_create_error(self, extractor, mock_memory_manager) -> None:
+    async def test_store_memories_handles_create_error(
+        self, extractor, mock_memory_manager
+    ) -> None:
         """_store_memories handles individual memory creation failures."""
         mock_memory_manager.create_memory = AsyncMock(side_effect=RuntimeError("Create fail"))
         candidates = [MemoryCandidate("Test memory", "fact", ["tag"])]
@@ -466,7 +476,7 @@ class TestGetSessionContext:
         mock_session_manager = MagicMock()
         session = MagicMock()
         session.project_id = "proj-1"
-        session.jsonl_path = None
+        session.transcript_path = None
         mock_session_manager.get.return_value = session
         mock_loader = MagicMock()
         extractor = SessionMemoryExtractor(
@@ -481,19 +491,29 @@ class TestGetSessionContext:
         assert result.transcript_summary == ""
 
     @pytest.mark.asyncio
-    async def test_session_with_transcript(self, mock_memory_manager, mock_llm_service, tmp_path) -> None:
+    async def test_session_with_transcript(
+        self, mock_memory_manager, mock_llm_service, tmp_path
+    ) -> None:
         """Returns context with transcript data parsed."""
         import json
 
         transcript_file = tmp_path / "transcript.jsonl"
         turns = [
-            {"message": {"content": [
-                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/tmp/foo.py"}},
-                {"type": "tool_use", "name": "Bash", "input": {"command": "ls"}},
-            ]}},
-            {"message": {"content": [
-                {"type": "tool_use", "name": "update_task", "input": {"task_id": "task-1"}},
-            ]}},
+            {
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "Edit", "input": {"file_path": "/tmp/foo.py"}},
+                        {"type": "tool_use", "name": "Bash", "input": {"command": "ls"}},
+                    ]
+                }
+            },
+            {
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "update_task", "input": {"task_id": "task-1"}},
+                    ]
+                }
+            },
         ]
         with open(transcript_file, "w") as f:
             for turn in turns:
@@ -502,7 +522,7 @@ class TestGetSessionContext:
         mock_session_manager = MagicMock()
         session = MagicMock()
         session.project_id = None
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
         mock_loader = MagicMock()
         extractor = SessionMemoryExtractor(
@@ -519,7 +539,9 @@ class TestGetSessionContext:
         assert "Bash" in result.tool_summary
 
     @pytest.mark.asyncio
-    async def test_session_with_transcript_processor(self, mock_memory_manager, mock_llm_service, tmp_path) -> None:
+    async def test_session_with_transcript_processor(
+        self, mock_memory_manager, mock_llm_service, tmp_path
+    ) -> None:
         """Uses transcript_processor.extract_turns_since_clear when available."""
         import json
 
@@ -531,7 +553,7 @@ class TestGetSessionContext:
         mock_session_manager = MagicMock()
         session = MagicMock()
         session.project_id = "proj-1"
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_processor = MagicMock()

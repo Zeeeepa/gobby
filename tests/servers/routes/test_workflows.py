@@ -85,8 +85,7 @@ class TestListWorkflows:
         self, client: TestClient, wf_manager: LocalWorkflowDefinitionManager
     ) -> None:
         _create_workflow(wf_manager, name="wf-rule", workflow_type="rule")
-        _create_workflow(wf_manager, name="wf-pipe", workflow_type="pipeline",
-                         definition_json="{}")
+        _create_workflow(wf_manager, name="wf-pipe", workflow_type="pipeline", definition_json="{}")
         resp = client.get("/api/workflows?workflow_type=rule")
         data = resp.json()
         assert data["count"] == 1
@@ -177,9 +176,7 @@ class TestUpdateWorkflow:
 
 
 class TestToggleWorkflow:
-    def test_toggle(
-        self, client: TestClient, wf_manager: LocalWorkflowDefinitionManager
-    ) -> None:
+    def test_toggle(self, client: TestClient, wf_manager: LocalWorkflowDefinitionManager) -> None:
         wf = _create_workflow(wf_manager, enabled=True)
         resp = client.put(f"/api/workflows/{wf['id']}/toggle")
         assert resp.status_code == 200

@@ -139,8 +139,8 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
-                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="gemini"),
+                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude"),
+                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="gemini"),
             ],
             "paused": [],
         }[status]
@@ -162,10 +162,10 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
+                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude"),
             ],
             "paused": [
-                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="claude"),
+                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="claude"),
             ],
         }[status]
 
@@ -183,11 +183,11 @@ class TestSessionLifecycleTransitions:
             "session-2", "/path/to/2.jsonl", source="claude"
         )
 
-    def test_reregister_skips_sessions_without_jsonl_path(self) -> None:
-        """Test re-registration skips sessions without jsonl_path."""
+    def test_reregister_skips_sessions_without_transcript_path(self) -> None:
+        """Test re-registration skips sessions without transcript_path."""
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
-            "active": [MagicMock(id="session-1", jsonl_path=None, source="claude")],
+            "active": [MagicMock(id="session-1", transcript_path=None, source="claude")],
             "paused": [],
         }[status]
 
@@ -208,8 +208,8 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", jsonl_path="/path/1.jsonl", source="claude"),
-                MagicMock(id="session-2", jsonl_path="/path/2.jsonl", source="claude"),
+                MagicMock(id="session-1", transcript_path="/path/1.jsonl", source="claude"),
+                MagicMock(id="session-2", transcript_path="/path/2.jsonl", source="claude"),
             ],
             "paused": [],
         }[status]

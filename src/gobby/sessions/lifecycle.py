@@ -296,7 +296,7 @@ class SessionLifecycleManager:
 
             # Step 1: Process transcript (reads JSONL, stores messages, aggregates usage)
             try:
-                await self._process_session_transcript(session.id, session.jsonl_path)
+                await self._process_session_transcript(session.id, session.transcript_path)
             except Exception as e:
                 logger.error(f"Failed to process transcript for {session.id}: {e}")
 
@@ -337,12 +337,12 @@ class SessionLifecycleManager:
 
             # Step 5: Best-effort backup of the transcript archive
             # On success, purge DB messages (gzip is now the source of truth)
-            if session.jsonl_path and session.external_id:
+            if session.transcript_path and session.external_id:
                 try:
                     archive_path = await asyncio.to_thread(
                         backup_transcript,
                         session.external_id,
-                        session.jsonl_path,
+                        session.transcript_path,
                         archive_dir,
                     )
                     if archive_path:
@@ -424,7 +424,7 @@ class SessionLifecycleManager:
             return
 
         # Only generate if there's a transcript to read
-        if not session.jsonl_path:
+        if not session.transcript_path:
             return
 
         try:
@@ -441,7 +441,9 @@ class SessionLifecycleManager:
         except Exception as e:
             logger.warning(f"Summary generation failed for session {session_id}: {e}")
 
-    async def _process_session_transcript(self, session_id: str, jsonl_path: str | None) -> None:
+    async def _process_session_transcript(
+        self, session_id: str, transcript_path: str | None
+    ) -> None:
         """
         Process a full transcript for a session.
 
@@ -451,18 +453,18 @@ class SessionLifecycleManager:
 
         Args:
             session_id: Session ID
-            jsonl_path: Path to transcript JSONL file
+            transcript_path: Path to transcript JSONL file
         """
-        if not jsonl_path or not os.path.exists(jsonl_path):
-            logger.warning(f"Transcript not found for session {session_id}: {jsonl_path}")
+        if not transcript_path or not os.path.exists(transcript_path):
+            logger.warning(f"Transcript not found for session {session_id}: {transcript_path}")
             return
 
         # Read entire file
         try:
-            with open(jsonl_path, encoding="utf-8") as f:
+            with open(transcript_path, encoding="utf-8") as f:
                 lines = f.readlines()
         except Exception as e:
-            logger.error(f"Error reading transcript {jsonl_path}: {e}")
+            logger.error(f"Error reading transcript {transcript_path}: {e}")
             raise
 
         if not lines:

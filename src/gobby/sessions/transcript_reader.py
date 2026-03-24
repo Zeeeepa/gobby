@@ -1,7 +1,8 @@
-"""Unified transcript read layer: live JSONL → gzip archive.
+"""Unified transcript read layer: live transcript file → gzip archive.
 
-Reads from the live JSONL transcript file on disk (active/paused sessions).
-If no JSONL exists (cleaned up after expiry), falls back to the gzip archive.
+Reads from the live transcript file on disk (active/paused sessions).
+Supports both JSONL (Claude, Codex) and native JSON (Gemini) formats.
+If no transcript exists (cleaned up after expiry), falls back to the gzip archive.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import gzip
+import json
 import logging
 import os
 import zlib
@@ -73,6 +75,19 @@ def _parse_lines(
     return parser.parse_lines(lines, start_index=0)
 
 
+def _parse_json_session(
+    data: dict[str, Any], source: str, session_id: str | None = None
+) -> list[ParsedMessage]:
+    """Parse a native JSON session file (e.g., Gemini format)."""
+    from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
+
+    if source in ("gemini", "antigravity"):
+        parser = GeminiTranscriptParser(session_id=session_id)
+        return parser.parse_session_json(data)
+    # Fallback: wrap as single-line JSONL
+    return _parse_lines([json.dumps(data)], source, session_id=session_id)
+
+
 def _parse_lines_to_dicts(
     lines: list[str],
     source: str,
@@ -84,7 +99,11 @@ def _parse_lines_to_dicts(
     get a consistent format regardless of source.
     """
     parsed = _parse_lines(lines, source, session_id=session_id)
+    return _parsed_to_dicts(parsed)
 
+
+def _parsed_to_dicts(parsed: list[ParsedMessage]) -> list[dict[str, Any]]:
+    """Convert ParsedMessage list to dicts."""
     results: list[dict[str, Any]] = []
     for msg in parsed:
         results.append(
@@ -105,8 +124,15 @@ def _parse_lines_to_dicts(
     return results
 
 
+def _is_json_session_file(path: str) -> bool:
+    """Check if a transcript file is a native JSON session file (not JSONL)."""
+    return path.endswith(".json")
+
+
 class TranscriptReader:
-    """Unified read layer: live JSONL first, gzip archive fallback.
+    """Unified read layer: live transcript first, gzip archive fallback.
+
+    Supports JSONL (Claude, Codex) and native JSON (Gemini) transcript formats.
 
     Usage::
 
@@ -150,12 +176,12 @@ class TranscriptReader:
         Returns:
             List of message dicts
         """
-        # 1. Try live JSONL file (active/paused sessions)
-        jsonl_messages = await self._read_from_jsonl(session_id, limit, offset, role)
-        if jsonl_messages:
-            return jsonl_messages
+        # 1. Try live transcript file (active/paused sessions)
+        file_messages = await self._read_from_file(session_id, limit, offset, role)
+        if file_messages:
+            return file_messages
 
-        # 2. JSONL gone — try gzip archive (expired sessions)
+        # 2. Transcript gone — try gzip archive (expired sessions)
         return await self._read_from_archive(session_id, limit, offset, role)
 
     async def get_rendered_messages(
@@ -167,7 +193,7 @@ class TranscriptReader:
         """Get grouped, rendered messages for a session.
 
         Skips the database entirely (avoids corrupted str() data) and reads
-        directly from JSONL or gzip archive.
+        directly from transcript file or gzip archive.
 
         Args:
             session_id: Session UUID
@@ -177,8 +203,8 @@ class TranscriptReader:
         Returns:
             List of RenderedMessage objects
         """
-        # 1. Try live JSONL file
-        parsed_messages = await self._get_parsed_messages_from_jsonl(session_id)
+        # 1. Try live transcript file
+        parsed_messages = await self._get_parsed_messages_from_file(session_id)
 
         # 2. Fallback to gzip archive
         if not parsed_messages:
@@ -194,25 +220,31 @@ class TranscriptReader:
         return rendered[offset : offset + limit]
 
     async def count_messages(self, session_id: str) -> int:
-        """Count messages for a session from live JSONL or gzip archive."""
+        """Count messages for a session from live transcript or gzip archive."""
         session = self._session_manager.get(session_id)
         if not session:
             return 0
 
-        # Fallback 1: count lines from live JSONL file
-        jsonl_path = getattr(session, "jsonl_path", None)
-        if jsonl_path and os.path.isfile(jsonl_path):
+        transcript_path = getattr(session, "transcript_path", None)
+        if transcript_path and os.path.isfile(transcript_path):
             try:
-                lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
-                return sum(1 for line in lines if line.strip())
+                if _is_json_session_file(transcript_path):
+                    # JSON session file: parse to count messages
+                    data = await asyncio.to_thread(self._read_json_file, transcript_path)
+                    source = session.source or "claude"
+                    parsed = _parse_json_session(data, source, session_id=session_id)
+                    return len(parsed)
+                else:
+                    lines = await asyncio.to_thread(self._read_jsonl_lines, transcript_path)
+                    return sum(1 for line in lines if line.strip())
             except Exception as e:
                 logger.warning(
-                    "Failed to count messages from JSONL for session %s: %s",
+                    "Failed to count messages from transcript for session %s: %s",
                     session_id,
                     e,
                 )
 
-        # Fallback 2: count lines from gzip archive
+        # Fallback: count lines from gzip archive
         if session.external_id:
             archive_dir = get_archive_dir(self._archive_dir)
             archive_path = archive_dir / f"{session.external_id}.jsonl.gz"
@@ -243,23 +275,30 @@ class TranscriptReader:
             logger.warning("Failed to read archive for session %s: %s", session_id, e)
             return []
 
-    async def _get_parsed_messages_from_jsonl(self, session_id: str) -> list[ParsedMessage]:
-        """Read and parse ParsedMessages from live JSONL file."""
+    async def _get_parsed_messages_from_file(self, session_id: str) -> list[ParsedMessage]:
+        """Read and parse ParsedMessages from live transcript file.
+
+        Handles both JSONL (Claude, Codex) and native JSON (Gemini) formats.
+        """
         session = self._session_manager.get(session_id)
         if not session:
             return []
 
-        jsonl_path = getattr(session, "jsonl_path", None)
-        if not jsonl_path or not os.path.isfile(jsonl_path):
+        transcript_path = getattr(session, "transcript_path", None)
+        if not transcript_path or not os.path.isfile(transcript_path):
             return []
 
         source = session.source or "claude"
 
         try:
-            lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
-            return _parse_lines(lines, source, session_id=session_id)
+            if _is_json_session_file(transcript_path):
+                data = await asyncio.to_thread(self._read_json_file, transcript_path)
+                return _parse_json_session(data, source, session_id=session_id)
+            else:
+                lines = await asyncio.to_thread(self._read_jsonl_lines, transcript_path)
+                return _parse_lines(lines, source, session_id=session_id)
         except Exception as e:
-            logger.warning("Failed to read JSONL for session %s: %s", session_id, e)
+            logger.warning("Failed to read transcript for session %s: %s", session_id, e)
             return []
 
     async def _read_from_archive(
@@ -300,29 +339,37 @@ class TranscriptReader:
         # Apply pagination
         return all_messages[offset : offset + limit]
 
-    async def _read_from_jsonl(
+    async def _read_from_file(
         self,
         session_id: str,
         limit: int,
         offset: int,
         role: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Read messages from a live JSONL transcript file on disk."""
+        """Read messages from a live transcript file on disk.
+
+        Handles both JSONL and native JSON formats.
+        """
         session = self._session_manager.get(session_id)
         if not session:
             return []
 
-        jsonl_path = getattr(session, "jsonl_path", None)
-        if not jsonl_path or not os.path.isfile(jsonl_path):
+        transcript_path = getattr(session, "transcript_path", None)
+        if not transcript_path or not os.path.isfile(transcript_path):
             return []
 
         source = session.source or "claude"
 
         try:
-            lines = await asyncio.to_thread(self._read_jsonl_lines, jsonl_path)
-            all_messages = _parse_lines_to_dicts(lines, source, session_id=session_id)
+            if _is_json_session_file(transcript_path):
+                data = await asyncio.to_thread(self._read_json_file, transcript_path)
+                parsed = _parse_json_session(data, source, session_id=session_id)
+                all_messages = _parsed_to_dicts(parsed)
+            else:
+                lines = await asyncio.to_thread(self._read_jsonl_lines, transcript_path)
+                all_messages = _parse_lines_to_dicts(lines, source, session_id=session_id)
         except Exception as e:
-            logger.warning("Failed to read JSONL for session %s: %s", session_id, e)
+            logger.warning("Failed to read transcript for session %s: %s", session_id, e)
             return []
 
         # Fill in session_id
@@ -341,6 +388,12 @@ class TranscriptReader:
         """Read lines from a JSONL file. Runs in a thread."""
         with open(path, encoding="utf-8") as f:
             return f.readlines()
+
+    @staticmethod
+    def _read_json_file(path: str) -> dict[str, Any]:
+        """Read and parse a JSON file. Runs in a thread."""
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
 
 
 def clear_archive_cache() -> None:

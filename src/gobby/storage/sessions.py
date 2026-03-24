@@ -30,7 +30,7 @@ class LocalSessionManager:
         source: str,
         project_id: str,
         title: str | None = None,
-        jsonl_path: str | None = None,
+        transcript_path: str | None = None,
         git_branch: str | None = None,
         parent_session_id: str | None = None,
         agent_depth: int = 0,
@@ -51,7 +51,7 @@ class LocalSessionManager:
             source: CLI source (claude, gemini, codex, cursor, windsurf, copilot)
             project_id: Project ID (required - sessions must belong to a project)
             title: Optional session title
-            jsonl_path: Path to transcript file
+            transcript_path: Path to transcript file
             git_branch: Git branch name
             parent_session_id: Parent session for handoff
             agent_depth: Nesting depth (0 = human-initiated, 1+ = agent-spawned)
@@ -70,7 +70,7 @@ class LocalSessionManager:
                 """
                 UPDATE sessions SET
                     title = COALESCE(?, title),
-                    jsonl_path = COALESCE(?, jsonl_path),
+                    transcript_path = COALESCE(?, transcript_path),
                     git_branch = COALESCE(?, git_branch),
                     parent_session_id = COALESCE(?, parent_session_id),
                     status = 'active',
@@ -79,7 +79,7 @@ class LocalSessionManager:
                 """,
                 (
                     title,
-                    jsonl_path,
+                    transcript_path,
                     git_branch,
                     parent_session_id,
                     now,
@@ -110,7 +110,7 @@ class LocalSessionManager:
                     """
                     INSERT INTO sessions (
                         id, external_id, machine_id, source, project_id, title,
-                        jsonl_path, git_branch, parent_session_id,
+                        transcript_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
                         workflow_name, status, created_at, updated_at, seq_num, had_edits,
                         message_count, turn_count, tool_call_count, last_assistant_content
@@ -124,7 +124,7 @@ class LocalSessionManager:
                         source,
                         project_id,
                         title,
-                        jsonl_path,
+                        transcript_path,
                         git_branch,
                         parent_session_id,
                         agent_depth,
@@ -492,7 +492,7 @@ class LocalSessionManager:
         session_id: str,
         *,
         external_id: str | None = None,
-        jsonl_path: str | None = None,
+        transcript_path: str | None = None,
         status: str | None = None,
         title: str | None = None,
         git_branch: str | None = None,
@@ -505,7 +505,7 @@ class LocalSessionManager:
         Args:
             session_id: Session ID to update
             external_id: New external ID (optional)
-            jsonl_path: New transcript path (optional)
+            transcript_path: New transcript path (optional)
             status: New status (optional)
             title: New title (optional)
             git_branch: New git branch (optional)
@@ -519,8 +519,8 @@ class LocalSessionManager:
 
         if external_id is not None:
             values["external_id"] = external_id
-        if jsonl_path is not None:
-            values["jsonl_path"] = jsonl_path
+        if transcript_path is not None:
+            values["transcript_path"] = transcript_path
         if status is not None:
             values["status"] = status
         if title is not None:
@@ -753,7 +753,7 @@ class LocalSessionManager:
             SELECT * FROM sessions
             WHERE status = 'expired'
             AND transcript_processed = FALSE
-            AND jsonl_path IS NOT NULL
+            AND transcript_path IS NOT NULL
             ORDER BY updated_at ASC
             LIMIT ?
             """,

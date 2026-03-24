@@ -44,7 +44,9 @@ async def trigger(mock_indexer: AsyncMock) -> CodeIndexTrigger:
 
 
 @pytest.mark.asyncio
-async def test_single_file_triggers_index(trigger: CodeIndexTrigger, mock_indexer: AsyncMock) -> None:
+async def test_single_file_triggers_index(
+    trigger: CodeIndexTrigger, mock_indexer: AsyncMock
+) -> None:
     """A single file notification triggers index_changed_files after debounce."""
     trigger._schedule_file("/src/foo.py", "proj-1", "/repo")
 
@@ -117,7 +119,9 @@ async def test_debounce_timer_resets(trigger: CodeIndexTrigger, mock_indexer: As
 
 
 @pytest.mark.asyncio
-async def test_different_projects_independent(trigger: CodeIndexTrigger, mock_indexer: AsyncMock) -> None:
+async def test_different_projects_independent(
+    trigger: CodeIndexTrigger, mock_indexer: AsyncMock
+) -> None:
     """Different projects flush independently."""
     trigger._schedule_file("/repo1/a.py", "proj-1", "/repo1")
     trigger._schedule_file("/repo2/b.py", "proj-2", "/repo2")
@@ -131,7 +135,9 @@ async def test_different_projects_independent(trigger: CodeIndexTrigger, mock_in
 
 
 @pytest.mark.asyncio
-async def test_index_failure_does_not_propagate(trigger: CodeIndexTrigger, mock_indexer: AsyncMock) -> None:
+async def test_index_failure_does_not_propagate(
+    trigger: CodeIndexTrigger, mock_indexer: AsyncMock
+) -> None:
     """Indexing failure is logged but doesn't raise."""
     mock_indexer.index_changed_files = AsyncMock(side_effect=RuntimeError("boom"))
 

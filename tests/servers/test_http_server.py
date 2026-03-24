@@ -82,7 +82,7 @@ class TestSessionRegisterRequest:
         request = SessionRegisterRequest(
             external_id="test-key",
             machine_id=None,
-            jsonl_path=None,
+            transcript_path=None,
             title=None,
             source=None,
             parent_session_id=None,
@@ -99,7 +99,7 @@ class TestSessionRegisterRequest:
         request = SessionRegisterRequest(
             external_id="test-key",
             machine_id="machine-123",
-            jsonl_path="/path/to/transcript.jsonl",
+            transcript_path="/path/to/transcript.jsonl",
             title="Test Session",
             source="Claude Code",
             parent_session_id="parent-uuid",
@@ -188,7 +188,7 @@ class TestSessionEndpoints:
                 "source": "Claude Code",
                 "project_id": test_project["id"],
                 "title": "Full Session",
-                "jsonl_path": "/path/to/transcript.jsonl",
+                "transcript_path": "/path/to/transcript.jsonl",
                 "git_branch": "feature/test",
             },
         )

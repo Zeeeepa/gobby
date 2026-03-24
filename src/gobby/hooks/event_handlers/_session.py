@@ -146,7 +146,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         For spawned Cursor agents, Gobby writes stdout to a capture file.
         The path is passed via GOBBY_CURSOR_CAPTURE_PATH env var or
-        stored in the session's jsonl_path.
+        stored in the session's transcript_path.
         """
         terminal_context = input_data.get("terminal_context")
         if terminal_context:
@@ -332,7 +332,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 machine_id=machine_id,
                 project_id=project_id,
                 parent_session_id=parent_session_id,
-                jsonl_path=transcript_path,
+                transcript_path=transcript_path,
                 source=cli_source,
                 project_path=cwd,
                 terminal_context=terminal_context,
@@ -692,7 +692,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if self._session_storage:
             self._session_storage.update(
                 session_id=existing_session.id,
-                jsonl_path=transcript_path,
+                transcript_path=transcript_path,
                 status="active",
             )
 

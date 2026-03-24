@@ -53,17 +53,17 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
     return {"exported": {"memories": count}}
 
 
-async def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple[str, str]:
+async def _read_last_turn_from_transcript(transcript_path: str, source: str) -> tuple[str, str]:
     """Read the last user prompt and assistant response from a transcript file.
 
     Args:
-        jsonl_path: Path to the JSONL transcript file
+        transcript_path: Path to the JSONL transcript file
         source: CLI source (claude, gemini, codex, etc.)
 
     Returns:
         Tuple of (prompt_text, response_text). Empty strings if not found.
     """
-    transcript_file = Path(jsonl_path)
+    transcript_file = Path(transcript_path)
     if not transcript_file.exists():
         return "", ""
 
@@ -99,12 +99,12 @@ async def _read_last_turn_from_transcript(jsonl_path: str, source: str) -> tuple
 
         return prompt_text, response_text
     except Exception as e:
-        logger.warning("Failed to read transcript %s: %s", jsonl_path, e)
+        logger.warning("Failed to read transcript %s: %s", transcript_path, e)
         return "", ""
 
 
 async def _read_undigested_turns(
-    jsonl_path: str, source: str, digested_count: int, max_turns: int = 50, num_pairs: int = 50
+    transcript_path: str, source: str, digested_count: int, max_turns: int = 50, num_pairs: int = 50
 ) -> list[tuple[str, str]]:
     """Read user/assistant pairs from transcript that haven't been digested yet.
 
@@ -113,7 +113,7 @@ async def _read_undigested_turns(
     Returns only pairs after digested_count.
 
     Args:
-        jsonl_path: Path to the JSONL transcript file
+        transcript_path: Path to the JSONL transcript file
         source: CLI source (claude, gemini, codex, etc.)
         digested_count: Number of pairs already digested
 
@@ -121,7 +121,7 @@ async def _read_undigested_turns(
         List of (prompt, response) tuples for undigested exchanges.
         Empty list if nothing new to digest.
     """
-    transcript_file = Path(jsonl_path)
+    transcript_file = Path(transcript_path)
     if not transcript_file.exists():
         return []
 
@@ -198,7 +198,7 @@ async def _read_undigested_turns(
         return [pairs[-1]]
 
     except Exception as e:
-        logger.warning("Failed to read undigested turns from %s: %s", jsonl_path, e)
+        logger.warning("Failed to read undigested turns from %s: %s", transcript_path, e)
         return []
 
 
@@ -355,11 +355,11 @@ async def _resolve_undigested_pairs(
     """
     undigested_pairs: list[tuple[str, str]] = []
 
-    if session.jsonl_path:
+    if session.transcript_path:
         previous_digest = getattr(session, "digest_markdown", None) or ""
         digested_count = _get_next_turn_number(previous_digest) - 1
         undigested_pairs = await _read_undigested_turns(
-            session.jsonl_path,
+            session.transcript_path,
             session.source,
             digested_count,
             max_turns=max_turns,

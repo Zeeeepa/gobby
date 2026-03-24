@@ -13,6 +13,7 @@ from gobby.storage.skills import LocalSkillManager, Skill, SkillFile
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class FakeRow(dict):
     """Dict subclass that supports sqlite3.Row-style key access."""
 
@@ -46,6 +47,7 @@ def _hash(text: str) -> str:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def storage(temp_db: LocalDatabase) -> LocalSkillManager:
     return LocalSkillManager(temp_db)
@@ -68,21 +70,24 @@ def _build_skill_files(skill_id: str) -> list[SkillFile]:
         ("scripts/build.sh", "script", "#!/bin/bash\necho hi"),
         ("LICENSE", "license", "MIT License"),
     ]:
-        files.append(SkillFile(
-            id="",  # set_skill_files generates IDs for new files
-            skill_id=skill_id,
-            path=rel_path,
-            file_type=ftype,
-            content=body,
-            content_hash=_hash(body),
-            size_bytes=len(body.encode()),
-        ))
+        files.append(
+            SkillFile(
+                id="",  # set_skill_files generates IDs for new files
+                skill_id=skill_id,
+                path=rel_path,
+                file_type=ftype,
+                content=body,
+                content_hash=_hash(body),
+                size_bytes=len(body.encode()),
+            )
+        )
     return files
 
 
 # ===========================================================================
 # 1. SkillFile model tests
 # ===========================================================================
+
 
 class TestSkillFileModel:
     """Tests for the SkillFile dataclass."""
@@ -122,6 +127,7 @@ class TestSkillFileModel:
 # ===========================================================================
 # 2. Storage CRUD tests
 # ===========================================================================
+
 
 class TestSkillFileCRUD:
     """Tests for skill file storage methods on LocalSkillManager."""
@@ -171,9 +177,7 @@ class TestSkillFileCRUD:
         storage.set_skill_files(sample_skill.id, reduced)
 
         # The orphaned file should be soft-deleted, so not returned
-        stored = storage.get_skill_files(
-            sample_skill.id, exclude_license=False
-        )
+        stored = storage.get_skill_files(sample_skill.id, exclude_license=False)
         paths = [f.path for f in stored]
         assert "scripts/build.sh" not in paths
 
@@ -264,9 +268,7 @@ class TestSkillFileCRUD:
         stored = storage.get_skill_files(sample_skill.id, exclude_license=False)
         assert len(stored) == 3
 
-    def test_install_from_template_copies_files(
-        self, storage: LocalSkillManager
-    ) -> None:
+    def test_install_from_template_copies_files(self, storage: LocalSkillManager) -> None:
         template = storage.create_skill(
             name="tmpl-skill",
             description="A template",
@@ -278,9 +280,7 @@ class TestSkillFileCRUD:
 
         installed = storage.install_from_template(template.id)
 
-        installed_files = storage.get_skill_files(
-            installed.id, exclude_license=False
-        )
+        installed_files = storage.get_skill_files(installed.id, exclude_license=False)
         assert len(installed_files) == 3
         paths = sorted(f.path for f in installed_files)
         assert paths == ["LICENSE", "references/api.md", "scripts/build.sh"]

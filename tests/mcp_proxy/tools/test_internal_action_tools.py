@@ -40,7 +40,7 @@ def mock_session_manager():
     manager = MagicMock()
     session = MagicMock()
     session.project_id = "proj-123"
-    session.jsonl_path = "/tmp/test.jsonl"
+    session.transcript_path = "/tmp/test.jsonl"
     session.digest_markdown = None
     manager.get = MagicMock(return_value=session)
     return manager

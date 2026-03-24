@@ -982,9 +982,7 @@ class TestBaselineDirtyFilesSubtraction:
     ) -> None:
         """Should block only when session's own edited files are dirty."""
         mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py", "c.py"}, set())
-        session_var_manager.set_variable(
-            "test-session", "session_edited_files", ["c.py"]
-        )
+        session_var_manager.set_variable("test-session", "session_edited_files", ["c.py"])
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
@@ -1000,9 +998,7 @@ class TestBaselineDirtyFilesSubtraction:
     ) -> None:
         """Should allow when session's edited files are not dirty (committed)."""
         mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py"}, set())
-        session_var_manager.set_variable(
-            "test-session", "session_edited_files", ["c.py"]
-        )
+        session_var_manager.set_variable("test-session", "session_edited_files", ["c.py"])
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
@@ -1042,12 +1038,8 @@ class TestBaselineDirtyFilesSubtraction:
         mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py"}, set())
 
         # Session A edited a.py, Session B edited b.py
-        session_var_manager.set_variable(
-            "session-a", "session_edited_files", ["a.py"]
-        )
-        session_var_manager.set_variable(
-            "session-b", "session_edited_files", ["b.py"]
-        )
+        session_var_manager.set_variable("session-a", "session_edited_files", ["a.py"])
+        session_var_manager.set_variable("session-b", "session_edited_files", ["b.py"])
         self._insert_block_on_dirty_rule(db)
 
         # Session A should be blocked (a.py dirty & in its edits)
@@ -1069,13 +1061,9 @@ class TestBaselineDirtyFilesSubtraction:
         mock_get_dirty.return_value = DirtyFiles({"a.py", "b.py"}, set())
 
         # Session A edited a.py only
-        session_var_manager.set_variable(
-            "session-a", "session_edited_files", ["a.py"]
-        )
+        session_var_manager.set_variable("session-a", "session_edited_files", ["a.py"])
         # Session B edited b.py only
-        session_var_manager.set_variable(
-            "session-b", "session_edited_files", ["b.py"]
-        )
+        session_var_manager.set_variable("session-b", "session_edited_files", ["b.py"])
         self._insert_block_on_dirty_rule(db)
 
         # Now check: if we ONLY look at session-a's files,
@@ -1131,9 +1119,7 @@ class TestBaselineDirtyFilesSubtraction:
         """Untracked files not created by this session should not trigger has_dirty_files."""
         # Untracked screenshots/docs that existed before session
         mock_get_dirty.return_value = DirtyFiles(set(), {"screenshot.png", "plan.md"})
-        session_var_manager.set_variable(
-            "test-session", "session_edited_files", ["src/main.py"]
-        )
+        session_var_manager.set_variable("test-session", "session_edited_files", ["src/main.py"])
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
@@ -1149,9 +1135,7 @@ class TestBaselineDirtyFilesSubtraction:
     ) -> None:
         """Untracked files created by this session should trigger has_dirty_files."""
         mock_get_dirty.return_value = DirtyFiles(set(), {"new_module.py"})
-        session_var_manager.set_variable(
-            "test-session", "session_edited_files", ["new_module.py"]
-        )
+        session_var_manager.set_variable("test-session", "session_edited_files", ["new_module.py"])
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
@@ -1167,9 +1151,7 @@ class TestBaselineDirtyFilesSubtraction:
     ) -> None:
         """Legacy fallback (no session_edited_files) should ignore untracked files entirely."""
         mock_get_dirty.return_value = DirtyFiles(set(), {"random_file.txt"})
-        session_var_manager.set_variable(
-            "test-session", "baseline_dirty_files", []
-        )
+        session_var_manager.set_variable("test-session", "baseline_dirty_files", [])
         # No session_edited_files set → legacy fallback path
         self._insert_block_on_dirty_rule(db)
 

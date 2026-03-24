@@ -55,7 +55,7 @@ def test_list_sessions_found(mock_session_manager) -> None:
         seq_num=1,
         external_id=None,
         machine_id=None,
-        jsonl_path=None,
+        transcript_path=None,
         summary_path=None,
         summary_markdown=None,
         git_branch=None,
@@ -84,7 +84,7 @@ def test_list_sessions_json(mock_session_manager) -> None:
         title="Test Session",
         external_id=None,
         machine_id=None,
-        jsonl_path=None,
+        transcript_path=None,
         summary_path=None,
         summary_markdown=None,
         git_branch=None,
@@ -112,7 +112,7 @@ def test_show_session_found(mock_session_manager, mock_resolve_session) -> None:
         summary_markdown="Test Summary",
         external_id=None,
         machine_id=None,
-        jsonl_path=None,
+        transcript_path=None,
         summary_path=None,
         git_branch=None,
         parent_session_id=None,
@@ -149,7 +149,7 @@ def test_delete_session_success(mock_session_manager, mock_resolve_session) -> N
         title=None,
         external_id=None,
         machine_id=None,
-        jsonl_path=None,
+        transcript_path=None,
         summary_path=None,
         summary_markdown=None,
         git_branch=None,
@@ -187,7 +187,7 @@ def test_session_stats(mock_session_manager) -> None:
         title=None,
         external_id=None,
         machine_id=None,
-        jsonl_path=None,
+        transcript_path=None,
         summary_path=None,
         summary_markdown=None,
         git_branch=None,
@@ -203,7 +203,7 @@ def test_session_stats(mock_session_manager) -> None:
         title=None,
         external_id=None,
         machine_id=None,
-        jsonl_path=None,
+        transcript_path=None,
         summary_path=None,
         summary_markdown=None,
         git_branch=None,
@@ -233,7 +233,7 @@ def test_show_messages(mock_session_manager, mock_resolve_session) -> None:
         title=None,
         external_id=None,
         machine_id=None,
-        jsonl_path=None,
+        transcript_path=None,
         summary_path=None,
         summary_markdown=None,
         git_branch=None,
@@ -285,7 +285,7 @@ def test_create_handoff(
         source="claude",
         created_at="",
         updated_at="",
-        jsonl_path="/tmp/transcript.jsonl",
+        transcript_path="/tmp/transcript.jsonl",
         title=None,
         external_id=None,
         machine_id=None,
@@ -324,7 +324,7 @@ def test_create_handoff(
         source="claude",
         created_at="",
         updated_at="",
-        jsonl_path="/tmp/transcript.jsonl",
+        transcript_path="/tmp/transcript.jsonl",
         title=None,
         external_id=None,
         machine_id=None,
@@ -336,7 +336,9 @@ def test_create_handoff(
     mock_session_manager.get.side_effect = [session, updated_session]
 
     runner = CliRunner()
-    with patch("gobby.cli.sessions.asyncio.run", return_value={"success": True, "full_length": 100}):
+    with patch(
+        "gobby.cli.sessions.asyncio.run", return_value={"success": True, "full_length": 100}
+    ):
         result = runner.invoke(sessions, ["create-handoff", "-s", "s1", "--output", "db"])
 
     assert result.exit_code == 0
@@ -367,7 +369,7 @@ def test_create_handoff_full_llm_error(
         source="claude",
         created_at="",
         updated_at="",
-        jsonl_path="/tmp/transcript.jsonl",
+        transcript_path="/tmp/transcript.jsonl",
         title=None,
         external_id=None,
         machine_id=None,
@@ -432,7 +434,7 @@ def test_create_handoff_no_transcript_path(mock_session_manager, mock_resolve_se
         source="claude",
         created_at="",
         updated_at="",
-        jsonl_path=None,  # No path
+        transcript_path=None,  # No path
         title=None,
         external_id=None,
         machine_id=None,
@@ -467,7 +469,7 @@ def test_create_handoff_transcript_not_found(mock_session_manager, mock_resolve_
         source="claude",
         created_at="",
         updated_at="",
-        jsonl_path="/tmp/missing.jsonl",
+        transcript_path="/tmp/missing.jsonl",
         title=None,
         external_id=None,
         machine_id=None,
@@ -549,7 +551,7 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
         source="claude",
         created_at="",
         updated_at="",
-        jsonl_path="/tmp/transcript.jsonl",
+        transcript_path="/tmp/transcript.jsonl",
         title=None,
         external_id=None,
         machine_id=None,
@@ -567,7 +569,7 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
         source="claude",
         created_at="",
         updated_at="",
-        jsonl_path="/tmp/transcript.jsonl",
+        transcript_path="/tmp/transcript.jsonl",
         title=None,
         external_id=None,
         machine_id=None,

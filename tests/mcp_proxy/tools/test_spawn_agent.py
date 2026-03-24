@@ -1671,9 +1671,7 @@ class TestSpawnAgentImplErrorBranches:
         runner._child_session_manager = MagicMock()
 
         mock_handler = MagicMock()
-        mock_handler.prepare_environment = AsyncMock(
-            side_effect=RuntimeError("git error")
-        )
+        mock_handler.prepare_environment = AsyncMock(side_effect=RuntimeError("git error"))
         mock_handler.cleanup_environment = AsyncMock()
 
         with (
@@ -1714,21 +1712,22 @@ class TestSpawnAgentImplErrorBranches:
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
-            patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ),
+            patch("gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"),
         ):
             handler = MagicMock()
-            handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/path")
-            )
+            handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/path"))
             handler.build_context_prompt.return_value = "test"
             mock_handler_fn.return_value = handler
 
             mock_execute.return_value = MagicMock(
-                success=True, child_session_id="c-1", status="ok",
-                pid=1, terminal_type=None, tmux_session_name=None,
-                message="ok", process=None,
+                success=True,
+                child_session_id="c-1",
+                status="ok",
+                pid=1,
+                terminal_type=None,
+                tmux_session_name=None,
+                message="ok",
+                process=None,
             )
 
             result = await spawn_agent_impl(

@@ -244,9 +244,7 @@ class TestBlockOnSuccess:
     def test_block_on_failure_takes_precedence_over_block_on_success(self) -> None:
         """When both flags set and call fails, block_on_failure fires (checked first)."""
         proxy = AsyncMock()
-        proxy.call_tool = AsyncMock(
-            return_value={"success": False, "error": "server down"}
-        )
+        proxy.call_tool = AsyncMock(return_value={"success": False, "error": "server down"})
         stub = _make_hook_manager_stub(tool_proxy_getter=lambda: proxy, loop=None)
         event = _make_event()
 

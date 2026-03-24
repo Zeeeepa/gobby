@@ -80,9 +80,7 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
@@ -138,9 +136,7 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
@@ -190,9 +186,7 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
@@ -242,9 +236,7 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
@@ -314,9 +306,7 @@ class TestSpawnAutoClaimAssignee:
         ):
             mock_ctx.return_value = {"id": "proj-abc", "project_path": "/repo"}
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
             mock_execute.return_value = _make_execute_spawn_result()
@@ -376,9 +366,7 @@ class TestSpawnAutoClaimAssignee:
         ):
             mock_ctx.return_value = {"id": "proj-abc", "project_path": "/repo"}
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
             mock_execute.return_value = _make_execute_spawn_result()
@@ -440,9 +428,7 @@ class TestSpawnAutoClaimAssignee:
         ):
             mock_ctx.return_value = {"id": "proj-abc", "project_path": "/repo"}
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
             mock_execute.return_value = _make_execute_spawn_result()

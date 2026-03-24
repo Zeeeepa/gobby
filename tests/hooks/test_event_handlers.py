@@ -2225,9 +2225,7 @@ class TestSkillToolInterception:
         assert '<skill-context name="test-battery">' in response.context
         skill_manager.resolve_skill_name.assert_called_once_with("test-battery")
 
-    def test_skill_tool_with_args(
-        self, handlers_with_skills: EventHandlers
-    ) -> None:
+    def test_skill_tool_with_args(self, handlers_with_skills: EventHandlers) -> None:
         """Skill tool call with args includes them in context."""
         event = make_event(
             HookEventType.BEFORE_TOOL,
@@ -2280,9 +2278,7 @@ class TestSkillToolInterception:
         assert response.decision == "allow"
         skill_manager.resolve_skill_name.assert_not_called()
 
-    def test_skill_tool_no_skill_manager(
-        self, mock_dependencies: dict[str, Any]
-    ) -> None:
+    def test_skill_tool_no_skill_manager(self, mock_dependencies: dict[str, Any]) -> None:
         """Skill tool call without skill_manager passes through."""
         handlers = EventHandlers(**mock_dependencies)  # no skill_manager
         event = make_event(
