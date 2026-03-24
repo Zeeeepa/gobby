@@ -72,7 +72,7 @@ The code index works with SQLite alone and adds capabilities as optional backend
 
 ## Tool Reference
 
-The `gobby-code` MCP server provides 13 tools across 4 sub-registries.
+The `gobby-code` MCP server provides 15 tools across 5 sub-registries.
 
 ### Indexing
 
@@ -158,6 +158,19 @@ Full-text search across symbol names and signatures. SQLite-only, no semantic co
 | `file_path` | string | No | Filter to a specific file |
 | `limit` | integer | No | Max results (default: 20) |
 
+#### `search_content(query, project_id?, file_path?, limit?)`
+
+Full-text search across file content — comments, string literals, config values, JSX, imports, etc. Complements `search_symbols` (which searches symbol names) and `search_text` (which searches symbol signatures/docstrings).
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `query` | string | Yes | Text to search for |
+| `project_id` | string | No | Defaults to current project |
+| `file_path` | string | No | Filter to a specific file |
+| `limit` | integer | No | Max results (default: 20) |
+
+**Returns:** `list[dict]` with `file_path`, `line_start`, `line_end`, and `snippet` (highlighted match).
+
 ### Graph
 
 These tools require Neo4j. They return an error dict if Neo4j is unavailable.
@@ -185,6 +198,22 @@ Find all usages of a symbol (calls + imports).
 | `limit` | integer | No | Max results (default: 20) |
 
 **Returns:** `list[dict]` with `source_id`, `source_name`, `rel_type`, `file`, `line`.
+
+### Impact Analysis
+
+#### `blast_radius(symbol_name?, file_path?, depth?, include_tasks?, project_id?)`
+
+Analyze the blast radius of changing a symbol or file. Walks the call/import graph transitively to find all affected code, then cross-references with task affected files. Provide exactly one of `symbol_name` or `file_path`.
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `symbol_name` | string | No* | Symbol to analyze (provide this OR file_path) |
+| `file_path` | string | No* | File to analyze (provide this OR symbol_name) |
+| `depth` | integer | No | Max traversal depth (default: unlimited) |
+| `include_tasks` | boolean | No | Cross-reference with task affected files |
+| `project_id` | string | No | Defaults to current project |
+
+**Returns:** `dict` with affected symbols, files, and optionally related tasks.
 
 #### `get_imports(file_path, project_id?)`
 
