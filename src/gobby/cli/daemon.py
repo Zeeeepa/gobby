@@ -123,17 +123,17 @@ def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | Non
     try:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         log_f = open(log_file, "a")
-
-        process = subprocess.Popen(  # nosec B603
-            cmd,
-            stdout=log_f,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-            env=os.environ.copy(),
-        )
-
-        log_f.close()
+        try:
+            process = subprocess.Popen(  # nosec B603
+                cmd,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                env=os.environ.copy(),
+            )
+        finally:
+            log_f.close()
         return process.pid
 
     except Exception as e:
@@ -270,7 +270,7 @@ def start(
     if verbose:
         cmd.append("--verbose")
 
-    # Open log files
+    # Open log files — closed in finally block after Popen inherits the fds
     log_f = open(log_file, "a")
     error_log_f = open(error_log_file, "a")
 

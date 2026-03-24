@@ -193,7 +193,31 @@ def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
         return False
 
 
+def _raise_fd_limit(target: int = 10240) -> None:
+    """Raise the soft file-descriptor limit for the daemon process.
+
+    macOS sets the default soft limit to 256 via launchctl, which is far too
+    low for a daemon managing WebSocket connections, MCP subprocess transports,
+    SQLite, and HTTP clients.  The kernel allows up to kern.maxfilesperproc
+    (typically 61 440), so we raise the soft limit to *target* (or hard limit,
+    whichever is smaller).
+    """
+    import resource
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft >= target:
+        return
+    new_soft = min(target, hard) if hard != resource.RLIM_INFINITY else target
+    try:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft, hard))
+        logger.info(f"Raised fd limit: {soft} -> {new_soft} (hard={hard})")
+    except (ValueError, OSError) as e:
+        logger.warning(f"Could not raise fd limit from {soft}: {e}")
+
+
 def main(config_path: Path | None = None, verbose: bool = False) -> None:
+    _raise_fd_limit()
+
     # Fast guard: if a healthy daemon is already serving on our port, exit
     # cleanly so launchd (KeepAlive.SuccessfulExit=false) won't respawn us.
     from gobby.config.bootstrap import load_bootstrap
