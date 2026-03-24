@@ -15,6 +15,8 @@ export function ThinkingBlock({ content, messageId }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(true)
   const processed = useMemo(() => preserveLineBreaks(content), [content])
 
+  if (!content?.trim()) return null
+
   return (
     <div
       className="my-2 rounded-lg border border-border bg-muted/30"

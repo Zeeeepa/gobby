@@ -416,7 +416,9 @@ class ClaudeTranscriptParser(BaseTranscriptParser):
                             )
                         )
                     elif btype == "thinking":
-                        thinking_parts.append(block.get("thinking", ""))
+                        val = block.get("thinking") or ""
+                        if val.strip():
+                            thinking_parts.append(val)
                 # Remaining text
                 if text_parts:
                     results.append(_make_msg(role="assistant", content=" ".join(text_parts)))
