@@ -263,10 +263,14 @@ class CodeGraph:
         """Get file-level overview graph for visualization.
 
         Returns CodeFile nodes connected by shared CodeModule imports,
-        resolved to file-to-file edges.
+        resolved to file-to-file edges.  Total nodes are capped at
+        ``limit * 8`` to prevent 3D renderer crashes.
         """
         if not self.available:
             return {"nodes": [], "links": []}
+
+        max_nodes = limit * 8
+        link_limit = limit * 3
 
         try:
             # Get files and their import relationships via shared modules
@@ -294,7 +298,7 @@ class CodeGraph:
                 {
                     "project": project_id,
                     "file_paths": list(node_ids),
-                    "link_limit": limit * 5,
+                    "link_limit": link_limit,
                 },
             )
 
@@ -306,6 +310,8 @@ class CodeGraph:
                 links.append(rec)
                 mid = rec["target"]
                 if mid not in node_ids and mid not in module_ids:
+                    if len(nodes) >= max_nodes:
+                        continue
                     module_ids.add(mid)
                     nodes.append(
                         {
@@ -325,7 +331,7 @@ class CodeGraph:
                 {
                     "project": project_id,
                     "file_paths": list(node_ids),
-                    "link_limit": limit * 5,
+                    "link_limit": link_limit,
                 },
             )
 
@@ -339,7 +345,7 @@ class CodeGraph:
                         "type": "DEFINES",
                     }
                 )
-                if sid not in node_ids:
+                if sid not in node_ids and len(nodes) < max_nodes:
                     nodes.append(
                         {
                             "id": sid,
@@ -361,7 +367,7 @@ class CodeGraph:
                     {
                         "project": project_id,
                         "sym_ids": sym_ids,
-                        "link_limit": limit * 5,
+                        "link_limit": link_limit,
                     },
                 )
                 for r in call_records:

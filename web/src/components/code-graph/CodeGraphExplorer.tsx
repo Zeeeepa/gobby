@@ -6,10 +6,10 @@ import type { CodeGraphData, CodeGraphNode, CodeGraphSearchResult } from '../../
 import { IS_MOBILE, IS_IOS } from '../../utils/platform'
 import './CodeGraphExplorer.css'
 
-const DEFAULT_CODE_GRAPH_LIMIT = IS_IOS ? 150 : IS_MOBILE ? 250 : 500
-const CODE_GRAPH_LIMIT_MIN = 50
-const CODE_GRAPH_LIMIT_MAX = IS_IOS ? 300 : IS_MOBILE ? 500 : 5000
-const CODE_GRAPH_LIMIT_STEP = 50
+const DEFAULT_CODE_GRAPH_LIMIT = IS_IOS ? 30 : IS_MOBILE ? 50 : 100
+const CODE_GRAPH_LIMIT_MIN = 10
+const CODE_GRAPH_LIMIT_MAX = IS_IOS ? 100 : IS_MOBILE ? 200 : 1000
+const CODE_GRAPH_LIMIT_STEP = 10
 
 const DEFAULT_CHARGE = -200
 const DEFAULT_LINK_DIST = 80
