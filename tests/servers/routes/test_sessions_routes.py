@@ -571,7 +571,7 @@ class TestGetSession:
         # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
-            "gobby.servers.routes.sessions.core._get_session_stats",
+            "gobby.servers.routes.sessions.lifecycle._get_session_stats",
             return_value={
                 "tasks_closed": 3,
                 "memories_created": 1,
@@ -595,7 +595,7 @@ class TestGetSession:
         # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
-            "gobby.servers.routes.sessions.core._get_session_stats",
+            "gobby.servers.routes.sessions.lifecycle._get_session_stats",
             side_effect=Exception("stats error"),
         ):
             response = client.get("/api/sessions/sess-abc123")

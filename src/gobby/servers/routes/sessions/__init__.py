@@ -16,8 +16,11 @@ from gobby.servers.routes.sessions.analytics import (
 from gobby.servers.routes.sessions.core import (
     _compute_resumability,
     _get_commit_count,
-    _get_session_stats,
     register_core_routes,
+)
+from gobby.servers.routes.sessions.lifecycle import (
+    _get_session_stats,
+    register_lifecycle_routes,
 )
 from gobby.servers.routes.sessions.messages import register_message_routes
 
@@ -65,6 +68,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 )
 
     register_core_routes(router, server, _get_session_manager, _broadcast_session)
+    register_lifecycle_routes(router, server, _get_session_manager, _broadcast_session)
     register_message_routes(router, server, _get_session_manager, _broadcast_session)
     register_analytics_routes(router, server, _get_session_manager, _broadcast_session)
 
