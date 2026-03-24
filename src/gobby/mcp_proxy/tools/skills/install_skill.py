@@ -168,7 +168,7 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                 if len(parsed_skill) > 1:
                     logger.warning(
                         f"Multiple skills found ({len(parsed_skill)}), using first: "
-                        f"{parsed_skill[0].get('name', 'unknown')}"
+                        f"{parsed_skill[0].name}"
                     )
                 parsed_skill = parsed_skill[0]
 
