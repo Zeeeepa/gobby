@@ -568,14 +568,18 @@ class TestGenerateWorktreePath:
 
     def test_with_project_name(self, tmp_path) -> None:
         """Test path generation with project name."""
-        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_worktree_base_dir", return_value=tmp_path):
+        with patch(
+            "gobby.mcp_proxy.tools.worktrees._helpers.get_worktree_base_dir", return_value=tmp_path
+        ):
             path = _generate_worktree_path("feature/test", project_name="myproject")
             assert "myproject" in path
             assert "feature-test" in path
 
     def test_without_project_name(self, tmp_path) -> None:
         """Test path generation without project name."""
-        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_worktree_base_dir", return_value=tmp_path):
+        with patch(
+            "gobby.mcp_proxy.tools.worktrees._helpers.get_worktree_base_dir", return_value=tmp_path
+        ):
             path = _generate_worktree_path("feature/test")
             # No project subdirectory
             assert path == str(tmp_path / "feature-test")
@@ -598,7 +602,9 @@ class TestResolveProjectContext:
 
     def test_project_path_no_gobby(self, tmp_path) -> None:
         """Test with path that has no .gobby/project.json."""
-        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None):
+        with patch(
+            "gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None
+        ):
             git_manager, project_id, error = _resolve_project_context(
                 project_path=str(tmp_path),
                 default_git_manager=None,
@@ -631,7 +637,9 @@ class TestResolveProjectContext:
         """Test with no project path and no defaults."""
         from unittest.mock import patch
 
-        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None):
+        with patch(
+            "gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None
+        ):
             git_manager, project_id, error = _resolve_project_context(
                 project_path=None,
                 default_git_manager=None,
@@ -644,7 +652,9 @@ class TestResolveProjectContext:
         """Test with no project path and no project ID default."""
         from unittest.mock import patch
 
-        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None):
+        with patch(
+            "gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None
+        ):
             git_manager, project_id, error = _resolve_project_context(
                 project_path=None,
                 default_git_manager=MagicMock(),
@@ -757,12 +767,23 @@ class TestInstallProviderHooks:
             mock_install.assert_called_once_with(tmp_path, mode="project")
             assert "Install failed" in caplog.text
 
-    @pytest.mark.parametrize("provider", ["cursor", "windsurf", "copilot"])
-    def test_claude_format_providers_use_project_mode(self, tmp_path, provider) -> None:
-        """Test cursor/windsurf/copilot install claude hooks with project mode."""
-        from gobby.cli.installers import claude as claude_mod
+    @pytest.mark.parametrize(
+        "provider,mod_name,func_name",
+        [
+            ("cursor", "cursor", "install_cursor"),
+            ("windsurf", "windsurf", "install_windsurf"),
+            ("copilot", "copilot", "install_copilot"),
+        ],
+    )
+    def test_claude_format_providers_use_project_mode(
+        self, tmp_path, provider, mod_name, func_name
+    ) -> None:
+        """Test cursor/windsurf/copilot install their own hooks with project mode."""
+        import importlib
 
-        with patch.object(claude_mod, "install_claude") as mock_install:
+        mod = importlib.import_module(f"gobby.cli.installers.{mod_name}")
+
+        with patch.object(mod, func_name) as mock_install:
             mock_install.return_value = {"success": True}
             result = _install_provider_hooks(provider, tmp_path)
             assert result is True
@@ -1162,7 +1183,9 @@ async def test_merge_worktree_conflict(registry, mock_worktree_storage, mock_git
                 stdout="CONFLICT (content): Merge conflict in src/foo.py\nCONFLICT (content): Merge conflict in src/bar.py",
                 stderr="Automatic merge failed",
             )
-        # merge --abort
+        if args[0] == "diff" and "--diff-filter=U" in args:
+            return MagicMock(returncode=0, stdout="src/foo.py\nsrc/bar.py\n", stderr="")
+        # merge --abort and other commands
         return MagicMock(returncode=0, stdout="", stderr="")
 
     mock_git_manager._run_git.side_effect = _run_git_side_effect

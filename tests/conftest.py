@@ -305,7 +305,6 @@ def protect_production_resources(
 
         _KNOWN_CONFIG_IMPORTERS = [
             "gobby.config",  # __init__.py re-exports load_config and save_config
-            "gobby.runner",
             "gobby.cli",  # cli/__init__.py
             "gobby.cli.utils",
             "gobby.cli.tasks._utils",

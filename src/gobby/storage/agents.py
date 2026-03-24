@@ -109,6 +109,7 @@ class AgentRun:
             "worktree_id": self.worktree_id,
             "clone_id": self.clone_id,
             "timeout_seconds": self.timeout_seconds,
+            "continuation_prompt": self.continuation_prompt,
         }
 
     def to_brief(self) -> dict[str, Any]:

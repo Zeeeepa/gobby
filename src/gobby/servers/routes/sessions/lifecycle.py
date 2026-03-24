@@ -247,8 +247,10 @@ def register_lifecycle_routes(
                 machine_id = get_machine_id()
 
             if not machine_id:
-                logger.warning("Failed to determine machine_id for session discovery")
-                raise HTTPException(status_code=500, detail="Unable to determine machine ID")
+                logger.warning(
+                    "Failed to determine machine_id for session discovery, using fallback"
+                )
+                machine_id = "unknown-machine"
 
             # Resolve project_id from cwd if not provided
             if not project_id:

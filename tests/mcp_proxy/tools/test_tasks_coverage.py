@@ -1005,7 +1005,7 @@ class TestLabelTools:
         mock_task_manager.add_label.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", "new"
         )
-        assert result == {}
+        assert result == {"success": True, "task_id": "550e8400-e29b-41d4-a716-446655440000"}
 
     @pytest.mark.asyncio
     async def test_add_label_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -1035,7 +1035,7 @@ class TestLabelTools:
         mock_task_manager.remove_label.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", "old"
         )
-        assert result == {}
+        assert result == {"success": True, "task_id": "550e8400-e29b-41d4-a716-446655440000"}
 
     @pytest.mark.asyncio
     async def test_remove_label_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -1216,7 +1216,7 @@ class TestCloseTaskTool:
                 },
             )
 
-            assert result == {}
+            assert result == {"success": True}
 
     @pytest.mark.asyncio
     async def test_close_task_with_commit_sha_links_first(
@@ -1318,7 +1318,9 @@ class TestCloseTaskTool:
         with (
             patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
             patch("gobby.utils.git.run_git_command") as mock_git,
-            patch("gobby.storage.sessions.LocalSessionManager") as MockSessionManager,
+            patch(
+                "gobby.mcp_proxy.tools.tasks._lifecycle_close.LocalSessionManager"
+            ) as MockSessionManager,
         ):
             mock_proj_instance = MagicMock()
             mock_proj_instance.get.return_value = None
@@ -1480,7 +1482,7 @@ class TestReopenTaskTool:
     async def test_reopen_task_reactivates_worktree(self, mock_task_manager, mock_sync_manager):
         """Test reopen_task reactivates associated worktrees."""
         with patch(
-            "gobby.mcp_proxy.tools.tasks._lifecycle_status.LocalWorktreeManager"
+            "gobby.mcp_proxy.tools.tasks._context.LocalWorktreeManager"
         ) as MockWorktreeManager:
             mock_wt_instance = MagicMock()
             mock_worktree = MagicMock()

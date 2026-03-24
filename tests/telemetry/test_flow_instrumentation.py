@@ -226,7 +226,7 @@ async def test_agent_runner_instrumentation(tracer_provider):
 
     # Mock internal methods
     with patch.object(runner, "_notify_completion", side_effect=AsyncMock(return_value=None)):
-        with patch.object(runner, "_tracker", MagicMock()):
+        with patch.object(runner, "_tracker", MagicMock(), create=True):
             await runner.execute_run(context, config)
 
     spans = exporter.get_finished_spans()

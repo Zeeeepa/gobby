@@ -1656,7 +1656,7 @@ class TestAgentsCleanupCommand:
         result = runner.invoke(cli, ["agents", "cleanup", "--timeout", "60"])
 
         assert result.exit_code == 0
-        mock_manager.cleanup_stale_runs.assert_called_once_with(timeout_minutes=60)
+        mock_manager.cleanup_stale_runs.assert_called_once_with(default_timeout_minutes=60)
 
     @patch("gobby.cli.agents.LocalDatabase")
     def test_cleanup_dry_run(
