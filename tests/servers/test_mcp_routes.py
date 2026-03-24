@@ -97,7 +97,7 @@ def basic_http_server(session_storage: LocalSessionManager) -> HTTPServer:
 @pytest.fixture
 def client(basic_http_server: HTTPServer) -> Iterator[TestClient]:
     """Create a test client that runs lifespan to set app.state.server."""
-    with patch("gobby.servers.http.HookManager") as MockHM:
+    with patch("gobby.servers.app_factory.HookManager") as MockHM:
         mock_instance = MockHM.return_value
         mock_instance._stop_registry = MagicMock()
         mock_instance.shutdown = MagicMock()

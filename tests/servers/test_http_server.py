@@ -66,7 +66,7 @@ def http_server(
 @pytest.fixture
 def client(http_server: HTTPServer) -> Iterator[TestClient]:
     """Create a test client for the HTTP server."""
-    with patch("gobby.servers.http.HookManager") as MockHM:
+    with patch("gobby.servers.app_factory.HookManager") as MockHM:
         mock_instance = MockHM.return_value
         mock_instance._stop_registry = MagicMock()
         mock_instance.shutdown = MagicMock()
