@@ -193,13 +193,15 @@ class Neo4jClient:
                 }
             )
 
-        # Fetch relationships
+        # Fetch relationships — scope to the entity set so the LIMIT isn't
+        # wasted on edges between entities outside the visible set.
+        entity_names = list(seen_entities)
         rel_rows = await self.query(
             "MATCH (a)-[r]->(b) "
-            "WHERE (a:_Entity OR a:Memory) AND (b:_Entity OR b:Memory) "
+            "WHERE a.name IN $names AND b.name IN $names "
             "RETURN a.name AS source, b.name AS target, type(r) AS rel_type, properties(r) AS props "
             "LIMIT $limit",
-            {"limit": limit * 4},
+            {"names": entity_names, "limit": limit * 4},
         )
 
         relationships: list[dict[str, Any]] = []
