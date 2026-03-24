@@ -370,6 +370,9 @@ class PipelineExecutor:
                 # Inject parent_session_id into inputs so ${{ inputs.parent_session_id }} resolves
                 if parent_session_id and not inputs.get("parent_session_id"):
                     merged_inputs["parent_session_id"] = parent_session_id
+                # Inject session_id into inputs so ${{ inputs.session_id }} resolves
+                if pipeline_session_id and "session_id" not in merged_inputs:
+                    merged_inputs["session_id"] = pipeline_session_id
                 # Resolve project context for template expressions
                 project_path: str | None = None
                 current_branch: str | None = None
