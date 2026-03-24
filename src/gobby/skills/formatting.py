@@ -106,7 +106,20 @@ def format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> st
 
     parts: list[str] = []
     if summary_lines:
-        parts.append("## Available Skills\n" + "\n".join(summary_lines))
+        # Wrap in <gobby-skills> tags to distinguish from native Claude Code
+        # skills. Without this, agents see these in "Available Skills" and
+        # try Skill() instead of gobby-skills MCP.
+        summary_block = "\n".join(
+            [
+                "<gobby-skills>",
+                *summary_lines,
+                "",
+                'Load a skill: get_skill(name="skill-name") on gobby-skills',
+                "Do NOT use the Skill tool for these — they are not native Claude Code skills.",
+                "</gobby-skills>",
+            ]
+        )
+        parts.append(summary_block)
     if expanded_sections:
         parts.extend(expanded_sections)
 
