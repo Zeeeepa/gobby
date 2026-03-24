@@ -664,77 +664,71 @@ class TestAgentEventBroadcasting:
         self, mock_config_with_websocket
     ) -> None:
         """Test agent event broadcasting setup when WebSocket is enabled."""
+        import gobby.runner_broadcasting as rb
+
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock()
-
-        mock_registry = MagicMock()
-        mock_registry.add_event_callback = MagicMock()
 
         patches = create_base_patches(
             mock_config=mock_config_with_websocket,
             mock_ws_server=mock_ws_server,
         )
-        # Patch at the broadcasting module (it's imported there)
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
 
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
+        old_callback = rb._agent_event_callback
+        try:
+            with ExitStack() as stack:
+                [stack.enter_context(p) for p in patches]
 
-            GobbyRunner()  # Constructor triggers event broadcasting setup
+                GobbyRunner()  # Constructor triggers event broadcasting setup
 
-            # Verify callback was registered
-            mock_registry.add_event_callback.assert_called_once()
+                # Verify module-level callback was set
+                assert rb._agent_event_callback is not None
+        finally:
+            rb._agent_event_callback = old_callback
 
     def test_setup_agent_event_broadcasting_without_websocket(self, mock_config) -> None:
-        """Test agent event broadcasting is skipped without WebSocket."""
-        mock_registry = MagicMock()
-        mock_registry.add_event_callback = MagicMock()
+        """Test agent event broadcasting is skipped without WebSocket.
+
+        When config.websocket is None, the broadcasting setup block is
+        skipped entirely, so _agent_event_callback remains unchanged.
+        """
+        import gobby.runner_broadcasting as rb
 
         patches = create_base_patches(mock_config=mock_config)
-        # Patch at the broadcasting module (it's imported there)
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
 
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
+        old_callback = rb._agent_event_callback
+        try:
+            rb._agent_event_callback = None  # ensure clean baseline
+            with ExitStack() as stack:
+                [stack.enter_context(p) for p in patches]
 
-            GobbyRunner()  # Constructor runs without WebSocket
+                GobbyRunner()  # Constructor runs without WebSocket
 
-            # Callback should NOT be registered since no websocket
-            mock_registry.add_event_callback.assert_not_called()
+                # Callback should NOT be set since broadcasting setup was skipped
+                assert rb._agent_event_callback is None
+        finally:
+            rb._agent_event_callback = old_callback
 
-    def test_setup_agent_event_broadcasting_direct_call_without_websocket(self) -> None:
-        """Test setup_agent_event_broadcasting does not crash when called with a mock server."""
+    def test_setup_agent_event_broadcasting_direct_call_sets_callback(self) -> None:
+        """Test setup_agent_event_broadcasting sets the module-level callback."""
+        import gobby.runner_broadcasting as rb
         from gobby.runner_broadcasting import setup_agent_event_broadcasting
-
-        mock_registry = MagicMock()
-        mock_registry.add_event_callback = MagicMock()
 
         mock_ws_server = MagicMock()
 
-        # Call the module-level function directly with a mock server
-        with (
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            ),
-            patch("gobby.agents.pty_reader.get_pty_reader_manager"),
-            patch("gobby.agents.tmux.get_tmux_output_reader"),
-        ):
-            setup_agent_event_broadcasting(mock_ws_server)
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        # Registry callback should have been registered
-        mock_registry.add_event_callback.assert_called_once()
+            # Module-level callback should have been set
+            assert rb._agent_event_callback is not None
+        finally:
+            rb._agent_event_callback = old_callback
 
 
 class TestMetricsCleanupLoop:
@@ -1195,47 +1189,28 @@ class TestSignalHandlerBehavior:
 
 
 class TestAgentEventBroadcastingCallback:
-    """Tests for the broadcast_agent_event callback function."""
+    """Tests for the broadcast_agent_event callback via fire_agent_event."""
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_invoked(self, mock_config_with_websocket):
-        """Test that the broadcast callback is properly invoked."""
+    async def test_broadcast_callback_invoked(self):
+        """Test that fire_agent_event invokes the broadcast callback."""
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock()
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            GobbyRunner()  # Constructor sets up agent event broadcasting
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Invoke the callback with test data
-            captured_callback(
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {
@@ -1250,163 +1225,107 @@ class TestAgentEventBroadcastingCallback:
             # Allow the async task to run
             await asyncio.sleep(0.01)
 
-            # Verify broadcast was called
             mock_ws_server.broadcast_agent_event.assert_called_once()
+        finally:
+            rb._agent_event_callback = old_callback
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_handles_exception(self, mock_config_with_websocket):
+    async def test_broadcast_callback_handles_exception(self):
         """Test that the broadcast callback handles exceptions gracefully."""
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock(side_effect=Exception("Broadcast failed"))
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            GobbyRunner()  # Constructor sets up agent event broadcasting
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Invoke the callback - should not raise despite exception
-            captured_callback(
+            # Should not raise despite exception in broadcast
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {"parent_session_id": "sess-456"},
             )
 
-            # Allow the async task to run and handle exception
             await asyncio.sleep(0.1)
+        finally:
+            rb._agent_event_callback = old_callback
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_handles_cancelled_error(self, mock_config_with_websocket):
+    async def test_broadcast_callback_handles_cancelled_error(self):
         """Test that the broadcast callback handles CancelledError gracefully."""
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock(side_effect=asyncio.CancelledError())
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            GobbyRunner()  # Constructor sets up agent event broadcasting
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Invoke the callback - should not raise
-            captured_callback(
+            # Should not raise
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {},
             )
 
-            # Allow the async task to run
             await asyncio.sleep(0.1)
+        finally:
+            rb._agent_event_callback = old_callback
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_still_works_with_captured_reference(
-        self, mock_config_with_websocket
-    ):
+    async def test_broadcast_callback_still_works_with_captured_reference(self):
         """Test callback uses the captured websocket_server reference from setup time.
 
-        In the refactored architecture, setup_agent_event_broadcasting() captures
-        the websocket_server reference at call time. Setting runner.websocket_server
-        to None afterwards does NOT affect the captured closure.
+        setup_agent_event_broadcasting() captures the websocket_server reference
+        at call time via closure. The module-level _agent_event_callback holds
+        a reference to the closure, not to the caller's variable.
         """
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock()
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Even after setting runner.websocket_server to None, the callback
-            # still holds the original reference (captured at setup time)
-            runner.websocket_server = None
-
-            # Invoke the callback
-            captured_callback(
+            # Even if external references to ws_server are dropped,
+            # the callback closure still holds the original reference
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {"parent_session_id": "sess-456"},
             )
 
-            # Allow async operations to complete
             await asyncio.sleep(0.01)
 
-            # Broadcast IS called because the closure captured the original reference
             mock_ws_server.broadcast_agent_event.assert_called_once()
+        finally:
+            rb._agent_event_callback = old_callback
 
 
 class TestMessageProcessorWebSocketIntegration:

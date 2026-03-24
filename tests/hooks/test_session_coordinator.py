@@ -20,7 +20,7 @@ import logging
 import threading
 import time
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -280,26 +280,6 @@ class TestAgentRunCompletion:
         coordinator.complete_agent_run(mock_session)
 
         mock_agent_run_manager.complete.assert_not_called()
-
-    def test_complete_agent_run_removes_from_running_registry(self) -> None:
-        """Test completing an agent run removes it from running registry."""
-        mock_agent_run_manager = MagicMock()
-        mock_agent_run = MagicMock(status="running")
-        mock_agent_run_manager.get.return_value = mock_agent_run
-
-        coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
-
-        mock_session = MagicMock()
-        mock_session.agent_run_id = "run-123"
-        mock_session.summary_markdown = None
-
-        with patch("gobby.agents.registry.get_running_agent_registry") as mock_get_registry:
-            mock_registry = MagicMock()
-            mock_get_registry.return_value = mock_registry
-
-            coordinator.complete_agent_run(mock_session)
-
-            mock_registry.remove.assert_called_once_with("run-123")
 
     def test_complete_agent_run_counts_tool_calls_from_messages(self) -> None:
         """Test completing an agent run counts tool calls and turns from session_messages."""
