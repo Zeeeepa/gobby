@@ -284,9 +284,9 @@ class SessionStartMixin(EventHandlersBase):
                 # so the old session may still be active when we look for handoff_ready.
                 # SESSION_END is fast (just sets status), so a short backoff suffices.
                 if not parent and session_source in ("clear", "compact"):
-                    deadline = time.monotonic() + 15  # 15s -- session_end is fast now
+                    deadline = time.monotonic() + 5  # 5s -- session_end is fast
                     while time.monotonic() < deadline:
-                        time.sleep(2)
+                        time.sleep(0.3)
                         parent = self._session_storage.find_parent(
                             machine_id=machine_id,
                             project_id=project_id,

@@ -349,9 +349,6 @@ def register_core_routes(
                 exclude_subagents=exclude_subagents,
             )
 
-            # message_counts no longer available (session_messages table removed)
-            message_counts: dict[str, int] = {}
-
             # Build resumability info if requested
             resumability: dict[str, tuple[bool, str | None]] = {}
             if include_resumability:
@@ -367,7 +364,6 @@ def register_core_routes(
                         continue
 
                 session_data = session.to_dict()
-                session_data["message_count"] = message_counts.get(session.id, 0)
                 if include_resumability:
                     session_data["is_resumable"] = is_resumable
                     session_data["resume_blocked_reason"] = blocked_reason

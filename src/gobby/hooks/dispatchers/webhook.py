@@ -37,7 +37,6 @@ def evaluate_blocking_webhooks(
             event,
             webhook_dispatcher,
             logger,
-            loop,
             blocking_only=True,
         )
         decision, reason = webhook_dispatcher.get_blocking_decision(webhook_results)
@@ -54,7 +53,6 @@ def dispatch_webhooks_sync(
     event: HookEvent,
     webhook_dispatcher: WebhookDispatcher,
     logger: logging.Logger,
-    loop: asyncio.AbstractEventLoop | None,
     blocking_only: bool = False,
 ) -> list[Any]:
     """Dispatch webhooks synchronously (for blocking webhooks).
@@ -63,7 +61,6 @@ def dispatch_webhooks_sync(
         event: The hook event to dispatch.
         webhook_dispatcher: The WebhookDispatcher instance.
         logger: Logger for diagnostics.
-        loop: Captured event loop for thread-safe scheduling.
         blocking_only: If True, only dispatch to blocking (can_block=True) endpoints.
 
     Returns:
@@ -142,7 +139,10 @@ def dispatch_webhooks_async(
 
     async def dispatch_all() -> None:
         tasks = [webhook_dispatcher._dispatch_single(ep, payload) for ep in matching_endpoints]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for ep, result in zip(matching_endpoints, results, strict=True):
+            if isinstance(result, Exception):
+                logger.warning(f"Webhook dispatch to {ep.url} failed: {result}")
 
     # Fire and forget
     try:

@@ -563,7 +563,7 @@ class HookManager:
     def _dispatch_webhooks_sync(self, event: HookEvent, blocking_only: bool = False) -> list[Any]:
         """Dispatch webhooks synchronously (for blocking webhooks)."""
         return _dispatch_webhooks_sync_impl(
-            event, self._webhook_dispatcher, self.logger, self._loop, blocking_only
+            event, self._webhook_dispatcher, self.logger, blocking_only
         )
 
     def _dispatch_webhooks_async(self, event: HookEvent) -> None:

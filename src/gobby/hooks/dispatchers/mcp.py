@@ -269,10 +269,21 @@ def dispatch_mcp_calls(
         coro = _call(server, tool, arguments)
 
         if background:
-            # Fire-and-forget (same pattern as broadcasting)
+            # Fire-and-forget with error logging
+            _bg_server, _bg_tool = server, tool  # bind for closure
+
+            def _log_bg_error(
+                t: asyncio.Task[Any], s: str = _bg_server, tl: str = _bg_tool
+            ) -> None:
+                if not t.cancelled() and t.exception():
+                    logger.warning(
+                        f"dispatch_mcp_calls: background {s}/{tl} failed: {t.exception()}"
+                    )
+
             try:
                 running_loop = asyncio.get_running_loop()
-                running_loop.create_task(coro)
+                task = running_loop.create_task(coro)
+                task.add_done_callback(_log_bg_error)
             except RuntimeError:
                 if loop and loop.is_running():
                     try:

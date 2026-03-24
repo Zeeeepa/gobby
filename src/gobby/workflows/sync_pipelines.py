@@ -56,6 +56,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
         return result
 
     manager = LocalWorkflowDefinitionManager(db)
+    parsed_names: set[str] = set()  # Collect names during main loop for orphan scan
 
     for yaml_file in sorted(workflows_path.glob("*.yaml")):
         try:
@@ -86,6 +87,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
                 continue
 
             name = data["name"]
+            parsed_names.add(name)
             definition_json = json.dumps(data)
 
             # Derive metadata from the YAML content
@@ -227,15 +229,8 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
 
     # Orphan cleanup: soft-delete template workflows whose YAML was removed.
     # Scoped by gobby tag to prevent cross-tag cascade damage.
+    # Uses parsed_names collected during the main loop above (no re-parsing).
     tag_filter = '%"gobby"%'
-    on_disk = set()
-    for yf in sorted(workflows_path.glob("*.yaml")):
-        try:
-            d = yaml.safe_load(yf.read_text(encoding="utf-8"))
-            if isinstance(d, dict) and "name" in d:
-                on_disk.add(d["name"])
-        except Exception as e:
-            logger.debug(f"Failed to parse {yf.name} during orphan scan: {e}")
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
@@ -246,7 +241,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
     result["orphaned"] = 0
     orphaned_names: set[str] = set()
     for row in orphan_rows:
-        if row["name"] not in on_disk:
+        if row["name"] not in parsed_names:
             manager.delete(row["id"])
             orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled workflow", extra={"workflow": row["name"]})

@@ -42,6 +42,7 @@ def _make_session(**overrides) -> MagicMock:
         "created_at": NOW_ISO,
         "updated_at": NOW_ISO,
         "seq_num": 42,
+        "message_count": 0,
     }
     defaults.update(overrides)
     session = MagicMock()
@@ -513,8 +514,8 @@ class TestListSessions:
         assert data["count"] == 0
         assert data["sessions"] == []
 
-    def test_list_message_count_always_zero(self, client, mock_server) -> None:
-        """message_count is always 0 after session_messages table removal."""
+    def test_list_message_count_from_session_model(self, client, mock_server) -> None:
+        """message_count comes from the session model (populated by processor)."""
         sessions = [_make_session()]
         mock_server.session_manager.list.return_value = sessions
 
@@ -523,7 +524,7 @@ class TestListSessions:
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 1
-        assert data["sessions"][0]["message_count"] == 0
+        assert "message_count" in data["sessions"][0]
 
 
 # =============================================================================

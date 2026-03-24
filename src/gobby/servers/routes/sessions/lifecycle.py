@@ -148,9 +148,6 @@ def register_lifecycle_routes(
 
             session_data = session.to_dict()
 
-            # message_count no longer available (session_messages table removed)
-            session_data["message_count"] = 0
-
             # Enrich with activity stats
             try:
                 stats = _get_session_stats(server.session_manager.db, session)

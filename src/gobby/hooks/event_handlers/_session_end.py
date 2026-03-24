@@ -40,31 +40,35 @@ class SessionEndMixin(EventHandlersBase):
         if session_id and not event.metadata.get("_platform_session_id"):
             event.metadata["_platform_session_id"] = session_id
 
-        # Auto-link commits made during this session to tasks
-        if session_id and self._session_storage and self._task_manager:
+        # Fetch session once and reuse for auto-link and agent completion
+        session = None
+        if session_id and self._session_storage:
             try:
                 session = self._session_storage.get(session_id)
-                if session:
-                    cwd = event.data.get("cwd")
-                    link_result = auto_link_commits(
-                        task_manager=self._task_manager,
-                        since=session.created_at,
-                        cwd=cwd,
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch session {session_id}: {e}")
+
+        # Auto-link commits made during this session to tasks
+        if session and self._task_manager:
+            try:
+                cwd = event.data.get("cwd")
+                link_result = auto_link_commits(
+                    task_manager=self._task_manager,
+                    since=session.created_at,
+                    cwd=cwd,
+                )
+                if link_result.total_linked > 0:
+                    self.logger.info(
+                        f"Auto-linked {link_result.total_linked} commits to tasks: "
+                        f"{list(link_result.linked_tasks.keys())}"
                     )
-                    if link_result.total_linked > 0:
-                        self.logger.info(
-                            f"Auto-linked {link_result.total_linked} commits to tasks: "
-                            f"{list(link_result.linked_tasks.keys())}"
-                        )
             except Exception as e:
                 self.logger.warning(f"Failed to auto-link session commits: {e}")
 
         # Complete agent run if this is a terminal-mode agent session
-        if session_id and self._session_storage and self._session_coordinator:
+        if session and session.agent_run_id and self._session_coordinator:
             try:
-                session = self._session_storage.get(session_id)
-                if session and session.agent_run_id:
-                    self._session_coordinator.complete_agent_run(session)
+                self._session_coordinator.complete_agent_run(session)
             except Exception as e:
                 self.logger.warning(f"Failed to complete agent run: {e}")
 

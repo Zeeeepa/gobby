@@ -107,9 +107,15 @@ class EffectsMixin:
                     if isinstance(original_args, str):
                         try:
                             original_args = json.loads(original_args)
-                        except (json.JSONDecodeError, TypeError):
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.warning(
+                                f"Malformed original_args JSON, defaulting to empty dict: {e}"
+                            )
                             original_args = {}
                     if not isinstance(original_args, dict):
+                        logger.warning(
+                            f"original_args is {type(original_args).__name__}, not dict — defaulting to empty dict"
+                        )
                         original_args = {}
                     rendered_updates = {"arguments": {**original_args, **rendered_updates}}
                 rewrite_meta = variables.setdefault("_rewrite_input", {})

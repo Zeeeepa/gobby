@@ -57,7 +57,10 @@ class EnforcementMixin:
             try:
                 data = json.loads(row.definition_json)
                 definition = WorkflowDefinition(**data)
-            except (json.JSONDecodeError, pydantic.ValidationError):
+            except (json.JSONDecodeError, pydantic.ValidationError) as e:
+                logger.warning(
+                    f"Skipping malformed workflow definition '{instance.workflow_name}': {e}",
+                )
                 continue
             step = definition.get_step(instance.current_step)
             if step is not None:
@@ -271,7 +274,7 @@ class EnforcementMixin:
 
         # Evaluate transitions
         for transition in step.transitions:
-            ctx = {"vars": instance.variables, "variables": variables}
+            ctx = {"vars": {**instance.variables, **variables}}
             if not transition.when or self._evaluate_condition(transition.when, ctx, "block"):
                 old_step = instance.current_step
                 new_step = transition.to
@@ -280,7 +283,7 @@ class EnforcementMixin:
                     logger.warning(
                         f"Transition to unknown step '{new_step}' in workflow '{instance.workflow_name}'",
                     )
-                    return
+                    continue
 
                 instance.current_step = new_step
                 instance.step_action_count = 0

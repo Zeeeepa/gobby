@@ -17,6 +17,7 @@ from gobby.hooks.event_handlers._session_start import (
 __all__ = [
     "AgentActivationResult",
     "SUMMARY_GENERATION_TIMEOUT_S",
+    "SessionEndMixin",
     "SessionEventHandlerMixin",
     "select_and_format_agent_skills",
 ]

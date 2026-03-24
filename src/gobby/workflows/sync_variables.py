@@ -109,7 +109,7 @@ def sync_bundled_variables(
     # Orphan cleanup: collect all variable names from disk, soft-delete DB rows
     # whose names are no longer present on disk.
     # Scoped by gobby tag to prevent cross-tag cascade damage.
-    tag_filter = '%"gobby"%'
+    tag_filter = f'%"{tag}"%'
     on_disk: set[str] = set()
     for yf in sorted(variables_path.glob("*.yaml")):
         try:
