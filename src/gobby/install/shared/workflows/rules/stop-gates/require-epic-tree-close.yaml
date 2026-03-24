@@ -1,0 +1,19 @@
+tags: [stop-gates, enforcement, lifecycle, gobby, default]
+
+rules:
+  require-epic-tree-close:
+    description: "Block stop if epic or any subtask is not closed"
+    event: stop
+    enabled: false
+    priority: 51
+    agent_scope: [default, default-web-chat]
+    when: >-
+      not variables.get('plan_mode')
+      and variables.get('task_claimed')
+      and not task_tree_complete(list((variables.get('claimed_tasks') or {}).keys()))
+      and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 8)
+    effects:
+      - type: block
+        reason: |
+          Epic tree not complete. Claimed tasks: {{ claimed_tasks.values() | list | join(', ') or '(unknown)' }}.
+          Close ALL subtasks and the parent epic before stopping. Use list_tasks(parent_task_id=...) to find remaining open work.
