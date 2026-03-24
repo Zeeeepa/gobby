@@ -5,7 +5,7 @@ Parses both JSONL transcript streams and native JSON session files from Gemini C
 
 JSONL format: Streamed events (init, message, tool_use, tool_result, result).
 JSON format: Single session file at ~/.gemini/tmp/{SHA256(cwd)}/chats/session-*.json
-  with {sessionId, messages: [{id, timestamp, type, content, toolCalls}]}.
+  with {sessionId, messages: [{id, timestamp, type, content, toolCalls, thoughts}]}.
 """
 
 from __future__ import annotations
@@ -18,6 +18,49 @@ from typing import Any
 from gobby.sessions.transcripts.base import BaseTranscriptParser, ParsedMessage, TokenUsage
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_content(content: Any) -> str:
+    """Extract text from Gemini content which may be a string or list of parts.
+
+    Gemini represents content as either a plain string or a list of parts:
+      [{"text": "..."}, {"text": ""}]
+    This normalises both forms to a single string.
+    """
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict) and "text" in part:
+                text = str(part["text"]).strip()
+                if text:
+                    text_parts.append(text)
+        return " ".join(text_parts)
+    return str(content or "")
+
+
+def _extract_thoughts_text(thoughts: list[dict[str, Any]]) -> str:
+    """Extract readable text from Gemini's thoughts array.
+
+    Gemini stores assistant reasoning as:
+      [{"subject": "...", "description": "...", "timestamp": "..."}, ...]
+    We render these as thinking blocks.
+    """
+    parts: list[str] = []
+    for thought in thoughts:
+        subject = thought.get("subject", "").strip()
+        desc = thought.get("description", "").strip()
+        if desc:
+            # Strip leading whitespace artifacts Gemini sometimes adds
+            desc = desc.lstrip("\\n").lstrip("\n").strip()
+        if subject and desc:
+            parts.append(f"**{subject}** {desc}")
+        elif desc:
+            parts.append(desc)
+        elif subject:
+            parts.append(f"**{subject}**")
+    return "\n\n".join(parts)
 
 
 class GeminiTranscriptParser(BaseTranscriptParser):
@@ -42,6 +85,17 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             logger_instance: Optional logger instance.
         """
         super().__init__(cli_name="gemini", session_id=session_id, logger_instance=logger_instance)
+        # Counter for generating synthetic tool_use_ids when not present in data
+        self._tool_use_counter = 0
+        # Track last generated tool_use_id for JSONL sequential pairing
+        self._last_tool_use_id: str | None = None
+
+    def _next_tool_use_id(self, data_id: str | None = None) -> str:
+        """Generate or extract a tool_use_id for pairing tool_use with tool_result."""
+        if data_id:
+            return str(data_id)
+        self._tool_use_counter += 1
+        return f"gemini-tu-{self._tool_use_counter}"
 
     def extract_last_messages(
         self, turns: list[dict[str, Any]], num_pairs: int = 2
@@ -112,7 +166,7 @@ class GeminiTranscriptParser(BaseTranscriptParser):
         Gemini CLI uses type-based events in JSONL format:
         - {"type":"init", "session_id":"...", "model":"...", "timestamp":"..."}
         - {"type":"message", "role":"user"|"model", "content":"...", ...}
-        - {"type":"tool_use", "tool_name":"Bash", "parameters":{...}, ...}
+        - {"type":"tool_use", "tool_name":"Bash", "parameters":{...}, "id":"...", ...}
         - {"type":"tool_result", "tool_id":"...", "status":"success", "output":"...", ...}
         - {"type":"result", "status":"success", "stats":{...}, ...}
         """
@@ -157,6 +211,7 @@ class GeminiTranscriptParser(BaseTranscriptParser):
         tool_name: str | None = None
         tool_input: dict[str, Any] | None = None
         tool_result: dict[str, Any] | None = None
+        tool_use_id: str | None = None
 
         if event_type == "init":
             # Session initialization event - skip or treat as system
@@ -179,6 +234,9 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             tool_name = data.get("tool_name") or data.get("function_name")
             tool_input = data.get("parameters") or data.get("args") or data.get("input")
             content = f"Tool call: {tool_name}"
+            # Extract or generate tool_use_id for pairing with tool_result
+            tool_use_id = self._next_tool_use_id(data.get("id") or data.get("tool_call_id"))
+            self._last_tool_use_id = tool_use_id
 
         elif event_type == "tool_result":
             # Tool result event
@@ -188,6 +246,8 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             output = data.get("output") or data.get("result") or ""
             tool_result = {"output": output, "status": data.get("status", "unknown")}
             content = str(output)[:500] if output else ""  # Truncate long outputs
+            # Pair with the preceding tool_use via matching ID
+            tool_use_id = data.get("tool_id") or data.get("tool_use_id") or self._last_tool_use_id
 
         elif event_type == "result":
             # Final result event - skip
@@ -235,23 +295,25 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             timestamp=timestamp,
             raw_json=data,
             usage=self._extract_usage(data),
+            tool_use_id=tool_use_id,
         )
 
     def _extract_usage(self, data: dict[str, Any]) -> TokenUsage | None:
         """Extract token usage from Gemini message data."""
         # Gemini API standard is usageMetadata
-        usage_data = data.get("usageMetadata")
+        usage_data = data.get("usageMetadata") or data.get("tokens")
 
         if not usage_data:
             return None
 
-        return TokenUsage(
-            input_tokens=usage_data.get("promptTokenCount", 0),
-            output_tokens=usage_data.get("candidatesTokenCount", 0),
-            # Gemini doesn't always split cache tokens in this view, strictly speaking
-            # but usually total is prompt + candidates
-            total_cost_usd=None,  # Cost calculation not standard in CLI output
-        )
+        if isinstance(usage_data, dict):
+            return TokenUsage(
+                input_tokens=usage_data.get("promptTokenCount", 0),
+                output_tokens=usage_data.get("candidatesTokenCount", 0),
+                total_cost_usd=None,
+            )
+
+        return None
 
     def parse_lines(self, lines: list[str], start_index: int = 0) -> list[ParsedMessage]:
         """
@@ -279,9 +341,10 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             "startTime": "ISO8601",
             "lastUpdated": "ISO8601",
             "messages": [
-                {"id": "uuid", "timestamp": "ISO8601", "type": "user", "content": "..."},
-                {"id": "uuid", "timestamp": "ISO8601", "type": "gemini", "content": "...",
-                 "toolCalls": [...]},
+                {"id": "uuid", "timestamp": "ISO8601", "type": "user",
+                 "content": [{"text": "..."}]},
+                {"id": "uuid", "timestamp": "ISO8601", "type": "gemini",
+                 "content": "", "thoughts": [...], "toolCalls": [...]},
                 ...
             ]
         }
@@ -308,7 +371,7 @@ class GeminiTranscriptParser(BaseTranscriptParser):
         """Parse a single message from a Gemini JSON session file.
 
         Returns a list because a gemini message with toolCalls produces
-        multiple ParsedMessages (the response text + tool_use + tool_result).
+        multiple ParsedMessages (the response text + thinking + tool_use + tool_result).
         """
         msg_type = msg.get("type")
         content = msg.get("content", "")
@@ -324,11 +387,13 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             timestamp = datetime.now(UTC)
 
         if msg_type == "user":
+            # Normalize list content: [{"text": "..."}] → "..."
+            normalized = _normalize_content(content)
             return [
                 ParsedMessage(
                     index=start_index,
                     role="user",
-                    content=str(content),
+                    content=normalized,
                     content_type="text",
                     tool_name=None,
                     tool_input=None,
@@ -343,13 +408,35 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             results: list[ParsedMessage] = []
             idx = start_index
 
-            # Main text response
-            if content:
+            # Thoughts → thinking blocks (Gemini's reasoning)
+            thoughts = msg.get("thoughts")
+            if isinstance(thoughts, list) and thoughts:
+                thinking_text = _extract_thoughts_text(thoughts)
+                if thinking_text:
+                    results.append(
+                        ParsedMessage(
+                            index=idx,
+                            role="assistant",
+                            content=thinking_text,
+                            content_type="thinking",
+                            tool_name=None,
+                            tool_input=None,
+                            tool_result=None,
+                            timestamp=timestamp,
+                            raw_json=msg,
+                            usage=self._extract_usage(msg),
+                        )
+                    )
+                    idx += 1
+
+            # Main text response (usually empty when tool calls are present)
+            normalized_content = _normalize_content(content)
+            if normalized_content:
                 results.append(
                     ParsedMessage(
                         index=idx,
                         role="assistant",
-                        content=str(content),
+                        content=normalized_content,
                         content_type="text",
                         tool_name=None,
                         tool_input=None,
@@ -366,6 +453,8 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             for tc in tool_calls:
                 tool_name = tc.get("name", "unknown")
                 tool_args = tc.get("args")
+                # Use the tool call's own id for pairing
+                tc_id = self._next_tool_use_id(tc.get("id"))
 
                 # Tool use
                 results.append(
@@ -380,13 +469,13 @@ class GeminiTranscriptParser(BaseTranscriptParser):
                         timestamp=timestamp,
                         raw_json=tc,
                         usage=self._extract_usage(msg),
+                        tool_use_id=tc_id,
                     )
                 )
                 idx += 1
 
                 # Tool result (if present)
                 # Gemini stores result as a list: [{"functionResponse": {...}}]
-                # but earlier code assumed a dict: {"functionResponse": {...}}
                 result_value = tc.get("result")
                 func_response = None
                 if isinstance(result_value, list) and result_value:
@@ -409,6 +498,7 @@ class GeminiTranscriptParser(BaseTranscriptParser):
                             timestamp=timestamp,
                             raw_json=tc,
                             usage=self._extract_usage(msg),
+                            tool_use_id=tc_id,
                         )
                     )
                     idx += 1
