@@ -1,0 +1,773 @@
+"""Core session CRUD routes.
+
+Handles registration, listing, lookup, status updates, expiry, and renaming.
+"""
+
+import logging
+import subprocess  # nosec B404 # subprocess needed for git commit counting
+import time
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+from fastapi import APIRouter, HTTPException, Query, Request
+
+from gobby.servers.models import SessionRegisterRequest
+from gobby.sessions.terminal_kill import kill_terminal_session
+from gobby.telemetry.instruments import inc_counter
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from gobby.servers.http import HTTPServer
+    from gobby.storage.database import DatabaseProtocol
+
+logger = logging.getLogger(__name__)
+
+
+def _get_session_stats(db: "DatabaseProtocol", session: Any) -> dict[str, int]:
+    """Get activity stats for a session (tasks closed, memories, commits).
+
+    Args:
+        db: Database connection
+        session: Session object with id, created_at, updated_at, transcript_path
+
+    Returns:
+        Dict with tasks_closed, memories_created, commit_count
+    """
+    stats: dict[str, int] = {}
+
+    # Tasks closed in this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(*) FROM session_tasks WHERE session_id = ? AND action = 'closed'",
+            (session.id,),
+        )
+        stats["tasks_closed"] = row[0] if row else 0
+    except Exception:
+        stats["tasks_closed"] = 0
+
+    # Memories created by this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(*) FROM memories WHERE source_session_id = ?",
+            (session.id,),
+        )
+        stats["memories_created"] = row[0] if row else 0
+    except Exception:
+        stats["memories_created"] = 0
+
+    # Commits made during session timeframe
+    stats["commit_count"] = _get_commit_count(db, session)
+
+    # Skills injected in this session
+    try:
+        row = db.fetchone(
+            "SELECT COUNT(DISTINCT skill_name) FROM session_skills WHERE session_id = ?",
+            (session.id,),
+        )
+        stats["skills_used"] = row[0] if row else 0
+    except Exception:
+        stats["skills_used"] = 0
+
+    return stats
+
+
+def _get_commit_count(db: "DatabaseProtocol", session: Any) -> int:
+    """Count git commits made during a session's timeframe.
+
+    Args:
+        db: Database connection for project lookup
+        session: Session object with created_at, updated_at, project_id
+
+    Returns:
+        Number of commits, or 0 if git is unavailable
+    """
+    # Resolve cwd from project repo_path (transcript_path parent is not a git repo)
+    cwd = None
+    if session.project_id:
+        try:
+            row = db.fetchone(
+                "SELECT repo_path FROM projects WHERE id = ?",
+                (session.project_id,),
+            )
+            if row and row[0]:
+                cwd = row[0]
+        except Exception as e:
+            logger.debug(f"Failed to resolve repo_path for session {session.id}: {e}")
+
+    if not cwd:
+        return 0
+
+    # Parse timestamps
+    if isinstance(session.created_at, str):
+        since_time = datetime.fromisoformat(session.created_at.replace("Z", "+00:00"))
+    else:
+        since_time = session.created_at
+
+    if session.updated_at:
+        if isinstance(session.updated_at, str):
+            until_time = datetime.fromisoformat(session.updated_at.replace("Z", "+00:00"))
+        else:
+            until_time = session.updated_at
+    else:
+        until_time = datetime.now(UTC)
+
+    # Include timezone offset so git doesn't assume local time
+    if since_time.tzinfo is not None:
+        since_str = since_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    else:
+        since_str = since_time.strftime("%Y-%m-%dT%H:%M:%S")
+    if until_time.tzinfo is not None:
+        until_str = until_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    else:
+        until_str = until_time.strftime("%Y-%m-%dT%H:%M:%S")
+
+    try:
+        cmd = [
+            "git",
+            "rev-list",
+            "--count",
+            f"--since={since_str}",
+            f"--until={until_str}",
+            "HEAD",
+        ]
+        result = subprocess.run(  # nosec B603 # cmd built from hardcoded git arguments
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=cwd,
+        )
+        if result.returncode == 0:
+            return int(result.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+        pass
+
+    return 0
+
+
+async def _compute_resumability(
+    server: "HTTPServer",
+    sessions: list[Any],
+    current_session_id: str | None,
+) -> dict[str, tuple[bool, str | None]]:
+    """Compute resumability for each session.
+
+    Returns a dict mapping session_id -> (is_resumable, blocked_reason).
+    """
+    result: dict[str, tuple[bool, str | None]] = {}
+
+    # Batch-load active agent runs and pipeline executions
+    active_agent_session_ids: set[str] = set()
+    active_pipeline_session_ids: set[str] = set()
+
+    if server.session_manager:
+        db = server.session_manager.db
+        try:
+            rows = db.fetchall(
+                "SELECT DISTINCT parent_session_id FROM agent_runs "
+                "WHERE status IN ('pending', 'running') AND parent_session_id IS NOT NULL"
+            )
+            active_agent_session_ids = {r["parent_session_id"] for r in rows}
+        except Exception as e:
+            logger.debug("Failed to fetch active agent session ids: %s", e)
+
+        try:
+            rows = db.fetchall(
+                "SELECT DISTINCT session_id FROM pipeline_executions "
+                "WHERE status IN ('pending', 'running', 'waiting_approval') AND session_id IS NOT NULL"
+            )
+            active_pipeline_session_ids = {r["session_id"] for r in rows}
+        except Exception as e:
+            logger.debug("Failed to fetch active pipeline session ids: %s", e)
+
+    # Active web chat session IDs
+    ws_server = server.services.websocket_server
+    active_chat_db_ids: set[str] = set()
+    if ws_server:
+        chat_sessions = getattr(ws_server, "_chat_sessions", {})
+        for cs in chat_sessions.values():
+            db_sid = getattr(cs, "db_session_id", None)
+            if db_sid:
+                active_chat_db_ids.add(db_sid)
+
+    for session in sessions:
+        sid = session.id
+
+        # Exclude caller's own session
+        if current_session_id and sid == current_session_id:
+            result[sid] = (False, "current session")
+            continue
+
+        if sid in active_agent_session_ids:
+            result[sid] = (False, "has active agent")
+            continue
+
+        if sid in active_pipeline_session_ids:
+            result[sid] = (False, "has active pipeline")
+            continue
+
+        if sid in active_chat_db_ids:
+            result[sid] = (False, "active in web chat")
+            continue
+
+        result[sid] = (True, None)
+
+    return result
+
+
+def register_core_routes(
+    router: APIRouter,
+    server: "HTTPServer",
+    get_session_manager: "Callable[[], Any]",
+    broadcast_session: "Callable[..., Awaitable[None]]",
+) -> None:
+    """Register core session CRUD routes on the router."""
+
+    @router.post("/register")
+    async def register_session(request_data: SessionRegisterRequest) -> dict[str, Any]:
+        """
+        Register session metadata in local storage.
+
+        Args:
+            request_data: Session registration parameters
+
+        Returns:
+            Registration confirmation with session ID
+        """
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            # Get machine_id from request or generate
+            machine_id = request_data.machine_id
+            if not machine_id:
+                from gobby.utils.machine_id import get_machine_id
+
+                machine_id = get_machine_id()
+
+            if not machine_id:
+                # Should unlikely happen if get_machine_id works, but type safe
+                machine_id = "unknown-machine"
+
+            # Extract git branch if project path exists but git_branch not provided
+            git_branch = request_data.git_branch
+            if request_data.project_path and not git_branch:
+                from gobby.utils.git import get_git_metadata
+
+                git_metadata = get_git_metadata(request_data.project_path)
+                if git_metadata.get("git_branch"):
+                    git_branch = git_metadata.get("git_branch")
+
+            # Resolve project_id from cwd if not provided
+            project_id = server.resolve_project_id(request_data.project_id, request_data.cwd)
+
+            # Register session in local storage
+            session = server.session_manager.register(
+                external_id=request_data.external_id,
+                machine_id=machine_id,
+                source=request_data.source or "Claude Code",
+                project_id=project_id,
+                transcript_path=request_data.transcript_path,
+                title=request_data.title,
+                git_branch=git_branch,
+                parent_session_id=request_data.parent_session_id,
+            )
+
+            inc_counter("session_registrations_total")
+            await broadcast_session("session_created", session.id)
+
+            return {
+                "status": "registered",
+                "external_id": request_data.external_id,
+                "id": session.id,
+                "machine_id": machine_id,
+            }
+
+        except HTTPException:
+            raise
+
+        except ValueError as e:
+            # ValueError from _resolve_project_id when project not initialized
+
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        except Exception as e:
+            logger.error(f"Error registering session: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500, detail="Internal server error while registering session"
+            ) from e
+
+    @router.get("/usage")
+    async def get_usage_breakdown(
+        days: int = Query(1, ge=1, le=365, description="Number of days to look back"),
+        project_id: str | None = Query(None, description="Filter by project ID"),
+    ) -> dict[str, Any]:
+        """Get token usage and cost breakdown by source and model.
+
+        Returns aggregated usage statistics including per-model and
+        per-source (CLI adapter) breakdowns.
+        """
+        from gobby.sessions.token_tracker import SessionTokenTracker
+
+        sm = get_session_manager()
+        tracker = SessionTokenTracker(session_storage=sm)
+        return tracker.get_usage_summary(days=days, project_id=project_id)
+
+    @router.post("/statusline")
+    async def statusline_update(request: Request) -> dict[str, Any]:
+        """Receive usage data from the Claude Code statusline handler.
+
+        This is the primary path for accurate cost tracking -- Claude Code
+        computes total_cost_usd internally and we just store it.
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON") from None
+
+        external_id = body.get("session_id")
+        if not external_id:
+            raise HTTPException(status_code=400, detail="Missing session_id") from None
+
+        sm = get_session_manager()
+        session = sm.find_active_by_external_id(external_id, source="claude")
+        if not session:
+            # Session may not be registered yet (first ~1s of updates)
+            return {"status": "ok", "warning": "session_not_found"}
+
+        sm.update_usage(
+            session_id=session.id,
+            input_tokens=body.get("input_tokens", 0),
+            output_tokens=body.get("output_tokens", 0),
+            cache_creation_tokens=body.get("cache_creation_tokens", 0),
+            cache_read_tokens=body.get("cache_read_tokens", 0),
+            total_cost_usd=body.get("total_cost_usd", 0.0),
+            context_window=body.get("context_window_size"),
+            model=body.get("model_id"),
+        )
+
+        return {"status": "ok"}
+
+    @router.get("")
+    async def list_sessions(
+        project_id: str | None = None,
+        status: str | None = None,
+        source: str | None = None,
+        limit: int = Query(100, ge=1, le=1000),
+        exclude_subagents: bool = Query(
+            False, description="Exclude subagent sessions (agent_depth > 0)"
+        ),
+        include_resumability: bool = Query(
+            False,
+            description="Add is_resumable/resume_blocked_reason fields and filter non-resumable",
+        ),
+        current_session_id: str | None = Query(
+            None, description="Caller's own session ID (excluded from resumable list)"
+        ),
+    ) -> dict[str, Any]:
+        """
+        List sessions with optional filtering and message counts.
+
+        Args:
+            project_id: Filter by project ID
+            status: Filter by status (active, archived, etc)
+            source: Filter by source (Claude Code, Gemini, etc)
+            limit: Max results (default 100)
+            exclude_subagents: If true, only return top-level sessions
+            include_resumability: If true, enrich with resumability and filter non-resumable
+            current_session_id: Caller's session to exclude from resumable results
+
+        Returns:
+            List of session objects with message counts
+        """
+        start_time = time.perf_counter()
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            # Over-fetch when resumability filtering is requested, since
+            # non-resumable sessions will be removed post-query
+            fetch_limit = limit * 3 if include_resumability else limit
+            sessions = server.session_manager.list(
+                project_id=project_id,
+                status=status,
+                source=source,
+                limit=fetch_limit,
+                exclude_subagents=exclude_subagents,
+            )
+
+            # message_counts no longer available (session_messages table removed)
+            message_counts: dict[str, int] = {}
+
+            # Build resumability info if requested
+            resumability: dict[str, tuple[bool, str | None]] = {}
+            if include_resumability:
+                resumability = await _compute_resumability(server, sessions, current_session_id)
+
+            # Enrich sessions with counts
+            session_list = []
+            for session in sessions:
+                # If resumability requested, skip non-resumable sessions
+                if include_resumability:
+                    is_resumable, blocked_reason = resumability.get(session.id, (False, None))
+                    if not is_resumable:
+                        continue
+
+                session_data = session.to_dict()
+                session_data["message_count"] = message_counts.get(session.id, 0)
+                if include_resumability:
+                    session_data["is_resumable"] = is_resumable
+                    session_data["resume_blocked_reason"] = blocked_reason
+                session_list.append(session_data)
+                if include_resumability and len(session_list) >= limit:
+                    break
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "sessions": session_list,
+                "count": len(session_list),
+                "response_time_ms": response_time_ms,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error listing sessions: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/bulk-move")
+    async def bulk_move_sessions(request: Request) -> dict[str, Any]:
+        """
+        Move sessions from one project to another in bulk.
+
+        Accepts from_project_id, to_project_id, and optional source filter.
+
+        Returns:
+            Count of moved sessions
+        """
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            from_project_id = body.get("from_project_id")
+            to_project_id = body.get("to_project_id")
+            source_filter = body.get("source")
+            limit = body.get("limit", 100)
+
+            if not from_project_id or not to_project_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Required fields: from_project_id, to_project_id",
+                )
+
+            # Validate target project exists
+            db = server.session_manager.db
+            target = db.fetchone("SELECT id FROM projects WHERE id = ?", (to_project_id,))
+            if not target:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Target project {to_project_id} not found",
+                )
+
+            sessions = server.session_manager.list(
+                project_id=from_project_id,
+                source=source_filter,
+                limit=limit,
+            )
+
+            session_ids = [s.id for s in sessions]
+            moved = 0
+
+            if session_ids:
+                with db.transaction() as conn:
+                    placeholders = ",".join("?" for _ in session_ids)
+                    conn.execute(
+                        f"UPDATE sessions SET project_id = ? WHERE id IN ({placeholders})",  # noqa: S608
+                        (to_project_id, *session_ids),
+                    )
+                    moved = len(session_ids)
+
+            logger.info(f"Bulk-moved {moved} sessions from {from_project_id} to {to_project_id}")
+
+            # Notify connected clients
+            for sid in session_ids:
+                await broadcast_session("session_updated", sid)
+
+            return {
+                "status": "success",
+                "moved": moved,
+                "total_matching": len(sessions),
+                "from_project_id": from_project_id,
+                "to_project_id": to_project_id,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Bulk move sessions error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.get("/{session_id}")
+    async def sessions_get(session_id: str) -> dict[str, Any]:
+        """
+        Get session by ID from local storage.
+
+        Args:
+            session_id: Session ID (UUID)
+
+        Returns:
+            Session data
+        """
+        start_time = time.perf_counter()
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            session = server.session_manager.get(session_id)
+
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            session_data = session.to_dict()
+
+            # message_count no longer available (session_messages table removed)
+            session_data["message_count"] = 0
+
+            # Enrich with activity stats
+            try:
+                stats = _get_session_stats(server.session_manager.db, session)
+                session_data.update(stats)
+            except Exception as e:
+                logger.warning(f"Failed to fetch session stats: {e}")
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "success",
+                "session": session_data,
+                "response_time_ms": response_time_ms,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Sessions get error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/find_current")
+    async def find_current_session(request: Request) -> dict[str, Any]:
+        """
+        Find current active session by composite key.
+
+        Uses composite key: external_id, machine_id, source, project_id
+        Accepts either project_id directly or cwd (which is resolved to project_id).
+        """
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            external_id = body.get("external_id")
+            machine_id = body.get("machine_id")
+            source = body.get("source")
+            project_id = body.get("project_id")
+            cwd = body.get("cwd")
+
+            if not external_id or not machine_id or not source:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Required fields: external_id, machine_id, source",
+                )
+
+            # Resolve project_id from cwd if not provided
+            if not project_id and cwd:
+                project_id = server.resolve_project_id(None, cwd)
+
+            if not project_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Required: project_id or cwd (to resolve project)",
+                )
+
+            session = server.session_manager.find_by_external_id(
+                external_id, machine_id, project_id, source
+            )
+
+            if session is None:
+                return {"session": None}
+
+            return {"session": session.to_dict()}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Find current session error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/find_parent")
+    async def find_parent_session(request: Request) -> dict[str, Any]:
+        """
+        Find parent session for handoff.
+
+        Looks for most recent session in same project with handoff_ready status.
+        Accepts either project_id directly or cwd (which is resolved to project_id).
+        """
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            machine_id = body.get("machine_id")
+            source = body.get("source")
+            project_id = body.get("project_id")
+            cwd = body.get("cwd")
+
+            if not source:
+                raise HTTPException(status_code=400, detail="Required field: source")
+
+            if not machine_id:
+                from gobby.utils.machine_id import get_machine_id
+
+                machine_id = get_machine_id()
+
+            if not machine_id:
+                machine_id = "unknown-machine"
+
+            # Resolve project_id from cwd if not provided
+            if not project_id:
+                if not cwd:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Required field: project_id or cwd",
+                    )
+                project_id = server.resolve_project_id(None, cwd)
+
+            session = server.session_manager.find_parent(
+                machine_id=machine_id,
+                source=source,
+                project_id=project_id,
+            )
+
+            if session is None:
+                return {"session": None}
+
+            return {"session": session.to_dict()}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Find parent session error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/update_status")
+    async def update_session_status(request: Request) -> dict[str, Any]:
+        """
+        Update session status.
+        """
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            session_id = body.get("session_id")
+            status = body.get("status")
+
+            if not session_id or not status:
+                raise HTTPException(status_code=400, detail="Required fields: session_id, status")
+
+            session = server.session_manager.update_status(session_id, status)
+
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            await broadcast_session("session_updated", session_id)
+
+            return {"session": session.to_dict()}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Update session status error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{session_id}/expire")
+    async def expire_session(session_id: str) -> dict[str, Any]:
+        """Expire a session, killing any associated terminal/tmux pane."""
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            if session.status == "expired":
+                return {"status": "already_expired", "session_id": session_id}
+
+            # Kill tmux pane / terminal process if present
+            terminal_killed = False
+            if session.terminal_context:
+                terminal_killed = await kill_terminal_session(session.terminal_context, session_id)
+
+            server.session_manager.update_status(session_id, "expired")
+            await broadcast_session("session_expired", session_id)
+
+            return {
+                "status": "expired",
+                "session_id": session_id,
+                "terminal_killed": terminal_killed,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Expire session error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/{session_id}/rename")
+    async def rename_session(session_id: str, request: Request) -> dict[str, Any]:
+        """
+        Rename a session by setting a new title.
+
+        Args:
+            session_id: Session ID
+            request: Request with JSON body {"title": "..."}
+
+        Returns:
+            Updated title
+        """
+
+        try:
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            body = await request.json()
+            title = (body.get("title") or "").strip()
+            if not title:
+                raise HTTPException(status_code=400, detail="Title must not be empty")
+            if len(title) > 200:
+                raise HTTPException(status_code=400, detail="Title must be 200 characters or fewer")
+
+            session = server.session_manager.get(session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            result = server.session_manager.update_title(session_id, title)
+            if result is None:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            await broadcast_session("session_updated", session_id)
+
+            return {"status": "success", "title": title}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Rename session error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e

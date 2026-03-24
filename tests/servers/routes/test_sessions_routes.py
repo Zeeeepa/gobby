@@ -1,6 +1,6 @@
 """Tests for session API routes.
 
-Exercises src/gobby/servers/routes/sessions.py endpoints and helper functions
+Exercises src/gobby/servers/routes/sessions/ package endpoints and helper functions
 using mock-based TestClient approach.
 """
 
@@ -123,7 +123,7 @@ class TestGetSessionStats:
         # skills_used = 2
         db.fetchone.side_effect = [(3,), (5,), (2,)]
 
-        with patch("gobby.servers.routes.sessions._get_commit_count", return_value=7):
+        with patch("gobby.servers.routes.sessions.core._get_commit_count", return_value=7):
             stats = _get_session_stats(db, session)
 
         assert stats["tasks_closed"] == 3
@@ -137,7 +137,7 @@ class TestGetSessionStats:
         session = _make_session()
         db.fetchone.return_value = None
 
-        with patch("gobby.servers.routes.sessions._get_commit_count", return_value=0):
+        with patch("gobby.servers.routes.sessions.core._get_commit_count", return_value=0):
             stats = _get_session_stats(db, session)
 
         assert stats["tasks_closed"] == 0
@@ -151,7 +151,7 @@ class TestGetSessionStats:
         session = _make_session()
         db.fetchone.side_effect = Exception("DB error")
 
-        with patch("gobby.servers.routes.sessions._get_commit_count", return_value=0):
+        with patch("gobby.servers.routes.sessions.core._get_commit_count", return_value=0):
             stats = _get_session_stats(db, session)
 
         assert stats["tasks_closed"] == 0
@@ -177,7 +177,7 @@ class TestGetCommitCount:
         )
         db.fetchone.return_value = ("/tmp/repo",)
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "5\n"
@@ -229,7 +229,7 @@ class TestGetCommitCount:
         )
         db.fetchone.return_value = ("/tmp/repo",)
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 1
             mock_sp.run.return_value = mock_result
@@ -251,7 +251,7 @@ class TestGetCommitCount:
         db.fetchone.return_value = ("/tmp/repo",)
 
         with patch(
-            "gobby.servers.routes.sessions.subprocess.run",
+            "gobby.servers.routes.sessions.core.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd="git", timeout=5),
         ):
             count = _get_commit_count(db, session)
@@ -268,7 +268,7 @@ class TestGetCommitCount:
         )
         db.fetchone.return_value = ("/tmp/repo",)
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "3\n"
@@ -288,7 +288,7 @@ class TestGetCommitCount:
         )
         db.fetchone.return_value = ("/tmp/repo",)
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "1\n"
@@ -318,7 +318,7 @@ class TestGetCommitCount:
         )
         db.fetchone.return_value = ("/tmp/repo",)
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "2\n"
@@ -571,7 +571,7 @@ class TestGetSession:
         # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
-            "gobby.servers.routes.sessions._get_session_stats",
+            "gobby.servers.routes.sessions.core._get_session_stats",
             return_value={
                 "tasks_closed": 3,
                 "memories_created": 1,
@@ -595,7 +595,7 @@ class TestGetSession:
         # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
-            "gobby.servers.routes.sessions._get_session_stats",
+            "gobby.servers.routes.sessions.core._get_session_stats",
             side_effect=Exception("stats error"),
         ):
             response = client.get("/api/sessions/sess-abc123")
