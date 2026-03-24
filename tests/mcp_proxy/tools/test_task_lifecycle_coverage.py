@@ -119,7 +119,7 @@ class TestCloseTask:
         registry = _create_registry(mock_task_manager, mock_sync_manager)
 
         with patch(
-            "gobby.mcp_proxy.tools.tasks._lifecycle.validate_commit_requirements"
+            "gobby.mcp_proxy.tools.tasks._lifecycle_close.validate_commit_requirements"
         ) as mock_vcr:
             result = await registry.call(
                 "close_task",
@@ -164,7 +164,7 @@ class TestCloseTask:
 
         with (
             patch(
-                "gobby.mcp_proxy.tools.tasks._lifecycle.validate_commit_requirements"
+                "gobby.mcp_proxy.tools.tasks._lifecycle_close.validate_commit_requirements"
             ) as mock_vcr,
             patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
             patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSM,

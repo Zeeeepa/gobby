@@ -1480,7 +1480,7 @@ class TestReopenTaskTool:
     async def test_reopen_task_reactivates_worktree(self, mock_task_manager, mock_sync_manager):
         """Test reopen_task reactivates associated worktrees."""
         with patch(
-            "gobby.mcp_proxy.tools.tasks._lifecycle.LocalWorktreeManager"
+            "gobby.mcp_proxy.tools.tasks._lifecycle_status.LocalWorktreeManager"
         ) as MockWorktreeManager:
             mock_wt_instance = MagicMock()
             mock_worktree = MagicMock()

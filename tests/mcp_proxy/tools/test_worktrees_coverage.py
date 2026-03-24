@@ -132,7 +132,7 @@ async def test_create_worktree_auto_path(registry, mock_git_manager, mock_worktr
         merged_at=None,
     )
     with patch(
-        "gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir",
+        "gobby.mcp_proxy.tools.worktrees._helpers.get_worktree_base_dir",
         return_value=Path("/tmp/gobby-worktrees"),
     ):
         result = await registry.call(
@@ -548,7 +548,7 @@ class TestGetWorktreeBaseDir:
 
     def test_unix_path(self, tmp_path) -> None:
         """Test path uses ~/.gobby/worktrees."""
-        with patch("gobby.mcp_proxy.tools.worktrees.Path.home", return_value=tmp_path):
+        with patch("gobby.mcp_proxy.tools.worktrees._helpers.Path.home", return_value=tmp_path):
             path = _get_worktree_base_dir()
             assert str(path) == str(tmp_path / ".gobby" / "worktrees")
             assert path.exists()
@@ -557,7 +557,7 @@ class TestGetWorktreeBaseDir:
         """Test that the directory is created if it doesn't exist."""
         mock_home = tmp_path / "fakehome"
         mock_home.mkdir()
-        with patch("gobby.mcp_proxy.tools.worktrees.Path.home", return_value=mock_home):
+        with patch("gobby.mcp_proxy.tools.worktrees._helpers.Path.home", return_value=mock_home):
             path = _get_worktree_base_dir()
             assert str(path) == str(mock_home / ".gobby" / "worktrees")
             assert path.exists()
@@ -568,14 +568,14 @@ class TestGenerateWorktreePath:
 
     def test_with_project_name(self, tmp_path) -> None:
         """Test path generation with project name."""
-        with patch("gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path):
+        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_worktree_base_dir", return_value=tmp_path):
             path = _generate_worktree_path("feature/test", project_name="myproject")
             assert "myproject" in path
             assert "feature-test" in path
 
     def test_without_project_name(self, tmp_path) -> None:
         """Test path generation without project name."""
-        with patch("gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path):
+        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_worktree_base_dir", return_value=tmp_path):
             path = _generate_worktree_path("feature/test")
             # No project subdirectory
             assert path == str(tmp_path / "feature-test")
@@ -598,7 +598,7 @@ class TestResolveProjectContext:
 
     def test_project_path_no_gobby(self, tmp_path) -> None:
         """Test with path that has no .gobby/project.json."""
-        with patch("gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None):
+        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None):
             git_manager, project_id, error = _resolve_project_context(
                 project_path=str(tmp_path),
                 default_git_manager=None,
@@ -611,11 +611,11 @@ class TestResolveProjectContext:
         """Test with path that's not a valid git repo."""
         with (
             patch(
-                "gobby.mcp_proxy.tools.worktrees.get_project_context",
+                "gobby.mcp_proxy.tools.worktrees._helpers.get_project_context",
                 return_value={"id": "proj-1", "project_path": str(tmp_path)},
             ),
             patch(
-                "gobby.mcp_proxy.tools.worktrees.WorktreeGitManager",
+                "gobby.mcp_proxy.tools.worktrees._helpers.WorktreeGitManager",
                 side_effect=ValueError("Not a git repo"),
             ),
         ):
@@ -631,7 +631,7 @@ class TestResolveProjectContext:
         """Test with no project path and no defaults."""
         from unittest.mock import patch
 
-        with patch("gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None):
+        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None):
             git_manager, project_id, error = _resolve_project_context(
                 project_path=None,
                 default_git_manager=None,
@@ -644,7 +644,7 @@ class TestResolveProjectContext:
         """Test with no project path and no project ID default."""
         from unittest.mock import patch
 
-        with patch("gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None):
+        with patch("gobby.mcp_proxy.tools.worktrees._helpers.get_project_context", return_value=None):
             git_manager, project_id, error = _resolve_project_context(
                 project_path=None,
                 default_git_manager=MagicMock(),
