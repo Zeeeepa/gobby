@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -290,7 +291,7 @@ def install(
     click.echo("")
 
     # Track results
-    results: dict = {}
+    results: dict[str, dict[str, Any]] = {}
 
     # Standard CLIs (claude, gemini, cursor, windsurf)
     _standard_installers = {
@@ -516,7 +517,7 @@ def uninstall(
     uninstall_base = project_path if project_flag else Path.home()
 
     # Track results
-    results: dict = {}
+    results: dict[str, dict[str, Any]] = {}
 
     # Standard CLIs (claude, gemini, cursor)
     _standard_uninstallers = {

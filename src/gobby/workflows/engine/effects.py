@@ -9,7 +9,7 @@ import logging
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent
 from gobby.storage.workflow_definitions import WorkflowDefinitionRow
@@ -22,6 +22,17 @@ class EffectsMixin:
     """Mixin providing effect handling methods for RuleEngine."""
 
     _skill_manager: Any
+
+    if TYPE_CHECKING:
+        # Provided by TemplatingMixin at runtime via RuleEngine MRO
+        def _render_template(
+            self,
+            template: str,
+            ctx: dict[str, Any],
+            allowed_funcs: dict[str, Callable[..., Any]],
+        ) -> str: ...
+
+        def _build_allowed_funcs(self, ctx: dict[str, Any]) -> dict[str, Callable[..., Any]]: ...
 
     def _apply_effect(
         self,

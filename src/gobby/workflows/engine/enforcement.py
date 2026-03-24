@@ -7,7 +7,7 @@ MCP tool matching, and step workflow transition processing.
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pydantic
 
@@ -30,6 +30,12 @@ class EnforcementMixin:
     db: DatabaseProtocol
     instance_manager: WorkflowInstanceManager
     definition_manager: LocalWorkflowDefinitionManager
+
+    if TYPE_CHECKING:
+        # Provided by TemplatingMixin at runtime via RuleEngine MRO
+        def _evaluate_condition(
+            self, condition: str, ctx: dict[str, Any], effect_type: str
+        ) -> bool: ...
 
     def _get_step_for_session(
         self, session_id: str

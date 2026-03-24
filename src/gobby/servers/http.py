@@ -20,8 +20,10 @@ from gobby.telemetry.instruments import inc_counter
 if TYPE_CHECKING:
     from gobby.app_context import ServiceContainer
     from gobby.config.app import DaemonConfig
+    from gobby.hooks.hook_manager import HookManager
     from gobby.llm import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.mcp_proxy.tools.internal import InternalRegistryManager
     from gobby.servers.websocket.server import WebSocketServer
     from gobby.utils.tool_metrics import ToolMetricsManager
 
@@ -78,9 +80,10 @@ class HTTPServer:
                 logger.error(f"Failed to initialize LLM service: {e}")
 
         # Create MCP server instance
-        self._mcp_server = None
-        self._internal_manager = None
-        self._tools_handler = None
+        self._mcp_server: Any | None = None
+        self._internal_manager: InternalRegistryManager | None = None
+        self._tools_handler: GobbyDaemonTools | None = None
+        self._hook_manager: HookManager | None = None
 
         if services.mcp_manager:
             self._init_mcp_subsystems(services, port)

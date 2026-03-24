@@ -11,13 +11,13 @@ import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from gobby.agents.lifecycle_monitor import AgentLifecycleMonitor
 from gobby.agents.runner import AgentRunner
 from gobby.app_context import ServiceContainer, set_app_context
 from gobby.config.app import load_config
-from gobby.llm import LLMService, create_llm_service
+from gobby.llm import create_llm_service
 from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
@@ -44,12 +44,6 @@ from gobby.utils.machine_id import get_machine_id
 
 if TYPE_CHECKING:
     from gobby.runner import GobbyRunner
-    from gobby.scheduler.scheduler import CronScheduler
-    from gobby.storage.cron import CronJobStorage
-    from gobby.storage.pipelines import LocalPipelineExecutionManager
-    from gobby.workflows.loader import WorkflowLoader
-    from gobby.workflows.pipeline_executor import PipelineExecutor
-    from gobby.worktrees.git import WorktreeGitManager
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +70,8 @@ def resolve_embedding_api_key(secret_store: Any, model: str) -> str | None:
 
     for prefix, secret_name in prefix_to_secret.items():
         if model.startswith(prefix):
-            return secret_store.get(secret_name)
+            result: str | None = secret_store.get(secret_name)
+            return result
 
     # Local in-process models don't need an API key
     if model.startswith("local/"):
@@ -87,7 +82,8 @@ def resolve_embedding_api_key(secret_store: Any, model: str) -> str | None:
         return None
 
     # Default (no prefix, e.g. "text-embedding-3-small") → OpenAI
-    return secret_store.get("openai_api_key")
+    default_key: str | None = secret_store.get("openai_api_key")
+    return default_key
 
 
 def init_hub_database(config: Any) -> Any:
@@ -143,12 +139,12 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
             "Install: brew install tmux (macOS), apt install tmux (Linux)"
         )
     runner._shutdown_requested = False
-    runner._metrics_cleanup_task: asyncio.Task[None] | None = None
-    runner._vector_rebuild_task: asyncio.Task[None] | None = None
-    runner._zombie_messages_task: asyncio.Task[None] | None = None
-    runner._span_cleanup_task: asyncio.Task[None] | None = None
-    runner._metrics_archive_task: asyncio.Task[None] | None = None
-    runner._metric_snapshot_task: asyncio.Task[None] | None = None
+    runner._metrics_cleanup_task = None
+    runner._vector_rebuild_task = None
+    runner._zombie_messages_task = None
+    runner._span_cleanup_task = None
+    runner._metrics_archive_task = None
+    runner._metric_snapshot_task = None
 
     # Initialize local storage with dual-write if in project context
     runner.database = init_hub_database(runner.config)
@@ -235,7 +231,7 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
 
     runner.skill_manager = LocalSkillManager(runner.database)
 
-    runner.hub_manager: Any | None = None
+    runner.hub_manager = None
     try:
         from gobby.config.skills import SkillsConfig
         from gobby.skills.hubs import (
@@ -277,7 +273,7 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
 def init_services(runner: GobbyRunner) -> None:
     """Initialize LLM, memory, code indexer, MCP proxy, sync, and messaging."""
     # Initialize LLM Service
-    runner.llm_service: LLMService | None = None
+    runner.llm_service = None
     try:
         runner.llm_service = create_llm_service(runner.config)
         logger.debug(f"LLM service initialized: {runner.llm_service.enabled_providers}")
@@ -285,8 +281,8 @@ def init_services(runner: GobbyRunner) -> None:
         logger.error(f"Failed to initialize LLM service: {e}")
 
     # Initialize VectorStore and Memory Manager
-    runner.vector_store: VectorStore | None = None
-    runner.memory_manager: MemoryManager | None = None
+    runner.vector_store = None
+    runner.memory_manager = None
     if hasattr(runner.config, "memory"):
         try:
             # Create VectorStore (async initialize() called during startup)
@@ -329,7 +325,7 @@ def init_services(runner: GobbyRunner) -> None:
             logger.error(f"Failed to initialize MemoryManager: {e}")
 
     # Code Index (native AST-based symbol indexing)
-    runner.code_indexer: Any | None = None
+    runner.code_indexer = None
     if hasattr(runner.config, "code_index") and runner.config.code_index.enabled:
         try:
             from gobby.code_index.graph import CodeGraph
@@ -440,7 +436,7 @@ def init_services(runner: GobbyRunner) -> None:
     # Import above pulls in changes from git; export deferred to commit.
 
     # Initialize Memory Sync Manager (Phase 7) & Wire up listeners
-    runner.memory_sync_manager: MemorySyncManager | None = None
+    runner.memory_sync_manager = None
     if hasattr(runner.config, "memory_sync") and runner.config.memory_sync.enabled:
         if runner.memory_manager:
             try:
@@ -467,7 +463,7 @@ def init_services(runner: GobbyRunner) -> None:
 
     # Session Message Processor (Phase 6)
     # Created here and passed to HTTPServer which injects it into HookManager
-    runner.message_processor: SessionMessageProcessor | None = None
+    runner.message_processor = None
     if getattr(runner.config, "message_tracking", None) and runner.config.message_tracking.enabled:
         runner.message_processor = SessionMessageProcessor(
             db=runner.database,
@@ -475,7 +471,7 @@ def init_services(runner: GobbyRunner) -> None:
         )
 
     # Initialize Task Validator (Phase 7.1)
-    runner.task_validator: TaskValidator | None = None
+    runner.task_validator = None
 
     if runner.llm_service:
         gobby_tasks_config = runner.config.gobby_tasks
@@ -498,8 +494,8 @@ def init_services(runner: GobbyRunner) -> None:
     # Detect project context from cwd so daemon-level services (pipelines,
     # clones) can register their MCP tools.  Per-session resolution can
     # still override via ServiceContainer.
-    runner.git_manager: WorktreeGitManager | None = None
-    runner.project_id: str | None = None
+    runner.git_manager = None
+    runner.project_id = None
     try:
         from gobby.utils.project_context import get_project_context
         from gobby.worktrees.git import WorktreeGitManager as _WGM
@@ -523,9 +519,9 @@ def init_services(runner: GobbyRunner) -> None:
 def init_orchestration(runner: GobbyRunner) -> None:
     """Initialize workflows, pipelines, agents, cron, and communications."""
     # WorkflowLoader is project-agnostic; pipeline executor needs project context.
-    runner.workflow_loader: WorkflowLoader | None = None
-    runner.pipeline_execution_manager: LocalPipelineExecutionManager | None = None
-    runner.pipeline_executor: PipelineExecutor | None = None
+    runner.workflow_loader = None
+    runner.pipeline_execution_manager = None
+    runner.pipeline_executor = None
     try:
         from gobby.workflows.loader import WorkflowLoader
 
@@ -539,7 +535,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
     from gobby.storage.agents import LocalAgentRunManager
     from gobby.storage.inter_session_messages import InterSessionMessageManager
 
-    ism_manager = InterSessionMessageManager(cast(LocalDatabase, runner.database))
+    ism_manager = InterSessionMessageManager(runner.database)
     agent_run_manager = LocalAgentRunManager(runner.database)
 
     # tmux sender: wraps the global TmuxSessionManager singleton
@@ -607,7 +603,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
         config=runner.config,
         secret_resolver=runner.secret_store.get,
     )
-    runner.agent_runner: AgentRunner | None = None
+    runner.agent_runner = None
     try:
         # Pre-initialize common executors
         executors = {}
@@ -633,7 +629,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
     from gobby.storage.agents import LocalAgentRunManager
 
     try:
-        runner.agent_lifecycle_monitor: AgentLifecycleMonitor | None = AgentLifecycleMonitor(
+        runner.agent_lifecycle_monitor = AgentLifecycleMonitor(
             agent_run_manager=LocalAgentRunManager(runner.database),
             db=runner.database,
             session_manager=runner.session_manager,
@@ -659,11 +655,11 @@ def init_orchestration(runner: GobbyRunner) -> None:
     )
 
     # Conductor manager (persistent tick-based orchestration agent)
-    runner.conductor_manager: object | None = None
+    runner.conductor_manager = None
 
     # Cron Scheduler (background jobs for recurring tasks)
-    runner.cron_storage: CronJobStorage | None = None
-    runner.cron_scheduler: CronScheduler | None = None
+    runner.cron_storage = None
+    runner.cron_scheduler = None
     try:
         from gobby.scheduler.executor import CronExecutor
         from gobby.scheduler.scheduler import CronScheduler
@@ -785,7 +781,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
         logger.error(f"Failed to initialize CronScheduler: {e}")
 
     # Communications Manager
-    runner.communications_manager: Any | None = None
+    runner.communications_manager = None
     if hasattr(runner.config, "communications") and runner.config.communications.enabled:
         try:
             from gobby.communications.manager import CommunicationsManager
@@ -864,7 +860,7 @@ def init_servers(runner: GobbyRunner) -> None:
         else:
             logger.warning("codex_app_server enabled but codex CLI not found in PATH")
 
-    runner.http_server: HTTPServer = HTTPServer(
+    runner.http_server = HTTPServer(
         services=services,
         port=runner.config.daemon_port,
         test_mode=runner.config.test_mode,
@@ -880,7 +876,7 @@ def init_servers(runner: GobbyRunner) -> None:
         runner.pipeline_executor.tool_proxy_getter = lambda: runner.http_server.tool_proxy
 
     # WebSocket Server (Optional)
-    runner.websocket_server: WebSocketServer | None = None
+    runner.websocket_server = None
     if runner.config.websocket and getattr(runner.config.websocket, "enabled", True):
         websocket_config = WebSocketConfig(
             host=runner.config.bind_host,

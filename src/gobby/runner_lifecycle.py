@@ -182,7 +182,7 @@ async def run_daemon(runner: GobbyRunner) -> None:
         )
 
         # Start code index maintenance loop
-        runner._code_index_task: asyncio.Task[None] | None = None
+        runner._code_index_task = None
         if runner.code_indexer:
             from gobby.code_index.maintenance import code_index_maintenance_loop
 
@@ -211,7 +211,7 @@ async def run_daemon(runner: GobbyRunner) -> None:
         )
 
         # Start periodic approval timeout expiry (every 60s)
-        runner._approval_timeout_task: asyncio.Task[None] | None = None
+        runner._approval_timeout_task = None
         if runner.pipeline_execution_manager:
             runner._approval_timeout_task = asyncio.create_task(
                 expire_approval_timeouts_loop(

@@ -18,6 +18,46 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.agents.lifecycle_monitor import AgentLifecycleMonitor
+    from gobby.agents.runner import AgentRunner
+    from gobby.config.app import DaemonConfig
+    from gobby.events.completion_registry import CompletionEventRegistry
+    from gobby.events.wake import WakeDispatcher
+    from gobby.llm import LLMService
+    from gobby.llm.resolver import ExecutorRegistry
+    from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.mcp_proxy.metrics import ToolMetricsManager
+    from gobby.mcp_proxy.metrics_events import MetricsEventStore
+    from gobby.memory.manager import MemoryManager
+    from gobby.memory.vectorstore import VectorStore
+    from gobby.scheduler.scheduler import CronScheduler
+    from gobby.servers.http import HTTPServer
+    from gobby.servers.websocket.server import WebSocketServer
+    from gobby.sessions.lifecycle import SessionLifecycleManager
+    from gobby.sessions.processor import SessionMessageProcessor
+    from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.config_store import ConfigStore
+    from gobby.storage.cron import CronJobStorage
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.mcp import LocalMCPManager
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
+    from gobby.storage.prompts import LocalPromptManager
+    from gobby.storage.secrets import SecretStore
+    from gobby.storage.session_tasks import SessionTaskManager
+    from gobby.storage.sessions import LocalSessionManager
+    from gobby.storage.skills import LocalSkillManager
+    from gobby.storage.spans import SpanStorage
+    from gobby.storage.tasks import LocalTaskManager
+    from gobby.storage.worktrees import LocalWorktreeManager
+    from gobby.sync.memories import MemorySyncManager
+    from gobby.sync.tasks import TaskSyncManager
+    from gobby.tasks.validation import TaskValidator
+    from gobby.workflows.loader import WorkflowLoader
+    from gobby.workflows.pipeline_executor import PipelineExecutor
+    from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -35,7 +75,76 @@ logger = logging.getLogger(__name__)
 
 
 class GobbyRunner:
-    """Runner for Gobby daemon."""
+    """Runner for Gobby daemon.
+
+    Attributes are set by the phase functions in runner_init.py.
+    Declared here so mypy can see them.
+    """
+
+    # Phase 1: storage & config (init_storage_and_config)
+    _config_file: str | None
+    config: DaemonConfig
+    verbose: bool
+    machine_id: str | None
+    _shutdown_requested: bool
+    _metrics_cleanup_task: asyncio.Task[None] | None
+    _vector_rebuild_task: asyncio.Task[None] | None
+    _zombie_messages_task: asyncio.Task[None] | None
+    _span_cleanup_task: asyncio.Task[None] | None
+    _metrics_archive_task: asyncio.Task[None] | None
+    _metric_snapshot_task: asyncio.Task[None] | None
+    _code_index_task: asyncio.Task[None] | None
+    _code_index_shutdown: asyncio.Event | None
+    _savings_rollup_task: asyncio.Task[None] | None
+    _approval_timeout_task: asyncio.Task[None] | None
+    database: LocalDatabase
+    secret_store: SecretStore
+    config_store: ConfigStore
+    session_manager: LocalSessionManager
+    task_manager: LocalTaskManager
+    session_task_manager: SessionTaskManager
+    span_storage: SpanStorage
+    _dev_mode: bool
+    prompt_manager: LocalPromptManager
+    skill_manager: LocalSkillManager
+    hub_manager: Any | None
+
+    # Phase 2: services (init_services)
+    llm_service: LLMService | None
+    vector_store: VectorStore | None
+    memory_manager: MemoryManager | None
+    code_indexer: Any | None
+    mcp_db_manager: LocalMCPManager
+    metrics_event_store: MetricsEventStore
+    metrics_manager: ToolMetricsManager
+    mcp_proxy: MCPClientManager
+    task_sync_manager: TaskSyncManager
+    memory_sync_manager: MemorySyncManager | None
+    message_processor: SessionMessageProcessor | None
+    task_validator: TaskValidator | None
+    worktree_storage: LocalWorktreeManager
+    clone_storage: LocalCloneManager
+    git_manager: WorktreeGitManager | None
+    project_id: str | None
+
+    # Phase 3: orchestration (init_orchestration)
+    wake_dispatcher: WakeDispatcher
+    completion_registry: CompletionEventRegistry
+    workflow_loader: WorkflowLoader | None
+    pipeline_execution_manager: LocalPipelineExecutionManager | None
+    pipeline_executor: PipelineExecutor | None
+    executor_registry: ExecutorRegistry
+    agent_runner: AgentRunner | None
+    agent_lifecycle_monitor: AgentLifecycleMonitor | None
+    lifecycle_manager: SessionLifecycleManager
+    conductor_manager: object | None
+    cron_storage: CronJobStorage | None
+    cron_scheduler: CronScheduler | None
+    communications_manager: Any | None
+
+    # Phase 4: servers (init_servers)
+    http_server: HTTPServer
+    websocket_server: WebSocketServer | None
 
     def __init__(self, config_path: Path | None = None, verbose: bool = False):
         from gobby.runner_init import (
