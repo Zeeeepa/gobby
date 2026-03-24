@@ -42,7 +42,8 @@ def get_claimed_task_info(
 
         sv_mgr = SessionVariableManager(handler._session_storage.db)
         session_vars = sv_mgr.get_variables(session_id)
-    except Exception:
+    except Exception as e:
+        _logger.debug("Failed to load session variables for %s: %s", session_id, e)
         return None
 
     if not session_vars.get("task_claimed") or not session_vars.get("claimed_tasks"):
@@ -64,8 +65,8 @@ def get_claimed_task_info(
                 sv_mgr.set_variable(session_id, "task_claimed", True)
                 sv_mgr.set_variable(session_id, "claimed_tasks", reconciled)
                 return db_result or None
-        except Exception:
-            pass
+        except Exception as e:
+            _logger.debug("Failed to reconcile claimed tasks from DB: %s", e)
         return None
 
     claimed_tasks: dict[str, Any] = session_vars["claimed_tasks"]
@@ -73,7 +74,7 @@ def get_claimed_task_info(
         return None
 
     result: list[tuple[str, str, str]] = []
-    for task_uuid in claimed_tasks:
+    for task_uuid in list(claimed_tasks):
         try:
             task = handler._task_manager.get_task(task_uuid, project_id=project_id)
             ref = f"#{task.seq_num}" if task.seq_num else task_uuid[:8]

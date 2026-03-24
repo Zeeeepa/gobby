@@ -49,7 +49,7 @@ def _make_session_obj(
     return s
 
 
-def _make_monitor_with_db(callback: MagicMock, active_runs: list[AgentRun]) -> TmuxPaneMonitor:
+def _make_monitor_with_db(callback: MagicMock) -> TmuxPaneMonitor:
     """Create a TmuxPaneMonitor with a mock session_storage that returns given active runs."""
     mock_db = MagicMock()
     mock_session_storage = MagicMock()
@@ -67,7 +67,7 @@ async def test_no_tmux_agents_noop() -> None:
     """When no agents have tmux_session_name, callback is never called."""
     callback = MagicMock()
     agent_no_tmux = _make_agent_run(tmux_session_name=None)
-    monitor = _make_monitor_with_db(callback, [agent_no_tmux])
+    monitor = _make_monitor_with_db(callback)
 
     with (
         patch(
@@ -89,7 +89,7 @@ async def test_all_alive_noop() -> None:
     """When all agent tmux sessions are still alive, callback is never called."""
     callback = MagicMock()
     agent = _make_agent_run(tmux_session_name="gobby-agent-1")
-    monitor = _make_monitor_with_db(callback, [agent])
+    monitor = _make_monitor_with_db(callback)
 
     with (
         patch(
@@ -112,7 +112,7 @@ async def test_dead_session_triggers_callback() -> None:
     callback = MagicMock()
     agent = _make_agent_run(child_session_id="sess-dead", tmux_session_name="gobby-dead")
     session_obj = _make_session_obj(session_id="sess-dead", external_id="ext-dead", source="claude")
-    monitor = _make_monitor_with_db(callback, [agent])
+    monitor = _make_monitor_with_db(callback)
 
     with (
         patch(
@@ -140,7 +140,7 @@ async def test_recently_ended_prevents_double_fire() -> None:
     """mark_recently_ended blocks re-fire for the same session."""
     callback = MagicMock()
     agent = _make_agent_run(child_session_id="sess-ended", tmux_session_name="gobby-ended")
-    monitor = _make_monitor_with_db(callback, [agent])
+    monitor = _make_monitor_with_db(callback)
 
     # Mark as recently ended
     monitor.mark_recently_ended("sess-ended")
@@ -166,7 +166,7 @@ async def test_recently_ended_expires() -> None:
     callback = MagicMock()
     agent = _make_agent_run(child_session_id="sess-old", tmux_session_name="gobby-old")
     session_obj = _make_session_obj(session_id="sess-old", external_id="ext-old")
-    monitor = _make_monitor_with_db(callback, [agent])
+    monitor = _make_monitor_with_db(callback)
 
     # Insert an entry that's already expired
     monitor._recently_ended["sess-old"] = time.monotonic() - _RECENTLY_ENDED_TTL - 1
@@ -193,7 +193,7 @@ async def test_callback_exception_no_crash() -> None:
     callback = MagicMock(side_effect=RuntimeError("boom"))
     agent = _make_agent_run(child_session_id="sess-err", tmux_session_name="gobby-err")
     session_obj = _make_session_obj(session_id="sess-err")
-    monitor = _make_monitor_with_db(callback, [agent])
+    monitor = _make_monitor_with_db(callback)
 
     with (
         patch(

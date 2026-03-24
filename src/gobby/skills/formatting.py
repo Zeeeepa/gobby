@@ -69,7 +69,7 @@ def format_skills_markdown_table(skills_list: list[Any]) -> str:
 def render_skills_for_context(skills_with_formats: list[tuple[Any, str]]) -> str:
     """Format skills with pre-resolved injection formats.
 
-    Like _format_skills() but uses the format resolved by SkillInjector
+    Like render_skills_block() but uses the format resolved by SkillInjector
     instead of reading from the skill's injection_format field.
 
     Args:

@@ -398,8 +398,8 @@ async def handle_send_to_cli_session(
                 if inter_msg_manager and msg_id:
                     try:
                         await asyncio.to_thread(inter_msg_manager.mark_delivered, msg_id)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to mark message {msg_id} as delivered: {e}")
         except Exception as e:
             logger.warning(f"tmux send_keys failed for {tmux_pane}: {e}")
 

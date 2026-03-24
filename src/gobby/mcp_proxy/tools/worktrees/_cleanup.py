@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -130,7 +131,8 @@ def create_cleanup_registry(ctx: RegistryContext) -> InternalToolRegistry:
             }
 
             if delete_git and not dry_run and resolved_git_manager:
-                git_result = resolved_git_manager.delete_worktree(
+                git_result = await asyncio.to_thread(
+                    resolved_git_manager.delete_worktree,
                     wt.worktree_path,
                     force=True,
                     delete_branch=True,

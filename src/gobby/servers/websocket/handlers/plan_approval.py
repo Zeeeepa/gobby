@@ -248,4 +248,4 @@ async def rebroadcast_pending_plans(mixin: SessionControlMixin, websocket: Any) 
         try:
             await websocket.send(msg)
         except (ConnectionClosed, ConnectionClosedError):
-            break
+            continue

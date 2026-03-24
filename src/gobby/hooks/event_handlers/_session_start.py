@@ -709,7 +709,8 @@ class SessionStartMixin(EventHandlersBase):
 
         Only called from _activate_default_agent after the session_storage None guard.
         """
-        assert self._session_storage is not None
+        if self._session_storage is None:
+            raise RuntimeError("session storage is not initialized")
         if agent_name_override:
             return agent_name_override
 
@@ -745,7 +746,8 @@ class SessionStartMixin(EventHandlersBase):
 
         Only called from _activate_default_agent after the session_storage None guard.
         """
-        assert self._session_storage is not None
+        if self._session_storage is None:
+            raise RuntimeError("session storage is not initialized")
         import json
 
         from gobby.workflows.selectors import (

@@ -113,7 +113,8 @@ def create_create_registry(ctx: RegistryContext) -> InternalToolRegistry:
             resolved_use_local = False
 
         # Create git worktree
-        result = resolved_git_mgr.create_worktree(
+        result = await asyncio.to_thread(
+            resolved_git_mgr.create_worktree,
             worktree_path=worktree_path,
             branch_name=branch_name,
             base_branch=base_branch,
@@ -138,8 +139,12 @@ def create_create_registry(ctx: RegistryContext) -> InternalToolRegistry:
             )
         except Exception as db_err:
             try:
-                resolved_git_mgr.delete_worktree(
-                    worktree_path, force=True, delete_branch=True, branch_name=branch_name
+                await asyncio.to_thread(
+                    resolved_git_mgr.delete_worktree,
+                    worktree_path,
+                    force=True,
+                    delete_branch=True,
+                    branch_name=branch_name,
                 )
             except Exception as cleanup_err:
                 logger.warning(

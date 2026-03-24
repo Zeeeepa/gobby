@@ -57,9 +57,10 @@ async def handle_set_mode(mixin: SessionControlMixin, websocket: Any, data: dict
                 sm = getattr(mixin, "session_manager", None)
                 db = getattr(sm, "db", None) if sm else None
                 if db is None:
-                    from gobby.storage.database import LocalDatabase
-
-                    db = LocalDatabase()
+                    db = getattr(mixin, "db", None)
+                if db is None:
+                    logger.warning("No database instance available for session variable sync")
+                    return
                 svm = SessionVariableManager(db)
                 svm.merge_variables(
                     db_sid,

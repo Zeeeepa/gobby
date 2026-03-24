@@ -441,6 +441,20 @@ async def run_daemon(runner: GobbyRunner) -> None:
             except (asyncio.CancelledError, TimeoutError):
                 pass
 
+        # Cancel code index maintenance task
+        if hasattr(runner, "_code_index_shutdown") and runner._code_index_shutdown:
+            runner._code_index_shutdown.set()
+        if (
+            hasattr(runner, "_code_index_task")
+            and runner._code_index_task
+            and not runner._code_index_task.done()
+        ):
+            runner._code_index_task.cancel()
+            try:
+                await asyncio.wait_for(runner._code_index_task, timeout=2.0)
+            except (asyncio.CancelledError, TimeoutError):
+                pass
+
         # Cancel zombie message cleanup task
         if runner._zombie_messages_task and not runner._zombie_messages_task.done():
             runner._zombie_messages_task.cancel()

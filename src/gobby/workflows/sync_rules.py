@@ -161,8 +161,8 @@ def sync_bundled_rules(
             d = yaml.safe_load(yf.read_text(encoding="utf-8"))
             if isinstance(d, dict) and isinstance(d.get("rules"), dict):
                 on_disk.update(d["rules"].keys())
-        except Exception:
-            pass  # Already logged above during main loop
+        except Exception as e:
+            logger.debug(f"Failed to parse {yf.name} during orphan scan: {e}")
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
@@ -410,7 +410,7 @@ def _sync_single_rule(
             # non-template over template. Look up the template row directly and
             # update it if the definition has changed on disk.
             template_row = manager.db.fetchone(
-                "SELECT * FROM workflow_definitions WHERE name = ? AND source = 'template'",
+                "SELECT * FROM workflow_definitions WHERE name = ? AND source = 'template' AND deleted_at IS NULL",
                 (rule_name,),
             )
             if template_row:

@@ -10,7 +10,7 @@ Thin orchestration shim that delegates to focused submodules:
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
-from gobby.mcp_proxy.tools.tasks._helpers import _is_uuid as _is_uuid  # noqa: F401 (re-export)
+from gobby.mcp_proxy.tools.tasks._helpers import _is_uuid  # noqa: F401 (re-export)
 from gobby.mcp_proxy.tools.tasks._lifecycle_claim import register_claim_task
 from gobby.mcp_proxy.tools.tasks._lifecycle_close import register_close_task
 from gobby.mcp_proxy.tools.tasks._lifecycle_delete import register_delete_task

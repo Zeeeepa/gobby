@@ -116,8 +116,8 @@ def sync_bundled_variables(
             d = yaml.safe_load(yf.read_text(encoding="utf-8"))
             if isinstance(d, dict) and isinstance(d.get("variables"), dict):
                 on_disk.update(d["variables"].keys())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to parse {yf.name} during orphan scan: {e}")
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "

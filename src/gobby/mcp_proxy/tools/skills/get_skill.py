@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.skills._context import SkillsContext
+
+logger = logging.getLogger(__name__)
 
 
 def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
@@ -86,8 +89,8 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                 skill_files = ctx.storage.get_skill_files(skill.id)
                 if skill_files:
                     skill_data["files"] = [f.to_dict() for f in skill_files]
-            except Exception:
-                pass  # Table may not exist during migration
+            except Exception as e:
+                logger.debug(f"Failed to get files for skill {skill.name}: {e}")
 
             return {
                 "success": True,

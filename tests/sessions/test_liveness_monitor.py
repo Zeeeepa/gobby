@@ -125,7 +125,7 @@ class TestCheckSessions:
     @pytest.mark.asyncio
     async def test_handles_missing_parent_pid(
         self, monitor, mock_session_storage, mock_dispatch_fn
-    ):
+    ) -> None:
         """Sessions without parent_pid in terminal_context are skipped."""
         mock_session_storage.db.fetchall.return_value = [
             {"id": "s1", "terminal_context": json.dumps({"tmux_pane": "%1"})},
@@ -175,7 +175,7 @@ class TestCheckSessions:
     @pytest.mark.asyncio
     async def test_recently_handled_ttl_expiry(
         self, monitor, mock_session_storage, mock_dispatch_fn
-    ):
+    ) -> None:
         """Entries in recently-handled set expire after TTL."""
         import time
 

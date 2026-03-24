@@ -410,8 +410,8 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                                 result="block" if rule_blocked else "allow",
                                 latency_ms=rule_latency,
                             )
-                        except Exception:
-                            pass  # Never let metrics recording break rule evaluation
+                        except Exception as e:
+                            logger.debug("Metrics recording failed: %s", e)
 
                     if rule_blocked:
                         # First block wins — stop evaluating

@@ -255,7 +255,7 @@ class EnforcementMixin:
 
         handlers = step.on_mcp_error if is_app_failure else step.on_mcp_success
 
-        instance_mgr = WorkflowInstanceManager(self.db)
+        instance_mgr = self.instance_manager
         vars_changed = False
 
         # Execute handlers (on_mcp_success or on_mcp_error based on tool output)
@@ -272,9 +272,7 @@ class EnforcementMixin:
         # Evaluate transitions
         for transition in step.transitions:
             ctx = {"vars": instance.variables, "variables": variables}
-            if not transition.when or self._evaluate_condition(
-                transition.when, ctx, "set_variable"
-            ):
+            if not transition.when or self._evaluate_condition(transition.when, ctx, "block"):
                 old_step = instance.current_step
                 new_step = transition.to
 
@@ -312,9 +310,7 @@ class EnforcementMixin:
                         "vars": instance.variables,
                         "variables": variables,
                     }
-                    if self._evaluate_condition(
-                        definition.exit_condition, exit_ctx, "set_variable"
-                    ):
+                    if self._evaluate_condition(definition.exit_condition, exit_ctx, "block"):
                         variables["step_workflow_complete"] = True
                         logger.info(
                             "Exit condition met for workflow %s (session=%s, step=%s)",

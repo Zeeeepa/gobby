@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -30,7 +31,9 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
             Dict with success status and moved skill info
         """
         try:
-            skill = ctx.storage.move_to_project(skill_id, target_project_id)
+            skill = await asyncio.to_thread(
+                ctx.storage.move_to_project, skill_id, target_project_id
+            )
             return {
                 "success": True,
                 "skill_id": skill.id,
@@ -58,7 +61,7 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
             Dict with success status and moved skill info
         """
         try:
-            skill = ctx.storage.move_to_installed(skill_id)
+            skill = await asyncio.to_thread(ctx.storage.move_to_installed, skill_id)
             return {
                 "success": True,
                 "skill_id": skill.id,

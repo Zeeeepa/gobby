@@ -323,9 +323,18 @@ def create_app(server: "HTTPServer") -> FastAPI:
     )
 
     # Add CORS middleware for cross-origin requests
+    cors_origins = (
+        ["*"]
+        if server.services.config and server.services.config.test_mode
+        else (
+            server.services.config.cors_origins
+            if server.services.config
+            else ["http://localhost:*"]
+        )
+    )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Allow all origins for local development
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

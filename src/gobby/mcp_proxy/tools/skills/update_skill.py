@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.skills._context import SkillsContext
+
+logger = logging.getLogger(__name__)
 
 
 def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
@@ -62,4 +65,5 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                 "skip_reason": result.skip_reason,
             }
         except Exception as e:
+            logger.warning(f"Failed to update skill: {e}", exc_info=True)
             return {"success": False, "error": str(e)}

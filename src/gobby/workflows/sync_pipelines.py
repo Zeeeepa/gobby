@@ -234,8 +234,8 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
             d = yaml.safe_load(yf.read_text(encoding="utf-8"))
             if isinstance(d, dict) and "name" in d:
                 on_disk.add(d["name"])
-        except Exception:
-            pass  # Already logged above during main loop
+        except Exception as e:
+            logger.debug(f"Failed to parse {yf.name} during orphan scan: {e}")
 
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "

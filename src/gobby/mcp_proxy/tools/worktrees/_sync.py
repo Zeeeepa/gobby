@@ -70,7 +70,8 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         strategy_literal = cast(Literal["rebase", "merge"], strategy)
 
-        result = resolved_git_mgr.sync_from_main(
+        result = await asyncio.to_thread(
+            resolved_git_mgr.sync_from_main,
             worktree.worktree_path,
             base_branch=worktree.base_branch,
             strategy=strategy_literal,

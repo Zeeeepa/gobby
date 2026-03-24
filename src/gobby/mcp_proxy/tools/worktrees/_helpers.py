@@ -6,14 +6,12 @@ Module-level utility functions used across worktree tool handlers.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from gobby.utils.project_context import ensure_project_json_for_isolation, get_project_context
 from gobby.worktrees.git import WorktreeGitManager
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +43,8 @@ def generate_worktree_path(branch_name: str, project_name: str | None = None) ->
         Full path for the worktree
     """
     base = get_worktree_base_dir()
-    safe_branch = branch_name.replace("/", "-")
+    safe_branch = re.sub(r'[\\:*?"<>|\s/]', "-", branch_name)
+    safe_branch = re.sub(r"-{2,}", "-", safe_branch).strip("-")
 
     if project_name:
         return str(base / project_name / safe_branch)
@@ -152,15 +151,33 @@ def install_provider_hooks(
                 return True
             else:
                 logger.warning(f"Failed to install Claude hooks: {result.get('error')}")
-        elif provider in ("cursor", "windsurf", "copilot"):
-            from gobby.cli.installers.claude import install_claude
+        elif provider == "cursor":
+            from gobby.cli.installers.cursor import install_cursor
 
-            result = install_claude(worktree_path_obj, mode="project")
+            result = install_cursor(worktree_path_obj, mode="project")
             if result["success"]:
-                logger.info(f"Installed {provider} hooks in worktree: {worktree_path}")
+                logger.info(f"Installed Cursor hooks in worktree: {worktree_path}")
                 return True
             else:
-                logger.warning(f"Failed to install {provider} hooks: {result.get('error')}")
+                logger.warning(f"Failed to install Cursor hooks: {result.get('error')}")
+        elif provider == "windsurf":
+            from gobby.cli.installers.windsurf import install_windsurf
+
+            result = install_windsurf(worktree_path_obj, mode="project")
+            if result["success"]:
+                logger.info(f"Installed Windsurf hooks in worktree: {worktree_path}")
+                return True
+            else:
+                logger.warning(f"Failed to install Windsurf hooks: {result.get('error')}")
+        elif provider == "copilot":
+            from gobby.cli.installers.copilot import install_copilot
+
+            result = install_copilot(worktree_path_obj, mode="project")
+            if result["success"]:
+                logger.info(f"Installed Copilot hooks in worktree: {worktree_path}")
+                return True
+            else:
+                logger.warning(f"Failed to install Copilot hooks: {result.get('error')}")
         elif provider == "gemini":
             from gobby.cli.installers.gemini import install_gemini
 
