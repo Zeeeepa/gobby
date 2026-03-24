@@ -1,0 +1,261 @@
+"""Effect handling for the rule engine.
+
+Handles applying rule effects: set_variable, inject_context, observe,
+mcp_call, rewrite_input, compress_output, load_skill, and block matching.
+"""
+
+import json
+import logging
+import re
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
+
+from gobby.hooks.events import HookEvent
+from gobby.storage.workflow_definitions import WorkflowDefinitionRow
+from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
+
+logger = logging.getLogger(__name__)
+
+
+class EffectsMixin:
+    """Mixin providing effect handling methods for RuleEngine."""
+
+    _skill_manager: Any
+
+    def _apply_effect(
+        self,
+        effect: Any,
+        row: WorkflowDefinitionRow,
+        variables: dict[str, Any],
+        ctx: dict[str, Any],
+        allowed_funcs: dict[str, Callable[..., Any]],
+        context_parts: list[str],
+        mcp_calls: list[dict[str, Any]],
+    ) -> None:
+        """Apply a single non-block effect."""
+        if effect.type == "set_variable":
+            self._apply_set_variable(effect, variables, ctx)
+
+        elif effect.type == "inject_context":
+            # NOTE: inject_context templates render with rule evaluation context:
+            # event, variables (flattened to top-level), and helper functions.
+            # Session data (summary_markdown, task_context) is populated as session
+            # variables by the SESSION_START handler before rules evaluate, making
+            # them available as {{ session_summary }}, {{ task_context }} in templates.
+            if effect.template:
+                template_text = self._render_template(effect.template, ctx, allowed_funcs)
+                context_parts.append(template_text)
+
+        elif effect.type == "observe":
+            obs_list = variables.get("_observations", [])
+            msg = effect.message or ""
+            msg = self._render_template(msg, ctx, allowed_funcs)
+            obs_list.append(
+                {
+                    "category": effect.category or "general",
+                    "message": msg,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "rule": row.name,
+                }
+            )
+            variables["_observations"] = obs_list
+
+        elif effect.type == "mcp_call":
+            raw_args = effect.arguments or {}
+            rendered_args = {
+                k: self._render_template(v, ctx, allowed_funcs) if isinstance(v, str) else v
+                for k, v in raw_args.items()
+            }
+            mcp_calls.append(
+                {
+                    "server": effect.server,
+                    "tool": effect.tool,
+                    "arguments": rendered_args,
+                    "background": effect.background,
+                    "inject_result": effect.inject_result,
+                    "block_on_failure": effect.block_on_failure,
+                    "block_on_success": effect.block_on_success,
+                }
+            )
+
+        elif effect.type == "rewrite_input":
+            if effect.input_updates:
+                rendered_updates = {
+                    k: self._render_template(v, ctx, allowed_funcs) if isinstance(v, str) else v
+                    for k, v in effect.input_updates.items()
+                }
+                # For MCP call_tool, nest updates inside arguments
+                # (mirrors the unwrapping in _build_eval_context)
+                event = ctx.get("event")
+                if event and event.data.get("tool_name") in (
+                    "call_tool",
+                    "mcp__gobby__call_tool",
+                ):
+                    original_args = event.data.get("tool_input", {}).get("arguments", {})
+                    if isinstance(original_args, str):
+                        try:
+                            original_args = json.loads(original_args)
+                        except (json.JSONDecodeError, TypeError):
+                            original_args = {}
+                    if not isinstance(original_args, dict):
+                        original_args = {}
+                    rendered_updates = {"arguments": {**original_args, **rendered_updates}}
+                rewrite_meta = variables.setdefault("_rewrite_input", {})
+                rewrite_meta["input_updates"] = rendered_updates
+                rewrite_meta["auto_approve"] = effect.auto_approve
+
+        elif effect.type == "compress_output":
+            variables["_compress_output"] = {
+                "strategy": effect.strategy,
+                "max_lines": effect.max_lines,
+            }
+
+        elif effect.type == "load_skill":
+            if effect.skill and self._skill_manager:
+                try:
+                    skill = self._skill_manager.resolve_skill_name(effect.skill)
+                    if skill:
+                        context_parts.append(
+                            f'<skill name="{skill.name}">\n{skill.content}\n</skill>'
+                        )
+                    else:
+                        logger.warning(
+                            "load_skill effect: skill %r not found (rule %s)",
+                            effect.skill,
+                            row.name,
+                        )
+                except Exception:
+                    logger.warning(
+                        "load_skill effect: failed to resolve skill %r (rule %s)",
+                        effect.skill,
+                        row.name,
+                        exc_info=True,
+                    )
+            elif effect.skill and not self._skill_manager:
+                logger.warning(
+                    "load_skill effect: no skill_manager available (rule %s)",
+                    row.name,
+                )
+
+    def _should_block(self, effect: Any, event: HookEvent) -> bool:
+        """Check if a block effect matches the current tool/event."""
+        tool_name = event.data.get("tool_name")
+        mcp_tool = event.data.get("mcp_tool")
+        mcp_server = event.data.get("mcp_server") or event.data.get("server_name")
+        command = event.data.get("command")
+        if not command:
+            tool_input = event.data.get("tool_input")
+            if isinstance(tool_input, dict):
+                command = tool_input.get("command")
+
+        # If no tools/mcp_tools filter specified, block applies to everything
+        has_tool_filter = effect.tools or effect.mcp_tools
+
+        if not has_tool_filter:
+            # Check command patterns even without tool filter
+            if effect.command_pattern and command:
+                if not re.search(effect.command_pattern, command):
+                    return False
+                if effect.command_not_pattern and re.search(effect.command_not_pattern, command):
+                    return False
+                return True
+            return True
+
+        # Check native tool match
+        if effect.tools and tool_name:
+            if tool_name in effect.tools:
+                # Check command patterns for Bash tool
+                if tool_name == "Bash" and effect.command_pattern and command:
+                    if not re.search(effect.command_pattern, command):
+                        return False
+                    if effect.command_not_pattern and re.search(
+                        effect.command_not_pattern, command
+                    ):
+                        return False
+                return True
+
+        # Check MCP tool match
+        if effect.mcp_tools and mcp_tool:
+            mcp_key = f"{mcp_server}:{mcp_tool}" if mcp_server else mcp_tool
+            for pattern in effect.mcp_tools:
+                if pattern == mcp_key:
+                    return True
+                # Support wildcard: "server:*"
+                if pattern.endswith(":*") and mcp_server:
+                    server_prefix = pattern[:-2]
+                    if server_prefix == mcp_server:
+                        return True
+
+        return False
+
+    def _apply_set_variable(
+        self,
+        effect: Any,
+        variables: dict[str, Any],
+        eval_context: dict[str, Any],
+    ) -> None:
+        """Apply a set_variable effect, handling expressions."""
+        if effect.variable is None:
+            return
+
+        value = effect.value
+
+        # Render Jinja2 templates first, before expression evaluation
+        if isinstance(value, str) and "{{" in value:
+            ctx = eval_context
+            allowed_funcs = self._build_allowed_funcs(ctx)
+            rendered = self._render_template(value, ctx, allowed_funcs)
+            variables[effect.variable] = self._coerce_rendered_value(rendered)
+            return
+
+        # If value is a string that looks like an expression, evaluate it
+        if isinstance(value, str) and self._is_expression(value):
+            try:
+                evaluator = SafeExpressionEvaluator(
+                    context=eval_context,
+                    allowed_funcs={
+                        "len": len,
+                        "str": str,
+                        "int": int,
+                        "bool": bool,
+                    },
+                )
+                value = evaluator.evaluate_value(value)
+            except Exception as e:
+                logger.warning(f"Failed to evaluate set_variable expression '{effect.value}': {e}")
+                return
+
+        variables[effect.variable] = value
+
+    def _is_expression(self, value: str) -> bool:
+        """Heuristic: is this string an expression rather than a literal?"""
+        expression_indicators = (
+            "variables.",
+            "event.",
+            "tool_input.",
+            " + ",
+            " - ",
+            " and ",
+            " or ",
+            " not ",
+            ".get(",
+            "len(",
+        )
+        return any(indicator in value for indicator in expression_indicators)
+
+    @staticmethod
+    def _coerce_rendered_value(value: str) -> Any:
+        """Coerce a rendered template string to int, float, or bool."""
+        s = value.strip()
+        if s.lower() in ("true", "false"):
+            return s.lower() == "true"
+        try:
+            return int(s)
+        except ValueError:
+            pass
+        try:
+            return float(s)
+        except ValueError:
+            pass
+        return value
