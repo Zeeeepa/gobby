@@ -450,7 +450,19 @@ async def spawn_agent_impl(
     if isolation_ctx.branch_name:
         effective_initial_variables["branch_name"] = isolation_ctx.branch_name
 
-    # 11. Execute spawn via SpawnExecutor
+    # 11. Build a meaningful session title from agent name and/or task
+    agent_display_name = agent_lookup_name or (agent_body.name if agent_body else None)
+    if agent_display_name and task_title:
+        spawn_title = f"{agent_display_name}: {task_title}"
+    elif agent_display_name:
+        spawn_title = agent_display_name
+    elif task_title:
+        task_ref = f"#{task_seq_num}" if task_seq_num else ""
+        spawn_title = f"Agent: {task_ref} {task_title}".strip()
+    else:
+        spawn_title = None  # fall back to existing default in create_child_session
+
+    # 11a. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
         prompt=enhanced_prompt,
         cwd=isolation_ctx.cwd,
@@ -467,6 +479,7 @@ async def spawn_agent_impl(
         clone_id=isolation_ctx.clone_id,
         branch_name=isolation_ctx.branch_name,
         task_id=resolved_task_id,
+        title=spawn_title,
         session_manager=runner.child_session_manager,
         machine_id=get_machine_id() or "unknown",
         model=effective_model,

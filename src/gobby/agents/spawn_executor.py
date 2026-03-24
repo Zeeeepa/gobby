@@ -55,6 +55,7 @@ class SpawnRequest:
     clone_id: str | None = None
     branch_name: str | None = None  # Git branch for worktree/clone isolation
     task_id: str | None = None  # Task being worked on (for dedup tracking)
+    title: str | None = None  # Session title (derived from agent/task name)
     agent_depth: int = 0
     max_agent_depth: int = 5
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
@@ -164,6 +165,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        title=request.title,
         timeout_seconds=request.timeout_seconds,
     )
 
@@ -280,6 +282,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        title=request.title,
         timeout_seconds=request.timeout_seconds,
     )
 
@@ -472,6 +475,7 @@ async def _spawn_codex_autonomous(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        title=request.title,
         timeout_seconds=request.timeout_seconds,
     )
 
@@ -540,6 +544,7 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
         git_branch=request.branch_name,
         agent_run_id=request.agent_run_id,
         task_id=request.task_id,
+        title=request.title,
         timeout_seconds=request.timeout_seconds,
     )
 

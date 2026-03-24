@@ -237,7 +237,11 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
         <div className="flex-1 flex flex-col min-h-0">
           {/* Session header */}
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/30">
-            <span className="text-xs text-muted-foreground">Watching session</span>
+            <span className="text-xs text-muted-foreground">Watching {(() => {
+            const entry = entries.find((e) => e.id === selectedSessionId)
+            if (!entry) return 'session'
+            return entry.seqNum ? `#${entry.seqNum}: ${entry.label}` : entry.label
+          })()}</span>
             <button
               className="text-xs text-muted-foreground hover:text-foreground ml-auto"
               onClick={() => setSelectedSessionId(null)}
