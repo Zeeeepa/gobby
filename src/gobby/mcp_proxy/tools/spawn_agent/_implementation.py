@@ -543,7 +543,9 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to persist runtime state for {run_id}: {e}")
 
-        # 12a. Auto-claim task if task_id was provided and task is open
+        # 12a. Auto-claim task if task_id was provided
+        # Always set assignee (orchestrator tracking), but only transition
+        # status to in_progress for open tasks (don't regress needs_review etc.)
         if resolved_task_id and task_manager:
             try:
                 task_obj = task_manager.get_task(resolved_task_id)
@@ -560,9 +562,15 @@ async def spawn_agent_impl(
                         spawn_result.child_session_id,
                     )
                 elif task_obj:
+                    task_manager.update_task(
+                        resolved_task_id,
+                        assignee=spawn_result.child_session_id,
+                    )
                     logger.info(
-                        "Skipping auto-claim for task %s (status=%s, not open)",
+                        "Assigned task %s to agent %s (session %s) without status change (status=%s)",
                         f"#{task_seq_num}" if task_seq_num else resolved_task_id,
+                        run_id,
+                        spawn_result.child_session_id,
                         task_obj.status,
                     )
             except Exception as e:
