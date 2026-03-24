@@ -29,12 +29,12 @@ class SkillTemplatesMixin:
         Raises:
             ValueError: If template not found or installed copy already exists
         """
-        template = self.get_skill(skill_id, include_deleted=True)
+        template = self.get_skill(skill_id, include_deleted=True)  # type: ignore[attr-defined]
         if template.source != "template":
             raise ValueError(f"Skill {skill_id} is not a template (source={template.source})")
 
         # Check if installed copy already exists
-        existing = self.get_by_name(
+        existing = self.get_by_name(  # type: ignore[attr-defined]
             template.name, project_id=template.project_id, source="installed"
         )
         if existing:
@@ -42,7 +42,7 @@ class SkillTemplatesMixin:
                 f"Installed copy of '{template.name}' already exists (id={existing.id})"
             )
 
-        installed = self.create_skill(
+        installed: Skill = self.create_skill(  # type: ignore[attr-defined]
             name=template.name,
             description=template.description,
             content=template.content,
@@ -65,11 +65,13 @@ class SkillTemplatesMixin:
         )
 
         # Copy files from template to installed copy
-        template_files = self.get_skill_files(skill_id, include_content=True, exclude_license=False)
+        template_files = self.get_skill_files(  # type: ignore[attr-defined]
+            skill_id, include_content=True, exclude_license=False
+        )
         if template_files:
             for f in template_files:
                 f.skill_id = installed.id
-            self.set_skill_files(installed.id, template_files)
+            self.set_skill_files(installed.id, template_files)  # type: ignore[attr-defined]
 
         return installed
 
@@ -83,7 +85,7 @@ class SkillTemplatesMixin:
             Number of templates installed
         """
         # Get all non-deleted templates
-        templates = self.list_skills(
+        templates = self.list_skills(  # type: ignore[attr-defined]
             project_id=project_id,
             include_templates=True,
             include_deleted=False,
@@ -94,7 +96,7 @@ class SkillTemplatesMixin:
         installed_count = 0
         for template in templates:
             # Check if installed copy already exists
-            existing = self.get_by_name(
+            existing = self.get_by_name(  # type: ignore[attr-defined]
                 template.name, project_id=template.project_id, source="installed"
             )
             if existing:

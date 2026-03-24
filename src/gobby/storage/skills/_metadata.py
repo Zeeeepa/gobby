@@ -138,7 +138,7 @@ class SkillMetadataMixin:
             )
 
         skill = self.get_skill(skill_id)
-        self._notify_change("create", skill_id, name)
+        self._notify_change("create", skill_id, name)  # type: ignore[attr-defined]
         return skill
 
     def get_skill(self, skill_id: str, include_deleted: bool = False) -> Skill:
@@ -353,7 +353,7 @@ class SkillMetadataMixin:
                 raise ValueError(f"Skill {skill_id} not found")
 
         skill = self.get_skill(skill_id)
-        self._notify_change("update", skill_id, skill.name)
+        self._notify_change("update", skill_id, skill.name)  # type: ignore[attr-defined]
         return skill
 
     def delete_skill(self, skill_id: str) -> bool:
@@ -381,8 +381,8 @@ class SkillMetadataMixin:
             if cursor.rowcount == 0:
                 return False
 
-        self.delete_skill_files(skill_id)
-        self._notify_change("delete", skill_id, skill_name)
+        self.delete_skill_files(skill_id)  # type: ignore[attr-defined]
+        self._notify_change("delete", skill_id, skill_name)  # type: ignore[attr-defined]
         return True
 
     def hard_delete(self, skill_id: str) -> bool:
@@ -405,7 +405,7 @@ class SkillMetadataMixin:
             if cursor.rowcount == 0:
                 return False
 
-        self._notify_change("delete", skill_id, skill_name)
+        self._notify_change("delete", skill_id, skill_name)  # type: ignore[attr-defined]
         return True
 
     def restore(self, skill_id: str) -> Skill:
@@ -429,9 +429,9 @@ class SkillMetadataMixin:
             if cursor.rowcount == 0:
                 raise ValueError(f"Skill {skill_id} not found")
 
-        self.restore_skill_files(skill_id)
+        self.restore_skill_files(skill_id)  # type: ignore[attr-defined]
         skill = self.get_skill(skill_id)
-        self._notify_change("create", skill_id, skill.name)
+        self._notify_change("create", skill_id, skill.name)  # type: ignore[attr-defined]
         return skill
 
     def move_to_project(self, skill_id: str, project_id: str) -> Skill:
