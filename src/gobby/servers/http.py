@@ -97,6 +97,7 @@ class HTTPServer:
 
     def _init_mcp_subsystems(self, services: "ServiceContainer", port: int) -> None:
         """Initialize MCP proxy, internal registries, and semantic search."""
+        assert services.mcp_manager is not None, "caller must check services.mcp_manager"
         # Determine WebSocket port
         ws_port = 60888
         cfg = services.config
