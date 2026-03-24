@@ -834,12 +834,12 @@ class TestLocalAgentRunManager:
             (run1.id,),
         )
 
-        count = agent_manager.cleanup_stale_runs(timeout_minutes=30)
+        count = agent_manager.cleanup_stale_runs(default_timeout_minutes=30)
         assert count == 1
 
         cleaned = agent_manager.get(run1.id)
         assert cleaned.status == "timeout"
-        assert cleaned.error == "Stale run timed out"
+        assert cleaned.error == "Exceeded default timeout (30m)"
         assert cleaned.completed_at is not None
 
     def test_cleanup_stale_runs_no_stale(
@@ -855,7 +855,7 @@ class TestLocalAgentRunManager:
         )
         agent_manager.start(run.id)
 
-        count = agent_manager.cleanup_stale_runs(timeout_minutes=30)
+        count = agent_manager.cleanup_stale_runs(default_timeout_minutes=30)
         assert count == 0
 
         # Verify run is still running
@@ -882,7 +882,7 @@ class TestLocalAgentRunManager:
         )
 
         with patch("gobby.storage.agents.logger") as mock_logger:
-            count = agent_manager.cleanup_stale_runs(timeout_minutes=30)
+            count = agent_manager.cleanup_stale_runs(default_timeout_minutes=30)
             assert count == 1
             mock_logger.info.assert_called_once()
             assert "Timed out 1 stale agent runs" in mock_logger.info.call_args[0][0]
@@ -915,7 +915,7 @@ class TestLocalAgentRunManager:
             (pending.id, completed.id),
         )
 
-        count = agent_manager.cleanup_stale_runs(timeout_minutes=30)
+        count = agent_manager.cleanup_stale_runs(default_timeout_minutes=30)
         assert count == 0
 
     def test_cleanup_stale_pending_runs(
@@ -1294,7 +1294,7 @@ class TestAgentRunEdgeCases:
         mock_cursor.rowcount = None
 
         with patch.object(agent_manager.db, "execute", return_value=mock_cursor):
-            count = agent_manager.cleanup_stale_runs(timeout_minutes=30)
+            count = agent_manager.cleanup_stale_runs(default_timeout_minutes=30)
             assert count == 0
 
     def test_cleanup_stale_pending_runs_cursor_rowcount_none(
