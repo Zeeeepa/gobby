@@ -326,7 +326,12 @@ class AgentLifecycleMonitor:
 
         # 4. Clear in-memory state
         self._async_tasks.pop(run.id, None)
-        self._master_fds.pop(run.id, None)
+        fd = self._master_fds.pop(run.id, None)
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
         # 5. Clear detector state
         self._prompt_detector.clear(run.id)

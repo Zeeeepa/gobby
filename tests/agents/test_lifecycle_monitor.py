@@ -9,6 +9,7 @@ All tests are DB-driven — no in-memory RunningAgentRegistry.
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1586,3 +1587,54 @@ class TestSessionExpirationOnCleanup:
         updated = agent_run_manager.get("run-no-sm")
         assert updated is not None
         assert updated.status == "error"
+
+
+class TestCleanupAgentFdClose:
+    """Tests that _cleanup_agent closes registered master fds."""
+
+    @pytest.mark.asyncio
+    async def test_cleanup_agent_closes_master_fd(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Registered master_fd is os.close()'d during cleanup."""
+        r_fd, w_fd = os.pipe()
+        try:
+            run = _make_terminal_run(
+                agent_run_manager,
+                sample_session,
+                run_id="run-fd-test",
+                tmux_session_name="gobby-fd-test",
+            )
+            monitor.register_master_fd("run-fd-test", r_fd)
+
+            await monitor._cleanup_agent(run, error="test cleanup", is_success=True)
+
+            # fd should be closed — closing again should raise
+            with pytest.raises(OSError):
+                os.close(r_fd)
+            r_fd = -1  # mark as already closed
+        finally:
+            if r_fd >= 0:
+                os.close(r_fd)
+            os.close(w_fd)
+
+    @pytest.mark.asyncio
+    async def test_cleanup_agent_no_fd_registered(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Cleanup succeeds when no master_fd was registered."""
+        run = _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-no-fd",
+            tmux_session_name="gobby-no-fd",
+        )
+
+        # Should not raise
+        await monitor._cleanup_agent(run, error="test cleanup", is_success=True)
