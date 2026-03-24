@@ -12,7 +12,7 @@ function preserveLineBreaks(text: string): string {
 }
 
 export function ThinkingBlock({ content, messageId }: ThinkingBlockProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const processed = useMemo(() => preserveLineBreaks(content), [content])
 
   return (
