@@ -190,7 +190,7 @@ class CodexChatSessionPermissionsMixin:
             try:
                 self._on_mode_persist(mode)
             except Exception as e:
-                logger.warning("Failed to persist chat_mode=%s: %s", mode, e)
+                logger.warning(f"Failed to persist chat_mode={mode}: {e}")
 
     def approve_plan(self) -> None:
         """Mark the current plan as approved, unlocking write tools."""

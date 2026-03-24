@@ -671,10 +671,7 @@ async def main() -> int:
         )
         try:
             logger.debug(
-                "Fire-and-forget hook %s → %s (%d bytes)",
-                hook_type,
-                daemon_url,
-                len(payload),
+                f"Fire-and-forget hook {hook_type} → {daemon_url} ({len(payload)} bytes)",
             )
             proc = subprocess.Popen(
                 [
@@ -699,7 +696,7 @@ async def main() -> int:
                 proc.stdin.write(payload.encode())
                 proc.stdin.close()
         except (FileNotFoundError, OSError) as e:
-            logger.debug("Fire-and-forget spawn failed for %s: %s", hook_type, e)
+            logger.debug(f"Fire-and-forget spawn failed for {hook_type}: {e}")
         return 0
 
     # Call daemon HTTP endpoint

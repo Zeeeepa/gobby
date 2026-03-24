@@ -132,21 +132,16 @@ class EffectsMixin:
                         )
                     else:
                         logger.warning(
-                            "load_skill effect: skill %r not found (rule %s)",
-                            effect.skill,
-                            row.name,
+                            f"load_skill effect: skill {effect.skill!r} not found (rule {row.name})",
                         )
                 except Exception:
                     logger.warning(
-                        "load_skill effect: failed to resolve skill %r (rule %s)",
-                        effect.skill,
-                        row.name,
+                        f"load_skill effect: failed to resolve skill {effect.skill!r} (rule {row.name})",
                         exc_info=True,
                     )
             elif effect.skill and not self._skill_manager:
                 logger.warning(
-                    "load_skill effect: no skill_manager available (rule %s)",
-                    row.name,
+                    f"load_skill effect: no skill_manager available (rule {row.name})",
                 )
 
     def _should_block(self, effect: Any, event: HookEvent) -> bool:

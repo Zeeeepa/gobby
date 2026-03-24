@@ -732,9 +732,9 @@ def init_orchestration(runner: GobbyRunner) -> None:
                         enabled=True,
                     )
                     logger.info("Created system cron job: gobby:conductor-tick")
-                logger.info("Conductor enabled (model=%s)", runner.config.conductor.model)
+                logger.info(f"Conductor enabled (model={runner.config.conductor.model})")
             except Exception as e:
-                logger.error("Failed to initialize conductor: %s", e)
+                logger.error(f"Failed to initialize conductor: {e}")
 
         # Register Linear sync handler (for projects with Linear integration)
         try:

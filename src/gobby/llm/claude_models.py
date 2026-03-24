@@ -76,7 +76,7 @@ def resolve_context_window(
         if val is not None:
             return int(val)
     except Exception as e:
-        logger.debug("Could not derive context window for %s: %s", model, e)
+        logger.debug(f"Could not derive context window for {model}: {e}")
 
     return None
 

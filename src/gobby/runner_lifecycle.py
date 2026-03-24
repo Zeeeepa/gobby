@@ -282,11 +282,10 @@ async def run_daemon(runner: GobbyRunner) -> None:
                                 )
                                 runner.completion_registry.cleanup(exe.id)
                         logger.info(
-                            "Notified subscribers of %d interrupted pipeline(s)",
-                            len(interrupted),
+                            f"Notified subscribers of {len(interrupted)} interrupted pipeline(s)",
                         )
                     except Exception as e:
-                        logger.warning("Failed to wake subscribers of interrupted pipelines: %s", e)
+                        logger.warning(f"Failed to wake subscribers of interrupted pipelines: {e}")
             except Exception as e:
                 logger.warning(f"Pipeline recovery after restart failed: {e}")
 
@@ -370,7 +369,7 @@ async def run_daemon(runner: GobbyRunner) -> None:
             except TimeoutError:
                 logger.warning("Conductor shutdown timed out")
             except Exception as e:
-                logger.debug("Conductor shutdown error: %s", e)
+                logger.debug(f"Conductor shutdown error: {e}")
 
         if runner.cron_scheduler:
             try:

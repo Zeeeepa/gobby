@@ -120,8 +120,7 @@ async def generate_session_summaries(
     if not full_markdown:
         # Fallback to code-only renderer when LLM is unavailable
         logger.warning(
-            "Full LLM summary failed (%s), falling back to code-only",
-            full_error,
+            f"Full LLM summary failed ({full_error}), falling back to code-only",
         )
         from gobby.sessions.formatting import format_handoff_as_markdown
 
@@ -160,12 +159,10 @@ async def generate_session_summaries(
                 getattr(session, "model", None),
             )
         except Exception as e:
-            logger.warning("Failed to record discovery savings for %s: %s", session_id, e)
+            logger.warning(f"Failed to record discovery savings for {session_id}: {e}")
 
     logger.info(
-        "Session summary generated for %s (%d chars)",
-        session_id,
-        len(full_markdown) if full_markdown else 0,
+        f"Session summary generated for {session_id} ({(len(full_markdown) if full_markdown else 0)} chars)",
     )
 
     return {
@@ -193,7 +190,7 @@ async def _read_transcript(path: Path) -> list[dict[str, Any]]:
                 try:
                     turns.append(json.loads(line))
                 except json.JSONDecodeError:
-                    logger.warning("Skipping malformed JSONL line %d in %s", idx + 1, path)
+                    logger.warning(f"Skipping malformed JSONL line {idx + 1} in {path}")
     return turns
 
 
@@ -220,7 +217,7 @@ async def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
             handoff_ctx.git_status = stdout.decode().strip() if proc.returncode == 0 else ""
         except Exception as e:
-            logger.debug("Failed to get git status for %s: %s", cwd, e)
+            logger.debug(f"Failed to get git status for {cwd}: {e}")
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -243,7 +240,7 @@ async def _enrich_git_context(handoff_ctx: Any, cwd: Path) -> None:
             if commits:
                 handoff_ctx.git_commits = commits
     except Exception as e:
-        logger.debug("Failed to get git log for %s: %s", cwd, e)
+        logger.debug(f"Failed to get git log for {cwd}: {e}")
 
 
 def _resolve_provider(llm_service: LLMServiceProtocol | None) -> Any:
@@ -343,9 +340,7 @@ async def _generate_full_summary(
 
     except Exception as e:
         logger.error(
-            "Failed to generate full summary for session %s: %s",
-            session.id,
-            e,
+            f"Failed to generate full summary for session {session.id}: {e}",
             exc_info=True,
         )
         return None, str(e)
@@ -396,13 +391,13 @@ def _get_claimed_tasks(session_id: str, db: DatabaseProtocol) -> str:
                     blocker_ids = ", ".join(d.depends_on[:8] for d in blockers)
                     line += f"\n  Blocked by: {blocker_ids}"
             except Exception as e:
-                logger.debug("Failed to get dependencies for task %s: %s", task.id, e)
+                logger.debug(f"Failed to get dependencies for task {task.id}: {e}")
 
             lines.append(line)
 
         return "\n".join(lines)
     except Exception as e:
-        logger.debug("Failed to get claimed tasks for session %s: %s", session_id, e)
+        logger.debug(f"Failed to get claimed tasks for session {session_id}: {e}")
         return ""
 
 
@@ -449,7 +444,7 @@ def _get_session_memories(session_id: str, db: DatabaseProtocol) -> str:
 
         return "\n".join(lines)
     except Exception as e:
-        logger.debug("Failed to get session memories for %s: %s", session_id, e)
+        logger.debug(f"Failed to get session memories for {session_id}: {e}")
         return ""
 
 

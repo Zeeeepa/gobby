@@ -105,9 +105,7 @@ async def handle_continue_in_chat(
                 run = arm.get_by_session(source_session_id)
                 if run:
                     logger.info(
-                        "Killing agent %s (mode=%s) before resume",
-                        run.id,
-                        run.mode,
+                        f"Killing agent {run.id} (mode={run.mode}) before resume",
                     )
                     await kill_agent(run, session_manager.db, close_terminal=True)
                     killed = True
@@ -146,8 +144,7 @@ async def handle_continue_in_chat(
                 )
                 if not restored:
                     logger.warning(
-                        "Transcript restore failed for %s; falling back to history injection",
-                        source_session_id[:8],
+                        f"Transcript restore failed for {source_session_id[:8]}; falling back to history injection",
                     )
                     sdk_resume_id = None
 
@@ -215,7 +212,7 @@ async def check_resume_blocked(mixin: SessionControlMixin, source_session: Any) 
             if row:
                 return "session has a pending or running agent"
         except Exception as e:
-            logger.debug("Resume block check failed for %s: %s", session_id, e)
+            logger.debug(f"Resume block check failed for {session_id}: {e}")
 
         # 2. Active pipeline
         try:
@@ -228,7 +225,7 @@ async def check_resume_blocked(mixin: SessionControlMixin, source_session: Any) 
             if row:
                 return "session has an active pipeline"
         except Exception as e:
-            logger.debug("Resume block check failed for %s: %s", session_id, e)
+            logger.debug(f"Resume block check failed for {session_id}: {e}")
 
     # 4. Active web chat session (in-memory)
     if session_id in {getattr(s, "db_session_id", None) for s in mixin._chat_sessions.values()}:

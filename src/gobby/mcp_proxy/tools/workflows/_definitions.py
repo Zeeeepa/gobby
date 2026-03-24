@@ -101,7 +101,7 @@ def create_workflow_definition(
         row = def_manager.get(row.id)
 
     loader.clear_cache()
-    logger.info("Created workflow definition '%s' (id=%s)", row.name, row.id)
+    logger.info(f"Created workflow definition '{row.name}' (id={row.id})")
 
     # Auto-export to YAML for persistence
     try:
@@ -111,7 +111,7 @@ def create_workflow_definition(
 
         auto_export_definition(row, Path.cwd())
     except Exception as e:
-        logger.warning("Failed to auto-export definition '%s': %s", row.name, e)
+        logger.warning(f"Failed to auto-export definition '{row.name}': {e}")
 
     return {
         "success": True,
@@ -218,7 +218,7 @@ def update_workflow_definition(
         return {"success": False, "error": f"Update failed: {e}"}
 
     loader.clear_cache()
-    logger.info("Updated workflow definition '%s' (id=%s)", updated.name, updated.id)
+    logger.info(f"Updated workflow definition '{updated.name}' (id={updated.id})")
 
     return {
         "success": True,
@@ -285,10 +285,10 @@ def delete_workflow_definition(
         is_user = bool(row.tags and "user" in row.tags)
         auto_delete_definition(row.name, row.workflow_type, Path.cwd(), delete_global=is_user)
     except Exception as e:
-        logger.warning("Failed to delete template '%s': %s", row.name, e)
+        logger.warning(f"Failed to delete template '{row.name}': {e}")
 
     loader.clear_cache()
-    logger.info("Deleted workflow definition '%s' (id=%s)", row.name, row.id)
+    logger.info(f"Deleted workflow definition '{row.name}' (id={row.id})")
 
     return {"success": True, "deleted": {"id": row.id, "name": row.name}}
 
@@ -325,7 +325,7 @@ def restore_workflow_definition(
         return {"success": False, "error": f"Restore failed: {e}"}
 
     loader.clear_cache()
-    logger.info("Restored workflow definition '%s' (id=%s)", restored.name, restored.id)
+    logger.info(f"Restored workflow definition '{restored.name}' (id={restored.id})")
 
     return {
         "success": True,

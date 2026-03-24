@@ -35,13 +35,13 @@ def run_coro_blocking(
             future = asyncio.run_coroutine_threadsafe(coro, loop)
             return future.result(timeout=30)
         except Exception as e:
-            logger.error("run_coro_blocking: threadsafe failed: %s", e)
+            logger.error(f"run_coro_blocking: threadsafe failed: {e}")
             return None
     else:
         try:
             return asyncio.run(coro)
         except Exception as e:
-            logger.error("run_coro_blocking: asyncio.run failed: %s", e)
+            logger.error(f"run_coro_blocking: asyncio.run failed: {e}")
             return None
 
 
@@ -189,9 +189,7 @@ def dispatch_mcp_calls(
         return []
 
     logger.info(
-        "dispatch_mcp_calls: dispatching %d calls for %s",
-        len(mcp_calls),
-        event.event_type,
+        f"dispatch_mcp_calls: dispatching {len(mcp_calls)} calls for {event.event_type}",
     )
 
     # Capture in local so mypy narrows past the None guard for closures
@@ -209,10 +207,10 @@ def dispatch_mcp_calls(
         needs_capture = inject_result or block_on_failure or block_on_success
 
         if not server or not tool:
-            logger.warning("dispatch_mcp_calls: missing server or tool in %s", call)
+            logger.warning(f"dispatch_mcp_calls: missing server or tool in {call}")
             continue
 
-        logger.info("dispatch_mcp_calls: %s/%s (background=%s)", server, tool, background)
+        logger.info(f"dispatch_mcp_calls: {server}/{tool} (background={background})")
 
         # Inject event context into arguments
         if "session_id" not in arguments:
@@ -241,14 +239,11 @@ def dispatch_mcp_calls(
 
                 if isinstance(result, dict) and result.get("success") is False:
                     logger.warning(
-                        "dispatch_mcp_calls: %s/%s returned failure: %s",
-                        s,
-                        t,
-                        result.get("error", "unknown"),
+                        f"dispatch_mcp_calls: {s}/{t} returned failure: {result.get('error', 'unknown')}",
                     )
                 return result
             except Exception as exc:
-                logger.error("dispatch_mcp_calls: %s/%s failed: %s", s, t, exc, exc_info=True)
+                logger.error(f"dispatch_mcp_calls: {s}/{t} failed: {exc}", exc_info=True)
                 return {"success": False, "error": str(exc)}
 
         # If we need to capture the result, always run blocking
@@ -284,20 +279,14 @@ def dispatch_mcp_calls(
                         asyncio.run_coroutine_threadsafe(coro, loop)
                     except Exception as e:
                         logger.warning(
-                            "dispatch_mcp_calls: failed to schedule %s/%s: %s",
-                            server,
-                            tool,
-                            e,
+                            f"dispatch_mcp_calls: failed to schedule {server}/{tool}: {e}",
                         )
                 else:
                     try:
                         asyncio.run(coro)
                     except Exception as e:
                         logger.warning(
-                            "dispatch_mcp_calls: background %s/%s failed: %s",
-                            server,
-                            tool,
-                            e,
+                            f"dispatch_mcp_calls: background {server}/{tool} failed: {e}",
                         )
         else:
             # Blocking dispatch -- must await completion, not fire-and-forget

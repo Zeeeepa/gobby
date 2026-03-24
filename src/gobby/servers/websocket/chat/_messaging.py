@@ -119,7 +119,7 @@ class ChatMessagingMixin:
 
             return "\n\n".join(sections)
         except Exception as exc:
-            logger.debug("Inter-session message piggyback failed: %s", exc)
+            logger.debug(f"Inter-session message piggyback failed: {exc}")
             return None
 
     @staticmethod
@@ -290,7 +290,7 @@ class ChatMessagingMixin:
                 return True
             except (ConnectionClosed, ConnectionClosedError):
                 ws_connected = False
-                logger.debug("Client disconnected during chat stream for %s", conversation_id[:8])
+                logger.debug(f"Client disconnected during chat stream for {conversation_id[:8]}")
                 return False
 
         def _session_ref() -> str | None:
@@ -523,9 +523,7 @@ class ChatMessagingMixin:
                     pending = pending_tool_calls.pop(event.tool_call_id, {})
                     if not pending:
                         logger.warning(
-                            "ToolResultEvent for %s arrived before ToolCallEvent "
-                            "(tool_name will be 'unknown')",
-                            event.tool_call_id,
+                            f"ToolResultEvent for {event.tool_call_id} arrived before ToolCallEvent (tool_name will be 'unknown')",
                         )
                     await _persist_tool_call(
                         tool_call_id=event.tool_call_id,
@@ -576,14 +574,7 @@ class ChatMessagingMixin:
                     if event.context_window is not None:
                         done_msg["context_window"] = event.context_window
                     logger.info(
-                        "DoneEvent context_window=%s total_input=%s "
-                        "(uncached=%s cache_read=%s cache_creation=%s) output=%s",
-                        event.context_window,
-                        event.total_input_tokens,
-                        event.input_tokens,
-                        event.cache_read_input_tokens,
-                        event.cache_creation_input_tokens,
-                        event.output_tokens,
+                        f"DoneEvent context_window={event.context_window} total_input={event.total_input_tokens} (uncached={event.input_tokens} cache_read={event.cache_read_input_tokens} cache_creation={event.cache_creation_input_tokens}) output={event.output_tokens}",
                     )
 
                     # Adopt SDK session_id as external_id (replaces temp frontend UUID)
@@ -601,8 +592,7 @@ class ChatMessagingMixin:
                                 )
                             except Exception:
                                 logger.debug(
-                                    "Failed to update external_id to SDK session_id for %s",
-                                    db_sid,
+                                    f"Failed to update external_id to SDK session_id for {db_sid}",
                                     exc_info=True,
                                 )
                         # Re-key in-memory dicts
@@ -614,9 +604,7 @@ class ChatMessagingMixin:
                                 conversation_id
                             )
                         logger.info(
-                            "Re-keyed web chat session %s → %s",
-                            conversation_id[:8],
-                            sdk_sid[:8],
+                            f"Re-keyed web chat session {conversation_id[:8]} → {sdk_sid[:8]}",
                         )
                         conversation_id = sdk_sid
 
@@ -652,7 +640,7 @@ class ChatMessagingMixin:
                                 )
                             except Exception:
                                 logger.warning(
-                                    "Failed to persist usage for %s", db_sid, exc_info=True
+                                    f"Failed to persist usage for {db_sid}", exc_info=True
                                 )
                         else:
                             # No token data — still persist context_window + model
@@ -674,8 +662,7 @@ class ChatMessagingMixin:
                                     )
                             except Exception:
                                 logger.debug(
-                                    "Failed to persist context_window for %s",
-                                    db_sid,
+                                    f"Failed to persist context_window for {db_sid}",
                                     exc_info=True,
                                 )
 

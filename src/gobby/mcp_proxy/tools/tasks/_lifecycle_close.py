@@ -183,7 +183,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                     }
             except Exception as e:
                 # Don't block close on internal error
-                logger.debug("Best-effort session edit check failed: %s", e)
+                logger.debug(f"Best-effort session edit check failed: {e}")
 
         if not should_skip and not is_parent_all_closed:
             # Check if task has children (is a parent task)
@@ -255,7 +255,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                         resolved_session_id, resolved_id, "needs_review"
                     )
                 except Exception as e:
-                    logger.debug("Best-effort session linking failed: %s", e)
+                    logger.debug(f"Best-effort session linking failed: {e}")
 
             notify_parent_on_status_change(
                 ctx.task_manager.db,
@@ -291,7 +291,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
             try:
                 ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "closed")
             except Exception as e:
-                logger.debug("Best-effort session close linking failed: %s", e)
+                logger.debug(f"Best-effort session close linking failed: {e}")
 
         # Remove closed task from claimed_tasks dict
         # This is done here because Claude Code's post-tool-use hook doesn't include
@@ -304,15 +304,11 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 merge_dict = remove_claimed_task(session_vars, resolved_id)
                 ctx.session_var_manager.merge_variables(resolved_session_id, merge_dict)
                 logger.debug(
-                    "Removed task %s from claimed_tasks for session %s",
-                    resolved_id,
-                    resolved_session_id,
+                    f"Removed task {resolved_id} from claimed_tasks for session {resolved_session_id}",
                 )
             except Exception as e:
                 logger.warning(
-                    "Failed to update claimed_tasks for session %s: %s",
-                    resolved_session_id,
-                    e,
+                    f"Failed to update claimed_tasks for session {resolved_session_id}: {e}",
                 )
 
         # Reset had_edits after successful close with a linked commit
@@ -324,7 +320,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 session_manager = LocalSessionManager(ctx.task_manager.db)
                 session_manager.clear_had_edits(resolved_session_id)
             except Exception as e:
-                logger.debug("Best-effort had_edits reset failed: %s", e)
+                logger.debug(f"Best-effort had_edits reset failed: {e}")
 
         # Update worktree status based on closure reason (case-insensitive)
         try:
@@ -342,7 +338,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 elif reason_normalized == "completed":
                     worktree_manager.mark_merged(wt.id)
         except Exception as e:
-            logger.debug("Best-effort worktree update failed during close: %s", e)
+            logger.debug(f"Best-effort worktree update failed during close: {e}")
 
         return {}
 

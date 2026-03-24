@@ -92,7 +92,7 @@ class ChatLifecycleMixin:
         """
         workflow_handler = getattr(self, "workflow_handler", None)
         if not workflow_handler:
-            logger.warning("_fire_lifecycle: workflow_handler is None for %s", event_type)
+            logger.warning(f"_fire_lifecycle: workflow_handler is None for {event_type}")
             return None
 
         # Use the database session ID (not the external conversation_id) so that
@@ -128,17 +128,12 @@ class ChatLifecycleMixin:
         try:
             # DEBUG: log event data to diagnose hook issues
             logger.debug(
-                "_fire_lifecycle: %s event_data=%s",
-                event_type.name,
-                {k: (v if k != "tool_input" else "...") for k, v in (data or {}).items()},
+                f"_fire_lifecycle: {event_type.name} event_data={ ({k: (v if k != 'tool_input' else '...') for k, v in (data or {}).items()}) }",
             )
             # WorkflowHookHandler.evaluate is sync (bridges to async internally)
             response: HookResponse = await asyncio.to_thread(workflow_handler.evaluate, event)
             logger.debug(
-                "_fire_lifecycle: %s → decision=%s, context_len=%d",
-                event_type.name,
-                response.decision,
-                len(response.context) if response.context else 0,
+                f"_fire_lifecycle: {event_type.name} → decision={response.decision}, context_len={(len(response.context) if response.context else 0)}",
             )
 
             # If workflow blocks, return immediately (before webhooks/handlers)
@@ -204,14 +199,10 @@ class ChatLifecycleMixin:
                         if comp_result.strategy_name not in ("passthrough", "excluded"):
                             result["modified_output"] = comp_result.compressed
                             logger.info(
-                                "Compressed MCP output: strategy=%s savings=%.0f%% (%d->%d chars)",
-                                comp_result.strategy_name,
-                                comp_result.savings_pct,
-                                comp_result.original_chars,
-                                comp_result.compressed_chars,
+                                f"Compressed MCP output: strategy={comp_result.strategy_name} savings={comp_result.savings_pct:.0f}% ({comp_result.original_chars}->{comp_result.compressed_chars} chars)",
                             )
                 except Exception as exc:
-                    logger.warning("Output compression failed: %s", exc)
+                    logger.warning(f"Output compression failed: {exc}")
 
             # --- Input rewriting (parity with hook_manager.py:387-390) ---
             if response.modified_input:
@@ -242,14 +233,14 @@ class ChatLifecycleMixin:
                 try:
                     await hook_broadcaster.broadcast_event(event, response)
                 except Exception as exc:
-                    logger.debug("_fire_lifecycle: broadcast failed: %s", exc)
+                    logger.debug(f"_fire_lifecycle: broadcast failed: {exc}")
 
             # --- Non-blocking webhook dispatch (parity with hook_manager.py:442-446) ---
             await self._dispatch_non_blocking_webhooks(event)
 
             return result
         except Exception as e:
-            logger.error("Lifecycle evaluation failed for %s: %s", event_type, e, exc_info=True)
+            logger.error(f"Lifecycle evaluation failed for {event_type}: {e}", exc_info=True)
             return None
 
     async def _evaluate_blocking_webhooks(
@@ -291,7 +282,7 @@ class ChatLifecycleMixin:
 
             decision, reason = webhook_dispatcher.get_blocking_decision(results)
             if decision == "block":
-                logger.info("Webhook blocked web chat event: %s", reason)
+                logger.info(f"Webhook blocked web chat event: {reason}")
                 return {
                     "decision": "block",
                     "context": None,
@@ -299,7 +290,7 @@ class ChatLifecycleMixin:
                     "system_message": None,
                 }
         except Exception as exc:
-            logger.error("Blocking webhook evaluation failed: %s", exc, exc_info=True)
+            logger.error(f"Blocking webhook evaluation failed: {exc}", exc_info=True)
             # Fail-open for webhook errors
 
         return None
@@ -348,9 +339,7 @@ class ChatLifecycleMixin:
                 return handler_response.context
         except Exception as exc:
             logger.error(
-                "_fire_lifecycle: event handler %s failed: %s",
-                event_type.name,
-                exc,
+                f"_fire_lifecycle: event handler {event_type.name} failed: {exc}",
                 exc_info=True,
             )
         return None
@@ -380,4 +369,4 @@ class ChatLifecycleMixin:
             tasks = [webhook_dispatcher._dispatch_single(ep, payload) for ep in matching_endpoints]
             await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as exc:
-            logger.warning("Non-blocking webhook dispatch failed: %s", exc)
+            logger.warning(f"Non-blocking webhook dispatch failed: {exc}")

@@ -179,8 +179,7 @@ class PipelineExecutor:
             await self.completion_registry.notify(execution_id, result, message=message)
         except Exception:
             logger.warning(
-                "Failed to notify completion registry for %s",
-                execution_id,
+                f"Failed to notify completion registry for {execution_id}",
                 exc_info=True,
             )
 
@@ -205,8 +204,7 @@ class PipelineExecutor:
             self.session_manager.update_status(pipeline_session_id, "deleted")
         except Exception:
             logger.warning(
-                "Failed to close pipeline session %s",
-                pipeline_session_id,
+                f"Failed to close pipeline session {pipeline_session_id}",
                 exc_info=True,
             )
 
@@ -694,10 +692,7 @@ class PipelineExecutor:
                 # Warn if multiple step types are set — only the first match executes
                 if len(step_types) > 1:
                     logger.warning(
-                        "Step %s has multiple types set: %s — only '%s' will execute",
-                        step.id,
-                        step_types,
-                        step_types[0],
+                        f"Step {step.id} has multiple types set: {step_types} - only '{step_types[0]}' will execute",
                     )
 
                 if step.wait:
@@ -770,9 +765,7 @@ class PipelineExecutor:
             timeout = float(timeout)
         except (TypeError, ValueError):
             logger.warning(
-                "Invalid timeout value %r for wait step '%s', defaulting to 600s",
-                timeout,
-                rendered_step.id,
+                f"Invalid timeout value {timeout!r} for wait step '{rendered_step.id}', defaulting to 600s",
             )
             timeout = 600.0
 

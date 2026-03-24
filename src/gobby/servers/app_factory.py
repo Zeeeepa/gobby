@@ -46,7 +46,7 @@ def create_app(server: "HTTPServer") -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         """Handle application startup and shutdown with combined lifespans."""
-        logger.debug("Starting Gobby HTTP server on port %d", server.port)
+        logger.debug(f"Starting Gobby HTTP server on port {server.port}")
         server._running = True
         server._start_time = time.time()
 

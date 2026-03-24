@@ -74,7 +74,7 @@ class MemoryBackupManager:
                 project_path = Path(project_ctx["project_path"]).expanduser().resolve()
                 return project_path / self.export_path
         except Exception as e:
-            logger.debug("Fallback to cwd since project context unavailable: %s", e)
+            logger.debug(f"Fallback to cwd since project context unavailable: {e}")
 
         # Fall back to current working directory
         return Path.cwd() / self.export_path
@@ -263,7 +263,7 @@ class MemoryBackupManager:
         # Verify content exists and is a non-empty string
         content = data.get("content")
         if not isinstance(content, str) or not content.strip():
-            logger.warning("Skipping memory at line %d: missing or empty content", line_num)
+            logger.warning(f"Skipping memory at line {line_num}: missing or empty content")
             return False
 
         # Verify tags is a list; auto-convert comma-delimited strings
@@ -271,12 +271,11 @@ class MemoryBackupManager:
         if tags is not None and not isinstance(tags, list):
             if isinstance(tags, str):
                 logger.warning(
-                    "Auto-converting comma-delimited tags string to list at line %d",
-                    line_num,
+                    f"Auto-converting comma-delimited tags string to list at line {line_num}",
                 )
                 data["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
             else:
-                logger.warning("Skipping memory at line %d: tags is not a list", line_num)
+                logger.warning(f"Skipping memory at line {line_num}: tags is not a list")
                 return False
 
         return True
@@ -303,7 +302,7 @@ class MemoryBackupManager:
                 for prefix in (tilde_path + "/", tilde_path):
                     content = content.replace(prefix, "")
         except Exception as e:
-            logger.debug("Best-effort sanitization failed: %s", e)
+            logger.debug(f"Best-effort sanitization failed: {e}")
 
         return content
 
@@ -354,12 +353,10 @@ class MemoryBackupManager:
                                 if key:
                                     existing_by_content[key] = data
                             except json.JSONDecodeError as e:
-                                logger.debug(
-                                    "Skipping malformed JSONL line in %s: %s", file_path, e
-                                )
+                                logger.debug(f"Skipping malformed JSONL line in {file_path}: {e}")
                                 continue
                 except OSError as e:
-                    logger.debug("Cannot read memories file %s: %s", file_path, e)
+                    logger.debug(f"Cannot read memories file {file_path}: {e}")
 
             # 2. Build DB records (authoritative for local content)
             memories: list[Any] = []
@@ -419,7 +416,7 @@ class MemoryBackupManager:
 
             return len(sorted_records)
         except Exception as e:
-            logger.error("Failed to export memories: %s", e, exc_info=True)
+            logger.error(f"Failed to export memories: {e}", exc_info=True)
             return 0
 
 

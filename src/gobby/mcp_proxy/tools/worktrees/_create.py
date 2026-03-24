@@ -103,12 +103,10 @@ def create_create_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 if has_unpushed:
                     resolved_use_local = True
                     logger.info(
-                        "Auto-detected %d unpushed commit(s) on '%s', using local branch ref",
-                        unpushed_count,
-                        base_branch,
+                        f"Auto-detected {unpushed_count} unpushed commit(s) on '{base_branch}', using local branch ref",
                     )
             except Exception as e:
-                logger.warning("Auto-detect unpushed commits failed: %s", e)
+                logger.warning(f"Auto-detect unpushed commits failed: {e}")
         if resolved_use_local is None:
             resolved_use_local = False
 
@@ -148,7 +146,7 @@ def create_create_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 )
             except Exception as cleanup_err:
                 logger.warning(
-                    "Failed to clean up orphaned worktree %s: %s", worktree_path, cleanup_err
+                    f"Failed to clean up orphaned worktree {worktree_path}: {cleanup_err}"
                 )
             return {"success": False, "error": f"Failed to record worktree in database: {db_err}"}
 

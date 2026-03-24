@@ -79,9 +79,9 @@ def _pre_approve_claude(directory: str) -> None:
 
     try:
         project_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Pre-approved Claude workspace trust for %s", directory)
+        logger.info(f"Pre-approved Claude workspace trust for {directory}")
     except OSError as e:
-        logger.warning("Failed to pre-approve Claude trust for %s: %s", directory, e)
+        logger.warning(f"Failed to pre-approve Claude trust for {directory}: {e}")
 
 
 def _pre_approve_copilot(directory: str) -> None:
@@ -99,7 +99,7 @@ def _pre_approve_copilot(directory: str) -> None:
         if config_file.exists():
             data = json.loads(config_file.read_text())
             if not isinstance(data, dict):
-                logger.warning("Copilot config.json root is not a dict, resetting: %s", config_file)
+                logger.warning(f"Copilot config.json root is not a dict, resetting: {config_file}")
                 data = {}
         else:
             copilot_home.mkdir(parents=True, exist_ok=True)
@@ -108,7 +108,7 @@ def _pre_approve_copilot(directory: str) -> None:
         trusted: list[str] = data.get("trusted_folders", [])
         if not isinstance(trusted, list):
             logger.warning(
-                "Copilot config.json trusted_folders is not a list, resetting: %s", config_file
+                f"Copilot config.json trusted_folders is not a list, resetting: {config_file}"
             )
             trusted = []
 
@@ -119,9 +119,9 @@ def _pre_approve_copilot(directory: str) -> None:
         data["trusted_folders"] = trusted
 
         config_file.write_text(json.dumps(data, indent=2) + "\n")
-        logger.info("Pre-approved Copilot CLI trust for %s", directory)
+        logger.info(f"Pre-approved Copilot CLI trust for {directory}")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to pre-approve Copilot trust for %s: %s", directory, e)
+        logger.warning(f"Failed to pre-approve Copilot trust for {directory}: {e}")
 
 
 def _pre_approve_gemini(directory: str) -> None:
@@ -144,7 +144,7 @@ def _pre_approve_gemini(directory: str) -> None:
             data = json.loads(projects_file.read_text())
             if not isinstance(data, dict):
                 logger.warning(
-                    "Gemini projects.json root is not a dict, resetting: %s", projects_file
+                    f"Gemini projects.json root is not a dict, resetting: {projects_file}"
                 )
                 data = {"projects": {}}
         else:
@@ -160,7 +160,7 @@ def _pre_approve_gemini(directory: str) -> None:
             data["projects"] = projects
             projects_file.write_text(json.dumps(data, indent=2) + "\n")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to update Gemini projects.json for %s: %s", directory, e)
+        logger.warning(f"Failed to update Gemini projects.json for {directory}: {e}")
 
     # 2. Pre-trust in trustedFolders.json (the actual trust gate)
     trust_file = gemini_home / "trustedFolders.json"
@@ -169,7 +169,7 @@ def _pre_approve_gemini(directory: str) -> None:
             raw = json.loads(trust_file.read_text())
             if not isinstance(raw, dict):
                 logger.warning(
-                    "Gemini trustedFolders.json root is not a dict, resetting: %s", trust_file
+                    f"Gemini trustedFolders.json root is not a dict, resetting: {trust_file}"
                 )
             trusted: dict[str, str] = raw if isinstance(raw, dict) else {}
         else:
@@ -180,6 +180,6 @@ def _pre_approve_gemini(directory: str) -> None:
 
         trusted[directory] = "TRUST_PARENT"
         trust_file.write_text(json.dumps(trusted, indent=2) + "\n")
-        logger.info("Pre-approved Gemini folder trust for %s", directory)
+        logger.info(f"Pre-approved Gemini folder trust for {directory}")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to update Gemini trustedFolders.json for %s: %s", directory, e)
+        logger.warning(f"Failed to update Gemini trustedFolders.json for {directory}: {e}")

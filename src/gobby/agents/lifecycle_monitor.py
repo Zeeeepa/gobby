@@ -122,10 +122,7 @@ class AgentLifecycleMonitor:
             is_provider = self._stall_classifier.is_provider_error(db_run.error)
             if is_provider:
                 logger.info(
-                    "Agent %s failed with provider error (provider=%s): %s",
-                    run_id,
-                    db_run.provider,
-                    db_run.error,
+                    f"Agent {run_id} failed with provider error (provider={db_run.provider}): {db_run.error}",
                 )
 
             task = await asyncio.to_thread(self._task_manager.get_task, task_id)
@@ -134,9 +131,9 @@ class AgentLifecycleMonitor:
                     self._task_manager.update_task, task_id, status="open", assignee=None
                 )
                 task_ref = f"#{task.seq_num}" if task.seq_num else task_id[:8]
-                logger.info("Recovered task %s to open after agent %s failed", task_ref, run_id)
+                logger.info(f"Recovered task {task_ref} to open after agent {run_id} failed")
         except Exception as e:
-            logger.warning("Failed to recover task for agent %s: %s", run_id, e)
+            logger.warning(f"Failed to recover task for agent {run_id}: {e}")
 
     async def start(self) -> None:
         """Start the monitoring loop."""
@@ -228,12 +225,11 @@ class AgentLifecycleMonitor:
                     if sent:
                         self._prompt_detector.mark_dismissed(run.id)
                         logger.info(
-                            "Auto-dismissed trust prompt for agent %s (trust parent folder)",
-                            run.id,
+                            f"Auto-dismissed trust prompt for agent {run.id} (trust parent folder)",
                         )
                         handled += 1
             except Exception as e:
-                logger.warning("Error checking trust prompt for agent %s: %s", run.id, e)
+                logger.warning(f"Error checking trust prompt for agent {run.id}: {e}")
 
         return handled
 
@@ -261,12 +257,11 @@ class AgentLifecycleMonitor:
                     sent = await self._tmux.send_keys(tmux_name, PromptDetector.LOOP_DISMISS_KEYS)
                     if sent:
                         logger.info(
-                            "Auto-dismissed loop detection prompt for agent %s",
-                            run.id,
+                            f"Auto-dismissed loop detection prompt for agent {run.id}",
                         )
                         handled += 1
             except Exception as e:
-                logger.warning("Error checking loop prompt for agent %s: %s", run.id, e)
+                logger.warning(f"Error checking loop prompt for agent {run.id}: {e}")
 
         return handled
 
@@ -404,7 +399,7 @@ class AgentLifecycleMonitor:
                                 reason = (
                                     f"PID {run.pid} dead but tmux '{run.tmux_session_name}' alive"
                                 )
-                                logger.info(f"Agent {run.id} {reason} — cleaning up")
+                                logger.info(f"Agent {run.id} {reason} - cleaning up")
                             except PermissionError:
                                 pass  # Process exists but we can't signal it
                     else:
@@ -528,14 +523,11 @@ class AgentLifecycleMonitor:
 
                 if classification.status == StallStatus.PROVIDER_STALL:
                     logger.warning(
-                        "Provider stall detected for agent %s: %s (consecutive=%d)",
-                        run.id,
-                        classification.reason,
-                        classification.consecutive_hits,
+                        f"Provider stall detected for agent {run.id}: {classification.reason} (consecutive={classification.consecutive_hits})",
                     )
                     stalled += 1
             except Exception as e:
-                logger.warning("Error checking provider stall for agent %s: %s", run.id, e)
+                logger.warning(f"Error checking provider stall for agent {run.id}: {e}")
 
         return stalled
 
@@ -555,7 +547,7 @@ class AgentLifecycleMonitor:
             return 0
 
         if status == "context_full":
-            logger.info(f"Agent {run.id} hit context window limit — failing")
+            logger.info(f"Agent {run.id} hit context window limit - failing")
             await self._fail_idle_agent(run, reason="context window exhausted")
             return 1
 

@@ -53,7 +53,7 @@ def setup_llm_instrumentors(
 
         entry = _INSTRUMENTOR_MAP.get(provider)
         if not entry:
-            logger.debug("Unknown LLM provider for instrumentation: %s", provider)
+            logger.debug(f"Unknown LLM provider for instrumentation: {provider}")
             continue
 
         module_path, class_name = entry
@@ -62,11 +62,10 @@ def setup_llm_instrumentors(
             instrumentor_cls = getattr(mod, class_name)
             instrumentor_cls().instrument(enrich_token_usage=True, capture_content=capture_content)
             _instrumented.add(provider)
-            logger.info("Activated LLM instrumentor for %s", provider)
+            logger.info(f"Activated LLM instrumentor for {provider}")
         except ImportError:
             logger.debug(
-                "LLM instrumentor for %s not available (install 'llm-tracing' extra)",
-                provider,
+                f"LLM instrumentor for {provider} not available (install 'llm-tracing' extra)",
             )
         except Exception:
-            logger.warning("Failed to activate LLM instrumentor for %s", provider, exc_info=True)
+            logger.warning(f"Failed to activate LLM instrumentor for {provider}", exc_info=True)

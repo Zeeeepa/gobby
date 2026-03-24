@@ -399,11 +399,7 @@ class HookManager:
                             f"{result.savings_pct:.0f}% reduction]\n{result.compressed}"
                         )
                         self.logger.info(
-                            "Compressed MCP output: strategy=%s savings=%.0f%% (%d->%d chars)",
-                            result.strategy_name,
-                            result.savings_pct,
-                            result.original_chars,
-                            result.compressed_chars,
+                            f"Compressed MCP output: strategy={result.strategy_name} savings={result.savings_pct:.0f}% ({result.original_chars}->{result.compressed_chars} chars)",
                         )
             except Exception as e:
                 self.logger.warning(f"Output compression failed: {e}")
@@ -474,11 +470,7 @@ class HookManager:
             # they're explicit side effects that should fire regardless of decision
             mcp_calls = (workflow_response.metadata or {}).get("mcp_calls", [])
             self.logger.info(
-                "Rule evaluation for %s: decision=%s, mcp_calls=%d, session=%s",
-                event.event_type,
-                workflow_response.decision,
-                len(mcp_calls),
-                event.metadata.get("_platform_session_id", "unknown"),
+                f"Rule evaluation for {event.event_type}: decision={workflow_response.decision}, mcp_calls={len(mcp_calls)}, session={event.metadata.get('_platform_session_id', 'unknown')}",
             )
 
             with create_span(
@@ -526,9 +518,7 @@ class HookManager:
 
             if workflow_response.decision != "allow":
                 self.logger.info(
-                    "Workflow blocked/modified event: %s, session=%s",
-                    workflow_response.decision,
-                    event.metadata.get("_platform_session_id", "unknown"),
+                    f"Workflow blocked/modified event: {workflow_response.decision}, session={event.metadata.get('_platform_session_id', 'unknown')}",
                 )
                 # Merge any auto-heal context into the block response
                 if extra_context and workflow_response.context:
@@ -560,7 +550,7 @@ class HookManager:
             return workflow_context, None
 
         except Exception as e:
-            self.logger.error("Workflow evaluation failed: %s", e, exc_info=True)
+            self.logger.error(f"Workflow evaluation failed: {e}", exc_info=True)
             # Fail-open for workflow errors
             return None, None
 
@@ -623,7 +613,7 @@ class HookManager:
                 if project and project.repo_path:
                     return str(Path(project.repo_path) / ".gobby" / "session_summaries")
         except Exception as e:
-            self.logger.debug("_resolve_summary_output_path: fallback to global: %s", e)
+            self.logger.debug(f"_resolve_summary_output_path: fallback to global: {e}")
         return fallback
 
     def _dispatch_session_summaries(
@@ -659,10 +649,7 @@ class HookManager:
                 )
             except Exception as exc:
                 self.logger.error(
-                    "_dispatch_session_summaries: failed for session %s: %s: %s",
-                    session_id,
-                    type(exc).__name__,
-                    exc,
+                    f"_dispatch_session_summaries: failed for session {session_id}: {type(exc).__name__}: {exc}",
                     exc_info=True,
                 )
             finally:
@@ -680,7 +667,7 @@ class HookManager:
                 try:
                     asyncio.run_coroutine_threadsafe(coro, self._loop)
                 except Exception as e:
-                    self.logger.warning("_dispatch_session_summaries: failed to schedule: %s", e)
+                    self.logger.warning(f"_dispatch_session_summaries: failed to schedule: {e}")
                     if done_event:
                         done_event.set()
             else:
@@ -689,7 +676,7 @@ class HookManager:
                     try:
                         asyncio.run(coro)
                     except Exception as e:
-                        self.logger.warning("_dispatch_session_summaries: background failed: %s", e)
+                        self.logger.warning(f"_dispatch_session_summaries: background failed: {e}")
                         if done_event:
                             done_event.set()
 

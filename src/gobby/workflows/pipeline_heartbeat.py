@@ -73,7 +73,7 @@ class PipelineHeartbeat:
             try:
                 handled += await self._handle_stalled_execution(execution)
             except Exception:
-                logger.error("Heartbeat error handling execution %s", execution.id, exc_info=True)
+                logger.error(f"Heartbeat error handling execution {execution.id}", exc_info=True)
         return handled
 
     async def _handle_stalled_execution(self, execution: PipelineExecution) -> int:
@@ -88,8 +88,7 @@ class PipelineHeartbeat:
             # Agents still working — touch updated_at so we don't re-flag
             self._execution_manager.update_execution_status(execution.id, ExecutionStatus.RUNNING)
             logger.debug(
-                "Heartbeat: execution %s has alive agents, touched updated_at",
-                execution.id,
+                f"Heartbeat: execution {execution.id} has alive agents, touched updated_at",
             )
             return 1
 
@@ -100,8 +99,7 @@ class PipelineHeartbeat:
             outputs_json=json.dumps({"error": "Heartbeat: execution stalled with no alive agents"}),
         )
         logger.warning(
-            "Heartbeat: marked execution %s as FAILED (stalled, no agents)",
-            execution.id,
+            f"Heartbeat: marked execution {execution.id} as FAILED (stalled, no agents)",
         )
         return 1
 
@@ -117,7 +115,7 @@ class PipelineHeartbeat:
             runs = self._agent_run_manager.list_by_parent(execution.session_id)
             return len(runs) > 0
         except Exception:
-            logger.exception("Failed to check alive agents for execution %s", execution.id)
+            logger.exception(f"Failed to check alive agents for execution {execution.id}")
             return False
 
     def _is_session_alive(self, session_id: str) -> bool:
@@ -141,7 +139,7 @@ class PipelineHeartbeat:
                 return getattr(session, "agent_depth", 0) == 0
             return False
         except Exception:
-            logger.exception("Failed to check session liveness for %s", session_id)
+            logger.exception(f"Failed to check session liveness for {session_id}")
             return True  # Err on side of caution — assume alive
 
     async def check_stale_tasks(self) -> int:
@@ -198,10 +196,7 @@ class PipelineHeartbeat:
                         assignee=None,
                     )
                     logger.info(
-                        "Heartbeat: promoted stale task %s (#%s) to needs_review "
-                        "(has commits, no active agent run)",
-                        task.id,
-                        task.seq_num,
+                        f"Heartbeat: promoted stale task {task.id} (#{task.seq_num}) to needs_review (has commits, no active agent run)",
                     )
                 else:
                     await asyncio.to_thread(
@@ -211,12 +206,9 @@ class PipelineHeartbeat:
                         assignee=None,
                     )
                     logger.warning(
-                        "Heartbeat: recovered stale task %s (#%s) — "
-                        "reset to open (no active agent run, no commits)",
-                        task.id,
-                        task.seq_num,
+                        f"Heartbeat: recovered stale task {task.id} (#{task.seq_num}) - reset to open (no active agent run, no commits)",
                     )
                 recovered += 1
             except Exception:
-                logger.exception("Heartbeat: error checking task %s for staleness", task.id)
+                logger.exception(f"Heartbeat: error checking task {task.id} for staleness")
         return recovered

@@ -36,7 +36,7 @@ def set_project_context(ctx: dict[str, Any] | None) -> contextvars.Token[dict[st
     if ctx is not None and not os.environ.get("GOBBY_TEST_PROTECT"):
         pid = ctx.get("id", "")
         if isinstance(pid, str) and pid in _TEST_PROJECT_IDS:
-            logger.warning("Blocked test project_id '%s' in production context", pid)
+            logger.warning(f"Blocked test project_id '{pid}' in production context")
             return _current_project_context.set(None)
     return _current_project_context.set(ctx)
 
@@ -192,9 +192,9 @@ def ensure_project_json_for_isolation(
         with open(target_gobby_dir / "project.json", "w") as f:
             json.dump(data, f, indent=2)
 
-        logger.info("Wrote project.json with parent reference in %s", isolated_path)
+        logger.info(f"Wrote project.json with parent reference in {isolated_path}")
     except Exception as e:
-        logger.warning("Failed to write project.json in %s: %s", isolated_path, e)
+        logger.warning(f"Failed to write project.json in {isolated_path}: {e}")
 
 
 def get_project_mcp_dir(project_name: str) -> Path:

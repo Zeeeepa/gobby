@@ -259,7 +259,7 @@ class GeminiTranscriptParser(BaseTranscriptParser):
 
         else:
             # Unknown event type, skip
-            logger.debug("Unknown Gemini event type: %s", event_type)
+            logger.debug(f"Unknown Gemini event type: {event_type}")
             return None
 
         # Validate role is set - skip lines with missing role

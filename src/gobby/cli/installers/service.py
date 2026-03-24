@@ -253,7 +253,7 @@ def enable_service_macos() -> dict[str, Any]:
     status = _get_service_status_macos()
     if status.get("running"):
         logger.debug(
-            "Daemon already running (pid=%s) — skipping bootout/bootstrap", status.get("pid")
+            f"Daemon already running (pid={status.get('pid')}) - skipping bootout/bootstrap"
         )
         return {"success": True, "platform": "macos", "already_running": True}
 

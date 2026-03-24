@@ -445,14 +445,11 @@ class SessionStartMixin(EventHandlersBase):
                         if dispatched:
                             if summary_event.wait(timeout=max_wait_s):
                                 self.logger.debug(
-                                    "Session summary signaled for parent %s",
-                                    parent_session_id,
+                                    f"Session summary signaled for parent {parent_session_id}",
                                 )
                             else:
                                 self.logger.warning(
-                                    "Timed out waiting for session summary for parent %s after %.0fs",
-                                    parent_session_id,
-                                    max_wait_s,
+                                    f"Timed out waiting for session summary for parent {parent_session_id} after {max_wait_s:.0f}s",
                                 )
                         # Re-read parent after generation
                         parent = self._session_storage.get(parent_session_id)
@@ -537,18 +534,7 @@ class SessionStartMixin(EventHandlersBase):
 
         _t_end = time.monotonic()
         self.logger.info(
-            "SESSION_START timing [%s]: pre_check=%dms parent=%dms register=%dms "
-            "activate_agent=%dms track=%dms msg_proc=%dms "
-            "handoff=%dms total=%dms",
-            session_source,
-            _ms(_t0, _t_pre_check),
-            _ms(_t_pre_check, _t_parent),
-            _ms(_t_parent, _t_register),
-            _ms(_t_register, _t_activate),
-            _ms(_t_activate, _t_track),
-            _ms(_t_track, _t_msg_proc),
-            _ms(_t_msg_proc, _t_handoff),
-            _ms(_t0, _t_end),
+            f"SESSION_START timing [{session_source}]: pre_check={_ms(_t0, _t_pre_check)}ms parent={_ms(_t_pre_check, _t_parent)}ms register={_ms(_t_parent, _t_register)}ms activate_agent={_ms(_t_register, _t_activate)}ms track={_ms(_t_activate, _t_track)}ms msg_proc={_ms(_t_track, _t_msg_proc)}ms handoff={_ms(_t_msg_proc, _t_handoff)}ms total={_ms(_t0, _t_end)}ms",
         )
 
         return compose_session_response(
@@ -777,7 +763,7 @@ class SessionStartMixin(EventHandlersBase):
         if agent_body.workflows and agent_body.workflows.variables:
             for key, value in agent_body.workflows.variables.items():
                 if key.startswith("_"):
-                    self.logger.warning("Skipping reserved variable %r from agent definition", key)
+                    self.logger.warning(f"Skipping reserved variable {key!r} from agent definition")
                     continue
                 changes[key] = value
 
@@ -789,7 +775,7 @@ class SessionStartMixin(EventHandlersBase):
                     if var_row.name not in changes:
                         changes[var_row.name] = var_body.get("value")
                 except json.JSONDecodeError:
-                    self.logger.debug("Failed to parse variable definition for %s", var_row.name)
+                    self.logger.debug(f"Failed to parse variable definition for {var_row.name}")
 
         # Agent-level tool restrictions
         if agent_body.blocked_tools:
@@ -918,15 +904,7 @@ class SessionStartMixin(EventHandlersBase):
 
         _ta_end = time.monotonic()
         self.logger.info(
-            "_activate_default_agent timing: resolve_name=%dms resolve_agent=%dms "
-            "db_queries=%dms build_changes=%dms merge_vars=%dms format=%dms total=%dms",
-            _ms(_ta0, _ta_resolve),
-            _ms(_ta_resolve, _ta_queries),
-            _ms(_ta_queries, _ta_build),
-            _ms(_ta_build, _ta_vars),
-            _ms(_ta_vars, _ta_format),
-            _ms(_ta_format, _ta_end),
-            _ms(_ta0, _ta_end),
+            f"_activate_default_agent timing: resolve_name={_ms(_ta0, _ta_resolve)}ms resolve_agent={_ms(_ta_resolve, _ta_queries)}ms db_queries={_ms(_ta_queries, _ta_build)}ms build_changes={_ms(_ta_build, _ta_vars)}ms merge_vars={_ms(_ta_vars, _ta_format)}ms format={_ms(_ta_format, _ta_end)}ms total={_ms(_ta0, _ta_end)}ms",
         )
 
         return AgentActivationResult(

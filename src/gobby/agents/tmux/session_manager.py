@@ -145,15 +145,15 @@ class TmuxSessionManager:
         except TimeoutError:
             logger.warning("tmux socket unresponsive (timeout). Killing stale server.")
         except Exception as e:
-            logger.warning("tmux health check failed: %s", e)
+            logger.warning(f"tmux health check failed: {e}")
 
         # Attempt to kill the stale server and let it restart on next use
         try:
             await self._run("kill-server", timeout=5.0)
-            logger.info("Killed stale tmux server on socket '%s'", self._config.socket_name)
+            logger.info(f"Killed stale tmux server on socket '{self._config.socket_name}'")
             return True
         except Exception as e:
-            logger.warning("Failed to kill stale tmux server: %s", e)
+            logger.warning(f"Failed to kill stale tmux server: {e}")
             return False
 
     async def create_session(

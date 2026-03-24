@@ -121,7 +121,7 @@ async def _compute_resumability(
             )
             active_agent_session_ids = {r["parent_session_id"] for r in rows}
         except Exception as e:
-            logger.debug("Failed to fetch active agent session ids: %s", e)
+            logger.debug(f"Failed to fetch active agent session ids: {e}")
 
         try:
             rows = db.fetchall(
@@ -130,7 +130,7 @@ async def _compute_resumability(
             )
             active_pipeline_session_ids = {r["session_id"] for r in rows}
         except Exception as e:
-            logger.debug("Failed to fetch active pipeline session ids: %s", e)
+            logger.debug(f"Failed to fetch active pipeline session ids: {e}")
 
     # Active web chat session IDs
     ws_server = server.services.websocket_server

@@ -166,16 +166,7 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                 if rule_event == RuleEvent.STOP:
                     variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
                     logger.debug(
-                        "STOP gate diagnostics: session_id=%s, auto_task_ref=%r, "
-                        "stop_attempts=%s, task_claimed=%s, claimed_tasks=%s, "
-                        "pre_existing_errors_triaged=%s, error_triage_blocks=%s",
-                        session_id,
-                        variables.get("auto_task_ref"),
-                        variables["stop_attempts"],
-                        variables.get("task_claimed"),
-                        variables.get("claimed_tasks"),
-                        variables.get("pre_existing_errors_triaged"),
-                        variables.get("error_triage_blocks", 0),
+                        f"STOP gate diagnostics: session_id={session_id}, auto_task_ref={variables.get('auto_task_ref')!r}, stop_attempts={variables['stop_attempts']}, task_claimed={variables.get('task_claimed')}, claimed_tasks={variables.get('claimed_tasks')}, pre_existing_errors_triaged={variables.get('pre_existing_errors_triaged')}, error_triage_blocks={variables.get('error_triage_blocks', 0)}",
                     )
 
                 # 1. Load enabled rules for this event, sorted by priority
@@ -239,9 +230,7 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                     variables["force_allow_stop"] = False
                     if variables.get("task_claimed"):
                         logger.warning(
-                            "force_allow_stop suppressed — task_claimed=True, "
-                            "deferring to require-task-close rule (session %s)",
-                            session_id,
+                            f"force_allow_stop suppressed - task_claimed=True, deferring to require-task-close rule (session {session_id})",
                         )
                     else:
                         override_decision = "allow"
@@ -411,7 +400,7 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                                 latency_ms=rule_latency,
                             )
                         except Exception as e:
-                            logger.debug("Metrics recording failed: %s", e)
+                            logger.debug(f"Metrics recording failed: {e}")
 
                     if rule_blocked:
                         # First block wins — stop evaluating

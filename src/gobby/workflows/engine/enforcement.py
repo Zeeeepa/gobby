@@ -278,9 +278,7 @@ class EnforcementMixin:
 
                 if not definition.get_step(new_step):
                     logger.warning(
-                        "Transition to unknown step '%s' in workflow '%s'",
-                        new_step,
-                        instance.workflow_name,
+                        f"Transition to unknown step '{new_step}' in workflow '{instance.workflow_name}'",
                     )
                     return
 
@@ -296,11 +294,7 @@ class EnforcementMixin:
                 variables["tool_block_pending"] = False
 
                 logger.info(
-                    "Step transition: %s -> %s (workflow=%s, session=%s)",
-                    old_step,
-                    new_step,
-                    instance.workflow_name,
-                    session_id,
+                    f"Step transition: {old_step} -> {new_step} (workflow={instance.workflow_name}, session={session_id})",
                 )
 
                 # Evaluate exit_condition after transition
@@ -313,10 +307,7 @@ class EnforcementMixin:
                     if self._evaluate_condition(definition.exit_condition, exit_ctx, "block"):
                         variables["step_workflow_complete"] = True
                         logger.info(
-                            "Exit condition met for workflow %s (session=%s, step=%s)",
-                            instance.workflow_name,
-                            session_id,
-                            instance.current_step,
+                            f"Exit condition met for workflow {instance.workflow_name} (session={session_id}, step={instance.current_step})",
                         )
 
                 return  # First matching transition wins

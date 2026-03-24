@@ -304,13 +304,13 @@ class HookManagerFactory:
                     future = asyncio.run_coroutine_threadsafe(_do(), loop)
                     return future.result(timeout=10)
                 except Exception as e:
-                    logger.debug("_sync_call_tool: threadsafe failed: %s", e)
+                    logger.debug(f"_sync_call_tool: threadsafe failed: {e}")
                     return None
             else:
                 try:
                     return asyncio.run(_do())
                 except Exception as e:
-                    logger.debug("_sync_call_tool: asyncio.run failed: %s", e)
+                    logger.debug(f"_sync_call_tool: asyncio.run failed: {e}")
                     return None
 
         return _sync_call_tool

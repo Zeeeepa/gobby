@@ -49,7 +49,7 @@ def _decompress_archive(archive_path: str) -> list[str]:
             for line in f:
                 lines.append(line)
     except (EOFError, gzip.BadGzipFile, zlib.error) as e:
-        logger.warning("Truncated or malformed gzip archive %s: %s", archive_path, e)
+        logger.warning(f"Truncated or malformed gzip archive {archive_path}: {e}")
     return lines
 
 
@@ -239,9 +239,7 @@ class TranscriptReader:
                     return sum(1 for line in lines if line.strip())
             except Exception as e:
                 logger.warning(
-                    "Failed to count messages from transcript for session %s: %s",
-                    session_id,
-                    e,
+                    f"Failed to count messages from transcript for session {session_id}: {e}",
                 )
 
         # Fallback: count lines from gzip archive
@@ -272,7 +270,7 @@ class TranscriptReader:
             lines = await asyncio.to_thread(_decompress_archive, str(archive_path))
             return _parse_lines(lines, source, session_id=session_id)
         except Exception as e:
-            logger.warning("Failed to read archive for session %s: %s", session_id, e)
+            logger.warning(f"Failed to read archive for session {session_id}: {e}")
             return []
 
     async def _get_parsed_messages_from_file(self, session_id: str) -> list[ParsedMessage]:
@@ -298,7 +296,7 @@ class TranscriptReader:
                 lines = await asyncio.to_thread(self._read_jsonl_lines, transcript_path)
                 return _parse_lines(lines, source, session_id=session_id)
         except Exception as e:
-            logger.warning("Failed to read transcript for session %s: %s", session_id, e)
+            logger.warning(f"Failed to read transcript for session {session_id}: {e}")
             return []
 
     async def _read_from_archive(
@@ -325,7 +323,7 @@ class TranscriptReader:
             lines = await asyncio.to_thread(_decompress_archive, str(archive_path))
             all_messages = _parse_lines_to_dicts(lines, source, session_id=session_id)
         except Exception as e:
-            logger.warning("Failed to read archive for session %s: %s", session_id, e)
+            logger.warning(f"Failed to read archive for session {session_id}: {e}")
             return []
 
         # Fill in session_id
@@ -369,7 +367,7 @@ class TranscriptReader:
                 lines = await asyncio.to_thread(self._read_jsonl_lines, transcript_path)
                 all_messages = _parse_lines_to_dicts(lines, source, session_id=session_id)
         except Exception as e:
-            logger.warning("Failed to read transcript for session %s: %s", session_id, e)
+            logger.warning(f"Failed to read transcript for session {session_id}: {e}")
             return []
 
         # Fill in session_id

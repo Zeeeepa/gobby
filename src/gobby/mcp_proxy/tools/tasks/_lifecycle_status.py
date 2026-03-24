@@ -51,19 +51,17 @@ def register_reopen_task(registry: InternalToolRegistry, ctx: RegistryContext) -
                     merge_dict = remove_claimed_task(session_vars, resolved_id)
                     ctx.session_var_manager.merge_variables(prior_assignee, merge_dict)
                     logger.debug(
-                        "Removed task %s from claimed_tasks for session %s on reopen",
-                        resolved_id,
-                        prior_assignee,
+                        f"Removed task {resolved_id} from claimed_tasks for session {prior_assignee} on reopen",
                     )
                 except Exception as e:
-                    logger.debug("Best-effort claimed_tasks cleanup on reopen failed: %s", e)
+                    logger.debug(f"Best-effort claimed_tasks cleanup on reopen failed: {e}")
 
             # Update session-task link to reflect reopen
             if prior_assignee:
                 try:
                     ctx.session_task_manager.link_task(prior_assignee, resolved_id, "reopened")
                 except Exception as e:
-                    logger.debug("Best-effort session link update on reopen failed: %s", e)
+                    logger.debug(f"Best-effort session link update on reopen failed: {e}")
 
             # Reactivate any associated worktrees that were marked merged/abandoned
             try:
@@ -77,7 +75,7 @@ def register_reopen_task(registry: InternalToolRegistry, ctx: RegistryContext) -
                 ):
                     worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
             except Exception as e:
-                logger.debug("Best-effort reopen worktree update failed: %s", e)
+                logger.debug(f"Best-effort reopen worktree update failed: {e}")
 
             return {}
         except ValueError as e:
@@ -164,7 +162,7 @@ def register_escalate_task(registry: InternalToolRegistry, ctx: RegistryContext)
             try:
                 ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "escalated")
             except Exception as e:
-                logger.debug("Best-effort escalation linking failed: %s", e)
+                logger.debug(f"Best-effort escalation linking failed: {e}")
 
         return {}
 

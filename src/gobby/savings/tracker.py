@@ -44,7 +44,7 @@ class SavingsTracker:
     ) -> None:
         """Record a savings event using character counts (converted to tokens)."""
         if category not in VALID_CATEGORIES:
-            logger.warning("Rejected savings record for invalid category %r", category)
+            logger.warning(f"Rejected savings record for invalid category {category!r}")
             return
         original_tokens = max(0, int(original_chars / CHARS_PER_TOKEN))
         actual_tokens = max(0, int(actual_chars / CHARS_PER_TOKEN))
@@ -70,7 +70,7 @@ class SavingsTracker:
     ) -> None:
         """Record a savings event using token counts."""
         if category not in VALID_CATEGORIES:
-            logger.warning("Rejected savings record for invalid category %r", category)
+            logger.warning(f"Rejected savings record for invalid category {category!r}")
             return
         tokens_saved = max(0, original_tokens - actual_tokens)
         cost_saved = self._estimate_cost(tokens_saved, model)

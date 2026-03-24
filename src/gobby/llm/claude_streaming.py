@@ -139,15 +139,7 @@ async def stream_with_mcp_tools(
                 context_window = resolve_context_window(last_model, None)
 
                 logger.info(
-                    "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
-                    "total_input=%d output=%d context_window=%s per_call=%s",
-                    uncached_input,
-                    cache_read,
-                    cache_creation,
-                    total_input,
-                    output_tokens,
-                    context_window,
-                    _last_call_input is not None,
+                    f"DoneEvent: uncached={uncached_input} cache_read={cache_read} cache_creation={cache_creation} total_input={total_input} output={output_tokens} context_window={context_window} per_call={_last_call_input is not None}",
                 )
                 yield DoneEvent(
                     tool_calls_count=tool_calls_count,

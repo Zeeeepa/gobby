@@ -57,9 +57,7 @@ def setup_agent_event_broadcasting(websocket_server: WebSocketServer) -> None:
             asyncio.get_running_loop()
         except RuntimeError:
             logger.debug(
-                "Skipping agent event broadcast for %s/%s (no running event loop)",
-                event_type,
-                run_id,
+                f"Skipping agent event broadcast for {event_type}/{run_id} (no running event loop)",
             )
             return
 

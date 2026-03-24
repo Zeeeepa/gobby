@@ -53,7 +53,7 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                     sv = sv_mgr.get_variables(resolved_id)
                     active_names = sv.get("_active_skill_names") if sv else None
                 except Exception:
-                    logger.debug("Failed to resolve active skill names for session %s", session_id)
+                    logger.debug(f"Failed to resolve active skill names for session {session_id}")
 
             skills = ctx.storage.list_skills(
                 project_id=ctx.project_id,

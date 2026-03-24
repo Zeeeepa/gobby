@@ -392,10 +392,7 @@ async def resume_pipeline(
                 break
             if step.error and step.status in (StepStatus.COMPLETED, StepStatus.SKIPPED):
                 logger.warning(
-                    "Step %s has status %s but carries error: %s",
-                    step.step_id,
-                    step.status.value,
-                    step.error[:200],
+                    f"Step {step.step_id} has status {step.status.value} but carries error: {step.error[:200]}",
                 )
                 resume_step_id = step.step_id
                 break
@@ -581,7 +578,7 @@ async def resume_interrupted_pipelines(
             try:
                 inputs = json.loads(execution.inputs_json)
             except (json.JSONDecodeError, TypeError) as e:
-                logger.warning("Malformed inputs_json for execution %s: %s", execution.id, e)
+                logger.warning(f"Malformed inputs_json for execution {execution.id}: {e}")
 
         # Re-queue as background task with existing execution_id (resume path)
         task = asyncio.create_task(

@@ -251,9 +251,7 @@ class WorktreeGitManager:
                     branch_name = status.branch
                 if not branch_name:
                     logger.warning(
-                        "Branch deletion skipped: branch_name could not be resolved "
-                        "from get_worktree_status for worktree '%s'",
-                        worktree_path,
+                        f"Branch deletion skipped: branch_name could not be resolved from get_worktree_status for worktree '{worktree_path}'",
                         extra={"worktree_path": str(worktree_path), "delete_branch": True},
                     )
 
@@ -276,8 +274,7 @@ class WorktreeGitManager:
                     self._run_git(["worktree", "prune"], timeout=10)
                     if not worktree_path.exists():
                         logger.info(
-                            "Removed worktree via fallback (rmtree + prune): %s",
-                            worktree_path,
+                            f"Removed worktree via fallback (rmtree + prune): {worktree_path}",
                         )
                     else:
                         return GitOperationResult(
@@ -712,7 +709,7 @@ class WorktreeGitManager:
                     logger.debug(f"Detected default branch from origin/HEAD: {branch}")
                     return branch
         except Exception as e:
-            logger.debug("Method 1 (origin/HEAD) for default branch failed: %s", e)
+            logger.debug(f"Method 1 (origin/HEAD) for default branch failed: {e}")
 
         # Method 2: Check which common default branches exist
         for branch in ["main", "master", "develop"]:
@@ -735,7 +732,7 @@ class WorktreeGitManager:
                     logger.debug(f"Detected default branch from remote ref: {branch}")
                     return branch
             except Exception as e:
-                logger.debug("Method 2 branch check failed for %s: %s", branch, e)
+                logger.debug(f"Method 2 branch check failed for {branch}: {e}")
                 continue
 
         # Method 3: Fall back to "main"

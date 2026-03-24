@@ -53,9 +53,7 @@ async def dispatch_mcp_calls(
         background = call.get("background", False)
 
         if not server or not tool:
-            logger.warning(
-                "dispatch_mcp_calls: skipping call with missing server or tool: %s", call
-            )
+            logger.warning(f"dispatch_mcp_calls: skipping call with missing server or tool: {call}")
             continue
 
         # Inject event context into arguments
@@ -73,7 +71,7 @@ async def dispatch_mcp_calls(
                     timeout=30.0,
                 )
             except TimeoutError:
-                logger.error("dispatch_mcp_calls: blocking call %s/%s timed out", server, tool)
+                logger.error(f"dispatch_mcp_calls: blocking call {server}/{tool} timed out")
 
 
 async def _safe_call(
@@ -88,10 +86,7 @@ async def _safe_call(
         result = await call_tool_fn(server, tool, arguments)
         if isinstance(result, dict) and result.get("success") is False:
             logger.warning(
-                "dispatch_mcp_calls: %s/%s returned failure: %s",
-                server,
-                tool,
-                result.get("error", "unknown"),
+                f"dispatch_mcp_calls: {server}/{tool} returned failure: {result.get('error', 'unknown')}",
             )
     except Exception as exc:
-        logger.error("dispatch_mcp_calls: %s/%s failed: %s", server, tool, exc, exc_info=True)
+        logger.error(f"dispatch_mcp_calls: {server}/{tool} failed: {exc}", exc_info=True)

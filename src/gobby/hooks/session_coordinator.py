@@ -482,10 +482,10 @@ class SessionCoordinator:
             if self._event_loop and not self._event_loop.is_closed():
                 asyncio.run_coroutine_threadsafe(coro, self._event_loop)
             else:
-                self.logger.debug("No event loop available to notify completion for run %s", run_id)
+                self.logger.debug(f"No event loop available to notify completion for run {run_id}")
         except Exception:
             self.logger.debug(
-                "Failed to notify completion registry for run %s", run_id, exc_info=True
+                f"Failed to notify completion registry for run {run_id}", exc_info=True
             )
 
     def release_session_worktrees(self, session_id: str) -> None:

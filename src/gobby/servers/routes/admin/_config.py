@@ -162,7 +162,7 @@ def register_config_routes(router: APIRouter, server: "HTTPServer") -> None:
         try:
             models_by_provider = _discover_models()
         except Exception as e:
-            logger.warning("LiteLLM discovery failed, falling back to config: %s", e)
+            logger.warning(f"LiteLLM discovery failed, falling back to config: {e}")
             # Fallback to config-based models
             models_by_provider = _fallback_models_from_config(server)
 
@@ -224,5 +224,5 @@ def register_config_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         except Exception as e:
-            logger.error("Config retrieval error: %s", e, exc_info=True)
+            logger.error(f"Config retrieval error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

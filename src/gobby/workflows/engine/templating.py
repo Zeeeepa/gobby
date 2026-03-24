@@ -86,7 +86,7 @@ class TemplatingMixin:
                                 "path": proj.repo_path or "",
                             }
             except Exception as e:
-                logger.debug("Failed to resolve project info for template context: %s", e)
+                logger.debug(f"Failed to resolve project info for template context: {e}")
             ctx["project"] = project_info
 
         # Flatten variables at top level for convenience

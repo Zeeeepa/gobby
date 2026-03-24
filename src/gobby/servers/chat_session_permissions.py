@@ -153,7 +153,7 @@ class ChatSessionPermissionsMixin:
             await asyncio.wait_for(self._pending_answer_event.wait(), timeout=600.0)
         except TimeoutError:
             self._pending_answers = {"error": "Timed out waiting for user response"}
-            logger.warning("AskUserQuestion timed out for session %s", self.conversation_id)
+            logger.warning(f"AskUserQuestion timed out for session {self.conversation_id}")
 
         result = PermissionResultAllow(
             updated_input={
@@ -270,7 +270,7 @@ class ChatSessionPermissionsMixin:
             try:
                 self._on_mode_persist(mode)
             except Exception as e:
-                logger.warning("Failed to persist chat_mode=%s: %s", mode, e)
+                logger.warning(f"Failed to persist chat_mode={mode}: {e}")
 
     def approve_plan(self) -> None:
         """Mark the current plan as approved, unlocking write tools."""
@@ -323,7 +323,7 @@ class ChatSessionPermissionsMixin:
                 if path.exists():
                     return path.read_text(encoding="utf-8")
             except Exception as e:
-                logger.warning("Failed to read plan file %s: %s", self._plan_file_path, e)
+                logger.warning(f"Failed to read plan file {self._plan_file_path}: {e}")
 
         # Fallback: find the most recently modified plan file
         try:
@@ -343,7 +343,7 @@ class ChatSessionPermissionsMixin:
                         if plans.is_dir():
                             plan_dirs.append(plans)
                 except (PermissionError, OSError) as e:
-                    logger.warning("Could not scan %s: %s", gemini_tmp, e)
+                    logger.warning(f"Could not scan {gemini_tmp}: {e}")
 
             candidates: list[Path] = []
             for d in plan_dirs:
@@ -352,11 +352,11 @@ class ChatSessionPermissionsMixin:
 
             if candidates:
                 newest = max(candidates, key=lambda p: p.stat().st_mtime)
-                logger.info("Plan file path not tracked; using most recent: %s", newest)
+                logger.info(f"Plan file path not tracked; using most recent: {newest}")
                 self._plan_file_path = str(newest)
                 return newest.read_text(encoding="utf-8")
         except Exception as e:
-            logger.warning("Failed to find fallback plan file: %s", e)
+            logger.warning(f"Failed to find fallback plan file: {e}")
 
         return None
 

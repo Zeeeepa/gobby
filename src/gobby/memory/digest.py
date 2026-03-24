@@ -32,7 +32,7 @@ async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
         return {"error": "Memory Sync Manager not available"}
 
     count = await memory_sync_manager.import_from_files()
-    logger.info("Memory sync import: %s memories imported", count)
+    logger.info(f"Memory sync import: {count} memories imported")
     return {"imported": {"memories": count}}
 
 
@@ -49,7 +49,7 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
         return {"error": "Memory Sync Manager not available"}
 
     count = await memory_sync_manager.export_to_files()
-    logger.info("Memory sync export: %s memories exported", count)
+    logger.info(f"Memory sync export: {count} memories exported")
     return {"exported": {"memories": count}}
 
 
@@ -99,7 +99,7 @@ async def _read_last_turn_from_transcript(transcript_path: str, source: str) -> 
 
         return prompt_text, response_text
     except Exception as e:
-        logger.warning("Failed to read transcript %s: %s", transcript_path, e)
+        logger.warning(f"Failed to read transcript {transcript_path}: {e}")
         return "", ""
 
 
@@ -191,14 +191,12 @@ async def _read_undigested_turns(
         # Transcript has fewer pairs than digested (e.g., /clear reset) —
         # fall back to the last pair so we don't lose the current exchange
         logger.debug(
-            "Undigested turns fallback: digested_count=%d >= len(pairs)=%d. Returning last pair.",
-            digested_count,
-            len(pairs),
+            f"Undigested turns fallback: digested_count={digested_count} >= len(pairs)={len(pairs)}. Returning last pair.",
         )
         return [pairs[-1]]
 
     except Exception as e:
-        logger.warning("Failed to read undigested turns from %s: %s", transcript_path, e)
+        logger.warning(f"Failed to read undigested turns from {transcript_path}: {e}")
         return []
 
 
@@ -321,7 +319,7 @@ async def _extract_memories_from_turn(
 
             # Deduplicate against existing memories
             if memory_manager.content_exists(content, project_id=project_id):
-                logger.debug("Skipping duplicate memory: %s...", content[:50])
+                logger.debug(f"Skipping duplicate memory: {content[:50]}...")
                 continue
 
             memory = await memory_manager.create_memory(
@@ -333,9 +331,9 @@ async def _extract_memories_from_turn(
                 tags=candidate.get("tags"),
             )
             memory_ids.append(memory.id)
-            logger.info("Extracted memory from turn: %s", content[:80])
+            logger.info(f"Extracted memory from turn: {content[:80]}")
         except Exception as e:
-            logger.debug("Failed to parse memory candidate: %s", e)
+            logger.debug(f"Failed to parse memory candidate: {e}")
             continue
 
     return memory_ids
@@ -369,7 +367,7 @@ async def _resolve_undigested_pairs(
     if not undigested_pairs:
         user_prompt = prompt_text or ""
         if not user_prompt:
-            logger.debug("build_turn_and_digest: No turn content for session %s", session_id)
+            logger.debug(f"build_turn_and_digest: No turn content for session {session_id}")
             return None
         _stripped = user_prompt.strip()
         if any(
@@ -382,9 +380,7 @@ async def _resolve_undigested_pairs(
     input_hash = hashlib.sha256(combined_content.encode()).hexdigest()[:16]
     if session.last_digest_input_hash == input_hash:
         logger.debug(
-            "build_turn_and_digest: Skipping duplicate digest for session %s (hash=%s)",
-            session_id,
-            input_hash,
+            f"build_turn_and_digest: Skipping duplicate digest for session {session_id} (hash={input_hash})",
         )
         return None
 
@@ -504,7 +500,7 @@ async def build_turn_and_digest(
         # 1. Get session
         session = session_manager.get(session_id) if session_manager else None
         if not session:
-            logger.warning("build_turn_and_digest: Session %s not found", session_id)
+            logger.warning(f"build_turn_and_digest: Session {session_id} not found")
             return None
 
         # 2. Resolve undigested pairs
@@ -545,10 +541,7 @@ async def build_turn_and_digest(
         session_manager.update_last_digest_input_hash(session_id, input_hash)
 
         logger.info(
-            "build_turn_and_digest: Turn %d recorded (%d chars) for session %s",
-            turn_num,
-            len(last_turn),
-            session_id,
+            f"build_turn_and_digest: Turn {turn_num} recorded ({len(last_turn)} chars) for session {session_id}",
         )
 
         result: dict[str, Any] = {
@@ -565,7 +558,7 @@ async def build_turn_and_digest(
             if title:
                 result["title"] = title
         except Exception as e:
-            logger.warning("build_turn_and_digest: Title synthesis failed: %s", e)
+            logger.warning(f"build_turn_and_digest: Title synthesis failed: {e}")
 
         # 8. Extract memories from turn record
         try:
@@ -580,15 +573,13 @@ async def build_turn_and_digest(
             if extracted:
                 result["memories_extracted"] = len(extracted)
         except Exception as e:
-            logger.warning("build_turn_and_digest: Memory extraction failed: %s", e)
+            logger.warning(f"build_turn_and_digest: Memory extraction failed: {e}")
 
         return result
 
     except Exception as e:
         logger.error(
-            "build_turn_and_digest: Failed for session %s: %s",
-            session_id,
-            e,
+            f"build_turn_and_digest: Failed for session {session_id}: {e}",
             exc_info=True,
         )
         return {"error": str(e)}
@@ -649,9 +640,7 @@ async def memory_extract_from_session(
         )
 
         logger.info(
-            "memory_extract_from_session: Extracted %s memories from session %s",
-            len(candidates),
-            session_id,
+            f"memory_extract_from_session: Extracted {len(candidates)} memories from session {session_id}",
         )
 
         return {
@@ -661,9 +650,7 @@ async def memory_extract_from_session(
 
     except Exception as e:
         logger.error(
-            "memory_extract_from_session: Failed for session %s: %s",
-            session_id,
-            e,
+            f"memory_extract_from_session: Failed for session {session_id}: {e}",
             exc_info=True,
         )
         return {"error": str(e)}

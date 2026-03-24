@@ -279,7 +279,7 @@ def register_analytics_routes(
             try:
                 body = await request.json()
             except Exception as e:
-                logger.debug("Empty body in stop_session request (expected): %s", e)
+                logger.debug(f"Empty body in stop_session request (expected): {e}")
 
             reason = body.get("reason", "External stop request")
             source = body.get("source", "http_api")

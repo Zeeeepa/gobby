@@ -90,7 +90,7 @@ def register_claim_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         try:
             ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "claimed")
         except Exception as e:
-            logger.debug("Best-effort session claim linking failed: %s", e)
+            logger.debug(f"Best-effort session claim linking failed: {e}")
 
         # Set claimed_tasks session variable (enables Edit/Write hooks)
         # This mirrors create_task behavior in _crud.py
@@ -102,7 +102,7 @@ def register_claim_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
             merge_dict = add_claimed_task(session_vars, resolved_id, ref)
             ctx.session_var_manager.merge_variables(resolved_session_id, merge_dict)
         except Exception as e:
-            logger.debug("Best-effort session variable setting failed: %s", e)
+            logger.debug(f"Best-effort session variable setting failed: {e}")
 
         return {}
 

@@ -149,10 +149,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
         context = "\n".join(parts)
 
         self.logger.info(
-            "Resolved gobby skill '%s' via %s (requested: '%s')",
-            name,
-            source,
-            raw_skill_name,
+            f"Resolved gobby skill '{name}' via {source} (requested: '{raw_skill_name}')",
         )
 
         return HookResponse(
@@ -180,14 +177,12 @@ class ToolEventHandlerMixin(EventHandlersBase):
         lines.append(f'\nAfter installing, retry: Skill("{skill_name}")')
 
         self.logger.info(
-            "Skill '%s' not installed — %d hub matches found",
-            skill_name,
-            len(hub_results),
+            f"Skill '{skill_name}' not installed - {len(hub_results)} hub matches found",
         )
 
         return HookResponse(
             decision="block",
-            reason=f"Skill '{skill_name}' not installed — hub matches found",
+            reason=f"Skill '{skill_name}' not installed - hub matches found",
             context="\n".join(lines),
         )
 

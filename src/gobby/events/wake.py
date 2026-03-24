@@ -73,7 +73,7 @@ class WakeDispatcher:
         """
         session = self._session_manager.get(session_id)
         if session is None:
-            logger.warning("Cannot wake session %s: not found", session_id)
+            logger.warning(f"Cannot wake session {session_id}: not found")
             return
 
         agent_depth = getattr(session, "agent_depth", 0) or 0
@@ -91,9 +91,7 @@ class WakeDispatcher:
                             return
                         except Exception:
                             logger.warning(
-                                "tmux pane wake failed for session %s (pane=%s), falling back to ISM",
-                                session_id,
-                                tmux_pane,
+                                f"tmux pane wake failed for session {session_id} (pane={tmux_pane}), falling back to ISM",
                                 exc_info=True,
                             )
             self._send_ism(session_id, message)
@@ -109,9 +107,7 @@ class WakeDispatcher:
                     return
                 except Exception:
                     logger.warning(
-                        "tmux wake failed for session %s (tmux=%s), trying SDK resume",
-                        session_id,
-                        tmux_session_name,
+                        f"tmux wake failed for session {session_id} (tmux={tmux_session_name}), trying SDK resume",
                         exc_info=True,
                     )
 
@@ -124,9 +120,7 @@ class WakeDispatcher:
                     return
                 except Exception:
                     logger.warning(
-                        "SDK resume failed for session %s (sdk=%s), falling back to ISM",
-                        session_id,
-                        sdk_session_id,
+                        f"SDK resume failed for session {session_id} (sdk={sdk_session_id}), falling back to ISM",
                         exc_info=True,
                     )
 
@@ -152,8 +146,7 @@ class WakeDispatcher:
             return sdk_id
         except Exception:
             logger.debug(
-                "Could not resolve sdk_session_id for session %s",
-                session_id,
+                f"Could not resolve sdk_session_id for session {session_id}",
                 exc_info=True,
             )
             return None
@@ -170,8 +163,7 @@ class WakeDispatcher:
             )
         except Exception:
             logger.error(
-                "Failed to send ISM to session %s",
-                session_id,
+                f"Failed to send ISM to session {session_id}",
                 exc_info=True,
             )
 

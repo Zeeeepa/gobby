@@ -557,10 +557,7 @@ async def spawn_agent_impl(
                         assignee=spawn_result.child_session_id,
                     )
                     logger.info(
-                        "Auto-claimed task %s for agent %s (session %s)",
-                        f"#{task_seq_num}" if task_seq_num else resolved_task_id,
-                        run_id,
-                        spawn_result.child_session_id,
+                        f"Auto-claimed task {(f'#{task_seq_num}' if task_seq_num else resolved_task_id)} for agent {run_id} (session {spawn_result.child_session_id})",
                     )
                 elif task_obj:
                     task_manager.update_task(
@@ -568,11 +565,7 @@ async def spawn_agent_impl(
                         assignee=spawn_result.child_session_id,
                     )
                     logger.info(
-                        "Assigned task %s to agent %s (session %s) without status change (status=%s)",
-                        f"#{task_seq_num}" if task_seq_num else resolved_task_id,
-                        run_id,
-                        spawn_result.child_session_id,
-                        task_obj.status,
+                        f"Assigned task {(f'#{task_seq_num}' if task_seq_num else resolved_task_id)} to agent {run_id} (session {spawn_result.child_session_id}) without status change (status={task_obj.status})",
                     )
             except Exception as e:
                 logger.warning(f"Failed to auto-claim task {resolved_task_id}: {e}")
@@ -609,11 +602,7 @@ async def spawn_agent_impl(
                 )
 
                 logger.info(
-                    "Created step workflow instance %s for session %s (agent=%s, step=%s)",
-                    step_wf_name,
-                    spawn_result.child_session_id,
-                    agent_body.name,
-                    agent_body.steps[0].name,
+                    f"Created step workflow instance {step_wf_name} for session {spawn_result.child_session_id} (agent={agent_body.name}, step={agent_body.steps[0].name})",
                 )
             except Exception as e:
                 logger.error(f"Failed to create step workflow instance: {e}", exc_info=True)

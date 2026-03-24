@@ -50,7 +50,7 @@ class CompletionEventRegistry:
             continuation_prompt: Optional prompt describing what to do with results
         """
         if completion_id in self._events:
-            logger.warning("Overwriting existing completion registration: %s", completion_id)
+            logger.warning(f"Overwriting existing completion registration: {completion_id}")
         self._events[completion_id] = asyncio.Event()
         self._subscribers[completion_id] = list(subscribers)
         if continuation_prompt:
@@ -75,7 +75,7 @@ class CompletionEventRegistry:
         """
         event = self._events.get(completion_id)
         if event is None:
-            logger.debug("notify() called for unregistered ID %s — ignoring", completion_id)
+            logger.debug(f"notify() called for unregistered ID {completion_id} - ignoring")
             return
 
         # Include continuation_prompt in result so wake dispatcher can use it
@@ -94,9 +94,7 @@ class CompletionEventRegistry:
                     await self._wake_callback(session_id, message, result)
                 except Exception:
                     logger.warning(
-                        "Wake callback failed for session %s (completion %s)",
-                        session_id,
-                        completion_id,
+                        f"Wake callback failed for session {session_id} (completion {completion_id})",
                         exc_info=True,
                     )
 

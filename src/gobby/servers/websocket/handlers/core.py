@@ -354,4 +354,4 @@ class HandlerMixin:
                 logger.warning(f"Failed to send keys to tmux agent {run_id}: {e}")
             return
 
-        logger.warning(f"Agent {run_id} has no tmux_session_name — cannot route input")
+        logger.warning(f"Agent {run_id} has no tmux_session_name - cannot route input")

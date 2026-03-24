@@ -163,7 +163,7 @@ def _prompt_api_keys(no_interactive: bool = False) -> dict[str, Any]:
                 click.echo(f"    Stored {secret_name}")
                 result["stored"] += 1
             except Exception as e:
-                logger.warning("Failed to store %s: %s", secret_name, e)
+                logger.warning(f"Failed to store {secret_name}: {e}")
                 click.echo(f"    Warning: Failed to store {secret_name}: {e}")
         else:
             result["skipped"] += 1

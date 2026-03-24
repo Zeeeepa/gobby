@@ -401,5 +401,5 @@ class CronJobStorage:
         )
         deleted = cursor.rowcount
         if deleted > 0:
-            logger.info("Cleaned up %d cron runs older than %d days", deleted, days)
+            logger.info(f"Cleaned up {deleted} cron runs older than {days} days")
         return deleted

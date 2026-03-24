@@ -71,13 +71,11 @@ class CommunicationsManager:
                 )
                 self._rate_limiter.configure_channel(channel.id, int(rate), int(burst))
                 logger.info(
-                    "Communications: initialized channel %r (%s)",
-                    channel.name,
-                    channel.channel_type,
+                    f"Communications: initialized channel {channel.name!r} ({channel.channel_type})",
                 )
             except Exception as e:
-                logger.error("Failed to initialize channel %r: %s", channel.name, e)
-        logger.info("CommunicationsManager started (%d channels active)", len(self._adapters))
+                logger.error(f"Failed to initialize channel {channel.name!r}: {e}")
+        logger.info(f"CommunicationsManager started ({len(self._adapters)} channels active)")
 
     async def stop(self) -> None:
         """Shutdown all adapters and clear state."""
@@ -85,7 +83,7 @@ class CommunicationsManager:
             try:
                 await adapter.shutdown()
             except Exception as e:
-                logger.error("Error shutting down channel %r: %s", name, e)
+                logger.error(f"Error shutting down channel {name!r}: {e}")
         self._adapters.clear()
         self._channel_by_name.clear()
         logger.info("CommunicationsManager stopped")
@@ -159,20 +157,20 @@ class CommunicationsManager:
         except Exception as e:
             message.status = "failed"
             message.error = str(e)
-            logger.error("Failed to send message to %r: %s", channel_name, e)
+            logger.error(f"Failed to send message to {channel_name!r}: {e}")
 
         # Store in DB
         try:
             self._store.save_message(message)
         except Exception as e:
-            logger.error("Failed to store outbound message: %s", e)
+            logger.error(f"Failed to store outbound message: {e}")
 
         # Fire event callback
         if self.event_callback is not None:
             try:
                 await self.event_callback("comms.message_sent", message=message)
             except Exception as e:
-                logger.debug("Event callback error on send_message: %s", e)
+                logger.debug(f"Event callback error on send_message: {e}")
 
         return message
 
@@ -210,7 +208,7 @@ class CommunicationsManager:
                 msg = await self.send_message(channel_name, content, session_id=session_id)
                 messages.append(msg)
             except Exception as e:
-                logger.error("send_event: failed to send to %r: %s", channel_name, e)
+                logger.error(f"send_event: failed to send to {channel_name!r}: {e}")
 
         return messages
 
@@ -269,7 +267,7 @@ class CommunicationsManager:
                 self._store.save_message(message)
                 stored.append(message)
             except Exception as e:
-                logger.error("Failed to store inbound message: %s", e)
+                logger.error(f"Failed to store inbound message: {e}")
 
         # Fire event callback for each stored message
         if self.event_callback is not None:
@@ -277,7 +275,7 @@ class CommunicationsManager:
                 try:
                     await self.event_callback("comms.message_received", message=msg)
                 except Exception as e:
-                    logger.debug("Event callback error on handle_inbound: %s", e)
+                    logger.debug(f"Event callback error on handle_inbound: {e}")
 
         return stored
 
@@ -329,9 +327,9 @@ class CommunicationsManager:
                 self._config.channel_defaults.burst,
             )
             self._rate_limiter.configure_channel(channel_config.id, int(rate), int(burst))
-            logger.info("Added channel %r (%s)", name, channel_type)
+            logger.info(f"Added channel {name!r} ({channel_type})")
         except Exception as e:
-            logger.error("Failed to initialize adapter for new channel %r: %s", name, e)
+            logger.error(f"Failed to initialize adapter for new channel {name!r}: {e}")
 
         return channel_config
 
@@ -348,15 +346,15 @@ class CommunicationsManager:
             try:
                 await adapter.shutdown()
             except Exception as e:
-                logger.error("Error shutting down channel %r: %s", name, e)
+                logger.error(f"Error shutting down channel {name!r}: {e}")
 
         if channel is not None:
             self._rate_limiter.remove_channel(channel.id)
             try:
                 self._store.delete_channel(channel.id)
-                logger.info("Removed channel %r", name)
+                logger.info(f"Removed channel {name!r}")
             except Exception as e:
-                logger.error("Failed to delete channel %r from DB: %s", name, e)
+                logger.error(f"Failed to delete channel {name!r} from DB: {e}")
 
     def list_channels(self) -> list[ChannelConfig]:
         """List all channels (enabled and disabled) from DB.

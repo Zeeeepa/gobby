@@ -48,7 +48,7 @@ async def handle_plan_approval_response(
         return
 
     if session is None or conversation_id_raw is None:
-        logger.warning("plan_approval_response for unknown conversation: %s", conversation_id_raw)
+        logger.warning(f"plan_approval_response for unknown conversation: {conversation_id_raw}")
         return
     conversation_id: str = conversation_id_raw
 
@@ -67,8 +67,7 @@ async def handle_plan_approval_response(
             session.provide_plan_decision("approve")
             await _clear_pending_plan()
             logger.info(
-                "Plan approved (ExitPlanMode unblocked) for conversation %s",
-                conversation_id[:8],
+                f"Plan approved (ExitPlanMode unblocked) for conversation {conversation_id[:8]}",
             )
         else:
             # Legacy path: plan approval before ExitPlanMode was called
@@ -89,8 +88,7 @@ async def handle_plan_approval_response(
             except (ConnectionClosed, ConnectionClosedError):
                 pass
             logger.info(
-                "Plan approved (legacy) for conversation %s, switched to accept_edits",
-                conversation_id[:8],
+                f"Plan approved (legacy) for conversation {conversation_id[:8]}, switched to accept_edits",
             )
     elif decision == "request_changes":
         feedback = data.get("feedback", "")
@@ -101,8 +99,7 @@ async def handle_plan_approval_response(
             session.provide_plan_decision("request_changes")
             await _clear_pending_plan()
             logger.info(
-                "Plan changes requested (ExitPlanMode denied) for conversation %s",
-                conversation_id[:8],
+                f"Plan changes requested (ExitPlanMode denied) for conversation {conversation_id[:8]}",
             )
         else:
             await _clear_pending_plan()
@@ -119,7 +116,7 @@ async def handle_plan_approval_response(
                 )
             except (ConnectionClosed, ConnectionClosedError):
                 pass
-            logger.info("Plan changes requested (legacy) for conversation %s", conversation_id[:8])
+            logger.info(f"Plan changes requested (legacy) for conversation {conversation_id[:8]}")
 
 
 async def handle_recovered_plan_approval(
@@ -150,8 +147,7 @@ async def handle_recovered_plan_approval(
 
     if not db_session or not db_session.pending_plan_path:
         logger.warning(
-            "Recovered plan approval: no DB session with pending plan for %s",
-            conversation_id[:8],
+            f"Recovered plan approval: no DB session with pending plan for {conversation_id[:8]}",
         )
         return
 
@@ -183,9 +179,7 @@ async def handle_recovered_plan_approval(
         except (ConnectionClosed, ConnectionClosedError):
             pass
         logger.info(
-            "Recovered plan approved for conversation %s (db=%s)",
-            conversation_id[:8],
-            db_session.id[:8],
+            f"Recovered plan approved for conversation {conversation_id[:8]} (db={db_session.id[:8]})",
         )
 
     elif decision == "request_changes":
@@ -203,7 +197,7 @@ async def handle_recovered_plan_approval(
             )
         except (ConnectionClosed, ConnectionClosedError):
             pass
-        logger.info("Recovered plan changes requested for conversation %s", conversation_id[:8])
+        logger.info(f"Recovered plan changes requested for conversation {conversation_id[:8]}")
 
 
 async def rebroadcast_pending_plans(mixin: SessionControlMixin, websocket: Any) -> None:
@@ -220,7 +214,7 @@ async def rebroadcast_pending_plans(mixin: SessionControlMixin, websocket: Any) 
     try:
         pending = await asyncio.to_thread(session_manager.find_pending_plans)
     except Exception as e:
-        logger.warning("Failed to query pending plans: %s", e)
+        logger.warning(f"Failed to query pending plans: {e}")
         return
 
     for db_session in pending:
@@ -230,7 +224,7 @@ async def rebroadcast_pending_plans(mixin: SessionControlMixin, websocket: Any) 
         try:
             content = await asyncio.to_thread(Path(plan_path).read_text, "utf-8")
         except Exception:
-            logger.warning("Pending plan file missing: %s, clearing", plan_path)
+            logger.warning(f"Pending plan file missing: {plan_path}, clearing")
             try:
                 await asyncio.to_thread(session_manager.update_pending_plan, db_session.id, None)
             except Exception:

@@ -881,5 +881,5 @@ def export_config_to_yaml(config: DaemonConfig, config_file: str | None = None) 
 
 def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
     """Deprecated: use export_config_to_yaml() instead."""
-    logger.warning("save_config() is deprecated — use export_config_to_yaml()")
+    logger.warning("save_config() is deprecated - use export_config_to_yaml()")
     export_config_to_yaml(config, config_file)

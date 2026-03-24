@@ -256,12 +256,10 @@ class ChatSession(ChatSessionPermissionsMixin):
                             )
                             self._transcript_path_captured = True
                             logger.debug(
-                                "Captured transcript_path for session %s: %s",
-                                self.db_session_id[:8],
-                                transcript_path,
+                                f"Captured transcript_path for session {self.db_session_id[:8]}: {transcript_path}",
                             )
                         except Exception as e:
-                            logger.warning("Failed to capture transcript_path: %s", e)
+                            logger.warning(f"Failed to capture transcript_path: {e}")
 
                 data = {"prompt": inp.get("prompt", ""), "source": "claude_sdk_web_chat"}
                 resp = await cb(data)
@@ -323,9 +321,7 @@ class ChatSession(ChatSessionPermissionsMixin):
             ) -> SyncHookJSONOutput:
                 # DEBUG: log raw SDK hook input keys to diagnose hook issues
                 logger.debug(
-                    "_pre_tool_hook raw inp keys=%s, tool_name=%r",
-                    list(inp.keys()) if isinstance(inp, dict) else type(inp).__name__,
-                    inp.get("tool_name") if isinstance(inp, dict) else "N/A",
+                    f"_pre_tool_hook raw inp keys={(list(inp.keys()) if isinstance(inp, dict) else type(inp).__name__)}, tool_name={(inp.get('tool_name') if isinstance(inp, dict) else 'N/A')!r}",
                 )
                 data = {
                     "tool_name": inp.get("tool_name", ""),
@@ -360,9 +356,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                         if plan_content and self._on_plan_ready:
                             await self._on_plan_ready(plan_content, tool_input)
                             logger.info(
-                                "Plan file %s, broadcast plan_pending_approval for %s",
-                                "read" if tool_name == "Read" else "written",
-                                self.conversation_id[:8],
+                                f"Plan file {('read' if tool_name == 'Read' else 'written')}, broadcast plan_pending_approval for {self.conversation_id[:8]}",
                             )
 
                 data = {
@@ -585,8 +579,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                         has_usage = isinstance(_raw_usage, dict)
                         if not has_usage:
                             logger.warning(
-                                "ResultMessage missing usage for session %s",
-                                self.conversation_id[:8],
+                                f"ResultMessage missing usage for session {self.conversation_id[:8]}",
                             )
                         usage: dict[str, Any] = (
                             cast(dict[str, Any], _raw_usage) if has_usage else {}
@@ -619,16 +612,7 @@ class ChatSession(ChatSessionPermissionsMixin):
                         )
 
                         logger.info(
-                            "DoneEvent: uncached=%d cache_read=%d cache_creation=%d "
-                            "total_input=%d output=%d context_window=%s "
-                            "per_call=%s",
-                            uncached_input,
-                            cache_read,
-                            cache_creation,
-                            total_input,
-                            output_tokens,
-                            context_window,
-                            _last_call_input is not None,
+                            f"DoneEvent: uncached={uncached_input} cache_read={cache_read} cache_creation={cache_creation} total_input={total_input} output={output_tokens} context_window={context_window} per_call={_last_call_input is not None}",
                         )
                         yield DoneEvent(
                             tool_calls_count=tool_calls_count,
@@ -645,7 +629,7 @@ class ChatSession(ChatSessionPermissionsMixin):
 
                     elif isinstance(message, AssistantMessage):
                         self._last_model = getattr(message, "model", None)
-                        logger.debug("AssistantMessage model=%s", self._last_model)
+                        logger.debug(f"AssistantMessage model={self._last_model}")
                         for block in message.content:
                             if isinstance(block, ThinkingBlock):
                                 yield ThinkingEvent(content=block.thinking)

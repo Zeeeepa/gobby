@@ -286,7 +286,7 @@ def create_affected_files_registry(ctx: "RegistryContext") -> InternalToolRegist
 
         if not commit_shas:
             logger.warning(
-                "No linked commits found for task %s in update_observed_files", resolved_id
+                f"No linked commits found for task {resolved_id} in update_observed_files"
             )
             if require_commits:
                 return {

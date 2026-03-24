@@ -472,8 +472,7 @@ class HTTPServer:
             inc_counter("shutdown_failed_total")
 
             logger.error(
-                "Shutdown processing failed: %s",
-                e,
+                f"Shutdown processing failed: {e}",
                 exc_info=True,
                 extra={"duration_seconds": duration_seconds},
             )

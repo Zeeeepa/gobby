@@ -211,7 +211,7 @@ def detect_task_claim(
             if task_obj and task_obj.seq_num:
                 ref = f"#{task_obj.seq_num}"
         except Exception as e:
-            logger.debug("Failed to resolve task ref for %s: %s", task_id, e)
+            logger.debug(f"Failed to resolve task ref for {task_id}: {e}")
     merge = add_claimed_task(variables, task_id, ref)
     variables.update(merge)
     variables["session_had_task"] = True
@@ -308,15 +308,13 @@ def detect_bash_commit(event: "HookEvent", variables: dict[str, Any], session_id
     if not output:
         if raw_output:
             logger.debug(
-                "Session %s: detect_bash_commit — unrecognized tool_output type %s",
-                session_id,
-                type(raw_output).__name__,
+                f"Session {session_id}: detect_bash_commit - unrecognized tool_output type {type(raw_output).__name__}",
             )
         return
 
     if _GIT_COMMIT_RE.search(output):
         variables["task_has_commits"] = True
-        logger.info("Session %s: task_has_commits=true (Bash git commit output)", session_id)
+        logger.info(f"Session {session_id}: task_has_commits=true (Bash git commit output)")
         return
 
     # Fallback: command is git commit and output doesn't indicate failure
@@ -325,7 +323,7 @@ def detect_bash_commit(event: "HookEvent", variables: dict[str, Any], session_id
     if command and _is_git_commit_command(command) and _looks_like_commit_success(output):
         variables["task_has_commits"] = True
         logger.info(
-            "Session %s: task_has_commits=true (Bash git commit command fallback)", session_id
+            f"Session {session_id}: task_has_commits=true (Bash git commit command fallback)"
         )
 
 

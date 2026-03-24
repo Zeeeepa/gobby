@@ -55,7 +55,7 @@ class WorkflowHookHandler:
 
     def _handle_cancelled(self, event: HookEvent) -> HookResponse:
         """Handle CancelledError by logging and returning appropriate response."""
-        logger.warning("Workflow evaluation cancelled for %s", event.event_type)
+        logger.warning(f"Workflow evaluation cancelled for {event.event_type}")
         if event.event_type == HookEventType.STOP:
             return HookResponse(
                 decision="block",
@@ -130,8 +130,7 @@ class WorkflowHookHandler:
                 except Exception as e:
                     if event.event_type == HookEventType.STOP:
                         logger.warning(
-                            "Failed to load session variables on STOP — blocking for safety: %s",
-                            e,
+                            f"Failed to load session variables on STOP - blocking for safety: {e}",
                         )
                         return HookResponse(
                             decision="block",

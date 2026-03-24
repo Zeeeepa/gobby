@@ -570,17 +570,13 @@ async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
     # correlate subagent sessions even without a full hook manager.
     async def _on_subagent_start(data: dict[str, Any]) -> dict[str, Any] | None:
         logger.info(
-            "SubagentStart in autonomous run %s: %s",
-            spawn_context.agent_run_id,
-            data.get("session_id", "unknown"),
+            f"SubagentStart in autonomous run {spawn_context.agent_run_id}: {data.get('session_id', 'unknown')}",
         )
         return None
 
     async def _on_subagent_stop(data: dict[str, Any]) -> dict[str, Any] | None:
         logger.info(
-            "SubagentStop in autonomous run %s: %s",
-            spawn_context.agent_run_id,
-            data.get("session_id", "unknown"),
+            f"SubagentStop in autonomous run {spawn_context.agent_run_id}: {data.get('session_id', 'unknown')}",
         )
         return None
 

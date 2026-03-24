@@ -136,7 +136,7 @@ def add_messaging_tools(
                             (content, now, row["id"]),
                         )
                 except Exception as e:
-                    logger.warning("Failed to write to agent_runs.result: %s", e)
+                    logger.warning(f"Failed to write to agent_runs.result: {e}")
 
             # Broadcast agent_message event
             if broadcast_fn:
@@ -148,12 +148,12 @@ def add_messaging_tools(
                         to_session=to_id,
                     )
                 except Exception as e:
-                    logger.warning("Failed to broadcast agent_message: %s", e)
+                    logger.warning(f"Failed to broadcast agent_message: {e}")
 
             return {"success": True, "message": msg.to_dict()}
 
         except Exception as e:
-            logger.error("send_message failed: %s", e)
+            logger.error(f"send_message failed: {e}")
             return {"success": False, "error": str(e)}
 
     # ── send_command ───────────────────────────────────────────────
@@ -219,12 +219,12 @@ def add_messaging_tools(
                         command_id=cmd.id,
                     )
                 except Exception as e:
-                    logger.warning("Failed to broadcast agent_command: %s", e)
+                    logger.warning(f"Failed to broadcast agent_command: {e}")
 
             return {"success": True, "command": cmd.to_dict()}
 
         except Exception as e:
-            logger.error("send_command failed: %s", e)
+            logger.error(f"send_command failed: {e}")
             return {"success": False, "error": str(e)}
 
     # ── complete_command ───────────────────────────────────────────
@@ -279,12 +279,12 @@ def add_messaging_tools(
                         command_id=command_id,
                     )
                 except Exception as e:
-                    logger.warning("Failed to broadcast agent_command: %s", e)
+                    logger.warning(f"Failed to broadcast agent_command: {e}")
 
             return {"success": True, "command_id": command_id, "status": "completed"}
 
         except Exception as e:
-            logger.error("complete_command failed: %s", e)
+            logger.error(f"complete_command failed: {e}")
             return {"success": False, "error": str(e)}
 
     # ── deliver_pending_messages ───────────────────────────────────
@@ -315,7 +315,7 @@ def add_messaging_tools(
             }
 
         except Exception as e:
-            logger.error("deliver_pending_messages failed: %s", e)
+            logger.error(f"deliver_pending_messages failed: {e}")
             return {"success": False, "error": str(e)}
 
     # ── get_inter_session_messages ────────────────────────────────
@@ -356,7 +356,7 @@ def add_messaging_tools(
             }
 
         except Exception as e:
-            logger.error("get_inter_session_messages failed: %s", e)
+            logger.error(f"get_inter_session_messages failed: {e}")
             return {"success": False, "error": str(e)}
 
     # ── shared activation helper ────────────────────────────────
@@ -424,7 +424,7 @@ def add_messaging_tools(
             }
 
         except Exception as e:
-            logger.error("activate_command failed: %s", e)
+            logger.error(f"activate_command failed: {e}")
             return {"success": False, "error": str(e)}
 
     # ── wait_for_command ──────────────────────────────────────────
@@ -461,7 +461,7 @@ def add_messaging_tools(
             - wait_time: How long we waited in seconds
         """
         if poll_interval <= 0:
-            logger.warning("Invalid poll_interval %d, using default of 5s", poll_interval)
+            logger.warning(f"Invalid poll_interval {poll_interval}, using default of 5s")
             poll_interval = 5
 
         start_time = time.monotonic()
@@ -509,5 +509,5 @@ def add_messaging_tools(
                     }
 
         except Exception as e:
-            logger.error("wait_for_command failed: %s", e)
+            logger.error(f"wait_for_command failed: {e}")
             return {"success": False, "error": str(e)}

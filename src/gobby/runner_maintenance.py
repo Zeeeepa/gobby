@@ -266,10 +266,7 @@ def write_shutdown_source(source: str, sender_pid: int | None = None) -> None:
         (get_gobby_home() / "shutdown_source.json").write_text(json.dumps(data))
     except Exception as e:
         logger.debug(
-            "Failed to write shutdown source=%s pid=%d: %s",
-            source,
-            sender_pid or os.getpid(),
-            e,
+            f"Failed to write shutdown source={source} pid={sender_pid or os.getpid()}: {e}",
             exc_info=True,
         )
 
@@ -299,15 +296,11 @@ def setup_signal_handlers(shutdown_callback: Callable[[], None]) -> None:
             import traceback
 
             logger.info(
-                "Received %s (signal %d), initiating graceful shutdown... (pid=%d, ppid=%d)",
-                sig.name,
-                sig.value,
-                os.getpid(),
-                os.getppid(),
+                f"Received {sig.name} (signal {sig.value}), initiating graceful shutdown... (pid={os.getpid()}, ppid={os.getppid()})",
             )
             # Log stack trace to help identify what triggered the signal
-            logger.debug("Stack at signal receipt:\n%s", "".join(traceback.format_stack()))
-            logger.info("Shutdown source: %s", read_shutdown_source())
+            logger.debug(f"Stack at signal receipt:\n{''.join(traceback.format_stack())}")
+            logger.info(f"Shutdown source: {read_shutdown_source()}")
             shutdown_callback()
 
         return handle_shutdown

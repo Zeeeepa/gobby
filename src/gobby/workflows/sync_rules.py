@@ -63,7 +63,7 @@ def sync_bundled_rules(
         "       OR json_extract(definition_json, '$.effects') IS NOT NULL)",
     ).rowcount
     if repaired:
-        logger.info("Repaired %d rows with incorrect workflow_type (should be 'rule')", repaired)
+        logger.info(f"Repaired {repaired} rows with incorrect workflow_type (should be 'rule')")
 
     result: dict[str, Any] = {
         "success": True,

@@ -64,7 +64,7 @@ class TmuxPaneMonitor:
         if self._task is not None:
             return
         self._task = asyncio.create_task(self._poll_loop(), name="tmux-pane-monitor")
-        logger.info("TmuxPaneMonitor started (interval=%.1fs)", self._poll_interval)
+        logger.info(f"TmuxPaneMonitor started (interval={self._poll_interval:.1f}s)")
 
     async def stop(self) -> None:
         """Cancel the background polling task."""
@@ -153,9 +153,7 @@ class TmuxPaneMonitor:
                 except ProcessLookupError:
                     pid_dead = True
                     logger.info(
-                        "Agent PID %d is dead but tmux session %s still alive (remain-on-exit)",
-                        agent.pid,
-                        session_name,
+                        f"Agent PID {agent.pid} is dead but tmux session {session_name} still alive (remain-on-exit)",
                     )
                 except PermissionError:
                     pass  # PID exists but we can't signal it — it's alive
@@ -167,17 +165,14 @@ class TmuxPaneMonitor:
                 continue
 
             logger.info(
-                "Detected dead tmux pane for agent session=%s (tmux=%s)",
-                child_sid,
-                agent.tmux_session_name,
+                f"Detected dead tmux pane for agent session={child_sid} (tmux={agent.tmux_session_name})",
             )
 
             # Look up the session to get external_id and source
             session = self._lookup_session(child_sid)
             if session is None:
                 logger.warning(
-                    "Cannot synthesize session_end: session %s not found in DB",
-                    child_sid,
+                    f"Cannot synthesize session_end: session {child_sid} not found in DB",
                 )
                 self._recently_ended[child_sid] = now
                 continue
@@ -197,17 +192,17 @@ class TmuxPaneMonitor:
             try:
                 self._callback(event)
             except Exception:
-                logger.exception("TmuxPaneMonitor: callback error for session %s", child_sid)
+                logger.exception(f"TmuxPaneMonitor: callback error for session {child_sid}")
 
             self._recently_ended[child_sid] = now
 
     def _lookup_session(self, session_id: str) -> Session | None:
         """Look up a session from the database."""
         if not self._session_storage:
-            logger.debug("No session storage configured, cannot look up %s", session_id)
+            logger.debug(f"No session storage configured, cannot look up {session_id}")
             return None
         try:
             return self._session_storage.get(session_id)
         except Exception:
-            logger.debug("Failed to look up session %s", session_id, exc_info=True)
+            logger.debug(f"Failed to look up session {session_id}", exc_info=True)
             return None

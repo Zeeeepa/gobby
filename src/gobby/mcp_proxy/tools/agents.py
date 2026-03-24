@@ -59,9 +59,9 @@ def _fire_synthetic_stop(
         # Evaluate workflow rules only (skip full handle() which does
         # daemon health checks, adapter routing, session resolution, etc.)
         hook_mgr._evaluate_workflow_rules(stop_event)
-        logger.debug("Fired synthetic stop rules for killed agent session %s", session_id)
+        logger.debug(f"Fired synthetic stop rules for killed agent session {session_id}")
     except Exception as e:
-        logger.warning("Failed to fire synthetic stop rules for session %s: %s", session_id, e)
+        logger.warning(f"Failed to fire synthetic stop rules for session {session_id}: {e}")
 
 
 def create_agents_registry(
@@ -345,7 +345,7 @@ def create_agents_registry(
                     await completion_registry.notify(run_id, notify_result)
                 except Exception:
                     logger.debug(
-                        "Failed to notify completion registry for run %s", run_id, exc_info=True
+                        f"Failed to notify completion registry for run {run_id}", exc_info=True
                     )
 
             # Clean up the tmux session (remain-on-exit keeps dead panes alive)

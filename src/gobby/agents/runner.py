@@ -450,8 +450,7 @@ class AgentRunner:
                                 )
                     except Exception:
                         logger.debug(
-                            "AFTER_TOOL hook eval failed for %s (fail-open)",
-                            tool_name,
+                            f"AFTER_TOOL hook eval failed for {tool_name} (fail-open)",
                             exc_info=True,
                         )
                     return result
@@ -579,8 +578,7 @@ class AgentRunner:
             await self._completion_registry.notify(run_id, result)
         except Exception:
             self.logger.warning(
-                "Failed to notify completion registry for run %s",
-                run_id,
+                f"Failed to notify completion registry for run {run_id}",
                 exc_info=True,
             )
 
