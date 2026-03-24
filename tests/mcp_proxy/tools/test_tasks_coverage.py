@@ -1580,7 +1580,9 @@ class TestDeleteTaskTool:
         """Test delete_task returns structured error when task has dependents."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        mock_task_manager.delete_task.side_effect = ValueError(
+        from gobby.storage.tasks._models import TaskHasDependentsError
+
+        mock_task_manager.delete_task.side_effect = TaskHasDependentsError(
             "Task abc has 2 dependent task(s): #1, #2. Use cascade or unlink."
         )
 
