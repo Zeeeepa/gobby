@@ -19,16 +19,14 @@ from opentelemetry.trace import Status, StatusCode
 
 from gobby.agents import runner_queries as _queries
 from gobby.agents.runner_models import AgentConfig, AgentRunContext
-from gobby.agents.runner_tracking import RunTracker
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolHandler, ToolResult
-from gobby.storage.agents import LocalAgentRunManager
+from gobby.storage.agents import AgentRun, LocalAgentRunManager
 from gobby.telemetry.tracing import create_span
 
 __all__ = ["AgentRunner"]
 
 if TYPE_CHECKING:
-    from gobby.agents.registry import RunningAgent
     from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.sessions import LocalSessionManager
@@ -100,9 +98,6 @@ class AgentRunner:
 
         # Workflow handler for hook evaluation on spawned agent tool calls
         self._workflow_handler: WorkflowHookHandler | None = None
-
-        # Thread-safe in-memory tracking of running agents
-        self._tracker = RunTracker()
 
     @property
     def workflow_handler(self) -> WorkflowHookHandler | None:
@@ -384,21 +379,6 @@ class AgentRunner:
                     f"(child_session={child_session.id}, provider={config.provider})"
                 )
 
-                # Track in memory for real-time status
-                # Note: parent_session_id is guaranteed non-None here because execute_run
-                # is only called after prepare_run validates it
-                self._tracker.track(
-                    run_id=agent_run.id,
-                    parent_session_id=config.parent_session_id,
-                    child_session_id=child_session.id,
-                    provider=config.provider,
-                    prompt=config.prompt,
-                    mode=config.mode,
-                    workflow_name=config.get_effective_workflow(),
-                    model=config.model,
-                    worktree_id=config.worktree_id,
-                )
-
                 # Set up tool handler with workflow filtering
                 async def default_tool_handler(
                     tool_name: str, arguments: dict[str, Any]
@@ -422,12 +402,6 @@ class AgentRunner:
                 async def tracking_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
                     nonlocal tool_calls_made
                     tool_calls_made += 1
-                    # Update in-memory state for real-time monitoring
-                    # Note: turns_used is tracked by the executor, not per tool call
-                    self._tracker.update(
-                        agent_run.id,
-                        tool_calls_count=tool_calls_made,
-                    )
                     return await handler(tool_name, arguments)
 
                 async def hook_aware_handler(
@@ -547,9 +521,6 @@ class AgentRunner:
                         f"for session {child_session.id}"
                     )
 
-                # Remove from in-memory tracking
-                self._tracker.untrack(agent_run.id)
-
                 # Notify completion registry
                 await self._notify_completion(
                     agent_run.id, result.status, result.output, result.error
@@ -576,9 +547,6 @@ class AgentRunner:
                     turns_used=0,
                 )
                 self._session_storage.update_status(child_session.id, "failed")
-                # Remove from in-memory tracking
-                self._tracker.untrack(agent_run.id)
-
                 # Notify completion registry
                 await self._notify_completion(agent_run.id, "error", None, str(e))
 
@@ -672,33 +640,27 @@ class AgentRunner:
         return _queries.complete_run(self, run_id, result=result)
 
     # -------------------------------------------------------------------------
-    # In-memory Running Agents Management (delegated to RunTracker)
+    # Running Agents Management (DB-driven)
     # -------------------------------------------------------------------------
 
-    def _track_running_agent(self, **kwargs: Any) -> RunningAgent:
-        """Add an agent to tracking. Delegates to RunTracker.track()."""
-        return self._tracker.track(**kwargs)
+    def get_running_agent(self, run_id: str) -> AgentRun | None:
+        """Get a running agent by ID from DB."""
+        run = self._run_storage.get(run_id)
+        if run and run.status in ("running", "pending"):
+            return run
+        return None
 
-    def _untrack_running_agent(self, run_id: str) -> RunningAgent | None:
-        """Remove an agent from tracking. Delegates to RunTracker.untrack()."""
-        return self._tracker.untrack(run_id)
-
-    def _update_running_agent(self, run_id: str, **kwargs: Any) -> RunningAgent | None:
-        """Update agent tracking state. Delegates to RunTracker.update()."""
-        return self._tracker.update(run_id, **kwargs)
-
-    def get_running_agent(self, run_id: str) -> RunningAgent | None:
-        """Get a running agent by ID. Delegates to RunTracker.get()."""
-        return self._tracker.get(run_id)
-
-    def get_running_agents(self, parent_session_id: str | None = None) -> list[RunningAgent]:
-        """Get all running agents. Delegates to RunTracker.get_all()."""
-        return self._tracker.get_all(parent_session_id)
+    def get_running_agents(self, parent_session_id: str | None = None) -> list[AgentRun]:
+        """Get all running agents from DB."""
+        if parent_session_id:
+            return self._run_storage.list_by_parent(parent_session_id)
+        return self._run_storage.list_active()
 
     def get_running_agents_count(self) -> int:
-        """Get count of running agents. Delegates to RunTracker.count()."""
-        return self._tracker.count()
+        """Get count of running agents."""
+        return len(self._run_storage.list_active())
 
     def is_agent_running(self, run_id: str) -> bool:
-        """Check if an agent is running. Delegates to RunTracker.is_running()."""
-        return self._tracker.is_running(run_id)
+        """Check if an agent is running."""
+        run = self._run_storage.get(run_id)
+        return run is not None and run.status in ("running", "pending")

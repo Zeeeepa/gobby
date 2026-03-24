@@ -17,11 +17,9 @@ import logging
 from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
-from gobby.agents.registry import (
-    RunningAgentRegistry,
-    get_running_agent_registry,
-)
+from gobby.agents.kill import kill_agent as _kill_agent_process
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.agents import LocalAgentRunManager
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -68,7 +66,6 @@ def _fire_synthetic_stop(
 
 def create_agents_registry(
     runner: AgentRunner,
-    running_registry: RunningAgentRegistry | None = None,
     session_manager: Any | None = None,
     # spawn_agent dependencies
     task_manager: Any | None = None,
@@ -81,13 +78,14 @@ def create_agents_registry(
     # For firing synthetic stop events on agent kill
     hook_manager_resolver: Any | None = None,
     completion_registry: Any | None = None,
+    # Legacy parameter — ignored, kept for caller compatibility during migration
+    running_registry: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
 
     Args:
         runner: AgentRunner instance for executing agents.
-        running_registry: Optional in-memory registry for running agents.
         session_manager: Optional LocalSessionManager for resolving session references.
         task_manager: Task manager for spawn_agent task resolution.
         worktree_storage: Worktree storage for spawn_agent isolation.
@@ -102,6 +100,8 @@ def create_agents_registry(
     """
     from gobby.utils.project_context import get_project_context
 
+    agent_run_manager = LocalAgentRunManager(db) if db else runner.run_storage
+
     def _resolve_session_id(ref: str) -> str:
         """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
         if session_manager is None:
@@ -114,9 +114,6 @@ def create_agents_registry(
         name="gobby-agents",
         description="Agent spawning - start, monitor, and manage subagents",
     )
-
-    # Use provided registry or global singleton
-    agent_registry = running_registry or get_running_agent_registry()
 
     @registry.tool(
         name="get_agent_result",
@@ -217,8 +214,6 @@ def create_agents_registry(
         """
         success = runner.cancel_run(run_id)
         if success:
-            # Also remove from running agents registry
-            agent_registry.remove(run_id)
             return {"success": True, "message": f"Agent run {run_id} stopped"}
         else:
             run = runner.get_run(run_id)
@@ -284,12 +279,11 @@ def create_agents_registry(
             except ValueError as e:
                 return {"success": False, "error": str(e)}
 
-            # Try registry first (fast path)
-            agent = agent_registry.get_by_session(resolved_session_id)
-            if agent:
-                run_id = agent.run_id
+            # Query DB for agent run with this child_session_id
+            db_agent = agent_run_manager.get_by_session(resolved_session_id)
+            if db_agent:
+                run_id = db_agent.id
             else:
-                # Fallback: query DB for agent run with this child_session_id
                 run_id = runner.get_run_id_by_session(resolved_session_id)
 
             if not run_id:
@@ -298,25 +292,20 @@ def create_agents_registry(
         if run_id is None:
             return {"success": False, "error": "Either run_id or session_id required"}
 
-        # Get agent info before killing (capture tmux_session_name for cleanup)
-        agent = agent_registry.get(run_id)
-        agent_session_id = agent.session_id if agent else resolved_session_id
-        tmux_session_name = agent.tmux_session_name if agent else None
+        # Get agent info from DB
+        db_run = runner.get_run(run_id)
+        if not db_run:
+            return {"success": False, "error": f"Agent run {run_id} not found"}
 
-        # Database fallback: if not in registry, look up from DB
-        if agent_session_id is None or tmux_session_name is None:
-            db_run = runner.get_run(run_id)
-            if db_run:
-                if agent_session_id is None and db_run.child_session_id:
-                    agent_session_id = db_run.child_session_id
-                if tmux_session_name is None and getattr(db_run, "tmux_session_name", None):
-                    tmux_session_name = db_run.tmux_session_name
+        agent_session_id = db_run.child_session_id or resolved_session_id
+        tmux_session_name = db_run.tmux_session_name
 
         # Default: full cleanup. debug=True preserves state/terminal for inspection.
         close_terminal = not debug
 
-        result = await agent_registry.kill(
-            run_id,
+        result = await _kill_agent_process(
+            db_run,
+            db,
             signal_name=signal,
             close_terminal=close_terminal,
         )
@@ -423,7 +412,7 @@ def create_agents_registry(
 
     @registry.tool(
         name="list_running_agents",
-        description="List all currently running agents (in-memory process state). Accepts #N, N, UUID, or prefix for session_id.",
+        description="List all currently running agents. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def list_running_agents(
         parent_session_id: str | None = None,
@@ -431,9 +420,6 @@ def create_agents_registry(
     ) -> dict[str, Any]:
         """
         List all currently running agents.
-
-        This returns in-memory process state for agents that are actively running,
-        including PIDs and process handles not stored in the database.
 
         Args:
             parent_session_id: Optional session reference (accepts #N, N, UUID, or prefix) to filter by parent.
@@ -443,33 +429,29 @@ def create_agents_registry(
             Dict with list of running agents.
         """
         if parent_session_id:
-            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
             try:
                 resolved_parent_id = _resolve_session_id(parent_session_id)
             except ValueError as e:
                 return {"success": False, "error": str(e)}
-            agents = agent_registry.list_by_parent(resolved_parent_id)
+            runs = agent_run_manager.list_by_parent(resolved_parent_id)
         elif mode:
-            agents = agent_registry.list_by_mode(mode)
+            runs = agent_run_manager.list_by_mode(mode)
         else:
-            agents = agent_registry.list_all()
+            runs = agent_run_manager.list_active()
 
         return {
             "success": True,
-            "agents": [agent.to_brief() for agent in agents],
-            "count": len(agents),
+            "agents": [run.to_brief() for run in runs],
+            "count": len(runs),
         }
 
     @registry.tool(
         name="get_running_agent",
-        description="Get in-memory process state for a running agent.",
+        description="Get process state for a running agent.",
     )
     async def get_running_agent(run_id: str) -> dict[str, Any]:
         """
-        Get the in-memory state for a running agent.
-
-        This returns process information like PID and PTY fd that aren't
-        stored in the database.
+        Get the state for a running agent.
 
         Args:
             run_id: The agent run ID.
@@ -477,19 +459,19 @@ def create_agents_registry(
         Returns:
             Dict with running agent details.
         """
-        agent = agent_registry.get(run_id)
-        if not agent:
+        run = agent_run_manager.get(run_id)
+        if not run or run.status not in ("running", "pending"):
             return {"success": False, "error": f"No running agent found with ID {run_id}"}
 
-        return {"success": True, "agent": agent.to_dict()}
+        return {"success": True, "agent": run.to_dict()}
 
     @registry.tool(
         name="unregister_agent",
-        description="Remove an agent from the in-memory running registry (internal use).",
+        description="Mark an agent run as cancelled (internal use).",
     )
     async def unregister_agent(run_id: str) -> dict[str, Any]:
         """
-        Remove an agent from the running registry.
+        Mark an agent run as cancelled.
 
         This is typically called automatically when a session ends,
         but can be called manually for cleanup.
@@ -500,11 +482,14 @@ def create_agents_registry(
         Returns:
             Dict with success status.
         """
-        removed = agent_registry.remove(run_id)
-        if removed:
+        run = agent_run_manager.get(run_id)
+        if run and run.status in ("running", "pending"):
+            agent_run_manager.fail(run_id, error="Unregistered")
             return {"success": True, "message": f"Unregistered agent {run_id}"}
+        elif run:
+            return {"success": True, "message": f"Agent {run_id} already in status {run.status}"}
         else:
-            return {"success": False, "error": f"No running agent found with ID {run_id}"}
+            return {"success": False, "error": f"No agent found with ID {run_id}"}
 
     @registry.tool(
         name="running_agent_stats",
@@ -517,17 +502,17 @@ def create_agents_registry(
         Returns:
             Dict with counts by mode and parent.
         """
-        all_agents = agent_registry.list_all()
+        all_runs = agent_run_manager.list_active()
         by_mode: dict[str, int] = {}
         by_parent: dict[str, int] = {}
 
-        for agent in all_agents:
-            by_mode[agent.mode] = by_mode.get(agent.mode, 0) + 1
-            by_parent[agent.parent_session_id] = by_parent.get(agent.parent_session_id, 0) + 1
+        for run in all_runs:
+            by_mode[run.mode] = by_mode.get(run.mode, 0) + 1
+            by_parent[run.parent_session_id] = by_parent.get(run.parent_session_id, 0) + 1
 
         return {
             "success": True,
-            "total": len(all_agents),
+            "total": len(all_runs),
             "by_mode": by_mode,
             "by_parent_count": len(by_parent),
         }

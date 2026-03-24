@@ -1,8 +1,8 @@
 """Background monitor for agent lifecycle.
 
-Detects when agent tmux sessions die without firing SESSION_END hooks
-and marks their DB records accordingly. This prevents ghost agents from
-appearing in the UI as 'active' indefinitely.
+Detects when agent processes die without firing SESSION_END hooks
+and marks their DB records accordingly. Fully DB-driven — survives
+daemon restarts without losing track of agents.
 
 Runs as a periodic background task alongside the session lifecycle manager.
 """
@@ -13,39 +13,45 @@ import asyncio
 import logging
 import os
 import signal
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any
 
 from gobby.agents.idle_detector import IdleDetector
+from gobby.agents.kill import kill_agent
 from gobby.agents.prompt_detector import PromptDetector
-from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.agents.stall_classifier import StallClassifier, StallStatus
 from gobby.agents.tmux.session_manager import TmuxSessionManager
 from gobby.config.tmux import TmuxConfig
-from gobby.storage.agents import LocalAgentRunManager
+from gobby.storage.agents import AgentRun, LocalAgentRunManager
 
 if TYPE_CHECKING:
     from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.database import DatabaseProtocol
+    from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
 
 
 class AgentLifecycleMonitor:
-    """Periodically checks if agent tmux sessions are still alive.
+    """Periodically checks if agent processes are still alive.
 
-    When a tmux session dies without firing SESSION_END hooks, this
-    monitor detects the orphan and:
-    - Marks the agent_runs DB record as 'error'
-    - Removes the agent from the in-memory registry
-    - Releases any associated worktrees
+    All checks are DB-driven via agent_runs table. Survives daemon
+    restarts — no in-memory registry dependency.
+
+    When an agent dies or times out, this monitor:
+    - Marks the agent_runs DB record as 'error'/'timeout'
+    - Expires the agent's session
+    - Recovers claimed tasks back to 'open'
+    - Releases any associated worktrees/clones
     """
 
     def __init__(
         self,
-        agent_registry: RunningAgentRegistry,
         agent_run_manager: LocalAgentRunManager,
+        db: DatabaseProtocol,
+        session_manager: LocalSessionManager | None = None,
         session_coordinator: SessionCoordinator | None = None,
         clone_storage: LocalCloneManager | None = None,
         check_interval_seconds: float = 30.0,
@@ -53,8 +59,9 @@ class AgentLifecycleMonitor:
         task_manager: LocalTaskManager | None = None,
         tmux_config: TmuxConfig | None = None,
     ) -> None:
-        self._registry = agent_registry
         self._agent_run_manager = agent_run_manager
+        self._db = db
+        self._session_manager = session_manager
         self._session_coordinator = session_coordinator
         self._clone_storage = clone_storage
         self._check_interval = check_interval_seconds
@@ -67,10 +74,21 @@ class AgentLifecycleMonitor:
         self._stall_classifier = StallClassifier()
         self._running = False
         self._task: asyncio.Task[None] | None = None
+        # In-memory tracking for inherently non-persistable state
+        self._async_tasks: dict[str, asyncio.Task[Any]] = {}
+        self._master_fds: dict[str, int] = {}
 
     def set_session_coordinator(self, coordinator: SessionCoordinator) -> None:
         """Inject session coordinator after construction (avoids circular init ordering)."""
         self._session_coordinator = coordinator
+
+    def register_async_task(self, run_id: str, task: asyncio.Task[Any]) -> None:
+        """Register an asyncio.Task for an autonomous/in-process agent."""
+        self._async_tasks[run_id] = task
+
+    def register_master_fd(self, run_id: str, fd: int) -> None:
+        """Register a PTY master file descriptor for an agent."""
+        self._master_fds[run_id] = fd
 
     async def _recover_task_from_failed_agent(self, run_id: str) -> None:
         """Reset a failed agent's task back to 'open' so the orchestrator can re-dispatch it.
@@ -87,13 +105,7 @@ class AgentLifecycleMonitor:
 
             task_id = db_run.task_id
 
-            # Fallback 1: check in-memory registry for task_id
-            if not task_id:
-                registry_agent = self._registry.get(run_id)
-                if registry_agent and registry_agent.task_id:
-                    task_id = registry_agent.task_id
-
-            # Fallback 2: find task by assignee matching the agent's session
+            # Fallback: find task by assignee matching the agent's session
             if not task_id and db_run.child_session_id:
                 tasks = await asyncio.to_thread(
                     self._task_manager.list_tasks,
@@ -164,8 +176,8 @@ class AgentLifecycleMonitor:
                 await self.check_idle_agents()
                 await self.check_provider_stalls()
 
-                # Periodic stale run cleanup — safety net for agents the
-                # liveness check misses (e.g. after daemon restart)
+                # DB-driven stale run cleanup every 10th iteration.
+                # Uses per-agent timeout_seconds and expires sessions.
                 if iteration > 0 and iteration % 10 == 0:
                     try:
                         cleaned = await asyncio.to_thread(
@@ -185,6 +197,11 @@ class AgentLifecycleMonitor:
             except asyncio.CancelledError:
                 break
 
+    def _get_active_terminal_runs(self) -> list[AgentRun]:
+        """Get active terminal agent runs with tmux sessions from DB."""
+        runs = self._agent_run_manager.list_active()
+        return [r for r in runs if r.mode == "terminal" and r.tmux_session_name]
+
     async def check_trust_prompts(self) -> int:
         """Check for folder trust prompts and auto-dismiss them.
 
@@ -194,30 +211,29 @@ class AgentLifecycleMonitor:
         Returns:
             Number of trust prompts dismissed.
         """
-        agents = self._registry.list_all()
-        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+        runs = await asyncio.to_thread(self._get_active_terminal_runs)
 
         handled = 0
-        for agent in tmux_agents:
-            if self._prompt_detector.was_dismissed(agent.run_id):
+        for run in runs:
+            if self._prompt_detector.was_dismissed(run.id):
                 continue
 
-            tmux_name = agent.tmux_session_name
-            assert tmux_name is not None  # guaranteed by filter above
+            tmux_name = run.tmux_session_name
+            assert tmux_name is not None  # guaranteed by filter
 
             try:
                 pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
                 if pane_output and self._prompt_detector.detect_trust_prompt(pane_output):
                     sent = await self._tmux.send_keys(tmux_name, PromptDetector.TRUST_DISMISS_KEYS)
                     if sent:
-                        self._prompt_detector.mark_dismissed(agent.run_id)
+                        self._prompt_detector.mark_dismissed(run.id)
                         logger.info(
                             "Auto-dismissed trust prompt for agent %s (trust parent folder)",
-                            agent.run_id,
+                            run.id,
                         )
                         handled += 1
             except Exception as e:
-                logger.warning("Error checking trust prompt for agent %s: %s", agent.run_id, e)
+                logger.warning("Error checking trust prompt for agent %s: %s", run.id, e)
 
         return handled
 
@@ -232,13 +248,12 @@ class AgentLifecycleMonitor:
         Returns:
             Number of loop prompts dismissed.
         """
-        agents = self._registry.list_all()
-        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+        runs = await asyncio.to_thread(self._get_active_terminal_runs)
 
         handled = 0
-        for agent in tmux_agents:
-            tmux_name = agent.tmux_session_name
-            assert tmux_name is not None  # guaranteed by filter above
+        for run in runs:
+            tmux_name = run.tmux_session_name
+            assert tmux_name is not None  # guaranteed by filter
 
             try:
                 pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
@@ -247,50 +262,52 @@ class AgentLifecycleMonitor:
                     if sent:
                         logger.info(
                             "Auto-dismissed loop detection prompt for agent %s",
-                            agent.run_id,
+                            run.id,
                         )
                         handled += 1
             except Exception as e:
-                logger.warning("Error checking loop prompt for agent %s: %s", agent.run_id, e)
+                logger.warning("Error checking loop prompt for agent %s: %s", run.id, e)
 
         return handled
 
     async def _cleanup_agent(
         self,
-        agent: RunningAgent,
+        run: AgentRun,
         error: str,
         is_success: bool = False,
     ) -> None:
         """Full cleanup chain for an agent that needs cleanup.
 
         Handles DB record, task recovery, completion notification,
-        registry removal, detector state, and isolation release.
+        in-memory state cleanup, detector state, isolation release,
+        and session expiration.
 
         Args:
-            agent: The agent to clean up.
+            run: The agent run DB record.
             error: Error message or completion reason.
             is_success: If True, mark as completed (not failed) and skip task recovery.
         """
+        session_id = run.child_session_id or run.parent_session_id
+
         # 1. Mark DB record
-        db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
-        if db_run and db_run.status in ("pending", "running"):
+        if run.status in ("pending", "running"):
             if is_success:
                 await asyncio.to_thread(
                     self._agent_run_manager.complete,
-                    agent.run_id,
+                    run.id,
                     result=error,  # "error" is really "reason" for success case
                 )
             else:
                 await asyncio.to_thread(
                     self._agent_run_manager.fail,
-                    agent.run_id,
+                    run.id,
                     error=error,
                 )
-                logger.info(f"Marked agent run {agent.run_id} as failed: {error}")
+                logger.info(f"Marked agent run {run.id} as failed: {error}")
 
         # 2. Recover task (only on failure)
         if not is_success:
-            await self._recover_task_from_failed_agent(agent.run_id)
+            await self._recover_task_from_failed_agent(run.id)
 
         # 3. Notify completion registry
         if self._completion_registry:
@@ -300,37 +317,46 @@ class AgentLifecycleMonitor:
                 else:
                     result_data = {"status": "error", "error": error}
                 await self._completion_registry.notify(
-                    agent.run_id,
+                    run.id,
                     result=result_data,
-                    message=f"Agent {agent.run_id} {'completed' if is_success else 'failed'}",
+                    message=f"Agent {run.id} {'completed' if is_success else 'failed'}",
                 )
             except Exception as e:
-                logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
+                logger.warning(f"Failed to notify completion for {run.id}: {e}")
 
-        # 4. Remove from registry
-        status = "completed" if is_success else "failed"
-        if self._registry.get(agent.run_id):
-            self._registry.remove(agent.run_id, status=status)
+        # 4. Clear in-memory state
+        self._async_tasks.pop(run.id, None)
+        self._master_fds.pop(run.id, None)
 
         # 5. Clear detector state
-        self._prompt_detector.clear(agent.run_id)
-        self._stall_classifier.clear(agent.run_id)
+        self._prompt_detector.clear(run.id)
+        self._stall_classifier.clear(run.id)
 
         # 6. Release isolation
-        if self._session_coordinator:
+        if self._session_coordinator and session_id:
             try:
-                self._session_coordinator.release_session_worktrees(agent.session_id)
+                self._session_coordinator.release_session_worktrees(session_id)
             except Exception as e:
-                logger.warning(f"Failed to release worktrees for agent {agent.run_id}: {e}")
+                logger.warning(f"Failed to release worktrees for agent {run.id}: {e}")
 
-        if self._clone_storage and agent.clone_id:
+        if self._clone_storage and run.clone_id:
             try:
-                await asyncio.to_thread(self._clone_storage.release, agent.clone_id)
+                await asyncio.to_thread(self._clone_storage.release, run.clone_id)
             except Exception as e:
-                logger.warning(f"Failed to release clone for agent {agent.run_id}: {e}")
+                logger.warning(f"Failed to release clone for agent {run.id}: {e}")
+
+        # 7. Expire the session
+        if self._session_manager and session_id:
+            try:
+                await asyncio.to_thread(self._session_manager.update_status, session_id, "expired")
+                logger.debug(f"Expired session {session_id} for agent {run.id}")
+            except Exception as e:
+                logger.warning(f"Failed to expire session for agent {run.id}: {e}")
 
     async def check_unhealthy_agents(self) -> int:
         """Detect and clean up dead or expired agents.
+
+        Fully DB-driven — queries agent_runs table directly.
 
         Handles three cases:
         1. Expired agents (any mode): exceeded timeout — killed and cleaned up
@@ -340,122 +366,115 @@ class AgentLifecycleMonitor:
         Returns:
             Number of agents cleaned up.
         """
-        import datetime
+        from datetime import UTC, datetime
 
-        agents = self._registry.list_all()
-        now = datetime.datetime.now(datetime.UTC)
+        runs = await asyncio.to_thread(self._agent_run_manager.list_active)
+        now = datetime.now(UTC)
         cleaned = 0
 
-        for agent in agents:
+        for run in runs:
             try:
                 # --- Detection ---
                 reason: str | None = None
                 is_success = False
 
                 # Check timeout first (applies to all agent types)
-                if agent.timeout_seconds:
-                    age = (now - agent.started_at).total_seconds()
-                    if age > agent.timeout_seconds:
-                        reason = f"Agent exceeded {agent.timeout_seconds}s timeout"
+                if run.timeout_seconds and run.started_at:
+                    started = datetime.fromisoformat(run.started_at)
+                    age = (now - started).total_seconds()
+                    if age > run.timeout_seconds:
+                        reason = f"Agent exceeded {run.timeout_seconds}s timeout"
                         logger.info(
-                            f"Agent {agent.run_id} exceeded timeout "
-                            f"({age:.1f}s > {agent.timeout_seconds}s)"
+                            f"Agent {run.id} exceeded timeout ({age:.1f}s > {run.timeout_seconds}s)"
                         )
 
                 # Terminal agents: check if tmux/process died
-                if reason is None and agent.mode == "terminal" and agent.tmux_session_name:
-                    tmux_alive = await self._tmux.has_session(agent.tmux_session_name)
+                if reason is None and run.mode == "terminal" and run.tmux_session_name:
+                    tmux_alive = await self._tmux.has_session(run.tmux_session_name)
                     if tmux_alive:
-                        # Tmux exists, but check if the process is still running
-                        if agent.pid:
+                        if run.pid:
                             try:
-                                os.kill(agent.pid, 0)
+                                os.kill(run.pid, 0)
                             except ProcessLookupError:
                                 reason = (
-                                    f"PID {agent.pid} dead but tmux "
-                                    f"'{agent.tmux_session_name}' alive"
+                                    f"PID {run.pid} dead but tmux '{run.tmux_session_name}' alive"
                                 )
-                                logger.info(f"Agent {agent.run_id} {reason} — cleaning up")
+                                logger.info(f"Agent {run.id} {reason} — cleaning up")
                             except PermissionError:
                                 pass  # Process exists but we can't signal it
-                        # else: No PID to check, trust tmux liveness
                     else:
                         reason = "tmux session died unexpectedly"
                         logger.info(
-                            f"Detected dead tmux session '{agent.tmux_session_name}' "
-                            f"for agent {agent.run_id}"
+                            f"Detected dead tmux session '{run.tmux_session_name}' "
+                            f"for agent {run.id}"
                         )
 
                 # Autonomous agents: check if asyncio.Task completed
+                async_task = self._async_tasks.get(run.id)
                 if (
                     reason is None
-                    and agent.task is not None
-                    and agent.mode in ("autonomous", "in_process")
+                    and async_task is not None
+                    and run.mode in ("autonomous", "in_process")
                 ):
-                    async_task = cast(asyncio.Task[object], agent.task)
                     if async_task.done():
                         try:
                             exc = async_task.exception()
                             if exc:
                                 reason = f"Autonomous agent failed: {exc}"
                                 logger.info(
-                                    f"Detected failed autonomous task "
-                                    f"for agent {agent.run_id}: {exc}"
+                                    f"Detected failed autonomous task for agent {run.id}: {exc}"
                                 )
                             else:
                                 reason = "Completed (detected by lifecycle monitor)"
                                 is_success = True
                                 logger.info(
-                                    f"Detected completed autonomous task for agent {agent.run_id}"
+                                    f"Detected completed autonomous task for agent {run.id}"
                                 )
                         except asyncio.CancelledError:
                             reason = "Autonomous agent was cancelled"
-                            logger.info(
-                                f"Detected cancelled autonomous task for agent {agent.run_id}"
-                            )
+                            logger.info(f"Detected cancelled autonomous task for agent {run.id}")
 
                 if reason is None:
                     continue
 
                 # --- Capture diagnostics before kill ---
                 pane_snapshot = ""
-                if agent.tmux_session_name and not is_success:
+                if run.tmux_session_name and not is_success:
                     try:
                         pane_snapshot = (
-                            await self._tmux.capture_pane(agent.tmux_session_name, lines=50) or ""
+                            await self._tmux.capture_pane(run.tmux_session_name, lines=50) or ""
                         )
                     except Exception as e:
-                        logger.debug(f"Failed to capture pane for agent {agent.run_id}: {e}")
+                        logger.debug(f"Failed to capture pane for agent {run.id}: {e}")
 
                 # --- Kill process ---
-                if agent.mode == "terminal" and agent.tmux_session_name:
-                    # Kill via registry — handles both alive and dead processes,
-                    # also cleans up tmux session
-                    await self._registry.kill(
-                        agent.run_id,
+                if run.mode == "terminal" and run.tmux_session_name:
+                    await kill_agent(
+                        run,
+                        self._db,
                         signal_name="TERM",
                         timeout=5.0,
                         close_terminal=True,
                     )
-                elif agent.pid:
+                elif run.pid:
                     try:
-                        os.kill(agent.pid, signal.SIGTERM)
+                        os.kill(run.pid, signal.SIGTERM)
                     except ProcessLookupError:
                         pass  # Already dead
                     except Exception as e:
-                        logger.warning(f"Failed to kill process {agent.pid}: {e}")
+                        logger.warning(f"Failed to kill process {run.pid}: {e}")
 
                 # --- Build error message with diagnostics ---
-                error = reason
+                error_msg = reason
                 if pane_snapshot:
-                    error += f"\n\n--- Last terminal output ---\n{pane_snapshot[-2000:]}"
+                    error_msg += f"\n\n--- Last terminal output ---\n{pane_snapshot[-2000:]}"
 
                 # --- Full cleanup chain ---
-                await self._cleanup_agent(agent, error=error, is_success=is_success)
+                await self._cleanup_agent(run, error=error_msg, is_success=is_success)
                 cleaned += 1
 
             except Exception as e:
-                logger.warning(f"Error checking agent {agent.run_id}: {e}")
+                logger.warning(f"Error checking agent {run.id}: {e}")
 
         if cleaned > 0:
             logger.info(f"Cleaned up {cleaned} unhealthy agent(s)")
@@ -471,67 +490,55 @@ class AgentLifecycleMonitor:
         if not self._tmux_config.idle_check_enabled:
             return 0
 
-        agents = self._registry.list_all()
-        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+        runs = await asyncio.to_thread(self._get_active_terminal_runs)
 
         handled = 0
-        for agent in tmux_agents:
+        for run in runs:
             try:
-                handled += await self._handle_idle_check(agent)
+                handled += await self._handle_idle_check(run)
             except Exception as e:
-                logger.warning(f"Error checking idle state for agent {agent.run_id}: {e}")
+                logger.warning(f"Error checking idle state for agent {run.id}: {e}")
 
         return handled
 
     async def check_provider_stalls(self) -> int:
         """Check tmux agents for provider-side stalls (rate limits, outages).
 
-        Updates the stall_status/stall_reason fields on RunningAgent entries
-        so the orchestrator can decide whether to rotate providers.
-
         Returns:
             Number of agents with confirmed provider stalls.
         """
-        agents = self._registry.list_all()
-        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
+        runs = await asyncio.to_thread(self._get_active_terminal_runs)
 
         stalled = 0
-        for agent in tmux_agents:
+        for run in runs:
             try:
-                tmux_name = agent.tmux_session_name
+                tmux_name = run.tmux_session_name
                 assert tmux_name is not None
 
                 pane_output = await self._tmux.capture_pane(tmux_name, lines=30)
                 classification = self._stall_classifier.classify(
-                    agent.run_id,
+                    run.id,
                     pane_output=pane_output,
                 )
-
-                import time
-
-                agent.stall_status = classification.status.value
-                agent.stall_reason = classification.reason
-                agent.last_stall_check_at = time.monotonic()
 
                 if classification.status == StallStatus.PROVIDER_STALL:
                     logger.warning(
                         "Provider stall detected for agent %s: %s (consecutive=%d)",
-                        agent.run_id,
+                        run.id,
                         classification.reason,
                         classification.consecutive_hits,
                     )
                     stalled += 1
             except Exception as e:
-                logger.warning("Error checking provider stall for agent %s: %s", agent.run_id, e)
+                logger.warning("Error checking provider stall for agent %s: %s", run.id, e)
 
         return stalled
 
-    async def _handle_idle_check(self, agent: RunningAgent) -> int:
+    async def _handle_idle_check(self, run: AgentRun) -> int:
         """Handle idle check for a single agent. Returns 1 if action taken, 0 otherwise."""
-        tmux_name = agent.tmux_session_name
+        tmux_name = run.tmux_session_name
         assert tmux_name is not None
 
-        # Capture last 15 lines from pane (need enough to see past status bar)
         pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
         if pane_output is None:
             return 0
@@ -539,87 +546,51 @@ class AgentLifecycleMonitor:
         status = self._idle_detector.detect(pane_output)
 
         if status == "active":
-            self._idle_detector.reset_idle(agent.run_id)
+            self._idle_detector.reset_idle(run.id)
             return 0
 
         if status == "context_full":
-            logger.info(f"Agent {agent.run_id} hit context window limit — failing")
-            await self._fail_idle_agent(agent, reason="context window exhausted")
+            logger.info(f"Agent {run.id} hit context window limit — failing")
+            await self._fail_idle_agent(run, reason="context window exhausted")
             return 1
 
         # status == "idle"
-        if self._idle_detector.should_fail(agent.run_id, self._tmux_config.max_reprompt_attempts):
+        if self._idle_detector.should_fail(run.id, self._tmux_config.max_reprompt_attempts):
             logger.info(
-                f"Agent {agent.run_id} still idle after "
+                f"Agent {run.id} still idle after "
                 f"{self._tmux_config.max_reprompt_attempts} reprompts — failing"
             )
-            await self._fail_idle_agent(agent, reason="idle after max reprompt attempts")
+            await self._fail_idle_agent(run, reason="idle after max reprompt attempts")
             return 1
 
         if self._idle_detector.should_reprompt(
-            agent.run_id,
+            run.id,
             self._tmux_config.idle_timeout_seconds,
             self._tmux_config.max_reprompt_attempts,
         ):
-            logger.info(f"Reprompting idle agent {agent.run_id}")
+            logger.info(f"Reprompting idle agent {run.id}")
             sent = await self._tmux.send_keys(tmux_name, IdleDetector.REPROMPT_MESSAGE + "\n")
             if sent:
-                self._idle_detector.record_reprompt(agent.run_id)
+                self._idle_detector.record_reprompt(run.id)
             return 1
 
         return 0
 
-    async def _fail_idle_agent(self, agent: RunningAgent, reason: str) -> None:
-        """Fail an agent that is irrecoverably idle."""
-        # Mark DB record as error
-        db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
-        if db_run and db_run.status in ("pending", "running"):
-            await asyncio.to_thread(
-                self._agent_run_manager.fail,
-                agent.run_id,
-                error=f"Agent idle: {reason}",
-            )
+    async def _fail_idle_agent(self, run: AgentRun, reason: str) -> None:
+        """Fail an agent that is irrecoverably idle.
 
-        # Recover task to open
-        await self._recover_task_from_failed_agent(agent.run_id)
+        Uses _cleanup_agent for the full chain, but kills tmux and clears
+        idle state first.
+        """
+        # Kill tmux session before cleanup
+        if run.tmux_session_name:
+            await self._tmux.kill_session(run.tmux_session_name)
 
-        # Fire completion event
-        if self._completion_registry:
-            try:
-                await self._completion_registry.notify(
-                    agent.run_id,
-                    result={"status": "error", "error": f"Agent idle: {reason}"},
-                    message=f"Agent {agent.run_id} failed ({reason})",
-                )
-            except Exception as e:
-                logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
+        # Clear idle-specific state
+        self._idle_detector.clear_state(run.id)
 
-        # Kill tmux session
-        tmux_name = agent.tmux_session_name
-        if tmux_name:
-            await self._tmux.kill_session(tmux_name)
-
-        # Clean up detector state
-        self._idle_detector.clear_state(agent.run_id)
-        self._prompt_detector.clear(agent.run_id)
-        self._stall_classifier.clear(agent.run_id)
-
-        # Remove from registry
-        self._registry.remove(agent.run_id, status="failed")
-
-        # Release worktrees
-        if self._session_coordinator:
-            try:
-                self._session_coordinator.release_session_worktrees(agent.session_id)
-            except Exception as e:
-                logger.warning(f"Failed to release worktrees for idle agent {agent.run_id}: {e}")
-
-        # Release clones
-        if self._clone_storage and agent.clone_id:
-            try:
-                await asyncio.to_thread(self._clone_storage.release, agent.clone_id)
-            except Exception as e:
-                logger.warning(f"Failed to release clone for idle agent {agent.run_id}: {e}")
+        # Full cleanup chain (handles DB, task recovery, completion, session expiry)
+        await self._cleanup_agent(run, error=f"Agent idle: {reason}", is_success=False)
 
     async def cleanup_stale_pending_runs(self) -> int:
         """Clean up agent runs stuck in pending status after daemon restart.
@@ -628,107 +599,3 @@ class AgentLifecycleMonitor:
             Number of stale pending runs cleaned up.
         """
         return await asyncio.to_thread(self._agent_run_manager.cleanup_stale_pending_runs)
-
-    async def recover_or_cleanup_agents(self) -> tuple[int, int]:
-        """Recover alive agents or clean up dead ones after daemon restart.
-
-        Checks agent_runs still in 'running' or 'pending' (with PID) status.
-        If the process and tmux session are still alive, re-registers the agent
-        in the in-memory registry. Otherwise, marks the run as failed and
-        recovers the task.
-
-        Returns:
-            Tuple of (recovered_count, cleaned_count).
-        """
-        running_runs = await asyncio.to_thread(self._agent_run_manager.list_running)
-        pending_runs = await asyncio.to_thread(self._agent_run_manager.list_pending_with_pid)
-
-        recovered = 0
-        cleaned = 0
-
-        for run in running_runs + pending_runs:
-            # Skip runs already tracked in registry (shouldn't happen on restart, but safe)
-            if self._registry.get(run.id):
-                continue
-
-            # Check 1: Is the process still alive?
-            pid_alive = False
-            if run.pid:
-                try:
-                    os.kill(run.pid, 0)
-                    pid_alive = True
-                except (ProcessLookupError, PermissionError):
-                    pass
-
-            # Check 2: Does the tmux session still exist?
-            tmux_alive = False
-            if run.tmux_session_name:
-                tmux_alive = await self._tmux.has_session(run.tmux_session_name)
-
-            if pid_alive and tmux_alive:
-                # Agent is alive — re-register in memory
-                self._registry.add(
-                    RunningAgent(
-                        run_id=run.id,
-                        session_id=run.child_session_id or run.parent_session_id,
-                        parent_session_id=run.parent_session_id,
-                        mode=run.mode or "terminal",
-                        pid=run.pid,
-                        tmux_session_name=run.tmux_session_name,
-                        provider=run.provider,
-                        worktree_id=run.worktree_id,
-                        clone_id=run.clone_id,
-                        task_id=run.task_id,
-                        timeout_seconds=run.timeout_seconds,
-                    )
-                )
-                logger.info(
-                    "Recovered agent %s (pid=%s, tmux=%s)",
-                    run.id,
-                    run.pid,
-                    run.tmux_session_name,
-                )
-                recovered += 1
-            elif pid_alive and not tmux_alive:
-                # Process alive but tmux dead — kill the orphan, mark failed
-                try:
-                    if run.pid:
-                        os.kill(run.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                await asyncio.to_thread(
-                    self._agent_run_manager.fail,
-                    run.id,
-                    error="tmux session lost after daemon restart",
-                )
-                await self._recover_task_from_failed_agent(run.id)
-                await self._fire_orphan_completion(run.id)
-                cleaned += 1
-            else:
-                # Both dead — mark failed
-                await asyncio.to_thread(
-                    self._agent_run_manager.fail,
-                    run.id,
-                    error="Orphaned after daemon restart",
-                )
-                await self._recover_task_from_failed_agent(run.id)
-                await self._fire_orphan_completion(run.id)
-                logger.info("Cleaned up orphaned agent run %s", run.id)
-                cleaned += 1
-
-        return recovered, cleaned
-
-    async def _fire_orphan_completion(self, run_id: str) -> None:
-        """Fire a completion event for an orphaned agent run."""
-        if not self._completion_registry:
-            return
-        try:
-            if not self._completion_registry.is_registered(run_id):
-                self._completion_registry.register(run_id, subscribers=[])
-            await self._completion_registry.notify(
-                run_id,
-                result={"status": "error", "error": "Orphaned (daemon restarted)"},
-                message=f"Agent {run_id} orphaned after daemon restart",
-            )
-        except Exception:
-            logger.exception("Failed to fire orphan completion for run %s", run_id)

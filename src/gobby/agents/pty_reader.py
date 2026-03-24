@@ -15,7 +15,12 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from gobby.agents.registry import RunningAgent
+    from typing import Protocol
+
+    class HasMasterFd(Protocol):
+        run_id: str
+        master_fd: int | None
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +52,12 @@ class PTYReaderManager:
         """Set the output callback for terminal data."""
         self._output_callback = callback
 
-    async def start_reader(self, agent: RunningAgent) -> bool:
+    async def start_reader(self, agent: HasMasterFd) -> bool:
         """
         Start a PTY reader for an agent.
 
         Args:
-            agent: RunningAgent with master_fd set
+            agent: Object with run_id and master_fd attributes
 
         Returns:
             True if reader was started, False if already running or no fd

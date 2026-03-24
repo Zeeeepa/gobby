@@ -572,14 +572,14 @@ class GobbyRunner:
         except Exception as e:
             logger.error(f"Failed to initialize AgentRunner: {e}")
 
-        # Agent Lifecycle Monitor (detect dead tmux sessions)
-        from gobby.agents.registry import get_running_agent_registry
+        # Agent Lifecycle Monitor (detect dead agent processes — fully DB-driven)
         from gobby.storage.agents import LocalAgentRunManager
 
         try:
             self.agent_lifecycle_monitor: AgentLifecycleMonitor | None = AgentLifecycleMonitor(
-                agent_registry=get_running_agent_registry(),
                 agent_run_manager=LocalAgentRunManager(self.database),
+                db=self.database,
+                session_manager=self.session_manager,
                 clone_storage=self.clone_storage,
                 completion_registry=self.completion_registry,
                 task_manager=self.task_manager,
@@ -621,7 +621,6 @@ class GobbyRunner:
 
             # Register pipeline heartbeat handler
             try:
-                from gobby.agents.registry import get_running_agent_registry
                 from gobby.storage.agents import LocalAgentRunManager
                 from gobby.workflows.pipeline_heartbeat import PipelineHeartbeat
 
@@ -630,7 +629,6 @@ class GobbyRunner:
 
                 heartbeat = PipelineHeartbeat(
                     execution_manager=self.pipeline_execution_manager,
-                    agent_registry=get_running_agent_registry(),
                     task_manager=self.task_manager,
                     agent_run_manager=LocalAgentRunManager(self.database),
                     session_manager=self.session_manager,
@@ -1025,17 +1023,12 @@ class GobbyRunner:
             except Exception as e:
                 logger.warning(f"tmux health check failed on startup: {e}")
 
-            # Recover or clean up agents from previous daemon session
+            # Start agent lifecycle monitor — DB-driven, so it automatically
+            # detects and cleans up orphaned agents from previous daemon sessions
+            # on the first check iteration.
             if self.agent_lifecycle_monitor:
-                recovered, cleaned = await self.agent_lifecycle_monitor.recover_or_cleanup_agents()
-                if recovered:
-                    logger.info(
-                        f"Recovered {recovered} running agent(s) from previous daemon session"
-                    )
-                if cleaned:
-                    logger.info(
-                        f"Cleaned up {cleaned} orphaned agent(s) from previous daemon session"
-                    )
+                # Clean up stale pending runs from before restart
+                await self.agent_lifecycle_monitor.cleanup_stale_pending_runs()
                 await self.agent_lifecycle_monitor.start()
 
             # Start Cron Scheduler

@@ -218,7 +218,7 @@ class TestContinueInChatTerminalKill:
 
     @pytest.mark.asyncio
     async def test_skips_terminal_kill_when_agent_found(self) -> None:
-        """When an agent is in the registry, should NOT try terminal kill."""
+        """When an agent run is in the DB, should use kill_agent instead of terminal kill."""
         from gobby.servers.websocket.session_control import SessionControlMixin
 
         ws = MagicMock()
@@ -241,12 +241,9 @@ class TestContinueInChatTerminalKill:
         host.agent_run_manager = None
         host._check_resume_blocked = AsyncMock(return_value=None)
 
-        running_agent = MagicMock()
-        running_agent.run_id = "agent-1"
-        running_agent.mode = "terminal"
-        mock_registry = MagicMock()
-        mock_registry.get_by_session.return_value = running_agent
-        mock_registry.kill = AsyncMock()
+        mock_run = MagicMock()
+        mock_run.id = "agent-1"
+        mock_run.mode = "terminal"
 
         async def fake_create_chat_session(conv_id, project_id=None, resume_session_id=None):
             return mock_chat_session
@@ -256,14 +253,18 @@ class TestContinueInChatTerminalKill:
 
         with (
             patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            ),
+                "gobby.storage.agents.LocalAgentRunManager",
+            ) as mock_arm_cls,
+            patch(
+                "gobby.agents.kill.kill_agent",
+                new_callable=AsyncMock,
+            ) as mock_kill_agent,
             patch(
                 "gobby.servers.websocket.session_control.kill_terminal_session",
                 new_callable=AsyncMock,
-            ) as mock_kill,
+            ) as mock_kill_terminal,
         ):
+            mock_arm_cls.return_value.get_by_session.return_value = mock_run
             await SessionControlMixin._handle_continue_in_chat(
                 host,
                 ws,
@@ -273,6 +274,6 @@ class TestContinueInChatTerminalKill:
                 },
             )
 
-        # Agent kill should have been used instead
-        mock_registry.kill.assert_called_once()
-        mock_kill.assert_not_called()
+        # DB-driven kill_agent should have been used instead of terminal kill
+        mock_kill_agent.assert_called_once()
+        mock_kill_terminal.assert_not_called()

@@ -330,7 +330,9 @@ class HandlerMixin:
         # Look up agent run from DB to get tmux_session_name
         from gobby.storage.agents import LocalAgentRunManager
 
-        db = getattr(self, "_db", None) or getattr(getattr(self, "session_manager", None), "db", None)
+        db = getattr(self, "_db", None) or getattr(
+            getattr(self, "session_manager", None), "db", None
+        )
         if not db:
             logger.warning(f"No database available to look up agent {run_id}")
             return
