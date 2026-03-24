@@ -78,7 +78,7 @@ class TestSyncBundledVariables:
         db = MagicMock()
 
         with patch(
-            "gobby.workflows.sync.get_bundled_variables_path",
+            "gobby.workflows.sync_variables.get_bundled_variables_path",
             return_value=Path("/nonexistent"),
         ):
             result = sync_bundled_variables(db)
@@ -103,8 +103,8 @@ class TestSyncBundledVariables:
         mgr.list_all.return_value = []
 
         with (
-            patch("gobby.workflows.sync.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
+            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
         ):
             db.fetchall.return_value = []
             result = sync_bundled_variables(db)
@@ -124,8 +124,8 @@ class TestSyncBundledVariables:
         mgr.list_all.return_value = []
 
         with (
-            patch("gobby.workflows.sync.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
+            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
         ):
             db.fetchall.return_value = []
             result = sync_bundled_variables(db)
@@ -142,8 +142,8 @@ class TestSyncBundledVariables:
         ]
 
         with (
-            patch("gobby.workflows.sync.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
+            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
         ):
             result = sync_bundled_variables(db)
 
@@ -157,14 +157,14 @@ class TestSyncBundledVariables:
 
 class TestResolveSyncPlaceholders:
     def test_replaces_gobby_bin_with_which(self) -> None:
-        with patch("gobby.workflows.sync.shutil.which", return_value="/usr/local/bin/gobby"):
+        with patch("gobby.workflows.sync_rules.shutil.which", return_value="/usr/local/bin/gobby"):
             result = _resolve_sync_placeholders('{"cmd": "{{ gobby_bin }} compress -- foo"}')
         assert result == '{"cmd": "/usr/local/bin/gobby compress -- foo"}'
 
     def test_falls_back_to_sys_executable(self) -> None:
         with (
-            patch("gobby.workflows.sync.shutil.which", return_value=None),
-            patch("gobby.workflows.sync.sys.executable", "/home/user/.venv/bin/python3"),
+            patch("gobby.workflows.sync_rules.shutil.which", return_value=None),
+            patch("gobby.workflows.sync_rules.sys.executable", "/home/user/.venv/bin/python3"),
         ):
             result = _resolve_sync_placeholders('{"cmd": "{{ gobby_bin }} compress"}')
         assert result == '{"cmd": "/home/user/.venv/bin/python3 -m gobby compress"}'
@@ -175,7 +175,7 @@ class TestResolveSyncPlaceholders:
         assert result == original
 
     def test_multiple_occurrences_replaced(self) -> None:
-        with patch("gobby.workflows.sync.shutil.which", return_value="/bin/gobby"):
+        with patch("gobby.workflows.sync_rules.shutil.which", return_value="/bin/gobby"):
             result = _resolve_sync_placeholders(
                 '{"a": "{{ gobby_bin }} x", "b": "{{ gobby_bin }} y"}'
             )

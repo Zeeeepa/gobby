@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
-from gobby.workflows.sync import _ensure_tag_on_installed, _propagate_to_installed
+from gobby.workflows.sync_rules import _ensure_tag_on_installed, _propagate_to_installed
 
 logger = logging.getLogger(__name__)
 
