@@ -81,7 +81,7 @@ def _pre_approve_claude(directory: str) -> None:
         project_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Pre-approved Claude workspace trust for {directory}")
     except OSError as e:
-        logger.warning(f"Failed to pre-approve Claude trust for {directory}: {e}")
+        logger.warning(f"Failed to pre-approve Claude trust for {directory}: {e}", exc_info=True)
 
 
 def _pre_approve_copilot(directory: str) -> None:
@@ -121,7 +121,7 @@ def _pre_approve_copilot(directory: str) -> None:
         config_file.write_text(json.dumps(data, indent=2) + "\n")
         logger.info(f"Pre-approved Copilot CLI trust for {directory}")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to pre-approve Copilot trust for {directory}: {e}")
+        logger.warning(f"Failed to pre-approve Copilot trust for {directory}: {e}", exc_info=True)
 
 
 def _pre_approve_gemini(directory: str) -> None:
@@ -160,7 +160,7 @@ def _pre_approve_gemini(directory: str) -> None:
             data["projects"] = projects
             projects_file.write_text(json.dumps(data, indent=2) + "\n")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to update Gemini projects.json for {directory}: {e}")
+        logger.warning(f"Failed to update Gemini projects.json for {directory}: {e}", exc_info=True)
 
     # 2. Pre-trust in trustedFolders.json (the actual trust gate)
     trust_file = gemini_home / "trustedFolders.json"
@@ -182,4 +182,6 @@ def _pre_approve_gemini(directory: str) -> None:
         trust_file.write_text(json.dumps(trusted, indent=2) + "\n")
         logger.info(f"Pre-approved Gemini folder trust for {directory}")
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to update Gemini trustedFolders.json for {directory}: {e}")
+        logger.warning(
+            f"Failed to update Gemini trustedFolders.json for {directory}: {e}", exc_info=True
+        )

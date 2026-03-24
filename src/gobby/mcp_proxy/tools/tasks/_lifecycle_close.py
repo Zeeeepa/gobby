@@ -122,6 +122,9 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
             except ValueError as e:
                 return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
+        # Single session manager instance for the duration of close_task
+        _session_manager = LocalSessionManager(ctx.task_manager.db)
+
         # Enforce skip_validation constraints:
         # - Cannot skip if a commit_sha is provided (you did real work, validate it)
         # - Cannot skip if the task was claimed by this session (you own it, validate it)
@@ -160,8 +163,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # Also skip for parent tasks with all children closed (no direct edits expected)
         if not is_parent_all_closed and resolved_session_id and not skip_validation:
             try:
-                session_manager = LocalSessionManager(ctx.task_manager.db)
-                session = session_manager.get(resolved_session_id)
+                session = _session_manager.get(resolved_session_id)
 
                 # Check if task has commits (including the one being linked right now)
                 has_commits = bool(task.commits) or bool(commit_sha)
@@ -313,8 +315,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # The commit accounts for this task's edits; subsequent tasks start clean
         if resolved_session_id and (bool(task.commits) or bool(commit_sha)):
             try:
-                session_manager = LocalSessionManager(ctx.task_manager.db)
-                session_manager.clear_had_edits(resolved_session_id)
+                _session_manager.clear_had_edits(resolved_session_id)
             except Exception as e:
                 logger.debug(f"Best-effort had_edits reset failed: {e}")
 

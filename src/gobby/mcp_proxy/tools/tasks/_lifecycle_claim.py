@@ -41,9 +41,7 @@ def register_claim_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # Resolve task reference (supports #N, path, UUID formats)
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
-        except TaskNotFoundError as e:
-            return {"error": str(e)}
-        except ValueError as e:
+        except (TaskNotFoundError, ValueError) as e:
             return {"error": str(e)}
 
         task = ctx.task_manager.get_task(resolved_id)
@@ -104,7 +102,7 @@ def register_claim_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         except Exception as e:
             logger.debug(f"Best-effort session variable setting failed: {e}")
 
-        return {}
+        return {"success": True, "task_id": resolved_id}
 
     registry.register(
         name="claim_task",

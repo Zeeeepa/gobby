@@ -74,7 +74,7 @@ class CommunicationsManager:
                     f"Communications: initialized channel {channel.name!r} ({channel.channel_type})",
                 )
             except Exception as e:
-                logger.error(f"Failed to initialize channel {channel.name!r}: {e}")
+                logger.error(f"Failed to initialize channel {channel.name!r}: {e}", exc_info=True)
         logger.info(f"CommunicationsManager started ({len(self._adapters)} channels active)")
 
     async def stop(self) -> None:
@@ -83,7 +83,7 @@ class CommunicationsManager:
             try:
                 await adapter.shutdown()
             except Exception as e:
-                logger.error(f"Error shutting down channel {name!r}: {e}")
+                logger.error(f"Error shutting down channel {name!r}: {e}", exc_info=True)
         self._adapters.clear()
         self._channel_by_name.clear()
         logger.info("CommunicationsManager stopped")
@@ -157,20 +157,20 @@ class CommunicationsManager:
         except Exception as e:
             message.status = "failed"
             message.error = str(e)
-            logger.error(f"Failed to send message to {channel_name!r}: {e}")
+            logger.error(f"Failed to send message to {channel_name!r}: {e}", exc_info=True)
 
         # Store in DB
         try:
             self._store.save_message(message)
         except Exception as e:
-            logger.error(f"Failed to store outbound message: {e}")
+            logger.error(f"Failed to store outbound message: {e}", exc_info=True)
 
         # Fire event callback
         if self.event_callback is not None:
             try:
                 await self.event_callback("comms.message_sent", message=message)
             except Exception as e:
-                logger.debug(f"Event callback error on send_message: {e}")
+                logger.debug(f"Event callback error on send_message: {e}", exc_info=True)
 
         return message
 
@@ -346,7 +346,7 @@ class CommunicationsManager:
             try:
                 await adapter.shutdown()
             except Exception as e:
-                logger.error(f"Error shutting down channel {name!r}: {e}")
+                logger.error(f"Error shutting down channel {name!r}: {e}", exc_info=True)
 
         if channel is not None:
             self._rate_limiter.remove_channel(channel.id)

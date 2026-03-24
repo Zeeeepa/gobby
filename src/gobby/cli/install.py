@@ -214,6 +214,9 @@ def install(
     # Build list of CLIs to install
     clis_to_install: list[str] = []
 
+    # Local copy of hooks_flag — mutated by auto-detection below
+    install_hooks = hooks_flag
+
     if all_flag:
         # Auto-detect installed CLIs
         if _is_claude_code_installed():
@@ -231,9 +234,9 @@ def install(
 
         # Check for git
         if (project_path / ".git").exists():
-            hooks_flag = True
+            install_hooks = True
 
-        if not clis_to_install and not hooks_flag:
+        if not clis_to_install and not install_hooks:
             click.echo("No supported AI coding CLIs detected.")
             click.echo("\nSupported CLIs:")
             click.echo("  - Claude Code: npm install -g @anthropic-ai/claude-code")
@@ -284,7 +287,7 @@ def install(
     run_daemon_setup(project_path)
 
     toggles = list(clis_to_install)
-    if hooks_flag:
+    if install_hooks:
         toggles.append("git-hooks")
 
     click.echo(f"Components to configure: {', '.join(toggles)}")
@@ -313,7 +316,7 @@ def install(
         _run_copilot_install(install_copilot, project_path, mode, results)
 
     # Git hooks
-    if hooks_flag:
+    if install_hooks:
         _run_git_hooks_install(install_git_hooks, project_path, results)
 
     # Antigravity
