@@ -70,6 +70,17 @@ class ChatSessionMixin:
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
     _pending_agents: dict[str, str]
+    _session_create_locks: dict[str, asyncio.Lock]
+
+    def _get_session_create_lock(self, conversation_id: str) -> asyncio.Lock:
+        """Get or create a per-conversation lock for session creation."""
+        if not hasattr(self, "_session_create_locks"):
+            self._session_create_locks = {}
+        lock = self._session_create_locks.get(conversation_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._session_create_locks[conversation_id] = lock
+        return lock
 
     if TYPE_CHECKING:
 
@@ -148,7 +159,29 @@ class ChatSessionMixin:
         project_id: str | None = None,
         resume_session_id: str | None = None,
     ) -> ChatSessionProtocol:
-        """Create and bootstrap a new ChatSession with lifecycle hooks wired."""
+        """Create and bootstrap a new ChatSession with lifecycle hooks wired.
+
+        Uses a per-conversation lock to prevent duplicate session creation
+        when concurrent handlers (chat_message + continue_in_chat) race.
+        """
+        lock = self._get_session_create_lock(conversation_id)
+        async with lock:
+            # Double-check: another coroutine may have created it while we waited
+            existing = self._chat_sessions.get(conversation_id)
+            if existing is not None:
+                return existing
+            return await self._create_chat_session_inner(
+                conversation_id, model, project_id, resume_session_id
+            )
+
+    async def _create_chat_session_inner(
+        self,
+        conversation_id: str,
+        model: str | None = None,
+        project_id: str | None = None,
+        resume_session_id: str | None = None,
+    ) -> ChatSessionProtocol:
+        """Inner implementation — must be called under _session_create_lock."""
         # Early agent resolution to determine provider (Codex vs Claude SDK)
         pending_agents = getattr(self, "_pending_agents", {})
         pending_agent = pending_agents.pop(conversation_id, None)

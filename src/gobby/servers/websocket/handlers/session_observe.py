@@ -148,17 +148,19 @@ async def handle_continue_in_chat(
                     )
                     sdk_resume_id = None
 
-    # Create chat session with optional SDK resume
-    try:
-        session = await mixin._create_chat_session(
-            conversation_id,
-            project_id=project_id,
-            resume_session_id=sdk_resume_id,
-        )
-    except Exception as e:
-        logger.error(f"Failed to create continuation session: {e}")
-        await mixin._send_error(websocket, f"Failed to create session: {e}")
-        return
+    # Create chat session with optional SDK resume (check dict first to avoid redundant creation)
+    session = mixin._chat_sessions.get(conversation_id)
+    if session is None:
+        try:
+            session = await mixin._create_chat_session(
+                conversation_id,
+                project_id=project_id,
+                resume_session_id=sdk_resume_id,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create continuation session: {e}")
+            await mixin._send_error(websocket, f"Failed to create session: {e}")
+            return
 
     # History injection via message_manager removed (session_messages table dropped)
 

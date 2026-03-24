@@ -87,6 +87,8 @@ async def handle_clear_chat(
     await mixin._cancel_active_chat(conversation_id)
     await session.stop()
     mixin._chat_sessions.pop(conversation_id, None)
+    if hasattr(mixin, "_session_create_locks"):
+        mixin._session_create_locks.pop(conversation_id, None)
 
     # Notify frontend
     await websocket.send(json.dumps({"type": "chat_cleared", "conversation_id": conversation_id}))
@@ -121,6 +123,8 @@ async def handle_delete_chat(
         await mixin._cancel_active_chat(conversation_id)
         await session.stop()
         mixin._chat_sessions.pop(conversation_id, None)
+        if hasattr(mixin, "_session_create_locks"):
+            mixin._session_create_locks.pop(conversation_id, None)
 
     # Soft-delete: mark as expired (preserves messages;
     # hard delete fails due to FK constraints from agent_runs, tasks, etc.)
@@ -155,6 +159,8 @@ async def cleanup_idle_sessions(mixin: SessionControlMixin) -> None:
                 await mixin._fire_session_end(conv_id)
                 await mixin._cancel_active_chat(conv_id)
                 session = mixin._chat_sessions.pop(conv_id, None)
+                if hasattr(mixin, "_session_create_locks"):
+                    mixin._session_create_locks.pop(conv_id, None)
                 if session is None:
                     continue
                 # Mark as paused in database and clear pending plan before stopping
