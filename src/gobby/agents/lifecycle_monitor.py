@@ -160,8 +160,7 @@ class AgentLifecycleMonitor:
                 logger.debug(f"Lifecycle check iteration {iteration}")
                 await self.check_trust_prompts()  # Fast unblock before other checks
                 await self.check_loop_prompts()  # Dismiss loop detection prompts
-                await self.check_dead_agents()
-                await self.check_expired_agents()
+                await self.check_unhealthy_agents()
                 await self.check_idle_agents()
                 await self.check_provider_stalls()
 
@@ -256,204 +255,90 @@ class AgentLifecycleMonitor:
 
         return handled
 
-    async def check_dead_agents(self) -> int:
-        """Check for dead agents (tmux and autonomous) and clean up.
+    async def _cleanup_agent(
+        self,
+        agent: RunningAgent,
+        error: str,
+        is_success: bool = False,
+    ) -> None:
+        """Full cleanup chain for an agent that needs cleanup.
 
-        Returns:
-            Number of dead agents cleaned up.
+        Handles DB record, task recovery, completion notification,
+        registry removal, detector state, and isolation release.
+
+        Args:
+            agent: The agent to clean up.
+            error: Error message or completion reason.
+            is_success: If True, mark as completed (not failed) and skip task recovery.
         """
-        agents = self._registry.list_all()
-
-        # Check terminal-mode agents that have a tmux session name
-        tmux_agents = [a for a in agents if a.mode == "terminal" and a.tmux_session_name]
-
-        cleaned = 0
-        for agent in tmux_agents:
-            try:
-                tmux_name = agent.tmux_session_name
-                assert tmux_name is not None  # guaranteed by filter above
-                alive = await self._tmux.has_session(tmux_name)
-                if alive:
-                    # Tmux session exists, but check if the agent process is still running
-                    if agent.pid:
-                        try:
-                            os.kill(agent.pid, 0)  # Signal 0 = check if process exists
-                        except ProcessLookupError:
-                            # Process is dead but tmux lingers — treat as dead agent
-                            logger.info(
-                                f"Agent {agent.run_id} PID {agent.pid} dead "
-                                f"but tmux '{tmux_name}' alive — cleaning up"
-                            )
-                        except PermissionError:
-                            continue  # Process exists but we can't signal it — it's alive
-                        else:
-                            continue  # Process is alive
-                    else:
-                        continue  # No PID to check, trust tmux liveness
-
-                logger.info(
-                    f"Detected dead tmux session '{agent.tmux_session_name}' "
-                    f"for agent {agent.run_id}"
+        # 1. Mark DB record
+        db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
+        if db_run and db_run.status in ("pending", "running"):
+            if is_success:
+                await asyncio.to_thread(
+                    self._agent_run_manager.complete,
+                    agent.run_id,
+                    result=error,  # "error" is really "reason" for success case
                 )
+            else:
+                await asyncio.to_thread(
+                    self._agent_run_manager.fail,
+                    agent.run_id,
+                    error=error,
+                )
+                logger.info(f"Marked agent run {agent.run_id} as failed: {error}")
 
-                # Kill orphaned process before cleanup
-                if agent.pid:
-                    try:
-                        os.kill(agent.pid, signal.SIGTERM)
-                        logger.info(
-                            f"Sent SIGTERM to orphaned agent process {agent.pid} "
-                            f"(run {agent.run_id})"
-                        )
-                    except ProcessLookupError:
-                        pass  # Already dead
-                    except Exception as e:
-                        logger.warning(f"Failed to kill orphaned process {agent.pid}: {e}")
+        # 2. Recover task (only on failure)
+        if not is_success:
+            await self._recover_task_from_failed_agent(agent.run_id)
 
-                # Mark DB record as error if still in active status
-                # These are sync DB calls — run off the event loop to avoid blocking
-                db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
-                if db_run and db_run.status in ("pending", "running"):
-                    await asyncio.to_thread(
-                        self._agent_run_manager.fail,
-                        agent.run_id,
-                        error="tmux session died unexpectedly",
-                    )
-                    logger.info(f"Marked agent run {agent.run_id} as failed (dead tmux session)")
-
-                # Recover the task so orchestrator can re-dispatch
-                await self._recover_task_from_failed_agent(agent.run_id)
-
-                # Fire completion event so orchestrator continuations trigger
-                if self._completion_registry:
-                    try:
-                        await self._completion_registry.notify(
-                            agent.run_id,
-                            result={"status": "error", "error": "tmux session died unexpectedly"},
-                            message=f"Agent {agent.run_id} failed (tmux session died)",
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
-
-                # Remove from in-memory registry
-                self._registry.remove(agent.run_id, status="failed")
-
-                # Clean up detector state
-                self._prompt_detector.clear(agent.run_id)
-                self._stall_classifier.clear(agent.run_id)
-
-                # Release worktrees
-                if self._session_coordinator:
-                    try:
-                        self._session_coordinator.release_session_worktrees(agent.session_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to release worktrees for agent {agent.run_id}: {e}")
-
-                # Release clones
-                if self._clone_storage and agent.clone_id:
-                    try:
-                        await asyncio.to_thread(self._clone_storage.release, agent.clone_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to release clone for agent {agent.run_id}: {e}")
-
-                cleaned += 1
-
-            except Exception as e:
-                logger.warning(f"Error checking agent {agent.run_id}: {e}")
-
-        if cleaned > 0:
-            logger.info(f"Cleaned up {cleaned} dead tmux agent(s)")
-
-        # Check autonomous/in_process agents with asyncio.Tasks
-        task_agents = [
-            a for a in agents if a.task is not None and a.mode in ("autonomous", "in_process")
-        ]
-        for agent in task_agents:
-            task = cast(asyncio.Task[object], agent.task)
-            if not task.done():
-                continue
-
+        # 3. Notify completion registry
+        if self._completion_registry:
             try:
-                exc = task.exception()
-                if exc:
-                    error_msg = f"Autonomous agent failed: {exc}"
-                    logger.info(f"Detected failed autonomous task for agent {agent.run_id}: {exc}")
+                if is_success:
+                    result_data: dict[str, str] = {"status": "completed"}
                 else:
-                    error_msg = None
-                    logger.info(f"Detected completed autonomous task for agent {agent.run_id}")
-            except asyncio.CancelledError:
-                error_msg = "Autonomous agent was cancelled"
-                logger.info(f"Detected cancelled autonomous task for agent {agent.run_id}")
-
-            try:
-                # Update DB record
-                db_run = await asyncio.to_thread(self._agent_run_manager.get, agent.run_id)
-                if db_run and db_run.status in ("pending", "running"):
-                    if error_msg:
-                        await asyncio.to_thread(
-                            self._agent_run_manager.fail,
-                            agent.run_id,
-                            error=error_msg,
-                        )
-                    else:
-                        await asyncio.to_thread(
-                            self._agent_run_manager.complete,
-                            agent.run_id,
-                            result="Completed (detected by lifecycle monitor)",
-                        )
-
-                # Recover the task if the agent failed
-                if error_msg:
-                    await self._recover_task_from_failed_agent(agent.run_id)
-
-                # Fire completion event so orchestrator continuations trigger
-                if self._completion_registry:
-                    try:
-                        result_data = (
-                            {"status": "error", "error": error_msg}
-                            if error_msg
-                            else {"status": "completed"}
-                        )
-                        await self._completion_registry.notify(
-                            agent.run_id,
-                            result=result_data,
-                            message=f"Agent {agent.run_id} {'failed' if error_msg else 'completed'}",
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
-
-                # Remove from in-memory registry
-                status = "failed" if error_msg else "completed"
-                self._registry.remove(agent.run_id, status=status)
-
-                # Release worktrees
-                if self._session_coordinator:
-                    try:
-                        self._session_coordinator.release_session_worktrees(agent.session_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to release worktrees for agent {agent.run_id}: {e}")
-
-                # Release clones
-                if self._clone_storage and agent.clone_id:
-                    try:
-                        await asyncio.to_thread(self._clone_storage.release, agent.clone_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to release clone for agent {agent.run_id}: {e}")
-
-                cleaned += 1
-
+                    result_data = {"status": "error", "error": error}
+                await self._completion_registry.notify(
+                    agent.run_id,
+                    result=result_data,
+                    message=f"Agent {agent.run_id} {'completed' if is_success else 'failed'}",
+                )
             except Exception as e:
-                logger.warning(f"Error cleaning up autonomous agent {agent.run_id}: {e}")
+                logger.warning(f"Failed to notify completion for {agent.run_id}: {e}")
 
-        if cleaned > 0:
-            logger.info(f"Cleaned up {cleaned} dead agent(s) total")
+        # 4. Remove from registry
+        status = "completed" if is_success else "failed"
+        if self._registry.get(agent.run_id):
+            self._registry.remove(agent.run_id, status=status)
 
-        return cleaned
+        # 5. Clear detector state
+        self._prompt_detector.clear(agent.run_id)
+        self._stall_classifier.clear(agent.run_id)
 
-    async def check_expired_agents(self) -> int:
-        """Check for agents that have exceeded their timeout and kill them.
+        # 6. Release isolation
+        if self._session_coordinator:
+            try:
+                self._session_coordinator.release_session_worktrees(agent.session_id)
+            except Exception as e:
+                logger.warning(f"Failed to release worktrees for agent {agent.run_id}: {e}")
+
+        if self._clone_storage and agent.clone_id:
+            try:
+                await asyncio.to_thread(self._clone_storage.release, agent.clone_id)
+            except Exception as e:
+                logger.warning(f"Failed to release clone for agent {agent.run_id}: {e}")
+
+    async def check_unhealthy_agents(self) -> int:
+        """Detect and clean up dead or expired agents.
+
+        Handles three cases:
+        1. Expired agents (any mode): exceeded timeout — killed and cleaned up
+        2. Dead terminal agents: tmux session or process died — cleaned up
+        3. Dead autonomous agents: asyncio.Task completed or failed — cleaned up
 
         Returns:
-            Number of expired agents cleaned up.
+            Number of agents cleaned up.
         """
         import datetime
 
@@ -462,76 +347,118 @@ class AgentLifecycleMonitor:
         cleaned = 0
 
         for agent in agents:
-            if not agent.timeout_seconds:
-                continue
-
-            age = (now - agent.started_at).total_seconds()
-            if age <= agent.timeout_seconds:
-                continue
-
             try:
-                logger.info(
-                    f"Agent {agent.run_id} exceeded timeout ({age:.1f}s > {agent.timeout_seconds}s). Killing..."
-                )
+                # --- Detection ---
+                reason: str | None = None
+                is_success = False
 
-                # Capture terminal output before kill for post-mortem diagnostics
+                # Check timeout first (applies to all agent types)
+                if agent.timeout_seconds:
+                    age = (now - agent.started_at).total_seconds()
+                    if age > agent.timeout_seconds:
+                        reason = f"Agent exceeded {agent.timeout_seconds}s timeout"
+                        logger.info(
+                            f"Agent {agent.run_id} exceeded timeout "
+                            f"({age:.1f}s > {agent.timeout_seconds}s)"
+                        )
+
+                # Terminal agents: check if tmux/process died
+                if reason is None and agent.mode == "terminal" and agent.tmux_session_name:
+                    tmux_alive = await self._tmux.has_session(agent.tmux_session_name)
+                    if tmux_alive:
+                        # Tmux exists, but check if the process is still running
+                        if agent.pid:
+                            try:
+                                os.kill(agent.pid, 0)
+                            except ProcessLookupError:
+                                reason = (
+                                    f"PID {agent.pid} dead but tmux "
+                                    f"'{agent.tmux_session_name}' alive"
+                                )
+                                logger.info(f"Agent {agent.run_id} {reason} — cleaning up")
+                            except PermissionError:
+                                pass  # Process exists but we can't signal it
+                        # else: No PID to check, trust tmux liveness
+                    else:
+                        reason = "tmux session died unexpectedly"
+                        logger.info(
+                            f"Detected dead tmux session '{agent.tmux_session_name}' "
+                            f"for agent {agent.run_id}"
+                        )
+
+                # Autonomous agents: check if asyncio.Task completed
+                if (
+                    reason is None
+                    and agent.task is not None
+                    and agent.mode in ("autonomous", "in_process")
+                ):
+                    async_task = cast(asyncio.Task[object], agent.task)
+                    if async_task.done():
+                        try:
+                            exc = async_task.exception()
+                            if exc:
+                                reason = f"Autonomous agent failed: {exc}"
+                                logger.info(
+                                    f"Detected failed autonomous task "
+                                    f"for agent {agent.run_id}: {exc}"
+                                )
+                            else:
+                                reason = "Completed (detected by lifecycle monitor)"
+                                is_success = True
+                                logger.info(
+                                    f"Detected completed autonomous task for agent {agent.run_id}"
+                                )
+                        except asyncio.CancelledError:
+                            reason = "Autonomous agent was cancelled"
+                            logger.info(
+                                f"Detected cancelled autonomous task for agent {agent.run_id}"
+                            )
+
+                if reason is None:
+                    continue
+
+                # --- Capture diagnostics before kill ---
                 pane_snapshot = ""
-                tmux_name = agent.tmux_session_name
-                if tmux_name:
+                if agent.tmux_session_name and not is_success:
                     try:
-                        pane_snapshot = await self._tmux.capture_pane(tmux_name, lines=50) or ""
-                    except Exception as e:
-                        logger.debug(
-                            f"Failed to capture pane for timed-out agent {agent.run_id}: {e}"
+                        pane_snapshot = (
+                            await self._tmux.capture_pane(agent.tmux_session_name, lines=50) or ""
                         )
+                    except Exception as e:
+                        logger.debug(f"Failed to capture pane for agent {agent.run_id}: {e}")
 
-                # Kill process via registry
-                await self._registry.kill(
-                    agent.run_id,
-                    signal_name="TERM",
-                    timeout=5.0,
-                    close_terminal=True,
-                )
+                # --- Kill process ---
+                if agent.mode == "terminal" and agent.tmux_session_name:
+                    # Kill via registry — handles both alive and dead processes,
+                    # also cleans up tmux session
+                    await self._registry.kill(
+                        agent.run_id,
+                        signal_name="TERM",
+                        timeout=5.0,
+                        close_terminal=True,
+                    )
+                elif agent.pid:
+                    try:
+                        os.kill(agent.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass  # Already dead
+                    except Exception as e:
+                        logger.warning(f"Failed to kill process {agent.pid}: {e}")
 
-                # Mark DB record as timeout, including last terminal output
-                error_msg = f"Agent exceeded {agent.timeout_seconds}s timeout"
+                # --- Build error message with diagnostics ---
+                error = reason
                 if pane_snapshot:
-                    error_msg += f"\n\n--- Last terminal output ---\n{pane_snapshot[-2000:]}"
-                await asyncio.to_thread(
-                    self._agent_run_manager.fail,
-                    agent.run_id,
-                    error=error_msg,
-                )
+                    error += f"\n\n--- Last terminal output ---\n{pane_snapshot[-2000:]}"
 
-                # Remove from in-memory registry if kill() didn't
-                if self._registry.get(agent.run_id):
-                    self._registry.remove(agent.run_id, status="timeout")
-
-                # Release worktrees
-                if self._session_coordinator:
-                    try:
-                        self._session_coordinator.release_session_worktrees(agent.session_id)
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to release worktrees for expired agent {agent.run_id}: {e}"
-                        )
-
-                # Release clones
-                if self._clone_storage and agent.clone_id:
-                    try:
-                        await asyncio.to_thread(self._clone_storage.release, agent.clone_id)
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to release clone for expired agent {agent.run_id}: {e}"
-                        )
-
+                # --- Full cleanup chain ---
+                await self._cleanup_agent(agent, error=error, is_success=is_success)
                 cleaned += 1
 
             except Exception as e:
-                logger.warning(f"Error checking expiration for agent {agent.run_id}: {e}")
+                logger.warning(f"Error checking agent {agent.run_id}: {e}")
 
         if cleaned > 0:
-            logger.info(f"Cleaned up {cleaned} expired agent(s)")
+            logger.info(f"Cleaned up {cleaned} unhealthy agent(s)")
 
         return cleaned
 

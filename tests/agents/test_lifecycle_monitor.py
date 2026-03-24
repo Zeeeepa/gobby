@@ -98,7 +98,7 @@ def _make_autonomous_agent(
 
 
 class TestCheckDeadAgents:
-    """Tests for check_dead_agents."""
+    """Tests for check_unhealthy_agents."""
 
     @pytest.mark.asyncio
     async def test_detects_dead_tmux_session(
@@ -119,7 +119,7 @@ class TestCheckDeadAgents:
         _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-dead")
 
         with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False):
-            cleaned = await monitor.check_dead_agents()
+            cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 1
         assert registry.get(run.id) is None
@@ -148,7 +148,7 @@ class TestCheckDeadAgents:
         _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-alive")
 
         with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=True):
-            cleaned = await monitor.check_dead_agents()
+            cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 0
         assert registry.get(run.id) is not None
@@ -163,7 +163,7 @@ class TestCheckDeadAgents:
         monitor: AgentLifecycleMonitor,
     ) -> None:
         """Returns 0 when no terminal agents are in the registry."""
-        cleaned = await monitor.check_dead_agents()
+        cleaned = await monitor.check_unhealthy_agents()
         assert cleaned == 0
 
     @pytest.mark.asyncio
@@ -182,7 +182,7 @@ class TestCheckDeadAgents:
         )
         registry.add(agent)
 
-        cleaned = await monitor.check_dead_agents()
+        cleaned = await monitor.check_unhealthy_agents()
         assert cleaned == 0
         assert registry.get("run-autonomous") is not None
 
@@ -206,7 +206,7 @@ class TestCheckDeadAgents:
         _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-done")
 
         with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False):
-            cleaned = await monitor.check_dead_agents()
+            cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 1
         assert registry.get(run.id) is None
@@ -230,7 +230,7 @@ class TestCheckDeadAgents:
             new_callable=AsyncMock,
             side_effect=OSError("tmux socket gone"),
         ):
-            cleaned = await monitor.check_dead_agents()
+            cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 0
         # Agent stays in registry since we couldn't determine its status
@@ -263,13 +263,13 @@ class TestCheckDeadAgents:
         )
 
         with patch.object(mon._tmux, "has_session", new_callable=AsyncMock, return_value=False):
-            await mon.check_dead_agents()
+            await mon.check_unhealthy_agents()
 
         mock_coordinator.release_session_worktrees.assert_called_once_with(agent.session_id)
 
 
 class TestCheckDeadAutonomousAgents:
-    """Tests for autonomous/in_process task-based agent detection in check_dead_agents."""
+    """Tests for autonomous/in_process task-based agent detection in check_unhealthy_agents."""
 
     @pytest.mark.asyncio
     async def test_detects_completed_autonomous_task(
@@ -297,7 +297,7 @@ class TestCheckDeadAutonomousAgents:
 
         _make_autonomous_agent(registry, run_id=run.id, task=done_task)
 
-        cleaned = await monitor.check_dead_agents()
+        cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 1
         assert registry.get(run.id) is None
@@ -335,7 +335,7 @@ class TestCheckDeadAutonomousAgents:
 
         _make_autonomous_agent(registry, run_id=run.id, task=failed_task)
 
-        cleaned = await monitor.check_dead_agents()
+        cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 1
         assert registry.get(run.id) is None
@@ -376,7 +376,7 @@ class TestCheckDeadAutonomousAgents:
 
         _make_autonomous_agent(registry, run_id=run.id, task=cancel_task)
 
-        cleaned = await monitor.check_dead_agents()
+        cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 1
         assert registry.get(run.id) is None
@@ -401,7 +401,7 @@ class TestCheckDeadAutonomousAgents:
         running_task: asyncio.Task[str] = asyncio.ensure_future(_long_running())
         _make_autonomous_agent(registry, run_id="run-still-going", task=running_task)
 
-        cleaned = await monitor.check_dead_agents()
+        cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 0
         assert registry.get("run-still-going") is not None
@@ -420,7 +420,7 @@ class TestCheckDeadAutonomousAgents:
         """Autonomous agents with no task field are skipped."""
         _make_autonomous_agent(registry, run_id="run-no-task", task=None)
 
-        cleaned = await monitor.check_dead_agents()
+        cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 0
         assert registry.get("run-no-task") is not None
@@ -458,7 +458,7 @@ class TestCheckDeadAutonomousAgents:
             registry, run_id=run.id, session_id="sess-auto-wt", task=done_task
         )
 
-        cleaned = await mon.check_dead_agents()
+        cleaned = await mon.check_unhealthy_agents()
 
         assert cleaned == 1
         mock_coordinator.release_session_worktrees.assert_called_once_with(agent.session_id)
@@ -507,7 +507,7 @@ class TestCheckDeadAutonomousAgents:
         )
         registry.add(agent)
 
-        cleaned = await mon.check_dead_agents()
+        cleaned = await mon.check_unhealthy_agents()
 
         assert cleaned == 1
         mock_clone_storage.release.assert_called_once_with("clone-123")
@@ -960,7 +960,7 @@ class TestCheckTrustPrompts:
         monitor._prompt_detector.mark_dismissed(run.id)
 
         with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False):
-            await monitor.check_dead_agents()
+            await monitor.check_unhealthy_agents()
 
         # State should be cleared after cleanup
         assert monitor._prompt_detector.was_dismissed(run.id) is False
@@ -972,7 +972,7 @@ class TestCheckTrustPrompts:
 
 
 class TestCheckExpiredAgents:
-    """Tests for check_expired_agents."""
+    """Tests for check_unhealthy_agents."""
 
     @pytest.mark.asyncio
     async def test_no_agents_returns_zero(
@@ -980,7 +980,7 @@ class TestCheckExpiredAgents:
         monitor: AgentLifecycleMonitor,
     ) -> None:
         """Returns 0 when no agents in registry."""
-        cleaned = await monitor.check_expired_agents()
+        cleaned = await monitor.check_unhealthy_agents()
         assert cleaned == 0
 
     @pytest.mark.asyncio
@@ -989,7 +989,7 @@ class TestCheckExpiredAgents:
         monitor: AgentLifecycleMonitor,
         registry: RunningAgentRegistry,
     ) -> None:
-        """Agents without timeout set are not killed."""
+        """Agents without timeout set are not killed by timeout check."""
         agent = RunningAgent(
             run_id="run-no-timeout",
             session_id="sess-1",
@@ -999,7 +999,8 @@ class TestCheckExpiredAgents:
             timeout_seconds=None,
         )
         registry.add(agent)
-        cleaned = await monitor.check_expired_agents()
+        with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=True):
+            cleaned = await monitor.check_unhealthy_agents()
         assert cleaned == 0
 
     @pytest.mark.asyncio
@@ -1019,7 +1020,8 @@ class TestCheckExpiredAgents:
             timeout_seconds=3600,
         )
         registry.add(agent)
-        cleaned = await monitor.check_expired_agents()
+        with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=True):
+            cleaned = await monitor.check_unhealthy_agents()
         assert cleaned == 0
 
     @pytest.mark.asyncio
@@ -1052,10 +1054,8 @@ class TestCheckExpiredAgents:
         )
         registry.add(agent)
 
-        with patch.object(
-            registry, "kill", new_callable=AsyncMock, return_value={"killed": True}
-        ):
-            cleaned = await monitor.check_expired_agents()
+        with patch.object(registry, "kill", new_callable=AsyncMock, return_value={"killed": True}):
+            cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 1
         updated = agent_run_manager.get(run.id)
@@ -1099,10 +1099,8 @@ class TestCheckExpiredAgents:
         )
         registry.add(agent)
 
-        with patch.object(
-            registry, "kill", new_callable=AsyncMock, return_value={"killed": True}
-        ):
-            await mon.check_expired_agents()
+        with patch.object(registry, "kill", new_callable=AsyncMock, return_value={"killed": True}):
+            await mon.check_unhealthy_agents()
 
         mock_coordinator.release_session_worktrees.assert_called_once_with(agent.session_id)
 
@@ -1144,10 +1142,8 @@ class TestCheckExpiredAgents:
         )
         registry.add(agent)
 
-        with patch.object(
-            registry, "kill", new_callable=AsyncMock, return_value={"killed": True}
-        ):
-            await mon.check_expired_agents()
+        with patch.object(registry, "kill", new_callable=AsyncMock, return_value={"killed": True}):
+            await mon.check_unhealthy_agents()
 
         mock_clone_storage.release.assert_called_once_with("clone-456")
 
@@ -1456,7 +1452,7 @@ class TestFireOrphanCompletion:
 
 
 class TestDeadAgentCompletionEvent:
-    """Tests for completion event firing in check_dead_agents."""
+    """Tests for completion event firing in check_unhealthy_agents."""
 
     @pytest.mark.asyncio
     async def test_fires_completion_on_dead_tmux_agent(
@@ -1484,7 +1480,7 @@ class TestDeadAgentCompletionEvent:
         _make_terminal_agent(registry, run_id=run.id, tmux_session_name="gobby-dead-cr")
 
         with patch.object(mon._tmux, "has_session", new_callable=AsyncMock, return_value=False):
-            await mon.check_dead_agents()
+            await mon.check_unhealthy_agents()
 
         mock_cr.notify.assert_called_once()
 
@@ -1524,13 +1520,13 @@ class TestDeadAgentCompletionEvent:
         registry.add(agent)
 
         with patch.object(mon._tmux, "has_session", new_callable=AsyncMock, return_value=False):
-            await mon.check_dead_agents()
+            await mon.check_unhealthy_agents()
 
         mock_clone_storage.release.assert_called_once_with("clone-789")
 
 
 class TestDeadAgentKillsOrphanedProcess:
-    """Tests for killing orphaned processes in check_dead_agents."""
+    """Tests for killing orphaned processes in check_unhealthy_agents."""
 
     @pytest.mark.asyncio
     async def test_kills_orphaned_process(
@@ -1560,10 +1556,8 @@ class TestDeadAgentKillsOrphanedProcess:
         )
         registry.add(agent)
 
-        with patch.object(
-            monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False
-        ):
-            cleaned = await monitor.check_dead_agents()
+        with patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False):
+            cleaned = await monitor.check_unhealthy_agents()
 
         assert cleaned == 1
 
@@ -1598,9 +1592,7 @@ class TestRecoverOrCleanupPidAliveNoTmux:
 
         # PID alive (current process), tmux dead
         with (
-            patch.object(
-                monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False
-            ),
+            patch.object(monitor._tmux, "has_session", new_callable=AsyncMock, return_value=False),
             patch("os.kill") as mock_kill,
         ):
             recovered, cleaned = await monitor.recover_or_cleanup_agents()
