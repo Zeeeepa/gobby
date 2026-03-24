@@ -273,10 +273,12 @@ class CodeGraph:
             file_records = await self._client.execute_read(
                 """MATCH (f:CodeFile {project: $project})
                    OPTIONAL MATCH (f)-[:DEFINES]->(s:CodeSymbol)
-                   WITH f, count(s) AS sym_count
+                   WITH f, count(DISTINCT s) AS sym_count
+                   OPTIONAL MATCH (f)-[:IMPORTS]->(m)
+                   WITH f, sym_count, count(m) AS imp_count
                    RETURN f.path AS id, f.path AS name, 'file' AS type,
                           f.path AS file_path, sym_count AS symbol_count
-                   ORDER BY f.path
+                   ORDER BY imp_count DESC, sym_count DESC, f.path
                    LIMIT $limit""",
                 {"project": project_id, "limit": limit},
             )
