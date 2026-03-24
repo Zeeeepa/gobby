@@ -353,13 +353,13 @@ class CodeGraph:
             if sym_ids:
                 call_records = await self._client.execute_read(
                     """MATCH (s:CodeSymbol {project: $project})-[r:CALLS]->(t:CodeSymbol {project: $project})
-                       WHERE s.id IN $sym_ids OR t.id IN $sym_ids
+                       WHERE s.id IN $sym_ids AND t.id IN $sym_ids
                        RETURN s.id AS source, t.id AS target, 'CALLS' AS type
                        LIMIT $link_limit""",
                     {
                         "project": project_id,
                         "sym_ids": sym_ids,
-                        "link_limit": limit * 3,
+                        "link_limit": limit * 5,
                     },
                 )
                 for r in call_records:

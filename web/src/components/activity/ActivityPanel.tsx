@@ -137,18 +137,20 @@ export function ActivityPanel({
     return (
       <div className="activity-panel-mobile-overlay">
         <div className="activity-panel">
-          {/* Dropdown selector with close button */}
+          {/* Icon tab strip (same as desktop) with close button */}
           <div className="activity-panel-tabs">
-            <select
-              className="activity-panel-mobile-select"
-              value={activeTab}
-              onChange={(e) => onTabChange(e.target.value as ActivityTab)}
-              aria-label="Select activity tab"
-            >
+            <div className="activity-panel-tab-strip">
               {TABS.map((tab) => (
-                <option key={tab.id} value={tab.id}>{tab.label}</option>
+                <button
+                  key={tab.id}
+                  className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
+                  onClick={() => onTabChange(tab.id)}
+                  title={tab.label}
+                >
+                  <span className="activity-panel-tab-icon">{tab.icon}</span>
+                </button>
               ))}
-            </select>
+            </div>
             <button
               className="activity-panel-close"
               onClick={handleClose}
