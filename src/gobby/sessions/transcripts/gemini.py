@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -40,27 +41,30 @@ def _normalize_content(content: Any) -> str:
     return str(content or "")
 
 
-def _extract_thoughts_text(thoughts: list[dict[str, Any]]) -> str:
-    """Extract readable text from Gemini's thoughts array.
+@dataclass
+class _ThoughtParts:
+    """Separated subject (visible text) and description (thinking) from a thoughts array."""
 
-    Gemini stores assistant reasoning as:
-      [{"subject": "...", "description": "...", "timestamp": "..."}, ...]
-    We render these as thinking blocks.
+    subject: str
+    description: str
+
+
+def _extract_thought_parts(thoughts: list[dict[str, Any]]) -> list[_ThoughtParts]:
+    """Split Gemini thoughts into visible subject lines and thinking descriptions.
+
+    Each thought becomes up to two ParsedMessages:
+      - subject → visible text block (the agent's status/activity summary)
+      - description → collapsed thinking block (the reasoning detail)
     """
-    parts: list[str] = []
+    result: list[_ThoughtParts] = []
     for thought in thoughts:
         subject = thought.get("subject", "").strip()
         desc = thought.get("description", "").strip()
         if desc:
-            # Strip leading whitespace artifacts Gemini sometimes adds
             desc = desc.lstrip("\\n").lstrip("\n").strip()
-        if subject and desc:
-            parts.append(f"**{subject}** {desc}")
-        elif desc:
-            parts.append(desc)
-        elif subject:
-            parts.append(f"**{subject}**")
-    return "\n\n".join(parts)
+        if subject or desc:
+            result.append(_ThoughtParts(subject=subject, description=desc))
+    return result
 
 
 class GeminiTranscriptParser(BaseTranscriptParser):
@@ -408,26 +412,42 @@ class GeminiTranscriptParser(BaseTranscriptParser):
             results: list[ParsedMessage] = []
             idx = start_index
 
-            # Thoughts → thinking blocks (Gemini's reasoning)
+            # Thoughts → subject as visible text, description as thinking
             thoughts = msg.get("thoughts")
             if isinstance(thoughts, list) and thoughts:
-                thinking_text = _extract_thoughts_text(thoughts)
-                if thinking_text:
-                    results.append(
-                        ParsedMessage(
-                            index=idx,
-                            role="assistant",
-                            content=thinking_text,
-                            content_type="thinking",
-                            tool_name=None,
-                            tool_input=None,
-                            tool_result=None,
-                            timestamp=timestamp,
-                            raw_json=msg,
-                            usage=self._extract_usage(msg),
+                for tp in _extract_thought_parts(thoughts):
+                    if tp.subject:
+                        results.append(
+                            ParsedMessage(
+                                index=idx,
+                                role="assistant",
+                                content=tp.subject,
+                                content_type="text",
+                                tool_name=None,
+                                tool_input=None,
+                                tool_result=None,
+                                timestamp=timestamp,
+                                raw_json=msg,
+                                usage=self._extract_usage(msg),
+                            )
                         )
-                    )
-                    idx += 1
+                        idx += 1
+                    if tp.description:
+                        results.append(
+                            ParsedMessage(
+                                index=idx,
+                                role="assistant",
+                                content=tp.description,
+                                content_type="thinking",
+                                tool_name=None,
+                                tool_input=None,
+                                tool_result=None,
+                                timestamp=timestamp,
+                                raw_json=msg,
+                                usage=self._extract_usage(msg),
+                            )
+                        )
+                        idx += 1
 
             # Main text response (usually empty when tool calls are present)
             normalized_content = _normalize_content(content)
