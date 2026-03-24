@@ -143,7 +143,7 @@ class TestFindGeminiTranscript:
         cwd = str(tmp_path / "project")
 
         # We need to mock this since we can't create in $HOME
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_home = MagicMock()
             MockPath.home.return_value = mock_home
 
@@ -165,7 +165,7 @@ class TestFindGeminiTranscript:
         """When prefix doesn't match, falls back to most recent."""
         handler = _TestHandler()
 
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_home = MagicMock()
             MockPath.home.return_value = mock_home
 
@@ -207,7 +207,7 @@ class TestFindCursorTranscript:
         session_id = "test-session-123"
         std_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
 
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_path = MagicMock()
             mock_path.exists.return_value = True
             MockPath.return_value = mock_path
@@ -218,7 +218,7 @@ class TestFindCursorTranscript:
     def test_standard_location_not_exists(self) -> None:
         handler = _TestHandler()
 
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_path = MagicMock()
             mock_path.exists.return_value = False
             MockPath.return_value = mock_path
@@ -534,7 +534,7 @@ class TestSessionMoreCoverage:
             ),
             patch("gobby.workflows.state_manager.SessionVariableManager.merge_variables"),
             patch(
-                "gobby.hooks.event_handlers._session.select_and_format_agent_skills",
+                "gobby.hooks.event_handlers._session_start.select_and_format_agent_skills",
                 return_value=("formatted", 1, ["skill1"]),
             ),
         ):

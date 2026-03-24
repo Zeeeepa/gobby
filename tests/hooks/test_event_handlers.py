@@ -2002,7 +2002,7 @@ class TestTranscriptPathDerivation:
         session_file = chats_dir / "session-2024-01-01T10-00-abcd1234.json"
         session_file.touch()
 
-        import gobby.hooks.event_handlers._session as session_mod
+        import gobby.hooks.event_handlers._session_start as session_mod
 
         monkeypatch.setattr(session_mod.Path, "home", staticmethod(lambda: tmp_path))
 
@@ -2027,7 +2027,7 @@ class TestTranscriptPathDerivation:
         session_file = chats_dir / "session-2024-01-01T10-00-xxxxxxxx.json"
         session_file.touch()
 
-        import gobby.hooks.event_handlers._session as session_mod
+        import gobby.hooks.event_handlers._session_start as session_mod
 
         monkeypatch.setattr(session_mod.Path, "home", staticmethod(lambda: tmp_path))
 
