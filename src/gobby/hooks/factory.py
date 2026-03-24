@@ -296,7 +296,8 @@ class HookManagerFactory:
                 return None
 
             async def _do() -> dict[str, Any]:
-                return await proxy.call_tool(server, tool, args)
+                result: dict[str, Any] = await proxy.call_tool(server, tool, args)
+                return result
 
             if loop.is_running():
                 try:

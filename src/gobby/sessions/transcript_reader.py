@@ -393,7 +393,8 @@ class TranscriptReader:
     def _read_json_file(path: str) -> dict[str, Any]:
         """Read and parse a JSON file. Runs in a thread."""
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            result: dict[str, Any] = json.load(f)
+            return result
 
 
 def clear_archive_cache() -> None:
