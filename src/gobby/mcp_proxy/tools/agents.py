@@ -303,9 +303,10 @@ def create_agents_registry(
         # Default: full cleanup. debug=True preserves state/terminal for inspection.
         close_terminal = not debug
 
+        kill_db = db or agent_run_manager.db
         result = await _kill_agent_process(
             db_run,
-            db,
+            kill_db,
             signal_name=signal,
             close_terminal=close_terminal,
         )

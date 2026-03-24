@@ -189,12 +189,14 @@ async def cancel_pipeline(
     try:
         from gobby.agents.kill import kill_agent
         from gobby.storage.agents import LocalAgentRunManager
+        from gobby.storage.database import LocalDatabase
 
-        arm = LocalAgentRunManager(execution_manager.db)
+        _db = LocalDatabase()
+        arm = LocalAgentRunManager(_db)
         active_runs = arm.list_by_parent(execution.session_id) if execution.session_id else []
         killed_count = 0
         for run in active_runs:
-            await kill_agent(run, execution_manager.db, signal_name="KILL")
+            await kill_agent(run, _db, signal_name="KILL")
             killed_count += 1
 
         if killed_count > 0:
