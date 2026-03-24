@@ -232,7 +232,7 @@ class TestLaunchDefaults:
             json={
                 "project_id": "proj-1",
                 "category": "code",
-                "agent_name": "claude-cli-sonnet",
+                "agent_name": "developer",
                 "mode": "terminal",
                 "isolation": "worktree",
                 "model": "sonnet",
@@ -247,7 +247,7 @@ class TestLaunchDefaults:
         data = response.json()
         assert "code" in data["defaults"]
         code_defaults = data["defaults"]["code"]
-        assert code_defaults["agent_name"] == "claude-cli-sonnet"
+        assert code_defaults["agent_name"] == "developer"
         assert code_defaults["mode"] == "terminal"
         assert code_defaults["isolation"] == "worktree"
         assert code_defaults["model"] == "sonnet"
