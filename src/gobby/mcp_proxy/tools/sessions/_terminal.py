@@ -27,25 +27,28 @@ def _resolve_tmux_target(
     session_id: str,
     session_manager: LocalSessionManager,
     agent_run_manager: LocalAgentRunManager,
-) -> tuple[str | None, str | None]:
-    """Resolve a session ID to a tmux session name.
+) -> tuple[str | None, bool, str | None]:
+    """Resolve a session ID to a tmux target.
 
     Returns:
-        (tmux_session_name, error_message) — one will be None.
+        (tmux_target, is_agent, error_message).
+        *is_agent* is True when the target lives on Gobby's isolated tmux
+        socket (``-L gobby``); False when it lives on the user's default
+        tmux server.
     """
     # Try agent run first (agent sessions have tmux_session_name on the run)
     agent_run = agent_run_manager.get_by_session(session_id)
     if agent_run is not None:
         if agent_run.status not in ("running", "pending"):
-            return None, f"Agent session is not running (status={agent_run.status})"
+            return None, True, f"Agent session is not running (status={agent_run.status})"
         if not agent_run.tmux_session_name:
-            return None, "Agent session has no tmux terminal (mode may be autonomous)"
-        return agent_run.tmux_session_name, None
+            return None, True, "Agent session has no tmux terminal (mode may be autonomous)"
+        return agent_run.tmux_session_name, True, None
 
     # Fallback: interactive CLI session with terminal_context
     session = session_manager.get(session_id)
     if session is None:
-        return None, f"Session {session_id} not found"
+        return None, False, f"Session {session_id} not found"
 
     if session.terminal_context:
         ctx = session.terminal_context
@@ -54,9 +57,9 @@ def _resolve_tmux_target(
         # terminal_context may contain tmux_pane or tmux_session
         tmux_target = ctx.get("tmux_pane") or ctx.get("tmux_session")
         if tmux_target:
-            return tmux_target, None
+            return tmux_target, False, None
 
-    return None, f"Session {session_id} has no tmux terminal"
+    return None, False, f"Session {session_id} has no tmux terminal"
 
 
 def register_terminal_tools(
@@ -67,7 +70,10 @@ def register_terminal_tools(
     """Register send_keys and capture_output tools."""
 
     agent_run_manager = LocalAgentRunManager(db)
-    tmux = TmuxSessionManager(TmuxConfig())
+    # Agent sessions live on Gobby's isolated tmux socket (-L gobby).
+    # Interactive CLI sessions live on the user's default tmux server.
+    tmux_gobby = TmuxSessionManager(TmuxConfig())
+    tmux_default = TmuxSessionManager(TmuxConfig(socket_name=""))
 
     @registry.tool(
         name="send_keys",
@@ -82,11 +88,14 @@ def register_terminal_tools(
         keys: str,
         literal: bool = True,
     ) -> dict[str, Any]:
-        target, error = _resolve_tmux_target(session_id, session_manager, agent_run_manager)
+        target, is_agent, error = _resolve_tmux_target(
+            session_id, session_manager, agent_run_manager
+        )
         if error:
             return {"success": False, "error": error}
 
         assert target is not None
+        tmux = tmux_gobby if is_agent else tmux_default
         ok = await tmux.send_keys(target, keys, literal=literal)
         if not ok:
             return {
@@ -107,11 +116,14 @@ def register_terminal_tools(
         session_id: str,
         lines: int = 50,
     ) -> dict[str, Any]:
-        target, error = _resolve_tmux_target(session_id, session_manager, agent_run_manager)
+        target, is_agent, error = _resolve_tmux_target(
+            session_id, session_manager, agent_run_manager
+        )
         if error:
             return {"success": False, "error": error}
 
         assert target is not None
+        tmux = tmux_gobby if is_agent else tmux_default
         output = await tmux.capture_pane(target, lines)
         if output is None:
             return {

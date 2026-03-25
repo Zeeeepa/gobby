@@ -54,6 +54,31 @@ class ChatSessionPermissionsMixin:
     _pending_approval_decision: str | None
     _pending_approval_event: asyncio.Event | None
 
+    # MCP proxy discovery tools — always safe to auto-approve in accept_edits mode
+    _SAFE_MCP_PROXY_TOOLS = frozenset(
+        {
+            "mcp__gobby__list_mcp_servers",
+            "mcp__gobby__list_tools",
+            "mcp__gobby__get_tool_schema",
+            "mcp__gobby__recommend_tools",
+            "mcp__gobby__search_tools",
+            "mcp__gobby__get_variable",
+            "mcp__gobby__set_variable",
+        }
+    )
+
+    # Read-only tool name prefixes — auto-approve call_tool in accept_edits mode
+    _READ_TOOL_PREFIXES = (
+        "get_",
+        "list_",
+        "search_",
+        "find_",
+        "read_",
+        "recall_",
+        "blast_",
+        "recommend_",
+    )
+
     # Patterns that indicate dangerous bash commands (used by accept_edits mode)
     _DANGEROUS_BASH_PATTERNS = re.compile(
         r"(?:^|[;&|]\s*)(?:sudo|rm|chmod|chown|kill|killall|mkfs|dd|reboot|shutdown|halt|"
@@ -142,6 +167,10 @@ class ChatSessionPermissionsMixin:
             if self.chat_mode == "accept_edits" and tool_name == "Bash":
                 if self._is_dangerous_bash(input_data):
                     return await self._wait_for_tool_approval(tool_name, input_data)
+            # In accept_edits mode, call_tool needs inner-tool inspection
+            if self.chat_mode == "accept_edits" and tool_name == "mcp__gobby__call_tool":
+                if self._is_write_mcp_call(input_data):
+                    return await self._wait_for_tool_approval(tool_name, input_data)
             return PermissionResultAllow(updated_input=input_data)
 
         # Store the pending question and block until answered
@@ -206,12 +235,15 @@ class ChatSessionPermissionsMixin:
             if tool_name in ("Edit", "Write", "NotebookEdit"):
                 return False
             # Bash: auto-approve unless dangerous patterns detected
-            # (actual command content check happens in _can_use_tool via input_data)
-            # For the approval gate check, we mark Bash as needing approval
-            # only when the config says so — the actual danger check is below
             if tool_name == "Bash":
                 return False  # Handled by _is_dangerous_bash in _can_use_tool
-            # MCP call_tool and other tools: prompt
+            # MCP proxy discovery tools — always safe
+            if tool_name in self._SAFE_MCP_PROXY_TOOLS:
+                return False
+            # MCP proxy call_tool — inspect inner tool in _can_use_tool
+            if tool_name == "mcp__gobby__call_tool":
+                return False  # Handled by _is_write_mcp_call in _can_use_tool
+            # Everything else (unknown tools, external MCP): prompt
             return True
 
         # Normal / plan mode: use ToolApprovalConfig
@@ -246,6 +278,27 @@ class ChatSessionPermissionsMixin:
         if not command:
             return False
         return bool(self._DANGEROUS_BASH_PATTERNS.search(command))
+
+    @staticmethod
+    def _mcp_call_tool_key(input_data: dict[str, Any]) -> str:
+        """Build a composite key for an MCP call_tool invocation.
+
+        Returns e.g. 'call_tool:gobby-tasks:create_task' for granular
+        approve_always tracking (instead of approving ALL call_tool calls).
+        """
+        server = input_data.get("server_name", "")
+        tool = input_data.get("tool_name", "")
+        return f"call_tool:{server}:{tool}"
+
+    def _is_write_mcp_call(self, input_data: dict[str, Any]) -> bool:
+        """Check if an MCP call_tool invocation targets a write operation."""
+        tool_name = input_data.get("tool_name", "")
+        if not tool_name:
+            return True  # can't determine — treat as write
+        # Check if this specific tool was previously approve_always'd
+        if self._mcp_call_tool_key(input_data) in self._approved_tools:
+            return False
+        return not tool_name.startswith(self._READ_TOOL_PREFIXES)
 
     def _is_write_bash(self, input_data: dict[str, Any]) -> bool:
         """Check if a Bash command performs write/destructive operations (plan mode)."""
@@ -440,7 +493,13 @@ class ChatSessionPermissionsMixin:
             return PermissionResultDeny(message=f"User rejected tool call: {tool_name}")
 
         if decision == "approve_always":
-            self._approved_tools.add(tool_name)
+            # For MCP call_tool, store a granular composite key so we don't
+            # blanket-approve all call_tool invocations
+            if tool_name == "mcp__gobby__call_tool":
+                key = self._mcp_call_tool_key(input_data)
+            else:
+                key = tool_name
+            self._approved_tools.add(key)
             if self._on_approved_tools_persist:
                 self._on_approved_tools_persist(self._approved_tools)
             return PermissionResultAllow(updated_input=input_data)
