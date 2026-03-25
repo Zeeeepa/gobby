@@ -301,6 +301,11 @@ async def _rename_tmux_window(session: Any, title: str) -> None:
 
     agent_depth = getattr(session, "agent_depth", 0) or 0
 
+    # Prepend session ref (e.g. "#3605") so the window reads "#N: title"
+    ref = getattr(session, "ref", None)
+    if ref:
+        title = f"{ref}: {title}"
+
     try:
         if agent_depth > 0:
             # Spawned agent — rename on Gobby's isolated socket
