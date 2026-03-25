@@ -324,6 +324,7 @@ export function ChatPage({
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
         onExpireSession={conversations.onExpireSession}
+        chatSessionId={chat.dbSessionId}
         onAddFileToChat={handleAddFileToChat}
         isMobile={isMobile}
       />

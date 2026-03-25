@@ -163,9 +163,13 @@ export function SessionInteractionModal({
           command_text: text,
         });
       } else if (mode === "keys") {
+        // In literal mode, append \n so the backend sends Enter after the text.
+        // The textarea can't produce a real \n character, and users almost
+        // always want their input submitted.
+        const keysToSend = literal && text ? text + "\n" : text;
         result = await callTool("gobby-sessions", "send_keys", {
           session_id: entry.id,
-          keys: text,
+          keys: keysToSend,
           literal,
         });
       }
