@@ -302,6 +302,9 @@ class CodexChatSessionPermissionsMixin:
         if self._pending_approval_event is not None:
             self._pending_approval_event.set()
 
+    async def sync_sdk_permission_mode(self) -> None:
+        """No-op for Codex — permission mode is enforced via approval callbacks."""
+
     @property
     def has_pending_approval(self) -> bool:
         """Whether a tool approval is currently awaiting a response."""
