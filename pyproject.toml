@@ -76,6 +76,7 @@ dependencies = [
     "opentelemetry-instrumentation-anthropic>=0.34.0",
     "opentelemetry-instrumentation-openai>=0.34.0",
     "opentelemetry-instrumentation-google-genai>=0.1b0",
+    "requests>=2.33.0",
 ]
 
 [project.scripts]
