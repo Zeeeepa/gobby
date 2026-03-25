@@ -238,13 +238,17 @@ def _make_var_row(
 @contextmanager
 def _patch_auto_export(collision: bool = False):
     """Patch auto-export helpers at their source module (they're lazy-imported)."""
-    with patch(
-        "gobby.mcp_proxy.tools.workflows._auto_export.has_gobby_name_collision",
-        return_value=collision,
-    ), patch(
-        "gobby.mcp_proxy.tools.workflows._auto_export.auto_export_definition",
-    ), patch(
-        "gobby.mcp_proxy.tools.workflows._auto_export.auto_delete_definition",
+    with (
+        patch(
+            "gobby.mcp_proxy.tools.workflows._auto_export.has_gobby_name_collision",
+            return_value=collision,
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.workflows._auto_export.auto_export_definition",
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.workflows._auto_export.auto_delete_definition",
+        ),
     ):
         yield
 
@@ -257,7 +261,9 @@ def _mock_def_manager(
     mgr = MagicMock()
     mgr.db = MagicMock()
 
-    def get_by_name(name: str, include_deleted: bool = False, include_templates: bool = False) -> WorkflowDefinitionRow | None:
+    def get_by_name(
+        name: str, include_deleted: bool = False, include_templates: bool = False
+    ) -> WorkflowDefinitionRow | None:
         if include_deleted and deleted:
             return deleted
         if include_templates and existing and existing.source == "template":

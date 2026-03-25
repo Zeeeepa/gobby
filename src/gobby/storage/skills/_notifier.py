@@ -92,9 +92,7 @@ class SkillChangeNotifier:
                 listener(event)
             except Exception as e:
                 logger.error(
-                    "Error in skill change listener %s: %s",
-                    listener,
-                    e,
+                    f"Error in skill change listener {listener}: {e}",
                     exc_info=True,
                 )
 

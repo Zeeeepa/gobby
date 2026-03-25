@@ -84,7 +84,9 @@ class AgentRun:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
+            "run_id": self.id,
             "id": self.id,
+            "session_id": self.child_session_id,
             "parent_session_id": self.parent_session_id,
             "child_session_id": self.child_session_id,
             "workflow_name": self.workflow_name,
@@ -100,14 +102,28 @@ class AgentRun:
             "completed_at": self.completed_at,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
-            "sdk_session_id": self.sdk_session_id,
-            "continuation_prompt": self.continuation_prompt,
             "task_id": self.task_id,
             "pid": self.pid,
             "tmux_session_name": self.tmux_session_name,
             "mode": self.mode,
             "worktree_id": self.worktree_id,
             "clone_id": self.clone_id,
+            "timeout_seconds": self.timeout_seconds,
+            "continuation_prompt": self.continuation_prompt,
+        }
+
+    def to_brief(self) -> dict[str, Any]:
+        """Slim representation for list operations."""
+        return {
+            "run_id": self.id,
+            "session_id": self.child_session_id,
+            "parent_session_id": self.parent_session_id,
+            "mode": self.mode,
+            "started_at": self.started_at,
+            "pid": self.pid,
+            "provider": self.provider,
+            "task_id": self.task_id,
+            "status": self.status,
         }
 
 
@@ -468,36 +484,45 @@ class LocalAgentRunManager:
         self,
         status: str | None = None,
         limit: int = 100,
+        project_id: str | None = None,
     ) -> list[AgentRun]:
         """
-        List agent runs, optionally filtered by status.
+        List agent runs, optionally filtered by status and/or project.
 
         Args:
             status: Optional status filter.
             limit: Maximum number of results.
+            project_id: Optional project ID filter (joins through sessions).
 
         Returns:
             List of AgentRun objects.
         """
+        conditions: list[str] = []
+        params: list[object] = []
+
         if status:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM agent_runs
-                WHERE status = ?
-                ORDER BY created_at DESC
-                LIMIT ?
-                """,
-                (status, limit),
-            )
-        else:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM agent_runs
-                ORDER BY created_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            )
+            conditions.append("ar.status = ?")
+            params.append(status)
+
+        join_clause = ""
+        if project_id:
+            join_clause = "JOIN sessions s ON s.id = ar.parent_session_id"
+            conditions.append("s.project_id = ?")
+            params.append(project_id)
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        params.append(limit)
+
+        rows = self.db.fetchall(
+            f"""
+            SELECT ar.* FROM agent_runs ar
+            {join_clause}
+            {where_clause}
+            ORDER BY ar.created_at DESC
+            LIMIT ?
+            """,
+            tuple(params),
+        )
         return [AgentRun.from_row(row) for row in rows]
 
     def list_running(self, limit: int = 100) -> list[AgentRun]:
@@ -510,6 +535,60 @@ class LocalAgentRunManager:
             LIMIT ?
             """,
             (limit,),
+        )
+        return [AgentRun.from_row(row) for row in rows]
+
+    def list_active(self, limit: int = 100) -> list[AgentRun]:
+        """List all active (running or pending) agent runs."""
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM agent_runs
+            WHERE status IN ('running', 'pending')
+            ORDER BY started_at ASC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [AgentRun.from_row(row) for row in rows]
+
+    def get_by_session(self, session_id: str) -> AgentRun | None:
+        """Get active agent run by child session ID."""
+        row = self.db.fetchone(
+            """
+            SELECT * FROM agent_runs
+            WHERE child_session_id = ?
+            AND status IN ('running', 'pending')
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (session_id,),
+        )
+        return AgentRun.from_row(row) if row else None
+
+    def list_by_parent(self, parent_session_id: str, limit: int = 100) -> list[AgentRun]:
+        """List active agent runs spawned by a parent session."""
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM agent_runs
+            WHERE parent_session_id = ?
+            AND status IN ('running', 'pending')
+            ORDER BY started_at ASC
+            LIMIT ?
+            """,
+            (parent_session_id, limit),
+        )
+        return [AgentRun.from_row(row) for row in rows]
+
+    def list_by_mode(self, mode: str, limit: int = 100) -> list[AgentRun]:
+        """List active agent runs filtered by mode."""
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM agent_runs
+            WHERE mode = ?
+            AND status IN ('running', 'pending')
+            ORDER BY started_at ASC
+            LIMIT ?
+            """,
+            (mode, limit),
         )
         return [AgentRun.from_row(row) for row in rows]
 
@@ -539,32 +618,69 @@ class LocalAgentRunManager:
         cursor = self.db.execute("DELETE FROM agent_runs WHERE id = ?", (run_id,))
         return bool(cursor.rowcount and cursor.rowcount > 0)
 
-    def cleanup_stale_runs(self, timeout_minutes: int = 30) -> int:
-        """
-        Mark stale running agent runs as timed out.
+    def cleanup_stale_runs(self, default_timeout_minutes: int = 30) -> int:
+        """Mark stale running agent runs as timed out and expire their sessions.
+
+        Uses per-agent timeout_seconds when set, falls back to default_timeout_minutes.
 
         Args:
-            timeout_minutes: Minutes of inactivity before timeout.
+            default_timeout_minutes: Fallback timeout for runs without timeout_seconds.
 
         Returns:
             Number of runs timed out.
         """
         now = datetime.now(UTC).isoformat()
-        cursor = self.db.execute(
+
+        # Runs with explicit timeout_seconds
+        cursor1 = self.db.execute(
             """
             UPDATE agent_runs
             SET status = 'timeout',
-                error = 'Stale run timed out',
+                error = 'Exceeded timeout (' || CAST(timeout_seconds AS INTEGER) || 's)',
                 completed_at = ?,
                 updated_at = ?
             WHERE status = 'running'
+            AND timeout_seconds IS NOT NULL
+            AND (julianday('now') - julianday(started_at)) * 86400 > timeout_seconds
+            """,
+            (now, now),
+        )
+        count1 = cursor1.rowcount or 0
+
+        # Runs without explicit timeout — use default
+        cursor2 = self.db.execute(
+            """
+            UPDATE agent_runs
+            SET status = 'timeout',
+                error = 'Exceeded default timeout (' || ? || 'm)',
+                completed_at = ?,
+                updated_at = ?
+            WHERE status = 'running'
+            AND timeout_seconds IS NULL
             AND datetime(started_at) < datetime('now', 'utc', ? || ' minutes')
             """,
-            (now, now, f"-{timeout_minutes}"),
+            (default_timeout_minutes, now, now, f"-{default_timeout_minutes}"),
         )
-        count = cursor.rowcount or 0
+        count2 = cursor2.rowcount or 0
+
+        count = count1 + count2
+
+        # Expire sessions for runs we just timed out
         if count > 0:
-            logger.info(f"Timed out {count} stale agent runs (>{timeout_minutes}m)")
+            self.db.execute(
+                """
+                UPDATE sessions
+                SET status = 'expired', updated_at = datetime('now')
+                WHERE agent_run_id IN (
+                    SELECT id FROM agent_runs
+                    WHERE status = 'timeout' AND completed_at = ?
+                )
+                AND status IN ('active', 'paused')
+                """,
+                (now,),
+            )
+            logger.info(f"Timed out {count} stale agent runs ({count1} explicit, {count2} default)")
+
         return count
 
     def cleanup_stale_pending_runs(self, timeout_minutes: int = 60) -> int:

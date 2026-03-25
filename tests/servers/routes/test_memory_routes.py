@@ -496,9 +496,7 @@ class TestEntityNeighbors:
     def test_neighbors_success(self, client, mock_server) -> None:
         """GET /memories/graph/entities/{name}/neighbors returns neighbors."""
         mock_server.memory_manager._neo4j_client = MagicMock()
-        mock_server.memory_manager.get_entity_neighbors = AsyncMock(
-            return_value={"neighbors": []}
-        )
+        mock_server.memory_manager.get_entity_neighbors = AsyncMock(return_value={"neighbors": []})
         response = client.get("/api/memories/graph/entities/test-entity/neighbors")
         assert response.status_code == 200
         assert "neighbors" in response.json()
@@ -594,17 +592,13 @@ class TestErrorPaths:
 
     def test_update_server_error(self, client, mock_server) -> None:
         """PUT /memories/{id} returns 500 on generic error."""
-        mock_server.memory_manager.update_memory = AsyncMock(
-            side_effect=RuntimeError("DB error")
-        )
+        mock_server.memory_manager.update_memory = AsyncMock(side_effect=RuntimeError("DB error"))
         response = client.put("/api/memories/mm-abc123", json={"content": "new"})
         assert response.status_code == 500
 
     def test_delete_server_error(self, client, mock_server) -> None:
         """DELETE /memories/{id} returns 500 on error."""
-        mock_server.memory_manager.delete_memory = AsyncMock(
-            side_effect=RuntimeError("DB error")
-        )
+        mock_server.memory_manager.delete_memory = AsyncMock(side_effect=RuntimeError("DB error"))
         response = client.delete("/api/memories/mm-abc123")
         assert response.status_code == 500
 

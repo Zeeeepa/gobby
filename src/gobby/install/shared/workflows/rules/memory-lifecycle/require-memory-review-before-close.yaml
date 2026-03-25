@@ -17,7 +17,7 @@ rules:
           Consider saving any valuable memories from this task before closing.
           Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
           If nothing new was learned, clear the gate:
-          `set_variable(name="pending_memory_review", value=false, session_id="...")`
+          `set_variable(name="pending_memory_review", value=false, session_id="<your Gobby Session ID>")`
 
           Do NOT create memories for bugs, errors, or issues you encounter.
           Create tasks instead so they get fixed.
@@ -37,7 +37,7 @@ rules:
           Consider saving any valuable memories from this task before submitting for review.
           Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
           If nothing new was learned, clear the gate:
-          `set_variable(name="pending_memory_review", value=false, session_id="...")`
+          `set_variable(name="pending_memory_review", value=false, session_id="<your Gobby Session ID>")`
 
           Do NOT create memories for bugs or errors — create tasks instead.
 
@@ -56,6 +56,6 @@ rules:
           Consider saving any valuable memories from this review before approving.
           Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
           If nothing new was learned, clear the gate:
-          `set_variable(name="pending_memory_review", value=false, session_id="...")`
+          `set_variable(name="pending_memory_review", value=false, session_id="<your Gobby Session ID>")`
 
           Do NOT create memories for bugs or errors — create tasks instead.

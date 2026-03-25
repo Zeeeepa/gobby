@@ -146,7 +146,9 @@ def list_workflows(
                 )
                 seen_names.add(row.name)
         except Exception as e:
-            logger.warning("DB workflow query failed, falling back to filesystem: %s", e)
+            logger.warning(
+                f"DB workflow query failed, falling back to filesystem: {e}", exc_info=True
+            )
 
     # Merge with filesystem discovery
     search_dirs = list(loader.global_dirs)
@@ -193,9 +195,7 @@ def list_workflows(
 
             except (yaml.YAMLError, OSError, UnicodeDecodeError) as e:
                 logger.debug(
-                    "Skipping invalid workflow file %s: %s",
-                    yaml_path,
-                    e,
+                    f"Skipping invalid workflow file {yaml_path}: {e}",
                     exc_info=True,
                 )
 

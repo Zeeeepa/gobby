@@ -34,7 +34,11 @@ interface ChatPageProps {
   // Command palette actions from App.tsx
   paletteActions?: CommandPaletteAction[];
   // Active sessions modal
-  onViewAgent?: (agent: { run_id: string; session_id?: string; mode?: string }) => void;
+  onViewAgent?: (agent: {
+    run_id: string;
+    session_id?: string;
+    mode?: string;
+  }) => void;
 }
 
 export function ChatPage({
@@ -83,7 +87,7 @@ export function ChatPage({
     if (chat.canvasPanel) {
       canvas.openCanvas(chat.canvasPanel);
       // Auto-switch to canvas tab
-      activity.showTab('canvas');
+      activity.showTab("canvas");
     } else {
       canvas.closeCanvas();
     }
@@ -100,7 +104,7 @@ export function ChatPage({
   const openCodeAsArtifact = useCallback(
     (language: string, content: string, title?: string) => {
       createArtifact("code", content, language, title);
-      activity.showTab('artifacts');
+      activity.showTab("artifacts");
     },
     [createArtifact, activity.showTab],
   );
@@ -108,7 +112,7 @@ export function ChatPage({
   const openFileAsArtifact = useCallback(
     (type: ArtifactType, language: string, content: string, title?: string) => {
       createArtifact(type, content, language, title);
-      activity.showTab('artifacts');
+      activity.showTab("artifacts");
     },
     [createArtifact, activity.showTab],
   );
@@ -125,7 +129,7 @@ export function ChatPage({
         );
         planArtifactIdRef.current = id;
         setPlanPendingLocal(true);
-        activity.showTab('artifacts');
+        activity.showTab("artifacts");
       }
     },
     [createArtifact, activity.showTab],
@@ -136,12 +140,17 @@ export function ChatPage({
   }, [chat.setOnPlanReady, onPlanReady]);
 
   // Wire artifact events (show_file) to artifact panel
-  const validArtifactTypes = new Set<string>(['code', 'text', 'image', 'sheet']);
+  const validArtifactTypes = new Set<string>([
+    "code",
+    "text",
+    "image",
+    "sheet",
+  ]);
   const onArtifactEvent = useCallback(
     (type: string, content: string, language?: string, title?: string) => {
       if (validArtifactTypes.has(type)) {
         createArtifact(type as ArtifactType, content, language, title);
-        activity.showTab('artifacts');
+        activity.showTab("artifacts");
       }
     },
     [createArtifact, activity.showTab],
@@ -152,18 +161,24 @@ export function ChatPage({
   }, [chat.setOnArtifactEvent, onArtifactEvent]);
 
   // Intercept toggle_panel palette action before forwarding to App.tsx
-  const handlePaletteSelect = useCallback((item: PaletteItem) => {
-    if (item.kind === 'command' && item.action === 'toggle_panel') {
-      activity.togglePanel()
-      return
-    }
-    chat.onPaletteSelect?.(item)
-  }, [activity, chat])
+  const handlePaletteSelect = useCallback(
+    (item: PaletteItem) => {
+      if (item.kind === "command" && item.action === "toggle_panel") {
+        activity.togglePanel();
+        return;
+      }
+      chat.onPaletteSelect?.(item);
+    },
+    [activity, chat],
+  );
 
   // Add file to chat from Files tab (right-click "Add to chat")
-  const handleAddFileToChat = useCallback((filePath: string) => {
-    chat.onSend(`Read and reference this file: ${filePath}`)
-  }, [chat.onSend])
+  const handleAddFileToChat = useCallback(
+    (filePath: string) => {
+      chat.onSend(`Read and reference this file: ${filePath}`);
+    },
+    [chat.onSend],
+  );
 
   // Plan approval — in tabbed model, don't close the panel
   const handleApprovePlan = useCallback(() => {
@@ -185,7 +200,7 @@ export function ChatPage({
       showPlanRef.current = () => {
         if (planArtifactIdRef.current) {
           openArtifact(planArtifactIdRef.current);
-          activity.showTab('artifacts');
+          activity.showTab("artifacts");
         }
       };
     }
@@ -196,40 +211,45 @@ export function ChatPage({
 
   // Listen for palette open event from App.tsx Cmd+K handler
   useEffect(() => {
-    const handler = () => setShowCommandPalette(true)
-    window.addEventListener('gobby:open-command-palette', handler)
-    return () => window.removeEventListener('gobby:open-command-palette', handler)
-  }, [])
+    const handler = () => setShowCommandPalette(true);
+    window.addEventListener("gobby:open-command-palette", handler);
+    return () =>
+      window.removeEventListener("gobby:open-command-palette", handler);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+K — Command Palette (handled in App.tsx chord, but also direct)
       // Cmd+Shift+A — Active Sessions
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'A') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "A") {
         e.preventDefault();
         setShowActiveSessions(true);
         return;
       }
       // Cmd+` — Toggle Activity Panel
-      if ((e.metaKey || e.ctrlKey) && e.key === '`') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "`") {
         e.preventDefault();
         activity.togglePanel();
         return;
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activity.togglePanel]);
 
   return (
-    <div className="flex h-full overflow-hidden bg-background text-foreground">
+    <div className="relative flex h-full overflow-hidden bg-background text-foreground">
       {/* Main chat column */}
       <div className="flex flex-col flex-1 min-w-[400px]">
         {/* Command Bar */}
         <CommandBar
           sessionRef={effectiveSessionRef}
-          title={chat.viewingSessionMeta?.title ?? chat.attachedSessionMeta?.title ?? activeTitle}
+          title={
+            chat.viewingSessionMeta?.title ??
+            chat.attachedSessionMeta?.title ??
+            activeTitle
+          }
           viewingMeta={chat.viewingSessionMeta ?? chat.attachedSessionMeta}
           isAttached={!!chat.attachedSessionId}
           onAttach={chat.onAttachToViewed}
@@ -248,7 +268,9 @@ export function ChatPage({
           isPanelPinned={activity.isPinned}
         />
 
-        <ArtifactContext.Provider value={{ openCodeAsArtifact, openFileAsArtifact }}>
+        <ArtifactContext.Provider
+          value={{ openCodeAsArtifact, openFileAsArtifact }}
+        >
           {/* Messages */}
           <div className="grid flex-1 min-h-0">
             <MessageList
@@ -269,7 +291,10 @@ export function ChatPage({
             onSend={chat.onSend}
             onStop={chat.onStop}
             isStreaming={chat.isStreaming}
-            disabled={!chat.isConnected || (!!chat.viewingSessionId && !chat.attachedSessionId)}
+            disabled={
+              !chat.isConnected ||
+              (!!chat.viewingSessionId && !chat.attachedSessionId)
+            }
             viewingSession={!!chat.viewingSessionId && !chat.attachedSessionId}
             onInputChange={chat.onInputChange}
             paletteItems={chat.paletteItems}
@@ -324,6 +349,7 @@ export function ChatPage({
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
         onExpireSession={conversations.onExpireSession}
+        chatSessionId={chat.dbSessionId}
         onAddFileToChat={handleAddFileToChat}
         isMobile={isMobile}
       />

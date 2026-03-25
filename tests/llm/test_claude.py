@@ -131,7 +131,6 @@ class TestAuthModeSelection:
     def test_setup_litellm_import_error(self, api_key_config: DaemonConfig) -> None:
         """_setup_litellm handles ImportError gracefully."""
 
-
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
@@ -292,9 +291,7 @@ class TestFormatSummaryContext:
                 "git_status": "clean",
                 "file_changes": "none",
             }
-            result = provider._format_summary_context(
-                context, "Summary: {{ transcript_summary }}"
-            )
+            result = provider._format_summary_context(context, "Summary: {{ transcript_summary }}")
             assert "User asked about Python" in result
 
     def test_format_raises_on_none_template(self, claude_config: DaemonConfig) -> None:
@@ -313,9 +310,7 @@ class TestFormatSummaryContext:
 
             provider = ClaudeLLMProvider(claude_config)
             context = {"custom_key": "custom_value"}
-            result = provider._format_summary_context(
-                context, "Custom: {{ custom_key }}"
-            )
+            result = provider._format_summary_context(context, "Custom: {{ custom_key }}")
             assert "custom_value" in result
 
 
@@ -552,9 +547,7 @@ class TestGenerateJson:
             assert result == {"result": True}
 
     @pytest.mark.asyncio
-    async def test_generate_json_litellm_empty_response(
-        self, claude_config: DaemonConfig
-    ) -> None:
+    async def test_generate_json_litellm_empty_response(self, claude_config: DaemonConfig) -> None:
         """LiteLLM path raises ValueError on empty response."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
@@ -571,9 +564,7 @@ class TestGenerateJson:
                 await provider._generate_json_litellm("Generate JSON")
 
     @pytest.mark.asyncio
-    async def test_generate_json_litellm_not_initialized(
-        self, claude_config: DaemonConfig
-    ) -> None:
+    async def test_generate_json_litellm_not_initialized(self, claude_config: DaemonConfig) -> None:
         """LiteLLM path raises RuntimeError when not initialized."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider

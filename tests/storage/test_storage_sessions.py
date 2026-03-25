@@ -72,7 +72,7 @@ class TestLocalSessionManager:
             source="claude",
             project_id=sample_project["id"],
             title="My Session",
-            jsonl_path="/path/to/transcript.jsonl",
+            transcript_path="/path/to/transcript.jsonl",
             git_branch="main",
         )
 
@@ -83,7 +83,7 @@ class TestLocalSessionManager:
         assert session.project_id == sample_project["id"]
         assert session.title == "My Session"
         assert session.status == "active"
-        assert session.jsonl_path == "/path/to/transcript.jsonl"
+        assert session.transcript_path == "/path/to/transcript.jsonl"
         assert session.git_branch == "main"
 
         # Verify stats columns
@@ -493,13 +493,13 @@ class TestLocalSessionManager:
         sample_project: dict,
     ) -> None:
         """Test transcript processing lifecycle methods."""
-        # Create expired session with jsonl_path
+        # Create expired session with transcript_path
         session = session_manager.register(
             external_id="transcript-test",
             machine_id="machine",
             source="claude",
             project_id=sample_project["id"],
-            jsonl_path="/tmp/test.jsonl",
+            transcript_path="/tmp/test.jsonl",
         )
         session_manager.update_status(session.id, "expired")
 
@@ -690,7 +690,7 @@ class TestLocalSessionManager:
         updated = session_manager.update(
             session.id,
             external_id="new-ext-id",
-            jsonl_path="/new/path.jsonl",
+            transcript_path="/new/path.jsonl",
             status="paused",
             title="New Title",
             git_branch="feature/branch",
@@ -698,7 +698,7 @@ class TestLocalSessionManager:
 
         assert updated is not None
         assert updated.external_id == "new-ext-id"
-        assert updated.jsonl_path == "/new/path.jsonl"
+        assert updated.transcript_path == "/new/path.jsonl"
         assert updated.status == "paused"
         assert updated.title == "New Title"
         assert updated.git_branch == "feature/branch"
@@ -757,12 +757,12 @@ class TestLocalSessionManager:
         assert updated is not None
         assert updated.external_id == "new-ext"
 
-    def test_update_jsonl_path_only(
+    def test_update_transcript_path_only(
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
     ) -> None:
-        """Test updating just jsonl_path."""
+        """Test updating just transcript_path."""
         session = session_manager.register(
             external_id="jsonl-test",
             machine_id="machine",
@@ -770,10 +770,10 @@ class TestLocalSessionManager:
             project_id=sample_project["id"],
         )
 
-        updated = session_manager.update(session.id, jsonl_path="/updated/path.jsonl")
+        updated = session_manager.update(session.id, transcript_path="/updated/path.jsonl")
 
         assert updated is not None
-        assert updated.jsonl_path == "/updated/path.jsonl"
+        assert updated.transcript_path == "/updated/path.jsonl"
 
     def test_update_git_branch_only(
         self,
@@ -1087,7 +1087,7 @@ class TestLocalSessionManager:
             source="claude",
             project_id=sample_project["id"],
             title="Test",
-            jsonl_path="/path.jsonl",
+            transcript_path="/path.jsonl",
             git_branch="main",
             parent_session_id=None,
             agent_depth=1,
@@ -1116,7 +1116,7 @@ class TestLocalSessionManager:
         assert "project_id" in d
         assert "title" in d
         assert "status" in d
-        assert "jsonl_path" in d
+        assert "transcript_path" in d
         assert "summary_path" in d
         assert "summary_markdown" in d
         assert "git_branch" in d
@@ -1136,14 +1136,14 @@ class TestLocalSessionManager:
         sample_project: dict,
     ) -> None:
         """Test get_pending_transcript_sessions respects limit."""
-        # Create multiple expired sessions with jsonl_path
+        # Create multiple expired sessions with transcript_path
         for i in range(5):
             session = session_manager.register(
                 external_id=f"pending-{i}",
                 machine_id="machine",
                 source="claude",
                 project_id=sample_project["id"],
-                jsonl_path=f"/tmp/transcript-{i}.jsonl",
+                transcript_path=f"/tmp/transcript-{i}.jsonl",
             )
             session_manager.update_status(session.id, "expired")
 
@@ -1161,7 +1161,7 @@ class TestLocalSessionManager:
             machine_id="machine",
             source="claude",
             project_id=sample_project["id"],
-            jsonl_path="/tmp/transcript.jsonl",
+            transcript_path="/tmp/transcript.jsonl",
         )
         session_manager.update_status(session.id, "expired")
         session_manager.mark_transcript_processed(session.id)
@@ -1174,13 +1174,13 @@ class TestLocalSessionManager:
         session_manager: LocalSessionManager,
         sample_project: dict,
     ) -> None:
-        """Test that get_pending_transcript_sessions excludes sessions without jsonl_path."""
+        """Test that get_pending_transcript_sessions excludes sessions without transcript_path."""
         session = session_manager.register(
             external_id="no-jsonl-session",
             machine_id="machine",
             source="claude",
             project_id=sample_project["id"],
-            jsonl_path=None,  # No transcript path
+            transcript_path=None,  # No transcript path
         )
         session_manager.update_status(session.id, "expired")
 
@@ -1201,17 +1201,17 @@ class TestLocalSessionManager:
             project_id=sample_project["id"],
         )
 
-        # First registration without jsonl_path or git_branch
+        # First registration without transcript_path or git_branch
         session1 = session_manager.register(
             external_id="update-meta",
             machine_id="machine",
             source="claude",
             project_id=sample_project["id"],
             title=None,
-            jsonl_path=None,
+            transcript_path=None,
             git_branch=None,
         )
-        assert session1.jsonl_path is None
+        assert session1.transcript_path is None
 
         # Second registration with additional metadata
         session2 = session_manager.register(
@@ -1220,7 +1220,7 @@ class TestLocalSessionManager:
             source="claude",
             project_id=sample_project["id"],
             title="Updated Title",
-            jsonl_path="/new/path.jsonl",
+            transcript_path="/new/path.jsonl",
             git_branch="feature/new",
             parent_session_id=parent.id,  # Use real parent session
         )
@@ -1228,7 +1228,7 @@ class TestLocalSessionManager:
         # Same session, updated metadata
         assert session2.id == session1.id
         assert session2.title == "Updated Title"
-        assert session2.jsonl_path == "/new/path.jsonl"
+        assert session2.transcript_path == "/new/path.jsonl"
         assert session2.git_branch == "feature/new"
         assert session2.parent_session_id == parent.id
         assert session2.status == "active"  # Status reset to active

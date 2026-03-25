@@ -81,8 +81,8 @@ def register_commits_tools(
 
         # Get working directory from transcript path or project
         cwd = None
-        if session.jsonl_path:
-            cwd = str(Path(session.jsonl_path).parent)
+        if session.transcript_path:
+            cwd = str(Path(session.transcript_path).parent)
 
         # Format timestamps for git --since/--until
         # Git expects ISO format or relative dates
@@ -229,7 +229,7 @@ Args:
 
             session_var_manager.set_variable(session.id, "stop_reason", "completed")
         except Exception as e:
-            logger.warning("Failed to set stop_reason for session %s: %s", session.id, e)
+            logger.warning(f"Failed to set stop_reason for session {session.id}: {e}")
             return {
                 "success": False,
                 "error": f"Failed to set stop_reason: {e}",

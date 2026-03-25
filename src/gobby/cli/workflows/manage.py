@@ -143,7 +143,7 @@ def _notify_daemon_reload() -> None:
         else:
             click.echo(f"Daemon reload returned status {response.status_code}", err=True)
     except Exception as e:
-        logger.debug("Could not notify daemon: %s", e)
+        logger.debug(f"Could not notify daemon: {e}", exc_info=True)
         click.echo("Daemon not reachable; reload will happen on next restart")
 
 
@@ -275,7 +275,7 @@ def reload_workflows(ctx: click.Context) -> None:
             except httpx.RequestError as e:
                 click.echo(f"Failed to communicate with daemon: {e}", err=True)
     except Exception as e:
-        logger.debug("Error checking daemon status: %s", e, exc_info=True)
+        logger.debug(f"Error checking daemon status: {e}", exc_info=True)
 
     # Fallback: Clear local cache (useful if running in same process or just validating)
     # This also helps if the user just wants to verify the command runs

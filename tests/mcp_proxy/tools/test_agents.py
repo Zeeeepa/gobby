@@ -8,22 +8,83 @@ This file tests the agent-related MCP tools:
 - stop_agent: Stop a running agent (DB only)
 - kill_agent: Kill a running agent process
 - can_spawn_agent: Check if spawning is allowed
-- list_running_agents: List in-memory running agents
-- get_running_agent: Get running agent state
-- unregister_agent: Remove agent from registry
-- running_agent_stats: Get agent statistics
+- list_running_agents: List active agents from DB
+- get_running_agent: Get running agent state from DB
+- unregister_agent: Mark agent as failed in DB
+- running_agent_stats: Get agent statistics from DB
 """
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.mcp_proxy.tools.agents import create_agents_registry
 
 pytestmark = pytest.mark.unit
+
+
+def _make_mock_agent_run(
+    run_id: str = "run-123",
+    session_id: str | None = "sess-456",
+    parent_session_id: str = "sess-parent",
+    mode: str = "terminal",
+    status: str = "running",
+    pid: int | None = None,
+    provider: str = "claude",
+    **kwargs,
+) -> MagicMock:
+    """Create a mock AgentRun with to_dict() and to_brief() methods."""
+    run = MagicMock()
+    run.id = run_id
+    run.child_session_id = session_id
+    run.parent_session_id = parent_session_id
+    run.mode = mode
+    run.status = status
+    run.pid = pid
+    run.provider = provider
+    run.task_id = kwargs.get("task_id")
+    run.started_at = kwargs.get("started_at")
+    run.tmux_session_name = kwargs.get("tmux_session_name")
+    run.worktree_id = kwargs.get("worktree_id")
+    run.clone_id = kwargs.get("clone_id")
+    run.workflow_name = kwargs.get("workflow_name")
+    run.model = kwargs.get("model")
+
+    run.to_dict.return_value = {
+        "run_id": run_id,
+        "id": run_id,
+        "session_id": session_id,
+        "parent_session_id": parent_session_id,
+        "mode": mode,
+        "status": status,
+        "pid": pid,
+        "provider": provider,
+        "terminal_type": kwargs.get("terminal_type"),
+    }
+    run.to_brief.return_value = {
+        "run_id": run_id,
+        "session_id": session_id,
+        "parent_session_id": parent_session_id,
+        "mode": mode,
+        "pid": pid,
+        "provider": provider,
+        "status": status,
+    }
+    return run
+
+
+def _make_runner_with_run_storage() -> MagicMock:
+    """Create a mock runner with a mock run_storage (LocalAgentRunManager)."""
+    runner = MagicMock()
+    runner.run_storage = MagicMock()
+    runner.run_storage.list_active.return_value = []
+    runner.run_storage.list_by_parent.return_value = []
+    runner.run_storage.list_by_mode.return_value = []
+    runner.run_storage.get.return_value = None
+    runner.run_storage.get_by_session.return_value = None
+    return runner
 
 
 class TestCreateAgentsRegistry:
@@ -58,13 +119,12 @@ class TestCreateAgentsRegistry:
         for tool_name in expected_tools:
             assert registry.get_schema(tool_name) is not None, f"Missing tool: {tool_name}"
 
-    def test_uses_provided_running_registry(self) -> None:
-        """Test that provided registry is used instead of global."""
+    def test_accepts_running_registry_for_backward_compat(self) -> None:
+        """Test that running_registry param is accepted but ignored."""
         runner = MagicMock()
-        custom_registry = RunningAgentRegistry()
 
-        registry = create_agents_registry(runner, running_registry=custom_registry)
-        # Verify registry was accepted (test indirectly via list_running_agents)
+        # Should not raise — param is accepted for backward compat
+        registry = create_agents_registry(runner, running_registry=MagicMock())
         assert registry is not None
 
 
@@ -197,30 +257,17 @@ class TestStopAgent:
 
     @pytest.mark.asyncio
     async def test_successful_stop(self):
-        """Test successful agent stop."""
-        runner = MagicMock()
+        """Test successful agent stop (DB-only, no registry removal)."""
+        runner = _make_runner_with_run_storage()
         runner.cancel_run.return_value = True
 
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="terminal",
-            )
-        )
-
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         stop_agent = registry._tools["stop_agent"].func
 
         result = await stop_agent(run_id="run-123")
 
         assert result["success"] is True
         assert "stopped" in result["message"]
-
-        # Verify removed from registry
-        assert running_registry.get("run-123") is None
 
     @pytest.mark.asyncio
     async def test_run_not_found(self):
@@ -290,46 +337,33 @@ class TestCanSpawnAgent:
 
 
 class TestListRunningAgents:
-    """Tests for list_running_agents MCP tool."""
+    """Tests for list_running_agents MCP tool (DB-backed via LocalAgentRunManager)."""
 
-    @pytest.fixture
-    def populated_registry(self):
-        """Create a registry with test agents."""
-        registry = RunningAgentRegistry()
-        registry.add(
-            RunningAgent(
-                run_id="run-1",
-                session_id="sess-1",
-                parent_session_id="parent-1",
-                mode="terminal",
-                pid=1001,
-            )
-        )
-        registry.add(
-            RunningAgent(
-                run_id="run-2",
-                session_id="sess-2",
-                parent_session_id="parent-1",
-                mode="autonomous",
-                pid=1002,
-            )
-        )
-        registry.add(
-            RunningAgent(
-                run_id="run-3",
-                session_id="sess-3",
-                parent_session_id="parent-2",
-                mode="terminal",
-                pid=1003,
-            )
-        )
-        return registry
+    def _make_agents(self) -> list[MagicMock]:
+        """Create test agents."""
+        return [
+            _make_mock_agent_run(
+                run_id="run-1", session_id="sess-1",
+                parent_session_id="parent-1", mode="terminal", pid=1001,
+            ),
+            _make_mock_agent_run(
+                run_id="run-2", session_id="sess-2",
+                parent_session_id="parent-1", mode="autonomous", pid=1002,
+            ),
+            _make_mock_agent_run(
+                run_id="run-3", session_id="sess-3",
+                parent_session_id="parent-2", mode="terminal", pid=1003,
+            ),
+        ]
 
     @pytest.mark.asyncio
-    async def test_list_all_running_agents(self, populated_registry):
+    async def test_list_all_running_agents(self):
         """Test listing all running agents."""
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=populated_registry)
+        runner = _make_runner_with_run_storage()
+        agents = self._make_agents()
+        runner.run_storage.list_active.return_value = agents
+
+        registry = create_agents_registry(runner)
         list_running = registry._tools["list_running_agents"].func
 
         result = await list_running()
@@ -339,55 +373,55 @@ class TestListRunningAgents:
         assert len(result["agents"]) == 3
 
     @pytest.mark.asyncio
-    async def test_filter_by_parent_session(self, populated_registry):
+    async def test_filter_by_parent_session(self):
         """Test filtering by parent session ID."""
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=populated_registry)
+        runner = _make_runner_with_run_storage()
+        agents = self._make_agents()
+        parent1_agents = [a for a in agents if a.parent_session_id == "parent-1"]
+        runner.run_storage.list_by_parent.return_value = parent1_agents
+
+        registry = create_agents_registry(runner)
         list_running = registry._tools["list_running_agents"].func
 
         result = await list_running(parent_session_id="parent-1")
 
         assert result["success"] is True
         assert result["count"] == 2
-        for agent in result["agents"]:
-            assert agent["parent_session_id"] == "parent-1"
+        runner.run_storage.list_by_parent.assert_called_once_with("parent-1")
 
     @pytest.mark.asyncio
-    async def test_filter_by_mode(self, populated_registry):
+    async def test_filter_by_mode(self):
         """Test filtering by execution mode."""
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=populated_registry)
+        runner = _make_runner_with_run_storage()
+        agents = self._make_agents()
+        terminal_agents = [a for a in agents if a.mode == "terminal"]
+        runner.run_storage.list_by_mode.return_value = terminal_agents
+
+        registry = create_agents_registry(runner)
         list_running = registry._tools["list_running_agents"].func
 
         result = await list_running(mode="terminal")
 
         assert result["success"] is True
         assert result["count"] == 2
-        for agent in result["agents"]:
-            assert agent["mode"] == "terminal"
+        runner.run_storage.list_by_mode.assert_called_once_with("terminal")
 
 
 class TestGetRunningAgent:
-    """Tests for get_running_agent MCP tool."""
+    """Tests for get_running_agent MCP tool (DB-backed)."""
 
     @pytest.mark.asyncio
     async def test_agent_found(self):
         """Test getting an existing running agent."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="terminal",
-                pid=12345,
-                terminal_type="ghostty",
-                provider="claude",
-            )
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
+            pid=12345, provider="claude", status="running",
         )
+        runner.run_storage.get.return_value = mock_run
 
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         get_running = registry._tools["get_running_agent"].func
 
         result = await get_running(run_id="run-123")
@@ -395,14 +429,14 @@ class TestGetRunningAgent:
         assert result["success"] is True
         assert result["agent"]["run_id"] == "run-123"
         assert result["agent"]["pid"] == 12345
-        assert result["agent"]["terminal_type"] == "ghostty"
 
     @pytest.mark.asyncio
     async def test_agent_not_found(self):
         """Test error when agent not found."""
-        running_registry = RunningAgentRegistry()
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        runner = _make_runner_with_run_storage()
+        runner.run_storage.get.return_value = None
+
+        registry = create_agents_registry(runner)
         get_running = registry._tools["get_running_agent"].func
 
         result = await get_running(run_id="non-existent")
@@ -410,45 +444,70 @@ class TestGetRunningAgent:
         assert result["success"] is False
         assert "no running agent found" in result["error"].lower()
 
+    @pytest.mark.asyncio
+    async def test_completed_agent_not_returned(self):
+        """Test that completed agents are not returned as 'running'."""
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(run_id="run-123", status="success")
+        runner.run_storage.get.return_value = mock_run
+
+        registry = create_agents_registry(runner)
+        get_running = registry._tools["get_running_agent"].func
+
+        result = await get_running(run_id="run-123")
+
+        assert result["success"] is False
+        assert "no running agent found" in result["error"].lower()
+
 
 class TestUnregisterAgent:
-    """Tests for unregister_agent MCP tool."""
+    """Tests for unregister_agent MCP tool (DB-backed via agent_run_manager.fail)."""
 
     @pytest.mark.asyncio
     async def test_successful_unregistration(self):
-        """Test successful agent unregistration."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="terminal",
-            )
-        )
+        """Test successful agent unregistration (marks as failed in DB)."""
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(run_id="run-123", status="running")
+        runner.run_storage.get.return_value = mock_run
 
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         unregister = registry._tools["unregister_agent"].func
 
         result = await unregister(run_id="run-123")
 
         assert result["success"] is True
         assert "Unregistered" in result["message"]
-        assert running_registry.get("run-123") is None
+        runner.run_storage.fail.assert_called_once_with("run-123", error="Unregistered")
 
     @pytest.mark.asyncio
     async def test_unregister_not_found(self):
         """Test error when agent not found."""
-        running_registry = RunningAgentRegistry()
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        runner = _make_runner_with_run_storage()
+        runner.run_storage.get.return_value = None
+
+        registry = create_agents_registry(runner)
         unregister = registry._tools["unregister_agent"].func
 
         result = await unregister(run_id="non-existent")
 
         assert result["success"] is False
-        assert "no running agent found" in result["error"].lower()
+        assert "no agent found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_unregister_already_completed(self):
+        """Test unregistering an already-completed agent returns success with message."""
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(run_id="run-123", status="success")
+        runner.run_storage.get.return_value = mock_run
+
+        registry = create_agents_registry(runner)
+        unregister = registry._tools["unregister_agent"].func
+
+        result = await unregister(run_id="run-123")
+
+        assert result["success"] is True
+        assert "already in status" in result["message"]
+        runner.run_storage.fail.assert_not_called()
 
 
 class TestKillAgent:
@@ -457,10 +516,9 @@ class TestKillAgent:
     @pytest.mark.asyncio
     async def test_requires_run_id_or_session_id(self):
         """Test error when neither run_id nor session_id provided."""
-        runner = MagicMock()
-        running_registry = RunningAgentRegistry()
+        runner = _make_runner_with_run_storage()
 
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
         result = await kill_agent()
@@ -471,10 +529,9 @@ class TestKillAgent:
     @pytest.mark.asyncio
     async def test_invalid_signal_rejected(self):
         """Test invalid signal is rejected."""
-        runner = MagicMock()
-        running_registry = RunningAgentRegistry()
+        runner = _make_runner_with_run_storage()
 
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
         result = await kill_agent(run_id="run-123", signal="INVALID")
@@ -484,38 +541,36 @@ class TestKillAgent:
 
     @pytest.mark.asyncio
     async def test_session_id_resolves_to_run_id(self):
-        """Test that session_id resolves to run_id via registry."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="terminal",
-            )
+        """Test that session_id resolves to run_id via DB."""
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
         )
+        runner.run_storage.get_by_session.return_value = mock_run
+        runner.get_run.return_value = mock_run
 
-        runner = MagicMock()
-        runner.get_run.return_value = None
-
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
-        # Session is found in registry, kill will be called
-        result = await kill_agent(session_id="sess-456")
+        with patch(
+            "gobby.mcp_proxy.tools.agents._kill_agent_process",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ):
+            result = await kill_agent(session_id="sess-456")
 
-        # The kill should be attempted (may fail due to no PID, but resolution worked)
-        # The key assertion is that it didn't fail with "No agent found for session"
+        # The key assertion: it found the agent via session_id
         assert "No agent found for session" not in result.get("error", "")
 
     @pytest.mark.asyncio
     async def test_session_id_not_found_returns_error(self):
         """Test error when session_id doesn't match any agent."""
-        running_registry = RunningAgentRegistry()
-        runner = MagicMock()
+        runner = _make_runner_with_run_storage()
+        runner.run_storage.get_by_session.return_value = None
         runner.get_run_id_by_session.return_value = None
 
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
         result = await kill_agent(session_id="non-existent")
@@ -525,57 +580,47 @@ class TestKillAgent:
 
     @pytest.mark.asyncio
     async def test_default_full_cleanup(self):
-        """Test that kill_agent does full cleanup by default (workflow + terminal)."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="in_process",  # Use in_process for simple cancel
-                task=MagicMock(),  # Provide a mock task for cancellation
-            )
+        """Test that kill_agent does full cleanup by default."""
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
         )
-
-        runner = MagicMock()
+        runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
 
-        registry = create_agents_registry(
-            runner,
-            running_registry=running_registry,
-        )
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
-        # Default behavior - full cleanup
-        result = await kill_agent(run_id="run-123")
+        with patch(
+            "gobby.mcp_proxy.tools.agents._kill_agent_process",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ):
+            result = await kill_agent(run_id="run-123")
 
         assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_debug_preserves_state(self):
         """Test that debug=True preserves workflow state."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="in_process",
-                task=MagicMock(),
-            )
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
         )
-
-        runner = MagicMock()
+        runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
 
-        registry = create_agents_registry(
-            runner,
-            running_registry=running_registry,
-        )
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
-        # debug=True should preserve state
-        result = await kill_agent(run_id="run-123", debug=True)
+        with patch(
+            "gobby.mcp_proxy.tools.agents._kill_agent_process",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ):
+            result = await kill_agent(run_id="run-123", debug=True)
 
         assert result["success"] is True
 
@@ -586,28 +631,27 @@ class TestKillAgentSelfTerminationViaRunId:
     @pytest.mark.asyncio
     async def test_run_id_self_termination_defaults_to_success(self):
         """When agent calls kill_agent(run_id=...) and _context matches, default to success."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="in_process",
-                task=MagicMock(),
-            )
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
         )
-
-        runner = MagicMock()
+        runner.get_run.return_value = mock_run
         runner.complete_run.return_value = True
 
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
         # Simulate _context with session_id matching the agent's session
         context = MagicMock()
         context.session_id = "sess-456"
 
-        result = await kill_agent(run_id="run-123", _context=context)
+        with patch(
+            "gobby.mcp_proxy.tools.agents._kill_agent_process",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ):
+            result = await kill_agent(run_id="run-123", _context=context)
 
         assert result["success"] is True
         # Should call complete_run (success), not cancel_run (cancelled)
@@ -617,28 +661,27 @@ class TestKillAgentSelfTerminationViaRunId:
     @pytest.mark.asyncio
     async def test_run_id_parent_kill_defaults_to_cancelled(self):
         """When parent kills agent via run_id, _context doesn't match, default to cancelled."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="in_process",
-                task=MagicMock(),
-            )
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
         )
-
-        runner = MagicMock()
+        runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
 
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
         # Simulate _context with different session_id (parent killing child)
         context = MagicMock()
         context.session_id = "sess-parent"
 
-        result = await kill_agent(run_id="run-123", _context=context)
+        with patch(
+            "gobby.mcp_proxy.tools.agents._kill_agent_process",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ):
+            result = await kill_agent(run_id="run-123", _context=context)
 
         assert result["success"] is True
         runner.cancel_run.assert_called_once_with("run-123")
@@ -647,24 +690,23 @@ class TestKillAgentSelfTerminationViaRunId:
     @pytest.mark.asyncio
     async def test_run_id_no_context_defaults_to_cancelled(self):
         """Without _context, run_id path defaults to cancelled (backward compat)."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="in_process",
-                task=MagicMock(),
-            )
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
         )
-
-        runner = MagicMock()
+        runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
 
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
-        result = await kill_agent(run_id="run-123")
+        with patch(
+            "gobby.mcp_proxy.tools.agents._kill_agent_process",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ):
+            result = await kill_agent(run_id="run-123")
 
         assert result["success"] is True
         runner.cancel_run.assert_called_once_with("run-123")
@@ -672,14 +714,15 @@ class TestKillAgentSelfTerminationViaRunId:
 
 
 class TestRunningAgentStats:
-    """Tests for running_agent_stats MCP tool."""
+    """Tests for running_agent_stats MCP tool (DB-backed)."""
 
     @pytest.mark.asyncio
     async def test_empty_stats(self):
         """Test stats with no running agents."""
-        running_registry = RunningAgentRegistry()
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        runner = _make_runner_with_run_storage()
+        runner.run_storage.list_active.return_value = []
+
+        registry = create_agents_registry(runner)
         stats = registry._tools["running_agent_stats"].func
 
         result = await stats()
@@ -692,42 +735,23 @@ class TestRunningAgentStats:
     @pytest.mark.asyncio
     async def test_stats_with_agents(self):
         """Test stats with multiple running agents."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-1",
-                session_id="sess-1",
-                parent_session_id="parent-1",
-                mode="terminal",
-            )
-        )
-        running_registry.add(
-            RunningAgent(
-                run_id="run-2",
-                session_id="sess-2",
-                parent_session_id="parent-1",
-                mode="terminal",
-            )
-        )
-        running_registry.add(
-            RunningAgent(
-                run_id="run-3",
-                session_id="sess-3",
-                parent_session_id="parent-2",
-                mode="autonomous",
-            )
-        )
-        running_registry.add(
-            RunningAgent(
-                run_id="run-4",
-                session_id="sess-4",
-                parent_session_id="parent-3",
-                mode="autonomous",
-            )
-        )
+        runner = _make_runner_with_run_storage()
+        runner.run_storage.list_active.return_value = [
+            _make_mock_agent_run(
+                run_id="run-1", parent_session_id="parent-1", mode="terminal",
+            ),
+            _make_mock_agent_run(
+                run_id="run-2", parent_session_id="parent-1", mode="terminal",
+            ),
+            _make_mock_agent_run(
+                run_id="run-3", parent_session_id="parent-2", mode="autonomous",
+            ),
+            _make_mock_agent_run(
+                run_id="run-4", parent_session_id="parent-3", mode="autonomous",
+            ),
+        ]
 
-        runner = MagicMock()
-        registry = create_agents_registry(runner, running_registry=running_registry)
+        registry = create_agents_registry(runner)
         stats = registry._tools["running_agent_stats"].func
 
         result = await stats()
@@ -783,18 +807,12 @@ class TestFireSyntheticStop:
     @pytest.mark.asyncio
     async def test_kill_agent_fires_synthetic_stop(self):
         """Test that kill_agent calls _fire_synthetic_stop after cleanup."""
-        running_registry = RunningAgentRegistry()
-        running_registry.add(
-            RunningAgent(
-                run_id="run-123",
-                session_id="sess-456",
-                parent_session_id="sess-parent",
-                mode="in_process",
-                task=MagicMock(),
-            )
+        runner = _make_runner_with_run_storage()
+        mock_run = _make_mock_agent_run(
+            run_id="run-123", session_id="sess-456",
+            parent_session_id="sess-parent", mode="terminal",
         )
-
-        runner = MagicMock()
+        runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
 
         mock_hook_mgr = MagicMock()
@@ -803,12 +821,16 @@ class TestFireSyntheticStop:
 
         registry = create_agents_registry(
             runner,
-            running_registry=running_registry,
             hook_manager_resolver=mock_resolver,
         )
         kill_agent = registry._tools["kill_agent"].func
 
-        result = await kill_agent(run_id="run-123")
+        with patch(
+            "gobby.mcp_proxy.tools.agents._kill_agent_process",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ):
+            result = await kill_agent(run_id="run-123")
 
         assert result["success"] is True
         # Verify synthetic stop was fired for the agent's session

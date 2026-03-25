@@ -313,7 +313,7 @@ def kill_all_gobby_daemons() -> int:
         Number of processes killed
     """
     if os.environ.get("GOBBY_TEST_PROTECT", "").lower() in ("1", "true", "yes"):
-        logger.warning("kill_all_gobby_daemons called during test — skipping")
+        logger.warning("kill_all_gobby_daemons called during test - skipping")
         return 0
 
     # Load config to get the configured ports
@@ -395,7 +395,7 @@ def kill_all_gobby_daemons() -> int:
                     try:
                         write_shutdown_source("cli_kill_all")
                     except Exception as e:
-                        logger.warning("Failed to write shutdown source: %s", e)
+                        logger.warning(f"Failed to write shutdown source: {e}")
                     proc.send_signal(signal.SIGTERM)
                     # Wait up to 5 seconds for graceful shutdown
                     proc.wait(timeout=5)
@@ -580,7 +580,7 @@ def find_web_dir(config: DaemonConfig | None = None) -> Path | None:
     except ImportError:
         logger.debug("gobby package not importable, skipping package web dir")
     except OSError as e:
-        logger.debug("Could not locate package web directory: %s", e)
+        logger.debug(f"Could not locate package web directory: {e}")
 
     return None
 
@@ -646,7 +646,7 @@ def spawn_ui_server(
     if not is_port_available(port, host="0.0.0.0"):  # nosec B104
         _kill_port_holder(port)
         if not wait_for_port_available(port, host="0.0.0.0", timeout=5.0):  # nosec B104
-            logger.error(f"Port {port} still in use after cleanup — aborting UI server spawn")
+            logger.error(f"Port {port} still in use after cleanup - aborting UI server spawn")
             return None
 
     # Install deps if needed
@@ -664,7 +664,7 @@ def spawn_ui_server(
             logger.error("npm install timed out after 120s")
             return None
         except FileNotFoundError:
-            logger.error("npm not found — install Node.js/npm and ensure it is on PATH")
+            logger.error("npm not found - install Node.js/npm and ensure it is on PATH")
             return None
 
         if result.returncode != 0:
@@ -878,7 +878,7 @@ def stop_daemon(quiet: bool = False) -> bool:
 
         write_shutdown_source("cli_stop")
     except Exception as e:
-        logger.debug("Failed to write shutdown source: %s", e)
+        logger.debug(f"Failed to write shutdown source: {e}")
 
     # If running under launchctl, use bootout instead of SIGTERM to prevent
     # KeepAlive from immediately respawning the process

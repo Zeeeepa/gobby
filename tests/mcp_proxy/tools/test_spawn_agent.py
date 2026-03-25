@@ -779,27 +779,16 @@ class TestSpawnAgentPreRegistration:
         )
 
     @pytest.mark.asyncio
-    async def test_agent_registered_before_spawn(self, mock_runner, agent_body):
+    async def test_agent_db_record_created_during_spawn(self, mock_runner, agent_body):
+        """Test that agent run DB record is created during spawn and updated after."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
+        mock_runner.run_storage = MagicMock()
+        mock_runner.run_storage.has_active_run_for_task.return_value = False
+        mock_runner.run_storage.update_child_session = MagicMock()
+        mock_runner.run_storage.update_runtime = MagicMock()
+
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
-
-        call_order: list[str] = []
-        mock_agent_registry = MagicMock()
-        mock_agent_registry.add.side_effect = lambda agent: call_order.append(f"add:{agent.run_id}")
-
-        async def fake_execute(req):
-            call_order.append("execute_spawn")
-            return MagicMock(
-                success=True,
-                run_id=req.run_id,
-                child_session_id="child-456",
-                status="pending",
-                pid=12345,
-                terminal_type="ghostty",
-                tmux_session_name=None,
-                message="Spawned",
-            )
 
         with (
             patch(
@@ -811,14 +800,19 @@ class TestSpawnAgentPreRegistration:
             ) as mock_ctx,
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn",
-                side_effect=fake_execute,
-            ),
-            patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry",
-                return_value=mock_agent_registry,
-            ),
+            ) as mock_execute,
         ):
             mock_ctx.return_value = {"id": "proj-123", "project_path": "/path"}
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+                pid=12345,
+                terminal_type="ghostty",
+                tmux_session_name=None,
+                message="Spawned",
+            )
 
             result = await registry.call(
                 "spawn_agent",
@@ -826,25 +820,19 @@ class TestSpawnAgentPreRegistration:
             )
 
             assert result["success"] is True
-            assert len(call_order) == 3  # add (pre-reg), execute_spawn, add (update)
-            assert call_order[0].startswith("add:")
-            assert call_order[1] == "execute_spawn"
-            assert call_order[2].startswith("add:")
-            mock_agent_registry.remove.assert_not_called()
+            # After successful spawn, child_session_id should be updated in DB
+            mock_runner.run_storage.update_child_session.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_agent_removed_on_spawn_failure(self, mock_runner, agent_body):
+    async def test_agent_failed_on_spawn_failure(self, mock_runner, agent_body):
+        """Test that agent run is marked as failed in DB on spawn failure."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
+        mock_runner.run_storage = MagicMock()
+        mock_runner.run_storage.has_active_run_for_task.return_value = False
+        mock_runner.run_storage.fail = MagicMock()
+
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
-
-        mock_agent_registry = MagicMock()
-        pre_registered_run_id: list[str] = []
-
-        def track_add(agent):
-            pre_registered_run_id.append(agent.run_id)
-
-        mock_agent_registry.add.side_effect = track_add
 
         with (
             patch(
@@ -857,10 +845,6 @@ class TestSpawnAgentPreRegistration:
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
-            patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry",
-                return_value=mock_agent_registry,
-            ),
         ):
             mock_ctx.return_value = {"id": "proj-123", "project_path": "/path"}
             mock_execute.return_value = MagicMock(
@@ -875,10 +859,8 @@ class TestSpawnAgentPreRegistration:
             )
 
             assert result["success"] is False
-            assert len(pre_registered_run_id) == 1
-            mock_agent_registry.remove.assert_called_once_with(
-                pre_registered_run_id[0], status="failed"
-            )
+            # DB should mark the run as failed
+            mock_runner.run_storage.fail.assert_called_once()
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1671,9 +1653,7 @@ class TestSpawnAgentImplErrorBranches:
         runner._child_session_manager = MagicMock()
 
         mock_handler = MagicMock()
-        mock_handler.prepare_environment = AsyncMock(
-            side_effect=RuntimeError("git error")
-        )
+        mock_handler.prepare_environment = AsyncMock(side_effect=RuntimeError("git error"))
         mock_handler.cleanup_environment = AsyncMock()
 
         with (
@@ -1702,6 +1682,10 @@ class TestSpawnAgentImplErrorBranches:
         runner = MagicMock()
         runner.can_spawn.return_value = (True, "ok", 0)
         runner._child_session_manager = MagicMock()
+        runner.run_storage = MagicMock()
+        runner.run_storage.has_active_run_for_task.return_value = False
+        runner.run_storage.update_child_session = MagicMock()
+        runner.run_storage.update_runtime = MagicMock()
 
         with (
             patch(
@@ -1714,21 +1698,21 @@ class TestSpawnAgentImplErrorBranches:
             patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
-            patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ),
         ):
             handler = MagicMock()
-            handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/path")
-            )
+            handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/path"))
             handler.build_context_prompt.return_value = "test"
             mock_handler_fn.return_value = handler
 
             mock_execute.return_value = MagicMock(
-                success=True, child_session_id="c-1", status="ok",
-                pid=1, terminal_type=None, tmux_session_name=None,
-                message="ok", process=None,
+                success=True,
+                child_session_id="c-1",
+                status="ok",
+                pid=1,
+                terminal_type=None,
+                tmux_session_name=None,
+                message="ok",
+                process=None,
             )
 
             result = await spawn_agent_impl(

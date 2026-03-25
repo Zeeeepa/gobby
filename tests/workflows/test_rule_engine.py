@@ -1741,40 +1741,48 @@ class TestRuleEngineHelpers:
         """MCP call_tool returns 'server:tool' identity."""
         from gobby.workflows.rule_engine import _get_tool_identity
 
-        result = _get_tool_identity({
-            "tool_name": "call_tool",
-            "tool_input": {"server_name": "gobby-tasks", "tool_name": "list_tasks"},
-        })
+        result = _get_tool_identity(
+            {
+                "tool_name": "call_tool",
+                "tool_input": {"server_name": "gobby-tasks", "tool_name": "list_tasks"},
+            }
+        )
         assert result == "gobby-tasks:list_tasks"
 
     def test_get_tool_identity_mcp_gobby_call_tool(self) -> None:
         """mcp__gobby__call_tool returns 'server:tool' identity."""
         from gobby.workflows.rule_engine import _get_tool_identity
 
-        result = _get_tool_identity({
-            "tool_name": "mcp__gobby__call_tool",
-            "tool_input": {"server_name": "gobby-memory", "tool_name": "store"},
-        })
+        result = _get_tool_identity(
+            {
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {"server_name": "gobby-memory", "tool_name": "store"},
+            }
+        )
         assert result == "gobby-memory:store"
 
     def test_get_tool_identity_mcp_missing_fields(self) -> None:
         """MCP call_tool without server/tool returns tool_name."""
         from gobby.workflows.rule_engine import _get_tool_identity
 
-        result = _get_tool_identity({
-            "tool_name": "call_tool",
-            "tool_input": {},
-        })
+        result = _get_tool_identity(
+            {
+                "tool_name": "call_tool",
+                "tool_input": {},
+            }
+        )
         assert result == "call_tool"
 
     def test_get_tool_identity_mcp_non_dict_input(self) -> None:
         """MCP call_tool with non-dict tool_input returns tool_name."""
         from gobby.workflows.rule_engine import _get_tool_identity
 
-        result = _get_tool_identity({
-            "tool_name": "call_tool",
-            "tool_input": "not a dict",
-        })
+        result = _get_tool_identity(
+            {
+                "tool_name": "call_tool",
+                "tool_input": "not a dict",
+            }
+        )
         assert result == "call_tool"
 
     def test_mcp_tool_matches_exact(self) -> None:
@@ -1849,9 +1857,7 @@ class TestCatastrophicFailure:
     """Tests for catastrophic failure detection."""
 
     @pytest.mark.asyncio
-    async def test_catastrophic_failure_sets_force_allow_stop(
-        self, db: LocalDatabase
-    ) -> None:
+    async def test_catastrophic_failure_sets_force_allow_stop(self, db: LocalDatabase) -> None:
         """Catastrophic failure in tool output should set force_allow_stop."""
         engine = RuleEngine(db)
         variables: dict[str, Any] = {}
@@ -1865,9 +1871,7 @@ class TestCatastrophicFailure:
         assert variables.get("force_allow_stop") is True
 
     @pytest.mark.asyncio
-    async def test_non_catastrophic_failure_no_force_allow(
-        self, db: LocalDatabase
-    ) -> None:
+    async def test_non_catastrophic_failure_no_force_allow(self, db: LocalDatabase) -> None:
         """Non-catastrophic failure should NOT set force_allow_stop."""
         engine = RuleEngine(db)
         variables: dict[str, Any] = {}
@@ -2177,14 +2181,10 @@ class TestLoadSkillEffect:
             ),
         )
 
-        skill_mgr = _FakeSkillManager(
-            {"plan": _FakeSkill("plan", "You are now in plan mode.")}
-        )
+        skill_mgr = _FakeSkillManager({"plan": _FakeSkill("plan", "You are now in plan mode.")})
         engine = RuleEngine(db, skill_manager=skill_mgr)
         variables: dict[str, Any] = {}
-        event = _make_event(
-            HookEventType.AFTER_TOOL, data={"tool_name": "EnterPlanMode"}
-        )
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "EnterPlanMode"})
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -2256,9 +2256,7 @@ class TestLoadSkillEffect:
             ),
         )
 
-        skill_mgr = _FakeSkillManager(
-            {"plan": _FakeSkill("plan", "Plan content")}
-        )
+        skill_mgr = _FakeSkillManager({"plan": _FakeSkill("plan", "Plan content")})
         engine = RuleEngine(db, skill_manager=skill_mgr)
         variables: dict[str, Any] = {}
         event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Bash"})
@@ -2285,14 +2283,10 @@ class TestLoadSkillEffect:
             ),
         )
 
-        skill_mgr = _FakeSkillManager(
-            {"plan": _FakeSkill("plan", "Plan skill content")}
-        )
+        skill_mgr = _FakeSkillManager({"plan": _FakeSkill("plan", "Plan skill content")})
         engine = RuleEngine(db, skill_manager=skill_mgr)
         variables: dict[str, Any] = {}
-        event = _make_event(
-            HookEventType.AFTER_TOOL, data={"tool_name": "EnterPlanMode"}
-        )
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "EnterPlanMode"})
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"

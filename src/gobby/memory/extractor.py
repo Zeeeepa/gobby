@@ -179,7 +179,7 @@ class SessionMemoryExtractor:
                 logger.debug(f"Could not get project name: {e}")
 
         # Get transcript content
-        transcript_path = getattr(session, "jsonl_path", None)
+        transcript_path = getattr(session, "transcript_path", None)
         transcript_summary = ""
         task_refs = ""
         files_modified = ""

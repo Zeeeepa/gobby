@@ -15,13 +15,13 @@ pytestmark = pytest.mark.unit
 
 def _make_session(
     session_id: str = "sess-1",
-    jsonl_path: str | None = None,
+    transcript_path: str | None = None,
     source: str = "claude",
     summary_markdown: str | None = None,
 ) -> MagicMock:
     session = MagicMock()
     session.id = session_id
-    session.jsonl_path = jsonl_path
+    session.transcript_path = transcript_path
     session.source = source
     session.summary_markdown = summary_markdown
     return session
@@ -64,7 +64,7 @@ class TestGenerateSessionSummaries:
     @pytest.mark.asyncio
     async def test_no_transcript_path(self) -> None:
         sm = MagicMock()
-        sm.get.return_value = _make_session(jsonl_path=None)
+        sm.get.return_value = _make_session(transcript_path=None)
         result = await generate_session_summaries(session_id="s1", session_manager=sm)
         assert result["success"] is False
         assert "No transcript path" in result["error"]
@@ -72,7 +72,7 @@ class TestGenerateSessionSummaries:
     @pytest.mark.asyncio
     async def test_transcript_not_found(self) -> None:
         sm = MagicMock()
-        sm.get.return_value = _make_session(jsonl_path="/nonexistent/path.jsonl")
+        sm.get.return_value = _make_session(transcript_path="/nonexistent/path.jsonl")
         result = await generate_session_summaries(session_id="s1", session_manager=sm)
         assert result["success"] is False
         assert "Transcript file not found" in result["error"]
@@ -81,7 +81,7 @@ class TestGenerateSessionSummaries:
     async def test_compact_only(self, tmp_path: Path) -> None:
         transcript_path = _write_transcript(tmp_path)
         sm = MagicMock()
-        sm.get.return_value = _make_session(jsonl_path=transcript_path)
+        sm.get.return_value = _make_session(transcript_path=transcript_path)
 
         with (
             patch("gobby.sessions.summarize._enrich_git_context"),
@@ -104,7 +104,7 @@ class TestGenerateSessionSummaries:
     async def test_sets_handoff_ready(self, tmp_path: Path) -> None:
         transcript_path = _write_transcript(tmp_path)
         sm = MagicMock()
-        sm.get.return_value = _make_session(jsonl_path=transcript_path)
+        sm.get.return_value = _make_session(transcript_path=transcript_path)
 
         with (
             patch("gobby.sessions.summarize._enrich_git_context"),
@@ -124,7 +124,7 @@ class TestGenerateSessionSummaries:
     async def test_skips_handoff_ready_when_disabled(self, tmp_path: Path) -> None:
         transcript_path = _write_transcript(tmp_path)
         sm = MagicMock()
-        sm.get.return_value = _make_session(jsonl_path=transcript_path)
+        sm.get.return_value = _make_session(transcript_path=transcript_path)
 
         with (
             patch("gobby.sessions.summarize._enrich_git_context"),
@@ -144,7 +144,7 @@ class TestGenerateSessionSummaries:
     async def test_full_summary_with_llm(self, tmp_path: Path) -> None:
         transcript_path = _write_transcript(tmp_path)
         sm = MagicMock()
-        sm.get.return_value = _make_session(jsonl_path=transcript_path)
+        sm.get.return_value = _make_session(transcript_path=transcript_path)
 
         mock_provider = AsyncMock()
         mock_provider.generate_summary.return_value = "# Full Summary\nDetails here."
@@ -173,7 +173,7 @@ class TestGenerateSessionSummaries:
     async def test_full_only_error_returns_failure(self, tmp_path: Path) -> None:
         transcript_path = _write_transcript(tmp_path)
         sm = MagicMock()
-        sm.get.return_value = _make_session(jsonl_path=transcript_path)
+        sm.get.return_value = _make_session(transcript_path=transcript_path)
 
         with (
             patch("gobby.sessions.summarize._enrich_git_context"),
@@ -311,7 +311,9 @@ class TestGetClaimedTasks:
         from gobby.sessions.summarize import _get_claimed_tasks
 
         mock_db = MagicMock()
-        with patch("gobby.storage.session_tasks.SessionTaskManager", side_effect=RuntimeError("fail")):
+        with patch(
+            "gobby.storage.session_tasks.SessionTaskManager", side_effect=RuntimeError("fail")
+        ):
             result = _get_claimed_tasks("sess-1", mock_db)
         assert result == ""
 

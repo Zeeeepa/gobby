@@ -65,77 +65,61 @@ def create_task_registry(
     )
 
     # Merge CRUD tools
-    crud_registry = create_crud_registry(ctx)
-    for tool_name, tool in crud_registry._tools.items():
-        registry._tools[tool_name] = tool
+    registry.merge_from(create_crud_registry(ctx))
 
     # Merge lifecycle tools
-    lifecycle_registry = create_lifecycle_registry(ctx)
-    for tool_name, tool in lifecycle_registry._tools.items():
-        registry._tools[tool_name] = tool
+    registry.merge_from(create_lifecycle_registry(ctx))
 
     # Merge session tools
-    session_registry = create_session_registry(ctx)
-    for tool_name, tool in session_registry._tools.items():
-        registry._tools[tool_name] = tool
+    registry.merge_from(create_session_registry(ctx))
 
     # Merge search tools
-    search_registry = create_search_registry(ctx)
-    for tool_name, tool in search_registry._tools.items():
-        registry._tools[tool_name] = tool
+    registry.merge_from(create_search_registry(ctx))
 
     # Merge expansion tools (skill-based task decomposition)
-    expansion_registry = create_expansion_registry(ctx)
-    for tool_name, tool in expansion_registry._tools.items():
-        registry._tools[tool_name] = tool
+    registry.merge_from(create_expansion_registry(ctx))
 
     # Merge validation tools from extracted module (Strangler Fig pattern)
     validation_max_retries = 3
     if config:
         validation_max_retries = config.gobby_tasks.validation.max_retries
-    validation_registry = create_validation_registry(
-        task_manager=task_manager,
-        task_validator=task_validator,
-        project_manager=ctx.project_manager,
-        get_project_repo_path=ctx.get_project_repo_path,
-        max_retries=validation_max_retries,
+    registry.merge_from(
+        create_validation_registry(
+            task_manager=task_manager,
+            task_validator=task_validator,
+            project_manager=ctx.project_manager,
+            get_project_repo_path=ctx.get_project_repo_path,
+            max_retries=validation_max_retries,
+        )
     )
-    for tool_name, tool in validation_registry._tools.items():
-        registry._tools[tool_name] = tool
 
     # Merge dependency tools from extracted module (Strangler Fig pattern)
-    dependency_registry = create_dependency_registry(
-        task_manager=task_manager,
-        dep_manager=ctx.dep_manager,
+    registry.merge_from(
+        create_dependency_registry(
+            task_manager=task_manager,
+            dep_manager=ctx.dep_manager,
+        )
     )
-    for tool_name, tool in dependency_registry._tools.items():
-        registry._tools[tool_name] = tool
 
     # Merge readiness tools from extracted module (Strangler Fig pattern)
-    readiness_registry = create_readiness_registry(
-        task_manager=task_manager,
-    )
-    for tool_name, tool in readiness_registry._tools.items():
-        registry._tools[tool_name] = tool
+    registry.merge_from(create_readiness_registry(task_manager=task_manager))
 
     # Merge affected files tools
-    affected_files_registry = create_affected_files_registry(ctx)
-    for tool_name, tool in affected_files_registry._tools.items():
-        registry._tools[tool_name] = tool
+    registry.merge_from(create_affected_files_registry(ctx))
 
     # Merge sync tools from extracted module (Strangler Fig pattern)
     from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
     from gobby.tasks.commits import get_task_diff
 
-    sync_registry = create_sync_registry(
-        sync_manager=sync_manager,
-        task_manager=task_manager,
-        project_manager=ctx.project_manager,
-        auto_link_commits_fn=auto_link_commits_fn,
-        get_task_diff_fn=get_task_diff,
-        session_manager=ctx.session_manager,
+    registry.merge_from(
+        create_sync_registry(
+            sync_manager=sync_manager,
+            task_manager=task_manager,
+            project_manager=ctx.project_manager,
+            auto_link_commits_fn=auto_link_commits_fn,
+            get_task_diff_fn=get_task_diff,
+            session_manager=ctx.session_manager,
+        )
     )
-    for tool_name, tool in sync_registry._tools.items():
-        registry._tools[tool_name] = tool
 
     return registry

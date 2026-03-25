@@ -816,18 +816,14 @@ class TestDetectBashCommit:
     """Verify detect_bash_commit sets task_has_commits from Bash git output."""
 
     def test_git_commit_output_sets_task_has_commits(self, variables) -> None:
-        event = _make_bash_event(
-            "[main abc1234] Fix bug\n 1 file changed, 2 insertions(+)"
-        )
+        event = _make_bash_event("[main abc1234] Fix bug\n 1 file changed, 2 insertions(+)")
 
         detect_bash_commit(event, variables, SESSION_ID)
 
         assert variables["task_has_commits"] is True
 
     def test_git_commit_branch_with_slash(self, variables) -> None:
-        event = _make_bash_event(
-            "[feat/login 9a3b2c1e] Add auth\n 3 files changed"
-        )
+        event = _make_bash_event("[feat/login 9a3b2c1e] Add auth\n 3 files changed")
 
         detect_bash_commit(event, variables, SESSION_ID)
 
@@ -887,9 +883,7 @@ class TestDetectBashCommit:
         assert variables["task_has_commits"] is True
 
     def test_branch_with_hash_in_name(self, variables) -> None:
-        event = _make_bash_event(
-            "[gobby-#42 abc1234def] Fix\n 1 file changed"
-        )
+        event = _make_bash_event("[gobby-#42 abc1234def] Fix\n 1 file changed")
 
         detect_bash_commit(event, variables, SESSION_ID)
 
@@ -907,9 +901,7 @@ class TestDetectBashCommit:
 
     def test_dict_output_with_stdout_key(self, variables) -> None:
         """Some adapters use 'stdout' key."""
-        event = _make_bash_event_dict(
-            {"stdout": "[feat/x 1a2b3c4] Add feature\n 2 files changed"}
-        )
+        event = _make_bash_event_dict({"stdout": "[feat/x 1a2b3c4] Add feature\n 2 files changed"})
         detect_bash_commit(event, variables, SESSION_ID)
         assert variables["task_has_commits"] is True
 

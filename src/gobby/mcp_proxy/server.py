@@ -152,18 +152,15 @@ class GobbyDaemonTools:
                             fs_id = data.get("id")
                             if fs_id and fs_id != project.id:
                                 logger.warning(
-                                    "Project ID mismatch: session='%s', filesystem='%s' at %s. Using filesystem.",
-                                    project.id,
-                                    fs_id,
-                                    project.repo_path,
+                                    f"Project ID mismatch: session='{project.id}', filesystem='{fs_id}' at {project.repo_path}. Using filesystem.",
                                 )
                             data["project_path"] = project.repo_path
                             return set_project_context(data)
                         except (json.JSONDecodeError, OSError) as e:
-                            logger.debug("Failed to read project.json at %s: %s", project_file, e)
+                            logger.debug(f"Failed to read project.json at {project_file}: {e}")
                 return set_project_context(ctx)
         except (ImportError, OSError, sqlite3.Error) as e:
-            logger.debug("Failed to enrich project context for session %s: %s", session_id, e)
+            logger.debug(f"Failed to enrich project context for session {session_id}: {e}")
 
         return set_project_context({"id": session.project_id})
 

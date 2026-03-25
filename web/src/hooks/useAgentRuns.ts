@@ -49,7 +49,7 @@ interface Filters {
   status?: string;
 }
 
-export function useAgentRuns() {
+export function useAgentRuns(projectId?: string | null) {
   const [runs, setRuns] = useState<AgentRunRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>({});
@@ -63,6 +63,7 @@ export function useAgentRuns() {
 
     const params = new URLSearchParams();
     if (filters.status) params.set("status", filters.status);
+    if (projectId) params.set("project_id", projectId);
     params.set("limit", "100");
 
     try {
@@ -86,7 +87,7 @@ export function useAgentRuns() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters]);
+  }, [filters, projectId]);
 
   // Initial load + refetch on filter change
   useEffect(() => {

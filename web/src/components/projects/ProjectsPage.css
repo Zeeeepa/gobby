@@ -521,12 +521,6 @@
   max-width: 800px;
 }
 
-.projects-summary-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
 .projects-summary-section {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -596,6 +590,80 @@
   font-size: 11px;
   color: var(--text-muted);
   text-transform: uppercase;
+}
+
+/* Overview dashboard layout */
+.projects-overview-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 900px;
+}
+
+.projects-overview-stats-row {
+  display: flex;
+  gap: 24px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.projects-overview-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 640px) {
+  .projects-overview-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Task breakdown bar */
+.projects-overview-task-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.projects-overview-task-segment {
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.projects-overview-task-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.projects-overview-task-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.projects-overview-task-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.projects-overview-task-legend-label {
+  color: var(--text-secondary);
+}
+
+.projects-overview-task-legend-count {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-family: var(--font-mono);
 }
 
 /* Settings sub-tab */

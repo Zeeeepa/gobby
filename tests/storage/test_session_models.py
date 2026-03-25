@@ -21,7 +21,7 @@ def _make_session(**overrides: Any) -> Session:
         "project_id": "proj-xyz",
         "title": "Test session",
         "status": "active",
-        "jsonl_path": "/tmp/transcripts/sess.jsonl",
+        "transcript_path": "/tmp/transcripts/sess.jsonl",
         "summary_path": "/tmp/summaries/sess.md",
         "summary_markdown": "# Summary\nLong markdown content...",
         "git_branch": "main",
@@ -90,7 +90,7 @@ class TestSessionToBrief:
         session = _make_session()
 
         brief = session.to_brief()
-        assert "jsonl_path" not in brief
+        assert "transcript_path" not in brief
         assert "summary_path" not in brief
 
     def test_to_brief_excludes_usage_metrics(self) -> None:

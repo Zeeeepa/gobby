@@ -377,6 +377,10 @@ def _process_message_block(
                 raw=msg.raw_json,
             )
 
+    # Skip empty thinking blocks (defense in depth)
+    if block_type == "thinking" and (not block_content or not str(block_content).strip()):
+        return
+
     # Merge consecutive blocks of same type if appropriate
     if (
         state.current_message.content_blocks

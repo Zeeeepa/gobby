@@ -86,7 +86,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         except Exception as e:
-            logger.error("Error registering test project: %s", e, exc_info=True)
+            logger.error(f"Error registering test project: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     class TestAgentRegisterRequest(BaseModel):
@@ -100,7 +100,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
     @router.post("/test/register-agent")
     async def register_test_agent(request: TestAgentRegisterRequest) -> dict[str, Any]:
         """
-        Register a test agent in the running agent registry.
+        Register a test agent run in the database.
 
         This endpoint is for E2E testing of inter-agent messaging.
         It allows tests to set up parent-child agent relationships
@@ -112,7 +112,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         Returns:
             Registration confirmation
         """
-        from gobby.agents.registry import RunningAgent, get_running_agent_registry
+        from gobby.storage.agents import LocalAgentRunManager
 
         # Guard: Only available in test mode
         if not server.test_mode:
@@ -123,34 +123,39 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         start_time = time.perf_counter()
 
         try:
-            registry = get_running_agent_registry()
+            db = server.services.database
+            arm = LocalAgentRunManager(db)
 
-            # Create and register the agent
-            running_agent = RunningAgent(
+            # Create agent run in DB
+            arm.create(
                 run_id=request.run_id,
-                session_id=request.session_id,
                 parent_session_id=request.parent_session_id,
-                mode=request.mode,
+                provider="test",
+                prompt="test agent",
             )
-            registry.add(running_agent)
+            # Mark as running with child session and mode
+            arm.start(request.run_id)
+            arm.update_child_session(request.run_id, request.session_id)
+            arm.update_runtime(request.run_id, mode=request.mode)
 
+            run = arm.get(request.run_id)
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
             return {
                 "status": "success",
                 "message": f"Registered test agent {request.run_id}",
-                "agent": running_agent.to_dict(),
+                "agent": run.to_dict() if run else {"run_id": request.run_id},
                 "response_time_ms": response_time_ms,
             }
 
         except Exception as e:
-            logger.error("Error registering test agent: %s", e, exc_info=True)
+            logger.error(f"Error registering test agent: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.delete("/test/unregister-agent/{run_id}")
     async def unregister_test_agent(run_id: str) -> dict[str, Any]:
         """
-        Unregister a test agent from the running agent registry.
+        Unregister a test agent from the database.
 
         Args:
             run_id: The agent run ID to remove
@@ -158,7 +163,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         Returns:
             Unregistration confirmation
         """
-        from gobby.agents.registry import get_running_agent_registry
+        from gobby.storage.agents import LocalAgentRunManager
 
         # Guard: Only available in test mode
         if not server.test_mode:
@@ -169,12 +174,14 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         start_time = time.perf_counter()
 
         try:
-            registry = get_running_agent_registry()
-            agent = registry.remove(run_id)
+            db = server.services.database
+            arm = LocalAgentRunManager(db)
+            run = arm.get(run_id)
 
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
-            if agent:
+            if run:
+                arm.fail(run_id, error="Unregistered via test endpoint")
                 return {
                     "status": "success",
                     "message": f"Unregistered test agent {run_id}",
@@ -183,12 +190,12 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
             else:
                 return {
                     "status": "not_found",
-                    "message": f"Agent {run_id} not found in registry",
+                    "message": f"Agent {run_id} not found in database",
                     "response_time_ms": response_time_ms,
                 }
 
         except Exception as e:
-            logger.error("Error unregistering test agent: %s", e, exc_info=True)
+            logger.error(f"Error unregistering test agent: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     class TestSessionUsageRequest(BaseModel):
@@ -260,5 +267,5 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
                 }
 
         except Exception as e:
-            logger.error("Error setting test session usage: %s", e, exc_info=True)
+            logger.error(f"Error setting test session usage: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e

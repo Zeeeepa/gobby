@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Iterator
 from io import StringIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -33,9 +34,11 @@ CLAUDE_CONFIG = hook_dispatcher.CLI_CONFIGS["claude"]
 
 
 @pytest.fixture()
-def _patch_daemon_running():
+def _patch_daemon_running() -> Iterator[None]:
     """Assume daemon is running for all tests."""
-    with patch.object(hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=True):
+    with patch.object(
+        hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=True
+    ):
         yield
 
 
@@ -79,7 +82,12 @@ class TestFailClosedOnCriticalHooks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            with patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"):
+            with patch.object(
+                hook_dispatcher,
+                "get_daemon_url",
+                new_callable=AsyncMock,
+                return_value="http://localhost:60887",
+            ):
                 exit_code = await hook_dispatcher.main()
 
         assert exit_code == 2, f"Critical hook error should block (exit 2), got {exit_code}"
@@ -106,7 +114,12 @@ class TestFailClosedOnCriticalHooks:
         with patch.object(hook_dispatcher, "parse_arguments", return_value=args):
             with patch.object(hook_dispatcher, "detect_cli", return_value=CLAUDE_CONFIG):
                 with patch("httpx.AsyncClient", return_value=mock_client):
-                    with patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"):
+                    with patch.object(
+                        hook_dispatcher,
+                        "get_daemon_url",
+                        new_callable=AsyncMock,
+                        return_value="http://localhost:60887",
+                    ):
                         exit_code = await hook_dispatcher.main()
 
         assert exit_code == 1, f"Non-critical hook error should allow (exit 1), got {exit_code}"
@@ -124,7 +137,12 @@ class TestFailClosedOnCriticalHooks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            with patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"):
+            with patch.object(
+                hook_dispatcher,
+                "get_daemon_url",
+                new_callable=AsyncMock,
+                return_value="http://localhost:60887",
+            ):
                 exit_code = await hook_dispatcher.main()
 
         assert exit_code == 2
@@ -142,7 +160,12 @@ class TestFailClosedOnCriticalHooks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            with patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"):
+            with patch.object(
+                hook_dispatcher,
+                "get_daemon_url",
+                new_callable=AsyncMock,
+                return_value="http://localhost:60887",
+            ):
                 exit_code = await hook_dispatcher.main()
 
         assert exit_code == 2
@@ -158,7 +181,12 @@ class TestFailClosedOnCriticalHooks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            with patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"):
+            with patch.object(
+                hook_dispatcher,
+                "get_daemon_url",
+                new_callable=AsyncMock,
+                return_value="http://localhost:60887",
+            ):
                 exit_code = await hook_dispatcher.main()
 
         assert exit_code == 2
@@ -181,7 +209,12 @@ class TestFailClosedOnCriticalHooks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            with patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"):
+            with patch.object(
+                hook_dispatcher,
+                "get_daemon_url",
+                new_callable=AsyncMock,
+                return_value="http://localhost:60887",
+            ):
                 exit_code = await hook_dispatcher.main()
 
         assert exit_code == 2
@@ -204,7 +237,12 @@ class TestFailClosedOnCriticalHooks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            with patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"):
+            with patch.object(
+                hook_dispatcher,
+                "get_daemon_url",
+                new_callable=AsyncMock,
+                return_value="http://localhost:60887",
+            ):
                 exit_code = await hook_dispatcher.main()
 
         assert exit_code == 0
@@ -259,7 +297,9 @@ class TestAgentDaemonFailureTracking:
             hook_dispatcher._track_daemon_failure("test-force-kill")
 
         with (
-            patch.object(hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=False),
+            patch.object(
+                hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=False
+            ),
             patch.object(hook_dispatcher, "parse_arguments", return_value=args),
             patch.object(hook_dispatcher, "detect_cli", return_value=gemini_config),
             patch.object(hook_dispatcher, "_force_kill_agent") as mock_kill,
@@ -281,7 +321,9 @@ class TestAgentDaemonFailureTracking:
         gemini_config = hook_dispatcher.CLI_CONFIGS["gemini"]
 
         with (
-            patch.object(hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=False),
+            patch.object(
+                hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=False
+            ),
             patch.object(hook_dispatcher, "parse_arguments", return_value=args),
             patch.object(hook_dispatcher, "detect_cli", return_value=gemini_config),
             patch.object(hook_dispatcher, "_force_kill_agent") as mock_kill,
@@ -316,11 +358,18 @@ class TestAgentDaemonFailureTracking:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with (
-            patch.object(hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=True),
+            patch.object(
+                hook_dispatcher, "check_daemon_running", new_callable=AsyncMock, return_value=True
+            ),
             patch.object(hook_dispatcher, "parse_arguments", return_value=args),
             patch.object(hook_dispatcher, "detect_cli", return_value=gemini_config),
             patch("httpx.AsyncClient", return_value=mock_client),
-            patch.object(hook_dispatcher, "get_daemon_url", new_callable=AsyncMock, return_value="http://localhost:60887"),
+            patch.object(
+                hook_dispatcher,
+                "get_daemon_url",
+                new_callable=AsyncMock,
+                return_value="http://localhost:60887",
+            ),
             patch.dict(os.environ, {"GOBBY_AGENT_RUN_ID": "test-reset"}),
         ):
             exit_code = await hook_dispatcher.main()

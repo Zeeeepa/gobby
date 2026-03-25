@@ -1,180 +1,211 @@
-# Monolith Decomposition Plan — Review & Improved Approach
+# Monolith Decomposition
 
-## Context
+## Overview
 
-Gemini identified 12+ files exceeding the 1000-line guideline. All claims validated — every file is genuinely oversized. However, the proposed plan has structural problems that would make execution painful. This is my critique and a phased alternative.
+Decompose 12+ Python files exceeding the 1000-line guideline into smaller, focused modules. Serialized by blast radius — lowest-coupling files first, highest last. Each decomposition is one PR, independently reviewable and revertible.
 
-## Critique of Gemini's Plan
+## Constraints
 
-### What's Good
-- Correctly identifies real monoliths (all validated at 1000+ lines)
-- Migration squash from v133→v169 baseline is sound
-- Most decomposition targets are reasonable
+- Re-export from old paths to avoid breaking importers. Remove re-exports in follow-up.
+- One monolith per task. No multi-file decompositions in a single task.
+- Targeted tests per decomposition — do NOT run the full 11,000+ test suite.
+- Keep existing CLI flat-module pattern (`cli/agents.py`, `cli/sessions.py`). No `commands/` subpackage.
+- `runner.py` extracts must NOT use the name `bootstrap.py` (conflicts with `config/bootstrap.py`).
 
-### What's Wrong
+## Phase 1: Migration Squash
 
-1. **No prioritization or phasing.** 12+ files, 640 test files, 11,000+ tests. This needs to be serialized carefully, not presented as a flat list.
+**Goal**: Shrink migrations.py by squashing v134-v169 into BASELINE_SCHEMA
 
-2. **Migration question is already answered.** The baseline is at v133, `_MIN_MIGRATION_VERSION = 133`. Squashing v134-v169 into the baseline isn't a breaking change — databases below v133 are *already* unsupported. There's no decision to make here.
+### 1.1 Squash migrations v134-v169 into baseline [category: code]
 
-3. **`runner.py` → `bootstrap.py` conflicts with existing `config/bootstrap.py`.** Gemini didn't check what already exists.
+Target: `src/gobby/storage/migrations.py` (1,645 lines)
 
-4. **`cli/install.py` → `cli/commands/` breaks existing CLI pattern.** The CLI is organized as flat modules (`cli/agents.py`, `cli/sessions.py`, etc.). Creating a `commands/` subpackage is inconsistent. Keep the flat pattern.
-
-5. **No import migration strategy.** When you move `RuleEngine` from `workflows/rule_engine.py` to `workflows/engine/core.py`, every importer breaks. Need re-exports from old paths or a bulk-update pass. This is the #1 source of bugs in decompositions.
-
-6. **Blast radius not considered.** `hook_manager.py` has 11 direct importers across 5 layers (CLI adapters, HTTP server, MCP proxy, hook factory, hook base). `rule_engine.py` has only 2 (both lazy). The plan treats them equally.
-
-7. **`sync_utils.py` is premature abstraction.** There's no demonstrated shared logic between pipeline sync, rule sync, and variable sync. Three files is fine; four (with a utils file) is over-engineering.
-
-8. **Verification plan is "run pytest".** With 11,000+ tests that take 30+ minutes, you need targeted test runs per decomposition, not "run the full suite."
-
----
-
-## Improved Plan — Phased Execution
-
-### Guiding Principles
-- **One monolith per PR.** Each decomposition is independently reviewable and revertible.
-- **Re-export from old paths.** Every moved class/function gets a re-export in the original module's `__init__.py` to avoid breaking importers. Remove re-exports in a follow-up.
-- **Lowest blast radius first.** Start with files that have few importers.
-- **Targeted tests.** Run only the tests relevant to each decomposition.
-
-### Phase 1: Migration Squash (Low risk, self-contained)
-
-**File:** `src/gobby/storage/migrations.py` (1,645 lines)
-
-- Squash MIGRATIONS list (v134-v169) into BASELINE_SCHEMA
+Squash the MIGRATIONS list entries for v134-v169 into BASELINE_SCHEMA:
+- Apply all ALTER TABLE ADD COLUMN from v134-v169 to the baseline CREATE TABLE statements
+- Apply all CREATE TABLE from v134-v169 to the baseline
+- Apply all INSERT seed data from v134-v169 to the baseline
+- Update `BASELINE_VERSION` to 169
 - Update `_MIN_MIGRATION_VERSION` to 169
 - Delete all `_migrate_v*` helper functions for v134-v169
-- Keep the migration framework (`run_migrations`, `MigrationAction`, etc.) intact for future v170+ migrations
-- **No breaking change:** databases below v133 were already rejected
+- Keep the migration framework (`run_migrations`, `MigrationAction`, callable migrations pattern) intact for future v170+ migrations
+- Remember: BASELINE_SCHEMA splits on `;` — triggers with BEGIN...END blocks must use callable migrations with `executescript()`
 
-**Tests:** `uv run pytest tests/storage/db_migrations/ tests/storage/test_migrations.py -v`
+Tests: `uv run pytest tests/storage/db_migrations/ tests/storage/test_migrations.py -v`
 
-### Phase 2: Low-Coupling Decompositions (2 importers or fewer)
+## Phase 2: Low-Coupling Decompositions
 
-#### 2a. `workflows/rule_engine.py` → `workflows/engine/` package (1,271 lines, 2 lazy importers)
+**Goal**: Decompose files with 2 or fewer importers
 
-- `engine/__init__.py` — re-exports `RuleEngine`
-- `engine/core.py` — `RuleEngine` class (orchestrator, evaluate method)
-- `engine/effects.py` — `_apply_effect` and effect handling
-- `engine/templating.py` — `_build_eval_context`, jinja rendering
-- `engine/enforcement.py` — agent/step tool enforcement
+### 2.1 Decompose workflows/rule_engine.py into engine/ package [category: refactor]
 
-**Tests:** `uv run pytest tests/workflows/test_rule_engine*.py tests/workflows/test_enforcement*.py -v`
+Target: `src/gobby/workflows/rule_engine.py` (1,271 lines, 2 lazy importers)
 
-#### 2b. `workflows/sync.py` → 3 files (1,082 lines)
+Split into a package:
+- `engine/__init__.py` — re-exports `RuleEngine` (preserves import path)
+- `engine/core.py` — `RuleEngine` class (orchestrator, `evaluate` method, stop counting, consecutive block tracking)
+- `engine/effects.py` — `_apply_effect` and all effect handling (block, set_variable, inject_context, mcp_call)
+- `engine/templating.py` — `_build_eval_context`, Jinja2 rendering, `SafeExpressionEvaluator` integration
+- `engine/enforcement.py` — agent/step tool enforcement logic
 
-- `sync_pipelines.py` — `sync_bundled_pipelines()`
-- `sync_rules.py` — `sync_bundled_rules()`
-- `sync_variables.py` — `sync_bundled_variables()`
-- `sync.py` — becomes thin re-export shim
+Keep `rule_engine.py` as a thin re-export shim:
+```python
+from gobby.workflows.engine.core import RuleEngine
+__all__ = ["RuleEngine"]
+```
 
-**Tests:** `uv run pytest tests/workflows/test_sync*.py -v`
+Tests: `uv run pytest tests/workflows/test_rule_engine*.py tests/workflows/test_enforcement*.py -v`
 
-### Phase 3: Medium-Coupling Decompositions
+### 2.2 Split workflows/sync.py into per-type modules [category: refactor]
 
-#### 3a. `servers/routes/sessions.py` → `servers/routes/sessions/` package (1,329 lines)
+Target: `src/gobby/workflows/sync.py` (1,082 lines)
 
+Split by sync target:
+- `sync_pipelines.py` — `sync_bundled_pipelines()` and pipeline-specific helpers
+- `sync_rules.py` — `sync_bundled_rules()` and rule-specific helpers
+- `sync_variables.py` — `sync_bundled_variables()` and variable-specific helpers
+- `sync.py` — becomes thin re-export shim importing from the three modules
+
+Do NOT create a `sync_utils.py` — there's no demonstrated shared logic between the three sync types.
+
+Tests: `uv run pytest tests/workflows/test_sync*.py -v`
+
+## Phase 3: Medium-Coupling Decompositions
+
+**Goal**: Decompose files with moderate importer counts
+
+### 3.1 Decompose servers/routes/sessions.py into package [category: refactor] (depends: Phase 2)
+
+Target: `src/gobby/servers/routes/sessions.py` (1,329 lines)
+
+Convert to package:
 - `sessions/__init__.py` — re-exports `create_sessions_router`
-- `sessions/core.py` — CRUD routes
-- `sessions/messages.py` — chat history routes
-- `sessions/analytics.py` — stats/analytics routes
+- `sessions/core.py` — CRUD routes (create, get, list, update, delete)
+- `sessions/messages.py` — chat history and message routes
+- `sessions/analytics.py` — stats, analytics, and reporting routes
 
-**Tests:** `uv run pytest tests/servers/test_session_routes*.py -v`
+Tests: `uv run pytest tests/servers/test_session_routes*.py -v`
 
-#### 3b. `servers/http.py` decomposition (1,135 lines)
+### 3.2 Extract servers/http.py into focused modules [category: refactor] (depends: Phase 2)
 
-- Extract `_create_app` into `servers/app_factory.py`
-- Extract exception handlers into `servers/exception_handlers.py`
-- `http.py` retains server lifecycle (start/stop/bind)
+Target: `src/gobby/servers/http.py` (1,135 lines)
 
-**Tests:** `uv run pytest tests/servers/test_http*.py -v`
+Extract:
+- `servers/app_factory.py` — `_create_app()` function, middleware registration, route mounting
+- `servers/exception_handlers.py` — all exception handler registrations
+- `http.py` retains `HTTPServer` class with server lifecycle (start/stop/bind) and the `ServiceContainer` wiring
 
-#### 3c. `hooks/event_handlers/_session.py` → split (1,262 lines)
+Tests: `uv run pytest tests/servers/test_http*.py -v`
 
-- `_session_start.py` — `handle_session_start` (394 lines)
-- `_session_end.py` — session end handling
-- `_session_responses.py` — response processing
-- `_session.py` — re-export shim
+### 3.3 Split hooks/event_handlers/_session.py [category: refactor] (depends: Phase 2)
 
-**Tests:** `uv run pytest tests/hooks/test_session*.py tests/hooks/test_event*.py -v`
+Target: `src/gobby/hooks/event_handlers/_session.py` (1,262 lines)
 
-#### 3d. `servers/websocket/session_control.py` → command pattern (1,147 lines)
+Split by event type:
+- `_session_start.py` — `handle_session_start` and related helpers (~394 lines)
+- `_session_end.py` — session end handling and cleanup
+- `_session_responses.py` — response processing, context injection, variable management
+- `_session.py` — re-export shim that imports from the three modules
 
-- `websocket/handlers/` directory with per-handler modules
-- `session_control.py` — thin router dispatching to handler modules
+Tests: `uv run pytest tests/hooks/test_session*.py tests/hooks/test_event*.py -v`
 
-**Tests:** `uv run pytest tests/servers/test_websocket*.py -v`
+### 3.4 Decompose servers/websocket/session_control.py via command pattern [category: refactor] (depends: Phase 2)
 
-### Phase 4: High-Coupling Decompositions (careful)
+Target: `src/gobby/servers/websocket/session_control.py` (1,147 lines)
 
-#### 4a. `hooks/hook_manager.py` (1,125 lines, **11 importers** — highest blast radius)
+Apply command pattern:
+- `websocket/handlers/` directory with one module per handler (continue_in_chat, attach_session, view_session, etc.)
+- Each handler module exports a single async function
+- `session_control.py` becomes a thin router dispatching to handler modules based on message type
 
-- `hooks/dispatchers/webhook.py` — webhook evaluation and dispatch
-- `hooks/dispatchers/mcp.py` — MCP call routing
-- `hook_manager.py` — retains `HookManager` class as coordinator, delegates to dispatchers
-- **Critical:** `HookManager` stays in `hook_manager.py`. Only internal methods move. Zero import changes needed for the 11 importers.
+Tests: `uv run pytest tests/servers/test_websocket*.py -v`
 
-**Tests:** `uv run pytest tests/hooks/ -v`
+## Phase 4: High-Coupling Decompositions
 
-#### 4b. `runner.py` (1,409 lines, 13 importers)
+**Goal**: Carefully decompose files with many importers by extracting internals only
 
-- `runner_init.py` — extract initialization logic (component wiring, dependency injection)
-- `runner_lifecycle.py` — extract `run()` method internals (event loop, shutdown)
-- `runner.py` — retains `GobbyRunner` class, delegates to extracted modules
-- **NOT** `bootstrap.py` — that name conflicts with `config/bootstrap.py`
-- **Critical:** `GobbyRunner` stays in `runner.py`. Zero import changes for 13 importers.
+### 4.1 Extract hook_manager.py dispatchers [category: refactor] (depends: Phase 3)
 
-**Tests:** `uv run pytest tests/test_runner*.py tests/test_daemon*.py -v`
+Target: `src/gobby/hooks/hook_manager.py` (1,125 lines, **11 importers**)
 
-### Phase 5: MCP Tool Registries (mechanical, low risk)
+Extract internal methods only — `HookManager` class stays in `hook_manager.py`:
+- `hooks/dispatchers/webhook.py` — webhook evaluation and dispatch (`_evaluate_blocking_webhooks`, `_dispatch_webhook`)
+- `hooks/dispatchers/mcp.py` — MCP call routing (`_dispatch_mcp_calls`, `_format_discovery_result`)
+- `hook_manager.py` retains `HookManager` as coordinator, delegates to dispatchers
 
-#### 5a-c. Convert `skills/__init__.py`, `worktrees.py`, `tasks/_lifecycle.py` to packages
+**Critical**: Zero import changes needed for the 11 importers. They all import `HookManager` from `hook_manager.py` — that stays put.
 
-Each follows the same pattern:
-- Convert to package with `__init__.py` re-exporting the registry builder
-- Extract each tool handler into its own file
-- Registry builder imports and assembles
+Tests: `uv run pytest tests/hooks/ -v`
 
-**Tests:** `uv run pytest tests/mcp_proxy/ -v`
+### 4.2 Extract runner.py internals [category: refactor] (depends: Phase 3)
 
-### Phase 6: Remaining Files
+Target: `src/gobby/runner.py` (1,409 lines, 13 importers)
 
-#### 6a. `storage/skills/_manager.py` (1,035 lines)
+Extract internal logic — `GobbyRunner` class stays in `runner.py`:
+- `runner_init.py` — initialization logic (component wiring, dependency injection, service container setup)
+- `runner_lifecycle.py` — `run()` method internals (event loop setup, signal handling, shutdown sequence)
+- `runner.py` retains `GobbyRunner` class, delegates to extracted modules
 
-- Split `LocalSkillManager` into `_metadata.py`, `_files.py`, `_templates.py`
-- `_manager.py` re-exports or composes
+**NOT** `bootstrap.py` — that name conflicts with `config/bootstrap.py`.
 
-#### 6b. `cli/install.py` (1,054 lines)
+**Critical**: Zero import changes for 13 importers. They all import `GobbyRunner` from `runner.py`.
 
-- Extract detector functions (`_is_cursor_installed`, etc.) → `cli/_detectors.py`
-- Extract prompt/UI flow → `cli/_install_prompts.py`
-- Keep `install` and `uninstall` commands in `install.py` but thinner
+Tests: `uv run pytest tests/test_runner*.py tests/test_daemon*.py -v`
 
-**Tests:** `uv run pytest tests/cli/test_install*.py -v`
+## Phase 5: MCP Tool Registries
 
----
+**Goal**: Convert large tool registration files to packages
 
-## Files Modified Per Phase
+### 5.1 Convert mcp_proxy/tools/skills to package [category: refactor] (depends: Phase 4)
 
-| Phase | Files Touched | New Files | Blast Radius |
-|-------|--------------|-----------|-------------|
-| 1 | 1 | 0 | None |
-| 2a | 1 | 4 | 2 importers (lazy) |
-| 2b | 1 | 3 | Internal only |
-| 3a | 1 | 4 | Route registration |
-| 3b | 1 | 2 | Server startup |
-| 3c | 1 | 3 | Event handler registry |
-| 3d | 1 | ~13 | WebSocket router |
-| 4a | 1 | 2 | 0 (internal extract) |
-| 4b | 1 | 2 | 0 (internal extract) |
-| 5 | 3 | ~15 | MCP tool registry |
-| 6 | 2 | ~5 | Internal only |
+Target: `src/gobby/mcp_proxy/tools/skills/__init__.py`
 
-## Verification Strategy
+Convert to package:
+- `__init__.py` re-exports the registry builder function
+- Extract each tool handler into its own file (one function per file)
+- Registry builder imports and assembles all handlers
 
-- **Per-phase:** Run targeted test suite (listed above) + `uv run mypy src/gobby/` for type checking
-- **After all phases:** Full `uv run pytest tests/ -v` (once, at the end)
-- **Manual:** Start daemon, connect a CLI, verify MCP tool discovery works end-to-end
-- **Migration-specific:** Write a test that creates a fresh DB and asserts `get_current_version() == 169`
+### 5.2 Convert mcp_proxy/tools/worktrees.py to package [category: refactor] (depends: Phase 4)
+
+Target: `src/gobby/mcp_proxy/tools/worktrees.py`
+
+Same pattern as 5.1 — package with per-handler files and registry builder.
+
+### 5.3 Convert mcp_proxy/tools/tasks/_lifecycle.py to submodules [category: refactor] (depends: Phase 4)
+
+Target: `src/gobby/mcp_proxy/tools/tasks/_lifecycle.py`
+
+Same pattern — split lifecycle handlers into focused submodules.
+
+Tests for all 5.x: `uv run pytest tests/mcp_proxy/ -v`
+
+## Phase 6: Remaining Files
+
+**Goal**: Complete the decomposition of remaining oversized files
+
+### 6.1 Split storage/skills/_manager.py [category: refactor] (depends: Phase 5)
+
+Target: `src/gobby/storage/skills/_manager.py` (1,035 lines)
+
+Split `LocalSkillManager` into focused modules:
+- `_metadata.py` — skill metadata CRUD (create, get, list, update, delete)
+- `_files.py` — file I/O operations (read skill files, write skill files, path resolution)
+- `_templates.py` — template management (sync templates, install templates, list templates)
+- `_manager.py` re-exports or composes from the three modules
+
+### 6.2 Slim down cli/install.py [category: refactor] (depends: Phase 5)
+
+Target: `src/gobby/cli/install.py` (1,054 lines)
+
+Extract helpers — keep `install` and `uninstall` Click commands in `install.py`:
+- `cli/_detectors.py` — CLI detector functions (`_is_cursor_installed`, `_is_windsurf_installed`, etc.)
+- `cli/_install_prompts.py` — interactive prompt/UI flow helpers
+
+Keep flat module pattern — no `commands/` subpackage.
+
+Tests: `uv run pytest tests/cli/test_install*.py -v`
+
+## Task Mapping
+
+<!-- Updated after task creation -->
+| Plan Item | Task Ref | Status |
+|-----------|----------|--------|

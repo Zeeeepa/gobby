@@ -167,7 +167,7 @@ class OpenAIExecutor(AgentExecutor):
 
                 # Process response
                 if not response.choices:
-                    self.logger.error("OpenAI returned empty choices for model %s", effective_model)
+                    self.logger.error(f"OpenAI returned empty choices for model {effective_model}")
                     return AgentResult(
                         output=final_output,
                         status="error",
@@ -208,10 +208,10 @@ class OpenAIExecutor(AgentExecutor):
                     try:
                         fn_args = json.loads(tool_call.function.arguments)
                     except json.JSONDecodeError:
+                        raw_args = tool_call.function.arguments
+                        truncated = (raw_args[:200] + "...") if len(raw_args) > 200 else raw_args
                         self.logger.warning(
-                            "Malformed tool call arguments for %s: %s",
-                            tool_call.function.name,
-                            tool_call.function.arguments,
+                            f"Malformed tool call arguments for {tool_call.function.name}: {truncated}",
                         )
                         fn_args = {}
 

@@ -81,7 +81,7 @@ async def test_token_usage_aggregation(db, session_manager, lifecycle_manager, t
         source="claude_code",
         project_id="proj-1",
         title="Test Session",
-        jsonl_path=str(transcript_path),
+        transcript_path=str(transcript_path),
     )
 
     # 3. Process the transcript

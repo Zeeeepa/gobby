@@ -69,8 +69,26 @@ class TaskIDCollisionError(Exception):
     pass
 
 
+class SeqNumCollisionError(Exception):
+    """Raised when a unique seq_num cannot be allocated."""
+
+    pass
+
+
 class TaskNotFoundError(Exception):
     """Raised when a task reference cannot be resolved to an existing task."""
+
+    pass
+
+
+class TaskHasChildrenError(ValueError):
+    """Raised when deleting a task that has children without cascade."""
+
+    pass
+
+
+class TaskHasDependentsError(ValueError):
+    """Raised when deleting a task that has dependents without cascade/unlink."""
 
     pass
 

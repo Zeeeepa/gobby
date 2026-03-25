@@ -14,6 +14,7 @@ from gobby.storage.database import DatabaseProtocol
 from gobby.storage.tasks._id import generate_task_id, resolve_task_reference
 from gobby.storage.tasks._models import (
     UNSET,
+    SeqNumCollisionError,
     Task,
     TaskIDCollisionError,
     TaskNotFoundError,
@@ -60,7 +61,7 @@ def create_task(
         try:
             task_id = generate_task_id(project_id, salt=str(attempt))
 
-            with db.transaction() as conn:
+            with db.transaction_immediate() as conn:
                 # Get next seq_num for this project (auto-increment per project)
                 max_seq_row = conn.execute(
                     "SELECT MAX(seq_num) as max_seq FROM tasks WHERE project_id = ?",
@@ -135,15 +136,24 @@ def create_task(
             return task_id
 
         except sqlite3.IntegrityError as e:
+            error_msg = str(e)
             # Check if it's a primary key violation (ID collision)
-            if "UNIQUE constraint failed: tasks.id" in str(e) or "tasks.id" in str(e):
+            if "UNIQUE constraint failed: tasks.id" in error_msg or "tasks.id" in error_msg:
                 if attempt == max_retries:
                     raise TaskIDCollisionError(
                         f"Failed to generate unique task ID after {max_retries} retries"
                     ) from e
                 logger.warning(f"Task ID collision for {task_id}, retrying...")
                 continue
-            raise e
+            # Check if it's a seq_num collision (concurrent insert race)
+            if "idx_tasks_seq_num" in error_msg or "tasks.seq_num" in error_msg:
+                if attempt == max_retries:
+                    raise SeqNumCollisionError(
+                        f"Failed to allocate unique seq_num after {max_retries} retries"
+                    ) from e
+                logger.warning(f"Task seq_num collision for project {project_id}, retrying...")
+                continue
+            raise
 
     raise TaskIDCollisionError("Unreachable")
 

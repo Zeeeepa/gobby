@@ -125,16 +125,11 @@ def select_next_provider(
     for provider in provider_list:
         if provider not in already_failed:
             logger.info(
-                "Provider rotation for task %s: skipping %s, trying %s",
-                task_id,
-                already_failed,
-                provider,
+                f"Provider rotation for task {task_id}: skipping {already_failed}, trying {provider}",
             )
             return provider
 
     logger.warning(
-        "Provider rotation for task %s: all providers exhausted (%s)",
-        task_id,
-        provider_list,
+        f"Provider rotation for task {task_id}: all providers exhausted ({provider_list})",
     )
     return None

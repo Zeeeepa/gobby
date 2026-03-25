@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.runner import GobbyRunner, main, run_gobby
+from gobby.runner_init import resolve_embedding_api_key
 
 pytestmark = pytest.mark.unit
 
@@ -73,38 +74,38 @@ def create_base_patches(
     mock_agent_monitor.recover_or_cleanup_agents.return_value = (0, 0)
 
     patches = [
-        patch("gobby.runner.init_telemetry"),
-        patch("gobby.runner.get_machine_id", return_value="test-machine"),
-        patch("gobby.runner.LocalDatabase"),
-        patch("gobby.runner.run_migrations"),
-        patch("gobby.runner.LocalSessionManager"),
-        patch("gobby.runner.LocalTaskManager"),
-        patch("gobby.runner.SessionTaskManager"),
-        patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
-        patch("gobby.runner.TaskSyncManager"),
-        patch("gobby.runner.MemorySyncManager"),
-        patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-        patch("gobby.runner.TaskValidator"),
-        patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
-        patch("gobby.runner.create_llm_service", return_value=None),
-        patch("gobby.runner.MemoryManager", return_value=None),
-        patch("gobby.runner.HTTPServer", return_value=mock_http),
+        patch("gobby.runner_init.init_telemetry"),
+        patch("gobby.runner_init.get_machine_id", return_value="test-machine"),
+        patch("gobby.runner_init.LocalDatabase"),
+        patch("gobby.runner_init.run_migrations"),
+        patch("gobby.runner_init.LocalSessionManager"),
+        patch("gobby.runner_init.LocalTaskManager"),
+        patch("gobby.runner_init.SessionTaskManager"),
+        patch("gobby.runner_init.MCPClientManager", return_value=mock_mcp_manager),
+        patch("gobby.runner_init.TaskSyncManager"),
+        patch("gobby.runner_init.MemorySyncManager"),
+        patch("gobby.runner_init.SessionMessageProcessor", return_value=AsyncMock()),
+        patch("gobby.runner_init.TaskValidator"),
+        patch("gobby.runner_init.SessionLifecycleManager", return_value=AsyncMock()),
+        patch("gobby.runner_init.create_llm_service", return_value=None),
+        patch("gobby.runner_init.MemoryManager", return_value=None),
+        patch("gobby.runner_init.HTTPServer", return_value=mock_http),
         patch("gobby.storage.secrets.SecretStore"),
         patch("gobby.storage.config_store.ConfigStore"),
-        patch("gobby.runner.AgentLifecycleMonitor", return_value=mock_agent_monitor),
+        patch("gobby.runner_init.AgentLifecycleMonitor", return_value=mock_agent_monitor),
     ]
 
     # Add config patch
     if mock_config is not None:
-        patches.insert(1, patch("gobby.runner.load_config", return_value=mock_config))
+        patches.insert(1, patch("gobby.runner_init.load_config", return_value=mock_config))
     else:
-        patches.insert(1, patch("gobby.runner.load_config"))
+        patches.insert(1, patch("gobby.runner_init.load_config"))
 
     # Add WebSocketServer patch
     if mock_ws_server is not None:
-        patches.append(patch("gobby.runner.WebSocketServer", return_value=mock_ws_server))
+        patches.append(patch("gobby.runner_init.WebSocketServer", return_value=mock_ws_server))
     else:
-        patches.append(patch("gobby.runner.WebSocketServer"))
+        patches.append(patch("gobby.runner_init.WebSocketServer"))
 
     return patches
 
@@ -426,7 +427,7 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         # Replace MemoryManager patch to return our mock
         patches = [p for p in patches if "MemoryManager" not in str(p)]
-        patches.append(patch("gobby.runner.MemoryManager", return_value=mock_memory_manager))
+        patches.append(patch("gobby.runner_init.MemoryManager", return_value=mock_memory_manager))
 
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
@@ -449,7 +450,7 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "MemoryManager" not in str(p)]
         patches.append(
-            patch("gobby.runner.MemoryManager", side_effect=Exception("Memory init error"))
+            patch("gobby.runner_init.MemoryManager", side_effect=Exception("Memory init error"))
         )
 
         with ExitStack() as stack:
@@ -478,9 +479,9 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "MemoryManager" not in str(p)]
         patches = [p for p in patches if "MemorySyncManager" not in str(p)]
-        patches.append(patch("gobby.runner.MemoryManager", return_value=mock_memory_manager))
+        patches.append(patch("gobby.runner_init.MemoryManager", return_value=mock_memory_manager))
         patches.append(
-            patch("gobby.runner.MemorySyncManager", return_value=mock_memory_sync_manager)
+            patch("gobby.runner_init.MemorySyncManager", return_value=mock_memory_sync_manager)
         )
 
         with ExitStack() as stack:
@@ -508,9 +509,11 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "MemoryManager" not in str(p)]
         patches = [p for p in patches if "MemorySyncManager" not in str(p)]
-        patches.append(patch("gobby.runner.MemoryManager", return_value=mock_memory_manager))
+        patches.append(patch("gobby.runner_init.MemoryManager", return_value=mock_memory_manager))
         patches.append(
-            patch("gobby.runner.MemorySyncManager", side_effect=Exception("Sync manager error"))
+            patch(
+                "gobby.runner_init.MemorySyncManager", side_effect=Exception("Sync manager error")
+            )
         )
 
         with ExitStack() as stack:
@@ -536,7 +539,7 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
         patches.append(
-            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+            patch("gobby.runner_init.SessionMessageProcessor", return_value=mock_message_processor)
         )
 
         with ExitStack() as stack:
@@ -568,8 +571,8 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "create_llm_service" not in str(p)]
         patches = [p for p in patches if "TaskValidator" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(patch("gobby.runner.TaskValidator", return_value=mock_task_validator))
+        patches.append(patch("gobby.runner_init.create_llm_service", return_value=mock_llm_service))
+        patches.append(patch("gobby.runner_init.TaskValidator", return_value=mock_task_validator))
 
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
@@ -599,9 +602,9 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "create_llm_service" not in str(p)]
         patches = [p for p in patches if "TaskValidator" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
+        patches.append(patch("gobby.runner_init.create_llm_service", return_value=mock_llm_service))
         patches.append(
-            patch("gobby.runner.TaskValidator", side_effect=Exception("Validator error"))
+            patch("gobby.runner_init.TaskValidator", side_effect=Exception("Validator error"))
         )
 
         with ExitStack() as stack:
@@ -622,7 +625,7 @@ class TestGobbyRunnerInitialization:
 
         patches = create_base_patches(mock_config=mock_config)
         patches.append(
-            patch("gobby.runner.AgentRunner", side_effect=Exception("Agent runner error"))
+            patch("gobby.runner_init.AgentRunner", side_effect=Exception("Agent runner error"))
         )
 
         with ExitStack() as stack:
@@ -644,7 +647,7 @@ class TestGobbyRunnerInitialization:
         patches = create_base_patches(mock_config=mock_config)
         patches = [p for p in patches if "create_llm_service" not in str(p)]
         patches.append(
-            patch("gobby.runner.create_llm_service", side_effect=Exception("LLM init error"))
+            patch("gobby.runner_init.create_llm_service", side_effect=Exception("LLM init error"))
         )
 
         with ExitStack() as stack:
@@ -661,77 +664,71 @@ class TestAgentEventBroadcasting:
         self, mock_config_with_websocket
     ) -> None:
         """Test agent event broadcasting setup when WebSocket is enabled."""
+        import gobby.runner_broadcasting as rb
+
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock()
-
-        mock_registry = MagicMock()
-        mock_registry.add_event_callback = MagicMock()
 
         patches = create_base_patches(
             mock_config=mock_config_with_websocket,
             mock_ws_server=mock_ws_server,
         )
-        # Patch at the broadcasting module (it's imported there)
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
 
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
+        old_callback = rb._agent_event_callback
+        try:
+            with ExitStack() as stack:
+                [stack.enter_context(p) for p in patches]
 
-            GobbyRunner()  # Constructor triggers event broadcasting setup
+                GobbyRunner()  # Constructor triggers event broadcasting setup
 
-            # Verify callback was registered
-            mock_registry.add_event_callback.assert_called_once()
+                # Verify module-level callback was set
+                assert rb._agent_event_callback is not None
+        finally:
+            rb._agent_event_callback = old_callback
 
     def test_setup_agent_event_broadcasting_without_websocket(self, mock_config) -> None:
-        """Test agent event broadcasting is skipped without WebSocket."""
-        mock_registry = MagicMock()
-        mock_registry.add_event_callback = MagicMock()
+        """Test agent event broadcasting is skipped without WebSocket.
+
+        When config.websocket is None, the broadcasting setup block is
+        skipped entirely, so _agent_event_callback remains unchanged.
+        """
+        import gobby.runner_broadcasting as rb
 
         patches = create_base_patches(mock_config=mock_config)
-        # Patch at the broadcasting module (it's imported there)
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
 
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
+        old_callback = rb._agent_event_callback
+        try:
+            rb._agent_event_callback = None  # ensure clean baseline
+            with ExitStack() as stack:
+                [stack.enter_context(p) for p in patches]
 
-            GobbyRunner()  # Constructor runs without WebSocket
+                GobbyRunner()  # Constructor runs without WebSocket
 
-            # Callback should NOT be registered since no websocket
-            mock_registry.add_event_callback.assert_not_called()
+                # Callback should NOT be set since broadcasting setup was skipped
+                assert rb._agent_event_callback is None
+        finally:
+            rb._agent_event_callback = old_callback
 
-    def test_setup_agent_event_broadcasting_direct_call_without_websocket(self) -> None:
-        """Test setup_agent_event_broadcasting does not crash when called with a mock server."""
+    def test_setup_agent_event_broadcasting_direct_call_sets_callback(self) -> None:
+        """Test setup_agent_event_broadcasting sets the module-level callback."""
+        import gobby.runner_broadcasting as rb
         from gobby.runner_broadcasting import setup_agent_event_broadcasting
-
-        mock_registry = MagicMock()
-        mock_registry.add_event_callback = MagicMock()
 
         mock_ws_server = MagicMock()
 
-        # Call the module-level function directly with a mock server
-        with (
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            ),
-            patch("gobby.agents.pty_reader.get_pty_reader_manager"),
-            patch("gobby.agents.tmux.get_tmux_output_reader"),
-        ):
-            setup_agent_event_broadcasting(mock_ws_server)
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        # Registry callback should have been registered
-        mock_registry.add_event_callback.assert_called_once()
+            # Module-level callback should have been set
+            assert rb._agent_event_callback is not None
+        finally:
+            rb._agent_event_callback = old_callback
 
 
 class TestMetricsCleanupLoop:
@@ -898,7 +895,7 @@ class TestGobbyRunnerShutdown:
         )
         patches = [p for p in patches if "SessionLifecycleManager" not in str(p)]
         patches.append(
-            patch("gobby.runner.SessionLifecycleManager", return_value=mock_lifecycle_manager)
+            patch("gobby.runner_init.SessionLifecycleManager", return_value=mock_lifecycle_manager)
         )
 
         with ExitStack() as stack:
@@ -942,7 +939,7 @@ class TestGobbyRunnerShutdown:
         )
         patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
         patches.append(
-            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+            patch("gobby.runner_init.SessionMessageProcessor", return_value=mock_message_processor)
         )
 
         with ExitStack() as stack:
@@ -1012,7 +1009,7 @@ class TestGobbyRunnerShutdown:
         )
         patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
         patches.append(
-            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+            patch("gobby.runner_init.SessionMessageProcessor", return_value=mock_message_processor)
         )
 
         with ExitStack() as stack:
@@ -1192,47 +1189,28 @@ class TestSignalHandlerBehavior:
 
 
 class TestAgentEventBroadcastingCallback:
-    """Tests for the broadcast_agent_event callback function."""
+    """Tests for the broadcast_agent_event callback via fire_agent_event."""
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_invoked(self, mock_config_with_websocket):
-        """Test that the broadcast callback is properly invoked."""
+    async def test_broadcast_callback_invoked(self):
+        """Test that fire_agent_event invokes the broadcast callback."""
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock()
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            GobbyRunner()  # Constructor sets up agent event broadcasting
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Invoke the callback with test data
-            captured_callback(
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {
@@ -1247,163 +1225,107 @@ class TestAgentEventBroadcastingCallback:
             # Allow the async task to run
             await asyncio.sleep(0.01)
 
-            # Verify broadcast was called
             mock_ws_server.broadcast_agent_event.assert_called_once()
+        finally:
+            rb._agent_event_callback = old_callback
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_handles_exception(self, mock_config_with_websocket):
+    async def test_broadcast_callback_handles_exception(self):
         """Test that the broadcast callback handles exceptions gracefully."""
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock(side_effect=Exception("Broadcast failed"))
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            GobbyRunner()  # Constructor sets up agent event broadcasting
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Invoke the callback - should not raise despite exception
-            captured_callback(
+            # Should not raise despite exception in broadcast
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {"parent_session_id": "sess-456"},
             )
 
-            # Allow the async task to run and handle exception
             await asyncio.sleep(0.1)
+        finally:
+            rb._agent_event_callback = old_callback
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_handles_cancelled_error(self, mock_config_with_websocket):
+    async def test_broadcast_callback_handles_cancelled_error(self):
         """Test that the broadcast callback handles CancelledError gracefully."""
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock(side_effect=asyncio.CancelledError())
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            GobbyRunner()  # Constructor sets up agent event broadcasting
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Invoke the callback - should not raise
-            captured_callback(
+            # Should not raise
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {},
             )
 
-            # Allow the async task to run
             await asyncio.sleep(0.1)
+        finally:
+            rb._agent_event_callback = old_callback
 
     @pytest.mark.asyncio
-    async def test_broadcast_callback_still_works_with_captured_reference(
-        self, mock_config_with_websocket
-    ):
+    async def test_broadcast_callback_still_works_with_captured_reference(self):
         """Test callback uses the captured websocket_server reference from setup time.
 
-        In the refactored architecture, setup_agent_event_broadcasting() captures
-        the websocket_server reference at call time. Setting runner.websocket_server
-        to None afterwards does NOT affect the captured closure.
+        setup_agent_event_broadcasting() captures the websocket_server reference
+        at call time via closure. The module-level _agent_event_callback holds
+        a reference to the closure, not to the caller's variable.
         """
         import asyncio
 
+        import gobby.runner_broadcasting as rb
+        from gobby.runner_broadcasting import fire_agent_event, setup_agent_event_broadcasting
+
         mock_ws_server = AsyncMock()
-        mock_ws_server.start = AsyncMock()
         mock_ws_server.broadcast_agent_event = AsyncMock()
 
-        mock_registry = MagicMock()
-        captured_callback = None
+        old_callback = rb._agent_event_callback
+        try:
+            with (
+                patch("gobby.agents.pty_reader.get_pty_reader_manager"),
+                patch("gobby.agents.tmux.get_tmux_output_reader"),
+            ):
+                setup_agent_event_broadcasting(mock_ws_server)
 
-        def capture_callback(callback):
-            nonlocal captured_callback
-            captured_callback = callback
-
-        mock_registry.add_event_callback = capture_callback
-
-        patches = create_base_patches(
-            mock_config=mock_config_with_websocket,
-            mock_ws_server=mock_ws_server,
-        )
-        patches.append(
-            patch(
-                "gobby.agents.registry.get_running_agent_registry",
-                return_value=mock_registry,
-            )
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-
-            # Verify callback was captured
-            assert captured_callback is not None
-
-            # Even after setting runner.websocket_server to None, the callback
-            # still holds the original reference (captured at setup time)
-            runner.websocket_server = None
-
-            # Invoke the callback
-            captured_callback(
+            # Even if external references to ws_server are dropped,
+            # the callback closure still holds the original reference
+            fire_agent_event(
                 "agent_started",
                 "run-123",
                 {"parent_session_id": "sess-456"},
             )
 
-            # Allow async operations to complete
             await asyncio.sleep(0.01)
 
-            # Broadcast IS called because the closure captured the original reference
             mock_ws_server.broadcast_agent_event.assert_called_once()
+        finally:
+            rb._agent_event_callback = old_callback
 
 
 class TestMessageProcessorWebSocketIntegration:
@@ -1426,7 +1348,7 @@ class TestMessageProcessorWebSocketIntegration:
         )
         patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
         patches.append(
-            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+            patch("gobby.runner_init.SessionMessageProcessor", return_value=mock_message_processor)
         )
 
         with ExitStack() as stack:
@@ -1740,64 +1662,62 @@ class TestMetricsCleanupLoopDetailed:
 
 
 class TestResolveEmbeddingApiKey:
-    """Tests for GobbyRunner._resolve_embedding_api_key."""
+    """Tests for resolve_embedding_api_key (runner_init.py)."""
 
     @pytest.fixture
-    def runner_with_secrets(self):
-        """Create a minimal runner-like object with a mock secret store."""
-        runner = object.__new__(GobbyRunner)
-        runner.secret_store = MagicMock()
-        runner.secret_store.get = MagicMock(
+    def mock_secret_store(self):
+        """Create a mock secret store."""
+        store = MagicMock()
+        store.get = MagicMock(
             side_effect=lambda name: {
                 "openai_api_key": "sk-test-openai",
                 "gemini_api_key": "gemini-test-key",
                 "mistral_api_key": "mistral-test-key",
             }.get(name)
         )
-        return runner
+        return store
 
-    def test_default_model_resolves_openai(self, runner_with_secrets) -> None:
+    def test_default_model_resolves_openai(self, mock_secret_store) -> None:
         """text-embedding-3-small (no prefix) should resolve to openai_api_key."""
-        key = runner_with_secrets._resolve_embedding_api_key("text-embedding-3-small")
+        key = resolve_embedding_api_key(mock_secret_store, "text-embedding-3-small")
         assert key == "sk-test-openai"
-        runner_with_secrets.secret_store.get.assert_called_with("openai_api_key")
+        mock_secret_store.get.assert_called_with("openai_api_key")
 
-    def test_openai_prefix_resolves_openai(self, runner_with_secrets) -> None:
+    def test_openai_prefix_resolves_openai(self, mock_secret_store) -> None:
         """openai/text-embedding-3-small should resolve to openai_api_key."""
-        key = runner_with_secrets._resolve_embedding_api_key("openai/text-embedding-3-small")
+        key = resolve_embedding_api_key(mock_secret_store, "openai/text-embedding-3-small")
         assert key == "sk-test-openai"
-        runner_with_secrets.secret_store.get.assert_called_with("openai_api_key")
+        mock_secret_store.get.assert_called_with("openai_api_key")
 
-    def test_gemini_prefix_resolves_gemini(self, runner_with_secrets) -> None:
+    def test_gemini_prefix_resolves_gemini(self, mock_secret_store) -> None:
         """gemini/ prefix should resolve to gemini_api_key."""
-        key = runner_with_secrets._resolve_embedding_api_key("gemini/text-embedding-004")
+        key = resolve_embedding_api_key(mock_secret_store, "gemini/text-embedding-004")
         assert key == "gemini-test-key"
-        runner_with_secrets.secret_store.get.assert_called_with("gemini_api_key")
+        mock_secret_store.get.assert_called_with("gemini_api_key")
 
-    def test_mistral_prefix_resolves_mistral(self, runner_with_secrets) -> None:
+    def test_mistral_prefix_resolves_mistral(self, mock_secret_store) -> None:
         """mistral/ prefix should resolve to mistral_api_key."""
-        key = runner_with_secrets._resolve_embedding_api_key("mistral/mistral-embed")
+        key = resolve_embedding_api_key(mock_secret_store, "mistral/mistral-embed")
         assert key == "mistral-test-key"
-        runner_with_secrets.secret_store.get.assert_called_with("mistral_api_key")
+        mock_secret_store.get.assert_called_with("mistral_api_key")
 
-    def test_local_returns_none(self, runner_with_secrets) -> None:
+    def test_local_returns_none(self, mock_secret_store) -> None:
         """local/ models don't need an API key."""
-        key = runner_with_secrets._resolve_embedding_api_key("local/nomic-embed-text-v1.5")
+        key = resolve_embedding_api_key(mock_secret_store, "local/nomic-embed-text-v1.5")
         assert key is None
-        runner_with_secrets.secret_store.get.assert_not_called()
+        mock_secret_store.get.assert_not_called()
 
-    def test_ollama_returns_none(self, runner_with_secrets) -> None:
+    def test_ollama_returns_none(self, mock_secret_store) -> None:
         """ollama/ models don't need an API key."""
-        key = runner_with_secrets._resolve_embedding_api_key("ollama/nomic-embed-text")
+        key = resolve_embedding_api_key(mock_secret_store, "ollama/nomic-embed-text")
         assert key is None
-        runner_with_secrets.secret_store.get.assert_not_called()
+        mock_secret_store.get.assert_not_called()
 
     def test_missing_secret_returns_none(self) -> None:
         """Returns None when the secret doesn't exist."""
-        runner = object.__new__(GobbyRunner)
-        runner.secret_store = MagicMock()
-        runner.secret_store.get = MagicMock(return_value=None)
-        key = runner._resolve_embedding_api_key("text-embedding-3-small")
+        store = MagicMock()
+        store.get = MagicMock(return_value=None)
+        key = resolve_embedding_api_key(store, "text-embedding-3-small")
         assert key is None
 
 
@@ -1834,7 +1754,6 @@ class TestGobbyRunnerShutdownExtended:
             mock_mcp_manager.disconnect_all.assert_called_once()
 
 
-
 class TestGobbyRunnerInitEdgeCases:
     """Edge case tests for GobbyRunner initialization."""
 
@@ -1855,7 +1774,7 @@ class TestGobbyRunnerInitEdgeCases:
         # Replace create_llm_service patch with one that raises
         patches = [p for p in patches if "create_llm_service" not in str(p)]
         patches.append(
-            patch("gobby.runner.create_llm_service", side_effect=Exception("LLM init error"))
+            patch("gobby.runner_init.create_llm_service", side_effect=Exception("LLM init error"))
         )
 
         with ExitStack() as stack:

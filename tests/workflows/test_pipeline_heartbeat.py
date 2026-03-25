@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.pipelines import LocalPipelineExecutionManager
 from gobby.storage.sessions import LocalSessionManager
@@ -47,18 +46,13 @@ def exec_manager(temp_db: LocalDatabase) -> LocalPipelineExecutionManager:
 
 
 @pytest.fixture
-def agent_registry() -> RunningAgentRegistry:
-    return RunningAgentRegistry()
-
-
-@pytest.fixture
 def heartbeat(
     exec_manager: LocalPipelineExecutionManager,
-    agent_registry: RunningAgentRegistry,
+    agent_run_manager: LocalAgentRunManager,
 ) -> PipelineHeartbeat:
     return PipelineHeartbeat(
         execution_manager=exec_manager,
-        agent_registry=agent_registry,
+        agent_run_manager=agent_run_manager,
         stall_threshold_seconds=60,
     )
 
@@ -86,19 +80,18 @@ def _create_stalled_execution(
 
 
 def _add_alive_agent(
-    agent_registry: RunningAgentRegistry,
+    agent_run_manager: LocalAgentRunManager,
     parent_session_id: str = SESSION_ID,
     run_id: str = "run-alive-001",
 ) -> None:
-    """Register an alive agent for a parent session."""
-    agent_registry.add(
-        RunningAgent(
-            run_id=run_id,
-            session_id="sess-child-001",
-            parent_session_id=parent_session_id,
-            mode="terminal",
-        )
+    """Create an active agent run in the DB for a parent session."""
+    agent_run_manager.create(
+        run_id=run_id,
+        parent_session_id=parent_session_id,
+        provider="test",
+        prompt="test agent",
     )
+    agent_run_manager.start(run_id)
 
 
 @pytest.mark.asyncio
@@ -123,12 +116,12 @@ async def test_stalled_no_agents_marks_failed(
 async def test_stalled_with_alive_agents_touches_updated_at(
     heartbeat: PipelineHeartbeat,
     exec_manager: LocalPipelineExecutionManager,
-    agent_registry: RunningAgentRegistry,
+    agent_run_manager: LocalAgentRunManager,
     temp_db: LocalDatabase,
 ) -> None:
     """Stalled execution with alive agents → updated_at refreshed, stays RUNNING."""
     exe_id = _create_stalled_execution(exec_manager, temp_db)
-    _add_alive_agent(agent_registry)
+    _add_alive_agent(agent_run_manager)
 
     old_exe = exec_manager.get_execution(exe_id)
     assert old_exe is not None
@@ -196,16 +189,14 @@ def session_manager(temp_db: LocalDatabase) -> LocalSessionManager:
 @pytest.fixture
 def heartbeat_with_tasks(
     exec_manager: LocalPipelineExecutionManager,
-    agent_registry: RunningAgentRegistry,
     task_manager: LocalTaskManager,
     agent_run_manager: LocalAgentRunManager,
     session_manager: LocalSessionManager,
 ) -> PipelineHeartbeat:
     return PipelineHeartbeat(
         execution_manager=exec_manager,
-        agent_registry=agent_registry,
-        task_manager=task_manager,
         agent_run_manager=agent_run_manager,
+        task_manager=task_manager,
         session_manager=session_manager,
     )
 
@@ -378,6 +369,52 @@ async def test_expired_session_task_recovered(
     assert task is not None
     assert task.status == "open"
     assert task.assignee is None
+
+
+@pytest.mark.asyncio
+async def test_paused_agent_session_task_recovered(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task assigned to a paused agent session (depth > 0) → reset to open."""
+    _seed_db(temp_db)
+    # Mark session as paused with agent_depth > 0 (dead agent session)
+    temp_db.execute(
+        "UPDATE sessions SET status = 'paused', agent_depth = 1 WHERE id = ?", (SESSION_ID,)
+    )
+    task_id = _create_in_progress_task(task_manager, assignee=SESSION_ID)
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 1
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "open"
+    assert task.assignee is None
+
+
+@pytest.mark.asyncio
+async def test_paused_interactive_session_task_not_recovered(
+    heartbeat_with_tasks: PipelineHeartbeat,
+    task_manager: LocalTaskManager,
+    temp_db: LocalDatabase,
+) -> None:
+    """in_progress task assigned to a paused interactive session (depth 0) → not touched."""
+    _seed_db(temp_db)
+    # Mark session as paused with agent_depth 0 (interactive user between prompts)
+    temp_db.execute(
+        "UPDATE sessions SET status = 'paused', agent_depth = 0 WHERE id = ?", (SESSION_ID,)
+    )
+    task_id = _create_in_progress_task(task_manager, assignee=SESSION_ID)
+
+    recovered = await heartbeat_with_tasks.check_stale_tasks()
+    assert recovered == 0
+
+    task = task_manager.get_task(task_id)
+    assert task is not None
+    assert task.status == "in_progress"
+    assert task.assignee == SESSION_ID
 
 
 @pytest.mark.asyncio

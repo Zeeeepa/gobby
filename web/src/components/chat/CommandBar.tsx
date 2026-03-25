@@ -96,7 +96,7 @@ export function CommandBar({
               <span className="command-bar-ref">{sessionRef}</span>
             )}
             <span className="command-bar-title">
-              {title ?? 'New conversation'}
+              {title ?? 'New Chat Session'}
             </span>
             <span className="command-bar-caret">&#9662;</span>
           </button>

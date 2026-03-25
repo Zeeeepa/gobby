@@ -100,15 +100,30 @@ class TmuxPTYBridge:
 
         os.close(slave_fd)
 
-        bridge = BridgeInfo(
-            master_fd=master_fd,
-            proc=proc,
-            session_name=session_name,
-            socket_name=cfg.socket_name,
-        )
+        try:
+            bridge = BridgeInfo(
+                master_fd=master_fd,
+                proc=proc,
+                session_name=session_name,
+                socket_name=cfg.socket_name,
+            )
 
-        async with self._lock:
-            self._bridges[streaming_id] = bridge
+            async with self._lock:
+                self._bridges[streaming_id] = bridge
+        except Exception:
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
+            try:
+                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=2.0)
+            except (TimeoutError, ProcessLookupError):
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+            raise
 
         logger.info(
             f"PTY bridge attached: {streaming_id} -> "

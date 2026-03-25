@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import DaemonConfig
 from gobby.llm import LLMService
@@ -21,6 +21,9 @@ from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.memories import MemorySyncManager
 from gobby.sync.tasks import TaskSyncManager
+
+if TYPE_CHECKING:
+    from gobby.mcp_proxy.manager import MCPClientManager
 
 
 @dataclass
@@ -46,7 +49,7 @@ class ServiceContainer:
     vector_store: Any | None = None  # VectorStore (Qdrant)
 
     # MCP & Agents
-    mcp_manager: Any | None = None  # MCPClientManager
+    mcp_manager: MCPClientManager | None = None
     mcp_db_manager: Any | None = None  # LocalMCPManager
     metrics_manager: Any | None = None  # ToolMetricsManager
     agent_runner: Any | None = None  # AgentRunner

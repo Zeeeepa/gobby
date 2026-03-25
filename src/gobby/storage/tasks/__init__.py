@@ -15,6 +15,7 @@ from gobby.storage.tasks._models import (
     PRIORITY_MAP,
     UNSET,
     VALID_CATEGORIES,
+    SeqNumCollisionError,
     Task,
     TaskIDCollisionError,
     TaskNotFoundError,
@@ -28,6 +29,7 @@ __all__ = [
     "Task",
     "LocalTaskManager",
     # Exceptions
+    "SeqNumCollisionError",
     "TaskIDCollisionError",
     "TaskNotFoundError",
     # Functions

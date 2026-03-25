@@ -74,12 +74,13 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
   if (messages.length === 0 && !isThinking) {
     return (
       <div className="chat-scaled flex-1 min-h-0 flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
+        <div className="flex flex-col items-center text-center text-muted-foreground gap-3">
           {isLoadingMessages ? (
             <p className="text-sm animate-pulse">Loading messages...</p>
           ) : (
             <>
-              <div className="text-lg mb-1">Chat</div>
+              <ChatEmptyIcon />
+              <div className="text-lg">Chat</div>
               <p className="text-sm">Start a conversation with Gobby</p>
             </>
           )}
@@ -106,6 +107,14 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
     />
   )
 })
+
+function ChatEmptyIcon() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-30">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
 
 function ThinkingIndicator() {
   return (

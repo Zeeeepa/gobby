@@ -26,7 +26,7 @@ class Session:
     project_id: str  # Required - sessions must belong to a project
     title: str | None
     status: str
-    jsonl_path: str | None
+    transcript_path: str | None
     summary_path: str | None
     summary_markdown: str | None
     git_branch: str | None
@@ -83,7 +83,7 @@ class Session:
             project_id=row["project_id"],
             title=row["title"],
             status=row["status"],
-            jsonl_path=row["jsonl_path"],
+            transcript_path=row["transcript_path"],
             summary_path=row["summary_path"],
             summary_markdown=row["summary_markdown"],
             git_branch=row["git_branch"],
@@ -177,7 +177,7 @@ class Session:
             "project_id": self.project_id,
             "title": self.title,
             "status": self.status,
-            "jsonl_path": self.jsonl_path,
+            "transcript_path": self.transcript_path,
             "summary_path": self.summary_path,
             "summary_markdown": self.summary_markdown,
             "git_branch": self.git_branch,

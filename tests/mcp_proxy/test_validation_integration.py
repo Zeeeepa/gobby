@@ -891,9 +891,7 @@ async def test_close_task_commit_diff_excludes_uncommitted_changes(
             task_validator=mock_task_validator,
         )
 
-        await registry.call(
-            "close_task", {"task_id": "t1", "changes_summary": "test changes"}
-        )
+        await registry.call("close_task", {"task_id": "t1", "changes_summary": "test changes"})
 
         # changes_summary is provided, so get_task_diff is NOT called
         # (changes_summary takes precedence over commit-based diff)
@@ -955,9 +953,7 @@ async def test_close_task_with_commits_does_not_fallback_to_smart_context(
             task_validator=mock_task_validator,
         )
 
-        await registry.call(
-            "close_task", {"task_id": "t1", "changes_summary": "test changes"}
-        )
+        await registry.call("close_task", {"task_id": "t1", "changes_summary": "test changes"})
 
         # changes_summary is provided, so neither get_task_diff nor smart context is called
         mock_diff.assert_not_called()

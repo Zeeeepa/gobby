@@ -66,10 +66,10 @@ def format_skills_markdown_table(skills_list: list[Any]) -> str:
     return "\n".join(lines)
 
 
-def format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> str:
+def render_skills_for_context(skills_with_formats: list[tuple[Any, str]]) -> str:
     """Format skills with pre-resolved injection formats.
 
-    Like _format_skills() but uses the format resolved by SkillInjector
+    Like render_skills() but uses the format resolved by SkillInjector
     instead of reading from the skill's injection_format field.
 
     Args:
@@ -106,15 +106,29 @@ def format_skills_with_formats(skills_with_formats: list[tuple[Any, str]]) -> st
 
     parts: list[str] = []
     if summary_lines:
-        parts.append("## Available Skills\n" + "\n".join(summary_lines))
+        # Wrap in <gobby-skills> tags to distinguish from native Claude Code
+        # skills. Without this, agents see these in "Available Skills" and
+        # try Skill() instead of gobby-skills MCP.
+        summary_block = "\n".join(
+            [
+                "<gobby-skills>",
+                *summary_lines,
+                "",
+                'Load a skill: get_skill(name="skill-name") on gobby-skills',
+                "Do NOT use the Skill tool for these — they are not native Claude Code skills.",
+                "</gobby-skills>",
+            ]
+        )
+        parts.append(summary_block)
     if expanded_sections:
         parts.extend(expanded_sections)
 
     return "\n\n".join(parts)
 
 
-# Backwards-compatible alias — callers used the underscore-prefixed name
-_format_skills_with_formats = format_skills_with_formats
+# Backwards-compatible aliases
+_format_skills_with_formats = render_skills_for_context
+format_skills_with_formats = render_skills_for_context
 
 
 def recommend_skills_for_task(
@@ -147,8 +161,8 @@ def recommend_skills_for_task(
         category = task.get("category")
         return manager.recommend_skills(category=category)
     except (ImportError, ValueError, KeyError, RuntimeError) as e:
-        logger.debug("Failed to recommend skills (expected): %s", e)
+        logger.debug(f"Failed to recommend skills (expected): {e}")
         return []
     except Exception as e:
-        logger.warning("Unexpected error recommending skills: %s", e)
+        logger.warning(f"Unexpected error recommending skills: {e}")
         raise

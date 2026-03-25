@@ -661,6 +661,101 @@ class TestClaudeExpandLine:
         assert text_msgs[0].content == "Here's my answer."
         assert thinking_msgs[0].content == "Let me think about this..."
 
+    def test_expand_assistant_empty_thinking(self, parser) -> None:
+        """Thinking block with empty string produces no thinking message."""
+        line = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": ""},
+                        {"type": "text", "text": "Answer."},
+                    ]
+                },
+                "timestamp": "2024-01-01T12:00:00Z",
+            }
+        )
+        msgs = parser._expand_line(line, 0)
+        thinking_msgs = [m for m in msgs if m.content_type == "thinking"]
+        assert len(thinking_msgs) == 0
+        text_msgs = [m for m in msgs if m.content_type == "text"]
+        assert len(text_msgs) == 1
+
+    def test_expand_assistant_null_thinking(self, parser) -> None:
+        """Thinking block with null value produces no thinking message and no TypeError."""
+        line = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": None},
+                        {"type": "text", "text": "Answer."},
+                    ]
+                },
+                "timestamp": "2024-01-01T12:00:00Z",
+            }
+        )
+        msgs = parser._expand_line(line, 0)
+        thinking_msgs = [m for m in msgs if m.content_type == "thinking"]
+        assert len(thinking_msgs) == 0
+
+    def test_expand_assistant_missing_thinking_field(self, parser) -> None:
+        """Thinking block with no 'thinking' field produces no thinking message."""
+        line = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "thinking"},
+                        {"type": "text", "text": "Answer."},
+                    ]
+                },
+                "timestamp": "2024-01-01T12:00:00Z",
+            }
+        )
+        msgs = parser._expand_line(line, 0)
+        thinking_msgs = [m for m in msgs if m.content_type == "thinking"]
+        assert len(thinking_msgs) == 0
+
+    def test_expand_assistant_whitespace_thinking(self, parser) -> None:
+        """Thinking block with only whitespace produces no thinking message."""
+        line = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": "  \n  "},
+                        {"type": "text", "text": "Answer."},
+                    ]
+                },
+                "timestamp": "2024-01-01T12:00:00Z",
+            }
+        )
+        msgs = parser._expand_line(line, 0)
+        thinking_msgs = [m for m in msgs if m.content_type == "thinking"]
+        assert len(thinking_msgs) == 0
+
+    def test_expand_assistant_valid_and_empty_thinking(self, parser) -> None:
+        """Mixed valid and empty thinking blocks — only valid one emitted."""
+        line = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": ""},
+                        {"type": "thinking", "thinking": "Real thought."},
+                        {"type": "thinking", "thinking": None},
+                        {"type": "text", "text": "Answer."},
+                    ]
+                },
+                "timestamp": "2024-01-01T12:00:00Z",
+            }
+        )
+        msgs = parser._expand_line(line, 0)
+        thinking_msgs = [m for m in msgs if m.content_type == "thinking"]
+        assert len(thinking_msgs) == 1
+        assert thinking_msgs[0].content == "Real thought."
+
     def test_expand_top_level_tool_result(self, parser) -> None:
         """Top-level tool_result type produces one tool_result message."""
         line = json.dumps(

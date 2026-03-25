@@ -279,6 +279,11 @@ class DaemonConfig(BaseModel):
         default=False,
         description="Run daemon in test mode (enables test endpoints)",
     )
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:*", "https://localhost:*"],
+        description="Allowed CORS origins. Defaults to localhost only. "
+        "Add your Tailscale hostname (e.g., 'https://myhost.tail*.ts.net') for remote access.",
+    )
 
     # Local storage
     database_path: str = Field(
@@ -876,5 +881,5 @@ def export_config_to_yaml(config: DaemonConfig, config_file: str | None = None) 
 
 def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
     """Deprecated: use export_config_to_yaml() instead."""
-    logger.warning("save_config() is deprecated — use export_config_to_yaml()")
+    logger.warning("save_config() is deprecated - use export_config_to_yaml()")
     export_config_to_yaml(config, config_file)

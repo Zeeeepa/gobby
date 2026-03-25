@@ -60,6 +60,7 @@ class EventHandlers(
         session_coordinator: SessionCoordinator | None = None,
         skill_manager: HookSkillManager | None = None,
         skills_config: SkillsConfig | None = None,
+        call_tool: Callable[[str, str, dict[str, Any]], dict[str, Any] | None] | None = None,
         workflow_config: WorkflowConfig | None = None,
         get_machine_id: Callable[[], str] | None = None,
         resolve_project_id: Callable[[str | None, str | None], str] | None = None,
@@ -94,6 +95,7 @@ class EventHandlers(
         self._session_coordinator = session_coordinator
         self._skill_manager = skill_manager
         self._skills_config = skills_config
+        self._call_tool = call_tool
         self._workflow_config = workflow_config
         self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
         self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")

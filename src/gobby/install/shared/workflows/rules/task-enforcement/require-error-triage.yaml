@@ -17,7 +17,7 @@ rules:
           Confirm that you ran lint and tests on files you touched this session.
 
           If you already verified and everything passed clean, confirm now:
-          set_variable(name="pre_existing_errors_triaged", value=true)
+          set_variable(name="pre_existing_errors_triaged", value=true, session_id="<your Gobby Session ID>")
 
           If you haven't verified yet, run lint and tests first.
 
@@ -46,7 +46,7 @@ rules:
           Confirm that you ran lint and tests on files you touched this session.
 
           If you already verified and everything passed clean, confirm now:
-          set_variable(name="pre_existing_errors_triaged", value=true)
+          set_variable(name="pre_existing_errors_triaged", value=true, session_id="<your Gobby Session ID>")
 
           If you haven't verified yet, run lint and tests first.
 
@@ -65,6 +65,6 @@ rules:
           Confirm that you ran lint and tests on files you touched before approving.
 
           If you already verified and everything passed clean, confirm now:
-          set_variable(name="pre_existing_errors_triaged", value=true)
+          set_variable(name="pre_existing_errors_triaged", value=true, session_id="<your Gobby Session ID>")
 
           If you haven't verified yet, run lint and tests first.

@@ -24,7 +24,7 @@ def _make_session(**overrides) -> MagicMock:
         "project_id": "proj-123",
         "title": "Test Session",
         "status": "active",
-        "jsonl_path": "/tmp/test.jsonl",
+        "transcript_path": "/tmp/test.jsonl",
         "summary_path": None,
         "summary_markdown": None,
         "git_branch": "main",

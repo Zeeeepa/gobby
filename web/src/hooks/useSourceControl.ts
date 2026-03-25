@@ -83,6 +83,17 @@ export interface CIWorkflowRun {
   html_url: string
 }
 
+export interface Issue {
+  number: number
+  title: string
+  state: 'open' | 'closed'
+  author: string
+  labels: { name: string; color: string }[]
+  created_at: string
+  updated_at: string
+  comments: number
+}
+
 export interface DiffResult {
   diff_stat: string
   files: { status: string; path: string }[]
@@ -110,6 +121,7 @@ export function useSourceControl(projectId: string | null = null) {
   const [prs, setPrs] = useState<PullRequest[]>([])
   const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([])
   const [clones, setClones] = useState<CloneInfo[]>([])
+  const [issues, setIssues] = useState<Issue[]>([])
   const [ciRuns, setCiRuns] = useState<CIWorkflowRun[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
@@ -249,6 +261,27 @@ export function useSourceControl(projectId: string | null = null) {
     }
   }, [buildParams, setFetcherError])
 
+  const fetchIssues = useCallback(
+    async (state = 'open') => {
+      try {
+        const r = await fetch(
+          `${getBaseUrl()}/api/source-control/issues?${buildParams({ state })}`
+        )
+        if (r.ok) {
+          const data = await r.json()
+          setIssues(data.issues || [])
+          setFetcherError('issues', null)
+        } else {
+          setFetcherError('issues', `Issues: HTTP ${r.status}`)
+        }
+      } catch (e) {
+        setFetcherError('issues', e instanceof Error ? e.message : 'Failed to fetch issues')
+        console.error('Failed to fetch issues:', e)
+      }
+    },
+    [buildParams, setFetcherError]
+  )
+
   // --- On-demand fetchers ---
 
   const fetchCommits = useCallback(
@@ -296,6 +329,24 @@ export function useSourceControl(projectId: string | null = null) {
         }
       } catch (e) {
         console.error('Failed to fetch PR detail:', e)
+      }
+      return null
+    },
+    [buildParams]
+  )
+
+  const fetchIssueDetail = useCallback(
+    async (number: number): Promise<Record<string, unknown> | null> => {
+      try {
+        const r = await fetch(
+          `${getBaseUrl()}/api/source-control/issues/${number}?${buildParams()}`
+        )
+        if (r.ok) {
+          const data = await r.json()
+          return data.issue || null
+        }
+      } catch (e) {
+        console.error('Failed to fetch issue detail:', e)
       }
       return null
     },
@@ -414,8 +465,8 @@ export function useSourceControl(projectId: string | null = null) {
   // --- Fetch GitHub data ---
 
   const fetchGitHub = useCallback(async () => {
-    await Promise.all([fetchPrs(), fetchCiRuns()])
-  }, [fetchPrs, fetchCiRuns])
+    await Promise.all([fetchPrs(), fetchIssues(), fetchCiRuns()])
+  }, [fetchPrs, fetchIssues, fetchCiRuns])
 
   // --- Refresh all ---
 
@@ -459,6 +510,7 @@ export function useSourceControl(projectId: string | null = null) {
     status,
     branches,
     prs,
+    issues,
     worktrees,
     clones,
     ciRuns,
@@ -472,6 +524,8 @@ export function useSourceControl(projectId: string | null = null) {
     fetchDiff,
     fetchPrDetail,
     fetchPrs,
+    fetchIssues,
+    fetchIssueDetail,
 
     // Actions
     deleteWorktree,

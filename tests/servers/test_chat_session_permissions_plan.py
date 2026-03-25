@@ -5,6 +5,7 @@ via PostToolUse when the agent writes to .gobby/plans/*.md. The SDK
 handles ExitPlanMode as a CLI-internal tool, bypassing can_use_tool.
 """
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -53,6 +54,7 @@ class TestExitPlanModeDecision:
     async def test_exit_plan_mode_does_not_block(self, session: ChatSession) -> None:
         """ExitPlanMode should return immediately (no blocking for approval)."""
         import time
+
         with patch.object(session, "_read_plan_file", return_value=None):
             session._plan_file_path = None
             start = time.monotonic()
@@ -64,7 +66,7 @@ class TestExitPlanModeDecision:
 class TestReadPlanFileResolution:
     """_read_plan_file should resolve relative paths against project_path."""
 
-    def test_relative_plan_file_resolved_against_project_path(self, tmp_path) -> None:
+    def test_relative_plan_file_resolved_against_project_path(self, tmp_path: Path) -> None:
         """A tracked relative plan file path should resolve against project_path."""
         plan_dir = tmp_path / ".gobby" / "plans"
         plan_dir.mkdir(parents=True)
@@ -78,7 +80,7 @@ class TestReadPlanFileResolution:
         assert content is not None
         assert "My Plan" in content
 
-    def test_fallback_scan_uses_project_path(self, tmp_path) -> None:
+    def test_fallback_scan_uses_project_path(self, tmp_path: Path) -> None:
         """Fallback scan should find .gobby/plans/*.md relative to project_path."""
         plan_dir = tmp_path / ".gobby" / "plans"
         plan_dir.mkdir(parents=True)
@@ -91,7 +93,7 @@ class TestReadPlanFileResolution:
         assert content is not None
         assert "Implementation Plan" in content
 
-    def test_absolute_plan_file_works_regardless(self, tmp_path) -> None:
+    def test_absolute_plan_file_works_regardless(self, tmp_path: Path) -> None:
         """An absolute tracked path should work even without project_path."""
         plan_dir = tmp_path / ".gobby" / "plans"
         plan_dir.mkdir(parents=True)
@@ -105,11 +107,9 @@ class TestReadPlanFileResolution:
         assert content is not None
         assert "Absolute Plan" in content
 
-    def test_no_plan_file_returns_none(self, tmp_path) -> None:
+    def test_no_plan_file_returns_none(self, tmp_path: Path) -> None:
         """Should return None when no plan file exists anywhere."""
-        session = ChatSession(
-            conversation_id="test-missing", project_path=str(tmp_path)
-        )
+        session = ChatSession(conversation_id="test-missing", project_path=str(tmp_path))
 
         # Mock Path.home to an empty temp dir so fallback scan doesn't
         # find real plan files in ~/.claude/plans/ etc.

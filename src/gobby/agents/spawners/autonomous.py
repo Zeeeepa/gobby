@@ -180,11 +180,7 @@ class AutonomousRunner:
         try:
             await self._client.connect()
             logger.info(
-                "AutonomousRunner started: run_id=%s session=%s model=%s max_turns=%s",
-                self.run_id,
-                session_ref,
-                self.model or "sonnet",
-                self.max_turns,
+                f"AutonomousRunner started: run_id={self.run_id} session={session_ref} model={self.model or 'sonnet'} max_turns={self.max_turns}",
             )
 
             # Send the prompt
@@ -208,10 +204,7 @@ class AutonomousRunner:
                             accumulated_text += block.text
 
             logger.info(
-                "AutonomousRunner completed: run_id=%s sdk_session=%s chars=%d",
-                self.run_id,
-                self.sdk_session_id,
-                len(accumulated_text),
+                f"AutonomousRunner completed: run_id={self.run_id} sdk_session={self.sdk_session_id} chars={len(accumulated_text)}",
             )
 
             # Store SDK session ID for cross-mode resume
@@ -228,15 +221,13 @@ class AutonomousRunner:
             return accumulated_text
 
         except asyncio.CancelledError:
-            logger.info("AutonomousRunner cancelled: run_id=%s", self.run_id)
+            logger.info(f"AutonomousRunner cancelled: run_id={self.run_id}")
             if self.agent_run_manager:
                 self.agent_run_manager.fail(self.run_id, error="Cancelled")
             raise
         except Exception as e:
             logger.error(
-                "AutonomousRunner failed: run_id=%s error=%s",
-                self.run_id,
-                e,
+                f"AutonomousRunner failed: run_id={self.run_id} error={e}",
                 exc_info=True,
             )
             if self.agent_run_manager:

@@ -346,6 +346,8 @@ class WebSocketServer(
             await self._cancel_active_chat(conv_id)
             await session.stop()
         self._chat_sessions.clear()
+        if hasattr(self, "_session_create_locks"):
+            self._session_create_locks.clear()
 
         # Close server (stops accepting new connections)
         self._server.close()

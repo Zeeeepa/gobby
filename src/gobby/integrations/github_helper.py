@@ -289,7 +289,7 @@ class GitHubMCPHelper:
         # Fallback: git push
         try:
             if not name or any(c in name for c in [" ", "..", "~", "^", ":", "\\", "\x00"]):
-                logger.warning("Invalid branch name: %r", name)
+                logger.warning(f"Invalid branch name: {name!r}")
                 return False
             base = from_branch or "HEAD"
             r = await self._run_git_async(

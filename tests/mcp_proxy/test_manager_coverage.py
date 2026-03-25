@@ -1236,7 +1236,7 @@ class TestMCPClientManagerReconnect:
 
     @pytest.mark.asyncio
     async def test_reconnect_success(self):
-        """Test _reconnect successfully reconnects server."""
+        """Test _reconnect disconnects old connection before reconnecting."""
         config = MCPServerConfig(
             name="test-server",
             project_id="test-project",
@@ -1246,10 +1246,52 @@ class TestMCPClientManagerReconnect:
 
         manager = MCPClientManager(server_configs=[config])
 
+        old_conn = AsyncMock()
+        old_conn.is_connected = True
+        manager._connections["test-server"] = old_conn
+
         with patch.object(manager, "_connect_server", return_value=MagicMock()):
             await manager._reconnect("test-server")
 
-        # Should not raise
+        old_conn.disconnect.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_reconnect_no_old_connection(self):
+        """Test _reconnect works when no old connection exists."""
+        config = MCPServerConfig(
+            name="test-server",
+            project_id="test-project",
+            transport="http",
+            url="http://localhost:8001",
+        )
+
+        manager = MCPClientManager(server_configs=[config])
+
+        with patch.object(manager, "_connect_server", return_value=MagicMock()) as mock_connect:
+            await manager._reconnect("test-server")
+
+        mock_connect.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_reconnect_old_disconnect_failure_does_not_block(self):
+        """Test _reconnect proceeds even if old connection disconnect fails."""
+        config = MCPServerConfig(
+            name="test-server",
+            project_id="test-project",
+            transport="http",
+            url="http://localhost:8001",
+        )
+
+        manager = MCPClientManager(server_configs=[config])
+
+        old_conn = AsyncMock()
+        old_conn.disconnect.side_effect = Exception("disconnect exploded")
+        manager._connections["test-server"] = old_conn
+
+        with patch.object(manager, "_connect_server", return_value=MagicMock()) as mock_connect:
+            await manager._reconnect("test-server")
+
+        mock_connect.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_reconnect_handles_unknown_server(self):

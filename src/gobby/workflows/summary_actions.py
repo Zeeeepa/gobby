@@ -301,6 +301,11 @@ async def _rename_tmux_window(session: Any, title: str) -> None:
 
     agent_depth = getattr(session, "agent_depth", 0) or 0
 
+    # Prepend session ref (e.g. "#3605") so the window reads "#N: title"
+    ref = getattr(session, "ref", None)
+    if ref:
+        title = f"{ref}: {title}"
+
     try:
         if agent_depth > 0:
             # Spawned agent — rename on Gobby's isolated socket
@@ -348,9 +353,7 @@ async def _rename_tmux_window(session: Any, title: str) -> None:
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
             if proc.returncode != 0:
                 logger.debug(
-                    "tmux rename-window failed for pane %s: %s",
-                    pane,
-                    (stderr or b"").decode().strip(),
+                    f"tmux rename-window failed for pane {pane}: {(stderr or b'').decode(errors='replace').strip()}",
                 )
     except Exception as e:
         logger.debug(f"_rename_tmux_window: {e}")
@@ -397,7 +400,7 @@ async def generate_summary(
     if not current_session:
         return {"error": "Session not found"}
 
-    transcript_path = getattr(current_session, "jsonl_path", None)
+    transcript_path = getattr(current_session, "transcript_path", None)
     if not transcript_path:
         logger.warning(f"generate_summary: No transcript path for session {session_id}")
         return {"error": "No transcript path"}

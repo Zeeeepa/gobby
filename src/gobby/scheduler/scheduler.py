@@ -193,7 +193,7 @@ class CronScheduler:
             try:
                 await self.on_run_complete(job, result)
             except Exception as exc:
-                logger.debug("Cron event callback failed: %s", exc)
+                logger.debug(f"Cron event callback failed: {exc}")
 
     def _get_backoff_seconds(self, consecutive_failures: int) -> int:
         """Get backoff delay based on number of consecutive failures."""

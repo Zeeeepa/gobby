@@ -16,7 +16,6 @@ from gobby.agents.isolation import (
     SpawnConfig,
     get_isolation_handler,
 )
-from gobby.agents.registry import RunningAgent, get_running_agent_registry
 from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
 from gobby.config.tmux import TmuxConfig
@@ -450,7 +449,19 @@ async def spawn_agent_impl(
     if isolation_ctx.branch_name:
         effective_initial_variables["branch_name"] = isolation_ctx.branch_name
 
-    # 11. Execute spawn via SpawnExecutor
+    # 11. Build a meaningful session title from agent name and/or task
+    agent_display_name = agent_lookup_name or (agent_body.name if agent_body else None)
+    if agent_display_name and task_title:
+        spawn_title = f"{agent_display_name}: {task_title}"
+    elif agent_display_name:
+        spawn_title = agent_display_name
+    elif task_title:
+        task_ref = f"#{task_seq_num}" if task_seq_num else ""
+        spawn_title = f"Agent: {task_ref} {task_title}".strip()
+    else:
+        spawn_title = None  # fall back to existing default in create_child_session
+
+    # 11a. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
         prompt=enhanced_prompt,
         cwd=isolation_ctx.cwd,
@@ -467,6 +478,7 @@ async def spawn_agent_impl(
         clone_id=isolation_ctx.clone_id,
         branch_name=isolation_ctx.branch_name,
         task_id=resolved_task_id,
+        title=spawn_title,
         session_manager=runner.child_session_manager,
         machine_id=get_machine_id() or "unknown",
         model=effective_model,
@@ -481,23 +493,6 @@ async def spawn_agent_impl(
         timeout_seconds=effective_timeout,
     )
 
-    # 11b. Pre-register with RunningAgentRegistry before spawn
-    agent_registry = get_running_agent_registry()
-    agent_registry.add(
-        RunningAgent(
-            run_id=run_id,
-            session_id=session_id,
-            parent_session_id=parent_session_id,
-            mode=effective_mode,
-            provider=effective_provider,
-            workflow_name=effective_workflow,
-            worktree_id=isolation_ctx.worktree_id,
-            clone_id=isolation_ctx.clone_id,
-            task_id=resolved_task_id,
-            timeout_seconds=effective_timeout,
-        )
-    )
-
     # NOTE: agent_runs DB record is created inside prepare_terminal_spawn()
     # (called by execute_spawn).  Do NOT pre-create here — it causes a
     # UNIQUE constraint violation since prepare_terminal_spawn also inserts
@@ -505,26 +500,8 @@ async def spawn_agent_impl(
 
     spawn_result = await execute_spawn(spawn_request)
 
-    # 12. Update or remove registry entry based on spawn result
+    # 12. Update DB and handle post-spawn setup based on spawn result
     if spawn_result.success and spawn_result.child_session_id is not None:
-        agent_registry.add(
-            RunningAgent(
-                run_id=run_id,
-                session_id=spawn_result.child_session_id,
-                parent_session_id=parent_session_id,
-                mode=effective_mode,
-                pid=spawn_result.pid,
-                terminal_type=spawn_result.terminal_type,
-                tmux_session_name=spawn_result.tmux_session_name,
-                provider=effective_provider,
-                workflow_name=effective_workflow,
-                worktree_id=isolation_ctx.worktree_id,
-                clone_id=isolation_ctx.clone_id,
-                task_id=resolved_task_id,
-                timeout_seconds=effective_timeout,
-                task=spawn_result.process,  # asyncio.Task for autonomous mode
-            )
-        )
         try:
             runner.run_storage.update_child_session(run_id, spawn_result.child_session_id)
         except Exception as e:
@@ -543,7 +520,33 @@ async def spawn_agent_impl(
         except Exception as e:
             logger.warning(f"Failed to persist runtime state for {run_id}: {e}")
 
-        # 12a. Auto-claim task if task_id was provided and task is open
+        # TODO: For autonomous agents, spawn_result.process is an asyncio.Task
+        # that needs to be tracked by the lifecycle monitor for completion
+        # detection. Currently the lifecycle monitor discovers these via DB
+        # polling, but direct task registration would be more responsive.
+
+        # Fire agent_started event for WebSocket broadcasting
+        try:
+            from gobby.runner_broadcasting import fire_agent_event
+
+            fire_agent_event(
+                "agent_started",
+                run_id,
+                {
+                    "session_id": spawn_result.child_session_id,
+                    "parent_session_id": parent_session_id,
+                    "mode": effective_mode,
+                    "provider": effective_provider,
+                    "pid": spawn_result.pid,
+                    "tmux_session_name": spawn_result.tmux_session_name,
+                },
+            )
+        except Exception as e:
+            logger.debug(f"Failed to fire agent_started event for {run_id}: {e}")
+
+        # 12a. Auto-claim task if task_id was provided
+        # Always set assignee (orchestrator tracking), but only transition
+        # status to in_progress for open tasks (don't regress needs_review etc.)
         if resolved_task_id and task_manager:
             try:
                 task_obj = task_manager.get_task(resolved_task_id)
@@ -554,16 +557,15 @@ async def spawn_agent_impl(
                         assignee=spawn_result.child_session_id,
                     )
                     logger.info(
-                        "Auto-claimed task %s for agent %s (session %s)",
-                        f"#{task_seq_num}" if task_seq_num else resolved_task_id,
-                        run_id,
-                        spawn_result.child_session_id,
+                        f"Auto-claimed task {(f'#{task_seq_num}' if task_seq_num else resolved_task_id)} for agent {run_id} (session {spawn_result.child_session_id})",
                     )
                 elif task_obj:
+                    task_manager.update_task(
+                        resolved_task_id,
+                        assignee=spawn_result.child_session_id,
+                    )
                     logger.info(
-                        "Skipping auto-claim for task %s (status=%s, not open)",
-                        f"#{task_seq_num}" if task_seq_num else resolved_task_id,
-                        task_obj.status,
+                        f"Assigned task {(f'#{task_seq_num}' if task_seq_num else resolved_task_id)} to agent {run_id} (session {spawn_result.child_session_id}) without status change (status={task_obj.status})",
                     )
             except Exception as e:
                 logger.warning(f"Failed to auto-claim task {resolved_task_id}: {e}")
@@ -600,11 +602,7 @@ async def spawn_agent_impl(
                 )
 
                 logger.info(
-                    "Created step workflow instance %s for session %s (agent=%s, step=%s)",
-                    step_wf_name,
-                    spawn_result.child_session_id,
-                    agent_body.name,
-                    agent_body.steps[0].name,
+                    f"Created step workflow instance {step_wf_name} for session {spawn_result.child_session_id} (agent={agent_body.name}, step={agent_body.steps[0].name})",
                 )
             except Exception as e:
                 logger.error(f"Failed to create step workflow instance: {e}", exc_info=True)
@@ -628,7 +626,6 @@ async def spawn_agent_impl(
                             f"Agent {_run_id} tmux session '{_tmux_name}' "
                             f"exited immediately after spawn"
                         )
-                        agent_registry.remove(_run_id, status="failed")
                         try:
                             runner.run_storage.fail(
                                 _run_id,
@@ -650,8 +647,7 @@ async def spawn_agent_impl(
             _health_check_tasks.add(health_task)
             health_task.add_done_callback(_health_check_tasks.discard)
     else:
-        # Spawn failed — remove pre-registered entry and mark DB record as failed
-        agent_registry.remove(run_id, status="failed")
+        # Spawn failed — mark DB record as failed
         try:
             runner.run_storage.fail(run_id, error=spawn_result.error or "Spawn failed")
         except Exception as e:

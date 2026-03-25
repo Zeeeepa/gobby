@@ -93,7 +93,7 @@ def mock_session(tmp_path):
     # Create a basic transcript
     with open(transcript_file, "w") as f:
         f.write(json.dumps({"message": {"role": "user", "content": "test"}}) + "\n")
-    session.jsonl_path = str(transcript_file)
+    session.transcript_path = str(transcript_file)
     return session
 
 
@@ -335,6 +335,7 @@ class TestRenameTmuxWindow:
         session = MagicMock()
         session.terminal_context = {"tmux_pane": "%42"}
         session.agent_depth = 0
+        session.ref = "#99"
 
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_exec:
             mock_proc = AsyncMock()
@@ -359,13 +360,13 @@ class TestRenameTmuxWindow:
                 "rename-window",
                 "-t",
                 "%42",
-                "My Title",
+                "#99: My Title",
                 ";",
                 "select-pane",
                 "-t",
                 "%42",
                 "-T",
-                "My Title",
+                "#99: My Title",
                 ";",
                 "set-option",
                 "-w",
@@ -385,6 +386,7 @@ class TestRenameTmuxWindow:
         session = MagicMock()
         session.terminal_context = {"tmux_pane": "%0"}
         session.agent_depth = 1
+        session.ref = "#55"
 
         mock_mgr = AsyncMock()
         mock_mgr.rename_window.return_value = True
@@ -394,7 +396,7 @@ class TestRenameTmuxWindow:
             return_value=mock_mgr,
         ):
             await _rename_tmux_window(session, "Agent Title")
-            mock_mgr.rename_window.assert_called_once_with("%0", "Agent Title")
+            mock_mgr.rename_window.assert_called_once_with("%0", "#55: Agent Title")
 
     @pytest.mark.asyncio
     async def test_failure_does_not_propagate(self):
@@ -432,7 +434,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Help me"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_transcript_processor.extract_turns_since_clear.return_value = [
@@ -492,7 +494,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_transcript_processor.extract_turns_since_clear.return_value = [
@@ -533,7 +535,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_transcript_processor.extract_turns_since_clear.return_value = [
@@ -573,7 +575,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_transcript_processor.extract_turns_since_clear.return_value = []
@@ -660,7 +662,7 @@ class TestGenerateSummary:
     ):
         """Test summary generation when session has no transcript path."""
         session = MagicMock()
-        session.jsonl_path = None
+        session.transcript_path = None
         mock_session_manager.get.return_value = session
 
         result = await generate_summary(
@@ -682,7 +684,7 @@ class TestGenerateSummary:
     ):
         """Test summary generation when transcript file doesn't exist."""
         session = MagicMock()
-        session.jsonl_path = str(tmp_path / "nonexistent.jsonl")
+        session.transcript_path = str(tmp_path / "nonexistent.jsonl")
         mock_session_manager.get.return_value = session
 
         result = await generate_summary(
@@ -708,7 +710,7 @@ class TestGenerateSummary:
             f.write("invalid json content\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         result = await generate_summary(
@@ -734,7 +736,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_transcript_processor.extract_turns_since_clear.return_value = []
@@ -772,7 +774,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_transcript_processor.extract_turns_since_clear.return_value = []
@@ -812,7 +814,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         mock_transcript_processor.extract_turns_since_clear.return_value = []
@@ -853,7 +855,7 @@ class TestGenerateSummary:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         mock_session_manager.get.return_value = session
 
         last_messages = [
@@ -1024,7 +1026,7 @@ class TestWriteSummaryFile:
             f.write(json.dumps({"message": {"role": "user", "content": "Test"}}) + "\n")
 
         session = MagicMock()
-        session.jsonl_path = str(transcript_file)
+        session.transcript_path = str(transcript_file)
         session.external_id = "ext-write-test"
         mock_session_manager.get.return_value = session
 

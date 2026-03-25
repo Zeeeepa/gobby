@@ -91,9 +91,7 @@ class TestOutputCompressor:
             output += f">       assert {i} == {i + 1}\n"
             output += f"E       AssertionError: assert {i} == {i + 1}\n\n"
         output += "=== short test summary ===\n"
-        output += "".join(
-            f"FAILED tests/test_fail_{i}.py::test_fail_{i}\n" for i in range(10)
-        )
+        output += "".join(f"FAILED tests/test_fail_{i}.py::test_fail_{i}\n" for i in range(10))
         output += "=== 10 failed, 100 passed ===\n"
 
         c = OutputCompressor(min_length=100)

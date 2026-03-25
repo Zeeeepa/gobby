@@ -779,14 +779,11 @@ class CodexNotifyAdapter(BaseAdapter):
         cwd = input_data.get("cwd")
         if not cwd:
             logger.warning(
-                "Codex notify event missing cwd - project resolution may fail"
-                " (thread_id=%s, event_type=%s)",
-                thread_id,
-                event_type,
+                f"Codex notify event missing cwd - project resolution may fail (thread_id={thread_id}, event_type={event_type})",
             )
 
         if not thread_id:
-            logger.warning("Codex notify event missing thread_id (event_type=%s)", event_type)
+            logger.warning(f"Codex notify event missing thread_id (event_type={event_type})")
             return None
 
         # Find the JSONL transcript file

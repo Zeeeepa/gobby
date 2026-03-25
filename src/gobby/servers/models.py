@@ -14,7 +14,7 @@ class SessionRegisterRequest(BaseModel):
     machine_id: str | None = Field(None, description="Unique machine identifier")
 
     # Session metadata
-    jsonl_path: str | None = Field(None, description="Path to JSONL transcript file")
+    transcript_path: str | None = Field(None, description="Path to JSONL transcript file")
     title: str | None = Field(None, description="Natural language session summary/title")
     source: str | None = Field(
         None, description="Session source (e.g., 'Claude Code', 'Agent SDK')"

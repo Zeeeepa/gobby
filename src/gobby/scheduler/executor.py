@@ -78,7 +78,7 @@ class CronExecutor:
             return updated or run
 
         except Exception as e:
-            logger.exception("Cron job %s (%s) failed", job.id, job.name)
+            logger.exception(f"Cron job {job.id} ({job.name}) failed")
             completed_at = datetime.now(UTC).isoformat()
             updated = self.storage.update_run(
                 run.id,
@@ -186,7 +186,7 @@ class CronExecutor:
                     project_ctx["project_path"] = row[0]
             except Exception:
                 logger.debug(
-                    "Failed to resolve repo_path for project %s", job.project_id, exc_info=True
+                    f"Failed to resolve repo_path for project {job.project_id}", exc_info=True
                 )
 
         token = set_project_context(project_ctx)
@@ -205,9 +205,7 @@ class CronExecutor:
             self.storage.update_run(run.id, pipeline_execution_id=execution.id)
         except Exception:
             logger.warning(
-                "Failed to link pipeline execution %s to cron run %s",
-                execution.id,
-                run.id,
+                f"Failed to link pipeline execution {execution.id} to cron run {run.id}",
                 exc_info=True,
             )
 

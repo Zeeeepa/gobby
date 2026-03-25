@@ -3,6 +3,7 @@ Daemon management commands.
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 import subprocess  # nosec B404 # subprocess needed for daemon management
@@ -123,17 +124,17 @@ def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | Non
     try:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         log_f = open(log_file, "a")
-
-        process = subprocess.Popen(  # nosec B603
-            cmd,
-            stdout=log_f,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-            env=os.environ.copy(),
-        )
-
-        log_f.close()
+        try:
+            process = subprocess.Popen(  # nosec B603
+                cmd,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                env=os.environ.copy(),
+            )
+        finally:
+            log_f.close()
         return process.pid
 
     except Exception as e:
@@ -270,119 +271,119 @@ def start(
     if verbose:
         cmd.append("--verbose")
 
-    # Open log files
-    log_f = open(log_file, "a")
-    error_log_f = open(error_log_file, "a")
+    # Open log files — ExitStack ensures cleanup even if second open() fails
+    with contextlib.ExitStack() as log_stack:
+        log_f = log_stack.enter_context(open(log_file, "a"))
+        error_log_f = log_stack.enter_context(open(error_log_file, "a"))
 
-    try:
-        # Start detached subprocess
-        process = subprocess.Popen(  # nosec B603 # cmd built from sys.executable and module path
-            cmd,
-            stdout=log_f,
-            stderr=error_log_f,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,  # Detach from terminal
-            env=os.environ.copy(),  # Inherit parent's environment (including PATH)
-        )
+        try:
+            # Start detached subprocess
+            process = subprocess.Popen(  # nosec B603 # cmd built from sys.executable and module path
+                cmd,
+                stdout=log_f,
+                stderr=error_log_f,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,  # Detach from terminal
+                env=os.environ.copy(),  # Inherit parent's environment (including PATH)
+            )
 
-        # Write PID file
-        with open(pid_file, "w") as f:
-            f.write(str(process.pid))
+            # Write PID file
+            with open(pid_file, "w") as f:
+                f.write(str(process.pid))
 
-        # Give it a moment to start
-        time.sleep(1.0)
-
-        # Check if still running
-        if process.poll() is not None:
-            click.echo("Process exited immediately", err=True)
-            click.echo(f"  Check logs: {error_log_file}", err=True)
-            sys.exit(1)
-
-        # Give server time to fully start
-        time.sleep(2.0)
-
-        # Display formatted status
-        # Try to verify daemon is responding
-        daemon_healthy = False
-        start_time = time.time()
-        max_wait = 120.0
-
-        while (time.time() - start_time) < max_wait:
-            try:
-                response = httpx.get(f"http://localhost:{http_port}/api/admin/health", timeout=1.0)
-                if response.status_code == 200:
-                    daemon_healthy = True
-                    break
-            except (httpx.ConnectError, httpx.TimeoutException):
-                time.sleep(0.5)
-                continue
-
-        # Spawn watchdog if daemon is healthy and watchdog is enabled
-        watchdog_pid = None
-        if daemon_healthy and not no_watchdog and config.watchdog.enabled:
-            watchdog_log = Path(config.telemetry.log_file_watchdog).expanduser()
-            watchdog_pid = spawn_watchdog(http_port, verbose, watchdog_log)
-            if watchdog_pid:
-                watchdog_pid_file = gobby_dir / "watchdog.pid"
-                with open(watchdog_pid_file, "w") as f:
-                    f.write(str(watchdog_pid))
-
-        # Spawn UI server if enabled
-        ui_pid = None
-        ui_url = None
-        if daemon_healthy and not no_ui and config.ui.enabled:
-            if config.ui.mode == "dev":
-                web_dir = find_web_dir(config)
-                if web_dir:
-                    ui_log = Path(config.telemetry.log_file).expanduser().parent / "ui.log"
-                    ui_pid = spawn_ui_server(config.ui.host, config.ui.port, web_dir, ui_log)
-                    if ui_pid:
-                        ui_url = f"http://{config.ui.host}:{config.ui.port}"
-                        ui_pid_file = gobby_dir / "ui.pid"
-                        with open(ui_pid_file, "w") as f:
-                            f.write(str(ui_pid))
-                else:
-                    click.echo("Warning: Web UI enabled but web/ directory not found")
-            elif config.ui.mode == "production":
-                ui_url = f"http://localhost:{http_port}/"
-
-        # Format and display status
-        status_kwargs = {
-            "running": daemon_healthy,
-            "pid": process.pid,
-            "pid_file": str(pid_file),
-            "log_files": str(log_file.parent),
-            "http_port": http_port,
-            "websocket_port": ws_port,
-            "watchdog_pid": watchdog_pid,
-            "ui_enabled": config.ui.enabled and not no_ui,
-            "ui_mode": config.ui.mode if config.ui.enabled and not no_ui else None,
-            "ui_url": ui_url,
-            "ui_pid": ui_pid,
-        }
-
-        # Fetch rich status if daemon is healthy
-        # Brief delay to allow stats to be computed
-        if daemon_healthy:
+            # Give it a moment to start
             time.sleep(1.0)
-            rich_status = asyncio.run(fetch_rich_status(http_port, timeout=2.0))
-            status_kwargs.update(rich_status)
 
-        message = format_status_message(**status_kwargs)
-        click.echo("")
-        click.echo(message)
-        click.echo("")
+            # Check if still running
+            if process.poll() is not None:
+                click.echo("Process exited immediately", err=True)
+                click.echo(f"  Check logs: {error_log_file}", err=True)
+                sys.exit(1)
 
-        if not daemon_healthy:
-            click.echo("Warning: Daemon started but health check failed")
-            click.echo(f"  Check logs: {error_log_file}")
+            # Give server time to fully start
+            time.sleep(2.0)
 
-    except Exception as e:
-        click.echo(f"Error starting daemon: {e}", err=True)
-        sys.exit(1)
-    finally:
-        log_f.close()
-        error_log_f.close()
+            # Display formatted status
+            # Try to verify daemon is responding
+            daemon_healthy = False
+            start_time = time.time()
+            max_wait = 120.0
+
+            while (time.time() - start_time) < max_wait:
+                try:
+                    response = httpx.get(
+                        f"http://localhost:{http_port}/api/admin/health", timeout=1.0
+                    )
+                    if response.status_code == 200:
+                        daemon_healthy = True
+                        break
+                except (httpx.ConnectError, httpx.TimeoutException):
+                    time.sleep(0.5)
+                    continue
+
+            # Spawn watchdog if daemon is healthy and watchdog is enabled
+            watchdog_pid = None
+            if daemon_healthy and not no_watchdog and config.watchdog.enabled:
+                watchdog_log = Path(config.telemetry.log_file_watchdog).expanduser()
+                watchdog_pid = spawn_watchdog(http_port, verbose, watchdog_log)
+                if watchdog_pid:
+                    watchdog_pid_file = gobby_dir / "watchdog.pid"
+                    with open(watchdog_pid_file, "w") as f:
+                        f.write(str(watchdog_pid))
+
+            # Spawn UI server if enabled
+            ui_pid = None
+            ui_url = None
+            if daemon_healthy and not no_ui and config.ui.enabled:
+                if config.ui.mode == "dev":
+                    web_dir = find_web_dir(config)
+                    if web_dir:
+                        ui_log = Path(config.telemetry.log_file).expanduser().parent / "ui.log"
+                        ui_pid = spawn_ui_server(config.ui.host, config.ui.port, web_dir, ui_log)
+                        if ui_pid:
+                            ui_url = f"http://{config.ui.host}:{config.ui.port}"
+                            ui_pid_file = gobby_dir / "ui.pid"
+                            with open(ui_pid_file, "w") as f:
+                                f.write(str(ui_pid))
+                    else:
+                        click.echo("Warning: Web UI enabled but web/ directory not found")
+                elif config.ui.mode == "production":
+                    ui_url = f"http://localhost:{http_port}/"
+
+            # Format and display status
+            status_kwargs = {
+                "running": daemon_healthy,
+                "pid": process.pid,
+                "pid_file": str(pid_file),
+                "log_files": str(log_file.parent),
+                "http_port": http_port,
+                "websocket_port": ws_port,
+                "watchdog_pid": watchdog_pid,
+                "ui_enabled": config.ui.enabled and not no_ui,
+                "ui_mode": config.ui.mode if config.ui.enabled and not no_ui else None,
+                "ui_url": ui_url,
+                "ui_pid": ui_pid,
+            }
+
+            # Fetch rich status if daemon is healthy
+            # Brief delay to allow stats to be computed
+            if daemon_healthy:
+                time.sleep(1.0)
+                rich_status = asyncio.run(fetch_rich_status(http_port, timeout=2.0))
+                status_kwargs.update(rich_status)
+
+            message = format_status_message(**status_kwargs)
+            click.echo("")
+            click.echo(message)
+            click.echo("")
+
+            if not daemon_healthy:
+                click.echo("Warning: Daemon started but health check failed")
+                click.echo(f"  Check logs: {error_log_file}")
+
+        except Exception as e:
+            click.echo(f"Error starting daemon: {e}", err=True)
+            sys.exit(1)
 
 
 @click.command()

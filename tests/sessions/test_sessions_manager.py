@@ -72,7 +72,7 @@ class TestSessionManagerRegistration:
             source="gemini",
             project_id=test_project["id"],
             parent_session_id=None,  # Use None instead of invalid UUID
-            jsonl_path="/path/to/transcript.jsonl",
+            transcript_path="/path/to/transcript.jsonl",
             title="Test Session Title",
             git_branch="feature/test",
         )

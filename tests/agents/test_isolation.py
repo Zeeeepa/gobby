@@ -610,9 +610,7 @@ class TestWorktreeIsolationHandler:
             parent_session_id="sess-456",
         )
 
-        with patch(
-            "gobby.utils.project_context.ensure_project_json_for_isolation"
-        ) as mock_ensure:
+        with patch("gobby.utils.project_context.ensure_project_json_for_isolation") as mock_ensure:
             await handler.prepare_environment(config)
             mock_ensure.assert_called_once_with(
                 "/path/to/main/repo",
@@ -1004,9 +1002,7 @@ class TestCloneIsolationHandler:
             parent_session_id="sess-456",
         )
 
-        with patch(
-            "gobby.utils.project_context.ensure_project_json_for_isolation"
-        ) as mock_ensure:
+        with patch("gobby.utils.project_context.ensure_project_json_for_isolation") as mock_ensure:
             await handler.prepare_environment(config)
             mock_ensure.assert_called_once_with(
                 "/path/to/source/repo",

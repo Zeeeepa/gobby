@@ -44,7 +44,7 @@ async def _handle_self_persona(
     if agent_body.workflows and agent_body.workflows.variables:
         for key, value in agent_body.workflows.variables.items():
             if key.startswith("_"):
-                logger.warning("Skipping reserved variable %r from agent definition", key)
+                logger.warning(f"Skipping reserved variable {key!r} from agent definition")
                 continue
             changes[key] = value
 
@@ -89,11 +89,7 @@ async def _handle_self_persona(
             changes["_step_workflow_name"] = step_wf_name
             changes["step_workflow_complete"] = False
             logger.info(
-                "Created step workflow instance %s for session %s (agent=%s, step=%s)",
-                step_wf_name,
-                parent_session_id,
-                agent_name,
-                agent_body.steps[0].name,
+                f"Created step workflow instance {step_wf_name} for session {parent_session_id} (agent={agent_name}, step={agent_body.steps[0].name})",
             )
 
     if db:

@@ -32,6 +32,7 @@ class MockSession:
     parent_session_id: str | None = None
     project_id: str = "project-1"
     status: str = "active"
+    agent_depth: int = 0
 
 
 @dataclass
@@ -263,8 +264,11 @@ class TestSendCommand:
     async def test_send_command_success(
         self, messaging_registry, mock_session_manager, mock_command_manager
     ) -> None:
-        """Ancestor can send command to descendant."""
-        mock_session_manager.is_ancestor.return_value = True
+        """Lower-depth session can send command to higher-depth session."""
+        mock_session_manager.get.side_effect = lambda sid: {
+            "s-parent": MockSession(id="s-parent", agent_depth=0, project_id="proj-1"),
+            "s-child": MockSession(id="s-child", agent_depth=1, project_id="proj-1"),
+        }.get(sid)
         mock_command_manager.list_commands.return_value = []  # no active commands
 
         result = await messaging_registry.call(
@@ -280,11 +284,14 @@ class TestSendCommand:
         mock_command_manager.create_command.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_send_command_not_ancestor_rejected(
+    async def test_send_command_same_depth_rejected_for_agents(
         self, messaging_registry, mock_session_manager
     ) -> None:
-        """Non-ancestor cannot send command."""
-        mock_session_manager.is_ancestor.return_value = False
+        """Agent at depth 1 cannot send command to another at depth 1."""
+        mock_session_manager.get.side_effect = lambda sid: {
+            "s-unrelated": MockSession(id="s-unrelated", agent_depth=1, project_id="proj-1"),
+            "s-child": MockSession(id="s-child", agent_depth=1, project_id="proj-1"),
+        }.get(sid)
 
         result = await messaging_registry.call(
             "send_command",
@@ -296,14 +303,39 @@ class TestSendCommand:
         )
 
         assert result["success"] is False
-        assert "ancestor" in result["error"].lower()
+        assert "depth" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_send_command_depth_zero_can_command_same_depth(
+        self, messaging_registry, mock_session_manager, mock_command_manager
+    ) -> None:
+        """Depth-0 session (web chat) can command any session, even depth 0."""
+        mock_session_manager.get.side_effect = lambda sid: {
+            "s-webchat": MockSession(id="s-webchat", agent_depth=0, project_id="proj-1"),
+            "s-cli": MockSession(id="s-cli", agent_depth=0, project_id="proj-1"),
+        }.get(sid)
+        mock_command_manager.list_commands.return_value = []
+
+        result = await messaging_registry.call(
+            "send_command",
+            {
+                "from_session": "s-webchat",
+                "to_session": "s-cli",
+                "command_text": "Run tests",
+            },
+        )
+
+        assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_send_command_active_command_rejected(
         self, messaging_registry, mock_session_manager, mock_command_manager
     ) -> None:
         """Reject if target session already has an active command."""
-        mock_session_manager.is_ancestor.return_value = True
+        mock_session_manager.get.side_effect = lambda sid: {
+            "s-parent": MockSession(id="s-parent", agent_depth=0, project_id="proj-1"),
+            "s-child": MockSession(id="s-child", agent_depth=1, project_id="proj-1"),
+        }.get(sid)
         # Return an active command
         mock_command_manager.list_commands.return_value = [
             MockCommand(id="cmd-existing", status="running"),
@@ -326,7 +358,10 @@ class TestSendCommand:
         self, messaging_registry, mock_session_manager, mock_command_manager
     ) -> None:
         """Command with allowed_tools and exit_condition."""
-        mock_session_manager.is_ancestor.return_value = True
+        mock_session_manager.get.side_effect = lambda sid: {
+            "s-parent": MockSession(id="s-parent", agent_depth=0, project_id="proj-1"),
+            "s-child": MockSession(id="s-child", agent_depth=1, project_id="proj-1"),
+        }.get(sid)
         mock_command_manager.list_commands.return_value = []
 
         result = await messaging_registry.call(

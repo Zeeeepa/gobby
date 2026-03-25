@@ -30,7 +30,7 @@ def register_usage_routes(router: APIRouter, server: "HTTPServer") -> None:
         params: list[str] = []
 
         if hours > 0:
-            clauses.append("AND created_at >= datetime('now', ?)")
+            clauses.append("AND created_at >= strftime('%Y-%m-%dT%H:%M:%S', 'now', ?)")
             params.append(f"-{hours} hours")
 
         if project_id:

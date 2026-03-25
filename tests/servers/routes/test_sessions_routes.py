@@ -1,6 +1,6 @@
 """Tests for session API routes.
 
-Exercises src/gobby/servers/routes/sessions.py endpoints and helper functions
+Exercises src/gobby/servers/routes/sessions/ package endpoints and helper functions
 using mock-based TestClient approach.
 """
 
@@ -34,7 +34,7 @@ def _make_session(**overrides) -> MagicMock:
         "project_id": "proj-123",
         "title": "Test Session",
         "status": "active",
-        "jsonl_path": "/tmp/test.jsonl",
+        "transcript_path": "/tmp/test.jsonl",
         "summary_path": None,
         "summary_markdown": None,
         "git_branch": "main",
@@ -42,6 +42,7 @@ def _make_session(**overrides) -> MagicMock:
         "created_at": NOW_ISO,
         "updated_at": NOW_ISO,
         "seq_num": 42,
+        "message_count": 0,
     }
     defaults.update(overrides)
     session = MagicMock()
@@ -55,11 +56,10 @@ def _make_stop_signal(**overrides) -> MagicMock:
     """Create a mock StopSignal matching what the route code expects."""
     now = datetime.now(UTC)
     defaults = {
-        "signal_id": "sig-abc123",
         "session_id": "sess-abc123",
         "reason": "External stop request",
         "source": "http_api",
-        "signaled_at": now,
+        "requested_at": now,
         "acknowledged": False,
         "acknowledged_at": None,
     }
@@ -123,7 +123,7 @@ class TestGetSessionStats:
         # skills_used = 2
         db.fetchone.side_effect = [(3,), (5,), (2,)]
 
-        with patch("gobby.servers.routes.sessions._get_commit_count", return_value=7):
+        with patch("gobby.servers.routes.sessions.core._get_commit_count", return_value=7):
             stats = _get_session_stats(db, session)
 
         assert stats["tasks_closed"] == 3
@@ -137,7 +137,7 @@ class TestGetSessionStats:
         session = _make_session()
         db.fetchone.return_value = None
 
-        with patch("gobby.servers.routes.sessions._get_commit_count", return_value=0):
+        with patch("gobby.servers.routes.sessions.core._get_commit_count", return_value=0):
             stats = _get_session_stats(db, session)
 
         assert stats["tasks_closed"] == 0
@@ -151,7 +151,7 @@ class TestGetSessionStats:
         session = _make_session()
         db.fetchone.side_effect = Exception("DB error")
 
-        with patch("gobby.servers.routes.sessions._get_commit_count", return_value=0):
+        with patch("gobby.servers.routes.sessions.core._get_commit_count", return_value=0):
             stats = _get_session_stats(db, session)
 
         assert stats["tasks_closed"] == 0
@@ -175,9 +175,9 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at="2026-02-10T12:00:00+00:00",
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "5\n"
@@ -227,9 +227,9 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at="2026-02-10T12:00:00+00:00",
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 1
             mock_sp.run.return_value = mock_result
@@ -248,10 +248,10 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at="2026-02-10T12:00:00+00:00",
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
         with patch(
-            "gobby.servers.routes.sessions.subprocess.run",
+            "gobby.servers.routes.sessions.core.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd="git", timeout=5),
         ):
             count = _get_commit_count(db, session)
@@ -266,9 +266,9 @@ class TestGetCommitCount:
             created_at=datetime(2026, 2, 10, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2026, 2, 10, 12, 0, 0, tzinfo=UTC),
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "3\n"
@@ -286,9 +286,9 @@ class TestGetCommitCount:
             created_at="2026-02-10T10:00:00+00:00",
             updated_at=None,
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "1\n"
@@ -316,9 +316,9 @@ class TestGetCommitCount:
             created_at=datetime(2026, 2, 10, 10, 0, 0),  # no tzinfo
             updated_at=datetime(2026, 2, 10, 12, 0, 0),  # no tzinfo
         )
-        db.fetchone.return_value = ("/tmp/repo",)
+        db.fetchone.return_value = {"repo_path": "/tmp/repo"}
 
-        with patch("gobby.servers.routes.sessions.subprocess") as mock_sp:
+        with patch("gobby.servers.routes.sessions.core.subprocess") as mock_sp:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "2\n"
@@ -513,8 +513,8 @@ class TestListSessions:
         assert data["count"] == 0
         assert data["sessions"] == []
 
-    def test_list_message_count_always_zero(self, client, mock_server) -> None:
-        """message_count is always 0 after session_messages table removal."""
+    def test_list_message_count_from_session_model(self, client, mock_server) -> None:
+        """message_count comes from the session model (populated by processor)."""
         sessions = [_make_session()]
         mock_server.session_manager.list.return_value = sessions
 
@@ -523,7 +523,7 @@ class TestListSessions:
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 1
-        assert data["sessions"][0]["message_count"] == 0
+        assert "message_count" in data["sessions"][0]
 
 
 # =============================================================================
@@ -571,7 +571,7 @@ class TestGetSession:
         # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
-            "gobby.servers.routes.sessions._get_session_stats",
+            "gobby.servers.routes.sessions.lifecycle._get_session_stats",
             return_value={
                 "tasks_closed": 3,
                 "memories_created": 1,
@@ -595,7 +595,7 @@ class TestGetSession:
         # message_counts hardcoded to {} after session_messages table removal
 
         with patch(
-            "gobby.servers.routes.sessions._get_session_stats",
+            "gobby.servers.routes.sessions.lifecycle._get_session_stats",
             side_effect=Exception("stats error"),
         ):
             response = client.get("/api/sessions/sess-abc123")
@@ -1338,7 +1338,7 @@ class TestStopSession:
         data = response.json()
         assert data["status"] == "stop_signaled"
         assert data["session_id"] == "sess-abc123"
-        assert data["signal_id"] == "sig-abc123"
+        assert data["signal_id"] == "sess-abc123"
         assert data["reason"] == "External stop request"
 
     def test_stop_signal_empty_body(self, client, mock_hook_manager) -> None:
@@ -1403,7 +1403,7 @@ class TestGetStopSignal:
         data = response.json()
         assert data["has_signal"] is True
         assert data["session_id"] == "sess-abc123"
-        assert data["signal_id"] == "sig-abc123"
+        assert data["signal_id"] == "sess-abc123"
         assert data["acknowledged"] is False
         assert data["acknowledged_at"] is None
 

@@ -69,7 +69,7 @@ export function SessionsCard({ hours, projectId }: Props) {
       <div className="dash-card-header">
         <h3 className="dash-card-title">Sessions</h3>
       </div>
-      <div className="dash-card-body" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+      <div className="dash-card-body" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <svg width={SIZE} height={SIZE} style={{ flexShrink: 0 }}>
           {total === 0 ? (
             <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}

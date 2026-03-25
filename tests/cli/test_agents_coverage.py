@@ -189,7 +189,7 @@ class TestCleanupAgents:
         mock_mgr_fn.return_value = mgr
         result = runner.invoke(agents, ["cleanup", "--timeout", "60"])
         assert result.exit_code == 0
-        mgr.cleanup_stale_runs.assert_called_once_with(timeout_minutes=60)
+        mgr.cleanup_stale_runs.assert_called_once_with(default_timeout_minutes=60)
 
 
 # =============================================================================

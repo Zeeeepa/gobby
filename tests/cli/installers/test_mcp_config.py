@@ -57,9 +57,7 @@ class TestConfigureMCPServerJSON:
 
     def test_already_configured(self, tmp_path: Path) -> None:
         settings = tmp_path / "settings.json"
-        settings.write_text(
-            json.dumps({"mcpServers": {"gobby": {"command": "uv"}}})
-        )
+        settings.write_text(json.dumps({"mcpServers": {"gobby": {"command": "uv"}}}))
         result = configure_mcp_server_json(settings)
         assert result["success"] is True
         assert result["already_configured"] is True
@@ -133,9 +131,7 @@ class TestRemoveMCPServerJSON:
 
     def test_removes_server(self, tmp_path: Path) -> None:
         settings = tmp_path / "settings.json"
-        settings.write_text(
-            json.dumps({"mcpServers": {"gobby": {"command": "uv"}, "other": {}}})
-        )
+        settings.write_text(json.dumps({"mcpServers": {"gobby": {"command": "uv"}, "other": {}}}))
         result = remove_mcp_server_json(settings)
         assert result["success"] is True
         assert result["removed"] is True
@@ -221,7 +217,7 @@ class TestConfigureMCPServerTOML:
         assert result["backup_path"] is not None
         content = config.read_text()
         assert "[mcp_servers.gobby]" in content
-        assert '[model]' in content
+        assert "[model]" in content
 
     def test_already_configured(self, tmp_path: Path) -> None:
         config = tmp_path / "config.toml"
@@ -345,11 +341,7 @@ class TestConfigureProjectMCPServer:
         abs_path = str(project_path.resolve())
         settings_path = tmp_path / ".claude.json"
         settings_path.write_text(
-            json.dumps({
-                "projects": {
-                    abs_path: {"mcpServers": {"gobby": {"command": "uv"}}}
-                }
-            })
+            json.dumps({"projects": {abs_path: {"mcpServers": {"gobby": {"command": "uv"}}}}})
         )
         with patch("gobby.cli.installers.mcp_config.Path.home", return_value=tmp_path):
             result = configure_project_mcp_server(project_path)
@@ -435,11 +427,7 @@ class TestRemoveProjectMCPServer:
         abs_path = str(project_path.resolve())
         settings_path = tmp_path / ".claude.json"
         settings_path.write_text(
-            json.dumps({
-                "projects": {
-                    abs_path: {"mcpServers": {"gobby": {"command": "uv"}}}
-                }
-            })
+            json.dumps({"projects": {abs_path: {"mcpServers": {"gobby": {"command": "uv"}}}}})
         )
         with patch("gobby.cli.installers.mcp_config.Path.home", return_value=tmp_path):
             result = remove_project_mcp_server(project_path)
@@ -466,9 +454,7 @@ class TestRemoveProjectMCPServer:
         abs_path = str(project_path.resolve())
         settings_path = tmp_path / ".claude.json"
         settings_path.write_text(
-            json.dumps({
-                "projects": {abs_path: {"mcpServers": {"gobby": {}}}}
-            })
+            json.dumps({"projects": {abs_path: {"mcpServers": {"gobby": {}}}}})
         )
         with (
             patch("gobby.cli.installers.mcp_config.Path.home", return_value=tmp_path),
@@ -510,13 +496,15 @@ class TestInstallDefaultMCPServers:
         mcp_path = tmp_path / ".gobby" / ".mcp.json"
         mcp_path.parent.mkdir(parents=True, exist_ok=True)
         mcp_path.write_text(
-            json.dumps({
-                "servers": [
-                    {"name": "github", "transport": "stdio", "command": "npx"},
-                    {"name": "linear", "transport": "stdio", "command": "npx"},
-                    {"name": "context7", "transport": "stdio", "command": "npx"},
-                ]
-            })
+            json.dumps(
+                {
+                    "servers": [
+                        {"name": "github", "transport": "stdio", "command": "npx"},
+                        {"name": "linear", "transport": "stdio", "command": "npx"},
+                        {"name": "context7", "transport": "stdio", "command": "npx"},
+                    ]
+                }
+            )
         )
         mock_secret_store = MagicMock()
         mock_secret_store.exists.return_value = False
@@ -570,16 +558,18 @@ class TestInstallDefaultMCPServers:
         mcp_path = tmp_path / ".gobby" / ".mcp.json"
         mcp_path.parent.mkdir(parents=True, exist_ok=True)
         mcp_path.write_text(
-            json.dumps({
-                "servers": [
-                    {
-                        "name": "github",
-                        "transport": "http",
-                        "url": "http://old-url",
-                        "env": {"WRONG_KEY": "old"},
-                    },
-                ]
-            })
+            json.dumps(
+                {
+                    "servers": [
+                        {
+                            "name": "github",
+                            "transport": "http",
+                            "url": "http://old-url",
+                            "env": {"WRONG_KEY": "old"},
+                        },
+                    ]
+                }
+            )
         )
         mock_secret_store = MagicMock()
         mock_secret_store.exists.return_value = False

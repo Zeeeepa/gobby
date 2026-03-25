@@ -235,8 +235,11 @@ class TestGetLlmReview:
         async def send(content: str):
             yield TextChunk(content="Not JSON at all")
             yield DoneEvent(
-                tool_calls_count=0, input_tokens=10, output_tokens=5,
-                cost_usd=0.0001, duration_ms=100,
+                tool_calls_count=0,
+                input_tokens=10,
+                output_tokens=5,
+                cost_usd=0.0001,
+                duration_ms=100,
             )
 
         session.send_message = send
@@ -255,8 +258,11 @@ class TestGetLlmReview:
         async def send(content: str):
             yield TextChunk(content='```json\n{"summary": "fenced"}\n```')
             yield DoneEvent(
-                tool_calls_count=0, input_tokens=10, output_tokens=5,
-                cost_usd=0.0001, duration_ms=100,
+                tool_calls_count=0,
+                input_tokens=10,
+                output_tokens=5,
+                cost_usd=0.0001,
+                duration_ms=100,
             )
 
         session.send_message = send

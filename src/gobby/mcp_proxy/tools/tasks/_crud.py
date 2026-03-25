@@ -167,7 +167,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 merge_dict = add_claimed_task(session_vars, task.id, ref)
                 ctx.session_var_manager.merge_variables(resolved_session_id, merge_dict)
             except Exception as e:
-                logger.debug("Best-effort session variable update failed: %s", e)
+                logger.debug(f"Best-effort session variable update failed: {e}")
 
         # Handle 'blocks' argument if provided (syntactic sugar)
         # Collect errors consistently with depends_on handling below

@@ -220,6 +220,17 @@ class SkillManager:
         """
         return self._storage.get_skill(skill_id)
 
+    def get_skills_by_ids(self, skill_ids: list[str]) -> list[Skill]:
+        """Get multiple skills by ID in a single query.
+
+        Args:
+            skill_ids: List of skill IDs to fetch.
+
+        Returns:
+            List of found Skills (missing/deleted IDs silently skipped).
+        """
+        return self._storage.get_skills_by_ids(skill_ids)
+
     def get_by_name(
         self,
         name: str,

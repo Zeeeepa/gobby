@@ -314,7 +314,7 @@ class LocalDatabase:
                 try:
                     conn.close()
                 except Exception as e:
-                    logger.debug("Connection close failed: %s", e)
+                    logger.debug(f"Connection close failed: {e}")
             self._all_connections.clear()
 
         # Clear thread-local reference

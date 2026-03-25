@@ -68,9 +68,7 @@ def parent_task(task_manager: LocalTaskManager, test_project: str) -> str:
 
 
 @pytest.fixture
-def parent_task_with_context(
-    task_manager: LocalTaskManager, test_project: str
-) -> str:
+def parent_task_with_context(task_manager: LocalTaskManager, test_project: str) -> str:
     """Create a parent task with existing expansion_context (subtasks)."""
     task = task_manager.create_task(
         project_id=test_project,

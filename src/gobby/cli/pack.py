@@ -38,6 +38,8 @@ PACK_DIRS = [
 PACK_FILES = [
     DB_NAME,
     "bootstrap.yaml",
+    "machine_id",
+    ".secret_salt",
 ]
 
 # Docker volumes to export

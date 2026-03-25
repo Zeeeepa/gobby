@@ -103,7 +103,7 @@ class TestSessionLifecycleManager:
         # Create a mock session
         session = MagicMock(spec=Session)
         session.id = "s1"
-        session.jsonl_path = str(tmp_path / "transcript.jsonl")
+        session.transcript_path = str(tmp_path / "transcript.jsonl")
         session.external_id = "ext-s1"
         session.agent_depth = 0
         session.source = "claude"
@@ -117,7 +117,7 @@ class TestSessionLifecycleManager:
         manager.session_manager.get.return_value = refreshed
 
         # Create real file content
-        with open(session.jsonl_path, "w") as f:
+        with open(session.transcript_path, "w") as f:
             f.write('{"type": "message", "content": "hello"}\n')
 
         # Mock _process_session_transcript to avoid complex parsing logic
@@ -127,7 +127,7 @@ class TestSessionLifecycleManager:
             processed = await manager._process_pending_transcripts()
 
             assert processed == 1
-            mock_process.assert_awaited_once_with("s1", session.jsonl_path)
+            mock_process.assert_awaited_once_with("s1", session.transcript_path)
             manager.session_manager.mark_transcript_processed.assert_called_once_with("s1")
 
     @pytest.mark.asyncio
@@ -135,20 +135,24 @@ class TestSessionLifecycleManager:
         """Subagent sessions (agent_depth > 0) skip memory extraction and summary generation."""
         session = MagicMock(spec=Session)
         session.id = "s-sub"
-        session.jsonl_path = str(tmp_path / "transcript.jsonl")
+        session.transcript_path = str(tmp_path / "transcript.jsonl")
         session.external_id = "ext-sub"
         session.agent_depth = 1
         session.source = "claude"
 
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
 
-        with open(session.jsonl_path, "w") as f:
+        with open(session.transcript_path, "w") as f:
             f.write('{"type": "message", "content": "hello"}\n')
 
         with (
             patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
-            patch.object(manager, "_extract_memories_if_needed", new_callable=AsyncMock) as mock_mem,
-            patch.object(manager, "_generate_summaries_if_needed", new_callable=AsyncMock) as mock_sum,
+            patch.object(
+                manager, "_extract_memories_if_needed", new_callable=AsyncMock
+            ) as mock_mem,
+            patch.object(
+                manager, "_generate_summaries_if_needed", new_callable=AsyncMock
+            ) as mock_sum,
         ):
             processed = await manager._process_pending_transcripts()
 
@@ -162,20 +166,24 @@ class TestSessionLifecycleManager:
         """Pipeline sessions skip memory extraction and summary generation."""
         session = MagicMock(spec=Session)
         session.id = "s-pipe"
-        session.jsonl_path = str(tmp_path / "transcript.jsonl")
+        session.transcript_path = str(tmp_path / "transcript.jsonl")
         session.external_id = "ext-pipe"
         session.agent_depth = 0
         session.source = "pipeline"
 
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
 
-        with open(session.jsonl_path, "w") as f:
+        with open(session.transcript_path, "w") as f:
             f.write('{"type": "message", "content": "hello"}\n')
 
         with (
             patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
-            patch.object(manager, "_extract_memories_if_needed", new_callable=AsyncMock) as mock_mem,
-            patch.object(manager, "_generate_summaries_if_needed", new_callable=AsyncMock) as mock_sum,
+            patch.object(
+                manager, "_extract_memories_if_needed", new_callable=AsyncMock
+            ) as mock_mem,
+            patch.object(
+                manager, "_generate_summaries_if_needed", new_callable=AsyncMock
+            ) as mock_sum,
         ):
             processed = await manager._process_pending_transcripts()
 
@@ -187,8 +195,8 @@ class TestSessionLifecycleManager:
     @pytest.mark.asyncio
     async def test_process_session_transcript_real_parsing(self, tmp_path, manager):
         """Test parsing logic inside _process_session_transcript."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        with open(jsonl_path, "w") as f:
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
             f.write(
                 '{"type": "message", "message": {"content": "hello"}, "timestamp": "2024-01-01T00:00:00Z"}\n'
             )
@@ -200,7 +208,7 @@ class TestSessionLifecycleManager:
             parser_instance = MockParser.return_value
             parser_instance.parse_lines.return_value = [message_mock]
 
-            await manager._process_session_transcript("s1", str(jsonl_path))
+            await manager._process_session_transcript("s1", str(transcript_path))
 
             parser_instance.parse_lines.assert_called_once()
 
@@ -213,34 +221,34 @@ class TestSessionLifecycleManager:
     @pytest.mark.asyncio
     async def test_process_session_transcript_read_error(self, tmp_path, manager):
         """Test error reading transcript file."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        with open(jsonl_path, "w") as f:
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
             f.write("content")
 
         # Permission error mock or similar
         with patch("builtins.open", side_effect=OSError("Read error")):
             with pytest.raises(IOError):
-                await manager._process_session_transcript("s1", str(jsonl_path))
+                await manager._process_session_transcript("s1", str(transcript_path))
 
     @pytest.mark.asyncio
     async def test_process_session_transcript_empty_file(self, tmp_path, manager):
         """Test processing empty file."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        jsonl_path.touch()
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.touch()
 
-        await manager._process_session_transcript("s1", str(jsonl_path))
+        await manager._process_session_transcript("s1", str(transcript_path))
 
     @pytest.mark.asyncio
     async def test_process_session_transcript_no_messages(self, tmp_path, manager):
         """Test file with no valid messages."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        with open(jsonl_path, "w") as f:
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
             f.write('{"type": "unknown"}\n')
 
         with patch("gobby.sessions.lifecycle.ClaudeTranscriptParser") as MockParser:
             MockParser.return_value.parse_lines.return_value = []
 
-            await manager._process_session_transcript("s1", str(jsonl_path))
+            await manager._process_session_transcript("s1", str(transcript_path))
 
     @pytest.mark.asyncio
     async def test_process_pending_transcripts_loop_error(self, manager):
@@ -280,12 +288,8 @@ class TestSessionLifecycleManager:
             patch.object(
                 manager, "_process_session_transcript", new_callable=AsyncMock
             ) as mock_proc,
-            patch.object(
-                manager, "_extract_memories_if_needed", new_callable=AsyncMock
-            ),
-            patch.object(
-                manager, "_generate_summaries_if_needed", new_callable=AsyncMock
-            ),
+            patch.object(manager, "_extract_memories_if_needed", new_callable=AsyncMock),
+            patch.object(manager, "_generate_summaries_if_needed", new_callable=AsyncMock),
         ):
             mock_proc.side_effect = [Exception("Fail"), None]
 
@@ -490,12 +494,8 @@ class TestExtractMemoriesIfNeeded:
         manager.memory_manager = mock_mm
         manager.llm_service = MagicMock()
 
-        with patch(
-            "gobby.memory.extractor.SessionMemoryExtractor"
-        ) as MockExtractor:
-            MockExtractor.return_value.extract = AsyncMock(
-                side_effect=RuntimeError("LLM error")
-            )
+        with patch("gobby.memory.extractor.SessionMemoryExtractor") as MockExtractor:
+            MockExtractor.return_value.extract = AsyncMock(side_effect=RuntimeError("LLM error"))
             # Should not raise
             await manager._extract_memories_if_needed("sess-1")
 
@@ -508,12 +508,8 @@ class TestExtractMemoriesIfNeeded:
         manager.memory_manager = mock_mm
         manager.llm_service = MagicMock()
 
-        with patch(
-            "gobby.memory.extractor.SessionMemoryExtractor"
-        ) as MockExtractor:
-            MockExtractor.return_value.extract = AsyncMock(
-                return_value=["memory1", "memory2"]
-            )
+        with patch("gobby.memory.extractor.SessionMemoryExtractor") as MockExtractor:
+            MockExtractor.return_value.extract = AsyncMock(return_value=["memory1", "memory2"])
             await manager._extract_memories_if_needed("sess-1")
 
 
@@ -544,12 +540,12 @@ class TestGenerateSummariesIfNeeded:
         await manager._generate_summaries_if_needed("sess-1")
 
     @pytest.mark.asyncio
-    async def test_session_no_jsonl_path(self, manager):
-        """Skips when session has no jsonl_path."""
+    async def test_session_no_transcript_path(self, manager):
+        """Skips when session has no transcript_path."""
         manager.llm_service = MagicMock()
         session = MagicMock()
         session.summary_markdown = None
-        session.jsonl_path = None
+        session.transcript_path = None
         manager.session_manager.get.return_value = session
         await manager._generate_summaries_if_needed("sess-1")
 
@@ -559,7 +555,7 @@ class TestGenerateSummariesIfNeeded:
         manager.llm_service = MagicMock()
         session = MagicMock()
         session.summary_markdown = None
-        session.jsonl_path = "/path/to/transcript.jsonl"
+        session.transcript_path = "/path/to/transcript.jsonl"
         manager.session_manager.get.return_value = session
 
         with patch(
@@ -576,7 +572,7 @@ class TestGenerateSummariesIfNeeded:
         manager.llm_service = MagicMock()
         session = MagicMock()
         session.summary_markdown = None
-        session.jsonl_path = "/path/to/transcript.jsonl"
+        session.transcript_path = "/path/to/transcript.jsonl"
         manager.session_manager.get.return_value = session
 
         with patch(
@@ -593,18 +589,14 @@ class TestPurgeSoftDeletedDefinitions:
     @pytest.mark.asyncio
     async def test_success(self, manager):
         """Purge runs without error."""
-        with patch(
-            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
-        ) as MockWFM:
+        with patch("gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager") as MockWFM:
             await manager._purge_soft_deleted_definitions()
             MockWFM.return_value.purge_deleted.assert_called_once_with(older_than_days=30)
 
     @pytest.mark.asyncio
     async def test_exception_handled(self, manager):
         """Purge errors are caught and logged."""
-        with patch(
-            "gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager"
-        ) as MockWFM:
+        with patch("gobby.storage.workflow_definitions.LocalWorkflowDefinitionManager") as MockWFM:
             MockWFM.return_value.purge_deleted.side_effect = Exception("DB error")
             # Should not raise
             await manager._purge_soft_deleted_definitions()
@@ -616,8 +608,8 @@ class TestProcessSessionTranscriptParsers:
     @pytest.mark.asyncio
     async def test_gemini_parser_selected(self, tmp_path, manager):
         """Gemini source uses GeminiTranscriptParser."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        jsonl_path.write_text('{"type": "message"}\n')
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
 
         session = MagicMock()
         session.source = "gemini"
@@ -625,14 +617,14 @@ class TestProcessSessionTranscriptParsers:
 
         with patch("gobby.sessions.lifecycle.GeminiTranscriptParser") as MockParser:
             MockParser.return_value.parse_lines.return_value = []
-            await manager._process_session_transcript("s1", str(jsonl_path))
+            await manager._process_session_transcript("s1", str(transcript_path))
             MockParser.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_codex_parser_selected(self, tmp_path, manager):
         """Codex source uses CodexTranscriptParser."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        jsonl_path.write_text('{"type": "message"}\n')
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
 
         session = MagicMock()
         session.source = "codex"
@@ -640,14 +632,14 @@ class TestProcessSessionTranscriptParsers:
 
         with patch("gobby.sessions.lifecycle.CodexTranscriptParser") as MockParser:
             MockParser.return_value.parse_lines.return_value = []
-            await manager._process_session_transcript("s1", str(jsonl_path))
+            await manager._process_session_transcript("s1", str(transcript_path))
             MockParser.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_antigravity_uses_claude_parser(self, tmp_path, manager):
         """Antigravity source uses ClaudeTranscriptParser (default path)."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        jsonl_path.write_text('{"type": "message"}\n')
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
 
         session = MagicMock()
         session.source = "antigravity"
@@ -655,7 +647,7 @@ class TestProcessSessionTranscriptParsers:
 
         with patch("gobby.sessions.lifecycle.ClaudeTranscriptParser") as MockParser:
             MockParser.return_value.parse_lines.return_value = []
-            await manager._process_session_transcript("s1", str(jsonl_path))
+            await manager._process_session_transcript("s1", str(transcript_path))
             # ClaudeTranscriptParser is constructed for both the default path
             # and the antigravity branch (2 total)
             assert MockParser.call_count >= 2
@@ -663,15 +655,15 @@ class TestProcessSessionTranscriptParsers:
     @pytest.mark.asyncio
     async def test_session_not_found_returns_early(self, tmp_path, manager):
         """Returns early when session not found in DB."""
-        jsonl_path = tmp_path / "transcript.jsonl"
-        jsonl_path.write_text('{"type": "message"}\n')
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
 
         manager.session_manager.get.return_value = None
-        await manager._process_session_transcript("s1", str(jsonl_path))
+        await manager._process_session_transcript("s1", str(transcript_path))
 
     @pytest.mark.asyncio
-    async def test_none_jsonl_path(self, manager):
-        """Handles None jsonl_path."""
+    async def test_none_transcript_path(self, manager):
+        """Handles None transcript_path."""
         await manager._process_session_transcript("s1", None)
 
 
@@ -683,7 +675,7 @@ class TestProcessPendingTranscriptsArchive:
         """Successful archive triggers message purge."""
         session = MagicMock()
         session.id = "s1"
-        session.jsonl_path = "/path/to/transcript.jsonl"
+        session.transcript_path = "/path/to/transcript.jsonl"
         session.external_id = "ext-123"
         session.agent_depth = 0
         session.source = "claude"
@@ -691,9 +683,7 @@ class TestProcessPendingTranscriptsArchive:
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
 
         with (
-            patch.object(
-                manager, "_process_session_transcript", new_callable=AsyncMock
-            ),
+            patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
             patch(
                 "gobby.sessions.lifecycle.backup_transcript",
                 return_value="/archive/path.gz",
@@ -708,16 +698,14 @@ class TestProcessPendingTranscriptsArchive:
         """When archive returns None, session is still processed."""
         session = MagicMock()
         session.id = "s1"
-        session.jsonl_path = "/path/to/transcript.jsonl"
+        session.transcript_path = "/path/to/transcript.jsonl"
         session.external_id = "ext-123"
         session.agent_depth = 0
         session.source = "claude"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
 
         with (
-            patch.object(
-                manager, "_process_session_transcript", new_callable=AsyncMock
-            ),
+            patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
             patch(
                 "gobby.sessions.lifecycle.backup_transcript",
                 return_value=None,
@@ -732,16 +720,14 @@ class TestProcessPendingTranscriptsArchive:
         """Transcript backup failure doesn't prevent marking as processed."""
         session = MagicMock()
         session.id = "s1"
-        session.jsonl_path = "/path/to/transcript.jsonl"
+        session.transcript_path = "/path/to/transcript.jsonl"
         session.external_id = "ext-123"
         session.agent_depth = 0
         session.source = "claude"
         manager.session_manager.get_pending_transcript_sessions.return_value = [session]
 
         with (
-            patch.object(
-                manager, "_process_session_transcript", new_callable=AsyncMock
-            ),
+            patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
             patch(
                 "gobby.sessions.lifecycle.backup_transcript",
                 side_effect=Exception("Backup failed"),

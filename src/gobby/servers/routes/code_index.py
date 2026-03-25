@@ -113,7 +113,7 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
     @router.get("/graph")
     async def code_graph(
         project_id: str = Query("", description="Project ID"),
-        limit: int = Query(200, description="Max file nodes"),
+        limit: int = Query(100, description="Max file nodes"),
     ) -> JSONResponse:
         """Get file-level overview graph for visualization."""
         indexer, pid = _get_indexer_and_project(project_id)

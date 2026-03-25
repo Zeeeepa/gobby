@@ -723,10 +723,10 @@ class FakeStopSignal:
         reason: str = "Test stop",
         source: str = "http_api",
     ) -> None:
-        self.signal_id = signal_id
+        self.session_id = signal_id
         self.reason = reason
         self.source = source
-        self.signaled_at = datetime.now(UTC)
+        self.requested_at = datetime.now(UTC)
         self.acknowledged = False
         self.acknowledged_at = None
 

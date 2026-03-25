@@ -80,35 +80,35 @@ class TestEchoHelpers:
 # Detection helpers
 # ---------------------------------------------------------------------------
 class TestDetectionHelpers:
-    @patch("gobby.cli.install.shutil.which", return_value="/usr/bin/claude")
+    @patch("gobby.cli._detectors.shutil.which", return_value="/usr/bin/claude")
     def test_claude_installed(self, _mock_which: MagicMock) -> None:
         assert _is_claude_code_installed() is True
 
-    @patch("gobby.cli.install.shutil.which", return_value=None)
+    @patch("gobby.cli._detectors.shutil.which", return_value=None)
     def test_claude_not_installed(self, _mock_which: MagicMock) -> None:
         assert _is_claude_code_installed() is False
 
-    @patch("gobby.cli.install.shutil.which", return_value="/usr/bin/gemini")
+    @patch("gobby.cli._detectors.shutil.which", return_value="/usr/bin/gemini")
     def test_gemini_installed(self, _mock_which: MagicMock) -> None:
         assert _is_gemini_cli_installed() is True
 
-    @patch("gobby.cli.install.shutil.which", return_value=None)
+    @patch("gobby.cli._detectors.shutil.which", return_value=None)
     def test_gemini_not_installed(self, _mock_which: MagicMock) -> None:
         assert _is_gemini_cli_installed() is False
 
-    @patch("gobby.cli.install.shutil.which", return_value="/usr/bin/codex")
+    @patch("gobby.cli._detectors.shutil.which", return_value="/usr/bin/codex")
     def test_codex_installed(self, _mock_which: MagicMock) -> None:
         assert _is_codex_cli_installed() is True
 
-    @patch("gobby.cli.install.shutil.which", return_value=None)
+    @patch("gobby.cli._detectors.shutil.which", return_value=None)
     def test_codex_not_installed(self, _mock_which: MagicMock) -> None:
         assert _is_codex_cli_installed() is False
 
-    @patch("gobby.cli.install.shutil.which", return_value=None)
+    @patch("gobby.cli._detectors.shutil.which", return_value=None)
     def test_copilot_no_gh(self, _mock_which: MagicMock) -> None:
         assert _is_copilot_cli_installed() is False
 
-    @patch("gobby.cli.install.shutil.which", return_value="/usr/bin/gh")
+    @patch("gobby.cli._detectors.shutil.which", return_value="/usr/bin/gh")
     def test_copilot_with_gh(self, _mock_which: MagicMock) -> None:
         assert _is_copilot_cli_installed() is True
 

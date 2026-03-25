@@ -101,8 +101,15 @@ def test_symbol_to_brief_has_minimal_fields(sample_symbols: list[Symbol]) -> Non
     b = sym.to_brief()
 
     assert set(b.keys()) <= {
-        "id", "name", "qualified_name", "kind", "file_path",
-        "line_start", "signature", "docstring", "parent_id",
+        "id",
+        "name",
+        "qualified_name",
+        "kind",
+        "file_path",
+        "line_start",
+        "signature",
+        "docstring",
+        "parent_id",
     }
     assert b["id"] == sym.id
     assert b["name"] == sym.name

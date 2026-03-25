@@ -189,7 +189,7 @@ class TestMarkTaskReviewApproved:
         from gobby.storage.tasks import TaskNotFoundError
 
         with patch(
-            "gobby.mcp_proxy.tools.tasks._lifecycle.resolve_task_id_for_mcp",
+            "gobby.mcp_proxy.tools.tasks._lifecycle_status.resolve_task_id_for_mcp",
             side_effect=TaskNotFoundError("Task #999 not found"),
         ):
             tool_func = lifecycle_registry._tools["mark_task_review_approved"].func

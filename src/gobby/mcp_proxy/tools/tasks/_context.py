@@ -12,6 +12,7 @@ from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
+from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.utils.project_context import get_project_context
 from gobby.workflows.state_manager import SessionVariableManager
 
@@ -46,6 +47,7 @@ class RegistryContext:
     session_manager: LocalSessionManager = field(init=False)
     session_var_manager: SessionVariableManager = field(init=False)
     project_manager: LocalProjectManager = field(init=False)
+    worktree_manager: LocalWorktreeManager = field(init=False)
 
     # Config settings (initialized in __post_init__)
     show_result_on_create: bool = field(init=False)
@@ -61,6 +63,7 @@ class RegistryContext:
         self.session_manager = LocalSessionManager(db)
         self.session_var_manager = SessionVariableManager(db)
         self.project_manager = LocalProjectManager(db)
+        self.worktree_manager = LocalWorktreeManager(db)
 
         # Initialize config settings
         self.show_result_on_create = False

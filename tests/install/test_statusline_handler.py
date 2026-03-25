@@ -104,7 +104,10 @@ class TestMain:
         with (
             patch("sys.stdin") as mock_stdin,
             patch("gobby.install.shared.hooks.statusline_handler._post_to_daemon") as mock_post,
-            patch("gobby.install.shared.hooks.statusline_handler._read_daemon_port", return_value=60887),
+            patch(
+                "gobby.install.shared.hooks.statusline_handler._read_daemon_port",
+                return_value=60887,
+            ),
         ):
             mock_stdin.read.return_value = json.dumps(data)
             result = main()
@@ -138,7 +141,10 @@ class TestMain:
         with (
             patch("sys.stdin") as mock_stdin,
             patch("gobby.install.shared.hooks.statusline_handler._post_to_daemon"),
-            patch("gobby.install.shared.hooks.statusline_handler._read_daemon_port", return_value=60887),
+            patch(
+                "gobby.install.shared.hooks.statusline_handler._read_daemon_port",
+                return_value=60887,
+            ),
             patch("gobby.install.shared.hooks.statusline_handler._forward_downstream") as mock_fwd,
             patch.dict("os.environ", {"GOBBY_STATUSLINE_DOWNSTREAM": "cship"}, clear=False),
         ):

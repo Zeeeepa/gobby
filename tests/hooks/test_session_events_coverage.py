@@ -143,7 +143,7 @@ class TestFindGeminiTranscript:
         cwd = str(tmp_path / "project")
 
         # We need to mock this since we can't create in $HOME
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_home = MagicMock()
             MockPath.home.return_value = mock_home
 
@@ -165,7 +165,7 @@ class TestFindGeminiTranscript:
         """When prefix doesn't match, falls back to most recent."""
         handler = _TestHandler()
 
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_home = MagicMock()
             MockPath.home.return_value = mock_home
 
@@ -207,7 +207,7 @@ class TestFindCursorTranscript:
         session_id = "test-session-123"
         std_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
 
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_path = MagicMock()
             mock_path.exists.return_value = True
             MockPath.return_value = mock_path
@@ -218,7 +218,7 @@ class TestFindCursorTranscript:
     def test_standard_location_not_exists(self) -> None:
         handler = _TestHandler()
 
-        with patch("gobby.hooks.event_handlers._session.Path") as MockPath:
+        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
             mock_path = MagicMock()
             mock_path.exists.return_value = False
             MockPath.return_value = mock_path
@@ -416,7 +416,7 @@ class TestSessionStartAndHelpers:
             )
 
             handler._session_storage.update.assert_called_with(
-                session_id="sess-1", jsonl_path="/tmp/t.json", status="active"
+                session_id="sess-1", transcript_path="/tmp/t.json", status="active"
             )
             handler._session_manager.cache_session_mapping.assert_called_once()
             handler._session_coordinator.start_agent_run.assert_called_with("run-1")
@@ -495,7 +495,7 @@ class TestSelectAndFormatAgentSkills:
             ),
             patch("gobby.skills.injector.SkillInjector.select_skills") as mock_select,
             patch(
-                "gobby.skills.formatting._format_skills_with_formats",
+                "gobby.skills.formatting.render_skills_for_context",
                 return_value="formatted-content",
             ),
         ):
@@ -528,10 +528,13 @@ class TestSessionMoreCoverage:
             ),
             patch("gobby.skills.manager.SkillManager.list_skills", return_value=[]),
             patch.object(handler, "_build_agent_changes") as mock_build,
-            patch("gobby.workflows.state_manager.SessionVariableManager.get_variables", return_value={}),
+            patch(
+                "gobby.workflows.state_manager.SessionVariableManager.get_variables",
+                return_value={},
+            ),
             patch("gobby.workflows.state_manager.SessionVariableManager.merge_variables"),
             patch(
-                "gobby.hooks.event_handlers._session.select_and_format_agent_skills",
+                "gobby.hooks.event_handlers._session_start.select_and_format_agent_skills",
                 return_value=("formatted", 1, ["skill1"]),
             ),
         ):
@@ -615,7 +618,7 @@ class TestSessionMoreCoverage:
                 machine_id=handler._get_machine_id(),
                 project_id=handler._resolve_project_id(),
                 parent_session_id="parent-1",
-                jsonl_path=None,
+                transcript_path=None,
                 source="claude",
                 project_path=None,
                 terminal_context=None,
