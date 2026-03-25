@@ -139,10 +139,12 @@ export function ActivityPanel({
         <div className="activity-panel">
           {/* Icon tab strip (same as desktop) with close button */}
           <div className="activity-panel-tabs">
-            <div className="activity-panel-tab-strip">
+            <div className="activity-panel-tab-strip" role="tablist">
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
                   className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
                   onClick={() => onTabChange(tab.id)}
                   title={tab.label}
@@ -184,11 +186,13 @@ export function ActivityPanel({
         {/* Tab strip */}
         <div className="activity-panel-tabs">
           <TooltipProvider delayDuration={200}>
-            <div className="activity-panel-tab-strip">
+            <div className="activity-panel-tab-strip" role="tablist">
               {TABS.map((tab) => (
                 <Tooltip key={tab.id}>
                   <TooltipTrigger asChild>
                     <button
+                      role="tab"
+                      aria-selected={activeTab === tab.id}
                       className={`activity-panel-tab${activeTab === tab.id ? ' active' : ''}`}
                       onClick={() => onTabChange(tab.id)}
                     >

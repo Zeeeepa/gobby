@@ -196,13 +196,16 @@ def _healthy_daemon_running(port: int, host: str = "localhost") -> bool:
 def _raise_fd_limit(target: int = 10240) -> None:
     """Raise the soft file-descriptor limit for the daemon process.
 
-    macOS sets the default soft limit to 256 via launchctl, which is far too
-    low for a daemon managing WebSocket connections, MCP subprocess transports,
-    SQLite, and HTTP clients.  The kernel allows up to kern.maxfilesperproc
-    (typically 61 440), so we raise the soft limit to *target* (or hard limit,
-    whichever is smaller).
+    macOS/Linux set low default soft limits which are far too low for a daemon
+    managing WebSocket connections, MCP subprocess transports, SQLite, and HTTP
+    clients.  We raise the soft limit to *target* (or hard limit, whichever is
+    smaller).  No-op on platforms without the resource module (e.g. Windows).
     """
-    import resource
+    try:
+        import resource
+    except ImportError:
+        logger.debug("resource module unavailable (Windows?) — skipping fd limit raise")
+        return
 
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     if soft >= target:
