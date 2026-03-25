@@ -180,18 +180,19 @@ export function ChatPage({
     [chat.onSend],
   );
 
-  // Plan approval — in tabbed model, don't close the panel
   const handleApprovePlan = useCallback(() => {
     setPlanPendingLocal(false);
     chat.onApprovePlan?.();
-  }, [chat.onApprovePlan]);
+    activity.setIsPinned(false);
+  }, [chat.onApprovePlan, activity.setIsPinned]);
 
   const handleRequestPlanChanges = useCallback(
     (feedback: string) => {
       setPlanPendingLocal(false);
       chat.onRequestPlanChanges?.(feedback);
+      activity.setIsPinned(false);
     },
-    [chat.onRequestPlanChanges],
+    [chat.onRequestPlanChanges, activity.setIsPinned],
   );
 
   // Expose callback for /plan command to reopen plan artifact
