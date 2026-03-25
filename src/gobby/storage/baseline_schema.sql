@@ -1048,3 +1048,15 @@ CREATE TABLE metrics_events_archive (
     allow_count INTEGER NOT NULL DEFAULT 0,
     UNIQUE(event_type, project_id, server_name, name)
 );
+
+CREATE TABLE chat_messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    tool_calls_json TEXT,
+    metadata_json TEXT,
+    seq INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_chat_messages_conv_seq ON chat_messages(conversation_id, seq);

@@ -2479,6 +2479,41 @@ export function useChat() {
 
   // Connect on mount, handle page lifecycle and heartbeat
   useEffect(() => {
+    // Restore chat messages from server if we have an existing conversation
+    const existingConvId = conversationIdRef.current;
+    if (existingConvId) {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      setIsLoadingMessages(true);
+      fetch(`${baseUrl}/api/chat/${existingConvId}/messages`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (
+            !data?.messages?.length ||
+            conversationIdRef.current !== existingConvId
+          )
+            return;
+          const restored: ChatMessage[] = data.messages.map(
+            (m: {
+              id: string;
+              role: string;
+              content: string;
+              tool_calls?: ToolCall[];
+              seq: number;
+              created_at: string;
+            }) => ({
+              id: m.id,
+              role: m.role as "user" | "assistant" | "system",
+              content: [{ type: "text" as const, content: m.content }],
+              toolCalls: m.tool_calls ?? [],
+              timestamp: new Date(m.created_at),
+            }),
+          );
+          setMessages(restored);
+        })
+        .catch((err) => console.error("Failed to restore chat messages:", err))
+        .finally(() => setIsLoadingMessages(false));
+    }
+
     connect();
 
     // Immediate reconnect when returning to tab (mobile app switch, screen lock).

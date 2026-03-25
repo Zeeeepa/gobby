@@ -119,7 +119,26 @@ def _setup_code_content_fts(db: LocalDatabase) -> None:
 
 # Migrations beyond v171.
 # Add new migrations here. Do not modify the baseline schema above.
-MIGRATIONS: list[tuple[int, str, MigrationAction]] = []
+MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
+    (
+        172,
+        "Add chat_messages table for web chat display persistence",
+        """
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            tool_calls_json TEXT,
+            metadata_json TEXT,
+            seq INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_conv_seq
+            ON chat_messages(conversation_id, seq);
+        """,
+    ),
+]
 
 
 def get_current_version(db: LocalDatabase) -> int:

@@ -301,8 +301,21 @@ class ChatMessagingMixin:
             return None
 
         async def _persist_message(session: Any, role: str, text: str) -> None:
-            """Message persistence removed (session_messages table dropped)."""
-            pass
+            """Persist a chat message to the chat_messages table for display recovery."""
+            try:
+                from gobby.storage import chat_messages as cm_store
+
+                sm = getattr(self, "session_manager", None)
+                if sm and sm.db:
+                    await asyncio.to_thread(
+                        cm_store.save_message,
+                        sm.db,
+                        conversation_id=conversation_id,
+                        role=role,
+                        content=text,
+                    )
+            except Exception as e:
+                logger.debug(f"Failed to persist chat message: {e}")
 
         async def _emit_pending_approval(tool_name: str, arguments: dict[str, Any]) -> None:
             """Emit pending_approval tool_status to the client."""
