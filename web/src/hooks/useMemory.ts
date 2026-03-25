@@ -91,16 +91,25 @@ function getBaseUrl(): string {
   return ''
 }
 
-export function useMemory() {
+export function useMemory(projectId?: string | null) {
   const [memories, setMemories] = useState<GobbyMemory[]>([])
   const [searchResults, setSearchResults] = useState<GobbyMemory[] | null>(null)
   const [stats, setStats] = useState<MemoryStats | null>(null)
   const [filters, setFilters] = useState<MemoryFilters>({
-    projectId: null,
+    projectId: projectId ?? null,
     memoryType: null,
     recentOnly: false,
     search: '',
   })
+
+  // Keep projectId in sync when prop changes
+  useEffect(() => {
+    setFilters(f => {
+      const newId = projectId ?? null
+      if (f.projectId === newId) return f
+      return { ...f, projectId: newId }
+    })
+  }, [projectId])
   const [isLoading, setIsLoading] = useState(true)
   const debounceRef = useRef<number | null>(null)
 

@@ -1203,7 +1203,7 @@ export default function App() {
           ) : activeTab === "memory" ? (
             <MemoryPage projectId={effectiveProjectId} />
           ) : activeTab === "cron" ? (
-            <CronJobsPage />
+            <CronJobsPage projectId={effectiveProjectId} />
           ) : activeTab === "traces" ? (
             <TracesPage projectId={effectiveProjectId || undefined} initialTraceId={initialTraceId} />
           ) : activeTab === "skills" ? (

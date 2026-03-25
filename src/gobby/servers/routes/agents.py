@@ -544,13 +544,16 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     async def list_agent_runs(
         status: str | None = Query(None),
         limit: int = Query(50, ge=1, le=200),
+        project_id: str | None = Query(
+            None, description="Filter by project ID (via parent session)"
+        ),
     ) -> dict[str, Any]:
         """List recent agent runs from the database with session enrichment."""
         try:
             from gobby.storage.agents import LocalAgentRunManager
 
             manager = LocalAgentRunManager(server.services.database)
-            runs = manager.list_by_status(status=status, limit=limit)
+            runs = manager.list_by_status(status=status, limit=limit, project_id=project_id)
 
             # Enrich with session data (token usage, cost)
             enriched = []

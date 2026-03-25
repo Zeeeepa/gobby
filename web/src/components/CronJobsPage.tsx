@@ -596,11 +596,11 @@ function MobileCronDrawer({
 // Main Page Component
 // =============================================================================
 
-export function CronJobsPage() {
+export function CronJobsPage({ projectId }: { projectId?: string | null }) {
   const {
     jobs, selectedJob, selectJob, runs, filters, setFilters,
     isLoading, isRunsLoading, createJob, updateJob, deleteJob, toggleJob, runNow, refresh,
-  } = useCronJobs()
+  } = useCronJobs(projectId)
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)

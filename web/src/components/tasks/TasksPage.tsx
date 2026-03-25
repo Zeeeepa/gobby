@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import './tasks-page.css'
 import './task-views.css'
 import { useTasks } from '../../hooks/useTasks'
@@ -223,12 +223,7 @@ interface TasksPageProps {
 }
 
 export function TasksPage({ projectFilter }: TasksPageProps = {}) {
-  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks()
-
-  // Sync global project filter into the hook's server-side filtering
-  useEffect(() => {
-    setFilters(f => ({ ...f, projectId: projectFilter ?? null }))
-  }, [projectFilter, setFilters])
+  const { tasks, total, stats, isLoading, filters, setFilters, refreshTasks, getTask, createTask, updateTask, closeTask, reopenTask, getDependencies, getSubtasks } = useTasks(projectFilter)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)

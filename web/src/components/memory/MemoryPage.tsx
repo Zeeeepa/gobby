@@ -99,12 +99,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
     refreshMemories,
     fetchKnowledgeGraph,
     fetchEntityNeighbors,
-  } = useMemory()
-
-  // Sync global project filter into the hook's server-side filtering
-  useEffect(() => {
-    setFilters(f => ({ ...f, projectId: projectId ?? null }))
-  }, [projectId, setFilters])
+  } = useMemory(projectId)
   const neo4jStatus = useNeo4jStatus()
 
   // Configurable graph limits (fetched from backend config, overridable per-session)

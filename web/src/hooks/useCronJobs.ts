@@ -83,7 +83,7 @@ function getBaseUrl(): string {
 // Hook
 // =============================================================================
 
-export function useCronJobs() {
+export function useCronJobs(projectId?: string | null) {
   const [jobs, setJobs] = useState<CronJob[]>([])
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [runs, setRuns] = useState<CronRun[]>([])
@@ -101,6 +101,7 @@ export function useCronJobs() {
       const baseUrl = getBaseUrl()
       const params = new URLSearchParams()
       if (filters.enabled !== null) params.set('enabled', String(filters.enabled))
+      if (projectId) params.set('project_id', projectId)
 
       const response = await fetch(`${baseUrl}/api/cron/jobs?${params}`)
       if (response.ok) {
@@ -112,7 +113,7 @@ export function useCronJobs() {
     } finally {
       setIsLoading(false)
     }
-  }, [filters.enabled])
+  }, [filters.enabled, projectId])
 
   // Fetch runs for a job
   const fetchRuns = useCallback(async (jobId: string) => {

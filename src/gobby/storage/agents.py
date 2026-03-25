@@ -484,36 +484,45 @@ class LocalAgentRunManager:
         self,
         status: str | None = None,
         limit: int = 100,
+        project_id: str | None = None,
     ) -> list[AgentRun]:
         """
-        List agent runs, optionally filtered by status.
+        List agent runs, optionally filtered by status and/or project.
 
         Args:
             status: Optional status filter.
             limit: Maximum number of results.
+            project_id: Optional project ID filter (joins through sessions).
 
         Returns:
             List of AgentRun objects.
         """
+        conditions: list[str] = []
+        params: list[object] = []
+
         if status:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM agent_runs
-                WHERE status = ?
-                ORDER BY created_at DESC
-                LIMIT ?
-                """,
-                (status, limit),
-            )
-        else:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM agent_runs
-                ORDER BY created_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            )
+            conditions.append("ar.status = ?")
+            params.append(status)
+
+        join_clause = ""
+        if project_id:
+            join_clause = "JOIN sessions s ON s.id = ar.parent_session_id"
+            conditions.append("s.project_id = ?")
+            params.append(project_id)
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        params.append(limit)
+
+        rows = self.db.fetchall(
+            f"""
+            SELECT ar.* FROM agent_runs ar
+            {join_clause}
+            {where_clause}
+            ORDER BY ar.created_at DESC
+            LIMIT ?
+            """,
+            tuple(params),
+        )
         return [AgentRun.from_row(row) for row in rows]
 
     def list_running(self, limit: int = 100) -> list[AgentRun]:

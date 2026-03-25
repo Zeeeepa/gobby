@@ -377,7 +377,7 @@ export function ReportsPage({
     isLoading: agentsLoading,
     cancelRun,
     fetchRunDetail,
-  } = useAgentRuns();
+  } = useAgentRuns(projectId);
 
   // Compute counts
   const pipelineCounts = useMemo(() => {
