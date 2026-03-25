@@ -451,7 +451,7 @@ describe('useChat', () => {
 
     const calls = ws.send.mock.calls.map(c => JSON.parse(c[0]))
     const projectMsg = calls.find(m => m.type === 'set_project')
-    
+
     expect(projectMsg).toBeDefined()
     expect(projectMsg.project_id).toBe('test-project-123')
   })

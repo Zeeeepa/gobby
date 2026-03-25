@@ -351,7 +351,7 @@ export function useTasks(projectId?: string | null) {
   useEffect(() => {
     setIsLoading(true)
     fetchTasks()
-    
+
     return () => {
       if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current)
     }

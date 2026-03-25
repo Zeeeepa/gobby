@@ -10,8 +10,8 @@ action:
   decision: block
   reason: |
     Your tool call contains escaped quotes (`\"`) in the arguments, which causes JSON parsing errors in the MCP proxy.
-    
+
     To fix this:
-    - DO NOT escape quotes inside JSON strings. 
+    - DO NOT escape quotes inside JSON strings.
     - Use raw strings if your client supports them, or simply provide the string value without backslash escapes.
     - Example: Use {"pattern": "match me"} NOT {"pattern": "match \"me\""}.

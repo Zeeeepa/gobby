@@ -233,11 +233,11 @@ export function useRules() {
 
   // Auto-fetch on mount
   const debounceRef = useRef<number | null>(null)
-  
+
   useEffect(() => {
     setIsLoading(true)
     Promise.all([fetchRules(), fetchGroups()]).finally(() => setIsLoading(false))
-    
+
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current)
     }

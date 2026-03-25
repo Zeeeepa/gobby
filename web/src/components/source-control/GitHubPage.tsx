@@ -119,4 +119,3 @@ export function GitHubPage({ projectId }: Props) {
     </main>
   )
 }
-

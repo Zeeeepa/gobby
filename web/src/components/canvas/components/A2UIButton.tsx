@@ -6,7 +6,7 @@ export const A2UIButton: React.FC<A2UIComponentProps> = ({ def, componentId, dat
   const label = resolveBoundValue(def.label, dataModel) || 'Button';
   const style = def.style || 'secondary'; // primary, secondary, danger
   const disabled = completed || def.disabled;
-  
+
   let variant: "default" | "destructive" | "outline" | "ghost" | "primary" = "outline";
   if (style === 'primary') variant = 'default';
   if (style === 'danger') variant = 'destructive';
@@ -25,9 +25,9 @@ export const A2UIButton: React.FC<A2UIComponentProps> = ({ def, componentId, dat
   };
 
   return (
-    <Button 
-      variant={variant} 
-      onClick={handleClick} 
+    <Button
+      variant={variant}
+      onClick={handleClick}
       disabled={disabled}
       className="w-full sm:w-auto"
     >

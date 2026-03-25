@@ -11,5 +11,5 @@ rules:
       - type: block
         reason: |
           You are in an autonomous task execution mode.
-          Task {{ auto_task_ref or '(unknown)' }} has incomplete subtasks. Use suggest_next_task() and continue working. 
+          Task {{ auto_task_ref or '(unknown)' }} has incomplete subtasks. Use suggest_next_task() and continue working.
           **DO NOT ask for user confirmation to proceed.**
