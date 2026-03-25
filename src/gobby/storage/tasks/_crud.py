@@ -14,6 +14,7 @@ from gobby.storage.database import DatabaseProtocol
 from gobby.storage.tasks._id import generate_task_id, resolve_task_reference
 from gobby.storage.tasks._models import (
     UNSET,
+    SeqNumCollisionError,
     Task,
     TaskIDCollisionError,
     TaskNotFoundError,
@@ -147,7 +148,7 @@ def create_task(
             # Check if it's a seq_num collision (concurrent insert race)
             if "idx_tasks_seq_num" in error_msg or "tasks.seq_num" in error_msg:
                 if attempt == max_retries:
-                    raise TaskIDCollisionError(
+                    raise SeqNumCollisionError(
                         f"Failed to allocate unique seq_num after {max_retries} retries"
                     ) from e
                 logger.warning(f"Task seq_num collision for project {project_id}, retrying...")

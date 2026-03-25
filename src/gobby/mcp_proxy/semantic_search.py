@@ -8,6 +8,7 @@ Provides infrastructure for embedding-based tool discovery:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import math
@@ -435,7 +436,7 @@ class SemanticToolSearch:
         query_embedding = await self.embed_text(query, is_query=True)
 
         # Get tool metadata for results
-        tool_info = self._get_tool_info_map(project_id, server_filter)
+        tool_info = await asyncio.to_thread(self._get_tool_info_map, project_id, server_filter)
 
         if not self._vector_store:
             logger.warning(

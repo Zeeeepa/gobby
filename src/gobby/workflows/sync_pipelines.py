@@ -255,7 +255,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
             "WHERE name = ? AND source = 'installed' "
-            "AND workflow_type IN ('workflow', 'pipeline') "
+            f"AND workflow_type IN ({valid_types_sql}) "
             "AND tags LIKE ? AND deleted_at IS NULL",
             (name, tag_filter),
         )

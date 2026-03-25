@@ -181,7 +181,7 @@ class ChatSessionMixin:
         project_id: str | None = None,
         resume_session_id: str | None = None,
     ) -> ChatSessionProtocol:
-        """Inner implementation — must be called under _session_create_lock."""
+        """Inner implementation — must be called under the per-conversation lock from _session_create_locks."""
         # Early agent resolution to determine provider (Codex vs Claude SDK)
         pending_agents = getattr(self, "_pending_agents", {})
         pending_agent = pending_agents.pop(conversation_id, None)

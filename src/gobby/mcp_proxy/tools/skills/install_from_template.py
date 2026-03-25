@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.skills._context import SkillsContext
+
+logger = logging.getLogger(__name__)
 
 
 def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
@@ -41,7 +44,7 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                     if found and getattr(found, "source", None) == "template":
                         skill = found
                 except ValueError:
-                    pass
+                    logger.debug("Skill lookup by id failed for %s", skill_id, exc_info=True)
 
             if skill is None and name:
                 skill = ctx.storage.get_by_name(
