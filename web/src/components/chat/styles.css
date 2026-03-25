@@ -1865,16 +1865,6 @@
   color: var(--text-primary);
 }
 
-.command-bar-btn-label {
-  display: none;
-}
-
-@media (min-width: 640px) {
-  .command-bar-btn-label {
-    display: inline;
-  }
-}
-
 .command-bar-session {
   display: flex;
   align-items: center;
