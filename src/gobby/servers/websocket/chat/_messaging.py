@@ -775,3 +775,6 @@ class ChatMessagingMixin:
         session = self._chat_sessions.get(conversation_id) if conversation_id else None
         if session:
             session.last_activity = datetime.now(UTC)
+            logger.debug(
+                f"Heartbeat received for conversation {conversation_id[:8] if conversation_id else '?'}"
+            )
