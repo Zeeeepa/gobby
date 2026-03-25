@@ -414,13 +414,35 @@ class ChatSessionPermissionsMixin:
         return None
 
     def _consume_plan_mode_context(self) -> str | None:
-        """Return plan mode system context for additionalContext injection.
+        """Return mode context for additionalContext injection.
+
+        Returns context for ALL modes so the agent always knows its current
+        mode. Critical for Plan → Act/Auto transitions: without explicit
+        counter-context, the agent retains stale plan mode instructions
+        from earlier in the conversation.
 
         NOTE: This method has a side effect — it clears ``_plan_feedback``
         after injecting it so the feedback is only sent once.  The name
         ``_consume_`` signals this mutation to callers.
         """
-        if self.chat_mode != "plan":
+        mode = self.chat_mode
+
+        # Non-plan modes: brief context to override any earlier plan instructions
+        if mode == "accept_edits":
+            return (
+                '<chat-mode mode="act">\n'
+                "You are in Act mode. All tools are available. "
+                "Write operations may require user approval.\n"
+                "</chat-mode>"
+            )
+        if mode == "bypass":
+            return (
+                '<chat-mode mode="auto">\n'
+                "You are in Auto mode. All tools are available and auto-approved.\n"
+                "</chat-mode>"
+            )
+        if mode != "plan":
+            # Unknown non-plan mode — no context needed
             return None
 
         if self._plan_approved:

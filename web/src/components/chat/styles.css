@@ -1882,7 +1882,7 @@
 
 @media (max-width: 768px) {
   .command-bar-session .command-bar-title {
-    display: none;
+    max-width: 40vw;
   }
 }
 
