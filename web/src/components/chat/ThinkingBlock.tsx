@@ -6,9 +6,9 @@ interface ThinkingBlockProps {
   messageId: string
 }
 
-/** Convert single newlines to markdown line breaks (two trailing spaces) */
+/** Convert single newlines to paragraph breaks for readable spacing */
 function preserveLineBreaks(text: string): string {
-  return text.replace(/\n/g, '  \n')
+  return text.replace(/(?<!\n)\n(?!\n)/g, '\n\n')
 }
 
 export function ThinkingBlock({ content, messageId }: ThinkingBlockProps) {

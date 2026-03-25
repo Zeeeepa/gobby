@@ -117,7 +117,7 @@ body {
 }
 
 .header-logo {
-  height: calc(var(--font-size-base) * 1.5);
+  height: 2.25rem;
   width: auto;
 }
 
