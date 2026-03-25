@@ -232,10 +232,11 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
     # Uses parsed_names collected during the main loop above (no re-parsing).
     tag_filter = '%"gobby"%'
 
-    valid_types_sql = ", ".join(f"'{t}'" for t in VALID_WORKFLOW_TYPES)
+    # Only orphan-clean 'pipeline' type — other types (rule, variable, agent)
+    # have their own sync functions with their own orphan cleanup.
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        f"WHERE source = 'template' AND workflow_type IN ({valid_types_sql}) "
+        "WHERE source = 'template' AND workflow_type = 'pipeline' "
         "AND tags LIKE ? AND deleted_at IS NULL",
         (tag_filter,),
     )
@@ -255,7 +256,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
         installed_rows = db.fetchall(
             "SELECT id FROM workflow_definitions "
             "WHERE name = ? AND source = 'installed' "
-            f"AND workflow_type IN ({valid_types_sql}) "
+            "AND workflow_type = 'pipeline' "
             "AND tags LIKE ? AND deleted_at IS NULL",
             (name, tag_filter),
         )
