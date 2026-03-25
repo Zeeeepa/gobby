@@ -172,9 +172,11 @@ jobs:
 
       - name: Run pip-audit (dependency CVEs)
         # CVE-2025-69872: diskcache 5.6.3 (transitive via litellm) - no fix available
+        # CVE-2026-4539: pygments 2.19.2 (2.19.2 is latest) - no fix available
         run: >
           uv run pip-audit
           --ignore-vuln CVE-2025-69872
+          --ignore-vuln CVE-2026-4539
 
 
 
