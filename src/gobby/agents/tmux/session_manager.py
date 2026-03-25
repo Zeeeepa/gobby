@@ -470,23 +470,40 @@ class TmuxSessionManager:
             return None
         return stdout
 
-    async def send_keys(self, session_name: str, keys: str) -> bool:
-        """Send raw keys to a tmux session (for web UI input forwarding).
-
-        Sends text in literal mode (``-l``) so special characters are not
-        interpreted, then sends ``Enter`` as a separate key event to submit.
-        A trailing newline in *keys* is treated as the submit request and
-        stripped from the literal text.
+    async def send_keys(self, session_name: str, keys: str, *, literal: bool = True) -> bool:
+        """Send keys to a tmux session.
 
         Args:
             session_name: Target session name.
-            keys: Key string to send.  A trailing ``\\n`` triggers an
-                  ``Enter`` keypress after the literal text.
+            keys: Key string to send.  When *literal* is True a trailing
+                  ``\\n`` triggers an ``Enter`` keypress after the literal
+                  text.  When *literal* is False, *keys* are passed directly
+                  to ``tmux send-keys`` (accepts tmux key names such as
+                  ``C-c``, ``Escape``, ``Enter``, ``C-d``).
+            literal: If True (default), send text in literal mode (``-l``)
+                     so special characters are not interpreted.  If False,
+                     pass keys directly to tmux without ``-l``, allowing
+                     tmux key names.
 
         Returns:
             True on success.
         """
-        # Split trailing newline: literal text + Enter as a real key event.
+        if not literal:
+            # Raw mode: pass keys directly, tmux interprets key names.
+            rc, _stdout, stderr = await self._run(
+                "send-keys",
+                "-t",
+                session_name,
+                keys,
+            )
+            if rc != 0:
+                logger.warning(
+                    f"Failed to send raw keys to tmux session '{session_name}': {stderr.strip()}"
+                )
+                return False
+            return True
+
+        # Literal mode: split trailing newline into literal text + Enter.
         # TUI apps (Claude Code, Gemini CLI) treat a literal \n inside
         # send-keys -l as "add a line" rather than "submit the prompt".
         send_enter = keys.endswith("\n")
