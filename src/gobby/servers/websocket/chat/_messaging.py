@@ -768,3 +768,10 @@ class ChatMessagingMixin:
             return
 
         session.provide_approval(decision)
+
+    async def _handle_heartbeat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle heartbeat from web UI to keep session alive during idle periods."""
+        conversation_id = data.get("conversation_id")
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session:
+            session.last_activity = datetime.now(UTC)

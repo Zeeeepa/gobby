@@ -2367,11 +2367,40 @@ export function useChat() {
     ]);
   }, []);
 
-  // Connect on mount
+  // Connect on mount, handle page lifecycle and heartbeat
   useEffect(() => {
     connect();
 
+    // Immediate reconnect when returning to tab (mobile app switch, screen lock)
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      ) {
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+        connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Heartbeat every 60s to keep backend session alive during idle periods
+    const heartbeatInterval = window.setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN && conversationIdRef.current) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "heartbeat",
+            conversation_id: conversationIdRef.current,
+          }),
+        );
+      }
+    }, 60_000);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(heartbeatInterval);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

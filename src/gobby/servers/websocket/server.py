@@ -263,6 +263,7 @@ class WebSocketServer(
                 "voice_audio": self._handle_voice_audio,
                 "voice_mode_toggle": self._handle_voice_mode_toggle,
                 "canvas_interaction": self._handle_canvas_interaction,
+                "heartbeat": self._handle_heartbeat,
             }
 
         handler = self._dispatch_table.get(msg_type)
