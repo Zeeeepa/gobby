@@ -294,7 +294,7 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
       {selectedSessionId && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Session header */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-2 px-3 border-b border-border" style={{ height: 40, background: 'var(--bg-secondary)' }}>
             <span className="text-xs text-muted-foreground">Watching {(() => {
             const entry = entries.find((e) => e.id === selectedSessionId)
             if (!entry) return 'session'

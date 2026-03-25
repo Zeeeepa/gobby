@@ -524,6 +524,91 @@ def create_source_control_router(server: HTTPServer) -> APIRouter:
             logger.warning(f"Failed to get PR checks: {e}")
             return {"checks": [], "status": "error", "error": str(e)}
 
+    @router.get("/issues")
+    async def list_issues(
+        state: str = "open",
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List GitHub issues."""
+        _, github_repo = _resolve_project(server, project_id)
+        gh = _get_github(server)
+        if not gh or not gh.is_available():
+            return {"issues": [], "github_available": False}
+
+        parsed = _parse_github_repo(github_repo)
+        if not parsed:
+            return {"issues": [], "github_available": True, "error": "No GitHub repo configured"}
+
+        cache_key = f"issues:{github_repo}:{state}"
+        cached = _get_cached(cache_key, _GITHUB_TTL)
+        if cached:
+            return cached
+
+        owner, repo = parsed
+        try:
+            data = await _call_github_mcp(
+                server,
+                "list_issues",
+                {"owner": owner, "repo": repo, "state": state},
+            )
+            issues = []
+            if isinstance(data, list):
+                for issue in data:
+                    # Skip pull requests (GitHub API returns PRs in issues)
+                    if issue.get("pull_request"):
+                        continue
+                    labels = []
+                    for lbl in issue.get("labels", []):
+                        if isinstance(lbl, dict):
+                            labels.append(
+                                {"name": lbl.get("name", ""), "color": lbl.get("color", "")}
+                            )
+                    issues.append(
+                        {
+                            "number": issue.get("number"),
+                            "title": issue.get("title"),
+                            "state": issue.get("state"),
+                            "author": issue.get("user", {}).get("login", ""),
+                            "labels": labels,
+                            "created_at": issue.get("created_at"),
+                            "updated_at": issue.get("updated_at"),
+                            "comments": issue.get("comments", 0),
+                        }
+                    )
+            result = {"issues": issues, "github_available": True}
+            _set_cached(cache_key, result)
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to list issues: {e}")
+            return {"issues": [], "github_available": True, "error": str(e)}
+
+    @router.get("/issues/{number}")
+    async def get_issue(
+        number: int,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Get issue details."""
+        _, github_repo = _resolve_project(server, project_id)
+        parsed = _parse_github_repo(github_repo)
+        if not parsed:
+            raise HTTPException(400, "No GitHub repo configured")
+
+        owner, repo = parsed
+        try:
+            data = await _call_github_mcp(
+                server,
+                "get_issue",
+                {"owner": owner, "repo": repo, "issue_number": number},
+            )
+            return {"issue": data, "github_available": True}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to get issue #{number}: {e}")
+            raise HTTPException(502, f"Failed to fetch issue: {e}") from e
+
     @router.get("/cicd/runs")
     async def list_cicd_runs(
         project_id: str | None = None,

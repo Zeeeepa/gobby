@@ -131,7 +131,9 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [webglError, setWebglError] = useState(false)
   const [showPhysics, setShowPhysics] = useState(false)
-  const [limit, setLimit] = useState(DEFAULT_CODE_GRAPH_LIMIT)
+  const [limit, setLimit] = useState(() => {
+    try { const v = localStorage.getItem('gobby-cg-limit'); const n = Number(v); return v && Number.isFinite(n) && n >= CODE_GRAPH_LIMIT_MIN && n <= CODE_GRAPH_LIMIT_MAX ? n : DEFAULT_CODE_GRAPH_LIMIT } catch { return DEFAULT_CODE_GRAPH_LIMIT }
+  })
   const [charge, setCharge] = useState(() => {
     try { const v = localStorage.getItem('gobby-cg-charge'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_CHARGE } catch { return DEFAULT_CHARGE }
   })
@@ -400,20 +402,6 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
     <div className="code-graph-explorer" ref={containerRef}>
       {/* Controls */}
       <div className="code-graph-controls">
-        <label className="code-graph-limit-control" title="Max file nodes to display">
-          Limit
-          <input
-            type="number"
-            min={CODE_GRAPH_LIMIT_MIN}
-            max={CODE_GRAPH_LIMIT_MAX}
-            step={CODE_GRAPH_LIMIT_STEP}
-            value={limit}
-            onChange={e => {
-              const v = Math.max(CODE_GRAPH_LIMIT_MIN, Math.min(CODE_GRAPH_LIMIT_MAX, Number(e.target.value) || CODE_GRAPH_LIMIT_MIN))
-              setLimit(v)
-            }}
-          />
-        </label>
         <button
           className={`code-graph-btn ${blastMode ? 'active' : ''}`}
           onClick={toggleBlastMode}
@@ -487,16 +475,34 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
             />
             <span className="code-graph-physics-value">{centerStrength.toFixed(3)}</span>
           </label>
+          <label className="code-graph-physics-row">
+            <span className="code-graph-physics-label">Limit</span>
+            <input
+              type="range"
+              min={CODE_GRAPH_LIMIT_MIN}
+              max={CODE_GRAPH_LIMIT_MAX}
+              step={CODE_GRAPH_LIMIT_STEP}
+              value={limit}
+              onChange={e => {
+                const v = Number(e.target.value)
+                setLimit(v)
+                try { localStorage.setItem('gobby-cg-limit', String(v)) } catch { /* noop */ }
+              }}
+            />
+            <span className="code-graph-physics-value">{limit}</span>
+          </label>
           <button
             className="code-graph-physics-reset"
             onClick={() => {
               setCharge(DEFAULT_CHARGE)
               setLinkDist(DEFAULT_LINK_DIST)
               setCenterStrength(DEFAULT_CENTER)
+              setLimit(DEFAULT_CODE_GRAPH_LIMIT)
               try {
                 localStorage.removeItem('gobby-cg-charge')
                 localStorage.removeItem('gobby-cg-link-dist')
                 localStorage.removeItem('gobby-cg-center')
+                localStorage.removeItem('gobby-cg-limit')
               } catch { /* noop */ }
             }}
           >

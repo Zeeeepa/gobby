@@ -3,32 +3,28 @@ import './ProjectsPage.css'
 import { TabBar } from '../shared/TabBar'
 import { useProjects } from '../../hooks/useProjects'
 import { useSourceControl } from '../../hooks/useSourceControl'
-import { useFilesContext } from '../../contexts/FilesContext'
-import { FilesPage } from '../FilesPage'
 import { CodeGraphExplorer } from '../code-graph/CodeGraphExplorer'
 import { ProjectSettings } from './ProjectSettings'
+import { ProjectSummary } from './ProjectSummary'
 import { BranchesView } from '../source-control/BranchesView'
 import { PullRequestsView } from '../source-control/PullRequestsView'
+import { IssuesView } from '../source-control/IssuesView'
 import { WorktreesView } from '../source-control/WorktreesView'
 import { ClonesView } from '../source-control/ClonesView'
 import { CICDView } from '../source-control/CICDView'
 
-type ProjectsTab = 'code' | 'branches' | 'prs' | 'worktrees' | 'clones' | 'cicd' | 'settings'
-type CodeSubTab = 'editor' | 'graph'
+type ProjectsTab = 'overview' | 'graph' | 'branches' | 'worktrees' | 'clones' | 'issues' | 'prs' | 'cicd' | 'settings'
 
 const TABS = [
-  { id: 'code', label: 'Project' },
+  { id: 'overview', label: 'Overview' },
+  { id: 'graph', label: 'Graph' },
   { id: 'branches', label: 'Branches' },
-  { id: 'prs', label: 'Pull Requests' },
   { id: 'worktrees', label: 'Worktrees' },
   { id: 'clones', label: 'Clones' },
+  { id: 'issues', label: 'Issues' },
+  { id: 'prs', label: 'PR' },
   { id: 'cicd', label: 'CI/CD' },
   { id: 'settings', label: 'Settings' },
-]
-
-const CODE_SUB_TABS = [
-  { id: 'editor', label: 'File Editor' },
-  { id: 'graph', label: 'Code Graph' },
 ]
 
 interface ProjectsPageProps {
@@ -36,8 +32,7 @@ interface ProjectsPageProps {
 }
 
 export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
-  const [activeTab, setActiveTab] = useState<ProjectsTab>('code')
-  const [codeSubTab, setCodeSubTab] = useState<CodeSubTab>('editor')
+  const [activeTab, setActiveTab] = useState<ProjectsTab>('overview')
   const {
     allProjects,
     isLoading: _isLoading,
@@ -47,13 +42,6 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
   } = useProjects()
 
   const sc = useSourceControl(projectId ?? null)
-  const files = useFilesContext()
-
-  // Scope file tree to the selected project
-  const scopedProjects = useMemo(
-    () => projectId ? files.projects.filter(p => p.id === projectId) : files.projects,
-    [projectId, files.projects]
-  )
 
   // Find the project matching the global selector for settings
   const activeProject = useMemo(() => {
@@ -71,53 +59,6 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
     if (!activeProject) return false
     return deleteProject(activeProject.id)
   }, [activeProject, deleteProject])
-
-  const renderCodeTab = () => (
-    <div className="code-page">
-      <div className="code-page-header">
-        <TabBar
-          tabs={CODE_SUB_TABS}
-          activeTab={codeSubTab}
-          onTabChange={(id) => setCodeSubTab(id as CodeSubTab)}
-        />
-      </div>
-      <div className="code-page-content">
-        {codeSubTab === 'editor' && (
-          scopedProjects.length > 0 ? (
-            <FilesPage
-              projects={scopedProjects}
-              expandedDirs={files.expandedDirs}
-              expandedProjects={files.expandedProjects}
-              openFiles={files.openFiles}
-              activeFileIndex={files.activeFileIndex}
-              loadingDirs={files.loadingDirs}
-              gitStatuses={files.gitStatuses}
-              onExpandProject={files.expandProject}
-              onExpandDir={files.expandDir}
-              onOpenFile={files.openFile}
-              onCloseFile={files.closeFile}
-              onSetActiveFile={files.setActiveFileIndex}
-              getImageUrl={files.getImageUrl}
-              onToggleEditing={files.toggleEditing}
-              onCancelEditing={files.cancelEditing}
-              onUpdateEditContent={files.updateEditContent}
-              onSaveFile={files.saveFile}
-              onFetchDiff={files.fetchDiff}
-            />
-          ) : (
-            <div className="code-page-empty">
-              {projectId
-                ? 'No files found for this project. Try refreshing or check the repo path.'
-                : 'Select a project to browse files.'}
-            </div>
-          )
-        )}
-        {codeSubTab === 'graph' && (
-          <CodeGraphExplorer projectId={projectId ?? null} />
-        )}
-      </div>
-    </div>
-  )
 
   const renderSettingsTab = () => {
     if (!activeProject) {
@@ -140,7 +81,7 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
     <main className="projects-page">
       <div className="projects-page-header">
         <div className="projects-page-title-row">
-          <h2 className="projects-page-title">Projects</h2>
+          <h2 className="projects-page-title">Project</h2>
         </div>
         <TabBar
           tabs={TABS}
@@ -150,7 +91,19 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
       </div>
 
       <div className="projects-page-content">
-        {activeTab === 'code' && renderCodeTab()}
+        {activeTab === 'overview' && (
+          activeProject ? (
+            <ProjectSummary project={activeProject} />
+          ) : (
+            <div className="projects-empty">
+              Select a project from the header to view overview.
+            </div>
+          )
+        )}
+
+        {activeTab === 'graph' && (
+          <CodeGraphExplorer projectId={projectId ?? null} />
+        )}
 
         {activeTab === 'branches' && (
           <BranchesView
@@ -158,15 +111,6 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
             currentBranch={sc.status?.current_branch || null}
             fetchCommits={sc.fetchCommits}
             fetchDiff={sc.fetchDiff}
-          />
-        )}
-
-        {activeTab === 'prs' && (
-          <PullRequestsView
-            prs={sc.prs}
-            githubAvailable={sc.status?.github_available || false}
-            fetchPrs={sc.fetchPrs}
-            fetchPrDetail={sc.fetchPrDetail}
           />
         )}
 
@@ -187,6 +131,24 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
           />
         )}
 
+        {activeTab === 'issues' && (
+          <IssuesView
+            issues={sc.issues}
+            githubAvailable={sc.status?.github_available || false}
+            fetchIssues={sc.fetchIssues}
+            fetchIssueDetail={sc.fetchIssueDetail}
+          />
+        )}
+
+        {activeTab === 'prs' && (
+          <PullRequestsView
+            prs={sc.prs}
+            githubAvailable={sc.status?.github_available || false}
+            fetchPrs={sc.fetchPrs}
+            fetchPrDetail={sc.fetchPrDetail}
+          />
+        )}
+
         {activeTab === 'cicd' && (
           <CICDView
             runs={sc.ciRuns}
@@ -199,4 +161,3 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
     </main>
   )
 }
-
