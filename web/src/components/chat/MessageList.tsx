@@ -79,6 +79,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
             <p className="text-sm animate-pulse">Loading messages...</p>
           ) : (
             <>
+              <ChatEmptyIcon />
               <div className="text-lg mb-1">Chat</div>
               <p className="text-sm">Start a conversation with Gobby</p>
             </>
@@ -106,6 +107,14 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
     />
   )
 })
+
+function ChatEmptyIcon() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-3 opacity-40">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
 
 function ThinkingIndicator() {
   return (

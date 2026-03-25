@@ -112,6 +112,7 @@ export function CommandBar({
           title="New Chat"
         >
           <PlusIcon />
+          <span className="command-bar-btn-label">New</span>
         </button>
 
         {showAgentPicker && (
