@@ -137,7 +137,7 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
         startedAt: s.updated_at,
         seqNum: s.seq_num,
         sessionMode: ((s.agent_depth ?? 0) > 0 ? 'autonomous' : 'interactive') as 'interactive' | 'autonomous',
-        hasTmux: !!s.terminal_context,
+        hasTmux: false, // TODO: API doesn't return terminal_context yet
       }))
 
     // Filter out entries being expired

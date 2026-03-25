@@ -20,12 +20,12 @@ export const CHAT_MODES: ChatModeInfo[] = [
   {
     id: "accept_edits",
     label: "Act",
-    description: "Auto-approve edits, prompt for dangerous commands",
+    description: "Auto-approve reads and edits, prompt for write operations",
     level: 1,
   },
   {
     id: "bypass",
-    label: "Full Auto",
+    label: "Auto",
     description: "Auto-approve all tools",
     level: 2,
   },
