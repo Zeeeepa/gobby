@@ -703,6 +703,9 @@ export function useChat() {
   // Track last seen message sequence for reconnect backfill
   const lastSeqRef = useRef<number>(0);
 
+  // Queue for messages sent while disconnected — flushed on reconnect
+  const pendingMessagesRef = useRef<string[]>([]);
+
   /** Returns true if the chunk belongs to the currently active request. */
   function isActiveRequest(requestId?: string): boolean {
     return requestId === activeRequestIdRef.current;
@@ -741,6 +744,18 @@ export function useChat() {
       console.log("WebSocket connected");
       setIsConnected(true);
       setIsReconnecting(false);
+
+      // Flush queued messages that were sent while disconnected
+      if (pendingMessagesRef.current.length > 0) {
+        const queued = [...pendingMessagesRef.current];
+        pendingMessagesRef.current = [];
+        // Send each queued message after a brief delay to let WS fully initialize
+        setTimeout(() => {
+          for (const msg of queued) {
+            sendMessageRef.current?.(msg);
+          }
+        }, 500);
+      }
 
       // Backfill missed messages on reconnect (lastSeqRef > 0 means we had messages before)
       if (lastSeqRef.current > 0 && conversationIdRef.current) {
@@ -2115,11 +2130,22 @@ export function useChat() {
         files?.length,
       );
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        console.error(
-          "WebSocket not connected, state:",
-          wsRef.current?.readyState,
-        );
-        return false;
+        // Queue the message to send on reconnect
+        console.warn("WebSocket disconnected — queuing message for reconnect");
+        pendingMessagesRef.current.push(content);
+        // Still add the user message to the UI so it's visible
+        const queuedId = `user-${uuid()}`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: queuedId,
+            role: "user" as const,
+            content,
+            toolCalls: [],
+            timestamp: new Date(),
+          },
+        ]);
+        return true;
       }
 
       // Route to CLI session if attached (bidirectional messaging)
