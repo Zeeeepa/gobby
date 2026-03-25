@@ -699,6 +699,9 @@ export function useChat() {
   // Track the active chat request to filter stale stream chunks from cancelled requests
   const activeRequestIdRef = useRef<string | null>(null);
 
+  // Track last seen message sequence for reconnect backfill
+  const lastSeqRef = useRef<number>(0);
+
   /** Returns true if the chunk belongs to the currently active request. */
   function isActiveRequest(requestId?: string): boolean {
     return requestId === activeRequestIdRef.current;
@@ -736,6 +739,41 @@ export function useChat() {
     ws.onopen = () => {
       console.log("WebSocket connected");
       setIsConnected(true);
+
+      // Backfill missed messages on reconnect (lastSeqRef > 0 means we had messages before)
+      if (lastSeqRef.current > 0 && conversationIdRef.current) {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+        const convId = conversationIdRef.current;
+        const afterSeq = lastSeqRef.current;
+        fetch(`${baseUrl}/api/chat/${convId}/messages?after_seq=${afterSeq}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (!data?.messages?.length) return;
+            const backfilled: ChatMessage[] = data.messages.map(
+              (m: {
+                id: string;
+                role: string;
+                content: string;
+                tool_calls?: ToolCall[];
+                seq: number;
+                created_at: string;
+              }) => ({
+                id: m.id,
+                role: m.role as "user" | "assistant" | "system",
+                content: [{ type: "text" as const, content: m.content }],
+                toolCalls: m.tool_calls ?? [],
+                timestamp: new Date(m.created_at),
+              }),
+            );
+            setMessages((prev) => {
+              const existingIds = new Set(prev.map((m) => m.id));
+              const newMsgs = backfilled.filter((m) => !existingIds.has(m.id));
+              return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
+            });
+            if (data.max_seq) lastSeqRef.current = data.max_seq;
+          })
+          .catch((err) => console.error("Failed to backfill messages:", err));
+      }
 
       ws.send(
         JSON.stringify({
@@ -790,11 +828,21 @@ export function useChat() {
     ws.onclose = () => {
       console.log("WebSocket disconnected");
       setIsConnected(false);
-      setIsStreaming(false);
-      setIsThinking(false);
-      activeRequestIdRef.current = null;
+      // Don't clear isStreaming/isThinking/activeRequestIdRef — the backend
+      // may still be working. Clearing these causes post-reconnect tool_status
+      // updates to be dropped as "stale". Only clear on explicit cancel or
+      // if reconnect timeout expires (30s).
+      const disconnectTimer = window.setTimeout(() => {
+        // If still disconnected after 30s, assume the stream is dead
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          setIsStreaming(false);
+          setIsThinking(false);
+          activeRequestIdRef.current = null;
+        }
+      }, 30_000);
 
       reconnectTimeoutRef.current = window.setTimeout(() => {
+        clearTimeout(disconnectTimer);
         connect();
       }, 2000);
     };
@@ -2509,6 +2557,7 @@ export function useChat() {
             }),
           );
           setMessages(restored);
+          if (data.max_seq) lastSeqRef.current = data.max_seq;
         })
         .catch((err) => console.error("Failed to restore chat messages:", err))
         .finally(() => setIsLoadingMessages(false));
