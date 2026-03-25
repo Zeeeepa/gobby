@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -210,6 +210,7 @@ class ChatSession(ChatSessionPermissionsMixin):
             system_prompt=system_prompt,
             max_turns=None,
             model=model or "opus",
+            permission_mode=self._to_sdk_permission_mode(self.chat_mode),
             allowed_tools=["mcp__gobby__*"],
             can_use_tool=self._can_use_tool,
             cli_path=cli_path,
@@ -772,6 +773,35 @@ class ChatSession(ChatSessionPermissionsMixin):
             raise RuntimeError("ChatSession not connected")
         await self._client.set_model(new_model)
         self._model = new_model
+
+    # Map Gobby chat_mode values to SDK PermissionMode values
+    _MODE_TO_SDK: ClassVar[dict[str, str]] = {
+        "plan": "plan",
+        "accept_edits": "acceptEdits",
+        "bypass": "bypassPermissions",
+        "normal": "default",
+    }
+
+    @staticmethod
+    def _to_sdk_permission_mode(chat_mode: str) -> str:
+        """Convert a Gobby chat_mode to an SDK PermissionMode string."""
+        return ChatSession._MODE_TO_SDK.get(chat_mode, "default")
+
+    async def sync_sdk_permission_mode(self) -> None:
+        """Sync the SDK subprocess permission mode to match chat_mode.
+
+        Sends a control protocol message to the running CLI process so
+        the agent receives a structured mode transition signal (equivalent
+        to EnterPlanMode / ExitPlanMode).
+        """
+        if not self._client or not self._connected:
+            return
+        sdk_mode = self._to_sdk_permission_mode(self.chat_mode)
+        try:
+            await self._client.set_permission_mode(sdk_mode)
+            logger.debug(f"SDK permission mode synced to '{sdk_mode}' for {self.conversation_id}")
+        except Exception as e:
+            logger.warning(f"Failed to sync SDK permission mode: {e}")
 
     @property
     def is_connected(self) -> bool:

@@ -44,8 +44,8 @@ class TestCanUseTool:
 
             await session.start()
 
-            # Should NOT have permission_mode="bypassPermissions"
-            assert captured_options.get("permission_mode") is None
+            # Should have permission_mode matching initial chat_mode (plan by default)
+            assert captured_options.get("permission_mode") == "plan"
             # Should have can_use_tool callback
             assert captured_options.get("can_use_tool") is not None
             assert callable(captured_options["can_use_tool"])

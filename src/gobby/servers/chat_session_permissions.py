@@ -425,24 +425,9 @@ class ChatSessionPermissionsMixin:
         after injecting it so the feedback is only sent once.  The name
         ``_consume_`` signals this mutation to callers.
         """
-        mode = self.chat_mode
-
-        # Non-plan modes: brief context to override any earlier plan instructions
-        if mode == "accept_edits":
-            return (
-                '<chat-mode mode="act">\n'
-                "You are in Act mode. All tools are available. "
-                "Write operations may require user approval.\n"
-                "</chat-mode>"
-            )
-        if mode == "bypass":
-            return (
-                '<chat-mode mode="auto">\n'
-                "You are in Auto mode. All tools are available and auto-approved.\n"
-                "</chat-mode>"
-            )
-        if mode != "plan":
-            # Unknown non-plan mode — no context needed
+        if self.chat_mode != "plan":
+            # Non-plan modes: SDK set_permission_mode handles mode signaling
+            # to the agent via the control protocol — no context injection needed.
             return None
 
         if self._plan_approved:

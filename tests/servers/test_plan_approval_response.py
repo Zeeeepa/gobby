@@ -80,6 +80,7 @@ async def test_handle_plan_approval_approve_legacy_sends_mode_changed():
 
     session = MagicMock()
     session.has_pending_plan = False
+    session.sync_sdk_permission_mode = AsyncMock()
 
     conversation_id = "test-conv-id"
     host._chat_sessions[conversation_id] = session
@@ -97,6 +98,7 @@ async def test_handle_plan_approval_approve_legacy_sends_mode_changed():
     # Verify existing behavior
     session.approve_plan.assert_called_once()
     session.set_chat_mode.assert_called_once_with("accept_edits")
+    session.sync_sdk_permission_mode.assert_awaited_once()
 
     websocket.send.assert_called_once()
     sent_data = json.loads(websocket.send.call_args[0][0])

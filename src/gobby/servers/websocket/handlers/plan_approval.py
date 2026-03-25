@@ -73,6 +73,7 @@ async def handle_plan_approval_response(
             # Legacy path: plan approval before ExitPlanMode was called
             session.approve_plan()
             session.set_chat_mode("accept_edits")
+            await session.sync_sdk_permission_mode()
             await _clear_pending_plan()
             try:
                 await websocket.send(
