@@ -328,6 +328,18 @@ class ChatSessionMixin:
                 session.seq_num = db_session.seq_num
                 session._session_manager_ref = session_manager
 
+                # Auto-resume for returning sessions: if the DB row has prior
+                # usage (meaning at least one turn completed) and no explicit
+                # resume was requested, enable SDK resume.  After re-keying,
+                # conversation_id IS the SDK session ID the transcript lives under.
+                if not resume_session_id and db_session.usage_output_tokens > 0:
+                    session.resume_session_id = conversation_id
+                    logger.info(
+                        f"Auto-resume enabled for returning session {db_session.id} "
+                        f"(output_tokens={db_session.usage_output_tokens}, "
+                        f"sdk_id={conversation_id[:8]})"
+                    )
+
                 # Restore persisted state from DB (safe for both new and returning
                 # sessions — new rows have defaults that won't clobber anything).
                 if db_session.chat_mode and db_session.chat_mode != "plan":
@@ -430,7 +442,17 @@ class ChatSessionMixin:
             except Exception as e:
                 logger.warning(f"Failed to build agent system prompt for '{agent_name}': {e}")
 
-        await session.start(model=model)
+        try:
+            await session.start(model=model)
+        except Exception:
+            if session.resume_session_id:
+                logger.warning(
+                    f"SDK resume failed for {session.resume_session_id[:8]}, starting fresh"
+                )
+                session.resume_session_id = None
+                await session.start(model=model)
+            else:
+                raise
         self._chat_sessions[conversation_id] = session
 
         # History injection via message_manager removed (session_messages table dropped)
