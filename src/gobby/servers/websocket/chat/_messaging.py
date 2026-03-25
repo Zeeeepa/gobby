@@ -281,17 +281,32 @@ class ChatMessagingMixin:
             return msg
 
         async def _safe_send(msg: dict[str, Any]) -> bool:
-            """Send a message to the WebSocket, returning False if disconnected."""
+            """Send a message to all WebSocket clients in this conversation.
+
+            Broadcasts to every client whose conversation_id matches, so
+            multiple tabs/devices all receive streaming updates.  Returns
+            False only when *no* clients remain connected.
+            """
             nonlocal ws_connected
             if not ws_connected:
                 return False
-            try:
-                await websocket.send(json.dumps(msg))
-                return True
-            except (ConnectionClosed, ConnectionClosedError):
+            encoded = json.dumps(msg)
+            any_sent = False
+            for ws, meta in list(self.clients.items()):
+                cid = meta.get("conversation_id") if meta else None
+                if cid is not None and cid != conversation_id:
+                    continue
+                try:
+                    await ws.send(encoded)
+                    any_sent = True
+                except (ConnectionClosed, ConnectionClosedError):
+                    pass
+            if not any_sent:
                 ws_connected = False
-                logger.debug(f"Client disconnected during chat stream for {conversation_id[:8]}")
-                return False
+                logger.debug(
+                    f"All clients disconnected during chat stream for {conversation_id[:8]}"
+                )
+            return any_sent
 
         def _session_ref() -> str | None:
             """Get the session ref (#N) for the current conversation."""
@@ -616,10 +631,33 @@ class ChatMessagingMixin:
                             self._active_chat_tasks[sdk_sid] = self._active_chat_tasks.pop(
                                 conversation_id
                             )
+                        # Update client metadata so broadcasts use the new ID
+                        old_cid = conversation_id
+                        for _ws_client, ws_meta in list(self.clients.items()):
+                            if ws_meta and ws_meta.get("conversation_id") == old_cid:
+                                ws_meta["conversation_id"] = sdk_sid
+
                         logger.info(
                             f"Re-keyed web chat session {conversation_id[:8]} → {sdk_sid[:8]}",
                         )
                         conversation_id = sdk_sid
+
+                        # Notify all connected clients to update their conversation_id
+                        rekey_msg = json.dumps(
+                            {
+                                "type": "conversation_id_changed",
+                                "old_id": old_cid,
+                                "new_id": sdk_sid,
+                            }
+                        )
+                        for ws_client, ws_meta in list(self.clients.items()):
+                            cid = ws_meta.get("conversation_id") if ws_meta else None
+                            if cid is not None and cid != sdk_sid:
+                                continue
+                            try:
+                                await ws_client.send(rekey_msg)
+                            except (ConnectionClosed, ConnectionClosedError):
+                                pass
 
                     await _safe_send(done_msg)
 

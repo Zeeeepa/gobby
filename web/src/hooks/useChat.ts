@@ -1354,6 +1354,20 @@ export function useChat() {
             .conversation_id as string;
           console.log("Chat cleared confirmed:", cid);
           onChatClearedRef.current?.(cid);
+        } else if (data.type === "conversation_id_changed") {
+          const d = data as Record<string, unknown>;
+          const newId = d.new_id as string;
+          if (newId && newId !== conversationIdRef.current) {
+            console.log(
+              "Conversation ID changed:",
+              conversationIdRef.current,
+              "→",
+              newId,
+            );
+            conversationIdRef.current = newId;
+            setConversationId(newId);
+            saveConversationId(newId);
+          }
         }
       } catch (e) {
         console.error("Failed to parse WebSocket message:", e);
