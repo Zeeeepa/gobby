@@ -2059,10 +2059,11 @@ export function useChat() {
   // Update sendMessageRef with the latest sendMessage callback
   sendMessageRef.current = sendMessage;
 
-  // Respond to an AskUserQuestion pending in the backend
+  // Respond to an AskUserQuestion pending in the backend.
+  // Returns false if WS is not connected (caller can show feedback).
   const respondToQuestion = useCallback(
-    (toolCallId: string, answers: Record<string, string>) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    (toolCallId: string, answers: Record<string, string>): boolean => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false;
       wsRef.current.send(
         JSON.stringify({
           type: "ask_user_response",
@@ -2071,14 +2072,16 @@ export function useChat() {
           answers,
         }),
       );
+      return true;
     },
     [],
   );
 
-  // Respond to a tool approval request
+  // Respond to a tool approval request.
+  // Returns false if WS is not connected (caller can show feedback).
   const respondToApproval = useCallback(
-    (toolCallId: string, decision: "approve" | "reject" | "approve_always") => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    (toolCallId: string, decision: "approve" | "reject" | "approve_always"): boolean => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false;
       wsRef.current.send(
         JSON.stringify({
           type: "tool_approval_response",
@@ -2087,6 +2090,7 @@ export function useChat() {
           decision,
         }),
       );
+      return true;
     },
     [],
   );

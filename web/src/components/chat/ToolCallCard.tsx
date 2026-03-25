@@ -15,8 +15,8 @@ import { useArtifactContext } from './artifacts/ArtifactContext'
 
 interface ToolCallCardProps {
   toolCalls: ToolCall[]
-  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
@@ -678,7 +678,7 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   )
 }
 
-const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
+const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
   const isActive = call.status === 'calling' || call.status === 'pending_approval'
   const [expanded, setExpanded] = useState(isActive)
   const displayName = formatToolName(call.tool_name)
@@ -779,12 +779,18 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
   )
 })
 
-function ToolApprovalCard({ call, onRespondToApproval }: { call: ToolCall; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void }) {
+function ToolApprovalCard({ call, onRespondToApproval }: { call: ToolCall; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void }) {
   const displayName = formatToolName(call.tool_name)
   const isLive = onRespondToApproval && call.status === 'pending_approval'
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const handleDecision = (decision: 'approve' | 'reject' | 'approve_always') => {
-    onRespondToApproval?.(call.id, decision)
+    const sent = onRespondToApproval?.(call.id, decision)
+    if (sent === false) {
+      setSendError('Disconnected — reconnecting...')
+    } else {
+      setSendError(null)
+    }
   }
 
   // Read-only: show what happened
@@ -835,6 +841,9 @@ function ToolApprovalCard({ call, onRespondToApproval }: { call: ToolCall; onRes
           Reject
         </Button>
       </div>
+      {sendError && (
+        <div className="px-3 pb-2 text-xs text-warning-foreground">{sendError}</div>
+      )}
     </div>
   )
 }
@@ -858,12 +867,13 @@ function parseAnsweredValues(result: ToolResult | undefined): Record<string, str
   return null
 }
 
-function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
+function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void }) {
   const args = call.arguments as { questions?: AskUserQuestionItem[] } | undefined
   const questions = args?.questions
   const [selectedOptions, setSelectedOptions] = useState<Record<number, string[]>>({})
   const [otherTexts, setOtherTexts] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   if (!questions || !Array.isArray(questions)) return null
 
@@ -937,8 +947,13 @@ function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: 
       if (selected.includes('__other__')) answers[q.question] = otherTexts[qi] || ''
       else if (selected.length > 0) answers[q.question] = selected.join(', ')
     })
-    onRespond(call.id, answers)
-    setSubmitted(true)
+    const sent = onRespond(call.id, answers)
+    if (sent === false) {
+      setSendError('Disconnected — reconnecting...')
+    } else {
+      setSendError(null)
+      setSubmitted(true)
+    }
   }
 
   const hasSelection = Object.values(selectedOptions).some((s) => s.length > 0)
@@ -1003,6 +1018,9 @@ function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: 
         <Button size="sm" variant="primary" onClick={handleSubmit} className="mt-2">
           Submit
         </Button>
+      )}
+      {sendError && (
+        <div className="mt-1.5 text-xs text-warning-foreground">{sendError}</div>
       )}
     </div>
   )
@@ -1116,8 +1134,8 @@ function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondTo
   group: ToolCallGroup
   expanded: boolean
   onToggle: () => void
-  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }) {
@@ -1174,8 +1192,8 @@ export function buildChainSummary(toolCalls: ToolCall[]): string {
 
 interface ToolChainGroupProps {
   toolCalls: ToolCall[]
-  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }

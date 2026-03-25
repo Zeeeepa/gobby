@@ -10,8 +10,8 @@ interface MessageListProps {
   isStreaming: boolean
   isThinking: boolean
   isLoadingMessages?: boolean
-  onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
