@@ -300,7 +300,9 @@ class TestDeleteTask:
         """Returns specific error when task has dependent task(s)."""
         task = _make_task()
         mock_task_manager.get_task.return_value = task
-        mock_task_manager.delete_task.side_effect = ValueError(
+        from gobby.storage.tasks._models import TaskHasDependentsError
+
+        mock_task_manager.delete_task.side_effect = TaskHasDependentsError(
             "Cannot delete: has dependent task(s)"
         )
         registry = _create_registry(mock_task_manager, mock_sync_manager)
@@ -314,7 +316,9 @@ class TestDeleteTask:
         """Returns specific error when task has children."""
         task = _make_task()
         mock_task_manager.get_task.return_value = task
-        mock_task_manager.delete_task.side_effect = ValueError("Cannot delete: has children")
+        from gobby.storage.tasks._models import TaskHasChildrenError
+
+        mock_task_manager.delete_task.side_effect = TaskHasChildrenError("Cannot delete: has children")
         registry = _create_registry(mock_task_manager, mock_sync_manager)
 
         result = await registry.call("delete_task", {"task_id": task.id, "cascade": False})
