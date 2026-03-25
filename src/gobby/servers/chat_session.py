@@ -31,6 +31,7 @@ from claude_agent_sdk.types import (
     HookInput as SDKHookInput,
 )
 from claude_agent_sdk.types import (
+    PermissionMode,
     StreamEvent,
     SyncHookJSONOutput,
     UserPromptSubmitHookSpecificOutput,
@@ -775,7 +776,7 @@ class ChatSession(ChatSessionPermissionsMixin):
         self._model = new_model
 
     # Map Gobby chat_mode values to SDK PermissionMode values
-    _MODE_TO_SDK: ClassVar[dict[str, str]] = {
+    _MODE_TO_SDK: ClassVar[dict[str, PermissionMode]] = {
         "plan": "plan",
         "accept_edits": "acceptEdits",
         "bypass": "bypassPermissions",
@@ -783,7 +784,7 @@ class ChatSession(ChatSessionPermissionsMixin):
     }
 
     @staticmethod
-    def _to_sdk_permission_mode(chat_mode: str) -> str:
+    def _to_sdk_permission_mode(chat_mode: str) -> PermissionMode:
         """Convert a Gobby chat_mode to an SDK PermissionMode string."""
         return ChatSession._MODE_TO_SDK.get(chat_mode, "default")
 

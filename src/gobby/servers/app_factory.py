@@ -335,7 +335,6 @@ def create_app(server: "HTTPServer") -> FastAPI:
     # Convert glob patterns (e.g. "http://localhost:*") to a single regex
     # because CORSMiddleware treats allow_origins as literal strings.
     import fnmatch
-    import re
 
     origin_regex_parts = [fnmatch.translate(o) for o in cors_origins if "*" in o]
     exact_origins = [o for o in cors_origins if "*" not in o]
@@ -344,7 +343,7 @@ def create_app(server: "HTTPServer") -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=exact_origins if exact_origins else [],
-        allow_origin_regex=re.compile(origin_regex) if origin_regex else None,
+        allow_origin_regex=origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
