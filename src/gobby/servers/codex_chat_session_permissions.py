@@ -190,7 +190,7 @@ class CodexChatSessionPermissionsMixin:
             try:
                 self._on_mode_persist(mode)
             except Exception as e:
-                logger.warning("Failed to persist chat_mode=%s: %s", mode, e)
+                logger.warning(f"Failed to persist chat_mode={mode}: {e}")
 
     def approve_plan(self) -> None:
         """Mark the current plan as approved, unlocking write tools."""
@@ -301,6 +301,9 @@ class CodexChatSessionPermissionsMixin:
         self._pending_approval_decision = decision
         if self._pending_approval_event is not None:
             self._pending_approval_event.set()
+
+    async def sync_sdk_permission_mode(self) -> None:
+        """No-op for Codex — permission mode is enforced via approval callbacks."""
 
     @property
     def has_pending_approval(self) -> bool:

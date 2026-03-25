@@ -90,7 +90,7 @@ class CostCalculator:
         """
         resolved = self._resolve_model(model)
         if resolved is None:
-            logger.debug("No cost data for model %r", model)
+            logger.debug(f"No cost data for model {model!r}")
             return None
 
         cost = self._costs[resolved]

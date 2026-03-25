@@ -60,30 +60,28 @@ export function SystemHealthCard({ data }: Props) {
         </div>
 
         <div className="dash-services-status">
-          {qdrant && (
-            <div className="dash-service-row">
-              <span
-                className={`dash-health-dot dash-health-dot--${qdrant.healthy ? 'healthy' : qdrant.configured ? 'unhealthy' : 'unknown'}`}
-              />
-              <span>Qdrant {qdrant.healthy ? 'connected' : qdrant.configured ? 'disconnected' : 'not configured'}</span>
-            </div>
-          )}
-          {neo4j && (
-            <div className="dash-service-row">
-              <span
-                className={`dash-health-dot dash-health-dot--${neo4j.healthy ? 'healthy' : neo4j.configured ? 'unhealthy' : 'unknown'}`}
-              />
-              <span>Neo4j {neo4j.healthy ? 'connected' : neo4j.configured ? 'disconnected' : 'not configured'}</span>
-            </div>
-          )}
-          {externalTotal > 0 && (
-            <div className="dash-service-row">
-              <span
-                className={`dash-health-dot dash-health-dot--${externalHealthy === externalTotal ? 'healthy' : externalHealthy > 0 ? 'degraded' : 'unhealthy'}`}
-              />
-              <span>External MCPs {externalHealthy}/{externalTotal} connected</span>
-            </div>
-          )}
+          {[
+            qdrant && {
+              label: `Qdrant ${qdrant.healthy ? 'connected' : qdrant.configured ? 'disconnected' : 'not configured'}`,
+              status: qdrant.healthy ? 'healthy' : qdrant.configured ? 'unhealthy' : 'unknown',
+            },
+            neo4j && {
+              label: `Neo4j ${neo4j.healthy ? 'connected' : neo4j.configured ? 'disconnected' : 'not configured'}`,
+              status: neo4j.healthy ? 'healthy' : neo4j.configured ? 'unhealthy' : 'unknown',
+            },
+            externalTotal > 0 && {
+              label: `External MCPs ${externalHealthy}/${externalTotal} connected`,
+              status: externalHealthy === externalTotal ? 'healthy' : externalHealthy > 0 ? 'degraded' : 'unhealthy',
+            },
+          ]
+            .filter((s): s is { label: string; status: string } => !!s)
+            .sort((a, b) => a.label.localeCompare(b.label))
+            .map(s => (
+              <div key={s.label} className="dash-service-row">
+                <span className={`dash-health-dot dash-health-dot--${s.status}`} />
+                <span>{s.label}</span>
+              </div>
+            ))}
         </div>
       </div>
     </div>

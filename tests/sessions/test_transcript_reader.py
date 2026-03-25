@@ -79,7 +79,7 @@ class TestTranscriptReaderGzipFallback:
         session = MagicMock()
         session.external_id = external_id
         session.source = "claude"
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -108,7 +108,7 @@ class TestTranscriptReaderGzipFallback:
         session = MagicMock()
         session.external_id = external_id
         session.source = "claude"
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -126,7 +126,7 @@ class TestTranscriptReaderGzipFallback:
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -139,7 +139,7 @@ class TestTranscriptReaderGzipFallback:
     async def test_returns_empty_when_no_external_id(self):
         session = MagicMock()
         session.external_id = None
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -174,7 +174,7 @@ class TestTranscriptReaderGzipFallback:
         session = MagicMock()
         session.external_id = external_id
         session.source = "claude"
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -198,7 +198,7 @@ class TestTranscriptReaderGzipFallback:
         session = MagicMock()
         session.external_id = external_id
         session.source = "claude"
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -214,7 +214,7 @@ class TestTranscriptReaderJsonlFallback:
 
     @pytest.mark.asyncio
     async def test_falls_back_to_jsonl(self, tmp_path: Path):
-        jsonl_path = tmp_path / "transcript.jsonl"
+        transcript_path = tmp_path / "transcript.jsonl"
         lines = [
             {"type": "user", "message": {"role": "user", "content": "hello"}},
             {
@@ -222,12 +222,12 @@ class TestTranscriptReaderJsonlFallback:
                 "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
             },
         ]
-        _write_jsonl_file(jsonl_path, lines)
+        _write_jsonl_file(transcript_path, lines)
 
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = str(jsonl_path)
+        session.transcript_path = str(transcript_path)
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -244,7 +244,7 @@ class TestTranscriptReaderJsonlFallback:
 
     @pytest.mark.asyncio
     async def test_count_falls_back_to_jsonl(self, tmp_path: Path):
-        jsonl_path = tmp_path / "transcript.jsonl"
+        transcript_path = tmp_path / "transcript.jsonl"
         lines = [
             {"type": "user", "message": {"role": "user", "content": "hello"}},
             {
@@ -252,12 +252,12 @@ class TestTranscriptReaderJsonlFallback:
                 "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
             },
         ]
-        _write_jsonl_file(jsonl_path, lines)
+        _write_jsonl_file(transcript_path, lines)
 
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = str(jsonl_path)
+        session.transcript_path = str(transcript_path)
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -275,7 +275,7 @@ class TestTranscriptReaderJsonlFallback:
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = "/nonexistent/path.jsonl"
+        session.transcript_path = "/nonexistent/path.jsonl"
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -290,7 +290,7 @@ class TestTranscriptReaderJsonlFallback:
 
     @pytest.mark.asyncio
     async def test_role_filter_applied(self, tmp_path: Path):
-        jsonl_path = tmp_path / "transcript.jsonl"
+        transcript_path = tmp_path / "transcript.jsonl"
         lines = [
             {"type": "user", "message": {"role": "user", "content": "hello"}},
             {
@@ -298,12 +298,12 @@ class TestTranscriptReaderJsonlFallback:
                 "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
             },
         ]
-        _write_jsonl_file(jsonl_path, lines)
+        _write_jsonl_file(transcript_path, lines)
 
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = str(jsonl_path)
+        session.transcript_path = str(transcript_path)
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -319,16 +319,16 @@ class TestTranscriptReaderJsonlFallback:
 
     @pytest.mark.asyncio
     async def test_pagination_applied(self, tmp_path: Path):
-        jsonl_path = tmp_path / "transcript.jsonl"
+        transcript_path = tmp_path / "transcript.jsonl"
         lines = [
             {"type": "user", "message": {"role": "user", "content": f"msg {i}"}} for i in range(10)
         ]
-        _write_jsonl_file(jsonl_path, lines)
+        _write_jsonl_file(transcript_path, lines)
 
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = str(jsonl_path)
+        session.transcript_path = str(transcript_path)
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -344,7 +344,7 @@ class TestTranscriptReaderRendered:
 
     @pytest.mark.asyncio
     async def test_get_rendered_messages_jsonl(self, tmp_path: Path):
-        jsonl_path = tmp_path / "transcript.jsonl"
+        transcript_path = tmp_path / "transcript.jsonl"
         lines = [
             {"type": "user", "message": {"role": "user", "content": "hello"}},
             {
@@ -352,12 +352,12 @@ class TestTranscriptReaderRendered:
                 "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
             },
         ]
-        _write_jsonl_file(jsonl_path, lines)
+        _write_jsonl_file(transcript_path, lines)
 
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = str(jsonl_path)
+        session.transcript_path = str(transcript_path)
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -387,7 +387,7 @@ class TestTranscriptReaderRendered:
         session = MagicMock()
         session.external_id = external_id
         session.source = "claude"
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -401,16 +401,16 @@ class TestTranscriptReaderRendered:
 
     @pytest.mark.asyncio
     async def test_get_rendered_messages_pagination(self, tmp_path: Path):
-        jsonl_path = tmp_path / "transcript.jsonl"
+        transcript_path = tmp_path / "transcript.jsonl"
         lines = []
         for i in range(10):
             lines.append({"type": "user", "message": {"role": "user", "content": f"msg {i}"}})
-        _write_jsonl_file(jsonl_path, lines)
+        _write_jsonl_file(transcript_path, lines)
 
         session = MagicMock()
         session.external_id = "no-archive"
         session.source = "claude"
-        session.jsonl_path = str(jsonl_path)
+        session.transcript_path = str(transcript_path)
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -442,7 +442,7 @@ class TestTranscriptReaderRendered:
         session = MagicMock()
         session.external_id = external_id
         session.source = "claude"
-        session.jsonl_path = None
+        session.transcript_path = None
 
         session_manager = MagicMock()
         session_manager.get.return_value = session
@@ -462,3 +462,166 @@ class TestTranscriptReaderRendered:
         reader = TranscriptReader(session_manager)
         result = await reader.get_rendered_messages("empty-session")
         assert result == []
+
+
+class TestTranscriptReaderGeminiJSON:
+    """TranscriptReader handles Gemini native JSON session files."""
+
+    @pytest.mark.asyncio
+    async def test_read_gemini_json_get_messages(self, tmp_path: Path):
+        """get_messages works with Gemini JSON session files."""
+        json_path = tmp_path / "session-2025-03-23T10-00-00-abc12345.json"
+        gemini_session = {
+            "sessionId": "abc12345-full-uuid",
+            "messages": [
+                {"type": "user", "content": "hello gemini", "timestamp": "2025-03-23T10:00:00Z"},
+                {"type": "gemini", "content": "hi there!", "timestamp": "2025-03-23T10:00:01Z"},
+            ],
+        }
+        json_path.write_text(json.dumps(gemini_session))
+
+        session = MagicMock()
+        session.source = "gemini"
+        session.transcript_path = str(json_path)
+        session.external_id = None
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        reader = TranscriptReader(session_manager)
+        result = await reader.get_messages("sess-1", limit=50)
+
+        assert len(result) == 2
+        assert result[0]["role"] == "user"
+        assert result[0]["content"] == "hello gemini"
+        assert result[1]["role"] == "assistant"
+        assert result[1]["content"] == "hi there!"
+
+    @pytest.mark.asyncio
+    async def test_read_gemini_json_rendered(self, tmp_path: Path):
+        """get_rendered_messages works with Gemini JSON session files."""
+        json_path = tmp_path / "session-2025-03-23T10-00-00-abc12345.json"
+        gemini_session = {
+            "sessionId": "abc12345-full-uuid",
+            "messages": [
+                {"type": "user", "content": "what is 2+2?", "timestamp": "2025-03-23T10:00:00Z"},
+                {"type": "gemini", "content": "4", "timestamp": "2025-03-23T10:00:01Z"},
+            ],
+        }
+        json_path.write_text(json.dumps(gemini_session))
+
+        session = MagicMock()
+        session.source = "gemini"
+        session.transcript_path = str(json_path)
+        session.external_id = None
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        reader = TranscriptReader(session_manager)
+        result = await reader.get_rendered_messages("sess-1")
+
+        assert len(result) == 2
+        assert isinstance(result[0], RenderedMessage)
+        assert result[0].role == "user"
+        assert "2+2" in result[0].content
+        assert result[1].role == "assistant"
+
+    @pytest.mark.asyncio
+    async def test_count_gemini_json_messages(self, tmp_path: Path):
+        """count_messages works with Gemini JSON session files."""
+        json_path = tmp_path / "session-test.json"
+        gemini_session = {
+            "sessionId": "test-uuid",
+            "messages": [
+                {"type": "user", "content": "msg1", "timestamp": "2025-03-23T10:00:00Z"},
+                {"type": "gemini", "content": "reply1", "timestamp": "2025-03-23T10:00:01Z"},
+                {"type": "user", "content": "msg2", "timestamp": "2025-03-23T10:00:02Z"},
+            ],
+        }
+        json_path.write_text(json.dumps(gemini_session))
+
+        session = MagicMock()
+        session.source = "gemini"
+        session.transcript_path = str(json_path)
+        session.external_id = None
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        reader = TranscriptReader(session_manager)
+        count = await reader.count_messages("sess-1")
+
+        assert count == 3
+
+    @pytest.mark.asyncio
+    async def test_gemini_json_with_tool_calls(self, tmp_path: Path):
+        """Gemini JSON with embedded toolCalls parses correctly."""
+        json_path = tmp_path / "session-tools.json"
+        gemini_session = {
+            "sessionId": "tools-uuid",
+            "messages": [
+                {"type": "user", "content": "list files", "timestamp": "2025-03-23T10:00:00Z"},
+                {
+                    "type": "gemini",
+                    "content": "Let me check.",
+                    "timestamp": "2025-03-23T10:00:01Z",
+                    "toolCalls": [
+                        {"name": "ReadFile", "args": {"path": "/tmp/test.py"}},
+                    ],
+                },
+            ],
+        }
+        json_path.write_text(json.dumps(gemini_session))
+
+        session = MagicMock()
+        session.source = "gemini"
+        session.transcript_path = str(json_path)
+        session.external_id = None
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        reader = TranscriptReader(session_manager)
+        result = await reader.get_messages("sess-1", limit=50)
+
+        # user + assistant text + tool_use = at least 3 messages
+        assert len(result) >= 3
+        tool_msgs = [m for m in result if m["content_type"] == "tool_use"]
+        assert len(tool_msgs) >= 1
+        assert tool_msgs[0]["tool_name"] == "ReadFile"
+
+    @pytest.mark.asyncio
+    async def test_jsonl_still_works_for_gemini(self, tmp_path: Path):
+        """Gemini source with .jsonl file still uses JSONL parsing (regression test)."""
+        jsonl_path = tmp_path / "transcript.jsonl"
+        lines = [
+            {
+                "type": "message",
+                "role": "user",
+                "content": "hello",
+                "timestamp": "2025-03-23T10:00:00Z",
+            },
+            {
+                "type": "message",
+                "role": "model",
+                "content": "hi",
+                "timestamp": "2025-03-23T10:00:01Z",
+            },
+        ]
+        _write_jsonl_file(jsonl_path, lines)
+
+        session = MagicMock()
+        session.source = "gemini"
+        session.transcript_path = str(jsonl_path)
+        session.external_id = None
+
+        session_manager = MagicMock()
+        session_manager.get.return_value = session
+
+        reader = TranscriptReader(session_manager)
+        result = await reader.get_messages("sess-1", limit=50)
+
+        assert len(result) == 2
+        assert result[0]["role"] == "user"
+        assert result[1]["role"] == "assistant"

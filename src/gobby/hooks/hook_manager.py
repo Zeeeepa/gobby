@@ -1,30 +1,7 @@
-"""
-Hook Manager - Clean Coordinator for Claude Code Hooks.
+"""Hook Manager - Coordinator for hook events.
 
-This is the refactored HookManager that serves purely as a coordinator,
-delegating all work to focused subsystems. It replaces the 5,774-line
-God Object with a ~300-line routing layer.
-
-Architecture:
-    HookManager creates and coordinates subsystems:
-    - Session-agnostic: DaemonClient, TranscriptProcessor
-    - Session-scoped: SessionManager
-    - Workflow-driven: RuleEngine + WorkflowHookHandler handle session lifecycle
-
-Example:
-    ```python
-    from gobby.hooks.hook_manager import HookManager
-
-    manager = HookManager(
-        daemon_host="localhost",
-        daemon_port=60887
-    )
-
-    result = manager.execute(
-        hook_type="session-start",
-        input_data={"external_id": "abc123", ...}
-    )
-    ```
+Delegates dispatch work to :mod:`gobby.hooks.dispatchers` and event handling
+to :mod:`gobby.hooks.event_handlers`.  See :class:`HookManager` for details.
 """
 
 import asyncio
@@ -36,6 +13,27 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from gobby.hooks.dispatchers.mcp import (
+    dispatch_mcp_calls as _dispatch_mcp_calls_impl,
+)
+from gobby.hooks.dispatchers.mcp import (
+    format_discovery_result as _format_discovery_result_impl,
+)
+from gobby.hooks.dispatchers.mcp import (
+    proxy_self_call as _proxy_self_call_impl,
+)
+from gobby.hooks.dispatchers.mcp import (
+    run_coro_blocking as _run_coro_blocking_impl,
+)
+from gobby.hooks.dispatchers.webhook import (
+    dispatch_webhooks_async as _dispatch_webhooks_async_impl,
+)
+from gobby.hooks.dispatchers.webhook import (
+    dispatch_webhooks_sync as _dispatch_webhooks_sync_impl,
+)
+from gobby.hooks.dispatchers.webhook import (
+    evaluate_blocking_webhooks as _evaluate_blocking_webhooks_impl,
+)
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.factory import HookManagerFactory
 from gobby.telemetry.tracing import create_span
@@ -401,11 +399,7 @@ class HookManager:
                             f"{result.savings_pct:.0f}% reduction]\n{result.compressed}"
                         )
                         self.logger.info(
-                            "Compressed MCP output: strategy=%s savings=%.0f%% (%d->%d chars)",
-                            result.strategy_name,
-                            result.savings_pct,
-                            result.original_chars,
-                            result.compressed_chars,
+                            f"Compressed MCP output: strategy={result.strategy_name} savings={result.savings_pct:.0f}% ({result.original_chars}->{result.compressed_chars} chars)",
                         )
             except Exception as e:
                 self.logger.warning(f"Output compression failed: {e}")
@@ -476,11 +470,7 @@ class HookManager:
             # they're explicit side effects that should fire regardless of decision
             mcp_calls = (workflow_response.metadata or {}).get("mcp_calls", [])
             self.logger.info(
-                "Rule evaluation for %s: decision=%s, mcp_calls=%d, session=%s",
-                event.event_type,
-                workflow_response.decision,
-                len(mcp_calls),
-                event.metadata.get("_platform_session_id", "unknown"),
+                f"Rule evaluation for {event.event_type}: decision={workflow_response.decision}, mcp_calls={len(mcp_calls)}, session={event.metadata.get('_platform_session_id', 'unknown')}",
             )
 
             with create_span(
@@ -528,9 +518,7 @@ class HookManager:
 
             if workflow_response.decision != "allow":
                 self.logger.info(
-                    "Workflow blocked/modified event: %s, session=%s",
-                    workflow_response.decision,
-                    event.metadata.get("_platform_session_id", "unknown"),
+                    f"Workflow blocked/modified event: {workflow_response.decision}, session={event.metadata.get('_platform_session_id', 'unknown')}",
                 )
                 # Merge any auto-heal context into the block response
                 if extra_context and workflow_response.context:
@@ -562,378 +550,46 @@ class HookManager:
             return workflow_context, None
 
         except Exception as e:
-            self.logger.error("Workflow evaluation failed: %s", e, exc_info=True)
+            self.logger.error(f"Workflow evaluation failed: {e}", exc_info=True)
             # Fail-open for workflow errors
             return None, None
 
     def _evaluate_blocking_webhooks(self, event: HookEvent) -> HookResponse | None:
-        """Evaluate blocking webhooks before handler execution.
-
-        Args:
-            event: The hook event to evaluate webhooks for.
-
-        Returns:
-            HookResponse if a webhook blocked the event, None otherwise.
-        """
-        try:
-            webhook_results = self._dispatch_webhooks_sync(event, blocking_only=True)
-            decision, reason = self._webhook_dispatcher.get_blocking_decision(webhook_results)
-            if decision == "block":
-                self.logger.info(f"Webhook blocked event: {reason}")
-                return HookResponse(decision="block", reason=reason or "Blocked by webhook")
-        except Exception as e:
-            self.logger.error(f"Blocking webhook dispatch failed: {e}", exc_info=True)
-            # Fail-open for webhook errors
-        return None
+        """Evaluate blocking webhooks before handler execution."""
+        return _evaluate_blocking_webhooks_impl(
+            event, self._webhook_dispatcher, self.logger, self._loop
+        )
 
     def _dispatch_webhooks_sync(self, event: HookEvent, blocking_only: bool = False) -> list[Any]:
-        """
-        Dispatch webhooks synchronously (for blocking webhooks).
-
-        Args:
-            event: The hook event to dispatch.
-            blocking_only: If True, only dispatch to blocking (can_block=True) endpoints.
-
-        Returns:
-            List of WebhookResult objects.
-        """
-        from gobby.hooks.webhooks import WebhookResult
-
-        if not self._webhook_dispatcher.config.enabled:
-            return []
-
-        # Filter endpoints if blocking_only
-        matching_endpoints = [
-            ep
-            for ep in self._webhook_dispatcher.config.endpoints
-            if ep.enabled
-            and self._webhook_dispatcher._matches_event(ep, event.event_type.value)
-            and (not blocking_only or ep.can_block)
-        ]
-
-        if not matching_endpoints:
-            return []
-
-        # Build payload once
-        payload = self._webhook_dispatcher._build_payload(event)
-
-        # Run async dispatch in sync context
-        async def dispatch_all() -> list[WebhookResult]:
-            results: list[WebhookResult] = []
-            for endpoint in matching_endpoints:
-                result = await self._webhook_dispatcher._dispatch_single(endpoint, payload)
-                results.append(result)
-            return results
-
-        # Execute in event loop
-        try:
-            asyncio.get_running_loop()
-            # Already in async context - this method shouldn't be called here
-            # Fall back to creating a new thread to run the coroutine synchronously
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, dispatch_all())
-                return future.result()
-        except RuntimeError:
-            # Not in async context, run synchronously
-            return asyncio.run(dispatch_all())
+        """Dispatch webhooks synchronously (for blocking webhooks)."""
+        return _dispatch_webhooks_sync_impl(
+            event, self._webhook_dispatcher, self.logger, blocking_only
+        )
 
     def _dispatch_webhooks_async(self, event: HookEvent) -> None:
-        """
-        Dispatch non-blocking webhooks asynchronously (fire-and-forget).
-
-        Args:
-            event: The hook event to dispatch.
-        """
-        if not self._webhook_dispatcher.config.enabled:
-            return
-
-        # Filter to non-blocking endpoints only
-        matching_endpoints = [
-            ep
-            for ep in self._webhook_dispatcher.config.endpoints
-            if ep.enabled
-            and self._webhook_dispatcher._matches_event(ep, event.event_type.value)
-            and not ep.can_block
-        ]
-
-        if not matching_endpoints:
-            return
-
-        # Build payload
-        payload = self._webhook_dispatcher._build_payload(event)
-
-        async def dispatch_all() -> None:
-            tasks = [
-                self._webhook_dispatcher._dispatch_single(ep, payload) for ep in matching_endpoints
-            ]
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Fire and forget
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(dispatch_all())
-        except RuntimeError:
-            # No event loop, try using captured loop
-            if self._loop:
-                try:
-                    asyncio.run_coroutine_threadsafe(dispatch_all(), self._loop)
-                except Exception as e:
-                    self.logger.warning(f"Failed to schedule async webhook: {e}")
+        """Dispatch non-blocking webhooks asynchronously (fire-and-forget)."""
+        _dispatch_webhooks_async_impl(event, self._webhook_dispatcher, self.logger, self._loop)
 
     def _dispatch_mcp_calls(
         self, mcp_calls: list[dict[str, Any]], event: HookEvent
     ) -> list[dict[str, Any]]:
-        """Dispatch mcp_call effects from rule engine evaluation.
-
-        Injects event context (session_id, prompt_text) into each call's
-        arguments and dispatches via ToolProxyService.  For calls with
-        ``inject_result`` or ``block_on_failure``, the result is captured
-        and returned so that ``_evaluate_workflow_rules`` can inject context
-        or block the original tool call.
-
-        Args:
-            mcp_calls: List of mcp_call dicts from rule engine metadata.
-                Each has: server, tool, arguments, background,
-                inject_result, block_on_failure.
-            event: The originating HookEvent (for context injection).
-
-        Returns:
-            List of result dicts for calls that had inject_result or
-            block_on_failure set.  Each dict has keys: server, tool,
-            inject_result, block_on_failure, success, result.
-        """
-        if not self.tool_proxy_getter:
-            self.logger.debug("_dispatch_mcp_calls: no tool_proxy_getter, skipping")
-            return []
-
-        self.logger.info(
-            "_dispatch_mcp_calls: dispatching %d calls for %s",
-            len(mcp_calls),
-            event.event_type,
+        """Dispatch mcp_call effects from rule engine evaluation."""
+        return _dispatch_mcp_calls_impl(
+            mcp_calls, event, self.tool_proxy_getter, self._loop, self.logger
         )
-
-        # Capture in local so mypy narrows past the None guard for closures
-        _get_proxy = self.tool_proxy_getter
-        dispatch_results: list[dict[str, Any]] = []
-
-        for call in mcp_calls:
-            server = call.get("server")
-            tool = call.get("tool")
-            arguments = dict(call.get("arguments") or {})
-            background = call.get("background", False)
-            inject_result = call.get("inject_result", False)
-            block_on_failure = call.get("block_on_failure", False)
-            block_on_success = call.get("block_on_success", False)
-            needs_capture = inject_result or block_on_failure or block_on_success
-
-            if not server or not tool:
-                self.logger.warning("_dispatch_mcp_calls: missing server or tool in %s", call)
-                continue
-
-            self.logger.info("_dispatch_mcp_calls: %s/%s (background=%s)", server, tool, background)
-
-            # Inject event context into arguments
-            if "session_id" not in arguments:
-                arguments["session_id"] = event.metadata.get("_platform_session_id", "")
-            if "prompt_text" not in arguments:
-                arguments["prompt_text"] = event.data.get("prompt") if event.data else None
-            if "project_path" not in arguments:
-                arguments["project_path"] = event.metadata.get("project_path", "")
-            # Map prompt_text to query for tools that expect it (e.g., search_memories)
-            if "query" not in arguments and arguments.get("prompt_text"):
-                arguments["query"] = arguments["prompt_text"]
-
-            async def _call(s: str, t: str, args: dict[str, Any]) -> dict[str, Any] | None:
-                try:
-                    proxy = _get_proxy()
-                    if not proxy:
-                        self.logger.warning("_dispatch_mcp_calls: tool_proxy_getter returned None")
-                        return {"success": False, "error": "tool_proxy_getter returned None"}
-
-                    # Proxy self-routing: _proxy/* calls route to ToolProxyService
-                    # methods directly instead of going through call_tool dispatch
-                    if s == "_proxy":
-                        result = await self._proxy_self_call(proxy, t, args)
-                    else:
-                        result = await proxy.call_tool(s, t, args, strip_unknown=True)
-
-                    if isinstance(result, dict) and result.get("success") is False:
-                        self.logger.warning(
-                            "_dispatch_mcp_calls: %s/%s returned failure: %s",
-                            s,
-                            t,
-                            result.get("error", "unknown"),
-                        )
-                    return result
-                except Exception as exc:
-                    self.logger.error(
-                        "_dispatch_mcp_calls: %s/%s failed: %s", s, t, exc, exc_info=True
-                    )
-                    return {"success": False, "error": str(exc)}
-
-            # If we need to capture the result, always run blocking
-            if needs_capture:
-                result = self._run_coro_blocking(_call(server, tool, arguments))
-                success = isinstance(result, dict) and result.get("success", False)
-                dispatch_results.append(
-                    {
-                        "server": server,
-                        "tool": tool,
-                        "inject_result": inject_result,
-                        "block_on_failure": block_on_failure,
-                        "block_on_success": block_on_success,
-                        "success": success,
-                        "result": result,
-                    }
-                )
-                # If this call failed and block_on_failure is set, stop processing
-                if block_on_failure and not success:
-                    break
-                continue
-
-            coro = _call(server, tool, arguments)
-
-            if background:
-                # Fire-and-forget (same pattern as broadcasting)
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(coro)
-                except RuntimeError:
-                    if self._loop and self._loop.is_running():
-                        try:
-                            asyncio.run_coroutine_threadsafe(coro, self._loop)
-                        except Exception as e:
-                            self.logger.warning(
-                                "_dispatch_mcp_calls: failed to schedule %s/%s: %s",
-                                server,
-                                tool,
-                                e,
-                            )
-                    else:
-                        try:
-                            asyncio.run(coro)
-                        except Exception as e:
-                            self.logger.warning(
-                                "_dispatch_mcp_calls: background %s/%s failed: %s",
-                                server,
-                                tool,
-                                e,
-                            )
-            else:
-                # Blocking dispatch — must await completion, not fire-and-forget
-                self._run_coro_blocking(coro)
-
-        return dispatch_results
 
     def _run_coro_blocking(self, coro: Any) -> Any:
         """Run a coroutine blocking, using the best available event loop strategy."""
-        if self._loop and self._loop.is_running():
-            try:
-                future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-                return future.result(timeout=30)
-            except Exception as e:
-                self.logger.error("_run_coro_blocking: threadsafe failed: %s", e)
-                return None
-        else:
-            try:
-                return asyncio.run(coro)
-            except Exception as e:
-                self.logger.error("_run_coro_blocking: asyncio.run failed: %s", e)
-                return None
+        return _run_coro_blocking_impl(coro, self._loop, self.logger)
 
     async def _proxy_self_call(self, proxy: Any, tool: str, args: dict[str, Any]) -> dict[str, Any]:
-        """Route _proxy/* tool calls to ToolProxyService methods directly.
-
-        This enables auto-heal rules to call list_mcp_servers, list_tools,
-        and get_tool_schema without going through the MCP call_tool dispatch
-        (which only routes to sub-servers, not proxy-level tools).
-        """
-        result: dict[str, Any]
-        if tool == "list_mcp_servers":
-            result = await proxy.list_servers()
-            return result
-        elif tool == "list_tools":
-            server_name = args.get("server_name", "")
-            result = await proxy.list_tools(server_name)
-            return result
-        elif tool == "get_tool_schema":
-            server_name = args.get("server_name", "")
-            tool_name = args.get("tool_name", "")
-            result = await proxy.get_tool_schema(server_name, tool_name)
-            return result
-        else:
-            return {"success": False, "error": f"Unknown _proxy tool: {tool}"}
+        """Route _proxy/* tool calls to ToolProxyService methods directly."""
+        return await _proxy_self_call_impl(proxy, tool, args)
 
     @staticmethod
     def _format_discovery_result(dr: dict[str, Any]) -> str:
         """Format a proxy discovery result for context injection."""
-        import json
-
-        tool = dr.get("tool", "")
-        result = dr.get("result") or {}
-
-        if tool == "list_mcp_servers":
-            servers = result.get("servers", [])
-            lines = ["**Available MCP Servers:**"]
-            for s in servers:
-                lines.append(f"- {s.get('name')} ({s.get('state', 'unknown')})")
-            return "\n".join(lines)
-
-        elif tool == "list_tools":
-            tools = result.get("tools", [])
-            server = dr.get("_args", {}).get("server_name", result.get("server_name", ""))
-            lines = [f"**Tools on {server}:**"]
-            for t in tools:
-                name = t.get("name", "unknown")
-                brief = t.get("brief", "")
-                lines.append(f"- {name}: {brief}")
-            return "\n".join(lines)
-
-        elif tool == "get_tool_schema":
-            tool_info = result.get("tool", {})
-            schema = tool_info.get("inputSchema", {})
-            name = tool_info.get("name", "")
-            desc = tool_info.get("description", "")
-            return f"**Schema for {name}:**\n{desc}\n```json\n{json.dumps(schema, indent=2)}\n```"
-
-        elif tool == "search_memories":
-            memories = result.get("memories", [])
-            if not memories:
-                return ""
-            lines = ["<project-memory>"]
-            for m in memories:
-                content = m.get("content", "").strip()
-                if content:
-                    lines.append(f"- {content}")
-            lines.append("</project-memory>")
-            return "\n".join(lines)
-
-        elif tool == "search_skills":
-            results = result.get("results", [])
-            if not results:
-                return ""
-            lines = ["<available-skills>"]
-            for r in results:
-                name = r.get("skill_name", "unknown")
-                desc = r.get("description", "")
-                score = r.get("score", 0)
-                if desc:
-                    lines.append(f"- **{name}**: {desc} (relevance: {score:.2f})")
-                else:
-                    lines.append(f"- **{name}** (relevance: {score:.2f})")
-            lines.append("")
-            lines.append('Load a skill: get_skill(name="skill-name") on gobby-skills')
-            lines.append(
-                'Search skill hubs for more: search_hub(query="...") on gobby-skills, '
-                'then install_skill(source="hub:slug") to use'
-            )
-            lines.append("</available-skills>")
-            return "\n".join(lines)
-
-        else:
-            return f"**{tool} result:**\n```json\n{json.dumps(result, indent=2, default=str)}\n```"
+        return _format_discovery_result_impl(dr)
 
     def _resolve_summary_output_path(self, session_id: str) -> str:
         """Resolve session summary output directory from the session's project.
@@ -957,7 +613,7 @@ class HookManager:
                 if project and project.repo_path:
                     return str(Path(project.repo_path) / ".gobby" / "session_summaries")
         except Exception as e:
-            self.logger.debug("_resolve_summary_output_path: fallback to global: %s", e)
+            self.logger.debug(f"_resolve_summary_output_path: fallback to global: {e}")
         return fallback
 
     def _dispatch_session_summaries(
@@ -993,10 +649,7 @@ class HookManager:
                 )
             except Exception as exc:
                 self.logger.error(
-                    "_dispatch_session_summaries: failed for session %s: %s: %s",
-                    session_id,
-                    type(exc).__name__,
-                    exc,
+                    f"_dispatch_session_summaries: failed for session {session_id}: {type(exc).__name__}: {exc}",
                     exc_info=True,
                 )
             finally:
@@ -1014,7 +667,7 @@ class HookManager:
                 try:
                     asyncio.run_coroutine_threadsafe(coro, self._loop)
                 except Exception as e:
-                    self.logger.warning("_dispatch_session_summaries: failed to schedule: %s", e)
+                    self.logger.warning(f"_dispatch_session_summaries: failed to schedule: {e}")
                     if done_event:
                         done_event.set()
             else:
@@ -1023,7 +676,7 @@ class HookManager:
                     try:
                         asyncio.run(coro)
                     except Exception as e:
-                        self.logger.warning("_dispatch_session_summaries: background failed: %s", e)
+                        self.logger.warning(f"_dispatch_session_summaries: background failed: {e}")
                         if done_event:
                             done_event.set()
 

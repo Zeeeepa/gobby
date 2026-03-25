@@ -279,7 +279,7 @@ def uninstall_gemini(project_path: Path) -> dict[str, Any]:
         if hooks_dir.exists() and not any(hooks_dir.iterdir()):
             hooks_dir.rmdir()
     except Exception as e:
-        logger.debug("Best-effort cleanup of hooks directory failed: %s", e)
+        logger.debug(f"Best-effort cleanup of hooks directory failed: {e}")
 
     # Remove MCP server from global settings (~/.gemini/settings.json)
     global_settings = Path.home() / ".gemini" / "settings.json"

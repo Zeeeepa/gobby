@@ -558,3 +558,17 @@ class TestComprehensions:
             "'ruff ', 'mypy ', 'eslint ', 'tsc '])"
         )
         assert ev.evaluate(expr) is True
+
+    def test_dunder_attribute_access_blocked(self) -> None:
+        """Dunder attributes must be rejected to prevent sandbox escape."""
+        ctx: dict[str, Any] = {"obj": "hello"}
+        ev = SafeExpressionEvaluator(ctx, {})
+        with pytest.raises(ValueError, match="dunder attribute"):
+            ev.evaluate_value("obj.__class__")
+
+    def test_dunder_chained_access_blocked(self) -> None:
+        """Chained dunder traversal like __class__.__base__ must be blocked."""
+        ctx: dict[str, Any] = {"obj": []}
+        ev = SafeExpressionEvaluator(ctx, {})
+        with pytest.raises(ValueError, match="dunder attribute"):
+            ev.evaluate_value("obj.__class__.__base__.__subclasses__")

@@ -525,16 +525,16 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
 
     @router.get("/running")
     async def list_running_agents() -> dict[str, Any]:
-        """List all currently running agents from the in-memory registry."""
+        """List all currently running agents from the database."""
         try:
-            from gobby.agents.registry import get_running_agent_registry
+            from gobby.storage.agents import LocalAgentRunManager
 
-            registry = get_running_agent_registry()
-            agents = registry.list_all()
+            manager = LocalAgentRunManager(server.services.database)
+            runs = manager.list_active()
             return {
                 "status": "success",
-                "agents": [a.to_dict() for a in agents],
-                "count": len(agents),
+                "agents": [r.to_dict() for r in runs],
+                "count": len(runs),
             }
         except Exception as e:
             logger.error(f"Error listing running agents: {e}", exc_info=True)
@@ -544,13 +544,16 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     async def list_agent_runs(
         status: str | None = Query(None),
         limit: int = Query(50, ge=1, le=200),
+        project_id: str | None = Query(
+            None, description="Filter by project ID (via parent session)"
+        ),
     ) -> dict[str, Any]:
         """List recent agent runs from the database with session enrichment."""
         try:
             from gobby.storage.agents import LocalAgentRunManager
 
             manager = LocalAgentRunManager(server.services.database)
-            runs = manager.list_by_status(status=status, limit=limit)
+            runs = manager.list_by_status(status=status, limit=limit, project_id=project_id)
 
             # Enrich with session data (token usage, cost)
             enriched = []
@@ -621,35 +624,24 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     async def cancel_agent_run(run_id: str) -> dict[str, Any]:
         """Cancel a running agent."""
         try:
-            from gobby.agents.registry import get_running_agent_registry
+            from gobby.agents.kill import kill_agent
+            from gobby.storage.agents import LocalAgentRunManager
 
-            registry = get_running_agent_registry()
-            agent = registry.get(run_id)
-            if not agent:
-                raise HTTPException(status_code=404, detail=f"Running agent '{run_id}' not found")
-
-            result = await registry.kill(run_id)
-
-            # Also update DB status — kill first since DB cancel is recoverable
-            try:
-                from gobby.storage.agents import LocalAgentRunManager
-
-                db_manager = LocalAgentRunManager(server.services.database)
-                db_manager.cancel(run_id)
-            except Exception as e:
-                logger.error(
-                    f"Agent {run_id} killed in registry but DB cancel failed: {e}",
-                    exc_info=True,
-                )
+            db = server.services.database
+            manager = LocalAgentRunManager(db)
+            run = manager.get(run_id)
+            if not run:
+                raise HTTPException(status_code=404, detail=f"Agent run '{run_id}' not found")
+            if run.status not in ("running", "pending"):
                 raise HTTPException(
-                    status_code=500,
-                    detail=(
-                        f"Agent '{run_id}' was killed in the process registry but "
-                        f"the database status update failed: {e}. "
-                        f"The DB record may still show 'running'. "
-                        f"This will be auto-corrected by cleanup_stale_runs."
-                    ),
-                ) from e
+                    status_code=400,
+                    detail=f"Agent run '{run_id}' is not active (status={run.status})",
+                )
+
+            result = await kill_agent(run, db, signal_name="TERM")
+
+            # Update DB status
+            manager.cancel(run_id)
 
             return {"status": "success", "result": result}
         except HTTPException:

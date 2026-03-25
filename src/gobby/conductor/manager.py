@@ -102,7 +102,7 @@ class ConductorManager:
 
             return result
         except Exception as e:
-            logger.warning("Conductor tick failed: %s", e)
+            logger.warning(f"Conductor tick failed: {e}")
             await self._destroy_session()
             return f"Conductor tick failed: {e}"
         finally:
@@ -157,7 +157,7 @@ class ConductorManager:
                         pass
 
                 except Exception as e:
-                    logger.warning("Failed to review execution %s: %s", execution.id, e)
+                    logger.warning(f"Failed to review execution {execution.id}: {e}")
 
             # Detect cross-execution patterns and append to last review
             if len(stored_reviews) >= 2:
@@ -171,12 +171,12 @@ class ConductorManager:
                             last_execution.id, json.dumps(last_review, default=str)
                         )
                     except Exception as e:
-                        logger.debug("Failed to store cross-execution patterns: %s", e)
+                        logger.debug(f"Failed to store cross-execution patterns: {e}")
 
             return f"Reviewed {reviewed_count} execution(s)" if reviewed_count else None
 
         except Exception as e:
-            logger.warning("Pipeline review failed: %s", e)
+            logger.warning(f"Pipeline review failed: {e}")
             return None
 
     async def _get_llm_review(self, prompt: str) -> dict[str, object] | None:
@@ -217,7 +217,7 @@ class ConductorManager:
             logger.debug("LLM review response was not valid JSON")
             return None
         except Exception as e:
-            logger.debug("LLM review request failed: %s", e)
+            logger.debug(f"LLM review request failed: {e}")
             return None
 
     async def _ensure_session(self) -> ChatSession:
@@ -230,7 +230,7 @@ class ConductorManager:
         if self._session and self._last_activity:
             idle = (datetime.now(UTC) - self._last_activity).total_seconds()
             if idle > self._config.idle_timeout_seconds:
-                logger.info("Conductor idle for %.0fs, tearing down session", idle)
+                logger.info(f"Conductor idle for {idle:.0f}s, tearing down session")
                 await self._destroy_session()
 
         if self._session and self._session.is_connected:
@@ -259,7 +259,7 @@ class ConductorManager:
 
         await session.start(model=self._config.model)
         self._session = session
-        logger.info("Conductor session created (model=%s)", self._config.model)
+        logger.info(f"Conductor session created (model={self._config.model})")
         return session
 
     async def _destroy_session(self) -> None:
@@ -268,7 +268,7 @@ class ConductorManager:
             try:
                 await self._session.stop()
             except Exception as e:
-                logger.debug("Error stopping conductor session: %s", e)
+                logger.debug(f"Error stopping conductor session: {e}")
             self._session = None
 
     async def shutdown(self) -> None:

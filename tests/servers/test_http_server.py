@@ -66,7 +66,7 @@ def http_server(
 @pytest.fixture
 def client(http_server: HTTPServer) -> Iterator[TestClient]:
     """Create a test client for the HTTP server."""
-    with patch("gobby.servers.http.HookManager") as MockHM:
+    with patch("gobby.servers.app_factory.HookManager") as MockHM:
         mock_instance = MockHM.return_value
         mock_instance._stop_registry = MagicMock()
         mock_instance.shutdown = MagicMock()
@@ -82,7 +82,7 @@ class TestSessionRegisterRequest:
         request = SessionRegisterRequest(
             external_id="test-key",
             machine_id=None,
-            jsonl_path=None,
+            transcript_path=None,
             title=None,
             source=None,
             parent_session_id=None,
@@ -99,7 +99,7 @@ class TestSessionRegisterRequest:
         request = SessionRegisterRequest(
             external_id="test-key",
             machine_id="machine-123",
-            jsonl_path="/path/to/transcript.jsonl",
+            transcript_path="/path/to/transcript.jsonl",
             title="Test Session",
             source="Claude Code",
             parent_session_id="parent-uuid",
@@ -188,7 +188,7 @@ class TestSessionEndpoints:
                 "source": "Claude Code",
                 "project_id": test_project["id"],
                 "title": "Full Session",
-                "jsonl_path": "/path/to/transcript.jsonl",
+                "transcript_path": "/path/to/transcript.jsonl",
                 "git_branch": "feature/test",
             },
         )
@@ -997,10 +997,10 @@ class FakeStopSignal:
     ) -> None:
         from datetime import datetime
 
-        self.signal_id = signal_id
+        self.session_id = signal_id
         self.reason = reason
         self.source = source
-        self.signaled_at = datetime.now(UTC)
+        self.requested_at = datetime.now(UTC)
         self.acknowledged = False
         self.acknowledged_at = None
 

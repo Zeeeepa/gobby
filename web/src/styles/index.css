@@ -113,11 +113,11 @@ body {
 .header-brand {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 
 .header-logo {
-  height: calc(var(--font-size-base) * 1.5);
+  height: 2.25rem;
   width: auto;
 }
 

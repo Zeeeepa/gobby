@@ -81,7 +81,7 @@ def lookup_cost(model: str) -> ModelCost:
     if best_match is not None:
         return _costs[best_match]
 
-    logger.debug("No cost data for model %r — returning zero cost", model)
+    logger.debug(f"No cost data for model {model!r} - returning zero cost")
     return _ZERO_COST
 
 

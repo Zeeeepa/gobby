@@ -548,6 +548,37 @@ class TestMacOSEnable:
 
     @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._plist_path")
+    def test_enable_skips_bootout_when_already_running(
+        self,
+        mock_plist_path: MagicMock,
+        mock_run: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Enable returns early without bootout when daemon is already running (#10680)."""
+        from gobby.cli.installers.service import enable_service_macos
+
+        plist_file = tmp_path / LAUNCHD_PLIST_NAME
+        plist_file.write_text("<plist>test</plist>")
+        mock_plist_path.return_value = plist_file
+
+        # Health check shows daemon running with PID
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stderr="",
+            stdout="\tpid = 12345\n\tstate = running\n",
+        )
+
+        result = enable_service_macos()
+
+        assert result["success"] is True
+        assert result.get("already_running") is True
+        # Only the print call — no bootout or bootstrap
+        launchctl_calls = [c for c in mock_run.call_args_list if c[0][0][0] == "launchctl"]
+        assert len(launchctl_calls) == 1
+        assert "print" in launchctl_calls[0][0][0][1]
+
+    @patch("gobby.cli.installers.service.subprocess.run")
+    @patch("gobby.cli.installers.service._plist_path")
     def test_enable_bootouts_stale_entry_before_bootstrap(
         self,
         mock_plist_path: MagicMock,
@@ -565,12 +596,13 @@ class TestMacOSEnable:
         result = enable_service_macos()
 
         assert result["success"] is True
-        # Verify bootout was called before bootstrap
+        # Verify print (health check) + bootout + bootstrap sequence
         calls = mock_run.call_args_list
         launchctl_calls = [c for c in calls if c[0][0][0] == "launchctl"]
-        assert len(launchctl_calls) == 2
-        assert "bootout" in launchctl_calls[0][0][0][1]
-        assert "bootstrap" in launchctl_calls[1][0][0][1]
+        assert len(launchctl_calls) == 3
+        assert "print" in launchctl_calls[0][0][0][1]
+        assert "bootout" in launchctl_calls[1][0][0][1]
+        assert "bootstrap" in launchctl_calls[2][0][0][1]
 
     @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._plist_path")
@@ -587,8 +619,9 @@ class TestMacOSEnable:
         plist_file.write_text("<plist>test</plist>")
         mock_plist_path.return_value = plist_file
 
-        # Bootout fails (not loaded), bootstrap succeeds
+        # Health check (loaded but not running), bootout fails (no stale entry), bootstrap succeeds
         mock_run.side_effect = [
+            MagicMock(returncode=0, stderr="", stdout=""),  # print (loaded, not running)
             MagicMock(returncode=3, stderr="No such process", stdout=""),  # bootout
             MagicMock(returncode=0, stderr="", stdout=""),  # bootstrap
         ]
@@ -836,12 +869,7 @@ class TestMacOSStatus:
         # state = running first, then nested state = active (the bug scenario)
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout=(
-                "\tstate = running\n"
-                "\tpid = 99999\n"
-                "\t\tstate = active\n"
-                "\t\tstate = active\n"
-            ),
+            stdout=("\tstate = running\n\tpid = 99999\n\t\tstate = active\n\t\tstate = active\n"),
             stderr="",
         )
 

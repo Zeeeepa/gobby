@@ -79,6 +79,7 @@ def create_merge_registry(
         if not source_branch:
             return {"success": False, "error": "source_branch is required"}
 
+        resolution = None
         try:
             # Create resolution record
             resolution = merge_storage.create_resolution(
@@ -146,9 +147,7 @@ def create_merge_registry(
 
         except Exception as e:
             logger.exception(
-                "Error starting merge for worktree_id=%s, resolution_id=%s",
-                worktree_id,
-                resolution.id if "resolution" in dir() else "N/A",
+                f"Error starting merge for worktree_id={worktree_id}, resolution_id={resolution.id if resolution is not None else 'N/A'}",
             )
             return {"success": False, "error": str(e)}
 
@@ -270,7 +269,7 @@ def create_merge_registry(
             return {"success": False, "error": "No resolution method specified"}
 
         except Exception as e:
-            logger.exception("Error resolving conflict %s", conflict_id)
+            logger.exception(f"Error resolving conflict {conflict_id}")
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -328,7 +327,7 @@ def create_merge_registry(
             }
 
         except Exception as e:
-            logger.exception("Error applying merge for resolution %s", resolution_id)
+            logger.exception(f"Error applying merge for resolution {resolution_id}")
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -375,7 +374,7 @@ def create_merge_registry(
                 return {"success": False, "error": "Failed to abort merge"}
 
         except Exception as e:
-            logger.exception("Error aborting merge for resolution_id=%s", resolution_id)
+            logger.exception(f"Error aborting merge for resolution_id={resolution_id}")
             return {"success": False, "error": str(e)}
 
     return registry

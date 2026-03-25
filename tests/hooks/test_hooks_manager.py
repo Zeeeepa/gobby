@@ -353,7 +353,7 @@ class TestHookManagerSessionEnd:
             project_id="test-project-id",
             title="Test Session",
             status="active",
-            jsonl_path=None,
+            transcript_path=None,
             summary_path=None,
             summary_markdown=None,
             git_branch=None,

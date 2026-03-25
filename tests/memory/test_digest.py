@@ -304,7 +304,7 @@ class TestBuildTurnAndDigest:
         sm = MagicMock()
         session = MagicMock()
         session.id = "session-123"
-        session.jsonl_path = None
+        session.transcript_path = None
         session.source = "claude"
         session.digest_markdown = None
         session.seq_num = 42
@@ -537,7 +537,7 @@ class TestBuildTurnAndDigest:
         jsonl_file.write_text("\n".join(json.dumps(t) for t in turns))
 
         session = mock_session_manager.get.return_value
-        session.jsonl_path = str(jsonl_file)
+        session.transcript_path = str(jsonl_file)
 
         result = await build_turn_and_digest(
             memory_manager=mock_memory_manager,
@@ -574,7 +574,7 @@ class TestBuildTurnAndDigestIdempotency:
         sm = MagicMock()
         session = MagicMock()
         session.id = "session-123"
-        session.jsonl_path = None
+        session.transcript_path = None
         session.source = "claude"
         session.digest_markdown = None
         session.seq_num = 42
@@ -967,7 +967,7 @@ class TestBuildTurnAndDigestCatchUp:
         sm = MagicMock()
         session = MagicMock()
         session.id = "session-456"
-        session.jsonl_path = str(transcript)
+        session.transcript_path = str(transcript)
         session.source = "claude"
         session.digest_markdown = "### Turn 1\nFirst turn already digested"
         session.seq_num = 99
@@ -1029,7 +1029,7 @@ class TestBuildTurnAndDigestCatchUp:
         sm = MagicMock()
         session = MagicMock()
         session.id = "session-456"
-        session.jsonl_path = str(transcript)
+        session.transcript_path = str(transcript)
         session.source = "claude"
         session.digest_markdown = None  # 0 digested
         session.seq_num = 99

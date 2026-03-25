@@ -661,20 +661,19 @@ class TestTestEndpoints:
 
     # --- register-agent ---
 
-    @patch("gobby.agents.registry.get_running_agent_registry")
-    @patch("gobby.agents.registry.RunningAgent")
-    def test_register_agent_success(self, mock_agent_cls, mock_get_registry, client) -> None:
-        mock_registry = MagicMock()
-        mock_get_registry.return_value = mock_registry
-
-        mock_agent = MagicMock()
-        mock_agent.to_dict.return_value = {
+    @patch("gobby.storage.agents.LocalAgentRunManager")
+    def test_register_agent_success(self, mock_arm_cls, client) -> None:
+        mock_arm = MagicMock()
+        mock_run = MagicMock()
+        mock_run.to_dict.return_value = {
             "run_id": "run-1",
+            "id": "run-1",
             "session_id": "sess-1",
             "parent_session_id": "parent-1",
             "mode": "terminal",
         }
-        mock_agent_cls.return_value = mock_agent
+        mock_arm.get.return_value = mock_run
+        mock_arm_cls.return_value = mock_arm
 
         response = client.post(
             "/api/admin/test/register-agent",
@@ -690,7 +689,8 @@ class TestTestEndpoints:
 
         assert data["status"] == "success"
         assert data["agent"]["run_id"] == "run-1"
-        mock_registry.add.assert_called_once_with(mock_agent)
+        mock_arm.create.assert_called_once()
+        mock_arm.start.assert_called_once_with("run-1")
 
     def test_register_agent_forbidden_when_not_test_mode(self, mock_server) -> None:
         mock_server.test_mode = False
@@ -714,11 +714,11 @@ class TestTestEndpoints:
 
     # --- unregister-agent ---
 
-    @patch("gobby.agents.registry.get_running_agent_registry")
-    def test_unregister_agent_success(self, mock_get_registry, client) -> None:
-        mock_registry = MagicMock()
-        mock_registry.remove.return_value = MagicMock()  # agent found
-        mock_get_registry.return_value = mock_registry
+    @patch("gobby.storage.agents.LocalAgentRunManager")
+    def test_unregister_agent_success(self, mock_arm_cls, client) -> None:
+        mock_arm = MagicMock()
+        mock_arm.get.return_value = MagicMock()  # agent found
+        mock_arm_cls.return_value = mock_arm
 
         response = client.delete("/api/admin/test/unregister-agent/run-1")
         assert response.status_code == 200
@@ -726,13 +726,13 @@ class TestTestEndpoints:
 
         assert data["status"] == "success"
         assert "run-1" in data["message"]
-        mock_registry.remove.assert_called_once_with("run-1")
+        mock_arm.fail.assert_called_once_with("run-1", error="Unregistered via test endpoint")
 
-    @patch("gobby.agents.registry.get_running_agent_registry")
-    def test_unregister_agent_not_found(self, mock_get_registry, client) -> None:
-        mock_registry = MagicMock()
-        mock_registry.remove.return_value = None  # agent not found
-        mock_get_registry.return_value = mock_registry
+    @patch("gobby.storage.agents.LocalAgentRunManager")
+    def test_unregister_agent_not_found(self, mock_arm_cls, client) -> None:
+        mock_arm = MagicMock()
+        mock_arm.get.return_value = None  # agent not found
+        mock_arm_cls.return_value = mock_arm
 
         response = client.delete("/api/admin/test/unregister-agent/run-nonexistent")
         assert response.status_code == 200

@@ -13,7 +13,6 @@ import logging
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 from uuid import uuid4
 
-from gobby.agents.registry import get_running_agent_registry
 from gobby.agents.tmux.config import TmuxConfig
 from gobby.agents.tmux.pty_bridge import TmuxPTYBridge
 from gobby.agents.tmux.session_manager import TmuxSessionManager
@@ -98,7 +97,17 @@ class TmuxMixin:
         request_id = data.get("request_id")
 
         sessions: list[dict[str, Any]] = []
-        registry = get_running_agent_registry()
+
+        # Get active agent runs from DB for agent-managed session detection
+        active_runs: list[Any] = []
+        session_mgr = getattr(self, "session_manager", None)
+        if session_mgr:
+            try:
+                from gobby.storage.agents import LocalAgentRunManager
+
+                active_runs = LocalAgentRunManager(session_mgr.db).list_active()
+            except Exception:
+                logger.debug("Failed to load active agent runs", exc_info=True)
 
         # Build tmux_pane -> (session_title, gobby_session_id) map from active Gobby sessions
         # and collect IDs of sessions whose tmux pane is still alive.
@@ -142,10 +151,10 @@ class TmuxMixin:
                     # Check if this session is managed by an agent
                     agent_managed = False
                     agent_run_id = None
-                    for agent in registry.list_all():
-                        if agent.tmux_session_name == s.name:
+                    for run in active_runs:
+                        if run.tmux_session_name == s.name:
                             agent_managed = True
-                            agent_run_id = agent.run_id
+                            agent_run_id = run.id
                             break
 
                     # Check if a bridge is active for this session
@@ -373,16 +382,22 @@ class TmuxMixin:
             return
 
         # Refuse to kill agent-managed sessions
-        registry = get_running_agent_registry()
-        for agent in registry.list_all():
-            if agent.tmux_session_name == session_name:
-                await self._send_error(
-                    websocket,
-                    f"Session '{session_name}' is managed by agent {agent.run_id}",
-                    request_id=request_id,
-                    code="AGENT_MANAGED",
-                )
-                return
+        session_mgr = getattr(self, "session_manager", None)
+        if session_mgr:
+            try:
+                from gobby.storage.agents import LocalAgentRunManager
+
+                for run in LocalAgentRunManager(session_mgr.db).list_active():
+                    if run.tmux_session_name == session_name:
+                        await self._send_error(
+                            websocket,
+                            f"Session '{session_name}' is managed by agent {run.id}",
+                            request_id=request_id,
+                            code="AGENT_MANAGED",
+                        )
+                        return
+            except Exception:
+                logger.debug("Failed to check agent-managed sessions", exc_info=True)
 
         # Detach any bridges to this session first
         from gobby.agents.pty_reader import get_pty_reader_manager

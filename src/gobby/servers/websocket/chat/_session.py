@@ -57,7 +57,7 @@ async def _resolve_git_branch(project_path: str | None) -> tuple[str | None, str
                 branch = f"detached:{short_sha}"
         return branch, project_path
     except Exception as e:
-        logger.debug("Failed to resolve git branch: %s", e)
+        logger.debug(f"Failed to resolve git branch: {e}")
         return None, None
 
 
@@ -70,6 +70,17 @@ class ChatSessionMixin:
     _pending_modes: dict[str, str]
     _pending_worktree_paths: dict[str, str]
     _pending_agents: dict[str, str]
+    _session_create_locks: dict[str, asyncio.Lock]
+
+    def _get_session_create_lock(self, conversation_id: str) -> asyncio.Lock:
+        """Get or create a per-conversation lock for session creation."""
+        if not hasattr(self, "_session_create_locks"):
+            self._session_create_locks = {}
+        lock = self._session_create_locks.get(conversation_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._session_create_locks[conversation_id] = lock
+        return lock
 
     if TYPE_CHECKING:
 
@@ -121,7 +132,7 @@ class ChatSessionMixin:
             try:
                 await asyncio.wait_for(session.interrupt(), timeout=0.5)
             except Exception as e:
-                logger.debug("Interrupt failed: %s", e)
+                logger.debug(f"Interrupt failed: {e}")
 
         active_task = self._active_chat_tasks.pop(conversation_id, None)
         if active_task and not active_task.done():
@@ -148,7 +159,29 @@ class ChatSessionMixin:
         project_id: str | None = None,
         resume_session_id: str | None = None,
     ) -> ChatSessionProtocol:
-        """Create and bootstrap a new ChatSession with lifecycle hooks wired."""
+        """Create and bootstrap a new ChatSession with lifecycle hooks wired.
+
+        Uses a per-conversation lock to prevent duplicate session creation
+        when concurrent handlers (chat_message + continue_in_chat) race.
+        """
+        lock = self._get_session_create_lock(conversation_id)
+        async with lock:
+            # Double-check: another coroutine may have created it while we waited
+            existing = self._chat_sessions.get(conversation_id)
+            if existing is not None:
+                return existing
+            return await self._create_chat_session_inner(
+                conversation_id, model, project_id, resume_session_id
+            )
+
+    async def _create_chat_session_inner(
+        self,
+        conversation_id: str,
+        model: str | None = None,
+        project_id: str | None = None,
+        resume_session_id: str | None = None,
+    ) -> ChatSessionProtocol:
+        """Inner implementation — must be called under the per-conversation lock from _session_create_locks."""
         # Early agent resolution to determine provider (Codex vs Claude SDK)
         pending_agents = getattr(self, "_pending_agents", {})
         pending_agent = pending_agents.pop(conversation_id, None)
@@ -295,6 +328,18 @@ class ChatSessionMixin:
                 session.seq_num = db_session.seq_num
                 session._session_manager_ref = session_manager
 
+                # Auto-resume for returning sessions: if the DB row has prior
+                # usage (meaning at least one turn completed) and no explicit
+                # resume was requested, enable SDK resume.  After re-keying,
+                # conversation_id IS the SDK session ID the transcript lives under.
+                if not resume_session_id and db_session.usage_output_tokens > 0:
+                    session.resume_session_id = conversation_id
+                    logger.info(
+                        f"Auto-resume enabled for returning session {db_session.id} "
+                        f"(output_tokens={db_session.usage_output_tokens}, "
+                        f"sdk_id={conversation_id[:8]})"
+                    )
+
                 # Restore persisted state from DB (safe for both new and returning
                 # sessions — new rows have defaults that won't clobber anything).
                 if db_session.chat_mode and db_session.chat_mode != "plan":
@@ -397,7 +442,17 @@ class ChatSessionMixin:
             except Exception as e:
                 logger.warning(f"Failed to build agent system prompt for '{agent_name}': {e}")
 
-        await session.start(model=model)
+        try:
+            await session.start(model=model)
+        except Exception:
+            if session.resume_session_id:
+                logger.warning(
+                    f"SDK resume failed for {session.resume_session_id[:8]}, starting fresh"
+                )
+                session.resume_session_id = None
+                await session.start(model=model)
+            else:
+                raise
         self._chat_sessions[conversation_id] = session
 
         # History injection via message_manager removed (session_messages table dropped)
@@ -412,7 +467,7 @@ class ChatSessionMixin:
                 return
             exc = task.exception()
             if exc:
-                logger.warning("SESSION_START lifecycle hook failed: %s", exc)
+                logger.warning(f"SESSION_START lifecycle hook failed: {exc}")
 
         t = asyncio.create_task(
             self._fire_lifecycle(conversation_id, HookEventType.SESSION_START, start_data)
@@ -451,4 +506,4 @@ class ChatSessionMixin:
         try:
             await self._fire_lifecycle(conversation_id, HookEventType.SESSION_END, {})
         except Exception:
-            logger.debug("SESSION_END fire failed for %s", conversation_id[:8], exc_info=True)
+            logger.debug(f"SESSION_END fire failed for {conversation_id[:8]}", exc_info=True)

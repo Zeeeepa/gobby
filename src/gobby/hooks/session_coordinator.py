@@ -220,14 +220,16 @@ class SessionCoordinator:
             registered_count = 0
 
             for session in all_sessions:
-                jsonl_path = getattr(session, "jsonl_path", None)
-                if not jsonl_path:
+                transcript_path = getattr(session, "transcript_path", None)
+                if not transcript_path:
                     continue
 
                 try:
                     # Determine source from session (default to claude)
                     source = getattr(session, "source", "claude") or "claude"
-                    self._message_processor.register_session(session.id, jsonl_path, source=source)
+                    self._message_processor.register_session(
+                        session.id, transcript_path, source=source
+                    )
                     registered_count += 1
                 except Exception as e:
                     self.logger.warning(f"Failed to re-register session {session.id}: {e}")
@@ -301,20 +303,6 @@ class SessionCoordinator:
 
         self.logger.debug(f"Completing agent run {agent_run_id} for session {session.id}")
 
-        # Remove from in-memory running agents registry
-        # Capture tmux_session_name before removal for result fallback
-        tmux_session_name: str | None = None
-        try:
-            from gobby.agents.registry import get_running_agent_registry
-
-            running_registry = get_running_agent_registry()
-            removed = running_registry.remove(agent_run_id)
-            if removed:
-                tmux_session_name = removed.tmux_session_name
-                self.logger.debug(f"Unregistered running agent {agent_run_id} from registry")
-        except Exception as e:
-            self.logger.warning(f"Failed to unregister agent from running registry: {e}")
-
         if not self._agent_run_manager:
             return
 
@@ -363,6 +351,7 @@ class SessionCoordinator:
             # Fallback: capture terminal output from tmux session.
             # remain-on-exit is set on agent sessions so the pane persists
             # after the process exits, keeping the scrollback buffer available.
+            tmux_session_name = agent_run.tmux_session_name
             if not result and tmux_session_name:
                 try:
                     import subprocess
@@ -493,10 +482,10 @@ class SessionCoordinator:
             if self._event_loop and not self._event_loop.is_closed():
                 asyncio.run_coroutine_threadsafe(coro, self._event_loop)
             else:
-                self.logger.debug("No event loop available to notify completion for run %s", run_id)
+                self.logger.debug(f"No event loop available to notify completion for run {run_id}")
         except Exception:
             self.logger.debug(
-                "Failed to notify completion registry for run %s", run_id, exc_info=True
+                f"Failed to notify completion registry for run {run_id}", exc_info=True
             )
 
     def release_session_worktrees(self, session_id: str) -> None:

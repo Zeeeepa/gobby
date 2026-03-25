@@ -99,12 +99,7 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
     refreshMemories,
     fetchKnowledgeGraph,
     fetchEntityNeighbors,
-  } = useMemory()
-
-  // Sync global project filter into the hook's server-side filtering
-  useEffect(() => {
-    setFilters(f => ({ ...f, projectId: projectId ?? null }))
-  }, [projectId, setFilters])
+  } = useMemory(projectId)
   const neo4jStatus = useNeo4jStatus()
 
   // Configurable graph limits (fetched from backend config, overridable per-session)
@@ -289,22 +284,6 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
               </button>
             ))}
           </div>
-          {viewMode === 'knowledge' && (
-            <label className="memory-limit-control" title="Max nodes to display">
-              Limit
-              <input
-                type="number"
-                min={GRAPH_LIMIT_MIN}
-                max={KNOWLEDGE_LIMIT_MAX}
-                step={GRAPH_LIMIT_STEP}
-                value={knowledgeGraphLimit}
-                onChange={e => {
-                  const v = Math.max(GRAPH_LIMIT_MIN, Math.min(KNOWLEDGE_LIMIT_MAX, Number(e.target.value) || GRAPH_LIMIT_MIN))
-                  setKnowledgeGraphLimit(v)
-                }}
-              />
-            </label>
-          )}
           <input
             className="memory-search"
             type="text"
@@ -332,6 +311,12 @@ export function MemoryPage({ projectId }: MemoryPageProps = {}) {
         stats={stats}
         recentCount={stats?.recent_count ?? 0}
         onFiltersChange={setFilters}
+        viewMode={viewMode}
+        knowledgeGraphLimit={knowledgeGraphLimit}
+        onKnowledgeGraphLimitChange={setKnowledgeGraphLimit}
+        limitMin={GRAPH_LIMIT_MIN}
+        limitMax={KNOWLEDGE_LIMIT_MAX}
+        limitStep={GRAPH_LIMIT_STEP}
       />
 
       {/* Content area */}

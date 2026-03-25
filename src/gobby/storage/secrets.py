@@ -207,7 +207,7 @@ class SecretStore:
             decrypted: str = fernet.decrypt(row["encrypted_value"].encode("utf-8")).decode("utf-8")
             return decrypted
         except InvalidToken:
-            logger.error(f"Failed to decrypt secret '{name}' — machine ID may have changed")
+            logger.error(f"Failed to decrypt secret '{name}' - machine ID may have changed")
             return None
 
     def delete(self, name: str) -> bool:

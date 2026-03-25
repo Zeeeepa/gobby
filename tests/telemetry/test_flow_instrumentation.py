@@ -167,7 +167,7 @@ async def test_rule_engine_instrumentation(tracer_provider):
 
     mock_db = MagicMock()
     # Mock ConfigStore.get to avoid DB fetch
-    with patch("gobby.workflows.rule_engine.ConfigStore") as mock_config_store_cls:
+    with patch("gobby.workflows.engine.core.ConfigStore") as mock_config_store_cls:
         mock_config_store = mock_config_store_cls.return_value
         mock_config_store.get.return_value = True  # enforcement_enabled
 
@@ -226,7 +226,7 @@ async def test_agent_runner_instrumentation(tracer_provider):
 
     # Mock internal methods
     with patch.object(runner, "_notify_completion", side_effect=AsyncMock(return_value=None)):
-        with patch.object(runner, "_tracker", MagicMock()):
+        with patch.object(runner, "_tracker", MagicMock(), create=True):
             await runner.execute_run(context, config)
 
     spans = exporter.get_finished_spans()

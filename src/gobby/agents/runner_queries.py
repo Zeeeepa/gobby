@@ -72,9 +72,6 @@ def cancel_run(runner: AgentRunner, run_id: str) -> bool:
 
     runner.logger.info(f"Cancelled agent run {run_id}")
 
-    # Remove from in-memory tracking
-    runner._tracker.untrack(run_id)
-
     return True
 
 
@@ -124,8 +121,5 @@ def complete_run(runner: AgentRunner, run_id: str, result: str | None = None) ->
     )
 
     runner.logger.info(f"Completed agent run {run_id} (self-termination)")
-
-    # Remove from in-memory tracking
-    runner._tracker.untrack(run_id)
 
     return True

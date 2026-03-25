@@ -233,6 +233,10 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
             if attr in obj:
                 return obj[attr]
             raise ValueError(f"Key not found: {attr}")
+        # Block dunder attributes to prevent sandbox escape
+        # (e.g., __class__.__base__.__subclasses__())
+        if attr.startswith("__"):
+            raise ValueError(f"Access to dunder attribute '{attr}' is not allowed")
         if hasattr(obj, attr):
             return getattr(obj, attr)
         raise ValueError(f"Attribute not found: {attr}")

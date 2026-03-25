@@ -2049,6 +2049,91 @@ class TestPipelineChildSession:
         assert captured_context["parent_session_id"] == "original-caller"
 
     @pytest.mark.asyncio
+    async def test_session_id_injected_into_inputs(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """session_id should be auto-injected into inputs so ${{ inputs.session_id }} resolves."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_session_manager = MagicMock()
+        child_session = MagicMock()
+        child_session.id = "child-session-injected"
+        mock_session_manager.register.return_value = child_session
+
+        captured_context: dict = {}
+
+        pipeline = PipelineDefinition(
+            name="sid-inject-test",
+            steps=[PipelineStep(id="s1", exec="echo hi")],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+        )
+
+        async def capture_context(step, context, project_id):
+            captured_context.update(context)
+            return {"stdout": "hi", "stderr": "", "exit_code": 0}
+
+        executor._execute_step = capture_context
+
+        await executor.execute(
+            pipeline=pipeline,
+            inputs={},
+            project_id="proj-123",
+            session_id="caller-session-orig",
+        )
+
+        # session_id in inputs should be the child session (same as context session_id)
+        assert captured_context["inputs"]["session_id"] == "child-session-injected"
+        assert captured_context["session_id"] == "child-session-injected"
+
+    @pytest.mark.asyncio
+    async def test_explicit_session_id_in_inputs_not_overwritten(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Explicit session_id in inputs should not be overwritten by auto-injection."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_session_manager = MagicMock()
+        child_session = MagicMock()
+        child_session.id = "child-session-auto"
+        mock_session_manager.register.return_value = child_session
+
+        captured_context: dict = {}
+
+        pipeline = PipelineDefinition(
+            name="sid-explicit-test",
+            steps=[PipelineStep(id="s1", exec="echo hi")],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+        )
+
+        async def capture_context(step, context, project_id):
+            captured_context.update(context)
+            return {"stdout": "hi", "stderr": "", "exit_code": 0}
+
+        executor._execute_step = capture_context
+
+        await executor.execute(
+            pipeline=pipeline,
+            inputs={"session_id": "explicit-session-id"},
+            project_id="proj-123",
+            session_id="caller-session-orig",
+        )
+
+        # Explicit value in inputs should be preserved
+        assert captured_context["inputs"]["session_id"] == "explicit-session-id"
+
+    @pytest.mark.asyncio
     async def test_no_child_session_without_session_manager(
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
@@ -2470,7 +2555,9 @@ class TestEmitEvent:
     """Tests for _emit_event error suppression."""
 
     @pytest.mark.asyncio
-    async def test_emit_event_no_callback(self, mock_db, mock_execution_manager, mock_llm_service) -> None:
+    async def test_emit_event_no_callback(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
         executor = PipelineExecutor(

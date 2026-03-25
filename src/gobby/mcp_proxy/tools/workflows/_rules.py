@@ -163,7 +163,7 @@ def toggle_rule(
         return {"success": False, "error": f"Rule '{name}' is a template — install it first"}
 
     updated = def_manager.update(row.id, enabled=enabled)
-    logger.info("Toggled rule '%s' enabled=%s", name, enabled)
+    logger.info(f"Toggled rule '{name}' enabled={enabled}")
 
     return {"success": True, "rule": _rule_detail(updated)}
 
@@ -229,7 +229,7 @@ def create_rule(
         source="installed",
         tags=tags,
     )
-    logger.info("Created rule '%s' (id=%s)", name, row.id)
+    logger.info(f"Created rule '{name}' (id={row.id})")
 
     # Auto-export to YAML for persistence
     try:
@@ -237,7 +237,7 @@ def create_rule(
 
         auto_export_definition(row, project_path, make_global=make_global_template)
     except Exception as e:
-        logger.warning("Failed to auto-export rule '%s': %s", name, e)
+        logger.warning(f"Failed to auto-export rule '{name}': {e}")
 
     return {"success": True, "rule": _rule_detail(row)}
 
@@ -293,7 +293,7 @@ def delete_rule(
             delete_global=is_user,
         )
     except Exception as e:
-        logger.warning("Failed to delete rule template '%s': %s", name, e)
+        logger.warning(f"Failed to delete rule template '{name}': {e}")
 
-    logger.info("Deleted rule '%s' (id=%s)", name, row.id)
+    logger.info(f"Deleted rule '{name}' (id={row.id})")
     return {"success": True, "deleted": {"id": row.id, "name": row.name}}

@@ -8,6 +8,122 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0]
+
+### Features
+
+#### Web UI — Projects Page Overhaul
+- Restructured Projects page with 9 top-level tabs, GitHub Issues integration, and Overview dashboard (#10756-#10761)
+- Replaced Overview tab with Code content (#10743)
+- Added send_keys + capture_output MCP tools and session context menu (#10591)
+- Prepend session ref to tmux window title (#10750)
+- Use SDK set_permission_mode for mode transitions in web chat (#10751)
+- Restore web chat context on page refresh via SDK auto-resume
+
+#### Web UI — Session Viewer
+- Auto-expand thinking blocks in session viewer (#10672)
+- Render Gemini thought subjects as visible agent text (#10672)
+- Agent sessions get meaningful titles + watching bar shows session info (#10673)
+
+#### Agent Lifecycle
+- Replace RunningAgentRegistry with DB-driven agent management (#10683)
+- Add dev-orchestrator pipeline template (#10689)
+- Add require-epic-tree-close stop-gate rule template (#10692)
+
+#### Rule Engine & Skills
+- 4-tier Skill tool fallback chain with hub search nudge (#10679)
+- Rule template to block agents from running full test suites (#10681)
+- Wrap skill summaries in `<gobby-skills>` tags to prevent Skill() misrouting (#10674)
+
+#### Infrastructure
+- Auto-inject session_id into pipeline inputs (#10648)
+- Extract BASELINE_SCHEMA into baseline_schema.sql (#10702)
+- Squash all migrations (v134-v171) into baseline schema (#10651)
+
+### Fixes
+
+#### Web UI
+- Activity panel overlay positions below app header (#10755)
+- Activity panel uses overlay mode on narrow viewports (#10753)
+- Command bar session button — dynamic width + mobile collapse (#10747)
+- Decrease gap between logo and title in header (#10746)
+- Code graph node explosion — cap total nodes + lower defaults (#10735)
+- Code graph shows disconnected islands — wrong file ordering + missing controls (#10734)
+- Knowledge graph relationships missing at lower entity limits (#10733)
+- Code graph connections missing at low limits + activity panel mobile UX (#10731)
+- CodePage layout — remove double border, fix sidebar height and centering (#10730)
+- Dashboard sessions — top-align pie chart + fix usage time filter (#10742)
+- UI polish — thinking newlines, image placeholders, memory layout, logo, health sort (#10741)
+- Thread chatSessionId to SessionsTab + auto-append Enter (#10751)
+- Command bar text and chat empty state icon fixes
+- Rename Full Auto → Auto + update Act description (#10749)
+- Add missing terminal_context field to GobbySession interface (#10762)
+- Resolve 3 TypeScript errors in web UI (#10764)
+
+#### Backend
+- Pipeline sync orphan cleanup was deleting agent definitions (#10754)
+- Include machine_id and secret_salt in pack/unpack (#10745)
+- Project isolation — pass projectId to hooks + add agent/cron filtering (#10740)
+- Add per-conversation lock to prevent duplicate chat session creation (#10727)
+- Use IMMEDIATE transaction for atomic seq_num allocation in create_task (#10729)
+- Raise fd soft limit on daemon startup to prevent EMFILE crashes (#10726)
+- File descriptor leaks causing EMFILE daemon crash (#10698)
+- Guard enable_service_macos against bootout of healthy daemon (#10680)
+- Filter empty/null thinking blocks in Claude transcript parser (#10678)
+- Gemini transcript parser — tool_use_id pairing, content normalization, thoughts rendering (#10669)
+- Spawn-level assignee tracking for non-open tasks (#10667)
+- Heartbeat _is_session_alive treats paused agent sessions as dead (#10665)
+- Consolidate check_dead_agents and check_expired_agents into check_unhealthy_agents (#10650)
+- Add session_id to all set_variable examples in rule templates (#10649)
+- Improve search_skills error surfacing and async safety (#10728)
+- Use ParsedSkill.name attribute instead of dict .get() (#10718)
+- Type ServiceContainer.mcp_manager as MCPClientManager | None (#10701)
+- Windows compat for fd limit + ARIA tab roles (#10738, #10739)
+- Upgrade flatted to 3.4.2 via npm override to resolve Dependabot alert (#10736)
+
+#### Code Quality (CodeRabbit Reviews)
+- CodeRabbit Phase 1 — security + bugs (#10711-#10714)
+- CodeRabbit Phase 2+3 — code quality + nits (#10715, #10716)
+- CodeRabbit review — 4 bugs, 7 quality fixes, 19 nits (#10720-#10723)
+- CodeRabbit review — 8 bugs, exception handling, async, code quality, test nits (#10704-#10708)
+- CodeRabbit review — 4 bugs + 4 nits (#10737)
+- CodeRabbit code quality fixes (#10724)
+- Remaining CodeRabbit code quality fixes (#10717)
+
+#### Tests
+- Resolve 16 pytest failures from test report (#10719)
+- Update stale broadcasting and registry tests (#10697, #10710)
+- Update 25 agent tests for DB-driven agent management (#10688)
+- Resolve 479 mypy errors across runner, workflows/engine, servers, and cli/install (#10699)
+- Resolve 4 mypy type errors in servers/ (#10763)
+- Fix mypy no-any-return errors in transcript_reader and factory (#10693)
+- Fix mypy errors from registry migration (#10691)
+- Align test mocks with refactored models (#10765)
+
+### Refactoring — Monolith Decomposition
+
+Major decomposition effort bringing all modules under the 1,000-line limit:
+
+- Decompose rule_engine.py into engine/ package (#10652)
+- Decompose sessions.py into sessions/ package (#10696)
+- Split sessions core.py into core + lifecycle (#10654)
+- Extract http.py into focused modules (#10655)
+- Split _session.py by event type (#10656)
+- Decompose session_control.py via command pattern (#10657)
+- Extract hook_manager.py dispatchers (#10658)
+- Extract runner.py internals into runner_init.py and runner_lifecycle.py (#10659)
+- Decompose mcp_proxy tool modules into packages (#10660-#10662)
+- Split storage/skills/_manager.py into focused modules (#10663)
+- Extract cli/install.py helpers into focused modules (#10664)
+- Split workflows/sync.py into per-type modules (#10653)
+- Extract rule sync and pipeline sync into dedicated modules (#10694, #10695)
+- Standardize all logging to f-string convention (#10703)
+- Rename jsonl_path to transcript_path and fix Gemini JSON transcript reading (#10668)
+- Rename format_skills_with_formats to render_skills_for_context (#10675)
+- Delete unused CLI agent templates (#10676) and dead rule template (#10677)
+
+---
+
 ## [0.2.30]
 
 ### Features

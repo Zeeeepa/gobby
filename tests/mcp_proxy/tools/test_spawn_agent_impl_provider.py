@@ -68,9 +68,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -80,14 +77,11 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -126,9 +120,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -138,14 +129,11 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -178,9 +166,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -190,14 +175,11 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -230,9 +212,6 @@ class TestProviderResolution:
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
             ) as mock_execute,
             patch(
-                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_running_agent_registry"
-            ) as mock_registry_fn,
-            patch(
                 "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
                 return_value="machine-1",
             ),
@@ -242,14 +221,11 @@ class TestProviderResolution:
                 "project_path": "/repo",
             }
             mock_handler = MagicMock()
-            mock_handler.prepare_environment = AsyncMock(
-                return_value=IsolationContext(cwd="/repo")
-            )
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
             mock_handler.build_context_prompt.return_value = "Do the thing"
             mock_get_handler.return_value = mock_handler
 
             mock_execute.return_value = _make_execute_spawn_result()
-            mock_registry_fn.return_value = MagicMock()
 
             result = await spawn_agent_impl(
                 prompt="Do the thing",
@@ -263,3 +239,186 @@ class TestProviderResolution:
         assert result["success"] is True
         spawn_request = mock_execute.call_args[0][0]
         assert spawn_request.provider == "claude"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Spawn-level auto-claim (assignee tracking for non-open tasks)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestSpawnAutoClaimAssignee:
+    """spawn_agent_impl should always set assignee, regardless of task status.
+
+    Status transition (open → in_progress) only happens for open tasks.
+    For non-open tasks (needs_review, review_approved, etc.), only the
+    assignee is set — the status is preserved.
+    """
+
+    @pytest.mark.asyncio
+    async def test_open_task_gets_status_and_assignee(self) -> None:
+        """Open task: both status→in_progress and assignee are set."""
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = _make_runner()
+        task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.status = "open"
+        mock_task.seq_num = 42
+        task_manager.get_task.return_value = mock_task
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
+                return_value="machine-1",
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp",
+                return_value="task-uuid-123",
+            ),
+        ):
+            mock_ctx.return_value = {"id": "proj-abc", "project_path": "/repo"}
+            mock_handler = MagicMock()
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
+            mock_handler.build_context_prompt.return_value = "Do the thing"
+            mock_get_handler.return_value = mock_handler
+            mock_execute.return_value = _make_execute_spawn_result()
+
+            result = await spawn_agent_impl(
+                prompt="Do the thing",
+                runner=runner,
+                agent_body=None,
+                provider=None,
+                mode="terminal",
+                parent_session_id="parent-session-xyz",
+                task_id="#42",
+                task_manager=task_manager,
+            )
+
+        assert result["success"] is True
+        task_manager.update_task.assert_called_once_with(
+            "task-uuid-123",
+            status="in_progress",
+            assignee="child-session-abc",
+        )
+
+    @pytest.mark.asyncio
+    async def test_non_open_task_gets_assignee_without_status_change(self) -> None:
+        """Non-open task (e.g. needs_review): assignee set, status preserved."""
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = _make_runner()
+        task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.status = "needs_review"
+        mock_task.seq_num = 99
+        task_manager.get_task.return_value = mock_task
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
+                return_value="machine-1",
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp",
+                return_value="task-uuid-456",
+            ),
+        ):
+            mock_ctx.return_value = {"id": "proj-abc", "project_path": "/repo"}
+            mock_handler = MagicMock()
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
+            mock_handler.build_context_prompt.return_value = "Do the thing"
+            mock_get_handler.return_value = mock_handler
+            mock_execute.return_value = _make_execute_spawn_result()
+
+            result = await spawn_agent_impl(
+                prompt="Do the thing",
+                runner=runner,
+                agent_body=None,
+                provider=None,
+                mode="terminal",
+                parent_session_id="parent-session-xyz",
+                task_id="#99",
+                task_manager=task_manager,
+            )
+
+        assert result["success"] is True
+        # Should set assignee WITHOUT changing status
+        task_manager.update_task.assert_called_once_with(
+            "task-uuid-456",
+            assignee="child-session-abc",
+        )
+
+    @pytest.mark.asyncio
+    async def test_review_approved_task_gets_assignee_without_status_change(
+        self,
+    ) -> None:
+        """review_approved task: assignee set, status preserved."""
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        runner = _make_runner()
+        task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.status = "review_approved"
+        mock_task.seq_num = 200
+        task_manager.get_task.return_value = mock_task
+
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_project_context"
+            ) as mock_ctx,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_isolation_handler"
+            ) as mock_get_handler,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.execute_spawn"
+            ) as mock_execute,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.get_machine_id",
+                return_value="machine-1",
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp",
+                return_value="task-uuid-789",
+            ),
+        ):
+            mock_ctx.return_value = {"id": "proj-abc", "project_path": "/repo"}
+            mock_handler = MagicMock()
+            mock_handler.prepare_environment = AsyncMock(return_value=IsolationContext(cwd="/repo"))
+            mock_handler.build_context_prompt.return_value = "Do the thing"
+            mock_get_handler.return_value = mock_handler
+            mock_execute.return_value = _make_execute_spawn_result()
+
+            result = await spawn_agent_impl(
+                prompt="Do the thing",
+                runner=runner,
+                agent_body=None,
+                provider=None,
+                mode="terminal",
+                parent_session_id="parent-session-xyz",
+                task_id="#200",
+                task_manager=task_manager,
+            )
+
+        assert result["success"] is True
+        task_manager.update_task.assert_called_once_with(
+            "task-uuid-789",
+            assignee="child-session-abc",
+        )

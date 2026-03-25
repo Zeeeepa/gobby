@@ -185,22 +185,19 @@ async def cancel_pipeline(
             "error": f"Pipeline already in a terminal state (current status: {execution.status.value})",
         }
 
-    # 1. Kill spawned agents (via registry)
+    # 1. Kill spawned agents (via DB)
     try:
-        from gobby.agents.registry import get_running_agent_registry
+        from gobby.agents.kill import kill_agent
+        from gobby.storage.agents import LocalAgentRunManager
+        from gobby.storage.database import LocalDatabase
 
-        registry = get_running_agent_registry()
-
-        # Kill all agents spawned by this pipeline (tracked via parent_session_id = pipeline's session_id)
-        # Note: Some pipelines share a session with the caller, others create a child session.
-        # We also check for agents associated with this specific execution_id if tracked.
-        agents = registry.list_all()
+        _db = LocalDatabase()
+        arm = LocalAgentRunManager(_db)
+        active_runs = arm.list_by_parent(execution.session_id) if execution.session_id else []
         killed_count = 0
-        for agent in agents:
-            # Match by parent session or metadata if available
-            if agent.parent_session_id == execution.session_id:
-                await registry.kill(agent.run_id, signal_name="KILL")
-                killed_count += 1
+        for run in active_runs:
+            await kill_agent(run, _db, signal_name="KILL")
+            killed_count += 1
 
         if killed_count > 0:
             logger.info(f"Killed {killed_count} agents associated with pipeline {execution_id[:8]}")
@@ -395,10 +392,7 @@ async def resume_pipeline(
                 break
             if step.error and step.status in (StepStatus.COMPLETED, StepStatus.SKIPPED):
                 logger.warning(
-                    "Step %s has status %s but carries error: %s",
-                    step.step_id,
-                    step.status.value,
-                    step.error[:200],
+                    f"Step {step.step_id} has status {step.status.value} but carries error: {step.error[:200]}",
                 )
                 resume_step_id = step.step_id
                 break
@@ -584,7 +578,7 @@ async def resume_interrupted_pipelines(
             try:
                 inputs = json.loads(execution.inputs_json)
             except (json.JSONDecodeError, TypeError) as e:
-                logger.warning("Malformed inputs_json for execution %s: %s", execution.id, e)
+                logger.warning(f"Malformed inputs_json for execution {execution.id}: {e}")
 
         # Re-queue as background task with existing execution_id (resume path)
         task = asyncio.create_task(

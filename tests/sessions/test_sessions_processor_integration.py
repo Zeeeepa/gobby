@@ -119,7 +119,11 @@ async def test_recovery_after_restart(processor, transcript_file):
             {"type": "user", "message": {"content": "msg1"}, "timestamp": "2024-01-01T10:00:00Z"}
         ),
         json.dumps(
-            {"type": "assistant", "message": {"content": "msg2"}, "timestamp": "2024-01-01T10:01:00Z"}
+            {
+                "type": "assistant",
+                "message": {"content": "msg2"},
+                "timestamp": "2024-01-01T10:01:00Z",
+            }
         ),
     ]
     with open(transcript_file, "w") as f:

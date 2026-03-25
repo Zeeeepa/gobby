@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.workflows.sync import (
-    _ensure_gobby_tag_on_installed,
-    _resolve_sync_placeholders,
+    ensure_gobby_tag_on_installed,
+    resolve_sync_placeholders,
     sync_bundled_variables,
 )
 
@@ -31,7 +31,7 @@ class TestEnsureGobbyTag:
         row.tags = ["other"]
         mgr.list_all.return_value = [row]
 
-        _ensure_gobby_tag_on_installed(mgr, "rule")
+        ensure_gobby_tag_on_installed(mgr, "rule")
         mgr.update.assert_called_once_with("r1", tags=["other", "gobby"])
 
     def test_skips_when_tag_present(self) -> None:
@@ -42,7 +42,7 @@ class TestEnsureGobbyTag:
         row.tags = ["gobby", "other"]
         mgr.list_all.return_value = [row]
 
-        _ensure_gobby_tag_on_installed(mgr, "rule")
+        ensure_gobby_tag_on_installed(mgr, "rule")
         mgr.update.assert_not_called()
 
     def test_skips_non_template_sources(self) -> None:
@@ -53,7 +53,7 @@ class TestEnsureGobbyTag:
         row.tags = []
         mgr.list_all.return_value = [row]
 
-        _ensure_gobby_tag_on_installed(mgr, "rule")
+        ensure_gobby_tag_on_installed(mgr, "rule")
         mgr.update.assert_not_called()
 
     def test_handles_none_tags(self) -> None:
@@ -64,7 +64,7 @@ class TestEnsureGobbyTag:
         row.tags = None
         mgr.list_all.return_value = [row]
 
-        _ensure_gobby_tag_on_installed(mgr, "rule")
+        ensure_gobby_tag_on_installed(mgr, "rule")
         mgr.update.assert_called_once_with("r1", tags=["gobby"])
 
 
@@ -78,7 +78,7 @@ class TestSyncBundledVariables:
         db = MagicMock()
 
         with patch(
-            "gobby.workflows.sync.get_bundled_variables_path",
+            "gobby.workflows.sync_variables.get_bundled_variables_path",
             return_value=Path("/nonexistent"),
         ):
             result = sync_bundled_variables(db)
@@ -103,8 +103,8 @@ class TestSyncBundledVariables:
         mgr.list_all.return_value = []
 
         with (
-            patch("gobby.workflows.sync.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
+            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
         ):
             db.fetchall.return_value = []
             result = sync_bundled_variables(db)
@@ -124,8 +124,8 @@ class TestSyncBundledVariables:
         mgr.list_all.return_value = []
 
         with (
-            patch("gobby.workflows.sync.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
+            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
         ):
             db.fetchall.return_value = []
             result = sync_bundled_variables(db)
@@ -142,8 +142,8 @@ class TestSyncBundledVariables:
         ]
 
         with (
-            patch("gobby.workflows.sync.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
+            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
         ):
             result = sync_bundled_variables(db)
 
@@ -151,32 +151,32 @@ class TestSyncBundledVariables:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_sync_placeholders
+# resolve_sync_placeholders
 # ---------------------------------------------------------------------------
 
 
 class TestResolveSyncPlaceholders:
     def test_replaces_gobby_bin_with_which(self) -> None:
-        with patch("gobby.workflows.sync.shutil.which", return_value="/usr/local/bin/gobby"):
-            result = _resolve_sync_placeholders('{"cmd": "{{ gobby_bin }} compress -- foo"}')
+        with patch("gobby.workflows.sync_rules.shutil.which", return_value="/usr/local/bin/gobby"):
+            result = resolve_sync_placeholders('{"cmd": "{{ gobby_bin }} compress -- foo"}')
         assert result == '{"cmd": "/usr/local/bin/gobby compress -- foo"}'
 
     def test_falls_back_to_sys_executable(self) -> None:
         with (
-            patch("gobby.workflows.sync.shutil.which", return_value=None),
-            patch("gobby.workflows.sync.sys.executable", "/home/user/.venv/bin/python3"),
+            patch("gobby.workflows.sync_rules.shutil.which", return_value=None),
+            patch("gobby.workflows.sync_rules.sys.executable", "/home/user/.venv/bin/python3"),
         ):
-            result = _resolve_sync_placeholders('{"cmd": "{{ gobby_bin }} compress"}')
+            result = resolve_sync_placeholders('{"cmd": "{{ gobby_bin }} compress"}')
         assert result == '{"cmd": "/home/user/.venv/bin/python3 -m gobby compress"}'
 
     def test_no_placeholder_returns_unchanged(self) -> None:
         original = '{"cmd": "gobby compress -- foo"}'
-        result = _resolve_sync_placeholders(original)
+        result = resolve_sync_placeholders(original)
         assert result == original
 
     def test_multiple_occurrences_replaced(self) -> None:
-        with patch("gobby.workflows.sync.shutil.which", return_value="/bin/gobby"):
-            result = _resolve_sync_placeholders(
+        with patch("gobby.workflows.sync_rules.shutil.which", return_value="/bin/gobby"):
+            result = resolve_sync_placeholders(
                 '{"a": "{{ gobby_bin }} x", "b": "{{ gobby_bin }} y"}'
             )
         assert result == '{"a": "/bin/gobby x", "b": "/bin/gobby y"}'

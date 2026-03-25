@@ -167,7 +167,9 @@ class TestErrorHandling:
 
         assert "Session not found" in str(exc_info.value)
 
-    async def test_handles_invalid_source_format(self, mock_session_manager, mock_transcript_reader):
+    async def test_handles_invalid_source_format(
+        self, mock_session_manager, mock_transcript_reader
+    ):
         """Handles invalid source format gracefully."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,

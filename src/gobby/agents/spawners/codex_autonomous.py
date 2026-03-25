@@ -92,7 +92,7 @@ class CodexAutonomousRunner:
         """
         if not CodexAdapter.is_codex_available():
             error = "Codex CLI not found in PATH"
-            logger.error("CodexAutonomousRunner: %s", error)
+            logger.error(f"CodexAutonomousRunner: {error}")
             if self.agent_run_manager:
                 await asyncio.to_thread(self.agent_run_manager.fail, self.run_id, error=error)
             raise RuntimeError(error)
@@ -180,7 +180,7 @@ class CodexAutonomousRunner:
 
             def _on_fire_and_forget_error(task: asyncio.Task[Any]) -> None:
                 if not task.cancelled() and task.exception():
-                    logger.error("Fire-and-forget task failed: %s", task.exception())
+                    logger.error(f"Fire-and-forget task failed: {task.exception()}")
 
             def _on_item_completed_sync(method: str, params: dict[str, Any]) -> None:
                 t = _loop.create_task(_on_item_completed(method, params))
@@ -202,11 +202,7 @@ class CodexAutonomousRunner:
             self.thread_id = thread.id
 
             logger.info(
-                "CodexAutonomousRunner started: run_id=%s session=%s thread=%s model=%s",
-                self.run_id,
-                session_ref,
-                self.thread_id,
-                self.model,
+                f"CodexAutonomousRunner started: run_id={self.run_id} session={session_ref} thread={self.thread_id} model={self.model}",
             )
 
             # Fire before_agent callback
@@ -232,16 +228,11 @@ class CodexAutonomousRunner:
 
             if turn_error:
                 logger.warning(
-                    "CodexAutonomousRunner turn error: run_id=%s error=%s",
-                    self.run_id,
-                    turn_error,
+                    f"CodexAutonomousRunner turn error: run_id={self.run_id} error={turn_error}",
                 )
 
             logger.info(
-                "CodexAutonomousRunner completed: run_id=%s thread=%s chars=%d",
-                self.run_id,
-                self.thread_id,
-                len(accumulated_text),
+                f"CodexAutonomousRunner completed: run_id={self.run_id} thread={self.thread_id} chars={len(accumulated_text)}",
             )
 
             # Store thread_id for cross-mode resume
@@ -258,15 +249,13 @@ class CodexAutonomousRunner:
             return accumulated_text
 
         except asyncio.CancelledError:
-            logger.info("CodexAutonomousRunner cancelled: run_id=%s", self.run_id)
+            logger.info(f"CodexAutonomousRunner cancelled: run_id={self.run_id}")
             if self.agent_run_manager:
                 self.agent_run_manager.fail(self.run_id, error="Cancelled")
             raise
         except Exception as e:
             logger.error(
-                "CodexAutonomousRunner failed: run_id=%s error=%s",
-                self.run_id,
-                e,
+                f"CodexAutonomousRunner failed: run_id={self.run_id} error={e}",
                 exc_info=True,
             )
             if self.agent_run_manager:

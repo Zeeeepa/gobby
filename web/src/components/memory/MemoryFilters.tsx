@@ -5,6 +5,12 @@ interface MemoryFiltersProps {
   stats: MemoryStats | null
   recentCount: number
   onFiltersChange: (filters: MemoryFiltersType) => void
+  viewMode?: string
+  knowledgeGraphLimit?: number
+  onKnowledgeGraphLimitChange?: (limit: number) => void
+  limitMin?: number
+  limitMax?: number
+  limitStep?: number
 }
 
 const MEMORY_TYPES = [
@@ -14,7 +20,11 @@ const MEMORY_TYPES = [
   { key: 'context', label: 'Context', color: '#fbbf24' },
 ] as const
 
-export function MemoryFilters({ filters, stats, recentCount, onFiltersChange }: MemoryFiltersProps) {
+export function MemoryFilters({
+  filters, stats, recentCount, onFiltersChange,
+  viewMode, knowledgeGraphLimit, onKnowledgeGraphLimitChange,
+  limitMin = 50, limitMax = 5000, limitStep = 50,
+}: MemoryFiltersProps) {
   return (
     <div className="memory-filter-bar">
       <div className="memory-filter-chips">
@@ -53,6 +63,22 @@ export function MemoryFilters({ filters, stats, recentCount, onFiltersChange }: 
           24H
           <span className="memory-type-chip-count">{recentCount}</span>
         </button>
+        {viewMode === 'knowledge' && onKnowledgeGraphLimitChange && (
+          <label className="memory-limit-control" title="Max nodes to display" style={{ marginLeft: 'auto' }}>
+            Limit
+            <input
+              type="number"
+              min={limitMin}
+              max={limitMax}
+              step={limitStep}
+              value={knowledgeGraphLimit}
+              onChange={e => {
+                const v = Math.max(limitMin, Math.min(limitMax, Number(e.target.value) || limitMin))
+                onKnowledgeGraphLimitChange(v)
+              }}
+            />
+          </label>
+        )}
       </div>
 
       {(filters.memoryType !== null || filters.recentOnly) && (

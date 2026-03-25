@@ -31,9 +31,7 @@ class TestConfigureStatusline:
         assert "GOBBY_STATUSLINE_DOWNSTREAM" not in settings["statusLine"]["command"]
 
     def test_wraps_existing_command(self, tmp_path: Path) -> None:
-        settings: dict[str, Any] = {
-            "statusLine": {"type": "command", "command": "cship --color"}
-        }
+        settings: dict[str, Any] = {"statusLine": {"type": "command", "command": "cship --color"}}
         hooks_dir = tmp_path / "hooks"
         hooks_dir.mkdir()
         (hooks_dir / "statusline_handler.py").touch()
@@ -50,9 +48,7 @@ class TestConfigureStatusline:
         (hooks_dir / "statusline_handler.py").touch()
 
         # First install with downstream
-        settings: dict[str, Any] = {
-            "statusLine": {"type": "command", "command": "cship"}
-        }
+        settings: dict[str, Any] = {"statusLine": {"type": "command", "command": "cship"}}
         _configure_statusline(settings, hooks_dir)
 
         # Second install (idempotent)
@@ -90,7 +86,6 @@ class TestConfigureStatusline:
         assert "statusline_handler.py" in cmd
         # Single quotes should be escaped
         assert "GOBBY_STATUSLINE_DOWNSTREAM=" in cmd
-
 
     def test_round_trip_configure_extract(self, tmp_path: Path) -> None:
         """Configure with downstream, then extract — should recover original command."""
@@ -147,9 +142,7 @@ class TestRestoreStatusline:
         assert "statusLine" not in settings
 
     def test_no_op_for_foreign_statusline(self) -> None:
-        settings: dict[str, Any] = {
-            "statusLine": {"type": "command", "command": "cship"}
-        }
+        settings: dict[str, Any] = {"statusLine": {"type": "command", "command": "cship"}}
         _restore_statusline(settings)
         assert settings["statusLine"] == {"type": "command", "command": "cship"}
 

@@ -668,8 +668,8 @@ class TestAgentRunnerCancelRun:
 
         assert result is False
 
-    def test_cancel_run_removes_from_tracking(self, runner, mock_session_storage) -> None:
-        """cancel_run removes agent from in-memory tracking."""
+    def test_cancel_run_marks_db_cancelled(self, runner, mock_session_storage) -> None:
+        """cancel_run marks the DB record as cancelled."""
         mock_run = MagicMock()
         mock_run.id = "run-tracked"
         mock_run.status = "running"
@@ -677,14 +677,10 @@ class TestAgentRunnerCancelRun:
         runner._run_storage.get = MagicMock(return_value=mock_run)
         runner._run_storage.cancel = MagicMock()
 
-        # Add to tracking first
-        runner._tracker._running_agents["run-tracked"] = MagicMock()
-        assert runner.is_agent_running("run-tracked")
-
         result = runner.cancel_run("run-tracked")
 
         assert result is True
-        assert not runner.is_agent_running("run-tracked")
+        runner._run_storage.cancel.assert_called_once_with("run-tracked")
 
     def test_cancel_run_no_child_session(self, runner) -> None:
         """cancel_run handles case where run has no child_session_id."""
@@ -739,162 +735,76 @@ class TestAgentRunnerRegisterExecutor:
         assert runner.get_executor("test") is new_executor
 
 
-class TestAgentRunnerInMemoryTracking:
-    """Tests for AgentRunner in-memory running agents tracking."""
-
-    def test_track_running_agent(self, runner) -> None:
-        """_track_running_agent adds agent to dict."""
-        agent = runner._track_running_agent(
-            run_id="run-123",
-            parent_session_id="sess-parent",
-            child_session_id="sess-child",
-            provider="claude",
-            prompt="Test task",
-        )
-
-        assert agent.run_id == "run-123"
-        assert runner.is_agent_running("run-123")
-        assert runner.get_running_agent("run-123") is agent
-
-    def test_untrack_running_agent(self, runner) -> None:
-        """_untrack_running_agent removes agent from dict."""
-        runner._track_running_agent(
-            run_id="run-456",
-            parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="claude",
-            prompt="Task",
-        )
-
-        removed = runner._untrack_running_agent("run-456")
-
-        assert removed is not None
-        assert removed.run_id == "run-456"
-        assert not runner.is_agent_running("run-456")
-
-    def test_untrack_nonexistent_returns_none(self, runner) -> None:
-        """_untrack_running_agent returns None for missing agent."""
-        result = runner._untrack_running_agent("nonexistent-run")
-
-        assert result is None
-
-    def test_update_running_agent(self, runner) -> None:
-        """_update_running_agent returns agent if found.
-
-        Note: The registry's RunningAgent is lightweight and doesn't track
-        turns_used/tool_calls_count - those are tracked in the database.
-        This method just verifies the agent exists.
-        """
-        runner._track_running_agent(
-            run_id="run-789",
-            parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="claude",
-            prompt="Task",
-        )
-
-        updated = runner._update_running_agent(
-            "run-789",
-            turns_used=5,
-            tool_calls_count=10,
-        )
-
-        # Should return the agent (verifying it exists)
-        assert updated is not None
-        assert updated.run_id == "run-789"
+class TestAgentRunnerDBTracking:
+    """Tests for AgentRunner DB-driven running agents tracking."""
 
     def test_get_running_agent(self, runner) -> None:
-        """get_running_agent returns agent by ID."""
-        runner._track_running_agent(
-            run_id="run-get",
-            parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="claude",
-            prompt="Task",
-        )
+        """get_running_agent returns running agent from DB."""
+        mock_run = MagicMock()
+        mock_run.id = "run-get"
+        mock_run.status = "running"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
 
         agent = runner.get_running_agent("run-get")
 
         assert agent is not None
-        assert agent.run_id == "run-get"
+        assert agent.id == "run-get"
 
     def test_get_running_agent_not_found(self, runner) -> None:
         """get_running_agent returns None for missing agent."""
+        runner._run_storage.get = MagicMock(return_value=None)
+
         agent = runner.get_running_agent("missing")
 
         assert agent is None
 
+    def test_get_running_agent_completed_returns_none(self, runner) -> None:
+        """get_running_agent returns None for non-running agent."""
+        mock_run = MagicMock()
+        mock_run.id = "run-done"
+        mock_run.status = "success"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+
+        agent = runner.get_running_agent("run-done")
+
+        assert agent is None
+
     def test_get_running_agents(self, runner) -> None:
-        """get_running_agents returns all agents."""
-        runner._track_running_agent(
-            run_id="run-1",
-            parent_session_id="sess-p1",
-            child_session_id="sess-c1",
-            provider="claude",
-            prompt="Task 1",
-        )
-        runner._track_running_agent(
-            run_id="run-2",
-            parent_session_id="sess-p2",
-            child_session_id="sess-c2",
-            provider="gemini",
-            prompt="Task 2",
-        )
+        """get_running_agents returns all active agents from DB."""
+        mock_runs = [MagicMock(id="run-1"), MagicMock(id="run-2")]
+        runner._run_storage.list_active = MagicMock(return_value=mock_runs)
 
         agents = runner.get_running_agents()
 
         assert len(agents) == 2
-        run_ids = {a.run_id for a in agents}
-        assert run_ids == {"run-1", "run-2"}
+        runner._run_storage.list_active.assert_called_once()
 
     def test_get_running_agents_filter_by_parent(self, runner) -> None:
-        """get_running_agents filters by parent_session_id."""
-        runner._track_running_agent(
-            run_id="run-a",
-            parent_session_id="parent-1",
-            child_session_id="child-a",
-            provider="claude",
-            prompt="Task A",
-        )
-        runner._track_running_agent(
-            run_id="run-b",
-            parent_session_id="parent-2",
-            child_session_id="child-b",
-            provider="claude",
-            prompt="Task B",
-        )
+        """get_running_agents filters by parent_session_id via DB."""
+        mock_runs = [MagicMock(id="run-a")]
+        runner._run_storage.list_by_parent = MagicMock(return_value=mock_runs)
 
         agents = runner.get_running_agents(parent_session_id="parent-1")
 
         assert len(agents) == 1
-        assert agents[0].run_id == "run-a"
+        runner._run_storage.list_by_parent.assert_called_once_with("parent-1")
 
     def test_get_running_agents_count(self, runner) -> None:
-        """get_running_agents_count returns correct count."""
+        """get_running_agents_count returns correct count from DB."""
+        runner._run_storage.list_active = MagicMock(return_value=[])
         assert runner.get_running_agents_count() == 0
 
-        runner._track_running_agent(
-            run_id="run-1",
-            parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="claude",
-            prompt="Task",
-        )
-
+        runner._run_storage.list_active = MagicMock(return_value=[MagicMock()])
         assert runner.get_running_agents_count() == 1
 
     def test_is_agent_running(self, runner) -> None:
-        """is_agent_running returns correct boolean."""
+        """is_agent_running checks DB status."""
+        runner._run_storage.get = MagicMock(return_value=None)
         assert runner.is_agent_running("run-check") is False
 
-        runner._track_running_agent(
-            run_id="run-check",
-            parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="claude",
-            prompt="Task",
-        )
-
+        mock_run = MagicMock()
+        mock_run.status = "running"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
         assert runner.is_agent_running("run-check") is True
 
 

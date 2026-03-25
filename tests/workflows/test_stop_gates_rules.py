@@ -276,7 +276,10 @@ class TestCompactPreservesTriagedState:
         # Verify: with preserved variables, the rule condition should NOT match.
         # Build event context that would normally trigger the rule (close_task with commit)
         mock_event = MagicMock()
-        mock_event.data = {"mcp_tool": "close_task", "tool_input": {"arguments": {"commit_sha": "abc123"}}}
+        mock_event.data = {
+            "mcp_tool": "close_task",
+            "tool_input": {"arguments": {"commit_sha": "abc123"}},
+        }
         evaluator = SafeExpressionEvaluator(
             context={"variables": variables, "event": mock_event},
             allowed_funcs={"len": len, "str": str, "int": int, "bool": bool},
@@ -1102,9 +1105,7 @@ class TestClaimedTaskReconciliation:
 
         assert variables["task_claimed"] is True
         assert variables["claimed_tasks"] == {"uuid-db": "#42"}
-        task_manager.list_tasks.assert_called_once_with(
-            assignee="sess-1", status="in_progress"
-        )
+        task_manager.list_tasks.assert_called_once_with(assignee="sess-1", status="in_progress")
 
     def test_reconcile_rebuilds_with_no_seq_num(self) -> None:
         """DB task without seq_num should use truncated UUID as ref."""
@@ -1113,7 +1114,9 @@ class TestClaimedTaskReconciliation:
         from gobby.workflows.observers import reconcile_claimed_tasks
 
         task_manager = MagicMock()
-        db_task = _make_task("abcdef12-3456-7890-abcd-ef1234567890", status="in_progress", assignee="sess-1")
+        db_task = _make_task(
+            "abcdef12-3456-7890-abcd-ef1234567890", status="in_progress", assignee="sess-1"
+        )
         db_task.seq_num = None
         task_manager.list_tasks.return_value = [db_task]
 

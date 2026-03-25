@@ -84,7 +84,7 @@ def basic_http_server(session_storage: LocalSessionManager) -> HTTPServer:
 @pytest.fixture
 def client(basic_http_server: HTTPServer) -> Iterator[TestClient]:
     """Create a test client for the HTTP server."""
-    with patch("gobby.servers.http.HookManager") as MockHM:
+    with patch("gobby.servers.app_factory.HookManager") as MockHM:
         mock_instance = MockHM.return_value
         mock_instance._stop_registry = MagicMock()
         mock_instance.shutdown = MagicMock()
@@ -1227,7 +1227,7 @@ class TestExceptionHandlers:
 
         client = TestClient(server.app, raise_server_exceptions=False)
 
-        with patch("gobby.servers.http.logger") as mock_logger:
+        with patch("gobby.servers.exception_handlers.logger") as mock_logger:
             response = client.get("/trigger_error")
 
             # Exception should be logged
@@ -1316,7 +1316,7 @@ class TestLifespan:
             test_mode=True,
         )
 
-        with patch("gobby.servers.http.HookManager") as MockHM:
+        with patch("gobby.servers.app_factory.HookManager") as MockHM:
             with TestClient(server.app):
                 MockHM.assert_called_once()
 

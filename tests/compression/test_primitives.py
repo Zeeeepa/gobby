@@ -300,9 +300,9 @@ class TestGroupLines:
     def test_lint_by_rule_mypy_format(self) -> None:
         """Mypy-style lint output is grouped by [code]."""
         lines = [
-            'src/foo.py:10: error: incompatible types [assignment]\n',
-            'src/bar.py:20: error: missing return [return-value]\n',
-            'src/baz.py:30: error: incompatible types [assignment]\n',
+            "src/foo.py:10: error: incompatible types [assignment]\n",
+            "src/bar.py:20: error: missing return [return-value]\n",
+            "src/baz.py:30: error: incompatible types [assignment]\n",
         ]
         result = group_lines(lines, mode="lint_by_rule")
         text = "".join(result)

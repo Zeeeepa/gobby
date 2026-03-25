@@ -4,6 +4,18 @@ Pure functions with no external dependencies that provide utility
 for task operations.
 """
 
+import uuid
+
+
+def _is_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID (not a ref like #123)."""
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 # Reasons for which commit linking and validation are skipped when closing tasks
 SKIP_REASONS: frozenset[str] = frozenset(
     {"duplicate", "already_implemented", "wont_fix", "obsolete", "out_of_repo"}

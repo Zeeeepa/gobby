@@ -205,9 +205,7 @@ class WorktreeIsolationHandler(IsolationHandler):
                 # Stale record — directory gone, clean up and fall through to create new
 
                 logger.warning(
-                    "Worktree directory missing: %s (cleaning up stale record %s)",
-                    existing.worktree_path,
-                    existing.id,
+                    f"Worktree directory missing: {existing.worktree_path} (cleaning up stale record {existing.id})",
                 )
                 self._worktree_storage.delete(existing.id)
 
@@ -470,9 +468,7 @@ class CloneIsolationHandler(IsolationHandler):
                 # Stale record — directory gone, clean up and fall through to create new
 
                 logger.warning(
-                    "Clone directory missing: %s (cleaning up stale record %s)",
-                    existing.clone_path,
-                    existing.id,
+                    f"Clone directory missing: {existing.clone_path} (cleaning up stale record {existing.id})",
                 )
                 self._clone_storage.delete(existing.id)
 

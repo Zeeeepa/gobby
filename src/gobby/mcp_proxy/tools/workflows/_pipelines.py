@@ -80,7 +80,7 @@ def _auto_subscribe_lineage(
             if session_id not in lineage_ids:
                 lineage_ids.append(session_id)
         except Exception:
-            logger.debug("Could not resolve session lineage for %s", session_id, exc_info=True)
+            logger.debug(f"Could not resolve session lineage for {session_id}", exc_info=True)
 
     # Register in-memory event + subscribers
     try:
@@ -90,7 +90,7 @@ def _auto_subscribe_lineage(
             continuation_prompt=continuation_prompt,
         )
     except Exception:
-        logger.debug("Failed to register completion event %s", completion_id, exc_info=True)
+        logger.debug(f"Failed to register completion event {completion_id}", exc_info=True)
         return
 
     # Persist subscribers to DB for restart recovery
@@ -103,14 +103,14 @@ def _auto_subscribe_lineage(
             em.add_completion_subscribers(completion_id, lineage_ids)
         except Exception:
             logger.debug(
-                "Failed to persist completion subscribers for %s", completion_id, exc_info=True
+                f"Failed to persist completion subscribers for {completion_id}", exc_info=True
             )
 
 
 def _resolve_session_ref(ref: str, session_manager: "LocalSessionManager | None") -> str:
     """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
     if session_manager is None:
-        logger.warning("session_manager is None; returning raw session ref %r", ref)
+        logger.warning(f"session_manager is None; returning raw session ref {ref!r}")
         return ref
     from gobby.utils.project_context import get_project_context
 

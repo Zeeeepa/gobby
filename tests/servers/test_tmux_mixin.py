@@ -239,18 +239,18 @@ class TestTmuxKillSession:
 
     @pytest.mark.asyncio
     async def test_kill_agent_managed_refused(self, server: WebSocketServer) -> None:
-        from gobby.agents.registry import RunningAgent
-
         ws = MockWebSocket()
-        agent = RunningAgent(
-            run_id="ar-1",
-            session_id="s1",
-            parent_session_id="p1",
-            mode="tmux",
-            tmux_session_name="agent-sess",
-        )
-        with patch("gobby.servers.websocket.tmux.get_running_agent_registry") as mock_reg:
-            mock_reg.return_value.list_all.return_value = [agent]
+        mock_run = MagicMock()
+        mock_run.id = "ar-1"
+        mock_run.tmux_session_name = "agent-sess"
+        mock_run.mode = "tmux"
+
+        mock_session_mgr = MagicMock()
+        mock_arm = MagicMock()
+        mock_arm.list_active.return_value = [mock_run]
+        server.session_manager = mock_session_mgr
+
+        with patch("gobby.storage.agents.LocalAgentRunManager", return_value=mock_arm):
             await server._handle_tmux_kill_session(
                 ws,
                 {"request_id": "r1", "session_name": "agent-sess", "socket": "gobby"},
@@ -320,13 +320,17 @@ class TestTerminalInputBridgeRouting:
                 assert args[0][2] == b"ls\n"  # data
 
     @pytest.mark.asyncio
-    async def test_input_falls_through_to_registry(self, server: WebSocketServer) -> None:
+    async def test_input_falls_through_to_db_lookup(self, server: WebSocketServer) -> None:
         ws = MockWebSocket()
-        # Bridge returns None for fd - should fall through to registry lookup
+        mock_session_mgr = MagicMock()
+        server.session_manager = mock_session_mgr
+        mock_arm = MagicMock()
+        mock_arm.get.return_value = None
+
+        # Bridge returns None for fd - should fall through to DB lookup
         with patch.object(
             server._tmux_bridge, "get_master_fd", new_callable=AsyncMock, return_value=None
         ):
-            with patch("gobby.servers.websocket.handlers.get_running_agent_registry") as mock_reg:
-                mock_reg.return_value.get.return_value = None
+            with patch("gobby.storage.agents.LocalAgentRunManager", return_value=mock_arm):
                 await server._handle_terminal_input(ws, {"run_id": "some-agent", "data": "x"})
-                mock_reg.return_value.get.assert_called_once_with("some-agent")
+                mock_arm.get.assert_called_once_with("some-agent")

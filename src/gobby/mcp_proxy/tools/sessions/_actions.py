@@ -215,18 +215,16 @@ def register_action_tools(
                 if updated_session and len(title) < 80:
                     await _rename_tmux_window(updated_session, title)
             except Exception as e:
-                logger.debug("tmux rename skipped: %s", e)
+                logger.debug(f"tmux rename skipped: {e}")
 
             return {"success": True, "title": title}
 
         except TimeoutError:
-            logger.warning("Title synthesis timed out for session %s", session_id)
+            logger.warning(f"Title synthesis timed out for session {session_id}")
             return {"success": False, "error": "LLM call timed out"}
         except Exception as e:
             logger.error(
-                "Title synthesis failed for session %s: %s",
-                session_id,
-                e,
+                f"Title synthesis failed for session {session_id}: {e}",
                 exc_info=True,
             )
             return {"success": False, "error": str(e)}

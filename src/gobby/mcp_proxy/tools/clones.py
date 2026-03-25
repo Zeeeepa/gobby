@@ -544,8 +544,7 @@ def create_clones_registry(
                 )
                 if pop_result.returncode != 0:
                     logger.warning(
-                        "Failed to restore stashed .gobby/ files: %s",
-                        pop_result.stderr or pop_result.stdout,
+                        f"Failed to restore stashed .gobby/ files: {pop_result.stderr or pop_result.stdout}",
                     )
 
         if not merge_result.success:

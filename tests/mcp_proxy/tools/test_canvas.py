@@ -722,22 +722,46 @@ def test_get_active_canvases():
 
     now = datetime.now(UTC)
     canvas_mod._canvases["active1"] = canvas_mod.CanvasState(
-        canvas_id="active1", mode="a2ui", surface={}, data_model={},
-        root_component_id=None, html_url=None, conversation_id="conv-ac",
-        pending_event=None, interaction_result=None,
-        created_at=now, expires_at=now + timedelta(minutes=5), completed=False,
+        canvas_id="active1",
+        mode="a2ui",
+        surface={},
+        data_model={},
+        root_component_id=None,
+        html_url=None,
+        conversation_id="conv-ac",
+        pending_event=None,
+        interaction_result=None,
+        created_at=now,
+        expires_at=now + timedelta(minutes=5),
+        completed=False,
     )
     canvas_mod._canvases["completed1"] = canvas_mod.CanvasState(
-        canvas_id="completed1", mode="a2ui", surface={}, data_model={},
-        root_component_id=None, html_url=None, conversation_id="conv-ac",
-        pending_event=None, interaction_result=None,
-        created_at=now, expires_at=now + timedelta(minutes=5), completed=True,
+        canvas_id="completed1",
+        mode="a2ui",
+        surface={},
+        data_model={},
+        root_component_id=None,
+        html_url=None,
+        conversation_id="conv-ac",
+        pending_event=None,
+        interaction_result=None,
+        created_at=now,
+        expires_at=now + timedelta(minutes=5),
+        completed=True,
     )
     canvas_mod._canvases["other-conv"] = canvas_mod.CanvasState(
-        canvas_id="other-conv", mode="a2ui", surface={}, data_model={},
-        root_component_id=None, html_url=None, conversation_id="conv-other",
-        pending_event=None, interaction_result=None,
-        created_at=now, expires_at=now + timedelta(minutes=5), completed=False,
+        canvas_id="other-conv",
+        mode="a2ui",
+        surface={},
+        data_model={},
+        root_component_id=None,
+        html_url=None,
+        conversation_id="conv-other",
+        pending_event=None,
+        interaction_result=None,
+        created_at=now,
+        expires_at=now + timedelta(minutes=5),
+        completed=False,
     )
 
     result = get_active_canvases("conv-ac")

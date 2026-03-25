@@ -36,7 +36,7 @@ class ModelCostStore:
         try:
             import litellm
         except ImportError:
-            logger.warning("litellm not installed — skipping model cost population")
+            logger.warning("litellm not installed - skipping model cost population")
             return 0
 
         rows: list[tuple[str, str | None, float, float, float | None, float | None, str]] = []

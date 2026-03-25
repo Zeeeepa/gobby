@@ -255,7 +255,7 @@ def create_spawn_agent_registry(
                 if isinstance(wf_def, PipelineDefinition):
                     initial_variables["_assigned_pipeline"] = effective_workflow
             else:
-                logger.warning("Workflow %r not found for agent spawn", effective_workflow)
+                logger.warning(f"Workflow {effective_workflow!r} not found for agent spawn")
 
         # Provider rotation: if spawning for a task, check if previous attempts
         # failed with provider errors and skip those providers
@@ -281,7 +281,7 @@ def create_spawn_agent_registry(
                         # All exhausted — use the first one as fallback
                         effective_provider = provider_list[0]
             except Exception as e:
-                logger.debug("Provider rotation check failed: %s", e)
+                logger.debug(f"Provider rotation check failed: {e}")
 
         # Delegate to spawn_agent_impl
         result = await spawn_agent_impl(
@@ -445,13 +445,13 @@ def _auto_subscribe_agent(
                 lineage_ids.append(parent_session_id)
         except Exception:
             logger.debug(
-                "Could not resolve session lineage for %s", parent_session_id, exc_info=True
+                f"Could not resolve session lineage for {parent_session_id}", exc_info=True
             )
 
     try:
         completion_registry.register(run_id, subscribers=lineage_ids)
     except Exception:
-        logger.debug("Failed to register completion event for run %s", run_id, exc_info=True)
+        logger.debug(f"Failed to register completion event for run {run_id}", exc_info=True)
         return
 
     # Persist subscribers for restart recovery
@@ -463,5 +463,5 @@ def _auto_subscribe_agent(
             em.add_completion_subscribers(run_id, lineage_ids)
         except Exception:
             logger.debug(
-                "Failed to persist completion subscribers for run %s", run_id, exc_info=True
+                f"Failed to persist completion subscribers for run {run_id}", exc_info=True
             )

@@ -20,7 +20,7 @@ import logging
 import threading
 import time
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -139,8 +139,8 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
-                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="gemini"),
+                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude"),
+                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="gemini"),
             ],
             "paused": [],
         }[status]
@@ -162,10 +162,10 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", jsonl_path="/path/to/1.jsonl", source="claude"),
+                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude"),
             ],
             "paused": [
-                MagicMock(id="session-2", jsonl_path="/path/to/2.jsonl", source="claude"),
+                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="claude"),
             ],
         }[status]
 
@@ -183,11 +183,11 @@ class TestSessionLifecycleTransitions:
             "session-2", "/path/to/2.jsonl", source="claude"
         )
 
-    def test_reregister_skips_sessions_without_jsonl_path(self) -> None:
-        """Test re-registration skips sessions without jsonl_path."""
+    def test_reregister_skips_sessions_without_transcript_path(self) -> None:
+        """Test re-registration skips sessions without transcript_path."""
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
-            "active": [MagicMock(id="session-1", jsonl_path=None, source="claude")],
+            "active": [MagicMock(id="session-1", transcript_path=None, source="claude")],
             "paused": [],
         }[status]
 
@@ -208,8 +208,8 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", jsonl_path="/path/1.jsonl", source="claude"),
-                MagicMock(id="session-2", jsonl_path="/path/2.jsonl", source="claude"),
+                MagicMock(id="session-1", transcript_path="/path/1.jsonl", source="claude"),
+                MagicMock(id="session-2", transcript_path="/path/2.jsonl", source="claude"),
             ],
             "paused": [],
         }[status]
@@ -280,26 +280,6 @@ class TestAgentRunCompletion:
         coordinator.complete_agent_run(mock_session)
 
         mock_agent_run_manager.complete.assert_not_called()
-
-    def test_complete_agent_run_removes_from_running_registry(self) -> None:
-        """Test completing an agent run removes it from running registry."""
-        mock_agent_run_manager = MagicMock()
-        mock_agent_run = MagicMock(status="running")
-        mock_agent_run_manager.get.return_value = mock_agent_run
-
-        coordinator = SessionCoordinator(agent_run_manager=mock_agent_run_manager)
-
-        mock_session = MagicMock()
-        mock_session.agent_run_id = "run-123"
-        mock_session.summary_markdown = None
-
-        with patch("gobby.agents.registry.get_running_agent_registry") as mock_get_registry:
-            mock_registry = MagicMock()
-            mock_get_registry.return_value = mock_registry
-
-            coordinator.complete_agent_run(mock_session)
-
-            mock_registry.remove.assert_called_once_with("run-123")
 
     def test_complete_agent_run_counts_tool_calls_from_messages(self) -> None:
         """Test completing an agent run counts tool calls and turns from session_messages."""

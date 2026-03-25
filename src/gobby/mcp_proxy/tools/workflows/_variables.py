@@ -275,7 +275,7 @@ def save_variable_template(
             definition=definition,
             output_dir=output_dir,
         )
-        logger.info("Saved variable template '%s' to %s", name, path)
+        logger.info(f"Saved variable template '{name}' to {path}")
         return {"success": True, "path": str(path)}
     except Exception as e:
         return {"success": False, "error": f"Failed to write variable template: {e}"}
@@ -409,7 +409,7 @@ def create_variable(
         source="user",
         tags=["user"],
     )
-    logger.info("Created variable '%s' (id=%s)", name, row.id)
+    logger.info(f"Created variable '{name}' (id={row.id})")
 
     # Auto-export to YAML
     try:
@@ -417,7 +417,7 @@ def create_variable(
 
         auto_export_definition(row, project_path, make_global=make_global_template)
     except Exception as e:
-        logger.warning("Failed to auto-export variable '%s': %s", name, e)
+        logger.warning(f"Failed to auto-export variable '{name}': {e}")
 
     return {"success": True, "variable": _variable_summary(row)}
 
@@ -465,7 +465,7 @@ def update_variable(
 
     fields["definition_json"] = json.dumps(body)
     updated = def_manager.update(row.id, **fields)
-    logger.info("Updated variable '%s'", name)
+    logger.info(f"Updated variable '{name}'")
 
     # Auto-export updated YAML
     try:
@@ -473,7 +473,7 @@ def update_variable(
 
         auto_export_definition(updated, project_path)
     except Exception as e:
-        logger.warning("Failed to auto-export variable '%s': %s", name, e)
+        logger.warning(f"Failed to auto-export variable '{name}': {e}")
 
     return {"success": True, "variable": _variable_summary(updated)}
 
@@ -527,9 +527,9 @@ def delete_variable(
             delete_global=is_user,
         )
     except Exception as e:
-        logger.warning("Failed to delete variable template '%s': %s", name, e)
+        logger.warning(f"Failed to delete variable template '{name}': {e}")
 
-    logger.info("Deleted variable '%s' (id=%s)", name, row.id)
+    logger.info(f"Deleted variable '{name}' (id={row.id})")
     return {"success": True, "deleted": {"id": row.id, "name": row.name}}
 
 

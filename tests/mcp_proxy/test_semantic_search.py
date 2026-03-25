@@ -229,7 +229,9 @@ class TestSemanticToolSearch:
         assert call_kwargs["payload"]["server_name"] == "test-server"
 
     @pytest.mark.asyncio
-    async def test_store_embedding_no_vectorstore(self, semantic_search: SemanticToolSearch) -> None:
+    async def test_store_embedding_no_vectorstore(
+        self, semantic_search: SemanticToolSearch
+    ) -> None:
         """Test store_embedding warns when no VectorStore configured."""
         # No vector_store set — should just log warning and return None
         result = await semantic_search.store_embedding(
@@ -456,7 +458,9 @@ class TestEmbeddingGeneration:
         )
 
         with patch.object(
-            semantic_search, "embed_text", new_callable=AsyncMock,
+            semantic_search,
+            "embed_text",
+            new_callable=AsyncMock,
             side_effect=RuntimeError("API error"),
         ):
             stats = await semantic_search.embed_all_tools(

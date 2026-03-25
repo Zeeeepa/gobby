@@ -28,6 +28,7 @@ class MockSession:
     parent_session_id: str | None = None
     project_id: str = "project-1"
     status: str = "active"
+    agent_depth: int = 0
 
 
 @dataclass
@@ -390,7 +391,10 @@ class TestSendCommandBroadcast:
         mock_broadcast_fn,
     ) -> None:
         """Successful send_command triggers agent_command broadcast."""
-        mock_session_manager.is_ancestor.return_value = True
+        mock_session_manager.get.side_effect = lambda sid: {
+            "s-parent": MockSession(id="s-parent", agent_depth=0, project_id="proj-1"),
+            "s-child": MockSession(id="s-child", agent_depth=1, project_id="proj-1"),
+        }.get(sid)
         mock_command_manager.list_commands.return_value = []
 
         result = await messaging_registry_with_broadcast.call(
@@ -418,7 +422,11 @@ class TestSendCommandBroadcast:
         mock_broadcast_fn,
     ) -> None:
         """Failed send_command does not broadcast."""
-        mock_session_manager.is_ancestor.return_value = False
+        # Same-depth agents: should be rejected
+        mock_session_manager.get.side_effect = lambda sid: {
+            "s-unrelated": MockSession(id="s-unrelated", agent_depth=1, project_id="proj-1"),
+            "s-child": MockSession(id="s-child", agent_depth=1, project_id="proj-1"),
+        }.get(sid)
 
         result = await messaging_registry_with_broadcast.call(
             "send_command",

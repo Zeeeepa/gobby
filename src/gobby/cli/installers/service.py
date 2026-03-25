@@ -235,7 +235,11 @@ def uninstall_service_macos() -> dict[str, Any]:
 
 
 def enable_service_macos() -> dict[str, Any]:
-    """Re-enable the launchd service after disable (bootstrap it)."""
+    """Re-enable the launchd service after disable (bootstrap it).
+
+    Checks daemon health before touching launchd.  If the service is
+    already running, returns immediately — no bootout/bootstrap cycle.
+    """
     plist_file = _plist_path()
     if not plist_file.exists():
         return {
@@ -243,10 +247,21 @@ def enable_service_macos() -> dict[str, Any]:
             "error": "Service not installed. Run `gobby service install` first.",
         }
 
+    # Check if the daemon is already running and healthy.
+    # Blindly booting out a healthy daemon causes SIGTERM without graceful
+    # shutdown, triggering restart loops when called repeatedly (#10680).
+    status = _get_service_status_macos()
+    if status.get("running"):
+        logger.debug(
+            f"Daemon already running (pid={status.get('pid')}) - skipping bootout/bootstrap"
+        )
+        return {"success": True, "platform": "macos", "already_running": True}
+
     # Bootout any stale service entry before bootstrapping.
     # Without this, bootstrap fails with error 5 (I/O error) when a
     # previous service entry exists but the process is dead.
-    _launchctl_bootout(quiet=True)
+    if status.get("enabled"):
+        _launchctl_bootout(quiet=True)
 
     uid = os.getuid()
     result = subprocess.run(  # nosec B603 B607

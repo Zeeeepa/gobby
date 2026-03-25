@@ -1,0 +1,391 @@
+"""Close task handler for task lifecycle.
+
+Handles the close_task tool registration including validation,
+commit checks, session linking, and worktree status updates.
+"""
+
+import logging
+from typing import Any
+
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.tasks._context import RegistryContext
+from gobby.mcp_proxy.tools.tasks._helpers import SKIP_REASONS
+from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
+    determine_close_outcome,
+    gather_validation_context,
+    validate_commit_requirements,
+    validate_leaf_task_with_llm,
+    validate_parent_task,
+)
+from gobby.mcp_proxy.tools.tasks._notifications import notify_parent_on_status_change
+from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
+from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.tasks import TaskNotFoundError
+
+logger = logging.getLogger(__name__)
+
+
+def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) -> None:
+    """Register the close_task tool on the given registry."""
+
+    async def close_task(
+        task_id: str,
+        reason: str = "completed",
+        changes_summary: str | None = None,
+        skip_validation: bool = False,
+        session_id: str | None = None,
+        override_justification: str | None = None,
+        commit_sha: str | None = None,
+    ) -> dict[str, Any]:
+        """Close a task with validation.
+
+        For parent tasks: automatically checks all children are closed.
+        For leaf tasks: optionally validates with LLM if changes_summary provided.
+
+        Args:
+            task_id: Task reference (#N, path, or UUID)
+            reason: Reason for closing. Use "duplicate", "already_implemented", "wont_fix",
+                or "obsolete" to auto-skip commit check (these imply no work was done).
+            changes_summary: Summary of changes made. Required for leaf/standalone tasks.
+                Optional for parent/epic tasks where all children are closed.
+                For completed tasks: describe what was changed and why.
+                For no-work closes (duplicate, wont_fix, obsolete): explain why no changes were needed.
+            skip_validation: Skip all validation checks
+            session_id: Session ID where task is being closed (auto-links to session)
+            override_justification: Why agent bypassed validation (stored for audit).
+            commit_sha: Git commit SHA to link before closing. Convenience for link + close in one call.
+
+        Returns:
+            Closed task or error with validation feedback
+        """
+        # Resolve task reference (supports #N, path, UUID formats)
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except TaskNotFoundError as e:
+            return {"error": str(e)}
+        except ValueError as e:
+            return {"error": str(e)}
+
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        # Link commit if provided (convenience for link + close in one call)
+        if commit_sha:
+            task = ctx.task_manager.link_commit(resolved_id, commit_sha)
+
+        # Get project repo_path for git commands
+        repo_path = ctx.get_project_repo_path(task.project_id)
+        cwd = repo_path or "."
+
+        # Check if this is a parent task with all children closed
+        # Parent tasks (epics) are organizational containers -- no own commits needed
+        children_for_parent_check = ctx.task_manager.list_tasks(parent_task_id=resolved_id, limit=1)
+        is_parent_all_closed = False
+        if children_for_parent_check:
+            parent_result = validate_parent_task(ctx, resolved_id)
+            if not parent_result.can_close:
+                response: dict[str, Any] = {
+                    "success": False,
+                    "error": parent_result.error_type,
+                    "message": parent_result.message,
+                }
+                if parent_result.extra:
+                    response.update(parent_result.extra)
+                return response
+            is_parent_all_closed = True
+
+        # Require changes_summary for non-parent closes (agents must explain what changed)
+        if not is_parent_all_closed and not changes_summary:
+            return {
+                "success": False,
+                "error": "missing_changes_summary",
+                "message": "changes_summary is required when closing leaf/standalone tasks. "
+                "Describe what was changed and why.",
+            }
+
+        # Check for linked commits (unless parent with all children closed)
+        if not is_parent_all_closed:
+            commit_result = validate_commit_requirements(task, reason, repo_path)
+            if not commit_result.can_close:
+                return {
+                    "success": False,
+                    "error": commit_result.error_type,
+                    "message": commit_result.message,
+                }
+
+        # Resolve session_id to UUID early (needed for skip_validation checks)
+        resolved_session_id = session_id
+        if session_id:
+            try:
+                resolved_session_id = ctx.resolve_session_id(session_id)
+            except ValueError as e:
+                return {"error": f"Cannot resolve session '{session_id}': {e}"}
+
+        # Single session manager instance for the duration of close_task
+        _session_manager = LocalSessionManager(ctx.task_manager.db)
+
+        # Enforce skip_validation constraints:
+        # - Cannot skip if a commit_sha is provided (you did real work, validate it)
+        # - Cannot skip if the task was claimed by this session (you own it, validate it)
+        # - Cannot skip without override_justification
+        if skip_validation:
+            if commit_sha:
+                return {
+                    "success": False,
+                    "error": "skip_validation_with_commit",
+                    "message": "Cannot skip validation when a commit_sha is provided. "
+                    "If you're linking a commit, you did real work — let validation verify it.",
+                }
+            if not override_justification:
+                return {
+                    "success": False,
+                    "error": "skip_validation_no_justification",
+                    "message": "override_justification is required when skip_validation=True. "
+                    "Explain why validation should be skipped.",
+                }
+            # Check if task was claimed by the calling session
+            if resolved_session_id and task.assignee == resolved_session_id:
+                return {
+                    "success": False,
+                    "error": "skip_validation_own_task",
+                    "message": "Cannot skip validation on a task you claimed. "
+                    "You own this work — let validation verify it. "
+                    "Write a detailed changes_summary instead.",
+                }
+
+        # Auto-skip validation for certain close reasons
+        should_skip = skip_validation or reason.lower() in SKIP_REASONS
+
+        # Enforce commits if session had edits
+        # Only skip for explicit skip_validation, NOT for close reasons like out_of_repo
+        # (if the session edited in-repo files, those need commits regardless of reason)
+        # Also skip for parent tasks with all children closed (no direct edits expected)
+        if not is_parent_all_closed and resolved_session_id and not skip_validation:
+            try:
+                session = _session_manager.get(resolved_session_id)
+
+                # Check if task has commits (including the one being linked right now)
+                has_commits = bool(task.commits) or bool(commit_sha)
+
+                if session and session.had_edits and not has_commits:
+                    return {
+                        "success": False,
+                        "error": "missing_commits_for_edits",
+                        "message": (
+                            "This session made edits but no commits are linked to the task. "
+                            "You must commit your changes and link them to the task before closing."
+                        ),
+                        "suggestion": (
+                            f"Commit your changes with `[{ctx.get_current_project_name() or 'project'}-#task_id]` in the message, "
+                            "or pass `commit_sha` to `close_task`."
+                        ),
+                    }
+            except Exception as e:
+                # Don't block close on internal error
+                logger.debug(f"Best-effort session edit check failed: {e}")
+
+        if not should_skip and not is_parent_all_closed:
+            # Check if task has children (is a parent task)
+            parent_result = validate_parent_task(ctx, resolved_id)
+            if not parent_result.can_close:
+                err_response: dict[str, Any] = {
+                    "success": False,
+                    "error": parent_result.error_type,
+                    "message": parent_result.message,
+                }
+                if parent_result.extra:
+                    err_response.update(parent_result.extra)
+                return err_response
+
+            # Check for leaf task with validation criteria
+            children = ctx.task_manager.list_tasks(parent_task_id=resolved_id, limit=1)
+            is_leaf = len(children) == 0
+
+            if is_leaf and ctx.task_validator and task.validation_criteria:
+                # Gather validation context
+                validation_context, raw_diff = gather_validation_context(
+                    task, changes_summary, repo_path, ctx.task_manager
+                )
+
+                if validation_context:
+                    # Run LLM validation
+                    llm_result = await validate_leaf_task_with_llm(
+                        task=task,
+                        task_validator=ctx.task_validator,
+                        validation_context=validation_context,
+                        raw_diff=raw_diff,
+                        ctx=ctx,
+                        resolved_id=resolved_id,
+                        validation_config=ctx.validation_config,
+                    )
+                    if not llm_result.can_close:
+                        response = {
+                            "success": False,
+                            "error": llm_result.error_type,
+                            "message": llm_result.message,
+                        }
+                        if llm_result.extra:
+                            response.update(llm_result.extra)
+                        return response
+
+        # Determine close outcome
+        route_to_review, store_override = determine_close_outcome(
+            task, skip_validation, override_justification
+        )
+
+        # Get git commit SHA (best-effort, dynamic short format for consistency)
+        from gobby.utils.git import run_git_command
+
+        current_commit_sha = run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=cwd)
+
+        if route_to_review:
+            # Route to needs_review status instead of closing
+            # Task stays in needs_review until user explicitly closes
+            ctx.task_manager.update_task(
+                resolved_id,
+                status="needs_review",
+                validation_override_reason=override_justification if store_override else None,
+            )
+
+            # Auto-link session if provided
+            if resolved_session_id:
+                try:
+                    ctx.session_task_manager.link_task(
+                        resolved_session_id, resolved_id, "needs_review"
+                    )
+                except Exception as e:
+                    logger.debug(f"Best-effort session linking failed: {e}")
+
+            notify_parent_on_status_change(
+                ctx.task_manager.db,
+                resolved_id,
+                "needs_review",
+                task_ref=f"#{task.seq_num}" if task.seq_num else None,
+            )
+
+            return {
+                "routed_to_review": True,
+                "message": "Task routed to review status. Reason: validation was overridden, human review recommended.",
+                "task_id": resolved_id,
+            }
+
+        # All checks passed - close the task with session and commit tracking
+        ctx.task_manager.close_task(
+            resolved_id,
+            reason=reason,
+            closed_in_session_id=resolved_session_id,
+            closed_commit_sha=current_commit_sha,
+            validation_override_reason=override_justification if store_override else None,
+        )
+
+        notify_parent_on_status_change(
+            ctx.task_manager.db,
+            resolved_id,
+            "closed",
+            task_ref=f"#{task.seq_num}" if task.seq_num else None,
+        )
+
+        # Auto-link session if provided
+        if resolved_session_id:
+            try:
+                ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "closed")
+            except Exception as e:
+                logger.debug(f"Best-effort session close linking failed: {e}")
+
+        # Remove closed task from claimed_tasks dict
+        # This is done here because Claude Code's post-tool-use hook doesn't include
+        # the tool result, so the detection_helpers can't verify close succeeded
+        if resolved_session_id:
+            try:
+                from gobby.workflows.task_claim_state import remove_claimed_task
+
+                session_vars = ctx.session_var_manager.get_variables(resolved_session_id)
+                merge_dict = remove_claimed_task(session_vars, resolved_id)
+                ctx.session_var_manager.merge_variables(resolved_session_id, merge_dict)
+                logger.debug(
+                    f"Removed task {resolved_id} from claimed_tasks for session {resolved_session_id}",
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to update claimed_tasks for session {resolved_session_id}: {e}",
+                )
+
+        # Reset had_edits after successful close with a linked commit
+        # The commit accounts for this task's edits; subsequent tasks start clean
+        if resolved_session_id and (bool(task.commits) or bool(commit_sha)):
+            try:
+                _session_manager.clear_had_edits(resolved_session_id)
+            except Exception as e:
+                logger.debug(f"Best-effort had_edits reset failed: {e}")
+
+        # Update worktree status based on closure reason (case-insensitive)
+        try:
+            reason_normalized = reason.lower()
+            wt = ctx.worktree_manager.get_by_task(resolved_id)
+            if wt:
+                if reason_normalized in (
+                    "wont_fix",
+                    "obsolete",
+                    "duplicate",
+                    "already_implemented",
+                ):
+                    ctx.worktree_manager.mark_abandoned(wt.id)
+                elif reason_normalized == "completed":
+                    ctx.worktree_manager.mark_merged(wt.id)
+        except Exception as e:
+            logger.debug(f"Best-effort worktree update failed during close: {e}")
+
+        return {"success": True}
+
+    registry.register(
+        name="close_task",
+        description="Close a task. Pass commit_sha to link and close in one call: close_task(task_id, commit_sha='abc123'). Or include [project-#N] in commit message for auto-linking. Parent tasks require all children closed. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete, out_of_repo. Note: out_of_repo only skips LLM validation and the basic commit-linked check; commits are still required if the session edited in-repo files (session.had_edits enforcement).",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", or "obsolete" to auto-skip validation and commit check. "out_of_repo" skips validation only; commits are still required if the session edited in-repo files.',
+                    "default": "completed",
+                },
+                "changes_summary": {
+                    "type": "string",
+                    "description": "Summary of what was changed and why. Required for leaf tasks and standalone closes. Optional for parent/epic tasks where all children are closed. For tasks closed without changes (duplicate, wont_fix, etc.), describe why no changes were needed.",
+                },
+                "skip_validation": {
+                    "type": "boolean",
+                    "description": (
+                        "Skip LLM validation even when task has validation_criteria. "
+                        "USE THIS when: validation fails due to truncated diff, validator misses context, "
+                        "or you've manually verified completion. Provide override_justification explaining why."
+                    ),
+                    "default": False,
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Your session ID (accepts #N, N, UUID, or prefix). Pass this to track which session closed the task.",
+                    "default": None,
+                },
+                "override_justification": {
+                    "type": "string",
+                    "description": (
+                        "Justification for bypassing validation. Required when skip_validation=True. "
+                        "Example: 'Validation saw truncated diff - verified via git show that commit includes all changes'"
+                    ),
+                    "default": None,
+                },
+                "commit_sha": {
+                    "type": "string",
+                    "description": "RECOMMENDED: Git commit SHA to link and close in one call. Use this instead of separate link_commit + close_task calls.",
+                    "default": None,
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=close_task,
+    )

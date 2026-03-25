@@ -263,20 +263,26 @@ class CodeGraph:
         """Get file-level overview graph for visualization.
 
         Returns CodeFile nodes connected by shared CodeModule imports,
-        resolved to file-to-file edges.
+        resolved to file-to-file edges.  Total nodes are capped at
+        ``limit * 8`` to prevent 3D renderer crashes.
         """
         if not self.available:
             return {"nodes": [], "links": []}
+
+        max_nodes = limit * 8
+        link_limit = limit * 3
 
         try:
             # Get files and their import relationships via shared modules
             file_records = await self._client.execute_read(
                 """MATCH (f:CodeFile {project: $project})
                    OPTIONAL MATCH (f)-[:DEFINES]->(s:CodeSymbol)
-                   WITH f, count(s) AS sym_count
+                   WITH f, count(DISTINCT s) AS sym_count
+                   OPTIONAL MATCH (f)-[:IMPORTS]->(m)
+                   WITH f, sym_count, count(m) AS imp_count
                    RETURN f.path AS id, f.path AS name, 'file' AS type,
                           f.path AS file_path, sym_count AS symbol_count
-                   ORDER BY f.path
+                   ORDER BY imp_count DESC, sym_count DESC, f.path
                    LIMIT $limit""",
                 {"project": project_id, "limit": limit},
             )
@@ -292,7 +298,7 @@ class CodeGraph:
                 {
                     "project": project_id,
                     "file_paths": list(node_ids),
-                    "link_limit": limit * 5,
+                    "link_limit": link_limit,
                 },
             )
 
@@ -304,6 +310,8 @@ class CodeGraph:
                 links.append(rec)
                 mid = rec["target"]
                 if mid not in node_ids and mid not in module_ids:
+                    if len(nodes) >= max_nodes:
+                        continue
                     module_ids.add(mid)
                     nodes.append(
                         {
@@ -323,7 +331,7 @@ class CodeGraph:
                 {
                     "project": project_id,
                     "file_paths": list(node_ids),
-                    "link_limit": limit * 5,
+                    "link_limit": link_limit,
                 },
             )
 
@@ -337,7 +345,7 @@ class CodeGraph:
                         "type": "DEFINES",
                     }
                 )
-                if sid not in node_ids:
+                if sid not in node_ids and len(nodes) < max_nodes:
                     nodes.append(
                         {
                             "id": sid,
@@ -353,13 +361,13 @@ class CodeGraph:
             if sym_ids:
                 call_records = await self._client.execute_read(
                     """MATCH (s:CodeSymbol {project: $project})-[r:CALLS]->(t:CodeSymbol {project: $project})
-                       WHERE s.id IN $sym_ids OR t.id IN $sym_ids
+                       WHERE s.id IN $sym_ids AND t.id IN $sym_ids
                        RETURN s.id AS source, t.id AS target, 'CALLS' AS type
                        LIMIT $link_limit""",
                     {
                         "project": project_id,
                         "sym_ids": sym_ids,
-                        "link_limit": limit * 3,
+                        "link_limit": link_limit,
                     },
                 )
                 for r in call_records:

@@ -124,8 +124,6 @@ class TestBundledVariablesSync:
 
     def test_multi_variable_file_format(self, db, tmp_path) -> None:
         """A file with variables: dict should create multiple variable rows."""
-        import gobby.workflows.sync as sync_mod
-
         var_dir = tmp_path / "variables"
         var_dir.mkdir()
         (var_dir / "test-vars.yaml").write_text(
@@ -142,12 +140,7 @@ variables:
 """
         )
 
-        original = sync_mod.get_bundled_variables_path
-        sync_mod.get_bundled_variables_path = lambda: var_dir
-        try:
-            result = sync_bundled_variables(db)
-        finally:
-            sync_mod.get_bundled_variables_path = original
+        result = sync_bundled_variables(db, variables_path=var_dir)
 
         assert result["synced"] == 2
         assert result["errors"] == []
@@ -176,8 +169,6 @@ variables:
 
     def test_variable_orphan_cleanup(self, db, tmp_path) -> None:
         """Variables removed from disk should be soft-deleted."""
-        import gobby.workflows.sync as sync_mod
-
         var_dir = tmp_path / "variables"
         var_dir.mkdir()
         (var_dir / "vars.yaml").write_text(
@@ -188,22 +179,17 @@ variables:
 """
         )
 
-        original = sync_mod.get_bundled_variables_path
-        sync_mod.get_bundled_variables_path = lambda: var_dir
-        try:
-            sync_bundled_variables(db)
+        sync_bundled_variables(db, variables_path=var_dir)
 
-            # Remove from disk
-            (var_dir / "vars.yaml").write_text(
-                """
+        # Remove from disk
+        (var_dir / "vars.yaml").write_text(
+            """
 variables:
   other_var:
     value: world
 """
-            )
-            result = sync_bundled_variables(db)
-        finally:
-            sync_mod.get_bundled_variables_path = original
+        )
+        result = sync_bundled_variables(db, variables_path=var_dir)
 
         assert result["orphaned"] == 1
 

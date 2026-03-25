@@ -489,7 +489,10 @@ class CodeIndexStorage:
             """SELECT f.file_path, f.language, f.symbol_count
                FROM code_indexed_files f
                WHERE f.project_id = ?
-               ORDER BY f.file_path
+               ORDER BY
+                 CASE WHEN f.language IN ('markdown','yaml','json')
+                      THEN 1 ELSE 0 END,
+                 f.symbol_count DESC, f.file_path
                LIMIT ?""",
             (project_id, limit),
         )

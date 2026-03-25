@@ -452,7 +452,7 @@ async def test_get_session_commits(mock_session_manager, full_sessions_registry)
     mock_session = _make_mock_session("sess-abc")
     mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
     mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-    mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+    mock_session.transcript_path = "/tmp/test/transcript.jsonl"
     mock_session_manager.get.return_value = mock_session
 
     # Mock subprocess.run to return git log output
@@ -498,7 +498,7 @@ async def test_get_session_commits_prefix_match(mock_session_manager, full_sessi
     mock_session = _make_mock_session("sess-abc123")
     mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
     mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-    mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+    mock_session.transcript_path = "/tmp/test/transcript.jsonl"
 
     # resolve_session_reference resolves prefix to full ID
     mock_session_manager.resolve_session_reference.return_value = "sess-abc123"
@@ -526,7 +526,7 @@ async def test_get_session_commits_no_commits(mock_session_manager, full_session
     mock_session = _make_mock_session("sess-abc")
     mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
     mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-    mock_session.jsonl_path = None  # No transcript path
+    mock_session.transcript_path = None  # No transcript path
     mock_session_manager.get.return_value = mock_session
 
     mock_result = MagicMock()
@@ -552,7 +552,7 @@ async def test_get_session_commits_git_error(mock_session_manager, full_sessions
     mock_session = _make_mock_session("sess-abc")
     mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
     mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-    mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+    mock_session.transcript_path = "/tmp/test/transcript.jsonl"
     mock_session_manager.get.return_value = mock_session
 
     mock_result = MagicMock()

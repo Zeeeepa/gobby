@@ -646,7 +646,7 @@ def cleanup_agents(timeout: int, dry_run: bool) -> None:
         for row in stale_pending[:5]:
             click.echo(f"  {row['id']}: created {row['created_at']}")
     else:
-        timed_out = manager.cleanup_stale_runs(timeout_minutes=timeout)
+        timed_out = manager.cleanup_stale_runs(default_timeout_minutes=timeout)
         failed = manager.cleanup_stale_pending_runs(timeout_minutes=60)
 
         click.echo(f"Cleaned up {timed_out} timed-out runs and {failed} stale pending runs.")

@@ -22,6 +22,7 @@ pytestmark = pytest.mark.unit
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_memory(
     memory_id: str = "mem-1",
     content: str = "Some valuable insight",
@@ -91,6 +92,7 @@ def _row(**kwargs) -> _FakeRow:
 # find_stale_memories
 # ---------------------------------------------------------------------------
 
+
 class TestFindStaleMemories:
     def test_finds_old_unaccessed_memories(self) -> None:
         old_date = (datetime.now(UTC) - timedelta(days=120)).isoformat()
@@ -142,6 +144,7 @@ class TestFindStaleMemories:
 # find_duplicate_memories
 # ---------------------------------------------------------------------------
 
+
 class TestFindDuplicateMemories:
     @pytest.mark.asyncio
     async def test_detects_near_exact_duplicates(self) -> None:
@@ -154,14 +157,19 @@ class TestFindDuplicateMemories:
 
         vector_store = MagicMock()
         # When embedding mem_a, find mem_b as near-exact match
-        vector_store.search = AsyncMock(side_effect=[
-            [("b", 0.97)],  # search for mem_a finds mem_b
-            [],              # search for mem_b (already seen)
-        ])
+        vector_store.search = AsyncMock(
+            side_effect=[
+                [("b", 0.97)],  # search for mem_a finds mem_b
+                [],  # search for mem_b (already seen)
+            ]
+        )
         embed_fn = AsyncMock(return_value=[0.1] * 768)
 
         result = await find_duplicate_memories(
-            storage, vector_store, embed_fn, similarity_threshold=0.95,
+            storage,
+            vector_store,
+            embed_fn,
+            similarity_threshold=0.95,
         )
 
         assert len(result) == 1
@@ -179,14 +187,19 @@ class TestFindDuplicateMemories:
         storage.get_memory.return_value = mem_b
 
         vector_store = MagicMock()
-        vector_store.search = AsyncMock(side_effect=[
-            [("b", 0.96)],
-            [],
-        ])
+        vector_store.search = AsyncMock(
+            side_effect=[
+                [("b", 0.96)],
+                [],
+            ]
+        )
         embed_fn = AsyncMock(return_value=[0.1] * 768)
 
         result = await find_duplicate_memories(
-            storage, vector_store, embed_fn, similarity_threshold=0.95,
+            storage,
+            vector_store,
+            embed_fn,
+            similarity_threshold=0.95,
         )
 
         assert len(result) == 1
@@ -204,7 +217,10 @@ class TestFindDuplicateMemories:
         embed_fn = AsyncMock(return_value=[0.1] * 768)
 
         result = await find_duplicate_memories(
-            storage, vector_store, embed_fn, similarity_threshold=0.95,
+            storage,
+            vector_store,
+            embed_fn,
+            similarity_threshold=0.95,
         )
 
         assert len(result) == 0
@@ -226,17 +242,21 @@ class TestFindDuplicateMemories:
 # find_code_derivable_memories
 # ---------------------------------------------------------------------------
 
+
 class TestFindCodeDerivableMemories:
-    @pytest.mark.parametrize("content", [
-        "File src/main.py contains the entry point",
-        "The file `utils.py` defines helper functions",
-        "function processData is defined in handlers.ts",
-        "The class UserManager is located in src/users.py",
-        "The directory src/routes/ contains API handlers",
-        "import os from stdlib",
-        "src/config.yaml",
-        "`models.py`",
-    ])
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "File src/main.py contains the entry point",
+            "The file `utils.py` defines helper functions",
+            "function processData is defined in handlers.ts",
+            "The class UserManager is located in src/users.py",
+            "The directory src/routes/ contains API handlers",
+            "import os from stdlib",
+            "src/config.yaml",
+            "`models.py`",
+        ],
+    )
     def test_detects_code_derivable_patterns(self, content: str) -> None:
         mem = _make_memory(memory_id="cd-1", content=content)
         storage = MagicMock()
@@ -246,13 +266,16 @@ class TestFindCodeDerivableMemories:
 
         assert len(result) == 1, f"Expected '{content}' to be flagged as code-derivable"
 
-    @pytest.mark.parametrize("content", [
-        "We chose FastAPI over Flask because of async support and automatic OpenAPI docs",
-        "The authentication flow uses JWT tokens with a 15-minute expiry",
-        "Users reported that the dashboard takes 8 seconds to load on slow connections",
-        "Never use eval() in the template renderer — security risk",
-        "File uploads should be validated server-side, not just client-side",
-    ])
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "We chose FastAPI over Flask because of async support and automatic OpenAPI docs",
+            "The authentication flow uses JWT tokens with a 15-minute expiry",
+            "Users reported that the dashboard takes 8 seconds to load on slow connections",
+            "Never use eval() in the template renderer — security risk",
+            "File uploads should be validated server-side, not just client-side",
+        ],
+    )
     def test_preserves_valuable_memories(self, content: str) -> None:
         mem = _make_memory(memory_id="val-1", content=content)
         storage = MagicMock()
@@ -277,6 +300,7 @@ class TestFindCodeDerivableMemories:
 # ---------------------------------------------------------------------------
 # find_orphaned_memories
 # ---------------------------------------------------------------------------
+
 
 class TestFindOrphanedMemories:
     def test_finds_orphaned_by_session(self) -> None:
@@ -320,6 +344,7 @@ class TestFindOrphanedMemories:
 # ---------------------------------------------------------------------------
 # execute_cleanup
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteCleanup:
     def _make_manager(self) -> MagicMock:
@@ -389,7 +414,8 @@ class TestExecuteCleanup:
         mgr.storage.get_memory.return_value = _make_memory(memory_id="both-1", access_count=0)
 
         report = await execute_cleanup(
-            mgr, dry_run=False,
+            mgr,
+            dry_run=False,
             categories=["stale", "code_derivable", "orphaned"],
         )
 

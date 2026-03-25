@@ -52,7 +52,7 @@ def _make_session(**overrides: Any) -> Session:
         "seq_num": 1,
         "external_id": None,
         "machine_id": None,
-        "jsonl_path": None,
+        "transcript_path": None,
         "summary_path": None,
         "summary_markdown": None,
         "git_branch": None,
@@ -305,9 +305,7 @@ class TestStatsWithProject:
         assert result.exit_code == 0
         assert "Total Sessions: 1" in result.output
 
-    def test_stats_empty(
-        self, runner: CliRunner, mock_session_manager: MagicMock
-    ) -> None:
+    def test_stats_empty(self, runner: CliRunner, mock_session_manager: MagicMock) -> None:
         mock_session_manager.list.return_value = []
         result = runner.invoke(sessions, ["stats"])
         assert result.exit_code == 0

@@ -1,0 +1,75 @@
+"""Label management handlers for task lifecycle.
+
+Handles add_label and remove_label tool registrations.
+"""
+
+from typing import Any
+
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.tasks._context import RegistryContext
+from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
+from gobby.storage.tasks import TaskNotFoundError
+
+
+def register_add_label(registry: InternalToolRegistry, ctx: RegistryContext) -> None:
+    """Register the add_label tool on the given registry."""
+
+    def add_label(task_id: str, label: str) -> dict[str, Any]:
+        """Add a label to a task."""
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+        task = ctx.task_manager.add_label(resolved_id, label)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+        return {"success": True, "task_id": resolved_id}
+
+    registry.register(
+        name="add_label",
+        description="Add a label to a task.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "label": {"type": "string", "description": "Label to add"},
+            },
+            "required": ["task_id", "label"],
+        },
+        func=add_label,
+    )
+
+
+def register_remove_label(registry: InternalToolRegistry, ctx: RegistryContext) -> None:
+    """Register the remove_label tool on the given registry."""
+
+    def remove_label(task_id: str, label: str) -> dict[str, Any]:
+        """Remove a label from a task."""
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+        task = ctx.task_manager.remove_label(resolved_id, label)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+        return {"success": True, "task_id": resolved_id}
+
+    registry.register(
+        name="remove_label",
+        description="Remove a label from a task.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "label": {"type": "string", "description": "Label to remove"},
+            },
+            "required": ["task_id", "label"],
+        },
+        func=remove_label,
+    )

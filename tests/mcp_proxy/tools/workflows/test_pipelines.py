@@ -108,7 +108,6 @@ class TestAutoSubscribeLineage:
         )
 
 
-
 # ═══════════════════════════════════════════════════════════════════════
 # _resolve_session_ref
 # ═══════════════════════════════════════════════════════════════════════
@@ -122,7 +121,6 @@ class TestResolveSessionRef:
 
         result = _resolve_session_ref("sess-123", None)
         assert result == "sess-123"
-
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -156,9 +154,7 @@ class TestBuildInputSchema:
         from gobby.mcp_proxy.tools.workflows._pipelines import _build_input_schema
 
         pipeline = MagicMock()
-        pipeline.inputs = {
-            "target": {"type": "string", "description": "Target path"}
-        }
+        pipeline.inputs = {"target": {"type": "string", "description": "Target path"}}
 
         schema = _build_input_schema(pipeline)
         assert "target" in schema["required"]
@@ -215,9 +211,7 @@ class TestRegisterPipelineTools:
 
         registry = InternalToolRegistry("test-registry")
 
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         # Check core tools were registered
@@ -235,11 +229,12 @@ class TestRegisterPipelineTools:
         registry = InternalToolRegistry("test-registry")
         db = MagicMock()
 
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ), patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines.LocalWorkflowDefinitionManager"
-        ) as MockDM:
+        with (
+            patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"),
+            patch(
+                "gobby.mcp_proxy.tools.workflows._pipelines.LocalWorkflowDefinitionManager"
+            ) as MockDM,
+        ):
             register_pipeline_tools(registry, db=db)
             MockDM.assert_called_once_with(db)
 
@@ -257,9 +252,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry, completion_registry=None)
 
         result = await registry.call("wait_for_completion", {"completion_id": "cid-1"})
@@ -274,9 +267,7 @@ class TestToolFunctionErrors:
         mock_registry.wait.side_effect = KeyError("not registered")
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry, completion_registry=mock_registry)
 
         result = await registry.call("wait_for_completion", {"completion_id": "cid-1"})
@@ -291,9 +282,7 @@ class TestToolFunctionErrors:
         mock_registry.wait.side_effect = TimeoutError()
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry, completion_registry=mock_registry)
 
         result = await registry.call(
@@ -310,9 +299,7 @@ class TestToolFunctionErrors:
         mock_registry.wait.return_value = {"status": "completed", "result": "ok"}
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry, completion_registry=mock_registry)
 
         result = await registry.call("wait_for_completion", {"completion_id": "cid-1"})
@@ -324,9 +311,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         result = await registry.call("get_pipeline_status", {"execution_id": "pe-1"})
@@ -337,9 +322,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         result = await registry.call("list_pipeline_executions", {})
@@ -350,9 +333,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         result = await registry.call("search_pipeline_executions", {"query": "test"})
@@ -363,9 +344,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         result = await registry.call("approve_pipeline", {"token": "tok-1"})
@@ -376,9 +355,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         result = await registry.call("reject_pipeline", {"token": "tok-1"})
@@ -389,9 +366,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry, loader=None)
 
         result = await registry.call("get_pipeline", {"name": "test"})
@@ -402,9 +377,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         result = await registry.call(
@@ -419,14 +392,10 @@ class TestToolFunctionErrors:
         registry = InternalToolRegistry("test")
         db = MagicMock()
         loader = MagicMock()
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry, db=db, loader=loader)
 
-        result = await registry.call(
-            "create_pipeline", {"yaml_content": ":\ninvalid: [yaml"}
-        )
+        result = await registry.call("create_pipeline", {"yaml_content": ":\ninvalid: [yaml"})
         assert result["success"] is False
         assert "YAML" in result["error"]
 
@@ -437,14 +406,10 @@ class TestToolFunctionErrors:
         registry = InternalToolRegistry("test")
         db = MagicMock()
         loader = MagicMock()
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry, db=db, loader=loader)
 
-        result = await registry.call(
-            "create_pipeline", {"yaml_content": "name: test\ntype: rule"}
-        )
+        result = await registry.call("create_pipeline", {"yaml_content": "name: test\ntype: rule"})
         assert result["success"] is False
         assert "type: pipeline" in result["error"]
 
@@ -453,9 +418,7 @@ class TestToolFunctionErrors:
         from gobby.mcp_proxy.tools.workflows._pipelines import register_pipeline_tools
 
         registry = InternalToolRegistry("test")
-        with patch(
-            "gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"
-        ):
+        with patch("gobby.mcp_proxy.tools.workflows._pipelines._register_exposed_pipeline_tools"):
             register_pipeline_tools(registry)
 
         result = await registry.call("export_pipeline", {"name": "test"})

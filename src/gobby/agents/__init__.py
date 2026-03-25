@@ -23,7 +23,6 @@ Usage:
     ))
 """
 
-from gobby.agents.registry import RunningAgent
 from gobby.agents.runner import AgentRunner
 from gobby.agents.runner_models import AgentConfig, AgentRunContext
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
@@ -32,7 +31,6 @@ __all__ = [
     "AgentConfig",
     "AgentRunContext",
     "AgentRunner",
-    "RunningAgent",
     "ChildSessionConfig",
     "ChildSessionManager",
 ]

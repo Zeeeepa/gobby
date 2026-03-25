@@ -93,7 +93,7 @@ def install_neo4j(
                 "dbms.security.procedures.unrestricted=apoc.*\n"
             )
         except OSError as e:
-            logger.error("Failed to write Neo4j config %s: %s", conf_file, e)
+            logger.error(f"Failed to write Neo4j config {conf_file}: {e}")
             # Clean up partial conf_dir if we created it empty
             if conf_dir.exists() and not any(conf_dir.iterdir()):
                 conf_dir.rmdir()

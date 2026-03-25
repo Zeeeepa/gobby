@@ -300,8 +300,7 @@ class ClaudeLLMProvider(LLMProvider):
             if not summary_text:
                 sid = context.get("session_id", "unknown")
                 self.logger.warning(
-                    "Claude SDK query returned empty response for summary generation (session %s)",
-                    sid,
+                    f"Claude SDK query returned empty response for summary generation (session {sid})",
                 )
             return summary_text
         except Exception as e:

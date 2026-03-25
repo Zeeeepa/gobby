@@ -1085,6 +1085,37 @@ class TestLocalTaskManager:
 
 
 @pytest.mark.integration
+class TestConcurrentTaskCreation:
+    """Test that concurrent task creation produces unique seq_nums."""
+
+    def test_concurrent_creates_unique_seq_nums(self, temp_db, project_id) -> None:
+        """Multiple threads creating tasks simultaneously must all get unique seq_nums."""
+        import concurrent.futures
+
+        from gobby.storage.tasks._crud import create_task
+
+        num_tasks = 10
+
+        def _create(i: int) -> str:
+            return create_task(temp_db, project_id, title=f"Concurrent task {i}")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_tasks) as pool:
+            futures = [pool.submit(_create, i) for i in range(num_tasks)]
+            task_ids = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        assert len(task_ids) == num_tasks
+
+        # Verify all seq_nums are unique
+        rows = temp_db.fetchall(
+            "SELECT seq_num FROM tasks WHERE project_id = ? ORDER BY seq_num",
+            (project_id,),
+        )
+        seq_nums = [r["seq_num"] for r in rows]
+        assert len(seq_nums) == num_tasks
+        assert len(set(seq_nums)) == num_tasks, f"Duplicate seq_nums: {seq_nums}"
+
+
+@pytest.mark.integration
 class TestNormalizePriority:
     """Test the normalize_priority helper function."""
 

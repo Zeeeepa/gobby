@@ -8,6 +8,7 @@ Provides infrastructure for embedding-based tool discovery:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import math
@@ -163,7 +164,7 @@ class SemanticToolSearch:
             embedding: Embedding vector as list of floats
         """
         if not self._vector_store:
-            logger.warning("No VectorStore configured — cannot store tool embedding")
+            logger.warning(f"No VectorStore configured - cannot store embedding for tool {tool_id}")
             return
 
         from datetime import UTC, datetime
@@ -435,10 +436,12 @@ class SemanticToolSearch:
         query_embedding = await self.embed_text(query, is_query=True)
 
         # Get tool metadata for results
-        tool_info = self._get_tool_info_map(project_id, server_filter)
+        tool_info = await asyncio.to_thread(self._get_tool_info_map, project_id, server_filter)
 
         if not self._vector_store:
-            logger.warning("No VectorStore configured — tool search unavailable")
+            logger.warning(
+                f"No VectorStore configured - tool search unavailable for query {query!r}"
+            )
             return []
 
         filters: dict[str, str] = {"project_id": project_id}

@@ -573,16 +573,15 @@ class TestRestartCommand:
 
     @patch("gobby.cli.daemon.stop_daemon_util")
     @patch("gobby.cli.daemon.setup_logging")
-    @patch("gobby.cli.load_config")
+    @patch("gobby.cli.daemon.get_service_status", return_value={"installed": False})
     def test_restart_stop_fails(
         self,
-        mock_load_config: MagicMock,
+        mock_service_status: MagicMock,
         mock_setup_logging: MagicMock,
         mock_stop_daemon: MagicMock,
         runner: CliRunner,
     ) -> None:
         """Test restart aborts when stop fails."""
-        mock_load_config.return_value = MagicMock()
         mock_stop_daemon.return_value = False
 
         result = runner.invoke(cli, ["restart"])

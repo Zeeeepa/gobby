@@ -640,8 +640,7 @@ async def ensure_daemon_running() -> None:
                 return
             if attempt < 2:
                 logger.warning(
-                    "Daemon health check failed (attempt %d/3), retrying in 5s...",
-                    attempt + 1,
+                    f"Daemon health check failed (attempt {attempt + 1}/3), retrying in 5s...",
                 )
                 await asyncio.sleep(5)
 
@@ -654,10 +653,7 @@ async def ensure_daemon_running() -> None:
         result = await start_daemon_process(port, ws_port)
         if not result.get("success"):
             logger.error(
-                "Failed to start daemon: %s (port=%d, ws_port=%d)",
-                result.get("error", "unknown error"),
-                port,
-                ws_port,
+                f"Failed to start daemon: {result.get('error', 'unknown error')} (port={port}, ws_port={ws_port})",
             )
             sys.exit(1)
 
@@ -672,11 +668,7 @@ async def ensure_daemon_running() -> None:
     # Health check timed out
     pid = get_daemon_pid()
     logger.error(
-        "Daemon failed to become healthy after 10 attempts (pid=%s, port=%d, ws_port=%d, last_health=%s)",
-        pid,
-        port,
-        ws_port,
-        last_health_response,
+        f"Daemon failed to become healthy after 10 attempts (pid={pid}, port={port}, ws_port={ws_port}, last_health={last_health_response})",
     )
     sys.exit(1)
 

@@ -255,9 +255,7 @@ async def evaluate_spawn(
                     )
             except Exception:
                 logger.debug(
-                    "Failed to check existing %s for branch '%s'",
-                    eff_isolation,
-                    computed_branch,
+                    f"Failed to check existing {eff_isolation} for branch '{computed_branch}'",
                     exc_info=True,
                 )
 

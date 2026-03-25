@@ -150,9 +150,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
         self.sdk_session_id = self._thread.id
         self._connected = True
         self.last_activity = datetime.now(UTC)
-        logger.debug(
-            "CodexChatSession %s started (thread=%s)", self.conversation_id, self._thread.id
-        )
+        logger.debug(f"CodexChatSession {self.conversation_id} started (thread={self._thread.id})")
 
     async def send_message(self, content: str | list[dict[str, Any]]) -> AsyncIterator[ChatEvent]:
         """Send a user message and yield streaming ChatEvent instances.
@@ -222,7 +220,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
 
             def _on_fire_and_forget_error(task: asyncio.Task[Any]) -> None:
                 if not task.cancelled() and task.exception():
-                    logger.error("Fire-and-forget task failed: %s", task.exception())
+                    logger.error(f"Fire-and-forget task failed: {task.exception()}")
 
             def _on_delta(method: str, params: dict[str, Any]) -> None:
                 nonlocal accumulated_text
@@ -322,9 +320,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
 
             except Exception as e:
                 logger.error(
-                    "CodexChatSession %s error: %s",
-                    self.conversation_id,
-                    e,
+                    f"CodexChatSession {self.conversation_id} error: {e}",
                     exc_info=True,
                 )
                 yield TextChunk(content=f"Generation failed: {e}")
@@ -359,7 +355,7 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
             try:
                 await self._client.interrupt_turn(self._thread.id, self._current_turn_id)
             except Exception as e:
-                logger.warning("CodexChatSession %s interrupt error: %s", self.conversation_id, e)
+                logger.warning(f"CodexChatSession {self.conversation_id} interrupt error: {e}")
 
     async def drain_pending_response(self) -> None:
         """Drain stale events after interrupt. Codex handles cleanup internally."""
@@ -375,15 +371,13 @@ class CodexChatSession(CodexChatSessionPermissionsMixin):
                 await self._client.stop()
             except Exception as e:
                 logger.debug(
-                    "CodexChatSession %s stop error (expected): %s",
-                    self.conversation_id,
-                    e,
+                    f"CodexChatSession {self.conversation_id} stop error (expected): {e}",
                 )
             finally:
                 self._client = None
                 self._connected = False
                 self._thread = None
-                logger.debug("CodexChatSession %s stopped", self.conversation_id)
+                logger.debug(f"CodexChatSession {self.conversation_id} stopped")
 
     @property
     def model(self) -> str | None:

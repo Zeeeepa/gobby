@@ -120,7 +120,7 @@ function getBaseUrl(): string {
 // Hook
 // =============================================================================
 
-export function useTasks() {
+export function useTasks(projectId?: string | null) {
   const [tasks, setTasks] = useState<GobbyTask[]>([])
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState<TaskStats>({})
@@ -132,7 +132,17 @@ export function useTasks() {
     label: null,
     parentTaskId: null,
     search: '',
+    projectId: projectId ?? null,
   })
+
+  // Keep projectId in sync when prop changes
+  useEffect(() => {
+    setFilters(f => {
+      const newId = projectId ?? null
+      if (f.projectId === newId) return f
+      return { ...f, projectId: newId }
+    })
+  }, [projectId])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

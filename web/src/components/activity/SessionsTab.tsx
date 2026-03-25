@@ -7,6 +7,7 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog'
 import { MessageItem } from '../chat/MessageItem'
 import type { ChatMessage } from '../../types/chat'
 import { ArtifactContext } from '../chat/artifacts/ArtifactContext'
+import { SessionInteractionModal, type InteractionMode } from './SessionInteractionModal'
 
 interface RunningAgent {
   run_id: string
@@ -21,13 +22,33 @@ interface SessionsTabProps {
   projectId?: string | null
   onKillAgent?: (runId: string) => void
   onExpireSession?: (sessionId: string) => void
+  chatSessionId?: string
+}
+
+interface SessionEntry {
+  id: string
+  type: 'agent' | 'cli'
+  label: string
+  provider: string
+  status: 'active' | 'paused'
+  runId?: string
+  startedAt?: string
+  seqNum?: number | null
+  sessionMode?: 'interactive' | 'autonomous'
+  hasTmux: boolean
+}
+
+interface SessionContextMenu {
+  x: number
+  y: number
+  entry: SessionEntry
 }
 
 function getBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL || ''
 }
 
-export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, onExpireSession }: SessionsTabProps) {
+export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, onExpireSession, chatSessionId }: SessionsTabProps) {
   const [agents, setAgents] = useState<RunningAgent[]>([])
   const [cliSessions, setCliSessions] = useState<GobbySession[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,6 +56,9 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [topHeight, setTopHeight] = useState(35)
   const [expiringIds, setExpiringIds] = useState<Set<string>>(new Set())
+  const [ctxMenu, setCtxMenu] = useState<SessionContextMenu | null>(null)
+  const [modalMode, setModalMode] = useState<InteractionMode | null>(null)
+  const [modalEntry, setModalEntry] = useState<SessionEntry | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { confirm, ConfirmDialogElement } = useConfirmDialog()
 
@@ -98,6 +122,7 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
         startedAt: a.started_at,
         seqNum: matchedSession?.seq_num,
         sessionMode: 'autonomous',
+        hasTmux: a.mode === 'terminal',
       }
     })
 
@@ -112,6 +137,7 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
         startedAt: s.updated_at,
         seqNum: s.seq_num,
         sessionMode: ((s.agent_depth ?? 0) > 0 ? 'autonomous' : 'interactive') as 'interactive' | 'autonomous',
+        hasTmux: !!s.terminal_context,
       }))
 
     // Filter out entries being expired
@@ -168,6 +194,34 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
     }
   }, [onKillAgent, onExpireSession, confirm])
 
+  // Context menu handlers
+  const handleContextMenu = useCallback((e: React.MouseEvent, entry: SessionEntry) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY, entry })
+  }, [])
+
+  const closeCtxMenu = useCallback(() => setCtxMenu(null), [])
+
+  // Dismiss context menu on outside click
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handler = () => setCtxMenu(null)
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [ctxMenu])
+
+  const openModal = useCallback((mode: InteractionMode, entry: SessionEntry) => {
+    closeCtxMenu()
+    setModalMode(mode)
+    setModalEntry(entry)
+  }, [closeCtxMenu])
+
+  const closeModal = useCallback(() => {
+    setModalMode(null)
+    setModalEntry(null)
+  }, [])
+
   if (loading) {
     return <div className="activity-tab-empty"><p>Loading sessions...</p></div>
   }
@@ -202,12 +256,16 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
               key={`${entry.type}-${entry.id}`}
               className={`session-entry${isSelected ? ' session-entry--active' : ''}${isPaused ? ' session-entry--paused' : ''}`}
               onClick={() => handleSelect(entry.id)}
+              onContextMenu={(e) => handleContextMenu(e, entry)}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <SourceIcon source={entry.provider} size={14} />
                 <span className="text-sm text-foreground truncate">{displayLabel}</span>
               </div>
               <div className="flex items-center gap-1.5">
+                {entry.hasTmux && (
+                  <span className="session-tmux-badge">tmux</span>
+                )}
                 <span className={`session-type-badge ${entry.sessionMode === 'autonomous' ? 'session-type-badge--autonomous' : 'session-type-badge--interactive'}`}>
                   {entry.sessionMode === 'autonomous' ? 'Autonomous' : 'Interactive'}
                 </span>
@@ -236,8 +294,12 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
       {selectedSessionId && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Session header */}
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/30">
-            <span className="text-xs text-muted-foreground">Watching session</span>
+          <div className="flex items-center gap-2 px-3 border-b border-border" style={{ height: 40, background: 'var(--bg-secondary)' }}>
+            <span className="text-xs text-muted-foreground">Watching {(() => {
+            const entry = entries.find((e) => e.id === selectedSessionId)
+            if (!entry) return 'session'
+            return entry.seqNum ? `#${entry.seqNum}: ${entry.label}` : entry.label
+          })()}</span>
             <button
               className="text-xs text-muted-foreground hover:text-foreground ml-auto"
               onClick={() => setSelectedSessionId(null)}
@@ -265,18 +327,42 @@ export const SessionsTab = memo(function SessionsTab({ projectId, onKillAgent, o
           </ArtifactContext.Provider>
         </div>
       )}
+
+      {/* Context menu */}
+      {ctxMenu && (
+        <>
+          <div className="session-ctx-backdrop" onClick={closeCtxMenu} />
+          <div className="session-ctx-menu" style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y }}>
+            <button className="session-ctx-item" onClick={() => openModal('context', ctxMenu.entry)}>
+              Send Context
+            </button>
+            <button className="session-ctx-item" onClick={() => openModal('command', ctxMenu.entry)}>
+              Send Command
+            </button>
+            {ctxMenu.entry.hasTmux && (
+              <>
+                <button className="session-ctx-item" onClick={() => openModal('keys', ctxMenu.entry)}>
+                  Send Keys
+                </button>
+                <button className="session-ctx-item" onClick={() => openModal('pane', ctxMenu.entry)}>
+                  Capture Pane
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Interaction modal */}
+      {modalMode && modalEntry && (
+        <SessionInteractionModal
+          open={true}
+          onClose={closeModal}
+          mode={modalMode}
+          entry={modalEntry}
+          fromSessionId={chatSessionId}
+        />
+      )}
     </div>
   )
 })
-
-interface SessionEntry {
-  id: string
-  type: 'agent' | 'cli'
-  label: string
-  provider: string
-  status: 'active' | 'paused'
-  runId?: string
-  startedAt?: string
-  seqNum?: number | null
-  sessionMode?: 'interactive' | 'autonomous'
-}

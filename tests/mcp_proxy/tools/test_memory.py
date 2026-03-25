@@ -106,9 +106,7 @@ class TestRememberWithImage:
         mock_memory_manager.remember_with_image.return_value = MockMemory(
             id="mem-img", content="A screenshot of code"
         )
-        registry = create_memory_registry(
-            mock_memory_manager, llm_service=mock_llm_service
-        )
+        registry = create_memory_registry(mock_memory_manager, llm_service=mock_llm_service)
 
         with patch(
             "gobby.utils.project_context.get_project_context",
@@ -128,13 +126,9 @@ class TestRememberWithImage:
     ) -> None:
         """Returns error on ValueError."""
         mock_memory_manager.remember_with_image.side_effect = ValueError("Invalid image")
-        registry = create_memory_registry(
-            mock_memory_manager, llm_service=mock_llm_service
-        )
+        registry = create_memory_registry(mock_memory_manager, llm_service=mock_llm_service)
 
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value=None
-        ):
+        with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await registry.call(
                 "remember_with_image",
                 {"image_path": "/bad.png"},
@@ -149,13 +143,9 @@ class TestRememberWithImage:
     ) -> None:
         """Returns error on general exception."""
         mock_memory_manager.remember_with_image.side_effect = RuntimeError("IO error")
-        registry = create_memory_registry(
-            mock_memory_manager, llm_service=mock_llm_service
-        )
+        registry = create_memory_registry(mock_memory_manager, llm_service=mock_llm_service)
 
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value=None
-        ):
+        with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await registry.call(
                 "remember_with_image",
                 {"image_path": "/bad.png"},
@@ -190,9 +180,7 @@ class TestRememberScreenshot:
         mock_memory_manager.remember_screenshot.return_value = MockMemory(
             id="mem-ss", content="Screenshot description"
         )
-        registry = create_memory_registry(
-            mock_memory_manager, llm_service=mock_llm_service
-        )
+        registry = create_memory_registry(mock_memory_manager, llm_service=mock_llm_service)
 
         with patch(
             "gobby.utils.project_context.get_project_context",
@@ -212,13 +200,9 @@ class TestRememberScreenshot:
     ) -> None:
         """Returns error on ValueError."""
         mock_memory_manager.remember_screenshot.side_effect = ValueError("Bad bytes")
-        registry = create_memory_registry(
-            mock_memory_manager, llm_service=mock_llm_service
-        )
+        registry = create_memory_registry(mock_memory_manager, llm_service=mock_llm_service)
 
-        with patch(
-            "gobby.utils.project_context.get_project_context", return_value=None
-        ):
+        with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await registry.call(
                 "remember_screenshot",
                 {"screenshot_base64": "aGVsbG8="},
@@ -407,9 +391,7 @@ class TestExtractFromSession:
             registry = create_memory_registry(
                 mock_memory_manager, session_manager=mock_session_manager
             )
-            result = await registry.call(
-                "extract_from_session", {"session_id": "sess-123"}
-            )
+            result = await registry.call("extract_from_session", {"session_id": "sess-123"})
 
         assert result["success"] is False
         assert "disabled" in result["error"].lower()
@@ -429,9 +411,7 @@ class TestExtractFromSession:
             registry = create_memory_registry(
                 mock_memory_manager, session_manager=mock_session_manager
             )
-            result = await registry.call(
-                "extract_from_session", {"session_id": "sess-123"}
-            )
+            result = await registry.call("extract_from_session", {"session_id": "sess-123"})
 
         assert result["success"] is False
         assert "No transcript" in result["error"]
@@ -466,9 +446,7 @@ class TestBuildTurnAndDigest:
             registry = create_memory_registry(
                 mock_memory_manager, session_manager=mock_session_manager
             )
-            result = await registry.call(
-                "build_turn_and_digest", {"session_id": "sess-123"}
-            )
+            result = await registry.call("build_turn_and_digest", {"session_id": "sess-123"})
 
         assert result["success"] is True
         assert result["turn_number"] == 1
@@ -488,9 +466,7 @@ class TestBuildTurnAndDigest:
             registry = create_memory_registry(
                 mock_memory_manager, session_manager=mock_session_manager
             )
-            result = await registry.call(
-                "build_turn_and_digest", {"session_id": "sess-123"}
-            )
+            result = await registry.call("build_turn_and_digest", {"session_id": "sess-123"})
 
         assert result["success"] is True
         assert result["skipped"] is True
@@ -510,9 +486,7 @@ class TestBuildTurnAndDigest:
             registry = create_memory_registry(
                 mock_memory_manager, session_manager=mock_session_manager
             )
-            result = await registry.call(
-                "build_turn_and_digest", {"session_id": "sess-123"}
-            )
+            result = await registry.call("build_turn_and_digest", {"session_id": "sess-123"})
 
         assert result["success"] is False
         assert "LLM failed" in result["error"]
@@ -663,9 +637,7 @@ class TestSearchKnowledgeGraph:
         """Returns empty results when KG service not available."""
         mock_memory_manager.kg_service = None
         registry = create_memory_registry(mock_memory_manager)
-        result = await registry.call(
-            "search_knowledge_graph", {"query": "test"}
-        )
+        result = await registry.call("search_knowledge_graph", {"query": "test"})
 
         assert result["success"] is True
         assert result["results"] == []
@@ -678,9 +650,7 @@ class TestSearchKnowledgeGraph:
         mock_memory_manager.kg_service = mock_kg
 
         registry = create_memory_registry(mock_memory_manager)
-        result = await registry.call(
-            "search_knowledge_graph", {"query": "Python", "limit": 5}
-        )
+        result = await registry.call("search_knowledge_graph", {"query": "Python", "limit": 5})
 
         assert result["success"] is True
         assert len(result["results"]) == 1
@@ -693,9 +663,7 @@ class TestSearchKnowledgeGraph:
         mock_memory_manager.kg_service = mock_kg
 
         registry = create_memory_registry(mock_memory_manager)
-        result = await registry.call(
-            "search_knowledge_graph", {"query": "test"}
-        )
+        result = await registry.call("search_knowledge_graph", {"query": "test"})
 
         assert result["success"] is False
         assert "KG down" in result["error"]

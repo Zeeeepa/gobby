@@ -853,6 +853,18 @@ class MCPClientManager:
             return
 
         config = self._configs[server_name]
+
+        # Disconnect old connection so _connect_server() creates a fresh one
+        # instead of reusing the stale transport (which leaks fds).
+        old_connection = self._connections.pop(server_name, None)
+        if old_connection is not None:
+            try:
+                await asyncio.wait_for(old_connection.disconnect(), timeout=5.0)
+            except TimeoutError:
+                logger.warning(f"Old connection disconnect timed out for {server_name}")
+            except Exception as e:
+                logger.warning(f"Error disconnecting old {server_name} connection: {e}")
+
         try:
             logger.info(f"Reconnecting {server_name}...")
             await self._connect_server(config)

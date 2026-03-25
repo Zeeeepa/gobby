@@ -109,7 +109,7 @@ export function ReportingTab({
     isLoading: agentsLoading,
     cancelRun,
     fetchRunDetail,
-  } = useAgentRuns();
+  } = useAgentRuns(projectId);
 
   // Compute counts for stat chips
   const counts = useMemo(() => {

@@ -224,7 +224,9 @@ class TestQueryEvents:
 
 
 class TestArchive:
-    def test_archive_old_events(self, event_store: MetricsEventStore, temp_db: "LocalDatabase") -> None:
+    def test_archive_old_events(
+        self, event_store: MetricsEventStore, temp_db: "LocalDatabase"
+    ) -> None:
         # Insert events with old timestamps
         old_date = (datetime.now(UTC) - timedelta(days=60)).isoformat()
         for i in range(5):
@@ -252,7 +254,9 @@ class TestArchive:
         assert len(remaining) == 1
         assert remaining[0]["name"] == "Edit"
 
-    def test_archive_upsert_merges(self, event_store: MetricsEventStore, temp_db: "LocalDatabase") -> None:
+    def test_archive_upsert_merges(
+        self, event_store: MetricsEventStore, temp_db: "LocalDatabase"
+    ) -> None:
         """Running archive twice should merge counts, not duplicate rows."""
         old_date1 = (datetime.now(UTC) - timedelta(days=60)).isoformat()
         old_date2 = (datetime.now(UTC) - timedelta(days=45)).isoformat()
@@ -341,12 +345,18 @@ class TestMCPTools:
     async def test_get_session_tools(self, registry, temp_db: "LocalDatabase") -> None:
         event_store = MetricsEventStore(temp_db)
         event_store.record_event(
-            event_type="tool_call", name="Read", session_id="s1",
-            server_name="proxy", latency_ms=10.0,
+            event_type="tool_call",
+            name="Read",
+            session_id="s1",
+            server_name="proxy",
+            latency_ms=10.0,
         )
         event_store.record_event(
-            event_type="tool_call", name="Read", session_id="s1",
-            server_name="proxy", latency_ms=20.0,
+            event_type="tool_call",
+            name="Read",
+            session_id="s1",
+            server_name="proxy",
+            latency_ms=20.0,
         )
 
         result = await registry.call("get_session_tools", {"session_id": "s1"})
@@ -357,12 +367,8 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_get_rule_metrics(self, registry, temp_db: "LocalDatabase") -> None:
         event_store = MetricsEventStore(temp_db)
-        event_store.record_event(
-            event_type="rule_eval", name="task-rule", result="block"
-        )
-        event_store.record_event(
-            event_type="rule_eval", name="task-rule", result="allow"
-        )
+        event_store.record_event(event_type="rule_eval", name="task-rule", result="block")
+        event_store.record_event(event_type="rule_eval", name="task-rule", result="allow")
 
         result = await registry.call("get_rule_metrics", {"hours": 1})
         assert result["success"] is True
@@ -385,9 +391,9 @@ class TestMCPTools:
         event_store = MetricsEventStore(temp_db)
         event_store.record_event(event_type="tool_call", name="Read", latency_ms=10.0)
 
-        result = await registry.call("get_metrics_timeseries", {
-            "event_type": "tool_call", "time_range": "1h"
-        })
+        result = await registry.call(
+            "get_metrics_timeseries", {"event_type": "tool_call", "time_range": "1h"}
+        )
         assert result["success"] is True
         assert result["bucket_size"] == "minute"
         assert len(result["buckets"]) >= 1

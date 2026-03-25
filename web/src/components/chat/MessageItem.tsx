@@ -7,6 +7,15 @@ import { ToolCallCards, ToolChainGroup } from './ToolCallCard'
 import { UnknownBlockCard } from './UnknownBlockCard'
 import type { A2UISurfaceState, UserAction } from '../canvas'
 
+/** Replace [Image: ...] text descriptions with styled placeholders */
+function renderImagePlaceholders(content: string): string {
+  return content.replace(
+    /\[Image: original (\d+)x(\d+), displayed at (\d+)x(\d+)[^\]]*\]/g,
+    (_match, origW: string, origH: string) =>
+      `\n\n> 🖼️ **Image** (${origW}×${origH})\n\n`,
+  )
+}
+
 interface MessageItemProps {
   message: ChatMessage
   isStreaming?: boolean
@@ -76,9 +85,10 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
             {message.contentBlocks.map((block, i) => {
               if (block.type === 'text') {
                 const isLastText = !message.contentBlocks!.slice(i + 1).some(b => b.type === 'text')
+                const textContent = renderImagePlaceholders(block.content)
                 return (
                   <div key={`${message.id}-b${i}`} className="message-content leading-relaxed text-foreground">
-                    <Markdown content={block.content} id={`${message.id}-${i}`} />
+                    <Markdown content={textContent} id={`${message.id}-${i}`} />
                     {isStreaming && isLastText && <span className="cursor inline-block w-2 h-4 bg-foreground animate-pulse ml-1.5" />}
                   </div>
                 )
@@ -149,7 +159,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
             )}
             {message.content && (
               <div className="message-content leading-relaxed text-foreground">
-                <Markdown content={message.content} id={message.id} />
+                <Markdown content={renderImagePlaceholders(message.content)} id={message.id} />
                 {isStreaming && <span className="cursor inline-block w-2 h-4 bg-foreground animate-pulse ml-1.5" />}
               </div>
             )}
