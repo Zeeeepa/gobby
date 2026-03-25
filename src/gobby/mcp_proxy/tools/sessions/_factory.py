@@ -16,6 +16,7 @@ from gobby.mcp_proxy.tools.sessions._crud import register_crud_tools
 from gobby.mcp_proxy.tools.sessions._handoff import register_handoff_tools
 from gobby.mcp_proxy.tools.sessions._messages import register_message_tools
 from gobby.mcp_proxy.tools.sessions._registration import register_registration_tools
+from gobby.mcp_proxy.tools.sessions._terminal import register_terminal_tools
 from gobby.mcp_proxy.tools.sessions._transcripts import register_transcript_tools
 
 if TYPE_CHECKING:
@@ -108,5 +109,9 @@ def create_session_messages_registry(
     # --- Transcript Archive Tools ---
     if session_manager is not None:
         register_transcript_tools(registry, session_manager)
+
+    # --- Terminal Interaction Tools (send_keys, capture_output) ---
+    if session_manager is not None and db is not None:
+        register_terminal_tools(registry, session_manager, db)
 
     return registry

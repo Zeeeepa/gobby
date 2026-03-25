@@ -161,8 +161,8 @@ def add_messaging_tools(
     @registry.tool(
         name="send_command",
         description=(
-            "Send a command from an ancestor session to a descendant. "
-            "Validates ancestry and rejects if the target already has an active command."
+            "Send a command to a session at a higher agent depth within the same project. "
+            "Rejects if the target already has an active command."
         ),
     )
     async def send_command(
@@ -177,11 +177,30 @@ def add_messaging_tools(
             from_id = _resolve(from_session)
             to_id = _resolve(to_session)
 
-            # Validate ancestor relationship
-            if not session_manager.is_ancestor(ancestor_id=from_id, descendant_id=to_id):
+            # Validate: sender must be at a lower depth than recipient,
+            # OR sender is at depth 0 (interactive/web chat — the operator).
+            from_sess = session_manager.get(from_id)
+            to_sess = session_manager.get(to_id)
+            if from_sess is None:
+                return {"success": False, "error": f"Sender session {from_id} not found"}
+            if to_sess is None:
+                return {"success": False, "error": f"Target session {to_id} not found"}
+            from_depth = from_sess.agent_depth or 0
+            to_depth = to_sess.agent_depth or 0
+            # Depth-0 sessions (web chat, interactive CLI) can command any session.
+            # Higher-depth agents can only command sessions at an even higher depth.
+            if from_depth > 0 and from_depth >= to_depth:
                 return {
                     "success": False,
-                    "error": f"Session {from_id} is not an ancestor of {to_id}",
+                    "error": (
+                        f"Can only send commands to sessions at a higher agent depth "
+                        f"(sender depth={from_depth}, target depth={to_depth})"
+                    ),
+                }
+            if from_sess.project_id != to_sess.project_id:
+                return {
+                    "success": False,
+                    "error": "Sessions must be in the same project",
                 }
 
             # Reject if active command exists
