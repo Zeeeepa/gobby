@@ -32,11 +32,24 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
   }))
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
-    userScrolledUpRef.current = !atBottom
-  }, [])
+    // Don't flip the flag during streaming — content growth can briefly
+    // push us past atBottomThreshold before followOutput scrolls back,
+    // which causes the "bounce" where auto-scroll stops mid-stream.
+    if (!isStreaming) {
+      userScrolledUpRef.current = !atBottom
+    }
+  }, [isStreaming])
+
+  // Reset scroll flag when streaming starts so stale scroll-up state
+  // from before the agent began doesn't prevent auto-scroll.
+  useEffect(() => {
+    if (isStreaming) {
+      userScrolledUpRef.current = false
+    }
+  }, [isStreaming])
 
   useEffect(() => {
-    if (isStreaming && !userScrolledUpRef.current) {
+    if (isStreaming) {
       virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
     }
   }, [isStreaming, messages])
@@ -96,6 +109,9 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
       data={messages}
       itemContent={itemContent}
       followOutput={() => {
+        // Always follow during streaming — the agent is working and
+        // the viewport should stay pinned to the bottom.
+        if (isStreaming) return 'smooth'
         if (userScrolledUpRef.current) return false
         return 'smooth'
       }}
