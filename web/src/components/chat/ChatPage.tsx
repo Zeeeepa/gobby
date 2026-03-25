@@ -272,6 +272,13 @@ export function ChatPage({
         <ArtifactContext.Provider
           value={{ openCodeAsArtifact, openFileAsArtifact }}
         >
+          {/* Reconnecting banner */}
+          {chat.isReconnecting && (
+            <div className="bg-warning/20 text-warning-foreground text-xs text-center py-1 shrink-0">
+              Reconnecting...
+            </div>
+          )}
+
           {/* Messages */}
           <div className="grid flex-1 min-h-0">
             <MessageList

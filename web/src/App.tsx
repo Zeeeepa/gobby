@@ -46,7 +46,9 @@ const TerminalsPage = lazy(() =>
   })),
 );
 const MemoryPage = lazy(() =>
-  import("./components/memory/MemoryPage").then((m) => ({ default: m.MemoryPage })),
+  import("./components/memory/MemoryPage").then((m) => ({
+    default: m.MemoryPage,
+  })),
 );
 const ProjectsPage = lazy(() =>
   import("./components/projects/ProjectsPage").then((m) => ({
@@ -54,10 +56,14 @@ const ProjectsPage = lazy(() =>
   })),
 );
 const TasksPage = lazy(() =>
-  import("./components/tasks/TasksPage").then((m) => ({ default: m.TasksPage })),
+  import("./components/tasks/TasksPage").then((m) => ({
+    default: m.TasksPage,
+  })),
 );
 const SkillsPage = lazy(() =>
-  import("./components/skills/SkillsPage").then((m) => ({ default: m.SkillsPage })),
+  import("./components/skills/SkillsPage").then((m) => ({
+    default: m.SkillsPage,
+  })),
 );
 const McpPage = lazy(() =>
   import("./components/mcp/McpPage").then((m) => ({ default: m.McpPage })),
@@ -78,10 +84,14 @@ const WorkflowsPage = lazy(() =>
   })),
 );
 const GitHubPage = lazy(() =>
-  import("./components/source-control/GitHubPage").then((m) => ({ default: m.GitHubPage })),
+  import("./components/source-control/GitHubPage").then((m) => ({
+    default: m.GitHubPage,
+  })),
 );
 const ReportsPage = lazy(() =>
-  import("./components/workflows/ReportsPage").then((m) => ({ default: m.ReportsPage })),
+  import("./components/workflows/ReportsPage").then((m) => ({
+    default: m.ReportsPage,
+  })),
 );
 const DashboardPage = lazy(() =>
   import("./components/dashboard/DashboardPage").then((m) => ({
@@ -229,6 +239,7 @@ export default function App() {
     currentBranch,
     worktreePath,
     isConnected,
+    isReconnecting,
     isStreaming,
     isThinking,
     isLoadingMessages,
@@ -302,9 +313,21 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     const hash = window.location.hash.slice(1);
     const validTabs = new Set([
-      "dashboard", "chat", "sessions", "terminals", "projects",
-      "tasks", "workflows", "reports", "source-control", "cron",
-      "traces", "memory", "skills", "mcp", "configuration",
+      "dashboard",
+      "chat",
+      "sessions",
+      "terminals",
+      "projects",
+      "tasks",
+      "workflows",
+      "reports",
+      "source-control",
+      "cron",
+      "traces",
+      "memory",
+      "skills",
+      "mcp",
+      "configuration",
     ]);
     return validTabs.has(hash) ? hash : "chat";
   });
@@ -404,15 +427,17 @@ export default function App() {
         // If already in chord mode, cancel it
         if (chordPendingRef.current) {
           chordPendingRef.current = false;
-          if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
+          if (chordTimeoutRef.current)
+            window.clearTimeout(chordTimeoutRef.current);
         }
         // Start chord timer — if no follow-up key, open palette
         chordPendingRef.current = true;
-        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
+        if (chordTimeoutRef.current)
+          window.clearTimeout(chordTimeoutRef.current);
         chordTimeoutRef.current = window.setTimeout(() => {
           chordPendingRef.current = false;
           if (activeTab === "chat") {
-            window.dispatchEvent(new CustomEvent('gobby:open-command-palette'));
+            window.dispatchEvent(new CustomEvent("gobby:open-command-palette"));
           }
         }, 300);
         return;
@@ -421,14 +446,16 @@ export default function App() {
       if (chordPendingRef.current && e.key === "t") {
         e.preventDefault();
         chordPendingRef.current = false;
-        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
+        if (chordTimeoutRef.current)
+          window.clearTimeout(chordTimeoutRef.current);
         setQuickCaptureOpen(true);
       } else if (chordPendingRef.current) {
         chordPendingRef.current = false;
-        if (chordTimeoutRef.current) window.clearTimeout(chordTimeoutRef.current);
+        if (chordTimeoutRef.current)
+          window.clearTimeout(chordTimeoutRef.current);
         // No recognized chord key — open palette immediately
         if (activeTab === "chat") {
-          window.dispatchEvent(new CustomEvent('gobby:open-command-palette'));
+          window.dispatchEvent(new CustomEvent("gobby:open-command-palette"));
         }
       }
     };
@@ -467,7 +494,10 @@ export default function App() {
   const isPersonalProject =
     projectOptions.find((p) => p.id === effectiveProjectId)?.name ===
     "Personal";
-  const agentDefs = useAgentDefinitions(effectiveProjectId, "claude_sdk_web_chat");
+  const agentDefs = useAgentDefinitions(
+    effectiveProjectId,
+    "claude_sdk_web_chat",
+  );
 
   // On mount: fetch persisted project from API (DB is source of truth)
   useEffect(() => {
@@ -495,7 +525,10 @@ export default function App() {
     if (projectReady) return;
     if (!uiSettingsLoaded || projectOptions.length === 0) return;
 
-    if (pendingProjectId && projectOptions.some((p) => p.id === pendingProjectId)) {
+    if (
+      pendingProjectId &&
+      projectOptions.some((p) => p.id === pendingProjectId)
+    ) {
       setSelectedProjectId(pendingProjectId);
     }
     setProjectReady(true);
@@ -570,7 +603,8 @@ export default function App() {
     // Guard: ensure fetched sessions belong to the current project.
     // After a project switch, the fetch for the new project may still be in-flight
     // while webChatSessions contains stale data from the old project.
-    const sessionsMatchProject = webChatSessions.length === 0 ||
+    const sessionsMatchProject =
+      webChatSessions.length === 0 ||
       webChatSessions.some((s) => s.project_id === effectiveProjectId);
     if (!sessionsMatchProject) return;
 
@@ -606,13 +640,26 @@ export default function App() {
       const parsed = parseColonCommand(content);
       if (parsed) {
         const ctx = await resolveInjectContext(parsed);
-        const visibleMessage = parsed.intent.trim() || `Use ${parsed.command}:${parsed.subItem}`;
-        sendMessage(visibleMessage, settings.model, files, effectiveProjectId, ctx ?? undefined);
+        const visibleMessage =
+          parsed.intent.trim() || `Use ${parsed.command}:${parsed.subItem}`;
+        sendMessage(
+          visibleMessage,
+          settings.model,
+          files,
+          effectiveProjectId,
+          ctx ?? undefined,
+        );
       } else {
         sendMessage(content, settings.model, files, effectiveProjectId);
       }
     },
-    [sendMessage, settings.model, effectiveProjectId, parseColonCommand, resolveInjectContext],
+    [
+      sendMessage,
+      settings.model,
+      effectiveProjectId,
+      parseColonCommand,
+      resolveInjectContext,
+    ],
   );
 
   // View a CLI session from the sidebar (read-only, no WS subscription)
@@ -639,7 +686,13 @@ export default function App() {
       }
       switchConversation(session.external_id, session.id);
     },
-    [switchConversation, viewingSessionId, attachedSessionId, clearViewingSession, detachFromSession],
+    [
+      switchConversation,
+      viewingSessionId,
+      attachedSessionId,
+      clearViewingSession,
+      detachFromSession,
+    ],
   );
 
   const showToast = useCallback((msg: string, durationMs = 3000) => {
@@ -705,7 +758,12 @@ export default function App() {
 
   /* Navigate to Terminals tab and attach agent's tmux session */
   const handleNavigateToAgent = useCallback(
-    (agent: { run_id: string; session_id?: string; mode?: string; tmux_session_name?: string }) => {
+    (agent: {
+      run_id: string;
+      session_id?: string;
+      mode?: string;
+      tmux_session_name?: string;
+    }) => {
       if (agent.tmux_session_name) {
         // Verify the tmux session still exists before navigating
         const sessionExists = tmux.sessions.some(
@@ -848,7 +906,7 @@ export default function App() {
   const handlePaletteSelect = useCallback(
     (item: PaletteItem) => {
       // Sub-items are handled inline by ChatInput (Tab-complete into input)
-      if (item.kind !== 'command') return;
+      if (item.kind !== "command") return;
 
       if (item.action === "open_skills") {
         setActiveModal("skills");
@@ -916,46 +974,97 @@ export default function App() {
   // Build command palette actions for ChatPage
   const commandPaletteActions = useMemo<CommandPaletteAction[]>(() => {
     const actions: CommandPaletteAction[] = [
-      { id: 'new-chat', label: 'New Chat', icon: '+', category: 'action', onSelect: () => startNewChat() },
-      { id: 'resume', label: 'Resume Session', icon: '\u21BA', category: 'action', onSelect: () => setResumeModalOpen(true) },
-      { id: 'settings', label: 'Settings', icon: '\u2699', category: 'action', onSelect: () => setSettingsOpen(true) },
-      { id: 'clear', label: 'Clear History', icon: '\u2715', category: 'action', onSelect: () => clearHistory() },
-      { id: 'compact', label: 'Compact Conversation', icon: '\u2026', category: 'action', onSelect: () => sendMessage("/compact", settings.model, undefined, effectiveProjectId) },
-      { id: 'restart', label: 'Restart Daemon', icon: '\u21BB', category: 'action', onSelect: () => {
-        addSystemMessage("Restarting daemon...");
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-        fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch((err) => {
-          console.error("Restart request failed:", err);
-          addSystemMessage("Failed to restart daemon");
-        });
-      }},
+      {
+        id: "new-chat",
+        label: "New Chat",
+        icon: "+",
+        category: "action",
+        onSelect: () => startNewChat(),
+      },
+      {
+        id: "resume",
+        label: "Resume Session",
+        icon: "\u21BA",
+        category: "action",
+        onSelect: () => setResumeModalOpen(true),
+      },
+      {
+        id: "settings",
+        label: "Settings",
+        icon: "\u2699",
+        category: "action",
+        onSelect: () => setSettingsOpen(true),
+      },
+      {
+        id: "clear",
+        label: "Clear History",
+        icon: "\u2715",
+        category: "action",
+        onSelect: () => clearHistory(),
+      },
+      {
+        id: "compact",
+        label: "Compact Conversation",
+        icon: "\u2026",
+        category: "action",
+        onSelect: () =>
+          sendMessage(
+            "/compact",
+            settings.model,
+            undefined,
+            effectiveProjectId,
+          ),
+      },
+      {
+        id: "restart",
+        label: "Restart Daemon",
+        icon: "\u21BB",
+        category: "action",
+        onSelect: () => {
+          addSystemMessage("Restarting daemon...");
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+          fetch(`${baseUrl}/api/admin/restart`, { method: "POST" }).catch(
+            (err) => {
+              console.error("Restart request failed:", err);
+              addSystemMessage("Failed to restart daemon");
+            },
+          );
+        },
+      },
     ];
     // Navigation items
     const navPages: Array<{ id: string; label: string }> = [
-      { id: 'dashboard', label: 'Dashboard' },
-      { id: 'sessions', label: 'Sessions' },
-      { id: 'tasks', label: 'Tasks' },
-      { id: 'workflows', label: 'Workflows' },
-      { id: 'reports', label: 'Reports' },
-      { id: 'source-control', label: 'GitHub' },
-      { id: 'cron', label: 'Cron Jobs' },
-      { id: 'traces', label: 'Traces' },
-      { id: 'memory', label: 'Memory' },
-      { id: 'skills', label: 'Skills' },
-      { id: 'mcp', label: 'MCP' },
-      { id: 'configuration', label: 'Configuration' },
+      { id: "dashboard", label: "Dashboard" },
+      { id: "sessions", label: "Sessions" },
+      { id: "tasks", label: "Tasks" },
+      { id: "workflows", label: "Workflows" },
+      { id: "reports", label: "Reports" },
+      { id: "source-control", label: "GitHub" },
+      { id: "cron", label: "Cron Jobs" },
+      { id: "traces", label: "Traces" },
+      { id: "memory", label: "Memory" },
+      { id: "skills", label: "Skills" },
+      { id: "mcp", label: "MCP" },
+      { id: "configuration", label: "Configuration" },
     ];
     for (const page of navPages) {
       actions.push({
         id: `nav-${page.id}`,
         label: page.label,
-        icon: '\u2192',
-        category: 'navigate',
+        icon: "\u2192",
+        category: "navigate",
         onSelect: () => setActiveTab(page.id),
       });
     }
     return actions;
-  }, [startNewChat, clearHistory, sendMessage, settings.model, effectiveProjectId, addSystemMessage]);
+  }, [
+    startNewChat,
+    clearHistory,
+    sendMessage,
+    settings.model,
+    effectiveProjectId,
+    addSystemMessage,
+  ]);
 
   // Auth guard — shown after all hooks (React rules)
   if (authLoading) {
@@ -988,7 +1097,10 @@ export default function App() {
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
     { id: "traces", label: "Traces", icon: <TracesIcon /> },
     {
-      id: "memory", label: "Memory", icon: <MemoryIcon /> },
+      id: "memory",
+      label: "Memory",
+      icon: <MemoryIcon />,
+    },
     { id: "skills", label: "Skills", icon: <SkillsIcon /> },
     { id: "mcp", label: "MCP", icon: <McpIcon /> },
     {
@@ -1057,167 +1169,174 @@ export default function App() {
       />
 
       <FilesProvider>
-      <AppErrorBoundary
-        activeTab={activeTab}
-        onReturnToChat={() => setActiveTab("chat")}
-      >
-        <Suspense
-          fallback={
-            <main
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flex: 1,
-                color: "var(--text-secondary)",
-              }}
-            >
-              Loading...
-            </main>
-          }
+        <AppErrorBoundary
+          activeTab={activeTab}
+          onReturnToChat={() => setActiveTab("chat")}
         >
-          {activeTab === "chat" ? (
-            <ChatPage
-              projectId={effectiveProjectId}
-              showPlanRef={showPlanRef}
-              chat={{
-                messages,
-                sessionRef,
-                currentBranch,
-                worktreePath,
-                isStreaming,
-                isThinking,
-                isLoadingMessages,
-                isConnected,
-                contextUsage,
-                onSend: handleSendMessage,
-                onStop: stopStreaming,
-                onRespondToQuestion: respondToQuestion,
-                onRespondToApproval: respondToApproval,
-                onInputChange: handleInputChange,
-                paletteItems,
-                onPaletteSelect: handlePaletteSelect,
-                mode: settings.chatMode,
-                onModeChange: (mode) => {
-                  updateChatMode(mode);
-                  sendMode(mode);
-                },
-                onWorktreeChange: isPersonalProject
-                  ? undefined
-                  : sendWorktreeChange,
-                planPendingApproval,
-                onApprovePlan: approvePlan,
-                onRequestPlanChanges: requestPlanChanges,
-                setOnPlanReady,
-                canvasSurfaces,
-                canvasPanel,
-                onCanvasInteraction,
-                viewingSessionId,
-                viewingSessionMeta,
-                attachedSessionId,
-                attachedSessionMeta,
-                onAttachToViewed: attachToViewed,
-                onDetachFromSession: detachFromSession,
-                activeAgent,
-                onAgentChange: sendAgentChange,
-              }}
-              conversations={{
-                sessions: webChatSessions,
-                activeSessionId: conversationId,
-                deletingIds: sessionsHook.deletingIds,
-                onNewChat: startNewChat,
-                onSelectSession: handleSelectConversation,
-                onDeleteSession: handleDeleteConversation,
-                onRenameSession: sessionsHook.renameSession,
-                agents,
-                onNavigateToAgent: handleNavigateToAgent,
-                onKillAgent: handleKillAgent,
-                onExpireSession: handleExpireSession,
-                // cliSessions hidden — agent-spawned terminals bleed into list (#9219).
-                // Backend code intact; re-enable by uncommenting and passing cliSessions.
-                // See commits: 65433c67, 401f2751, 206b27d1, 2769d980, 46ad405b
-                viewingSessionId,
-                attachedSessionId,
-                onViewCliSession: handleViewCliSession,
-                onDetachFromSession: handleClearViewing,
-              }}
-              agentDefinitions={agentDefs.definitions}
-              agentGlobalDefs={agentDefs.globalDefs}
-              agentProjectDefs={agentDefs.projectDefs}
-              agentShowScopeToggle={agentDefs.showScopeToggle}
-              agentHasGlobal={agentDefs.hasGlobal}
-              agentHasProject={agentDefs.hasProject}
-              paletteActions={commandPaletteActions}
-              onViewAgent={handleNavigateToAgent}
-              voice={{
-                voiceMode: voice.voiceMode,
-                voiceAvailable: voice.voiceAvailable,
-                isListening: voice.isListening,
-                isSpeechDetected: voice.isSpeechDetected,
-                isTranscribing: voice.isTranscribing,
-                voiceError: voice.voiceError,
-                onToggleVoice: voice.toggleVoiceMode,
-              }}
-            />
-          ) : activeTab === "sessions" ? (
-            <SessionsPage
-              sessions={sessionsHook.filteredSessions}
-              filters={sessionsHook.filters}
-              onFiltersChange={sessionsHook.setFilters}
-              isLoading={sessionsHook.isLoading}
-              onAskGobby={handleAskGobby}
-              onContinueInChat={handleContinueInChat}
-              onWatchInChat={handleWatchInChat}
-              onRenameSession={sessionsHook.renameSession}
-            />
-          ) : activeTab === "terminals" ? (
-            <TerminalsPage
-              sessions={tmux.sessions}
-              attachedSession={tmux.attachedSession}
-              streamingId={tmux.streamingId}
-              sessionEnded={tmux.sessionEnded}
-              attachSession={tmux.attachSession}
-              createSession={tmux.createSession}
-              killSession={tmux.killSession}
-              refreshTerminal={tmux.refreshTerminal}
-              dismissEndedSession={tmux.dismissEndedSession}
-              sendInput={tmux.sendInput}
-              resizeTerminal={tmux.resizeTerminal}
-              onOutput={tmux.onOutput}
-            />
-          ) : activeTab === "projects" ? (
-            <ProjectsPage projectId={effectiveProjectId} />
-          ) : activeTab === "tasks" ? (
-            <TasksPage projectFilter={effectiveProjectId} />
-          ) : activeTab === "memory" ? (
-            <MemoryPage projectId={effectiveProjectId} />
-          ) : activeTab === "cron" ? (
-            <CronJobsPage projectId={effectiveProjectId} />
-          ) : activeTab === "traces" ? (
-            <TracesPage projectId={effectiveProjectId || undefined} initialTraceId={initialTraceId} />
-          ) : activeTab === "skills" ? (
-            <SkillsPage />
-          ) : activeTab === "workflows" ? (
-            <WorkflowsPage projectId={effectiveProjectId} />
-          ) : activeTab === "mcp" ? (
-            <McpPage />
-          ) : activeTab === "reports" ? (
-            <ReportsPage projectId={effectiveProjectId} onNavigateToTrace={handleNavigateToTrace} />
-          ) : activeTab === "source-control" ? (
-            <GitHubPage projectId={effectiveProjectId} />
-          ) : activeTab === "configuration" ? (
-            <ConfigurationPage />
-          ) : activeTab === "dashboard" ? (
-            <DashboardPage />
-          ) : (
-            <ComingSoonPage
-              title={
-                navItems.find((i) => i.id === activeTab)?.label ?? activeTab
-              }
-            />
-          )}
-        </Suspense>
-      </AppErrorBoundary>
+          <Suspense
+            fallback={
+              <main
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flex: 1,
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Loading...
+              </main>
+            }
+          >
+            {activeTab === "chat" ? (
+              <ChatPage
+                projectId={effectiveProjectId}
+                showPlanRef={showPlanRef}
+                chat={{
+                  messages,
+                  sessionRef,
+                  currentBranch,
+                  worktreePath,
+                  isStreaming,
+                  isThinking,
+                  isLoadingMessages,
+                  isConnected,
+                  isReconnecting,
+                  contextUsage,
+                  onSend: handleSendMessage,
+                  onStop: stopStreaming,
+                  onRespondToQuestion: respondToQuestion,
+                  onRespondToApproval: respondToApproval,
+                  onInputChange: handleInputChange,
+                  paletteItems,
+                  onPaletteSelect: handlePaletteSelect,
+                  mode: settings.chatMode,
+                  onModeChange: (mode) => {
+                    updateChatMode(mode);
+                    sendMode(mode);
+                  },
+                  onWorktreeChange: isPersonalProject
+                    ? undefined
+                    : sendWorktreeChange,
+                  planPendingApproval,
+                  onApprovePlan: approvePlan,
+                  onRequestPlanChanges: requestPlanChanges,
+                  setOnPlanReady,
+                  canvasSurfaces,
+                  canvasPanel,
+                  onCanvasInteraction,
+                  viewingSessionId,
+                  viewingSessionMeta,
+                  attachedSessionId,
+                  attachedSessionMeta,
+                  onAttachToViewed: attachToViewed,
+                  onDetachFromSession: detachFromSession,
+                  activeAgent,
+                  onAgentChange: sendAgentChange,
+                }}
+                conversations={{
+                  sessions: webChatSessions,
+                  activeSessionId: conversationId,
+                  deletingIds: sessionsHook.deletingIds,
+                  onNewChat: startNewChat,
+                  onSelectSession: handleSelectConversation,
+                  onDeleteSession: handleDeleteConversation,
+                  onRenameSession: sessionsHook.renameSession,
+                  agents,
+                  onNavigateToAgent: handleNavigateToAgent,
+                  onKillAgent: handleKillAgent,
+                  onExpireSession: handleExpireSession,
+                  // cliSessions hidden — agent-spawned terminals bleed into list (#9219).
+                  // Backend code intact; re-enable by uncommenting and passing cliSessions.
+                  // See commits: 65433c67, 401f2751, 206b27d1, 2769d980, 46ad405b
+                  viewingSessionId,
+                  attachedSessionId,
+                  onViewCliSession: handleViewCliSession,
+                  onDetachFromSession: handleClearViewing,
+                }}
+                agentDefinitions={agentDefs.definitions}
+                agentGlobalDefs={agentDefs.globalDefs}
+                agentProjectDefs={agentDefs.projectDefs}
+                agentShowScopeToggle={agentDefs.showScopeToggle}
+                agentHasGlobal={agentDefs.hasGlobal}
+                agentHasProject={agentDefs.hasProject}
+                paletteActions={commandPaletteActions}
+                onViewAgent={handleNavigateToAgent}
+                voice={{
+                  voiceMode: voice.voiceMode,
+                  voiceAvailable: voice.voiceAvailable,
+                  isListening: voice.isListening,
+                  isSpeechDetected: voice.isSpeechDetected,
+                  isTranscribing: voice.isTranscribing,
+                  voiceError: voice.voiceError,
+                  onToggleVoice: voice.toggleVoiceMode,
+                }}
+              />
+            ) : activeTab === "sessions" ? (
+              <SessionsPage
+                sessions={sessionsHook.filteredSessions}
+                filters={sessionsHook.filters}
+                onFiltersChange={sessionsHook.setFilters}
+                isLoading={sessionsHook.isLoading}
+                onAskGobby={handleAskGobby}
+                onContinueInChat={handleContinueInChat}
+                onWatchInChat={handleWatchInChat}
+                onRenameSession={sessionsHook.renameSession}
+              />
+            ) : activeTab === "terminals" ? (
+              <TerminalsPage
+                sessions={tmux.sessions}
+                attachedSession={tmux.attachedSession}
+                streamingId={tmux.streamingId}
+                sessionEnded={tmux.sessionEnded}
+                attachSession={tmux.attachSession}
+                createSession={tmux.createSession}
+                killSession={tmux.killSession}
+                refreshTerminal={tmux.refreshTerminal}
+                dismissEndedSession={tmux.dismissEndedSession}
+                sendInput={tmux.sendInput}
+                resizeTerminal={tmux.resizeTerminal}
+                onOutput={tmux.onOutput}
+              />
+            ) : activeTab === "projects" ? (
+              <ProjectsPage projectId={effectiveProjectId} />
+            ) : activeTab === "tasks" ? (
+              <TasksPage projectFilter={effectiveProjectId} />
+            ) : activeTab === "memory" ? (
+              <MemoryPage projectId={effectiveProjectId} />
+            ) : activeTab === "cron" ? (
+              <CronJobsPage projectId={effectiveProjectId} />
+            ) : activeTab === "traces" ? (
+              <TracesPage
+                projectId={effectiveProjectId || undefined}
+                initialTraceId={initialTraceId}
+              />
+            ) : activeTab === "skills" ? (
+              <SkillsPage />
+            ) : activeTab === "workflows" ? (
+              <WorkflowsPage projectId={effectiveProjectId} />
+            ) : activeTab === "mcp" ? (
+              <McpPage />
+            ) : activeTab === "reports" ? (
+              <ReportsPage
+                projectId={effectiveProjectId}
+                onNavigateToTrace={handleNavigateToTrace}
+              />
+            ) : activeTab === "source-control" ? (
+              <GitHubPage projectId={effectiveProjectId} />
+            ) : activeTab === "configuration" ? (
+              <ConfigurationPage />
+            ) : activeTab === "dashboard" ? (
+              <DashboardPage />
+            ) : (
+              <ComingSoonPage
+                title={
+                  navItems.find((i) => i.id === activeTab)?.label ?? activeTab
+                }
+              />
+            )}
+          </Suspense>
+        </AppErrorBoundary>
       </FilesProvider>
 
       <Settings
@@ -1247,7 +1366,13 @@ export default function App() {
         modal={activeModal}
         onClose={() => setActiveModal(null)}
         onSendMessage={(content, context) => {
-          sendMessage(content, settings.model, undefined, effectiveProjectId, context);
+          sendMessage(
+            content,
+            settings.model,
+            undefined,
+            effectiveProjectId,
+            context,
+          );
         }}
       />
 

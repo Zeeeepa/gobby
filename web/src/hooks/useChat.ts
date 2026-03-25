@@ -542,6 +542,7 @@ export function useChat() {
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -739,6 +740,7 @@ export function useChat() {
     ws.onopen = () => {
       console.log("WebSocket connected");
       setIsConnected(true);
+      setIsReconnecting(false);
 
       // Backfill missed messages on reconnect (lastSeqRef > 0 means we had messages before)
       if (lastSeqRef.current > 0 && conversationIdRef.current) {
@@ -828,6 +830,7 @@ export function useChat() {
     ws.onclose = () => {
       console.log("WebSocket disconnected");
       setIsConnected(false);
+      setIsReconnecting(true);
       // Don't clear isStreaming/isThinking/activeRequestIdRef — the backend
       // may still be working. Clearing these causes post-reconnect tool_status
       // updates to be dropped as "stale". Only clear on explicit cancel or
@@ -2625,6 +2628,7 @@ export function useChat() {
     currentBranch,
     worktreePath,
     isConnected,
+    isReconnecting,
     isStreaming,
     isThinking,
     isLoadingMessages,
