@@ -528,6 +528,10 @@
   color: #a855f7;
 }
 
+.task-overview-card--approved .task-overview-count {
+  color: #14b8a6;
+}
+
 .task-overview-card--escalated .task-overview-count {
   color: #ef4444;
 }

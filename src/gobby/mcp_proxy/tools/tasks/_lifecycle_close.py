@@ -70,13 +70,16 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         if not task:
             return {"error": f"Task {task_id} not found"}
 
-        # Link commit if provided (convenience for link + close in one call)
-        if commit_sha:
-            task = ctx.task_manager.link_commit(resolved_id, commit_sha)
-
-        # Get project repo_path for git commands
+        # Get project repo_path for git commands (needed before link_commit)
         repo_path = ctx.get_project_repo_path(task.project_id)
         cwd = repo_path or "."
+
+        # Link commit if provided (convenience for link + close in one call)
+        if commit_sha:
+            try:
+                task = ctx.task_manager.link_commit(resolved_id, commit_sha, cwd=cwd)
+            except ValueError as e:
+                return {"error": str(e)}
 
         # Check if this is a parent task with all children closed
         # Parent tasks (epics) are organizational containers -- no own commits needed
