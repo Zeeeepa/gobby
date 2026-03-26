@@ -1745,6 +1745,8 @@ export function useChat() {
     setWorktreePath(null);
     setCanvasSurfaces(new Map());
     setCanvasPanel(null);
+    setPlanPendingApproval(false);
+    planContentRef.current = null;
     setContextUsage({
       totalInputTokens: 0,
       outputTokens: 0,
@@ -1850,6 +1852,8 @@ export function useChat() {
     setWorktreePath(null);
     setCanvasSurfaces(new Map());
     setCanvasPanel(null);
+    setPlanPendingApproval(false);
+    planContentRef.current = null;
     setContextUsage({
       totalInputTokens: 0,
       outputTokens: 0,

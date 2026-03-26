@@ -72,6 +72,7 @@ export function ChatPage({
     updateArtifact,
     openArtifact,
     closePanel: closeArtifactPanel,
+    clearArtifacts,
     setVersion,
   } = useArtifacts();
 
@@ -101,6 +102,13 @@ export function ChatPage({
   // to render the plan content WITHOUT the approval bar.
   const [planPendingLocal, setPlanPendingLocal] = useState(false);
 
+  // Clear artifacts and plan state on session switch / new chat
+  useEffect(() => {
+    clearArtifacts();
+    planArtifactIdRef.current = null;
+    setPlanPendingLocal(false);
+  }, [chat.conversationSwitchKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const openCodeAsArtifact = useCallback(
     (language: string, content: string, title?: string) => {
       createArtifact("code", content, language, title);
@@ -117,22 +125,26 @@ export function ChatPage({
     [createArtifact, activity.showTab],
   );
 
-  // Wire plan content to artifact panel when plan_pending_approval arrives
+  // Wire plan content to artifact panel when plan_pending_approval arrives.
+  // If a plan artifact already exists (revision after rejection), add a new
+  // version instead of creating a duplicate entry.
   const onPlanReady = useCallback(
     (content: string | null) => {
-      if (content) {
-        const id = createArtifact(
-          "text",
-          content,
-          "markdown",
-          "Implementation Plan",
-        );
+      if (!content) return;
+      const headingMatch = content.match(/^#\s+(.+)$/m);
+      const title = headingMatch?.[1]?.trim() || "Implementation Plan";
+
+      if (planArtifactIdRef.current && artifacts.has(planArtifactIdRef.current)) {
+        updateArtifact(planArtifactIdRef.current, content);
+        openArtifact(planArtifactIdRef.current);
+      } else {
+        const id = createArtifact("text", content, "markdown", title);
         planArtifactIdRef.current = id;
-        setPlanPendingLocal(true);
-        activity.showTab("artifacts");
       }
+      setPlanPendingLocal(true);
+      activity.showTab("artifacts");
     },
-    [createArtifact, activity.showTab],
+    [createArtifact, updateArtifact, openArtifact, artifacts, activity.showTab],
   );
 
   useEffect(() => {
@@ -194,6 +206,12 @@ export function ChatPage({
     },
     [chat.onRequestPlanChanges, activity.setIsPinned],
   );
+
+  // Close artifact and auto-close activity panel if it was opened programmatically
+  const handleCloseArtifact = useCallback(() => {
+    closeArtifactPanel();
+    activity.closeIfAutoOpened();
+  }, [closeArtifactPanel, activity.closeIfAutoOpened]);
 
   // Expose callback for /plan command to reopen plan artifact
   useEffect(() => {
@@ -346,14 +364,19 @@ export function ChatPage({
         artifacts={artifacts}
         activeArtifact={activeArtifact}
         onOpenArtifact={openArtifact}
-        onCloseArtifact={closeArtifactPanel}
+        onCloseArtifact={handleCloseArtifact}
         onUpdateArtifactContent={updateArtifact}
         onSetArtifactVersion={setVersion}
-        planPendingApproval={planPendingLocal || chat.planPendingApproval}
+        planPendingApproval={
+          (planPendingLocal || chat.planPendingApproval) &&
+          activeArtifact?.id === planArtifactIdRef.current
+        }
         onApprovePlan={handleApprovePlan}
         onRequestPlanChanges={handleRequestPlanChanges}
         canvasState={canvas.activeCanvas}
         onCloseCanvas={canvas.closeCanvas}
+        onClearArtifacts={clearArtifacts}
+        onClearCanvas={canvas.closeCanvas}
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
         onExpireSession={conversations.onExpireSession}

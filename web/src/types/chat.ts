@@ -199,6 +199,7 @@ export interface ChatState {
     ) => void,
   ) => void;
   dbSessionId?: string | null;
+  conversationSwitchKey?: number;
   viewingSessionId?: string | null;
   viewingSessionMeta?: SessionObservationMeta | null;
   attachedSessionId?: string | null;

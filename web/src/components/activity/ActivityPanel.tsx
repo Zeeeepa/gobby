@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import {
   TooltipProvider,
   Tooltip,
@@ -127,6 +127,9 @@ interface ActivityPanelProps {
   // Canvas tab props
   canvasState: CanvasPanelState | null;
   onCloseCanvas: () => void;
+  // Clear callbacks
+  onClearArtifacts?: () => void;
+  onClearCanvas?: () => void;
   // Tasks tab
   projectId?: string | null;
   // Files tab
@@ -156,6 +159,8 @@ export function ActivityPanel({
   onRequestPlanChanges,
   canvasState,
   onCloseCanvas,
+  onClearArtifacts,
+  onClearCanvas,
   projectId,
   onAddFileToChat,
   onKillAgent,
@@ -209,10 +214,11 @@ export function ActivityPanel({
             planPendingApproval={planPendingApproval}
             onApprovePlan={onApprovePlan}
             onRequestPlanChanges={onRequestPlanChanges}
+            onClearAll={onClearArtifacts}
           />
         );
       case "canvas":
-        return <CanvasTab state={canvasState} onClose={onCloseCanvas} />;
+        return <CanvasTab state={canvasState} onClose={onCloseCanvas} onClearAll={onClearCanvas} />;
       default:
         return null;
     }
@@ -392,16 +398,38 @@ export function useActivityPanel() {
   // No auto-collapse on narrow viewport — the panel switches to overlay
   // mode when the viewport is too narrow for side-by-side layout.
 
+  // Track whether the panel was opened programmatically (via showTab)
+  // vs manually by the user, so we can auto-close it when the artifact
+  // or canvas that triggered the open is dismissed.
+  const autoOpenedRef = useRef(false);
+
   const showTab = useCallback(
     (tab: ActivityTab) => {
       setActiveTab(tab);
-      if (!isPinned) setIsPinned(true);
+      if (!isPinned) {
+        setIsPinned(true);
+        autoOpenedRef.current = true;
+      }
     },
     [isPinned],
   );
 
+  const closeIfAutoOpened = useCallback(() => {
+    if (autoOpenedRef.current) {
+      setIsPinned(false);
+      autoOpenedRef.current = false;
+    }
+  }, []);
+
   const togglePanel = useCallback(() => {
+    autoOpenedRef.current = false;
     setIsPinned((prev) => !prev);
+  }, []);
+
+  // Clear auto-opened flag when user manually changes tab
+  const handleTabChange = useCallback((tab: ActivityTab) => {
+    autoOpenedRef.current = false;
+    setActiveTab(tab);
   }, []);
 
   return {
@@ -410,8 +438,9 @@ export function useActivityPanel() {
     panelWidth,
     setPanelWidth,
     activeTab,
-    setActiveTab,
+    setActiveTab: handleTabChange,
     showTab,
+    closeIfAutoOpened,
     togglePanel,
   };
 }

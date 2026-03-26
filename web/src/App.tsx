@@ -1231,6 +1231,7 @@ export default function App() {
                   onDetachFromSession: detachFromSession,
                   activeAgent,
                   onAgentChange: sendAgentChange,
+                  conversationSwitchKey,
                 }}
                 conversations={{
                   sessions: webChatSessions,
