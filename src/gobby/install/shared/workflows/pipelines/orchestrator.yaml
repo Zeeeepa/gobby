@@ -21,7 +21,9 @@ inputs:
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
   developer_provider: "gemini"
+  developer_mode: "terminal"
   qa_provider: "claude"
+  qa_mode: "terminal"
   developer_model: null
   qa_model: "opus"
   agent_timeout: 1200
@@ -216,7 +218,7 @@ steps:
         model: "${{ inputs.developer_model }}"
         timeout: "${{ inputs.agent_timeout }}"
         parent_session_id: "${{ session_id }}"
-        mode: "terminal"
+        mode: "${{ inputs.developer_mode }}"
 
   # --- DISPATCH QA (for needs_review tasks) ---
   - id: check_qa_running
@@ -260,7 +262,7 @@ steps:
         model: "${{ inputs.qa_model }}"
         timeout: "${{ inputs.agent_timeout }}"
         parent_session_id: "${{ session_id }}"
-        mode: "terminal"
+        mode: "${{ inputs.qa_mode }}"
 
   # --- MERGE & CLOSE ---
   - id: merge_worktree
