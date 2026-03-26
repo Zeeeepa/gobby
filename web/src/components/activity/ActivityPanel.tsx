@@ -245,6 +245,11 @@ export function ActivityPanel({
                   title={tab.label}
                 >
                   <span className="activity-panel-tab-icon">{tab.icon}</span>
+                  {activeTab === tab.id && (
+                    <span className="activity-panel-tab-label">
+                      {tab.label}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -292,6 +297,11 @@ export function ActivityPanel({
                       <span className="activity-panel-tab-icon">
                         {tab.icon}
                       </span>
+                      {activeTab === tab.id && (
+                        <span className="activity-panel-tab-label">
+                          {tab.label}
+                        </span>
+                      )}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{tab.label}</TooltipContent>
