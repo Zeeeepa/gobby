@@ -138,6 +138,22 @@ class WorkflowHookHandler:
                         )
                     logger.debug(f"Could not load session variables for rules: {e}")
 
+            # Inject current_step from active workflow instance so rule templates
+            # can display it (e.g., require-step-completion block message).
+            if variables.get("is_spawned_agent") and not variables.get("current_step"):
+                try:
+                    from gobby.workflows.state_manager import WorkflowInstanceManager
+
+                    instances = WorkflowInstanceManager(self.rule_engine.db).get_active_instances(
+                        session_id
+                    )
+                    for inst in instances:
+                        if inst.current_step:
+                            variables["current_step"] = inst.current_step
+                            break
+                except Exception as e:
+                    logger.debug(f"Could not inject current_step from workflow instance: {e}")
+
             from gobby.workflows.git_utils import get_dirty_files_categorized
             from gobby.workflows.safe_evaluator import LazyBool
 
