@@ -304,7 +304,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=create_task,
     )
 
-    def get_task(task_id: str) -> dict[str, Any]:
+    def get_task(task_id: str, brief: bool = True) -> dict[str, Any]:
         """Get task details including dependencies."""
         # Resolve task reference (supports #N, path, UUID formats)
         try:
@@ -318,28 +318,51 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not task:
             return {"error": f"Task {task_id} not found", "found": False}
 
-        result: dict[str, Any] = task.to_dict()
+        result: dict[str, Any] = task.to_brief() if brief else task.to_dict()
 
         # Enrich with dependency info
         blockers = ctx.dep_manager.get_blockers(resolved_id)
         blocking = ctx.dep_manager.get_blocking(resolved_id)
 
-        result["dependencies"] = {
-            "blocked_by": [b.to_dict() for b in blockers],
-            "blocking": [b.to_dict() for b in blocking],
-        }
+        if brief:
+
+            def _dep_brief(dep: Any, linked_task_id: str) -> dict[str, Any]:
+                linked = ctx.task_manager.get_task(linked_task_id)
+                if linked:
+                    return {
+                        "ref": f"#{linked.seq_num}" if linked.seq_num else linked.id[:8],
+                        "title": linked.title,
+                        "status": linked.status,
+                        "dep_type": dep.dep_type,
+                    }
+                return dep.to_dict()
+
+            result["dependencies"] = {
+                "blocked_by": [_dep_brief(b, b.depends_on) for b in blockers],
+                "blocking": [_dep_brief(b, b.task_id) for b in blocking],
+            }
+        else:
+            result["dependencies"] = {
+                "blocked_by": [b.to_dict() for b in blockers],
+                "blocking": [b.to_dict() for b in blocking],
+            }
 
         return result
 
     registry.register(
         name="get_task",
-        description="Get task details including dependencies. Task ID can be #N (e.g., #1), path (e.g., 1.2.3), or UUID.",
+        description="Get task details including dependencies. Task ID can be #N (e.g., #1), path (e.g., 1.2.3), or UUID. Returns brief format by default; set brief=false for full details including description.",
         input_schema={
             "type": "object",
             "properties": {
                 "task_id": {
                     "type": "string",
                     "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "brief": {
+                    "type": "boolean",
+                    "description": "If true (default), return compact format (~18 fields). If false, return full details (~33 fields including description, validation, integration).",
+                    "default": True,
                 },
             },
             "required": ["task_id"],

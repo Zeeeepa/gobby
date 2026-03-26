@@ -790,7 +790,7 @@ class TestGetTaskTool:
     async def test_get_task_with_dependencies(
         self, mock_task_manager, mock_sync_manager, sample_task
     ):
-        """Test get_task includes dependency information."""
+        """Test get_task with brief=False includes full dependency information."""
         with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
             mock_dep_instance = MagicMock()
 
@@ -816,11 +816,100 @@ class TestGetTaskTool:
             mock_task_manager.get_task.return_value = sample_task
 
             result = await registry.call(
-                "get_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"}
+                "get_task",
+                {"task_id": "550e8400-e29b-41d4-a716-446655440000", "brief": False},
             )
 
             assert len(result["dependencies"]["blocked_by"]) == 1
             assert len(result["dependencies"]["blocking"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_get_task_brief_excludes_description(
+        self, mock_task_manager, mock_sync_manager, sample_task
+    ):
+        """Test get_task with brief=True (default) excludes heavy fields."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
+            mock_dep_instance = MagicMock()
+            mock_dep_instance.get_blockers.return_value = []
+            mock_dep_instance.get_blocking.return_value = []
+            MockDepManager.return_value = mock_dep_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+            mock_task_manager.get_task.return_value = sample_task
+
+            result = await registry.call("get_task", {"task_id": sample_task.id})
+
+            assert result["id"] == sample_task.id
+            assert result["title"] == "Test Task"
+            assert "description" not in result
+            assert "validation_criteria" not in result
+            assert "expansion_context" not in result
+            assert "dependencies" in result
+
+    @pytest.mark.asyncio
+    async def test_get_task_brief_false_returns_full(
+        self, mock_task_manager, mock_sync_manager, sample_task
+    ):
+        """Test get_task with brief=False returns full format."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
+            mock_dep_instance = MagicMock()
+            mock_dep_instance.get_blockers.return_value = []
+            mock_dep_instance.get_blocking.return_value = []
+            MockDepManager.return_value = mock_dep_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+            mock_task_manager.get_task.return_value = sample_task
+
+            result = await registry.call(
+                "get_task", {"task_id": sample_task.id, "brief": False}
+            )
+
+            assert result["id"] == sample_task.id
+            assert "description" in result
+            assert "validation_criteria" in result
+            assert "dependencies" in result
+
+    @pytest.mark.asyncio
+    async def test_get_task_brief_resolves_dependencies(
+        self, mock_task_manager, mock_sync_manager, sample_task
+    ):
+        """Test get_task brief mode resolves deps to ref+title+status."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
+            mock_dep_instance = MagicMock()
+
+            mock_blocker = MagicMock()
+            mock_blocker.depends_on = "550e8400-e29b-41d4-a716-446655440001"
+            mock_blocker.dep_type = "blocks"
+
+            mock_dep_instance.get_blockers.return_value = [mock_blocker]
+            mock_dep_instance.get_blocking.return_value = []
+            MockDepManager.return_value = mock_dep_instance
+
+            # Create a linked task that the blocker resolves to
+            linked_task = MagicMock()
+            linked_task.seq_num = 42
+            linked_task.title = "Blocking Task"
+            linked_task.status = "in_progress"
+
+            def get_task_side_effect(task_id):
+                if task_id == sample_task.id:
+                    return sample_task
+                if task_id == "550e8400-e29b-41d4-a716-446655440001":
+                    return linked_task
+                return None
+
+            mock_task_manager.get_task.side_effect = get_task_side_effect
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            result = await registry.call("get_task", {"task_id": sample_task.id})
+
+            blocked_by = result["dependencies"]["blocked_by"]
+            assert len(blocked_by) == 1
+            assert blocked_by[0]["ref"] == "#42"
+            assert blocked_by[0]["title"] == "Blocking Task"
+            assert blocked_by[0]["status"] == "in_progress"
+            assert blocked_by[0]["dep_type"] == "blocks"
 
 
 # =============================================================================

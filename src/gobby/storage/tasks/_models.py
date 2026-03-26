@@ -265,14 +265,14 @@ class Task:
         }
 
     def to_brief(self) -> dict[str, Any]:
-        """Convert Task to brief discovery format for list operations.
+        """Convert Task to brief discovery format.
 
         Returns only essential fields needed for task discovery.
-        Use get_task() with to_dict() for full task details.
+        Use get_task(brief=False) for full task details.
 
         This follows the progressive discovery pattern used for MCP tools:
-        - list_tasks() returns brief format (20 fields)
-        - get_task() returns full format (33 fields)
+        - list_tasks() returns brief format (~18 fields)
+        - get_task() returns brief format by default, full with brief=False (~33 fields)
         """
         return {
             "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
