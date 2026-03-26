@@ -68,6 +68,7 @@ def setup_internal_registries(
     completion_registry: CompletionEventRegistry | None = None,
     cron_scheduler: Any | None = None,
     transcript_reader: Any | None = None,
+    communications_manager: Any | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -399,6 +400,16 @@ def setup_internal_registries(
             logger.debug("Cron registry initialized")
         except (ImportError, RuntimeError, OSError) as e:
             logger.debug(f"Cron registry not initialized: {e}")
+
+    if communications_manager is not None:
+        try:
+            from gobby.mcp_proxy.tools.communications import create_communications_registry
+
+            communications_registry = create_communications_registry(communications_manager)
+            manager.add_registry(communications_registry)
+            logger.debug("Communications registry initialized")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug(f"Communications registry not initialized: {e}")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager

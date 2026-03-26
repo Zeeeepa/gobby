@@ -103,7 +103,7 @@ class DiscordAdapter(BaseChannelAdapter):
                             "op": 2,
                             "d": {
                                 "token": self._bot_token,
-                                "intents": 33280,  # 1 << 9 (GUILD_MESSAGES) | 1 << 12 (DIRECT_MESSAGES) | 1 << 15 (MESSAGE_CONTENT)
+                                "intents": 37376,  # 1 << 9 (GUILD_MESSAGES) | 1 << 12 (DIRECT_MESSAGES) | 1 << 15 (MESSAGE_CONTENT)
                                 "properties": {
                                     "os": "linux",
                                     "browser": "gobby",
