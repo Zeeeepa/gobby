@@ -33,6 +33,12 @@ class ToolProxyService:
     # names like "gobby-tasks", "gobby-sessions", etc.
     _PROXY_NAMESPACE = "gobby"
 
+    # Common server name mismatches for auto-heal suggestions
+    _SERVER_SUGGESTIONS = {
+        "gobby-pipelines": "gobby-workflows",
+        "gobby-pipeline": "gobby-workflows",
+    }
+
     def __init__(
         self,
         mcp_manager: MCPClientManager,
@@ -46,6 +52,10 @@ class ToolProxyService:
         self._fallback_resolver = fallback_resolver
         self._validate_arguments = validate_arguments
         self._tool_filter = tool_filter
+
+    def _get_server_suggestion(self, server_name: str) -> str | None:
+        """Get a suggestion for a possibly misspelled server name."""
+        return self._SERVER_SUGGESTIONS.get(server_name)
 
     def _is_proxy_namespace(self, server_name: str) -> bool:
         """Check if the server name is the proxy namespace rather than a real server."""
@@ -383,7 +393,12 @@ class ToolProxyService:
                 registry = self._internal_manager.get_registry(server_name)
                 if registry:
                     return await registry.call(tool_name, arguments, context=call_context)
-                raise MCPError(f"Internal server '{server_name}' not found")
+
+                error_msg = f"Internal server '{server_name}' not found"
+                suggestion = self._get_server_suggestion(server_name)
+                if suggestion:
+                    error_msg += f". Did you mean '{suggestion}'?"
+                raise MCPError(error_msg)
 
             # Use MCP manager for external servers
             return await self._mcp_manager.call_tool(
@@ -473,10 +488,19 @@ class ToolProxyService:
                     "success": False,
                     "error": f"Tool '{tool_name}' not found on '{server_name}'",
                 }
-            return {"success": False, "error": f"Internal server '{server_name}' not found"}
+
+            error_msg = f"Internal server '{server_name}' not found"
+            suggestion = self._get_server_suggestion(server_name)
+            if suggestion:
+                error_msg += f". Did you mean '{suggestion}'?"
+            return {"success": False, "error": error_msg}
 
         if not self._mcp_manager.has_server(server_name):
-            return {"success": False, "error": f"Server '{server_name}' not found"}
+            error_msg = f"Server '{server_name}' not found"
+            suggestion = self._get_server_suggestion(server_name)
+            if suggestion:
+                error_msg += f". Did you mean '{suggestion}'?"
+            return {"success": False, "error": error_msg}
 
         # Use MCP manager for external servers
         try:

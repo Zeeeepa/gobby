@@ -1,9 +1,14 @@
 {
   "mcpServers": {
     "gobby": {
-      "type": "stdio",
       "command": "uv",
-      "args": ["run", "gobby", "mcp-server"]
+      "args": [
+        "run",
+        "--project",
+        "/Users/josh/Projects/gobby",
+        "gobby",
+        "mcp-server"
+      ]
     }
   }
 }
