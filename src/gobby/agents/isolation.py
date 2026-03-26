@@ -199,7 +199,7 @@ class WorktreeIsolationHandler(IsolationHandler):
                     branch_name=existing.branch_name,
                     worktree_id=existing.id,
                     isolation_type="worktree",
-                    extra={"main_repo_path": self._git_manager.repo_path},
+                    extra={"main_repo_path": str(self._git_manager.repo_path)},
                 )
             else:
                 # Stale record — directory gone, clean up and fall through to create new
@@ -263,7 +263,7 @@ class WorktreeIsolationHandler(IsolationHandler):
 
         # Copy CLI hooks to worktree so hooks fire correctly
         await self._copy_cli_hooks(
-            main_repo_path=self._git_manager.repo_path,
+            main_repo_path=str(self._git_manager.repo_path),
             worktree_path=worktree_path,
             provider=config.provider,
         )
@@ -273,13 +273,13 @@ class WorktreeIsolationHandler(IsolationHandler):
 
         await asyncio.to_thread(
             ensure_project_json_for_isolation,
-            self._git_manager.repo_path,
+            str(self._git_manager.repo_path),
             worktree_path,
         )
 
         # Patch MCP config so agents use the main repo's gobby code
         await _patch_mcp_config_for_isolation(
-            main_repo_path=self._git_manager.repo_path,
+            main_repo_path=str(self._git_manager.repo_path),
             isolated_path=worktree_path,
             provider=config.provider,
         )
@@ -293,7 +293,7 @@ class WorktreeIsolationHandler(IsolationHandler):
             branch_name=worktree.branch_name,
             worktree_id=worktree.id,
             isolation_type="worktree",
-            extra={"main_repo_path": self._git_manager.repo_path},
+            extra={"main_repo_path": str(self._git_manager.repo_path)},
         )
 
     async def cleanup_environment(self, config: SpawnConfig) -> None:
