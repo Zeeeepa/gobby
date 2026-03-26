@@ -26,6 +26,7 @@ interface SessionsTabProps {
   onKillAgent?: (runId: string) => void;
   onExpireSession?: (sessionId: string) => void;
   chatSessionId?: string;
+  isMobile?: boolean;
 }
 
 interface SessionEntry {
@@ -56,6 +57,7 @@ export const SessionsTab = memo(function SessionsTab({
   onKillAgent,
   onExpireSession,
   chatSessionId,
+  isMobile = false,
 }: SessionsTabProps) {
   const [agents, setAgents] = useState<RunningAgent[]>([]);
   const [cliSessions, setCliSessions] = useState<GobbySession[]>([]);
@@ -257,6 +259,15 @@ export const SessionsTab = memo(function SessionsTab({
     [],
   );
 
+  const handleMenuButtonClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>, entry: SessionEntry) => {
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      setCtxMenu({ x: rect.right, y: rect.top, entry });
+    },
+    [],
+  );
+
   const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
 
   // Dismiss context menu on outside click
@@ -347,28 +358,47 @@ export const SessionsTab = memo(function SessionsTab({
                     ? "Autonomous"
                     : "Interactive"}
                 </span>
-                <button
-                  className="session-expire-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleExpire(entry);
-                  }}
-                  title="Expire session"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                {isMobile ? (
+                  <button
+                    className="session-more-btn"
+                    onClick={(e) => handleMenuButtonClick(e, entry)}
+                    title="Session actions"
                   >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
-                </button>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <circle cx="12" cy="5" r="2" />
+                      <circle cx="12" cy="12" r="2" />
+                      <circle cx="12" cy="19" r="2" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    className="session-expire-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExpire(entry);
+                    }}
+                    title="Expire session"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -472,6 +502,17 @@ export const SessionsTab = memo(function SessionsTab({
                 </button>
               </>
             )}
+            <div className="session-ctx-divider" />
+            <button
+              className="session-ctx-item session-ctx-item--destructive"
+              onClick={() => {
+                const entry = ctxMenu.entry;
+                closeCtxMenu();
+                handleExpire(entry);
+              }}
+            >
+              Expire Session
+            </button>
           </div>
         </>
       )}

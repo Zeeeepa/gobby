@@ -185,6 +185,7 @@ export function ActivityPanel({
             onKillAgent={onKillAgent}
             onExpireSession={onExpireSession}
             chatSessionId={chatSessionId ?? undefined}
+            isMobile={useOverlay}
           />
         );
       case "pipelines":
