@@ -9,7 +9,8 @@ from gobby.communications.reactions import ReactionHandler
 async def test_handle_reaction_approve():
     store = MagicMock()
     service_container = MagicMock()
-    service_container.pipeline_manager = AsyncMock()
+    service_container.pipeline_execution_manager = MagicMock()
+    service_container.pipeline_execution_manager.approve_step = AsyncMock()
 
     handler = ReactionHandler(store, service_container)
 
@@ -28,7 +29,7 @@ async def test_handle_reaction_approve():
 
     store.get_message_by_platform_id.assert_called_with("test_channel", "msg_123")
     store.get_identity_by_external.assert_called_with("test_channel", "user_123")
-    service_container.pipeline_manager.approve_step.assert_awaited_once_with(
+    service_container.pipeline_execution_manager.approve_step.assert_awaited_once_with(
         "run_123", "step_456", "session_1"
     )
 
@@ -37,7 +38,8 @@ async def test_handle_reaction_approve():
 async def test_handle_reaction_reject():
     store = MagicMock()
     service_container = MagicMock()
-    service_container.pipeline_manager = AsyncMock()
+    service_container.pipeline_execution_manager = MagicMock()
+    service_container.pipeline_execution_manager.reject_step = AsyncMock()
 
     handler = ReactionHandler(store, service_container)
 
@@ -54,7 +56,7 @@ async def test_handle_reaction_reject():
 
     await handler.handle_reaction("test_channel", "msg_123", "-1", "user_123")
 
-    service_container.pipeline_manager.reject_step.assert_awaited_once_with(
+    service_container.pipeline_execution_manager.reject_step.assert_awaited_once_with(
         "run_123", "step_456", "session_1"
     )
 
@@ -63,7 +65,7 @@ async def test_handle_reaction_reject():
 async def test_handle_reaction_unknown_message():
     store = MagicMock()
     service_container = MagicMock()
-    service_container.pipeline_manager = AsyncMock()
+    service_container.pipeline_execution_manager = AsyncMock()
 
     handler = ReactionHandler(store, service_container)
 
@@ -71,4 +73,4 @@ async def test_handle_reaction_unknown_message():
 
     await handler.handle_reaction("test_channel", "msg_123", "+1", "user_123")
 
-    service_container.pipeline_manager.approve_step.assert_not_called()
+    service_container.pipeline_execution_manager.approve_step.assert_not_called()
