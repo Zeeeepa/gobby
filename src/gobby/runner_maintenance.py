@@ -157,19 +157,18 @@ async def cleanup_comms_messages_loop(
     is_shutdown_requested: Callable[[], bool],
     retention_days: int = 30,
 ) -> None:
+    from gobby.storage.communications import LocalCommunicationsStore
+
     interval_seconds = 24 * 60 * 60
+
+    store = LocalCommunicationsStore(db)
 
     while not is_shutdown_requested():
         try:
             await asyncio.sleep(interval_seconds)
             cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-            cutoff_iso = cutoff.isoformat()
 
-            with db.transaction() as conn:
-                cursor = conn.execute(
-                    "DELETE FROM comms_messages WHERE created_at < ?", (cutoff_iso,)
-                )
-                deleted_messages = cursor.rowcount
+            deleted_messages = store.delete_messages_before(cutoff)
 
             if deleted_messages > 0:
                 logger.info(f"Comms message cleanup: removed {deleted_messages} old messages")

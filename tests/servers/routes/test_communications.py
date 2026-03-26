@@ -41,7 +41,13 @@ def client(server):
 
 def test_receive_webhook_ok(client, comms_manager):
     comms_manager.handle_inbound.return_value = [
-        CommsMessage(id="msg1", channel_id="ch1", direction="inbound", content="hello", created_at="2023-01-01T00:00:00Z")
+        CommsMessage(
+            id="msg1",
+            channel_id="ch1",
+            direction="inbound",
+            content="hello",
+            created_at="2023-01-01T00:00:00Z",
+        )
     ]
     response = client.post("/api/comms/webhooks/slack", json={"text": "hello"})
     assert response.status_code == 200
@@ -57,11 +63,14 @@ def test_receive_webhook_url_verification(client, comms_manager):
         direction="inbound",
         content="challenge_token",
         content_type="url_verification",
-        created_at="2023-01-01T00:00:00Z"
+        created_at="2023-01-01T00:00:00Z",
     )
     comms_manager.handle_inbound.return_value = [msg]
 
-    response = client.post("/api/comms/webhooks/slack", json={"type": "url_verification", "challenge": "challenge_token"})
+    response = client.post(
+        "/api/comms/webhooks/slack",
+        json={"type": "url_verification", "challenge": "challenge_token"},
+    )
     assert response.status_code == 200
     assert response.text == "challenge_token"
 
@@ -78,8 +87,13 @@ def test_verify_webhook_get(client):
 
 def test_list_channels(client, comms_manager):
     ch = ChannelConfig(
-        id="ch1", channel_type="slack", name="myslack", enabled=True,
-        config_json={}, created_at="2023-01-01T00:00:00Z", updated_at="2023-01-01T00:00:00Z"
+        id="ch1",
+        channel_type="slack",
+        name="myslack",
+        enabled=True,
+        config_json={},
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
     )
     comms_manager.list_channels.return_value = [ch]
 
@@ -91,16 +105,20 @@ def test_list_channels(client, comms_manager):
 
 def test_create_channel(client, comms_manager):
     ch = ChannelConfig(
-        id="ch1", channel_type="slack", name="myslack", enabled=True,
-        config_json={"foo": "bar"}, created_at="2023-01-01T00:00:00Z", updated_at="2023-01-01T00:00:00Z"
+        id="ch1",
+        channel_type="slack",
+        name="myslack",
+        enabled=True,
+        config_json={"foo": "bar"},
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
     )
     comms_manager.add_channel.return_value = ch
 
-    response = client.post("/api/comms/channels", json={
-        "channel_type": "slack",
-        "name": "myslack",
-        "config": {"foo": "bar"}
-    })
+    response = client.post(
+        "/api/comms/channels",
+        json={"channel_type": "slack", "name": "myslack", "config": {"foo": "bar"}},
+    )
 
     assert response.status_code == 200
     assert response.json()["id"] == "ch1"
@@ -109,16 +127,20 @@ def test_create_channel(client, comms_manager):
 
 def test_update_channel(client, comms_manager):
     ch = ChannelConfig(
-        id="ch1", channel_type="slack", name="myslack", enabled=True,
-        config_json={}, created_at="2023-01-01T00:00:00Z", updated_at="2023-01-01T00:00:00Z"
+        id="ch1",
+        channel_type="slack",
+        name="myslack",
+        enabled=True,
+        config_json={},
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
     )
     comms_manager._store.get_channel.return_value = ch
     comms_manager._store.update_channel.return_value = ch
 
-    response = client.put("/api/comms/channels/ch1", json={
-        "config": {"foo": "baz"},
-        "enabled": False
-    })
+    response = client.put(
+        "/api/comms/channels/ch1", json={"config": {"foo": "baz"}, "enabled": False}
+    )
 
     assert response.status_code == 200
     assert response.json()["id"] == "ch1"
@@ -129,8 +151,13 @@ def test_update_channel(client, comms_manager):
 
 def test_remove_channel(client, comms_manager):
     ch = ChannelConfig(
-        id="ch1", channel_type="slack", name="myslack", enabled=True,
-        config_json={}, created_at="2023-01-01T00:00:00Z", updated_at="2023-01-01T00:00:00Z"
+        id="ch1",
+        channel_type="slack",
+        name="myslack",
+        enabled=True,
+        config_json={},
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
     )
     comms_manager._store.get_channel.return_value = ch
 
@@ -142,8 +169,13 @@ def test_remove_channel(client, comms_manager):
 
 def test_get_channel_status(client, comms_manager):
     ch = ChannelConfig(
-        id="ch1", channel_type="slack", name="myslack", enabled=True,
-        config_json={}, created_at="2023-01-01T00:00:00Z", updated_at="2023-01-01T00:00:00Z"
+        id="ch1",
+        channel_type="slack",
+        name="myslack",
+        enabled=True,
+        config_json={},
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
     )
     comms_manager._store.get_channel.return_value = ch
     comms_manager.get_channel_status.return_value = {"name": "myslack", "status": "active"}
@@ -155,7 +187,11 @@ def test_get_channel_status(client, comms_manager):
 
 def test_list_messages(client, comms_manager):
     msg = CommsMessage(
-        id="msg1", channel_id="ch1", direction="outbound", content="test", created_at="2023-01-01T00:00:00Z"
+        id="msg1",
+        channel_id="ch1",
+        direction="outbound",
+        content="test",
+        created_at="2023-01-01T00:00:00Z",
     )
     comms_manager._store.list_messages.return_value = [msg]
 

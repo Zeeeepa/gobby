@@ -92,11 +92,7 @@ class TelegramAdapter(BaseChannelAdapter):
         if not self._client or not self._api_base:
             raise RuntimeError("Adapter not initialized")
 
-        # Chat ID must be in message metadata or channel config
-        # Usually for replies, we send to the platform_thread_id
-        chat_id = message.platform_thread_id
-        if not chat_id:
-            chat_id = message.metadata_json.get("chat_id")
+        chat_id = message.metadata_json.get("chat_id")
 
         if not chat_id:
             raise ValueError("No chat_id provided in message to send")
@@ -116,8 +112,8 @@ class TelegramAdapter(BaseChannelAdapter):
                 "parse_mode": "MarkdownV2",
             }
 
-            if message.platform_message_id:
-                payload["reply_to_message_id"] = message.platform_message_id
+            if message.platform_thread_id:
+                payload["reply_to_message_id"] = message.platform_thread_id
 
             response = await self._client.post(f"{self._api_base}/sendMessage", json=payload)
             response.raise_for_status()
@@ -178,7 +174,11 @@ class TelegramAdapter(BaseChannelAdapter):
             "username": username,
         }
 
-        platform_thread_id = chat_id
+        platform_thread_id = (
+            str(msg_data.get("message_thread_id"))
+            if msg_data.get("message_thread_id")
+            else message_id
+        )
 
         return [
             CommsMessage(

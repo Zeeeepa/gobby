@@ -53,6 +53,7 @@ class CommunicationsManager:
         self._session_store = session_store
         self._adapters: dict[str, BaseChannelAdapter] = {}
         self._channel_by_name: dict[str, ChannelConfig] = {}
+        self._thread_map: dict[str, str] = {}  # "channel_name:session_id" -> platform_thread_id
         self._rate_limiter = TokenBucketRateLimiter.from_defaults(config.channel_defaults)
         self._router = MessageRouter(store)
         self._polling_manager = PollingManager(self)
@@ -150,6 +151,11 @@ class CommunicationsManager:
         # Rate limit check — waits until a token is available
         await self._rate_limiter.wait_if_needed(channel.id)
 
+        # Look up thread if we have a session
+        platform_thread_id = None
+        if session_id:
+            platform_thread_id = self._thread_map.get(f"{channel_name}:{session_id}")
+
         # Build CommsMessage
         message = CommsMessage(
             id=str(uuid.uuid4()),
@@ -158,6 +164,7 @@ class CommunicationsManager:
             content=content,
             session_id=session_id,
             status="pending",
+            platform_thread_id=platform_thread_id,
             metadata_json=metadata or {},
             created_at=datetime.now(UTC).isoformat(),
         )
@@ -321,6 +328,11 @@ class CommunicationsManager:
                 )
                 message.session_id = identity.session_id
                 message.identity_id = identity.id
+
+            if message.session_id and message.platform_thread_id:
+                self._thread_map[f"{channel_name}:{message.session_id}"] = (
+                    message.platform_thread_id
+                )
 
             # Store message
             try:

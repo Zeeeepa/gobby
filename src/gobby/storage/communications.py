@@ -237,6 +237,18 @@ class LocalCommunicationsStore:
         row = self.db.fetchone("SELECT * FROM comms_messages WHERE id = ?", (message_id,))
         return CommsMessage.from_row(dict(row)) if row else None
 
+    def get_message_by_platform_id(
+        self, channel_name: str, platform_message_id: str
+    ) -> CommsMessage | None:
+        """Get a message by its platform ID on a specific channel."""
+        sql = """
+            SELECT m.* FROM comms_messages m
+            JOIN comms_channels c ON m.channel_id = c.id
+            WHERE c.name = ? AND m.platform_message_id = ?
+        """
+        row = self.db.fetchone(sql, (channel_name, platform_message_id))
+        return CommsMessage.from_row(dict(row)) if row else None
+
     def list_messages(
         self,
         channel_id: str | None = None,
