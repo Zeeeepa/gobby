@@ -79,6 +79,9 @@ dependencies = [
     "requests>=2.33.0",
 ]
 
+[project.optional-dependencies]
+email = ["aiosmtplib>=2.0", "aioimaplib>=1.0"]
+
 [project.scripts]
 gobby = "gobby.cli:cli"
 

@@ -35,4 +35,6 @@ with contextlib.suppress(ImportError):
 with contextlib.suppress(ImportError):
     import gobby.communications.adapters.teams  # noqa: F401
 with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.email  # noqa: F401
+with contextlib.suppress(ImportError):
     import gobby.communications.adapters.sms  # noqa: F401
