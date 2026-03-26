@@ -1088,19 +1088,15 @@ export default function App() {
   }
 
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: <DashboardIcon /> },
     { id: "chat", label: "Chat", icon: <ChatIcon />, separator: true },
+    { id: "dashboard", label: "Dashboard", icon: <DashboardIcon />, separator: true },
+    { id: "projects", label: "Projects", icon: <ProjectsIcon /> },
     { id: "tasks", label: "Tasks", icon: <TasksIcon /> },
     { id: "workflows", label: "Workflows", icon: <WorkflowsIcon /> },
-    { id: "reports", label: "Reports", icon: <ReportsIcon /> },
-    { id: "projects", label: "Projects", icon: <ProjectsIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
+    { id: "reports", label: "Reports", icon: <ReportsIcon /> },
     { id: "traces", label: "Traces", icon: <TracesIcon /> },
-    {
-      id: "memory",
-      label: "Memory",
-      icon: <MemoryIcon />,
-    },
+    { id: "memory", label: "Memory", icon: <MemoryIcon /> },
     { id: "skills", label: "Skills", icon: <SkillsIcon /> },
     { id: "mcp", label: "MCP", icon: <McpIcon /> },
     {
@@ -1465,10 +1461,7 @@ function ProjectsIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" />
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   );
 }
