@@ -1,6 +1,5 @@
 """Tests for local communications store."""
 
-
 import pytest
 
 from gobby.communications.models import (

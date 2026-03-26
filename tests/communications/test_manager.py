@@ -43,10 +43,10 @@ def make_store(channels: list[ChannelConfig] | None = None) -> MagicMock:
     store = MagicMock()
     store.list_channels.return_value = channels or []
     store.get_routing_rules.return_value = []
-    store.save_message.return_value = None
-    store.save_channel.return_value = None
+    store.create_message.return_value = None
+    store.create_channel.return_value = None
     store.delete_channel.return_value = None
-    store.get_identity.return_value = None
+    store.get_identity_by_external.return_value = None
     return store
 
 
@@ -147,7 +147,7 @@ async def test_send_message_success():
     assert msg.status == "sent"
     assert msg.platform_message_id == "platform-msg-id-1"
     mock_adapter.send_message.assert_called_once()
-    store.save_message.assert_called_once()
+    store.create_message.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -178,7 +178,7 @@ async def test_send_message_adapter_failure_marks_failed():
 
     assert msg.status == "failed"
     assert "network error" in (msg.error or "")
-    store.save_message.assert_called_once()
+    store.create_message.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -266,7 +266,7 @@ async def test_handle_inbound_stores_messages():
 
     assert len(stored) == 1
     assert stored[0].content == "Hi there!"
-    store.save_message.assert_called_once()
+    store.create_message.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -301,7 +301,7 @@ async def test_handle_inbound_resolves_identity():
         updated_at="2024-01-01T00:00:00",
         session_id="session-abc",
     )
-    store.get_identity.return_value = identity
+    store.get_identity_by_external.return_value = identity
 
     parsed_msg = CommsMessage(
         id="msg-1",
@@ -340,7 +340,7 @@ async def test_add_channel_creates_and_initializes():
 
     assert channel.name == "my-slack"
     assert channel.channel_type == "slack"
-    store.save_channel.assert_called_once()
+    store.create_channel.assert_called_once()
     assert "my-slack" in manager._adapters
 
 
