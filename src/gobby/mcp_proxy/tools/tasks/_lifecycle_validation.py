@@ -70,9 +70,7 @@ def validate_commit_requirements(
     if requires_commit_check and task.commits and repo_path:
         from gobby.utils.git import normalize_commit_sha
 
-        stale_shas = [
-            sha for sha in task.commits if not normalize_commit_sha(sha, cwd=repo_path)
-        ]
+        stale_shas = [sha for sha in task.commits if not normalize_commit_sha(sha, cwd=repo_path)]
         if stale_shas:
             return ValidationResult(
                 can_close=False,

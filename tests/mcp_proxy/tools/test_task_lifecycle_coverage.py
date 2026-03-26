@@ -207,9 +207,7 @@ class TestCloseTask:
         assert "Invalid or unresolved" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_close_task_passes_cwd_to_link_commit(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_close_task_passes_cwd_to_link_commit(self, mock_task_manager, mock_sync_manager):
         """Verifies link_commit receives the project repo_path as cwd."""
         task = _make_task(commits=["abc1234"])
         mock_task_manager.get_task.return_value = task
@@ -250,9 +248,7 @@ class TestValidateCommitRequirementsStale:
 
         task = _make_task(commits=["abc1234", "def5678"])
 
-        with patch(
-            "gobby.utils.git.normalize_commit_sha"
-        ) as mock_norm:
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_norm:
             # First SHA resolves, second doesn't
             mock_norm.side_effect = ["abc1234", None]
             result = validate_commit_requirements(task, reason="completed", repo_path="/repo")
@@ -270,9 +266,7 @@ class TestValidateCommitRequirementsStale:
 
         task = _make_task(commits=["abc1234"])
 
-        with patch(
-            "gobby.utils.git.normalize_commit_sha"
-        ) as mock_norm:
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_norm:
             mock_norm.return_value = "abc1234"
             result = validate_commit_requirements(task, reason="completed", repo_path="/repo")
 
@@ -421,7 +415,9 @@ class TestDeleteTask:
         mock_task_manager.get_task.return_value = task
         from gobby.storage.tasks._models import TaskHasChildrenError
 
-        mock_task_manager.delete_task.side_effect = TaskHasChildrenError("Cannot delete: has children")
+        mock_task_manager.delete_task.side_effect = TaskHasChildrenError(
+            "Cannot delete: has children"
+        )
         registry = _create_registry(mock_task_manager, mock_sync_manager)
 
         result = await registry.call("delete_task", {"task_id": task.id, "cascade": False})

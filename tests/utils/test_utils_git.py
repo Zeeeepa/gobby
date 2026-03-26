@@ -711,9 +711,7 @@ class TestNormalizeCommitSha:
             assert result == "abc1234"
             assert mock_run.call_count == 2
             mock_run.assert_any_call(["git", "cat-file", "-t", "abc1234"], cwd=temp_dir)
-            mock_run.assert_any_call(
-                ["git", "rev-parse", "--short", "abc1234"], cwd=temp_dir
-            )
+            mock_run.assert_any_call(["git", "rev-parse", "--short", "abc1234"], cwd=temp_dir)
 
     def test_normalizes_full_sha_to_short(self, temp_dir: Path) -> None:
         """Test full SHA is shortened via cat-file + rev-parse --short."""
@@ -726,9 +724,7 @@ class TestNormalizeCommitSha:
             assert result == "abc1234"
             assert mock_run.call_count == 2
             mock_run.assert_any_call(["git", "cat-file", "-t", full_sha], cwd=temp_dir)
-            mock_run.assert_any_call(
-                ["git", "rev-parse", "--short", full_sha], cwd=temp_dir
-            )
+            mock_run.assert_any_call(["git", "rev-parse", "--short", full_sha], cwd=temp_dir)
 
     def test_returns_none_for_invalid_sha(self, temp_dir: Path) -> None:
         """Test returns None when git can't resolve the SHA."""
@@ -747,9 +743,7 @@ class TestNormalizeCommitSha:
             result = normalize_commit_sha("abc1234", cwd=temp_dir)
 
             assert result is None
-            mock_run.assert_called_once_with(
-                ["git", "cat-file", "-t", "abc1234"], cwd=temp_dir
-            )
+            mock_run.assert_called_once_with(["git", "cat-file", "-t", "abc1234"], cwd=temp_dir)
 
     def test_returns_none_for_blob_object(self, temp_dir: Path) -> None:
         """Test returns None when SHA resolves to a blob."""
@@ -798,9 +792,7 @@ class TestNormalizeCommitSha:
             assert result == "abc1234"
             mock_cwd.assert_called_once()
             assert mock_run.call_count == 2
-            mock_run.assert_any_call(
-                ["git", "cat-file", "-t", "abc1234"], cwd=Path("/current/dir")
-            )
+            mock_run.assert_any_call(["git", "cat-file", "-t", "abc1234"], cwd=Path("/current/dir"))
             mock_run.assert_any_call(
                 ["git", "rev-parse", "--short", "abc1234"], cwd=Path("/current/dir")
             )

@@ -774,6 +774,123 @@ class TestCheckIdleAgents:
         assert handled == 0
 
 
+    @pytest.mark.asyncio
+    async def test_recent_session_activity_skips_pane_check(
+        self,
+        agent_run_manager: LocalAgentRunManager,
+        session_manager: LocalSessionManager,
+        sample_session: dict,
+        temp_db: LocalDatabase,
+    ) -> None:
+        """Agent with recent session updated_at should be considered active,
+        skipping pane pattern matching entirely."""
+        from gobby.config.tmux import TmuxConfig
+
+        config = TmuxConfig(
+            idle_check_enabled=True, idle_timeout_seconds=10, max_reprompt_attempts=2
+        )
+        mon = AgentLifecycleMonitor(
+            agent_run_manager=agent_run_manager,
+            db=temp_db,
+            session_manager=session_manager,
+            check_interval_seconds=1.0,
+            tmux_config=config,
+        )
+
+        # Create a child session and register it
+        child = session_manager.register(
+            external_id="child-session",
+            machine_id="machine-1",
+            source="claude",
+            project_id=sample_session.get("project_id"),
+        )
+        # Touch it so updated_at is very recent
+        session_manager.touch(child.id)
+
+        _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-session-active",
+            tmux_session_name="gobby-session-active",
+            child_session_id=child.id,
+        )
+
+        with patch.object(
+            mon._tmux, "capture_pane", new_callable=AsyncMock
+        ) as mock_capture:
+            handled = await mon.check_idle_agents()
+
+        assert handled == 0
+        # Pane capture should NOT have been called — session activity was sufficient
+        mock_capture.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stale_session_falls_through_to_pane_check(
+        self,
+        agent_run_manager: LocalAgentRunManager,
+        session_manager: LocalSessionManager,
+        sample_session: dict,
+        temp_db: LocalDatabase,
+    ) -> None:
+        """Agent with stale session updated_at should fall through to pane detection."""
+        import time
+        from datetime import UTC, datetime, timedelta
+
+        from gobby.config.tmux import TmuxConfig
+
+        config = TmuxConfig(
+            idle_check_enabled=True, idle_timeout_seconds=10, max_reprompt_attempts=2
+        )
+        mon = AgentLifecycleMonitor(
+            agent_run_manager=agent_run_manager,
+            db=temp_db,
+            session_manager=session_manager,
+            check_interval_seconds=1.0,
+            tmux_config=config,
+        )
+
+        # Create child session with stale updated_at
+        child = session_manager.register(
+            external_id="child-stale",
+            machine_id="machine-1",
+            source="claude",
+            project_id=sample_session.get("project_id"),
+        )
+        # Backdate updated_at to make it stale
+        stale_time = (datetime.now(UTC) - timedelta(seconds=120)).isoformat()
+        temp_db.execute(
+            "UPDATE sessions SET updated_at = ? WHERE id = ?",
+            (stale_time, child.id),
+        )
+
+        run = _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-session-stale",
+            tmux_session_name="gobby-session-stale",
+            child_session_id=child.id,
+        )
+
+        # Pre-set idle state to simulate timeout elapsed
+        state = mon._idle_detector.get_state(run.id)
+        state.first_idle_at = time.monotonic() - 120
+
+        with (
+            patch.object(
+                mon._tmux, "capture_pane", new_callable=AsyncMock, return_value="❯\n"
+            ) as mock_capture,
+            patch.object(
+                mon._tmux, "send_keys", new_callable=AsyncMock, return_value=True
+            ) as mock_send,
+        ):
+            handled = await mon.check_idle_agents()
+
+        assert handled == 1
+        # Pane capture SHOULD have been called since session was stale
+        mock_capture.assert_called_once()
+        mock_send.assert_called_once()
+
+
 class TestCheckTrustPrompts:
     """Tests for trust prompt detection and auto-dismissal."""
 
