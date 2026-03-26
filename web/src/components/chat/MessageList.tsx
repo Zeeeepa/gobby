@@ -48,18 +48,15 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
     }
   }, [isStreaming])
 
+  // Scroll to bottom on non-streaming appends (e.g. loading history).
+  // During streaming, Virtuoso's followOutput handles scroll-following
+  // natively — adding manual scrollToIndex calls here causes bounce
+  // because they compete with followOutput's own smooth scroll.
   useEffect(() => {
-    if (isStreaming) {
+    if (!isStreaming && !userScrolledUpRef.current && messages.length > 0) {
       virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
     }
-  }, [isStreaming, messages])
-
-  // Scroll to bottom on new messages (non-streaming appends)
-  useEffect(() => {
-    if (!userScrolledUpRef.current && messages.length > 0) {
-      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
-    }
-  }, [messages.length])
+  }, [messages.length, isStreaming])
 
   const Footer = useCallback(() => (
     <>
