@@ -557,7 +557,12 @@ def init_orchestration(runner: GobbyRunner) -> None:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+        except TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            raise RuntimeError(f"tmux send-keys to {pane_id} timed out after 10s") from None
         if proc.returncode != 0:
             raise RuntimeError(
                 f"tmux send-keys to {pane_id} failed: {stderr.decode(errors='replace')}"
