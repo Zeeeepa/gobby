@@ -80,10 +80,11 @@ class ReactionHandler:
         # Check message metadata for specific overrides
         custom_mappings = message_metadata.get("reaction_mappings", {})
         if normalized in custom_mappings:
-            return custom_mappings[normalized]
+            return str(custom_mappings[normalized])
 
         # Fallback to defaults
-        return self._default_mappings.get(normalized)
+        result: str | None = self._default_mappings.get(normalized)
+        return result
 
     async def _execute_action(self, action: str, message: Any, identity: Any) -> None:
         """Execute the mapped action.
@@ -113,7 +114,7 @@ class ReactionHandler:
 
         try:
             # Check if pipelines service is available
-            pipelines = self._services.pipeline_manager
+            pipelines = self._services.pipeline_execution_manager
             if not pipelines:
                 logger.error("Pipeline manager not available to process approval")
                 return
