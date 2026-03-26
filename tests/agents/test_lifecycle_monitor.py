@@ -891,6 +891,76 @@ class TestCheckIdleAgents:
         mock_send.assert_called_once()
 
 
+    @pytest.mark.asyncio
+    async def test_stale_session_overrides_active_pane(
+        self,
+        agent_run_manager: LocalAgentRunManager,
+        session_manager: LocalSessionManager,
+        sample_session: dict,
+        temp_db: LocalDatabase,
+    ) -> None:
+        """Stale session should be treated as idle even when pane looks active."""
+        import time
+        from datetime import UTC, datetime, timedelta
+
+        from gobby.config.tmux import TmuxConfig
+
+        config = TmuxConfig(
+            idle_check_enabled=True, idle_timeout_seconds=10, max_reprompt_attempts=2
+        )
+        mon = AgentLifecycleMonitor(
+            agent_run_manager=agent_run_manager,
+            db=temp_db,
+            session_manager=session_manager,
+            check_interval_seconds=1.0,
+            tmux_config=config,
+        )
+
+        # Create child session with stale updated_at
+        child = session_manager.register(
+            external_id="child-stale-active",
+            machine_id="machine-1",
+            source="claude",
+            project_id=sample_session.get("project_id"),
+        )
+        stale_time = (datetime.now(UTC) - timedelta(seconds=120)).isoformat()
+        temp_db.execute(
+            "UPDATE sessions SET updated_at = ? WHERE id = ?",
+            (stale_time, child.id),
+        )
+
+        run = _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-stale-active-pane",
+            tmux_session_name="gobby-stale-active",
+            child_session_id=child.id,
+        )
+
+        # Pre-set idle state to simulate timeout elapsed
+        state = mon._idle_detector.get_state(run.id)
+        state.first_idle_at = time.monotonic() - 120
+
+        with (
+            patch.object(
+                mon._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                # Pane shows active-looking output (running command)
+                return_value="Running tests...\nProcessing file 42/100\n",
+            ),
+            patch.object(
+                mon._tmux, "send_keys", new_callable=AsyncMock, return_value=True
+            ) as mock_send,
+        ):
+            handled = await mon.check_idle_agents()
+
+        # Agent should be reprompted despite active-looking pane
+        assert handled == 1
+        mock_send.assert_called_once()
+        assert "Continue working" in mock_send.call_args[0][1]
+
+
 class TestCheckTrustPrompts:
     """Tests for trust prompt detection and auto-dismissal."""
 
