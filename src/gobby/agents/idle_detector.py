@@ -121,7 +121,7 @@ class IdleDetector:
                     return "idle"
             for pattern in self.STALLED_BUFFER_PATTERNS:
                 if pattern.match(stripped):
-                    return "stalled_buffer"
+                    return "idle"
             # First non-empty, non-status-bar line doesn't match idle → active
             break
 

@@ -223,15 +223,15 @@ class TestStalledBuffer:
 
     def test_prompt_with_unsubmitted_text(self) -> None:
         """Prompt char followed by text that was never submitted."""
-        assert self.detector.detect("❯ some text\n") == "stalled_buffer"
+        assert self.detector.detect("❯ some text\n") == "idle"
 
     def test_shell_prompt_with_command(self) -> None:
         """Shell prompt with a command typed but not submitted."""
-        assert self.detector.detect("$ git status\n") == "stalled_buffer"
+        assert self.detector.detect("$ git status\n") == "idle"
 
     def test_greater_than_with_text(self) -> None:
         """Greater-than prompt with trailing text."""
-        assert self.detector.detect("> some input\n") == "stalled_buffer"
+        assert self.detector.detect("> some input\n") == "idle"
 
     def test_active_output_unchanged(self) -> None:
         """Normal processing output should still be active."""
