@@ -1088,7 +1088,7 @@ export default function App() {
   }
 
   const navItems = [
-    { id: "chat", label: "Chat", icon: <ChatIcon />, separator: true },
+    { id: "chat", label: "Chat", icon: <ChatIcon /> },
     { id: "dashboard", label: "Dashboard", icon: <DashboardIcon />, separator: true },
     { id: "projects", label: "Projects", icon: <ProjectsIcon /> },
     { id: "tasks", label: "Tasks", icon: <TasksIcon /> },
