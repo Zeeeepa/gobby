@@ -728,6 +728,9 @@ export function useChat() {
   const handleVoiceMessageRef = useRef<(data: Record<string, unknown>) => void>(
     () => {},
   );
+  const handleBinaryMessageRef = useRef<(data: ArrayBuffer) => void>(
+    () => {},
+  );
 
   // Connect to WebSocket
   const connect = useCallback(() => {
@@ -738,6 +741,7 @@ export function useChat() {
 
     console.log("Connecting to WebSocket:", wsUrl);
     const ws = new WebSocket(wsUrl);
+    ws.binaryType = 'arraybuffer';  // For TTS audio binary frames
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -870,6 +874,16 @@ export function useChat() {
     };
 
     ws.onmessage = (event) => {
+      // Binary frames are TTS audio data — route to voice handler
+      if (event.data instanceof ArrayBuffer) {
+        try {
+          handleBinaryMessageRef.current(event.data);
+        } catch (err) {
+          console.error('TTS binary message error:', err);
+        }
+        return;
+      }
+
       try {
         const data = JSON.parse(event.data) as WebSocketMessage;
         console.log("WebSocket message:", data.type, data);
@@ -889,7 +903,9 @@ export function useChat() {
         } else if (
           data.type === "voice_transcription" ||
           data.type === "voice_audio_chunk" ||
-          data.type === "voice_status"
+          data.type === "voice_status" ||
+          data.type === "tts_audio" ||
+          data.type === "tts_status"
         ) {
           try {
             // When STT transcription arrives, inject it as a user message and
@@ -2710,6 +2726,7 @@ export function useChat() {
     attachedSessionMeta,
     wsRef,
     handleVoiceMessageRef,
+    handleBinaryMessageRef,
     setOnChatDeleted,
     setOnChatCleared,
   };

@@ -1,12 +1,13 @@
 """WebSocket voice chat handling.
 
-VoiceMixin provides STT integration for WebSocketServer.
+VoiceMixin provides STT + TTS integration for WebSocketServer.
 Voice layers on top of the existing chat pipeline — transcribed audio
-becomes a normal chat_message.
+becomes a normal chat_message, and streamed assistant text feeds TTS.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -19,6 +20,96 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from gobby.config.voice import VoiceConfig
+    from gobby.voice.tts import KokoroTTS
+
+
+class TTSPipeline:
+    """Manages TTS state for a single conversation's response stream.
+
+    Created per-response, feeds text chunks through a sentence buffer,
+    synthesizes complete sentences, and streams audio to WebSocket clients.
+    """
+
+    def __init__(
+        self,
+        tts: KokoroTTS,
+        conversation_id: str,
+        clients: dict[Any, dict[str, Any]],
+    ) -> None:
+        from gobby.voice.sentence_buffer import SentenceBuffer
+
+        self.tts = tts
+        self.conversation_id = conversation_id
+        self.clients = clients
+        self.sentence_buffer = SentenceBuffer()
+        self._chunk_index = 0
+        self._synthesis_tasks: list[asyncio.Task[None]] = []
+
+    def feed_text(self, chunk: str) -> None:
+        """Feed a text chunk from the LLM stream. Spawns TTS tasks for complete sentences."""
+        sentences = self.sentence_buffer.feed(chunk)
+        for sentence in sentences:
+            task = asyncio.create_task(self._synthesize_and_send(sentence))
+            task.add_done_callback(self._on_task_done)
+            self._synthesis_tasks.append(task)
+
+    async def flush(self) -> None:
+        """Flush remaining buffer at end of stream."""
+        remaining = self.sentence_buffer.flush()
+        if remaining:
+            await self._synthesize_and_send(remaining)
+
+    async def cancel(self) -> None:
+        """Cancel all pending synthesis tasks."""
+        self.sentence_buffer.clear()
+        for task in self._synthesis_tasks:
+            if not task.done():
+                task.cancel()
+        # Wait for cancellations to settle
+        if self._synthesis_tasks:
+            await asyncio.gather(*self._synthesis_tasks, return_exceptions=True)
+        self._synthesis_tasks.clear()
+
+    async def _synthesize_and_send(self, text: str) -> None:
+        """Synthesize a sentence and send audio chunks to all conversation clients."""
+        try:
+            async for pcm_bytes, sample_rate in self.tts.synthesize_stream(text):
+                # Send metadata frame (JSON)
+                meta = json.dumps(
+                    {
+                        "type": "tts_audio",
+                        "conversation_id": self.conversation_id,
+                        "sample_rate": sample_rate,
+                        "format": "pcm_s16le",
+                        "chunk_index": self._chunk_index,
+                    }
+                )
+                self._chunk_index += 1
+
+                # Broadcast to all clients in this conversation
+                for ws, ws_meta in list(self.clients.items()):
+                    cid = ws_meta.get("conversation_id") if ws_meta else None
+                    if cid is not None and cid != self.conversation_id:
+                        continue
+                    try:
+                        await ws.send(meta)
+                        await ws.send(pcm_bytes)
+                    except (ConnectionClosed, ConnectionClosedError):
+                        pass
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.error("TTS synthesis/send failed", exc_info=True)
+
+    @staticmethod
+    def _on_task_done(task: asyncio.Task[None]) -> None:
+        """Log unhandled exceptions from TTS tasks (fire-and-forget safety)."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Unhandled exception in TTS task", exc_info=exc)
 
 
 class VoiceMixin:
@@ -42,8 +133,12 @@ class VoiceMixin:
         # Per-conversation voice mode tracking
         self._voice_enabled: dict[str, bool] = {}
 
-        # Lazy singleton
+        # Lazy singletons
         self._whisper_stt: Any = None
+        self._kokoro_tts: KokoroTTS | None = None
+
+        # Active TTS pipelines per conversation (for cancellation)
+        self._active_tts_pipelines: dict[str, TTSPipeline] = {}
 
     def _get_voice_config(self) -> VoiceConfig | None:
         """Get voice config from daemon_config if available."""
@@ -66,6 +161,87 @@ class VoiceMixin:
 
         self._whisper_stt = WhisperSTT(voice_config)
         return self._whisper_stt
+
+    def _get_tts(self) -> KokoroTTS | None:
+        """Get or create the KokoroTTS singleton."""
+        if self._kokoro_tts is not None:
+            return self._kokoro_tts
+
+        voice_config = self._get_voice_config()
+        if not voice_config or not voice_config.enabled or not voice_config.tts_enabled:
+            return None
+
+        from gobby.voice.tts import KokoroTTS as _KokoroTTS
+
+        tts = _KokoroTTS(voice_config)
+        if not tts.is_available:
+            return None
+
+        self._kokoro_tts = tts
+        return self._kokoro_tts
+
+    def _is_voice_mode(self, conversation_id: str) -> bool:
+        """Check if voice mode is active for a conversation."""
+        return self._voice_enabled.get(conversation_id, False)
+
+    def _create_tts_pipeline(self, conversation_id: str) -> TTSPipeline | None:
+        """Create a TTS pipeline for a conversation if voice mode + TTS are active.
+
+        Cancels any existing pipeline for the conversation first.
+        Returns None if TTS is not available or voice mode is off.
+        """
+        if not self._is_voice_mode(conversation_id):
+            return None
+
+        tts = self._get_tts()
+        if not tts:
+            return None
+
+        # Cancel existing pipeline if any
+        existing = self._active_tts_pipelines.pop(conversation_id, None)
+        if existing:
+            asyncio.create_task(existing.cancel())
+
+        pipeline = TTSPipeline(tts, conversation_id, self.clients)
+        self._active_tts_pipelines[conversation_id] = pipeline
+        return pipeline
+
+    async def _cancel_tts(self, conversation_id: str) -> None:
+        """Cancel active TTS for a conversation. Called on barge-in/interruption."""
+        pipeline = self._active_tts_pipelines.pop(conversation_id, None)
+        if pipeline:
+            await pipeline.cancel()
+            logger.debug(f"TTS cancelled for {conversation_id[:8]}")
+
+        # Notify clients that TTS has stopped
+        status_msg = json.dumps(
+            {
+                "type": "tts_status",
+                "conversation_id": conversation_id,
+                "status": "idle",
+            }
+        )
+        for ws, meta in list(self.clients.items()):
+            cid = meta.get("conversation_id") if meta else None
+            if cid is not None and cid != conversation_id:
+                continue
+            try:
+                await ws.send(status_msg)
+            except (ConnectionClosed, ConnectionClosedError):
+                pass
+
+    async def _handle_tts_stop(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle client-requested TTS stop (barge-in from VAD).
+
+        Message format:
+        {
+            "type": "tts_stop",
+            "conversation_id": "stable-id"
+        }
+        """
+        conversation_id = data.get("conversation_id", "")
+        logger.debug(f"TTS stop requested for {conversation_id[:8]}")
+        await self._cancel_tts(conversation_id)
 
     async def _handle_voice_audio(self, websocket: Any, data: dict[str, Any]) -> None:
         """Handle incoming voice audio from client.
@@ -91,6 +267,9 @@ class VoiceMixin:
             f"Voice audio received: {len(audio_data_b64)} chars b64, "
             f"mime={mime_type}, conv={conversation_id[:8]}..."
         )
+
+        # Stop any active TTS when user starts speaking
+        await self._cancel_tts(conversation_id)
 
         if not audio_data_b64:
             await websocket.send(
@@ -217,6 +396,10 @@ class VoiceMixin:
 
         self._voice_enabled[conversation_id] = enabled
 
+        # Cancel TTS when leaving voice mode
+        if not enabled:
+            await self._cancel_tts(conversation_id)
+
         await websocket.send(
             json.dumps(
                 {
@@ -231,5 +414,8 @@ class VoiceMixin:
 
     async def _cleanup_voice(self) -> None:
         """Clean up voice state. Called from stop()."""
+        # Cancel all active TTS pipelines
+        for conv_id in list(self._active_tts_pipelines):
+            await self._cancel_tts(conv_id)
         self._voice_enabled.clear()
         logger.debug("Voice subsystem cleaned up")

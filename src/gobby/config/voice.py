@@ -6,14 +6,35 @@ from pydantic import BaseModel, Field
 
 
 class VoiceConfig(BaseModel):
-    """Configuration for voice chat (STT via local Whisper).
+    """Configuration for voice chat (STT + TTS).
 
     STT uses local Whisper (faster-whisper) for privacy and low latency.
+    TTS uses local Kokoro ONNX for streaming speech synthesis.
     """
 
     enabled: bool = Field(
         default=False,
         description="Enable voice chat features (master switch).",
+    )
+
+    # --- TTS settings ---
+    tts_enabled: bool = Field(
+        default=True,
+        description="Enable text-to-speech output in voice mode (requires enabled=True).",
+    )
+    tts_voice: str = Field(
+        default="af_heart",
+        description="Kokoro voice name (e.g. af_heart, af_bella, am_adam, bf_emma).",
+    )
+    tts_speed: float = Field(
+        default=1.0,
+        ge=0.5,
+        le=2.0,
+        description="TTS playback speed multiplier (0.5–2.0).",
+    )
+    tts_language: str = Field(
+        default="en-us",
+        description="TTS language code (en-us, en-gb, ja, zh, hi, es, pt-br, it, fr).",
     )
     stt_enabled: bool = Field(
         default=True,

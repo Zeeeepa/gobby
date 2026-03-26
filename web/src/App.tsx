@@ -273,6 +273,7 @@ export default function App() {
     attachedSessionMeta,
     wsRef,
     handleVoiceMessageRef,
+    handleBinaryMessageRef,
     canvasSurfaces,
     canvasPanel,
     onCanvasInteraction,
@@ -870,10 +871,11 @@ export default function App() {
     [viewSession, viewingSessionId],
   );
 
-  // Wire voice message handler into useChat's WebSocket routing
+  // Wire voice message handlers into useChat's WebSocket routing
   useEffect(() => {
     handleVoiceMessageRef.current = voice.handleVoiceMessage;
-  }, [voice.handleVoiceMessage, handleVoiceMessageRef]);
+    handleBinaryMessageRef.current = voice.handleBinaryMessage;
+  }, [voice.handleVoiceMessage, voice.handleBinaryMessage, handleVoiceMessageRef, handleBinaryMessageRef]);
 
   // Wire backend-initiated mode changes (e.g. agent EnterPlanMode/ExitPlanMode)
   // to update the settings slider

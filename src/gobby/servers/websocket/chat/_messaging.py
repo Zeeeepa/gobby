@@ -272,6 +272,15 @@ class ChatMessagingMixin:
         accumulated_text = ""
         after_tool_call = False  # Track tool→text transitions to prevent sentence collisions
         has_sent_text = False  # Survives accumulated_text flushes for separator injection
+
+        # TTS pipeline: create if voice mode is active for this conversation.
+        # Errors here are non-fatal — TTS is optional enhancement.
+        tts_pipeline = None
+        try:
+            if hasattr(self, "_create_tts_pipeline"):
+                tts_pipeline = self._create_tts_pipeline(conversation_id)
+        except Exception:
+            logger.debug("TTS pipeline creation failed", exc_info=True)
         ws_connected = True
 
         def _base_msg(**fields: Any) -> dict[str, Any]:
@@ -528,6 +537,14 @@ class ChatMessagingMixin:
                         )
                     ):
                         break
+
+                    # Feed text to TTS pipeline (non-blocking, fire-and-forget)
+                    if tts_pipeline and content.strip():
+                        try:
+                            tts_pipeline.feed_text(content)
+                        except Exception:
+                            logger.debug("TTS feed_text failed", exc_info=True)
+
                 elif isinstance(event, ToolCallEvent):
                     # Flush accumulated text as a separate message before tool calls.
                     # This prevents text segments from merging across tool boundaries
@@ -597,6 +614,13 @@ class ChatMessagingMixin:
                     ):
                         break
                 elif isinstance(event, DoneEvent):
+                    # Flush remaining TTS buffer (non-blocking)
+                    if tts_pipeline:
+                        try:
+                            await tts_pipeline.flush()
+                        except Exception:
+                            logger.debug("TTS flush failed", exc_info=True)
+
                     # Persist remaining assistant text (after last tool call, if any)
                     if accumulated_text.strip():
                         await _persist_message(session, "assistant", accumulated_text)
