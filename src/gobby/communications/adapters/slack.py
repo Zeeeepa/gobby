@@ -176,6 +176,29 @@ class SlackAdapter(BaseChannelAdapter):
                             metadata_json=event,
                         )
                     )
+            elif event_type == "reaction_added":
+                user = event.get("user")
+                reaction = event.get("reaction")
+                item = event.get("item", {})
+
+                if item.get("type") == "message":
+                    channel = item.get("channel")
+                    ts = item.get("ts")
+
+                    if channel and reaction and ts:
+                        messages.append(
+                            CommsMessage(
+                                id=f"slack_rxn_{ts}_{time.time()}",
+                                channel_id=channel,
+                                direction="inbound",
+                                content=reaction,
+                                created_at=datetime.now().isoformat(),
+                                identity_id=user,
+                                platform_message_id=ts,  # ID of message being reacted to
+                                content_type="reaction",
+                                metadata_json=event,
+                            )
+                        )
 
         return messages
 
