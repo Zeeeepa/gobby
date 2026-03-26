@@ -10,13 +10,16 @@ from gobby.communications.models import ChannelConfig, CommsMessage
 def adapter():
     return DiscordAdapter()
 
+
 @pytest.fixture
 def mock_secret_resolver():
     def _resolve(secret_ref: str) -> str | None:
         if secret_ref == "$secret:DISCORD_BOT_TOKEN":
             return "test_token"
         return "direct_token" if not secret_ref.startswith("$secret:") else None
+
     return _resolve
+
 
 @pytest.mark.asyncio
 async def test_initialize(adapter, mock_secret_resolver):
@@ -27,7 +30,7 @@ async def test_initialize(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False}
+        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False},
     )
     await adapter.initialize(config, mock_secret_resolver)
 
@@ -35,6 +38,7 @@ async def test_initialize(adapter, mock_secret_resolver):
     assert adapter._client is not None
     assert "Authorization" in adapter._client.headers
     assert adapter._client.headers["Authorization"] == "Bot test_token"
+
 
 @pytest.mark.asyncio
 async def test_send_message(adapter, mock_secret_resolver):
@@ -45,7 +49,7 @@ async def test_send_message(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False}
+        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False},
     )
     await adapter.initialize(config, mock_secret_resolver)
 
@@ -54,10 +58,10 @@ async def test_send_message(adapter, mock_secret_resolver):
         channel_id="channel_123",
         direction="outbound",
         content="Hello world",
-        created_at="2024-01-01T00:00:00Z"
+        created_at="2024-01-01T00:00:00Z",
     )
 
-    with patch.object(adapter._client, 'post', new_callable=AsyncMock) as mock_post:
+    with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {"id": "msg_456"}
         mock_response.raise_for_status.return_value = None
@@ -71,6 +75,7 @@ async def test_send_message(adapter, mock_secret_resolver):
         assert args[0] == "/channels/channel_123/messages"
         assert kwargs["json"]["content"] == "Hello world"
 
+
 @pytest.mark.asyncio
 async def test_send_message_chunking(adapter, mock_secret_resolver):
     config = ChannelConfig(
@@ -80,7 +85,7 @@ async def test_send_message_chunking(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False}
+        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False},
     )
     await adapter.initialize(config, mock_secret_resolver)
 
@@ -90,10 +95,10 @@ async def test_send_message_chunking(adapter, mock_secret_resolver):
         channel_id="channel_123",
         direction="outbound",
         content=long_content,
-        created_at="2024-01-01T00:00:00Z"
+        created_at="2024-01-01T00:00:00Z",
     )
 
-    with patch.object(adapter._client, 'post', new_callable=AsyncMock) as mock_post:
+    with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {"id": "msg_456"}
         mock_response.raise_for_status.return_value = None
@@ -104,13 +109,14 @@ async def test_send_message_chunking(adapter, mock_secret_resolver):
         assert mock_post.call_count == 2
         assert result == "msg_456"
 
+
 def test_parse_webhook(adapter):
     payload = {
         "type": 0,
         "channel_id": "channel_123",
         "id": "msg_123",
         "author": {"id": "user_123"},
-        "content": "Hello discord"
+        "content": "Hello discord",
     }
 
     messages = adapter.parse_webhook(payload, {})
@@ -120,11 +126,14 @@ def test_parse_webhook(adapter):
     assert messages[0].content == "Hello discord"
     assert messages[0].identity_id == "user_123"
 
+
 def test_verify_webhook(adapter):
     # This requires ed25519 keys to properly test, we'll test the failure cases or mock
     # since cryptography is optional
 
-    result = adapter.verify_webhook(b"payload", {"X-Signature-Ed25519": "invalid", "X-Signature-Timestamp": "123"}, "secret")
+    result = adapter.verify_webhook(
+        b"payload", {"X-Signature-Ed25519": "invalid", "X-Signature-Timestamp": "123"}, "secret"
+    )
     assert not result
 
     result = adapter.verify_webhook(b"payload", {}, "secret")

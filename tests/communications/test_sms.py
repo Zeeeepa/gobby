@@ -14,13 +14,16 @@ from gobby.communications.models import ChannelConfig, CommsMessage
 def adapter():
     return SMSAdapter()
 
+
 @pytest.fixture
 def mock_secret_resolver():
     def _resolve(secret_ref: str) -> str | None:
         if secret_ref == "$secret:TWILIO_AUTH_TOKEN":
             return "token_123"
         return None
+
     return _resolve
+
 
 @pytest.mark.asyncio
 async def test_initialize(adapter, mock_secret_resolver):
@@ -31,10 +34,7 @@ async def test_initialize(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={
-            "account_sid": "AC123",
-            "from_number": "+1234567890"
-        }
+        config_json={"account_sid": "AC123", "from_number": "+1234567890"},
     )
 
     await adapter.initialize(config, mock_secret_resolver)
@@ -45,6 +45,7 @@ async def test_initialize(adapter, mock_secret_resolver):
     assert adapter._client is not None
     assert adapter._client.auth._auth_header.startswith("Basic ")
 
+
 @pytest.mark.asyncio
 async def test_send_message(adapter, mock_secret_resolver):
     config = ChannelConfig(
@@ -54,10 +55,7 @@ async def test_send_message(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={
-            "account_sid": "AC123",
-            "from_number": "+1234567890"
-        }
+        config_json={"account_sid": "AC123", "from_number": "+1234567890"},
     )
     await adapter.initialize(config, mock_secret_resolver)
 
@@ -66,10 +64,10 @@ async def test_send_message(adapter, mock_secret_resolver):
         channel_id="+0987654321",
         direction="outbound",
         content="Hello SMS",
-        created_at="2024-01-01T00:00:00Z"
+        created_at="2024-01-01T00:00:00Z",
     )
 
-    with patch.object(adapter._client, 'post', new_callable=AsyncMock) as mock_post:
+    with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {"sid": "SM123"}
         mock_response.raise_for_status.return_value = None
@@ -85,12 +83,13 @@ async def test_send_message(adapter, mock_secret_resolver):
         assert kwargs["data"]["From"] == "+1234567890"
         assert kwargs["data"]["Body"] == "Hello SMS"
 
+
 def test_parse_webhook(adapter):
     payload = {
         "From": "+0987654321",
         "To": "+1234567890",
         "Body": "Hello Twilio",
-        "MessageSid": "SM123"
+        "MessageSid": "SM123",
     }
 
     messages = adapter.parse_webhook(payload, {})
@@ -100,6 +99,7 @@ def test_parse_webhook(adapter):
     assert messages[0].content == "Hello Twilio"
     assert messages[0].platform_message_id == "SM123"
     assert messages[0].identity_id == "+0987654321"
+
 
 def test_parse_webhook_urlencoded(adapter):
     payload = b"From=%2B0987654321&To=%2B1234567890&Body=Hello+Twilio&MessageSid=SM123"
@@ -111,24 +111,19 @@ def test_parse_webhook_urlencoded(adapter):
     assert messages[0].content == "Hello Twilio"
     assert messages[0].platform_message_id == "SM123"
 
+
 def test_verify_webhook(adapter):
     url = "https://example.com/webhook"
     secret = "secret123"
 
-    params = {
-        "From": "+123",
-        "To": "+456"
-    }
-    payload = urlencode(params).encode('utf-8')
+    params = {"From": "+123", "To": "+456"}
+    payload = urlencode(params).encode("utf-8")
 
     data = url + "From+123To+456"
     mac = hmac.new(secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha1)
     computed_signature = base64.b64encode(mac.digest()).decode("utf-8")
 
-    headers = {
-        "X-Twilio-Signature": computed_signature,
-        "X-Original-Url": url
-    }
+    headers = {"X-Twilio-Signature": computed_signature, "X-Original-Url": url}
 
     result = adapter.verify_webhook(payload, headers, secret)
     assert result

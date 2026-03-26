@@ -10,6 +10,7 @@ from gobby.communications.models import ChannelConfig, CommsMessage
 def adapter():
     return TeamsAdapter()
 
+
 @pytest.fixture
 def mock_secret_resolver():
     def _resolve(secret_ref: str) -> str | None:
@@ -18,7 +19,9 @@ def mock_secret_resolver():
         elif secret_ref == "$secret:TEAMS_APP_PASSWORD":
             return "app_pass_456"
         return None
+
     return _resolve
+
 
 @pytest.mark.asyncio
 async def test_initialize_and_refresh(adapter, mock_secret_resolver):
@@ -29,10 +32,10 @@ async def test_initialize_and_refresh(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={}
+        config_json={},
     )
 
-    with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {"access_token": "token_123", "expires_in": 3600}
         mock_response.raise_for_status.return_value = None
@@ -47,6 +50,7 @@ async def test_initialize_and_refresh(adapter, mock_secret_resolver):
         args, kwargs = mock_post.call_args
         assert args[0] == "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
 
+
 @pytest.mark.asyncio
 async def test_send_message(adapter, mock_secret_resolver):
     config = ChannelConfig(
@@ -56,10 +60,10 @@ async def test_send_message(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={}
+        config_json={},
     )
 
-    with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_response_auth = MagicMock()
         mock_response_auth.json.return_value = {"access_token": "token_123", "expires_in": 3600}
         mock_response_auth.raise_for_status.return_value = None
@@ -73,10 +77,10 @@ async def test_send_message(adapter, mock_secret_resolver):
         direction="outbound",
         content="Hello teams",
         metadata_json={"service_url": "https://smba.trafficmanager.net/teams/"},
-        created_at="2024-01-01T00:00:00Z"
+        created_at="2024-01-01T00:00:00Z",
     )
 
-    with patch.object(adapter._client, 'post', new_callable=AsyncMock) as mock_post:
+    with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
         mock_response.json.return_value = {"id": "msg_456"}
         mock_response.raise_for_status.return_value = None
@@ -91,6 +95,7 @@ async def test_send_message(adapter, mock_secret_resolver):
         assert kwargs["json"]["text"] == "Hello teams"
         assert kwargs["headers"]["Authorization"] == "Bearer token_123"
 
+
 def test_parse_webhook(adapter):
     payload = {
         "type": "message",
@@ -98,7 +103,7 @@ def test_parse_webhook(adapter):
         "from": {"id": "user_123"},
         "conversation": {"id": "conv_123"},
         "text": "Hello bot",
-        "serviceUrl": "https://smba.trafficmanager.net/teams/"
+        "serviceUrl": "https://smba.trafficmanager.net/teams/",
     }
 
     messages = adapter.parse_webhook(payload, {})
@@ -109,10 +114,11 @@ def test_parse_webhook(adapter):
     assert messages[0].identity_id == "user_123"
     assert messages[0].metadata_json["service_url"] == "https://smba.trafficmanager.net/teams/"
 
+
 def test_verify_webhook(adapter):
     adapter._app_id = "app_id_123"
 
-    with patch('jwt.decode') as mock_decode:
+    with patch("jwt.decode") as mock_decode:
         # Valid case
         mock_decode.return_value = {"aud": "app_id_123", "iss": "https://api.botframework.com"}
         headers = {"Authorization": "Bearer some.jwt.token"}

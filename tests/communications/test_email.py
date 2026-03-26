@@ -10,13 +10,16 @@ from gobby.communications.models import ChannelConfig, CommsMessage
 def adapter():
     return EmailAdapter()
 
+
 @pytest.fixture
 def mock_secret_resolver():
     def _resolve(secret_ref: str) -> str | None:
         if secret_ref == "$secret:EMAIL_PASSWORD":
             return "pass123"
         return None
+
     return _resolve
+
 
 @pytest.mark.asyncio
 async def test_initialize(adapter, mock_secret_resolver):
@@ -30,13 +33,11 @@ async def test_initialize(adapter, mock_secret_resolver):
         config_json={
             "smtp_host": "smtp.example.com",
             "imap_host": "imap.example.com",
-            "from_address": "bot@example.com"
-        }
+            "from_address": "bot@example.com",
+        },
     )
 
-    with patch('aiosmtplib.SMTP') as MockSMTP, \
-         patch('aioimaplib.IMAP4_SSL') as MockIMAP:
-
+    with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL") as MockIMAP:
         mock_smtp_inst = AsyncMock()
         MockSMTP.return_value = mock_smtp_inst
 
@@ -55,6 +56,7 @@ async def test_initialize(adapter, mock_secret_resolver):
         mock_imap_inst.wait_hello_from_server.assert_called_once()
         mock_imap_inst.login.assert_called_once_with("bot@example.com", "pass123")
 
+
 @pytest.mark.asyncio
 async def test_send_message(adapter, mock_secret_resolver):
     config = ChannelConfig(
@@ -64,11 +66,10 @@ async def test_send_message(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"from_address": "bot@example.com", "smtp_host": "smtp.example.com"}
+        config_json={"from_address": "bot@example.com", "smtp_host": "smtp.example.com"},
     )
 
-    with patch('aiosmtplib.SMTP') as MockSMTP, \
-         patch('aioimaplib.IMAP4_SSL'):
+    with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL"):
         mock_smtp_inst = AsyncMock()
         MockSMTP.return_value = mock_smtp_inst
         await adapter.initialize(config, mock_secret_resolver)
@@ -79,7 +80,7 @@ async def test_send_message(adapter, mock_secret_resolver):
         direction="outbound",
         content="Hello via email",
         metadata_json={"subject": "Test Subject"},
-        created_at="2024-01-01T00:00:00Z"
+        created_at="2024-01-01T00:00:00Z",
     )
 
     msg_id = await adapter.send_message(msg)
@@ -92,6 +93,7 @@ async def test_send_message(adapter, mock_secret_resolver):
     assert sent_msg["To"] == "user@example.com"
     assert sent_msg["From"] == "bot@example.com"
 
+
 @pytest.mark.asyncio
 async def test_poll(adapter, mock_secret_resolver):
     config = ChannelConfig(
@@ -101,10 +103,10 @@ async def test_poll(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"from_address": "bot@example.com", "imap_host": "imap.example.com"}
+        config_json={"from_address": "bot@example.com", "imap_host": "imap.example.com"},
     )
 
-    with patch('aiosmtplib.SMTP'), patch('aioimaplib.IMAP4_SSL') as MockIMAP:
+    with patch("aiosmtplib.SMTP"), patch("aioimaplib.IMAP4_SSL") as MockIMAP:
         mock_imap_inst = AsyncMock()
         MockIMAP.return_value = mock_imap_inst
         await adapter.initialize(config, mock_secret_resolver)
@@ -117,7 +119,7 @@ async def test_poll(adapter, mock_secret_resolver):
 
         mock_imap_inst.fetch.side_effect = [
             ("OK", [(b"1 (RFC822 {100})", email_content), b")"]),
-            ("OK", [(b"2 (RFC822 {100})", email_content), b")"])
+            ("OK", [(b"2 (RFC822 {100})", email_content), b")"]),
         ]
 
         messages = await adapter.poll()
@@ -128,9 +130,11 @@ async def test_poll(adapter, mock_secret_resolver):
         assert messages[0].platform_message_id == "<msg123>"
         assert messages[0].metadata_json["subject"] == "Test Reply"
 
+
 def test_parse_webhook(adapter):
     with pytest.raises(NotImplementedError):
         adapter.parse_webhook({}, {})
+
 
 def test_verify_webhook(adapter):
     assert not adapter.verify_webhook(b"", {}, "")
