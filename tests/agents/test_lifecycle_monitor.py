@@ -726,6 +726,39 @@ class TestCheckIdleAgents:
         assert "context" in (updated.error or "").lower()
 
     @pytest.mark.asyncio
+    async def test_stalled_buffer_nudges_enter(
+        self,
+        idle_monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Stalled buffer should send just Enter, not a full reprompt."""
+        _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-stalled",
+            tmux_session_name="gobby-stalled",
+        )
+
+        with (
+            patch.object(
+                idle_monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value="\u276f some stuck text\n",
+            ),
+            patch.object(
+                idle_monitor._tmux, "send_keys", new_callable=AsyncMock, return_value=True
+            ) as mock_send,
+        ):
+            handled = await idle_monitor.check_idle_agents()
+
+        assert handled == 1
+        mock_send.assert_called_once()
+        # Should send just a newline to submit the stuck text, not a reprompt
+        assert mock_send.call_args[0][1] == "\n"
+
+    @pytest.mark.asyncio
     async def test_disabled_idle_check(
         self,
         agent_run_manager: LocalAgentRunManager,

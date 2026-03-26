@@ -583,6 +583,16 @@ class AgentLifecycleMonitor:
                 await self._fail_idle_agent(run, reason="context window exhausted")
                 return 1
 
+            if status == "stalled_buffer":
+                # Text is sitting at the prompt unsubmitted — nudge Enter
+                # to submit it rather than appending a full reprompt message
+                # on top of the stuck text.
+                logger.info(f"Agent {run.id} has stalled text in buffer — nudging Enter")
+                sent = await self._tmux.send_keys(tmux_name, "\n")
+                if sent:
+                    self._idle_detector.reset_idle(run.id)
+                return 1 if sent else 0
+
             # If session_stale is set, the agent is idle regardless of pane content.
             # Pane "active" does NOT override a stale session — the session timestamp
             # is the authoritative signal.
