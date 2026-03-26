@@ -42,7 +42,7 @@ async def test_router_matching():
         rs = [r for r in rules if not enabled_only or r.enabled]
         return sorted(rs, key=lambda x: x.priority, reverse=True)
 
-    store.get_routing_rules.side_effect = get_rules
+    store.list_routing_rules.side_effect = get_rules
 
     router = MessageRouter(store)
 
@@ -81,7 +81,7 @@ async def test_router_filtering():
             priority=5,
         ),
     ]
-    store.get_routing_rules.return_value = rules
+    store.list_routing_rules.return_value = rules
 
     router = MessageRouter(store)
 
