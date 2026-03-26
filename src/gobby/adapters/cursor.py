@@ -300,6 +300,12 @@ class CursorAdapter(BaseAdapter):
             if response.reason:
                 result["reason"] = response.reason
 
+        # TODO: Wire step transition context through Cursor's postToolUse response
+        # once Cursor agent support is added. Currently, additionalContext from
+        # AfterTool responses (e.g., step transition notifications) is not surfaced
+        # to the model. Cursor uses followup_message/agent_message instead of
+        # hookSpecificOutput.additionalContext for tool hooks.
+
         # Continuation hooks (stop, subagentStop)
         elif hook_type in ("stop", "subagentStop"):
             if response.context:

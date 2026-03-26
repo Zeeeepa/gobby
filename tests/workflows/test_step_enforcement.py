@@ -409,11 +409,15 @@ class TestStepTransitions:
         )
         variables: dict[str, Any] = {}
 
-        await engine.evaluate(event, session_id="test-session", variables=variables)
+        response = await engine.evaluate(event, session_id="test-session", variables=variables)
 
         instance = instance_mgr.get_instance("test-session", "developer-workflow")
         assert instance is not None
         assert instance.current_step == "implement"
+        # Transition notification should be in the response context
+        assert response.context is not None
+        assert "claim" in response.context
+        assert "implement" in response.context
 
     @pytest.mark.asyncio
     async def test_no_transition_on_failure(self, db, manager, engine, instance_mgr) -> None:
@@ -457,12 +461,16 @@ class TestStepTransitions:
         )
         variables: dict[str, Any] = {}
 
-        await engine.evaluate(event, session_id="test-session", variables=variables)
+        response = await engine.evaluate(event, session_id="test-session", variables=variables)
 
         instance = instance_mgr.get_instance("test-session", "developer-workflow")
         assert instance is not None
         assert instance.current_step == "terminate"
         assert instance.variables.get("review_submitted") is True
+        # Transition notification should be in the response context
+        assert response.context is not None
+        assert "implement" in response.context
+        assert "terminate" in response.context
 
     @pytest.mark.asyncio
     async def test_no_transition_for_unmatched_tool(
@@ -487,6 +495,83 @@ class TestStepTransitions:
         instance = instance_mgr.get_instance("test-session", "developer-workflow")
         assert instance is not None
         assert instance.current_step == "implement"  # No change
+
+    @pytest.mark.asyncio
+    async def test_no_transition_returns_no_context(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """When no transition fires, response context should not contain transition info."""
+        _setup_step_workflow(db, manager, instance_mgr, current_step="implement")
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "get_task",
+                },
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        response = await engine.evaluate(event, session_id="test-session", variables=variables)
+        # No transition means no transition context
+        assert response.context is None or "Step transition" not in response.context
+
+    @pytest.mark.asyncio
+    async def test_transition_includes_status_message(
+        self, db, manager, engine, instance_mgr
+    ) -> None:
+        """Transition notification should include the new step's status_message."""
+        workflow_with_status = {
+            "name": "status-msg-workflow",
+            "version": "2.0",
+            "enabled": False,
+            "variables": {"done": False},
+            "steps": [
+                {
+                    "name": "working",
+                    "allowed_tools": "all",
+                    "on_mcp_success": [
+                        {
+                            "server": "gobby-tasks",
+                            "tool": "mark_task_needs_review",
+                            "action": "set_variable",
+                            "variable": "done",
+                            "value": True,
+                        }
+                    ],
+                    "transitions": [{"to": "finished", "when": "vars.done"}],
+                },
+                {
+                    "name": "finished",
+                    "status_message": "Call kill_agent to terminate.",
+                    "allowed_tools": ["mcp__gobby__call_tool"],
+                    "allowed_mcp_tools": ["gobby-agents:kill_agent"],
+                },
+            ],
+        }
+        _setup_step_workflow(
+            db, manager, instance_mgr, current_step="working", workflow_data=workflow_with_status
+        )
+        event = _make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "mark_task_needs_review",
+                },
+            },
+        )
+        variables: dict[str, Any] = {}
+
+        response = await engine.evaluate(event, session_id="test-session", variables=variables)
+
+        assert response.context is not None
+        assert "working" in response.context
+        assert "finished" in response.context
+        assert "Call kill_agent to terminate." in response.context
 
 
 # Workflow with on_mcp_error handlers for testing app-level failure routing

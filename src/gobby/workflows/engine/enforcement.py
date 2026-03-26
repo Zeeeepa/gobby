@@ -215,8 +215,14 @@ class EnforcementMixin:
 
     def _process_step_after_tool(
         self, event: HookEvent, session_id: str, variables: dict[str, Any]
-    ) -> None:
-        """Process step workflow on_mcp_success handlers and transitions after tool completion."""
+    ) -> str | None:
+        """Process step workflow on_mcp_success handlers and transitions after tool completion.
+
+        Returns:
+            A transition notification string if a step transition occurred,
+            or None if no transition happened. The notification includes the
+            new step's status_message for injection into AfterTool additionalContext.
+        """
         step, instance, definition = self._get_step_for_session(session_id)
         if step is None or instance is None or definition is None:
             return
@@ -313,7 +319,13 @@ class EnforcementMixin:
                             f"Exit condition met for workflow {instance.workflow_name} (session={session_id}, step={instance.current_step})",
                         )
 
-                return  # First matching transition wins
+                # Build transition notification for AfterTool additionalContext
+                new_step_def = definition.get_step(new_step)
+                status_msg = (new_step_def.status_message or "").strip() if new_step_def else ""
+                transition_notice = f"Step transition: {old_step} → {new_step}"
+                if status_msg:
+                    transition_notice += f"\n{status_msg}"
+                return transition_notice  # First matching transition wins
 
         # Save if variables changed without transition
         if vars_changed:

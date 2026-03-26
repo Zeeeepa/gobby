@@ -216,8 +216,11 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                         return step_block
 
                 # 4c. Step workflow transition processing (after successful MCP tool calls)
+                _step_transition_msg: str | None = None
                 if rule_event == RuleEvent.AFTER_TOOL:
-                    self._process_step_after_tool(event, session_id, variables)
+                    _step_transition_msg = self._process_step_after_tool(
+                        event, session_id, variables
+                    )
 
                 # Deferred overrides — these used to early-return, but that skipped rule
                 # evaluation entirely, preventing mcp_call effects (like digest-on-response)
@@ -281,12 +284,17 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                                 _clear_edit_write_state(variables)
                     # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
                     # even when no declarative rules are installed for this event.
+                    _no_rules_ctx = _step_transition_msg or None
                     if override_decision == "block":
-                        resp = HookResponse(decision="block", reason=override_reason or "")
+                        resp = HookResponse(
+                            decision="block",
+                            reason=override_reason or "",
+                            context=_no_rules_ctx,
+                        )
                     elif override_decision == "allow":
-                        resp = HookResponse(decision="allow")
+                        resp = HookResponse(decision="allow", context=_no_rules_ctx)
                     else:
-                        resp = HookResponse(decision="allow")
+                        resp = HookResponse(decision="allow", context=_no_rules_ctx)
 
                     if span.is_recording():
                         span.set_attribute("final_decision", resp.decision)
@@ -316,6 +324,8 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
 
                 # 5. Evaluate rules in priority order
                 context_parts: list[str] = []
+                if _step_transition_msg:
+                    context_parts.append(_step_transition_msg)
                 mcp_calls: list[dict[str, Any]] = []
                 block_reason: str | None = None
 
