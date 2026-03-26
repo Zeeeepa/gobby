@@ -32,3 +32,5 @@ with contextlib.suppress(ImportError):
     import gobby.communications.adapters.telegram  # noqa: F401
 with contextlib.suppress(ImportError):
     import gobby.communications.adapters.discord  # noqa: F401
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.teams  # noqa: F401
