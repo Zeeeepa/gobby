@@ -485,7 +485,7 @@ export const SessionsTab = memo(function SessionsTab({
               className="session-ctx-item"
               onClick={() => openModal("command", ctxMenu.entry)}
             >
-              Call MCP Tool
+              Send Command
             </button>
             {ctxMenu.entry.hasTmux && (
               <>

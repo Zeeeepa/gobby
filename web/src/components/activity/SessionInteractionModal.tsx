@@ -38,7 +38,7 @@ const MODE_CONFIG: Record<
     placeholder: "Enter context to inject...",
   },
   command: {
-    title: "Call MCP Tool",
+    title: "Send Command",
     description: "Execute an MCP tool against this session's server.",
     placeholder: "",
   },
