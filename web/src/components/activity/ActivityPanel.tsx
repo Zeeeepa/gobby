@@ -326,7 +326,7 @@ export function ActivityPanel({
 }
 
 // Hooks for persisting panel state
-export function useActivityPanel(_isMobile = false) {
+export function useActivityPanel() {
   const [isPinned, setIsPinned] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_PINNED);

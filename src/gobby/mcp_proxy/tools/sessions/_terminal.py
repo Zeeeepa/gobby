@@ -53,7 +53,10 @@ def _resolve_tmux_target(
     if session.terminal_context:
         ctx = session.terminal_context
         if isinstance(ctx, str):
-            ctx = json.loads(ctx)
+            try:
+                ctx = json.loads(ctx)
+            except (json.JSONDecodeError, ValueError):
+                return None, False, f"Session {session_id} has invalid terminal_context JSON"
         # terminal_context may contain tmux_pane or tmux_session
         tmux_target = ctx.get("tmux_pane") or ctx.get("tmux_session")
         if tmux_target:

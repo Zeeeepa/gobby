@@ -64,9 +64,10 @@ export function MemoryFilters({
           <span className="memory-type-chip-count">{recentCount}</span>
         </button>
         {viewMode === 'knowledge' && onKnowledgeGraphLimitChange && (
-          <label className="memory-limit-control" title="Max nodes to display" style={{ marginLeft: 'auto' }}>
+          <label className="memory-limit-control" htmlFor="knowledge-graph-limit" title="Max nodes to display" style={{ marginLeft: 'auto' }}>
             Limit
             <input
+              id="knowledge-graph-limit"
               type="number"
               min={limitMin}
               max={limitMax}

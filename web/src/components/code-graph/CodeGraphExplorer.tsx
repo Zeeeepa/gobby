@@ -114,6 +114,19 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+function getStoredNumber(key: string, defaultVal: number, min?: number, max?: number): number {
+  try {
+    const v = localStorage.getItem(key)
+    const n = Number(v)
+    if (!v || !Number.isFinite(n)) return defaultVal
+    if (min !== undefined && n < min) return defaultVal
+    if (max !== undefined && n > max) return defaultVal
+    return n
+  } catch {
+    return defaultVal
+  }
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
@@ -131,18 +144,10 @@ export function CodeGraphExplorer({ projectId }: CodeGraphExplorerProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [webglError, setWebglError] = useState(false)
   const [showPhysics, setShowPhysics] = useState(false)
-  const [limit, setLimit] = useState(() => {
-    try { const v = localStorage.getItem('gobby-cg-limit'); const n = Number(v); return v && Number.isFinite(n) && n >= CODE_GRAPH_LIMIT_MIN && n <= CODE_GRAPH_LIMIT_MAX ? n : DEFAULT_CODE_GRAPH_LIMIT } catch { return DEFAULT_CODE_GRAPH_LIMIT }
-  })
-  const [charge, setCharge] = useState(() => {
-    try { const v = localStorage.getItem('gobby-cg-charge'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_CHARGE } catch { return DEFAULT_CHARGE }
-  })
-  const [linkDist, setLinkDist] = useState(() => {
-    try { const v = localStorage.getItem('gobby-cg-link-dist'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_LINK_DIST } catch { return DEFAULT_LINK_DIST }
-  })
-  const [centerStrength, setCenterStrength] = useState(() => {
-    try { const v = localStorage.getItem('gobby-cg-center'); const n = Number(v); return v && Number.isFinite(n) ? n : DEFAULT_CENTER } catch { return DEFAULT_CENTER }
-  })
+  const [limit, setLimit] = useState(() => getStoredNumber('gobby-cg-limit', DEFAULT_CODE_GRAPH_LIMIT, CODE_GRAPH_LIMIT_MIN, CODE_GRAPH_LIMIT_MAX))
+  const [charge, setCharge] = useState(() => getStoredNumber('gobby-cg-charge', DEFAULT_CHARGE))
+  const [linkDist, setLinkDist] = useState(() => getStoredNumber('gobby-cg-link-dist', DEFAULT_LINK_DIST))
+  const [centerStrength, setCenterStrength] = useState(() => getStoredNumber('gobby-cg-center', DEFAULT_CENTER))
   const searchDebounceRef = useRef<number | null>(null)
 
   const { fetchFileGraph, expandFile, expandSymbol, fetchBlastRadius, searchSymbols } = useCodeGraph()

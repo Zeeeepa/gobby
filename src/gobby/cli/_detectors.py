@@ -65,7 +65,6 @@ def _is_copilot_cli_installed() -> bool:
             result = subprocess.run(
                 ["gh", "copilot", "--version"],
                 capture_output=True,
-                text=True,
                 timeout=5,
             )
             return result.returncode == 0

@@ -432,17 +432,17 @@ class SemanticToolSearch:
         Returns:
             List of SearchResult sorted by similarity (descending)
         """
-        # Embed the query
-        query_embedding = await self.embed_text(query, is_query=True)
-
-        # Get tool metadata for results
-        tool_info = await asyncio.to_thread(self._get_tool_info_map, project_id, server_filter)
-
         if not self._vector_store:
             logger.warning(
                 f"No VectorStore configured - tool search unavailable for query {query!r}"
             )
             return []
+
+        # Embed the query
+        query_embedding = await self.embed_text(query, is_query=True)
+
+        # Get tool metadata for results
+        tool_info = await asyncio.to_thread(self._get_tool_info_map, project_id, server_filter)
 
         filters: dict[str, str] = {"project_id": project_id}
         if server_filter:

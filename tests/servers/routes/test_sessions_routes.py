@@ -1338,7 +1338,7 @@ class TestStopSession:
         data = response.json()
         assert data["status"] == "stop_signaled"
         assert data["session_id"] == "sess-abc123"
-        assert data["signal_id"] == "sess-abc123"
+        assert "signal_id" not in data
         assert data["reason"] == "External stop request"
 
     def test_stop_signal_empty_body(self, client, mock_hook_manager) -> None:
@@ -1403,7 +1403,7 @@ class TestGetStopSignal:
         data = response.json()
         assert data["has_signal"] is True
         assert data["session_id"] == "sess-abc123"
-        assert data["signal_id"] == "sess-abc123"
+        assert "signal_id" not in data
         assert data["acknowledged"] is False
         assert data["acknowledged_at"] is None
 

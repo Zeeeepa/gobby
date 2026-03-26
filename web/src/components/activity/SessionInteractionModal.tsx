@@ -83,7 +83,18 @@ async function callTool(
     }),
   });
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    let detail = response.statusText;
+    try {
+      const body = await response.json();
+      detail = body.error || body.message || body.detail || JSON.stringify(body);
+    } catch {
+      try {
+        detail = await response.text();
+      } catch {
+        // keep statusText
+      }
+    }
+    throw new Error(`HTTP ${response.status}: ${detail}`);
   }
   return response.json();
 }

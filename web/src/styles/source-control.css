@@ -1031,7 +1031,7 @@
   font-size: 0.8rem;
   color: var(--text-secondary);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
   margin: 0;
   font-family: var(--font-sans);
   line-height: 1.5;
