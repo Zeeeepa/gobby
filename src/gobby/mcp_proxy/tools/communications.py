@@ -1,156 +1,132 @@
-"""Internal MCP tools for Communications."""
+from typing import Any, Literal
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Any
-
+from gobby.communications.manager import CommunicationsManager
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-
-if TYPE_CHECKING:
-    from gobby.communications.manager import CommunicationsManager
-
-__all__ = ["create_communications_registry"]
 
 
 def create_communications_registry(
-    comms_manager: CommunicationsManager,
+    communications_manager: CommunicationsManager,
 ) -> InternalToolRegistry:
-    """Create a registry for communications identity tools."""
+    """Create a registry with communication tools."""
     registry = InternalToolRegistry(
         name="gobby-communications",
-        description="Tools for managing communication channels and external user identities.",
+        description="Tools for interacting with external communication channels (e.g., Slack, Discord, Email) - send_message, list_channels, get_messages, add_channel, remove_channel",
     )
 
-    @registry.tool(
-        name="link_identity",
-        description="Manually link an external user identity to a Gobby session. If the identity does not exist, it will be created.",
-    )
-    async def link_identity(
+    @registry.tool(description="Send a message to a communication channel.")
+    async def send_message(
         channel: str,
-        external_user_id: str,
-        session_id: str,
-        external_username: str | None = None,
+        content: str,
+        session_id: str | None = None,
+        thread_id: str | None = None,
+        content_type: str = "text",
     ) -> dict[str, Any]:
-        """
-        Manually link an external user on a channel to a Gobby session.
-
-        Args:
-            channel: Channel name or ID.
-            external_user_id: The external user's unique ID on that channel.
-            session_id: The Gobby session ID to link.
-            external_username: Optional username to store with the identity.
-        """
+        """Send a message via the CommunicationsManager."""
         try:
-            # Check if channel exists (as name or ID)
-            channel_config = comms_manager._channel_by_name.get(channel)
-            if not channel_config:
-                channels = comms_manager._store.list_channels(enabled_only=False)
-                channel_config = next((c for c in channels if c.id == channel), None)
+            metadata = None
+            if thread_id or content_type != "text":
+                metadata = {}
+                if thread_id:
+                    metadata["thread_id"] = thread_id
+                if content_type != "text":
+                    metadata["content_type"] = content_type
 
-            if not channel_config:
-                return {"success": False, "error": f"Channel {channel!r} not found"}
-
-            # Resolve identity and update session
-            identity = comms_manager._store.get_identity_by_external(
-                channel_config.id, external_user_id
+            msg = await communications_manager.send_message(
+                channel_name=channel,
+                content=content,
+                session_id=session_id,
+                metadata=metadata,
             )
-
-            if identity:
-                identity.session_id = session_id
-                if external_username:
-                    identity.external_username = external_username
-                comms_manager._store.update_identity(identity)
-            else:
-                from gobby.communications.models import CommsIdentity
-
-                identity = CommsIdentity(
-                    id="",
-                    channel_id=channel_config.id,
-                    external_user_id=external_user_id,
-                    external_username=external_username,
-                    session_id=session_id,
-                    created_at="",
-                    updated_at="",
-                )
-                identity = comms_manager._store.create_identity(identity)
-
-            return {"success": True, "identity_id": identity.id}
+            return {"success": True, "message_id": msg.id}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    @registry.tool(
-        name="list_identities",
-        description="List external user identities. Can filter by session or channel.",
-    )
-    async def list_identities(
-        session_id: str | None = None,
-        channel: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        List external user identities with optional filters.
+    @registry.tool(description="List configured communication channels and their status.")
+    def list_channels() -> dict[str, Any]:
+        """List all configured communication channels."""
+        try:
+            channels = communications_manager._store.list_channels()
+            result = []
+            for ch in channels:
+                status = communications_manager.get_channel_status(ch.name)
+                result.append(
+                    {
+                        "id": ch.id,
+                        "name": ch.name,
+                        "type": ch.channel_type,
+                        "enabled": ch.enabled,
+                        "status": status,
+                    }
+                )
+            return {"success": True, "channels": result}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
-        Args:
-            session_id: Filter by linked session ID.
-            channel: Filter by channel name or ID.
-        """
+    @registry.tool(description="Get message history for a channel.")
+    def get_messages(
+        channel: str | None = None,
+        session_id: str | None = None,
+        direction: Literal["inbound", "outbound"] | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """Query message history."""
         try:
             channel_id = None
             if channel:
-                channel_config = comms_manager._channel_by_name.get(channel)
-                if not channel_config:
-                    channels = comms_manager._store.list_channels(enabled_only=False)
-                    channel_config = next((c for c in channels if c.id == channel), None)
-                if not channel_config:
-                    return {"success": False, "error": f"Channel {channel!r} not found"}
-                channel_id = channel_config.id
+                ch = communications_manager._store.get_channel_by_name(channel)
+                if ch:
+                    channel_id = ch.id
+                else:
+                    return {"success": False, "error": f"Channel '{channel}' not found"}
 
-            identities = comms_manager._store.list_identities(channel_id=channel_id)
-
-            if session_id:
-                identities = [i for i in identities if i.session_id == session_id]
-
-            results = []
-            for i in identities:
-                results.append(
+            messages = communications_manager._store.list_messages(
+                channel_id=channel_id,
+                session_id=session_id,
+                direction=direction,
+                limit=limit,
+            )
+            return {
+                "success": True,
+                "messages": [
                     {
-                        "id": i.id,
-                        "channel_id": i.channel_id,
-                        "external_user_id": i.external_user_id,
-                        "external_username": i.external_username,
-                        "session_id": i.session_id,
-                        "created_at": i.created_at,
+                        "id": m.id,
+                        "channel_id": m.channel_id,
+                        "direction": m.direction,
+                        "content": m.content,
+                        "created_at": m.created_at,
+                        "session_id": m.session_id,
                     }
-                )
-
-            return {"success": True, "identities": results, "count": len(results)}
+                    for m in messages
+                ],
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    @registry.tool(
-        name="unlink_identity",
-        description="Remove the session link from an external identity.",
-    )
-    async def unlink_identity(
-        identity_id: str,
+    @registry.tool(description="Add a new communication channel.")
+    async def add_channel(
+        channel_type: str,
+        name: str,
+        config: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Unlink a session from an external user identity.
-
-        Args:
-            identity_id: The Gobby internal identity ID.
-        """
+        """Add a new communication channel."""
         try:
-            identity = comms_manager._store.get_identity(identity_id)
-            if not identity:
-                return {"success": False, "error": f"Identity {identity_id!r} not found"}
+            ch = await communications_manager.add_channel(
+                channel_type=channel_type,
+                name=name,
+                config=config,
+            )
+            return {"success": True, "channel_id": ch.id}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
-            if not identity.session_id:
-                return {"success": True, "message": "Identity already has no linked session"}
-
-            identity.session_id = None
-            comms_manager._store.update_identity(identity)
-
-            return {"success": True, "message": f"Session unlinked from identity {identity_id}"}
+    @registry.tool(description="Remove a communication channel.")
+    async def remove_channel(
+        name: str,
+    ) -> dict[str, Any]:
+        """Remove a communication channel."""
+        try:
+            await communications_manager.remove_channel(name=name)
+            return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

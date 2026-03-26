@@ -13,6 +13,7 @@ import os
 import signal
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from gobby.cli.utils import get_gobby_home
@@ -149,6 +150,34 @@ async def cleanup_zombie_messages_loop(
             break
         except Exception as e:
             logger.error(f"Error in zombie message cleanup loop: {e}")
+
+
+async def cleanup_comms_messages_loop(
+    db: Any,
+    is_shutdown_requested: Callable[[], bool],
+    retention_days: int = 30,
+) -> None:
+    interval_seconds = 24 * 60 * 60
+
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+            cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+            cutoff_iso = cutoff.isoformat()
+
+            with db.transaction() as conn:
+                cursor = conn.execute(
+                    "DELETE FROM comms_messages WHERE created_at < ?", (cutoff_iso,)
+                )
+                deleted_messages = cursor.rowcount
+
+            if deleted_messages > 0:
+                logger.info(f"Comms message cleanup: removed {deleted_messages} old messages")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in comms message cleanup loop: {e}")
 
 
 async def expire_approval_timeouts_loop(

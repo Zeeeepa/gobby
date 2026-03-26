@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.communications.models import (
@@ -263,6 +264,13 @@ class LocalCommunicationsStore:
 
         rows = self.db.fetchall(sql, tuple(params))
         return [CommsMessage.from_row(dict(row)) for row in rows]
+
+    def delete_messages_before(self, cutoff: datetime) -> int:
+        """Delete messages created before the given cutoff date."""
+        cutoff_iso = cutoff.isoformat()
+        with self.db.transaction() as conn:
+            cursor = conn.execute("DELETE FROM comms_messages WHERE created_at < ?", (cutoff_iso,))
+            return cursor.rowcount
 
     def update_message_status(self, message_id: str, status: str, error: str | None = None) -> None:
         """Update a message's status."""
