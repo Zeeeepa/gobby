@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.communications.adapters import get_adapter_class
-from gobby.communications.models import ChannelConfig, CommsMessage
+from gobby.communications.models import ChannelConfig, CommsIdentity, CommsMessage
 from gobby.communications.polling import PollingManager
 from gobby.communications.rate_limiter import TokenBucketRateLimiter
 from gobby.communications.router import MessageRouter
@@ -271,6 +271,7 @@ class CommunicationsManager:
                 self._store.update_identity(identity)
         else:
             from gobby.communications.models import CommsIdentity
+
             identity = CommsIdentity(
                 id="",
                 channel_id=channel_id,
