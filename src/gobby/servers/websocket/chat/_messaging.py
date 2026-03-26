@@ -332,14 +332,22 @@ class ChatMessagingMixin:
             except Exception as e:
                 logger.debug(f"Failed to persist chat message: {e}")
 
+        # Track the tool_call_id used for the pending_approval message so we
+        # can transition (dismiss) the approval card when the real ToolCallEvent
+        # arrives with the SDK's tool_call_id.
+        pending_approval_id: str | None = None
+
         async def _emit_pending_approval(tool_name: str, arguments: dict[str, Any]) -> None:
             """Emit pending_approval tool_status to the client."""
+            nonlocal pending_approval_id
+            approval_id = f"approval-{uuid4().hex[:8]}"
+            pending_approval_id = approval_id
             await _safe_send(
                 _base_msg(
                     type="tool_status",
                     message_id=assistant_message_id,
                     conversation_id=conversation_id,
-                    tool_call_id=f"approval-{uuid4().hex[:8]}",
+                    tool_call_id=approval_id,
                     status="pending_approval",
                     tool_name=tool_name,
                     arguments=arguments,
@@ -527,6 +535,22 @@ class ChatMessagingMixin:
                     if accumulated_text.strip():
                         await _persist_message(session, "assistant", accumulated_text)
                         accumulated_text = ""
+                    # If there's a pending approval card, transition it so
+                    # the frontend dismisses the approval dialog.
+                    if pending_approval_id is not None:
+                        await _safe_send(
+                            _base_msg(
+                                type="tool_status",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                tool_call_id=pending_approval_id,
+                                status="calling",
+                                tool_name=event.tool_name,
+                                server_name=event.server_name,
+                                arguments=event.arguments,
+                            )
+                        )
+                        pending_approval_id = None
                     # Track pending tool call for persistence on result
                     pending_tool_calls[event.tool_call_id] = {
                         "tool_name": event.tool_name,

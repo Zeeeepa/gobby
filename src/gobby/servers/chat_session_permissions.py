@@ -107,23 +107,55 @@ class ChatSessionPermissionsMixin:
                 await self._on_mode_changed("plan", "agent_requested")
             return PermissionResultAllow(updated_input=input_data)
         if tool_name == "ExitPlanMode":
-            # ExitPlanMode is a CLI-internal tool that the SDK may handle
-            # before this callback fires. Plan approval is now triggered
-            # automatically when the agent writes a plan file (PostToolUse
-            # hook detects .gobby/plans/*.md writes).
-            # If the agent calls it AFTER writing the plan, allow it to
-            # succeed (return success) so the agent finishes its turn.
-            if self._plan_file_path or self._read_plan_file():
+            plan_content = self._plan_file_path or self._read_plan_file()
+            if not plan_content:
+                return PermissionResultDeny(
+                    message=(
+                        "No plan file found. Write your plan to a .gobby/plans/*.md "
+                        "or .claude/plans/*.md file first, then call ExitPlanMode."
+                    )
+                )
+
+            # If already approved (user clicked approve before ExitPlanMode
+            # was called), skip blocking.
+            if self._plan_approved:
                 return PermissionResultAllow(updated_input=input_data)
 
-            # If no plan found, deny with instructions
-            return PermissionResultDeny(
-                message=(
-                    "Plan approval is handled automatically when you write to "
-                    ".gobby/plans/*.md. Do not call ExitPlanMode — just write "
-                    "the plan file and tell the user it is ready for review."
+            # Block until the user approves or rejects the plan in the UI.
+            # The plan_pending_approval broadcast was already sent when the
+            # agent wrote the plan file (PostToolUse hook → _on_plan_ready).
+            # The plan_approval.py handler calls provide_plan_decision() to
+            # unblock this event.
+            self._pending_plan_event = asyncio.Event()
+            self._pending_plan_decision = None
+
+            try:
+                await asyncio.wait_for(self._pending_plan_event.wait(), timeout=600.0)
+            except TimeoutError:
+                self._pending_plan_decision = "approve"
+                logger.warning(
+                    "Plan approval timed out, defaulting to approve",
+                    extra={"conversation_id": self.conversation_id},
                 )
-            )
+
+            decision = self._pending_plan_decision or "approve"
+
+            # Clear pending state
+            self._pending_plan_event = None
+            self._pending_plan_decision = None
+
+            if decision == "approve":
+                self._plan_approved = True
+                self.set_chat_mode("accept_edits")
+                if self._on_mode_changed:
+                    await self._on_mode_changed("accept_edits", "plan_approved")
+                return PermissionResultAllow(updated_input=input_data)
+            else:
+                # request_changes — deny so the agent stays in plan mode
+                feedback = self._plan_feedback or ""
+                return PermissionResultDeny(
+                    message=f"User requested changes to the plan. {feedback}".strip()
+                )
 
         # Plan mode: block write tools until the plan is approved
         if self.chat_mode == "plan" and not self._plan_approved:
@@ -452,9 +484,7 @@ class ChatSessionPermissionsMixin:
             "4. Verification steps",
             "",
             "When your plan is complete, write it to a .gobby/plans/<name>.md file.",
-            "The plan will automatically appear in the user's artifact panel for review.",
-            "After writing the plan, tell the user it is ready for their review and STOP — do not call any more tools.",
-            "Do NOT call ExitPlanMode — plan approval is handled automatically when you write the plan file.",
+            "Then call ExitPlanMode to submit it for user approval. ExitPlanMode will block until the user approves or requests changes.",
         ]
 
         if self._plan_feedback:
