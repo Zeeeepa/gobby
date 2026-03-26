@@ -166,7 +166,7 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                 if rule_event == RuleEvent.STOP:
                     variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
                     logger.debug(
-                        f"STOP gate diagnostics: session_id={session_id}, auto_task_ref={variables.get('auto_task_ref')!r}, stop_attempts={variables['stop_attempts']}, task_claimed={variables.get('task_claimed')}, claimed_tasks={variables.get('claimed_tasks')}, pre_existing_errors_triaged={variables.get('pre_existing_errors_triaged')}, error_triage_blocks={variables.get('error_triage_blocks', 0)}",
+                        f"STOP gate diagnostics: session_id={session_id}, auto_task_ref={variables.get('auto_task_ref')!r}, stop_attempts={variables['stop_attempts']}, task_claimed={variables.get('task_claimed')}, claimed_tasks={variables.get('claimed_tasks')}, pre_existing_errors_triaged={variables.get('pre_existing_errors_triaged')}, error_triage_blocks={variables.get('error_triage_blocks', 0)}, edit_write_pending={variables.get('edit_write_pending')}, tool_block_pending={variables.get('tool_block_pending')}",
                     )
 
                 # 1. Load enabled rules for this event, sorted by priority
@@ -278,9 +278,10 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                             variables["_last_blocked_tool"] = ""
                             variables["consecutive_tool_blocks"] = 0
 
-                            # Clear edit_write_pending on successful edit/write
-                            tool_name_lower = event.data.get("tool_name", "").lower()
-                            if tool_name_lower in EDIT_TOOLS and not is_failure:
+                            # Clear edit_write_pending on any successful tool — tools
+                            # are sequential, so a later success proves the prior
+                            # edit/write completed.  Prevents stale flag false positives.
+                            if variables.get("edit_write_pending"):
                                 _clear_edit_write_state(variables)
                     # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
                     # even when no declarative rules are installed for this event.
@@ -317,9 +318,10 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                         variables["_last_blocked_tool"] = ""
                         variables["consecutive_tool_blocks"] = 0
 
-                        # Clear edit_write_pending on successful edit/write
-                        tool_name_lower = event.data.get("tool_name", "").lower()
-                        if tool_name_lower in EDIT_TOOLS and not is_failure:
+                        # Clear edit_write_pending on any successful tool — tools
+                        # are sequential, so a later success proves the prior
+                        # edit/write completed.  Prevents stale flag false positives.
+                        if variables.get("edit_write_pending"):
                             _clear_edit_write_state(variables)
 
                 # 5. Evaluate rules in priority order
