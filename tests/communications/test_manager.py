@@ -424,3 +424,82 @@ def test_get_channel_status_not_found():
     status = manager.get_channel_status("ghost-channel")
     assert status["status"] == "not_found"
     assert status["active"] is False
+
+
+@pytest.mark.asyncio
+async def test_send_message_propagates_thread_id():
+    """send_message() should include platform_thread_id from thread map."""
+    channel = make_channel(webhook_secret=None)
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_adapter = make_adapter()
+    mock_adapter.send_message.return_value = "out-msg-1"
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    manager._thread_map["test-channel:session-123"] = "thread-456"
+
+    msg = await manager.send_message("test-channel", "Hello reply", session_id="session-123")
+
+    assert msg.platform_thread_id == "thread-456"
+    assert msg.status == "sent"
+
+
+@pytest.mark.asyncio
+async def test_handle_inbound_populates_thread_map_and_handles_reactions():
+    """handle_inbound_messages() should populate thread map and dispatch reactions."""
+    channel = make_channel(webhook_secret=None)
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_identity = CommsIdentity(
+        id="id-1",
+        channel_id="chan-1",
+        external_user_id="user-1",
+        session_id="session-123",
+        created_at="",
+        updated_at="",
+    )
+
+    manager._resolve_identity = AsyncMock(return_value=mock_identity)
+
+    manager.reaction_handler = AsyncMock()
+
+    inbound_msg = CommsMessage(
+        id="msg-1",
+        channel_id="chan-1",
+        direction="inbound",
+        content="Hello",
+        platform_thread_id="thread-456",
+        created_at="",
+        identity_id="user-1",
+    )
+
+    rxn_msg = CommsMessage(
+        id="rxn-1",
+        channel_id="chan-1",
+        direction="inbound",
+        content="+1",
+        platform_message_id="msg-123",
+        content_type="reaction",
+        created_at="",
+        identity_id="user-1",
+    )
+
+    # Needs to be dict with .get("channel_type") so _channel_by_name works, but manager.start() does that
+    mock_adapter = make_adapter()
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    await manager.handle_inbound_messages("test-channel", [inbound_msg, rxn_msg])
+
+    assert manager._thread_map["test-channel:session-123"] == "thread-456"
+
+    # reaction should have called handler
+    manager.reaction_handler.handle_reaction.assert_awaited_once_with(
+        "test-channel", "msg-123", "+1", "user-1"
+    )

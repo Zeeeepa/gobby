@@ -316,6 +316,19 @@ class CommunicationsManager:
 
         stored: list[CommsMessage] = []
         for message in messages:
+            if message.content_type == "reaction":
+                if hasattr(self, "reaction_handler") and self.reaction_handler:
+                    try:
+                        await self.reaction_handler.handle_reaction(
+                            channel_name,
+                            message.platform_message_id,
+                            message.content,
+                            message.identity_id,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to handle reaction: {e}", exc_info=True)
+                continue
+
             # Ensure channel_id is set
             if not message.channel_id:
                 message.channel_id = channel.id

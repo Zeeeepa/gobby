@@ -854,6 +854,13 @@ def init_servers(runner: GobbyRunner) -> None:
 
     set_app_context(services)
 
+    if runner.communications_manager:
+        from gobby.communications.reactions import ReactionHandler
+        from gobby.storage.communications import LocalCommunicationsStore
+
+        comms_store = LocalCommunicationsStore(runner.database)
+        runner.communications_manager.reaction_handler = ReactionHandler(comms_store, services)
+
     # Optionally create CodexAppServerClient for rich event lifecycle
     codex_client = None
     if runner.config.codex_app_server:
