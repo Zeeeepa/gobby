@@ -263,7 +263,8 @@ export const SessionsTab = memo(function SessionsTab({
     (e: React.MouseEvent<HTMLButtonElement>, entry: SessionEntry) => {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
-      setCtxMenu({ x: rect.right, y: rect.top, entry });
+      const menuWidth = 160;
+      setCtxMenu({ x: rect.left - menuWidth, y: rect.top, entry });
     },
     [],
   );
