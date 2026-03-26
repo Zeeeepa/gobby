@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from gobby.config.communications import CommunicationsConfig
     from gobby.storage.communications import LocalCommunicationsStore
     from gobby.storage.secrets import SecretStore
-    from gobby.storage.sessions import SessionStore
+    from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class CommunicationsManager:
         config: CommunicationsConfig,
         store: LocalCommunicationsStore,
         secret_store: SecretStore,
-        session_store: SessionStore,
+        session_store: LocalSessionManager,
     ) -> None:
         """Initialize the communications manager.
 
@@ -227,15 +227,18 @@ class CommunicationsManager:
 
     def _find_cross_channel_identity(self, external_username: str) -> str | None:
         """Search for matching identity on other channels by username pattern."""
-        identities = self._store.find_identities_by_username(external_username)
+        identities = self._store.list_identities()
         for identity in identities:
-            if identity.session_id:
-                return identity.session_id
+            if identity.external_username == external_username and identity.session_id:
+                return str(identity.session_id)
         return None
 
     def _bridge_identity(self, identity_id: str, session_id: str) -> None:
         """Link existing identity to a session."""
-        self._store.update_identity_session(identity_id, session_id)
+        identity = self._store.get_identity(identity_id)
+        if identity:
+            identity.session_id = session_id
+            self._store.update_identity(identity)
 
     async def _resolve_identity(
         self, channel_id: str, external_user_id: str, external_username: str | None = None
