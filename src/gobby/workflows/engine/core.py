@@ -273,16 +273,23 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                             variables["tool_block_pending"] = True
                             self._check_catastrophic_failure(event, variables)
                         else:
+                            # Snapshot before clearing — if a tool just failed,
+                            # a parallel non-edit success shouldn't clear edit state.
+                            had_pending_failure = variables.get("tool_block_pending", False)
+
                             # Clear tool_block_pending on successful tool completion
                             variables["tool_block_pending"] = False
                             variables["_last_blocked_tool"] = ""
                             variables["consecutive_tool_blocks"] = 0
 
-                            # Clear edit_write_pending on any successful tool — tools
-                            # are sequential, so a later success proves the prior
-                            # edit/write completed.  Prevents stale flag false positives.
+                            # Clear edit_write_pending when the successful tool is an
+                            # edit/write, OR when no failure is pending (stale flag).
+                            # Don't clear on non-edit success during a parallel failure
+                            # — the edit wasn't recovered yet.
                             if variables.get("edit_write_pending"):
-                                _clear_edit_write_state(variables)
+                                after_tool_lower = event.data.get("tool_name", "").lower()
+                                if after_tool_lower in EDIT_TOOLS or not had_pending_failure:
+                                    _clear_edit_write_state(variables)
                     # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
                     # even when no declarative rules are installed for this event.
                     _no_rules_ctx = _step_transition_msg or None
@@ -313,16 +320,23 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                         variables["tool_block_pending"] = True
                         self._check_catastrophic_failure(event, variables)
                     else:
+                        # Snapshot before clearing — if a tool just failed,
+                        # a parallel non-edit success shouldn't clear edit state.
+                        had_pending_failure = variables.get("tool_block_pending", False)
+
                         # Clear tool_block_pending on successful tool completion
                         variables["tool_block_pending"] = False
                         variables["_last_blocked_tool"] = ""
                         variables["consecutive_tool_blocks"] = 0
 
-                        # Clear edit_write_pending on any successful tool — tools
-                        # are sequential, so a later success proves the prior
-                        # edit/write completed.  Prevents stale flag false positives.
+                        # Clear edit_write_pending when the successful tool is an
+                        # edit/write, OR when no failure is pending (stale flag).
+                        # Don't clear on non-edit success during a parallel failure
+                        # — the edit wasn't recovered yet.
                         if variables.get("edit_write_pending"):
-                            _clear_edit_write_state(variables)
+                            after_tool_lower = event.data.get("tool_name", "").lower()
+                            if after_tool_lower in EDIT_TOOLS or not had_pending_failure:
+                                _clear_edit_write_state(variables)
 
                 # 5. Evaluate rules in priority order
                 context_parts: list[str] = []
