@@ -350,7 +350,7 @@ export function SessionInteractionModal({
               >
                 <option value="">-- select server --</option>
                 {servers
-                  .filter((s) => s.connected)
+                  .filter((s) => s.state === "connected")
                   .map((s) => (
                     <option key={s.name} value={s.name}>
                       {s.name}
