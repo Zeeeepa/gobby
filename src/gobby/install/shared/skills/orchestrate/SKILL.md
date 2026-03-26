@@ -61,7 +61,7 @@ Collect configuration through 8 sequential prompts. Show the default for each an
 
 Run `git status`. If there are uncommitted changes:
 - Ask: "You have uncommitted changes. Commit them before proceeding? (Y/n)"
-- If yes, use the committing-changes skill to commit everything
+- If yes, use the source-control skill to commit everything
 - If no, warn that uncommitted changes won't be in the worktree/clone
 
 #### Prompt 2: Target Task/Epic

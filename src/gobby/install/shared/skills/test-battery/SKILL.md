@@ -68,7 +68,7 @@ for job in jobs where job.name contains "orchestrator" or "test-battery":
 
 Run `git status`. If there are uncommitted changes:
 - Ask: "You have uncommitted changes. Commit them before proceeding? (Y/n)"
-- If yes, use the committing-changes skill to commit everything
+- If yes, use the source-control skill to commit everything
 - If no, warn that uncommitted changes won't be in the worktree/clone
 
 #### Prompt 3: Target Task/Epic
