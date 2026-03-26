@@ -134,6 +134,15 @@ export function useSessions() {
     fetchSessions();
   }, [fetchSessions]);
 
+  // Clear stale sessions immediately when project filter changes
+  const prevProjectIdRef = useRef(filters.projectId);
+  useEffect(() => {
+    if (filters.projectId !== prevProjectIdRef.current) {
+      prevProjectIdRef.current = filters.projectId;
+      setSessions([]);
+    }
+  }, [filters.projectId]);
+
   // Fetch projects only once on mount
   useEffect(() => {
     fetchProjects();
@@ -151,6 +160,11 @@ export function useSessions() {
   // Client-side filtering and sorting
   const filteredSessions = useMemo(() => {
     let result = sessions;
+
+    // Guard: only show sessions matching the active project filter
+    if (filters.projectId) {
+      result = result.filter((s) => s.project_id === filters.projectId);
+    }
 
     // Client-side search filter
     if (filters.search) {
@@ -171,7 +185,7 @@ export function useSessions() {
     });
 
     return result;
-  }, [sessions, filters.search, filters.sortOrder]);
+  }, [sessions, filters.search, filters.sortOrder, filters.projectId]);
 
   const refresh = useCallback(() => {
     setIsLoading(true);
