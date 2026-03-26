@@ -108,7 +108,7 @@ class TestDeleteSyncsToDisk:
     """Deleting a definition should remove its YAML file."""
 
     def test_delete_removes_yaml(self, tmp_path):
-        from gobby.workflows.template_writer import write_rule_template, delete_template_file
+        from gobby.workflows.template_writer import delete_template_file, write_rule_template
 
         write_rule_template(
             name="doomed-rule",

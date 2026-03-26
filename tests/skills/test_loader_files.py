@@ -2,9 +2,7 @@
 
 from pathlib import Path
 
-
 from gobby.skills.loader import SkillLoader, _classify_file
-
 
 # ===========================================================================
 # 1. Load skill files from directory
@@ -55,7 +53,7 @@ def test_load_skill_files_from_directory(tmp_path: Path) -> None:
     assert ref_file is not None
     assert ref_file.file_type == "reference"
     assert ref_file.content == "# Guide\nSome guidance."
-    assert ref_file.size_bytes == len("# Guide\nSome guidance.".encode())
+    assert ref_file.size_bytes == len(b"# Guide\nSome guidance.")
     assert ref_file.content_hash  # non-empty
 
     script_file = by_path.get("scripts/run.py")
