@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from gobby.config.communications import CommunicationsConfig
     from gobby.storage.communications import LocalCommunicationsStore
     from gobby.storage.secrets import SecretStore
+    from gobby.storage.sessions import SessionStore
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class CommunicationsManager:
         config: CommunicationsConfig,
         store: LocalCommunicationsStore,
         secret_store: SecretStore,
+        session_store: SessionStore,
     ) -> None:
         """Initialize the communications manager.
 
@@ -43,10 +45,12 @@ class CommunicationsManager:
             config: Communications configuration.
             store: Local communications storage manager.
             secret_store: Secret store for resolving $secret: references.
+            session_store: Session store for creating auto-sessions.
         """
         self._config = config
         self._store = store
         self._secret_store = secret_store
+        self._session_store = session_store
         self._adapters: dict[str, BaseChannelAdapter] = {}
         self._channel_by_name: dict[str, ChannelConfig] = {}
         self._rate_limiter = TokenBucketRateLimiter.from_defaults(config.channel_defaults)
@@ -221,6 +225,65 @@ class CommunicationsManager:
 
         return messages
 
+    def _find_cross_channel_identity(self, external_username: str) -> str | None:
+        """Search for matching identity on other channels by username pattern."""
+        identities = self._store.find_identities_by_username(external_username)
+        for identity in identities:
+            if identity.session_id:
+                return identity.session_id
+        return None
+
+    def _bridge_identity(self, identity_id: str, session_id: str) -> None:
+        """Link existing identity to a session."""
+        self._store.update_identity_session(identity_id, session_id)
+
+    async def _resolve_identity(
+        self, channel_id: str, external_user_id: str, external_username: str | None = None
+    ) -> CommsIdentity:
+        """Resolve identity and auto-create/link session if needed."""
+        identity = self._store.get_identity_by_external(channel_id, external_user_id)
+
+        session_id = None
+        if identity and identity.session_id:
+            session_id = identity.session_id
+        elif external_username:
+            session_id = self._find_cross_channel_identity(external_username)
+
+        if not session_id and self._config.auto_create_sessions:
+            session = self._session_store.register(
+                external_id=f"comms:{channel_id}:{external_user_id}",
+                machine_id="comms",
+                source="comms",
+                project_id="",
+                title=f"Comms: {external_username or external_user_id}",
+            )
+            session_id = session.id
+
+        if identity:
+            needs_update = False
+            if session_id and identity.session_id != session_id:
+                identity.session_id = session_id
+                needs_update = True
+            if external_username and identity.external_username != external_username:
+                identity.external_username = external_username
+                needs_update = True
+            if needs_update:
+                self._store.update_identity(identity)
+        else:
+            from gobby.communications.models import CommsIdentity
+            identity = CommsIdentity(
+                id="",
+                channel_id=channel_id,
+                external_user_id=external_user_id,
+                external_username=external_username,
+                session_id=session_id,
+                created_at="",
+                updated_at="",
+            )
+            identity = self._store.create_identity(identity)
+
+        return identity
+
     async def handle_inbound_messages(
         self, channel_name: str, messages: list[CommsMessage]
     ) -> list[CommsMessage]:
@@ -248,10 +311,12 @@ class CommunicationsManager:
 
             # Resolve identity: if identity_id looks like an external_user_id, resolve it
             if message.identity_id:
-                identity = self._store.get_identity_by_external(channel.id, message.identity_id)
-                if identity:
-                    message.session_id = identity.session_id
-                    message.identity_id = identity.id
+                external_username = message.metadata_json.get("external_username")
+                identity = await self._resolve_identity(
+                    channel.id, message.identity_id, external_username
+                )
+                message.session_id = identity.session_id
+                message.identity_id = identity.id
 
             # Store message
             try:

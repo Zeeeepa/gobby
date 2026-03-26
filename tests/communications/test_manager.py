@@ -81,7 +81,7 @@ async def test_start_loads_channels():
     secret_store = make_secret_store()
     config = make_config()
 
-    manager = CommunicationsManager(config, store, secret_store)
+    manager = CommunicationsManager(config, store, secret_store, MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -99,7 +99,7 @@ async def test_start_skips_unknown_adapter():
     """start() logs error but continues if adapter type is unknown."""
     channel = make_channel(channel_type="unknown_type")
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     with patch("gobby.communications.manager.get_adapter_class", return_value=None):
         await manager.start()
@@ -112,7 +112,7 @@ async def test_stop_shuts_down_all_adapters():
     """stop() calls shutdown on all active adapters and clears state."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -132,7 +132,7 @@ async def test_send_message_success():
     """send_message() sends and stores message, returns CommsMessage."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -154,7 +154,7 @@ async def test_send_message_success():
 async def test_send_message_unknown_channel_raises():
     """send_message() raises ValueError for unknown channel."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     with pytest.raises(ValueError, match="not found or not active"):
         await manager.send_message("no-such-channel", "Hello!")
@@ -165,7 +165,7 @@ async def test_send_message_adapter_failure_marks_failed():
     """send_message() marks message failed if adapter raises."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter.send_message = AsyncMock(side_effect=RuntimeError("network error"))
@@ -186,7 +186,7 @@ async def test_send_message_fires_event_callback():
     """send_message() fires event_callback after send."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -211,7 +211,7 @@ async def test_send_event_routes_to_channels():
     """send_event() uses router to find channels and sends to each."""
     channel = make_channel(channel_id="chan-1")
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -232,7 +232,7 @@ async def test_send_event_routes_to_channels():
 async def test_send_event_skips_inactive_channels():
     """send_event() skips channel IDs that don't have active adapters."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     manager._router.match_channels = AsyncMock(return_value=["chan-inactive"])  # type: ignore[method-assign]
 
@@ -245,7 +245,7 @@ async def test_handle_inbound_stores_messages():
     """handle_inbound() parses and stores messages."""
     channel = make_channel(webhook_secret=None)
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     parsed_msg = CommsMessage(
         id="msg-1",
@@ -274,7 +274,7 @@ async def test_handle_inbound_webhook_verification_failure():
     """handle_inbound() raises ValueError if webhook signature fails."""
     channel = make_channel(webhook_secret="mysecret")
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter.verify_webhook.return_value = False
@@ -316,7 +316,7 @@ async def test_handle_inbound_resolves_identity():
     mock_adapter.parse_webhook.return_value = [parsed_msg]
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
 
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
         await manager.start()
@@ -330,7 +330,7 @@ async def test_handle_inbound_resolves_identity():
 async def test_add_channel_creates_and_initializes():
     """add_channel() saves to DB and initializes adapter."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter(channel_type="slack")
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -349,7 +349,7 @@ async def test_remove_channel_shuts_down_and_deletes():
     """remove_channel() shuts down adapter and deletes from DB."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -368,7 +368,7 @@ async def test_remove_channel_shuts_down_and_deletes():
 async def test_remove_channel_not_found_noop():
     """remove_channel() is a no-op for unknown channel names."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     # Should not raise
     await manager.remove_channel("nonexistent")
@@ -380,7 +380,7 @@ def test_list_channels():
     channels = [make_channel("ch1"), make_channel("ch2", channel_id="chan-2")]
     store = make_store(channels)
     store.list_channels.return_value = channels
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     result = manager.list_channels()
     assert len(result) == 2
@@ -391,7 +391,7 @@ def test_get_channel_status_active():
     """get_channel_status() returns active status for running adapter."""
     channel = make_channel()
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     manager._adapters["test-channel"] = mock_adapter
@@ -408,7 +408,7 @@ def test_get_channel_status_inactive():
     channel = make_channel()
     store = make_store()
     store.list_channels.return_value = [channel]
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     status = manager.get_channel_status("test-channel")
     assert status["status"] == "inactive"
@@ -419,7 +419,7 @@ def test_get_channel_status_not_found():
     """get_channel_status() returns not_found for unknown channel."""
     store = make_store()
     store.list_channels.return_value = []
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     status = manager.get_channel_status("ghost-channel")
     assert status["status"] == "not_found"

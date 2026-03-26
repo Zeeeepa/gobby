@@ -170,7 +170,7 @@ class HTTPServer:
             pipeline_execution_manager=services.pipeline_execution_manager,
             hook_manager_resolver=lambda: services.hook_manager,
             config_store=services.config_store,
-            config_setter=config_setter,
+            config_setter=lambda c: setattr(services, "config", c),
             memory_sync_manager=services.memory_sync_manager,
             completion_registry=services.completion_registry,
             cron_scheduler=services.cron_scheduler,

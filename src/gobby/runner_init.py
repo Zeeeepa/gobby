@@ -798,6 +798,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
                 config=runner.config.communications,
                 store=comms_store,
                 secret_store=runner.secret_store,
+                session_store=runner.session_store,
             )
             logger.debug("CommunicationsManager initialized")
         except Exception as e:
