@@ -161,7 +161,7 @@ class CommunicationsManager:
 
         # Store in DB
         try:
-            self._store.save_message(message)
+            self._store.create_message(message)
         except Exception as e:
             logger.error(f"Failed to store outbound message: {e}", exc_info=True)
 
@@ -257,14 +257,14 @@ class CommunicationsManager:
 
             # Resolve identity: if identity_id looks like an external_user_id, resolve it
             if message.identity_id:
-                identity = self._store.get_identity(channel.id, message.identity_id)
+                identity = self._store.get_identity_by_external(channel.id, message.identity_id)
                 if identity:
                     message.session_id = identity.session_id
                     message.identity_id = identity.id
 
             # Store message
             try:
-                self._store.save_message(message)
+                self._store.create_message(message)
                 stored.append(message)
             except Exception as e:
                 logger.error(f"Failed to store inbound message: {e}")
@@ -310,7 +310,7 @@ class CommunicationsManager:
         )
 
         # Save to DB
-        self._store.save_channel(channel_config)
+        self._store.create_channel(channel_config)
 
         # Initialize adapter
         try:

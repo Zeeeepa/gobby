@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -192,7 +193,7 @@ async def test_send_message_fires_event_callback():
 
     callback_events = []
 
-    async def cb(event_type: str, **kwargs):
+    async def cb(event_type: str, **kwargs: Any) -> None:
         callback_events.append((event_type, kwargs))
 
     with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
@@ -219,7 +220,7 @@ async def test_send_event_routes_to_channels():
         await manager.start()
 
     # Mock router to return our channel id
-    manager._router.match_channels = AsyncMock(return_value=["chan-1"])
+    manager._router.match_channels = AsyncMock(return_value=["chan-1"])  # type: ignore[method-assign]
 
     msgs = await manager.send_event("task.created", "A task was created!")
 
@@ -233,7 +234,7 @@ async def test_send_event_skips_inactive_channels():
     store = make_store()
     manager = CommunicationsManager(make_config(), store, make_secret_store())
 
-    manager._router.match_channels = AsyncMock(return_value=["chan-inactive"])
+    manager._router.match_channels = AsyncMock(return_value=["chan-inactive"])  # type: ignore[method-assign]
 
     msgs = await manager.send_event("task.created", "Hello!")
     assert msgs == []
