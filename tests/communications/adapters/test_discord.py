@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,7 +26,7 @@ def channel_config() -> ChannelConfig:
 
 
 @pytest.fixture
-def secret_resolver() -> MagicMock:
+def secret_resolver() -> Callable[[str], str | None]:
     def resolver(key: str) -> str | None:
         if key == "$secret:DISCORD_BOT_TOKEN":
             return "test-discord-token"
@@ -41,7 +42,9 @@ def adapter() -> DiscordAdapter:
 
 @pytest.mark.asyncio
 async def test_initialize_success(
-    adapter: DiscordAdapter, channel_config: ChannelConfig, secret_resolver: MagicMock
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
 ) -> None:
     # Disable gateway so it doesn't spin up tasks in unit test
     channel_config.config_json["enable_gateway"] = False
@@ -57,13 +60,17 @@ async def test_initialize_success(
 async def test_initialize_missing_token(
     adapter: DiscordAdapter, channel_config: ChannelConfig
 ) -> None:
-    with pytest.raises(ValueError, match="Could not resolve Discord bot token: \\$secret:DISCORD_BOT_TOKEN"):
+    with pytest.raises(
+        ValueError, match="Could not resolve Discord bot token: \\$secret:DISCORD_BOT_TOKEN"
+    ):
         await adapter.initialize(channel_config, lambda x: None)
 
 
 @pytest.mark.asyncio
 async def test_send_message_success(
-    adapter: DiscordAdapter, channel_config: ChannelConfig, secret_resolver: MagicMock
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
 ) -> None:
     channel_config.config_json["enable_gateway"] = False
     await adapter.initialize(channel_config, secret_resolver)

@@ -95,9 +95,9 @@ class DiscordAdapter(BaseChannelAdapter):
         try:
             while True:
                 try:
-                    async with websockets.client.connect(
+                    async with websockets.client.connect(  # type: ignore[attr-defined]
                         "wss://gateway.discord.gg/?v=10&encoding=json"
-                    ) as ws:  # type: ignore[attr-defined]
+                    ) as ws:
                         # Send IDENTIFY
                         identify_payload = {
                             "op": 2,

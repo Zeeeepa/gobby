@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.communications.adapters import get_adapter_class
 from gobby.communications.models import ChannelConfig, CommsMessage
+from gobby.communications.polling import PollingManager
 from gobby.communications.rate_limiter import TokenBucketRateLimiter
 from gobby.communications.router import MessageRouter
 
@@ -50,6 +51,7 @@ class CommunicationsManager:
         self._channel_by_name: dict[str, ChannelConfig] = {}
         self._rate_limiter = TokenBucketRateLimiter.from_defaults(config.channel_defaults)
         self._router = MessageRouter(store)
+        self._polling_manager = PollingManager(self)
         self.event_callback: Callable[..., Any] | None = None
 
     async def start(self) -> None:
@@ -70,6 +72,12 @@ class CommunicationsManager:
                     self._config.channel_defaults.burst,
                 )
                 self._rate_limiter.configure_channel(channel.id, int(rate), int(burst))
+
+                # Start polling if supported and no webhook URL configured
+                if adapter.supports_polling and not self._config.webhook_base_url:
+                    interval = channel.config_json.get("poll_interval")
+                    self._polling_manager.start_polling(channel.name, adapter, interval)
+
                 logger.info(
                     f"Communications: initialized channel {channel.name!r} ({channel.channel_type})",
                 )
@@ -79,6 +87,7 @@ class CommunicationsManager:
 
     async def stop(self) -> None:
         """Shutdown all adapters and clear state."""
+        self._polling_manager.stop_all()
         for name, adapter in list(self._adapters.items()):
             try:
                 await adapter.shutdown()
@@ -212,6 +221,55 @@ class CommunicationsManager:
 
         return messages
 
+    async def handle_inbound_messages(
+        self, channel_name: str, messages: list[CommsMessage]
+    ) -> list[CommsMessage]:
+        """Process, resolve identity, and store a list of inbound messages.
+
+        Args:
+            channel_name: Name of the channel the messages came from.
+            messages: List of parsed CommsMessage objects.
+
+        Returns:
+            List of stored CommsMessages.
+
+        Raises:
+            ValueError: If channel is not found or not active.
+        """
+        channel = self._channel_by_name.get(channel_name)
+        if channel is None:
+            raise ValueError(f"Channel {channel_name!r} not found or not active")
+
+        stored: list[CommsMessage] = []
+        for message in messages:
+            # Ensure channel_id is set
+            if not message.channel_id:
+                message.channel_id = channel.id
+
+            # Resolve identity: if identity_id looks like an external_user_id, resolve it
+            if message.identity_id:
+                identity = self._store.get_identity_by_external(channel.id, message.identity_id)
+                if identity:
+                    message.session_id = identity.session_id
+                    message.identity_id = identity.id
+
+            # Store message
+            try:
+                self._store.create_message(message)
+                stored.append(message)
+            except Exception as e:
+                logger.error(f"Failed to store inbound message: {e}")
+
+        # Fire event callback for each stored message
+        if self.event_callback is not None:
+            for msg in stored:
+                try:
+                    await self.event_callback("comms.message_received", message=msg)
+                except Exception as e:
+                    logger.debug(f"Event callback error on handle_inbound_messages: {e}")
+
+        return stored
+
     async def handle_inbound(
         self,
         channel_name: str,
@@ -249,35 +307,7 @@ class CommunicationsManager:
         payload_for_parse: dict[str, Any] | bytes = payload
         parsed: list[CommsMessage] = adapter.parse_webhook(payload_for_parse, headers)
 
-        stored: list[CommsMessage] = []
-        for message in parsed:
-            # Ensure channel_id is set
-            if not message.channel_id:
-                message.channel_id = channel.id
-
-            # Resolve identity: if identity_id looks like an external_user_id, resolve it
-            if message.identity_id:
-                identity = self._store.get_identity_by_external(channel.id, message.identity_id)
-                if identity:
-                    message.session_id = identity.session_id
-                    message.identity_id = identity.id
-
-            # Store message
-            try:
-                self._store.create_message(message)
-                stored.append(message)
-            except Exception as e:
-                logger.error(f"Failed to store inbound message: {e}")
-
-        # Fire event callback for each stored message
-        if self.event_callback is not None:
-            for msg in stored:
-                try:
-                    await self.event_callback("comms.message_received", message=msg)
-                except Exception as e:
-                    logger.debug(f"Event callback error on handle_inbound: {e}")
-
-        return stored
+        return await self.handle_inbound_messages(channel_name, parsed)
 
     async def add_channel(
         self,
@@ -327,6 +357,12 @@ class CommunicationsManager:
                 self._config.channel_defaults.burst,
             )
             self._rate_limiter.configure_channel(channel_config.id, int(rate), int(burst))
+
+            # Also start polling if newly added channel supports it
+            if adapter.supports_polling and not self._config.webhook_base_url:
+                interval = channel_config.config_json.get("poll_interval")
+                self._polling_manager.start_polling(name, adapter, interval)
+
             logger.info(f"Added channel {name!r} ({channel_type})")
         except Exception as e:
             logger.error(f"Failed to initialize adapter for new channel {name!r}: {e}")
@@ -343,6 +379,7 @@ class CommunicationsManager:
         channel = self._channel_by_name.pop(name, None)
 
         if adapter is not None:
+            self._polling_manager.stop_polling(name)
             try:
                 await adapter.shutdown()
             except Exception as e:
@@ -385,6 +422,7 @@ class CommunicationsManager:
                 "enabled": channel.enabled,
                 "supports_webhooks": adapter.supports_webhooks,
                 "supports_polling": adapter.supports_polling,
+                "is_polling": self._polling_manager.is_polling(name),
             }
 
         # Channel not active — check DB
