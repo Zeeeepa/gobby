@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import json
 import logging
 import threading
 from copy import deepcopy
@@ -153,6 +154,31 @@ class WorkflowHookHandler:
                             break
                 except Exception as e:
                     logger.debug(f"Could not inject current_step from workflow instance: {e}")
+
+            # Lazy-init variable presets for sessions that started before gobby init.
+            # Mirrors the baseline_dirty_files pattern below — one-time DB hit per session.
+            if "_variable_defaults_loaded" not in variables and event.project_id:
+                try:
+                    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+                    def_manager = LocalWorkflowDefinitionManager(self.rule_engine.db)
+                    enabled_variables = [
+                        v for v in def_manager.list_all(workflow_type="variable") if v.enabled
+                    ]
+                    defaults: dict[str, Any] = {}
+                    for var_row in enabled_variables:
+                        try:
+                            var_body = json.loads(var_row.definition_json)
+                            if var_row.name not in variables:
+                                defaults[var_row.name] = var_body.get("value")
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
+                    defaults["_variable_defaults_loaded"] = True
+                    variables.update(defaults)
+                    if self._session_var_manager and session_id:
+                        self._session_var_manager.merge_variables(session_id, defaults)
+                except Exception as e:
+                    logger.debug(f"Could not lazy-load variable defaults: {e}")
 
             from gobby.workflows.git_utils import get_dirty_files_categorized
             from gobby.workflows.safe_evaluator import LazyBool
