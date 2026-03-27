@@ -130,4 +130,66 @@ def create_communications_registry(
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    @registry.tool(description="Manually link an external user to a Gobby session.")
+    def link_identity(channel: str, external_user_id: str, session_id: str) -> dict[str, Any]:
+        """Link an external user to a Gobby session."""
+        try:
+            ch = communications_manager._store.get_channel_by_name(channel)
+            if not ch:
+                return {"success": False, "error": f"Channel '{channel}' not found"}
+
+            identity = communications_manager._store.get_identity_by_external(
+                ch.id, external_user_id
+            )
+            if not identity:
+                return {"success": False, "error": f"Identity for '{external_user_id}' not found"}
+
+            communications_manager._store.update_identity_session(identity.id, session_id)
+            return {"success": True, "identity_id": identity.id}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(description="List identity mappings with optional filters.")
+    def list_identities(
+        session_id: str | None = None, channel: str | None = None
+    ) -> dict[str, Any]:
+        """List identity mappings with optional filters."""
+        try:
+            channel_id = None
+            if channel:
+                ch = communications_manager._store.get_channel_by_name(channel)
+                if ch:
+                    channel_id = ch.id
+                else:
+                    return {"success": False, "error": f"Channel '{channel}' not found"}
+
+            identities = communications_manager._store.list_identities(channel_id=channel_id)
+            if session_id:
+                identities = [i for i in identities if i.session_id == session_id]
+
+            return {
+                "success": True,
+                "identities": [
+                    {
+                        "id": i.id,
+                        "channel_id": i.channel_id,
+                        "external_user_id": i.external_user_id,
+                        "external_username": i.external_username,
+                        "session_id": i.session_id,
+                    }
+                    for i in identities
+                ],
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(description="Remove session link from an identity.")
+    def unlink_identity(identity_id: str) -> dict[str, Any]:
+        """Remove session link from an identity."""
+        try:
+            communications_manager._store.update_identity_session(identity_id, None)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     return registry

@@ -215,7 +215,7 @@ class EmailAdapter(BaseChannelAdapter):
     def capabilities(self) -> ChannelCapabilities:
         """Return channel capabilities."""
         return ChannelCapabilities(
-            threading=False,
+            threading=True,
             reactions=False,
             files=True,
             markdown=False,

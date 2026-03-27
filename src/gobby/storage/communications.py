@@ -165,6 +165,20 @@ class LocalCommunicationsStore:
         rows = self.db.fetchall(sql, tuple(params))
         return [CommsIdentity.from_row(dict(row)) for row in rows]
 
+    def find_identities_by_username(self, username: str) -> list[CommsIdentity]:
+        """Find identities across all channels by external username."""
+        sql = "SELECT * FROM comms_identities WHERE external_username = ?"
+        rows = self.db.fetchall(sql, (username,))
+        return [CommsIdentity.from_row(dict(row)) for row in rows]
+
+    def update_identity_session(self, identity_id: str, session_id: str | None) -> None:
+        """Link or unlink an identity to a session."""
+        with self.db.transaction() as conn:
+            conn.execute(
+                "UPDATE comms_identities SET session_id = ? WHERE id = ?",
+                (session_id, identity_id),
+            )
+
     def update_identity(self, identity: CommsIdentity) -> CommsIdentity:
         """Update an existing identity."""
         with self.db.transaction() as conn:

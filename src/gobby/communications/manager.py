@@ -234,9 +234,9 @@ class CommunicationsManager:
 
     def _find_cross_channel_identity(self, external_username: str) -> str | None:
         """Search for matching identity on other channels by username pattern."""
-        identities = self._store.list_identities()
+        identities = self._store.find_identities_by_username(external_username)
         for identity in identities:
-            if identity.external_username == external_username and identity.session_id:
+            if identity.session_id:
                 return str(identity.session_id)
         return None
 

@@ -202,6 +202,32 @@ class DiscordAdapter(BaseChannelAdapter):
             # so we'd normally just return empty and let router handle ping
             return messages
 
+        # Handle MESSAGE_REACTION_ADD events
+        event_type = payload_dict.get("t")
+        if event_type == "MESSAGE_REACTION_ADD":
+            d = payload_dict.get("d", {})
+            user_id = d.get("user_id")
+            channel_id = d.get("channel_id")
+            msg_id = d.get("message_id")
+            emoji = d.get("emoji", {})
+            reaction = emoji.get("name", "")
+
+            if channel_id and reaction and msg_id:
+                messages.append(
+                    CommsMessage(
+                        id=f"discord_rxn_{msg_id}_{time.time()}",
+                        channel_id=channel_id,
+                        direction="inbound",
+                        content=reaction,
+                        created_at=datetime.now().isoformat(),
+                        identity_id=user_id,
+                        platform_message_id=msg_id,
+                        content_type="reaction",
+                        metadata_json=d,
+                    )
+                )
+            return messages
+
         # Interaction type or MESSAGE_CREATE structure
         data = payload_dict.get("data", {})
 
@@ -213,6 +239,14 @@ class DiscordAdapter(BaseChannelAdapter):
         user_id = author.get("id")
         channel_id = payload_dict.get("channel_id")
         msg_id = payload_dict.get("id") or msg_data.get("id")
+        # Extract thread ID from message reference or thread metadata
+        thread_id = None
+        message_reference = payload_dict.get("message_reference")
+        if message_reference:
+            thread_id = message_reference.get("channel_id")
+        thread_meta = payload_dict.get("thread")
+        if thread_meta:
+            thread_id = thread_meta.get("id")
 
         if channel_id and content:
             messages.append(
@@ -224,6 +258,7 @@ class DiscordAdapter(BaseChannelAdapter):
                     created_at=datetime.now().isoformat(),
                     identity_id=user_id,
                     platform_message_id=msg_id,
+                    platform_thread_id=thread_id,
                     content_type="text",
                     metadata_json=payload_dict,
                 )
