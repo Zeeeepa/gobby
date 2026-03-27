@@ -798,6 +798,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
                 config=runner.config.communications,
                 store=comms_store,
                 secret_store=runner.secret_store,
+                session_store=runner.session_manager,
             )
             logger.debug("CommunicationsManager initialized")
         except Exception as e:
@@ -852,6 +853,13 @@ def init_servers(runner: GobbyRunner) -> None:
     )
 
     set_app_context(services)
+
+    if runner.communications_manager:
+        from gobby.communications.reactions import ReactionHandler
+        from gobby.storage.communications import LocalCommunicationsStore
+
+        comms_store = LocalCommunicationsStore(runner.database)
+        runner.communications_manager.reaction_handler = ReactionHandler(comms_store, services)
 
     # Optionally create CodexAppServerClient for rich event lifecycle
     codex_client = None
@@ -912,6 +920,7 @@ def init_servers(runner: GobbyRunner) -> None:
         # Register agent event callback for WebSocket broadcasting
         from gobby.runner_broadcasting import (
             setup_agent_event_broadcasting,
+            setup_communications_event_broadcasting,
             setup_cron_event_broadcasting,
             setup_pipeline_event_broadcasting,
         )
@@ -925,3 +934,10 @@ def init_servers(runner: GobbyRunner) -> None:
         # Register cron event callback for WebSocket broadcasting
         if runner.cron_scheduler:
             setup_cron_event_broadcasting(runner.websocket_server, runner.cron_scheduler)
+
+        # Register communications event callback for WebSocket broadcasting
+        if runner.communications_manager:
+            setup_communications_event_broadcasting(
+                runner.websocket_server,
+                runner.communications_manager,
+            )

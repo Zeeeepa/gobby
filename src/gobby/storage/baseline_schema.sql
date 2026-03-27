@@ -1016,6 +1016,18 @@ CREATE TABLE comms_routing_rules (
 CREATE INDEX idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
 CREATE INDEX idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);
 
+CREATE TABLE comms_attachments (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL REFERENCES comms_messages(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    local_path TEXT,
+    platform_url TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_attachments_message ON comms_attachments(message_id);
+
 CREATE TABLE metrics_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_type TEXT NOT NULL,

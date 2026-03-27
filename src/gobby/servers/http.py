@@ -168,13 +168,14 @@ class HTTPServer:
             pipeline_executor=services.pipeline_executor,
             workflow_loader=services.workflow_loader,
             pipeline_execution_manager=services.pipeline_execution_manager,
-            hook_manager_resolver=lambda: getattr(self, "_hook_manager", None),
+            hook_manager_resolver=lambda: services.hook_manager,
             config_store=services.config_store,
             config_setter=lambda c: setattr(services, "config", c),
             memory_sync_manager=services.memory_sync_manager,
             completion_registry=services.completion_registry,
             cron_scheduler=services.cron_scheduler,
-            transcript_reader=transcript_reader,
+            transcript_reader=services.transcript_reader,
+            communications_manager=services.communications_manager,
         )
         # Wire code index registry if code_indexer is available
         code_indexer = getattr(services, "code_indexer", None)

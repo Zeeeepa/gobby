@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 async def run_daemon(runner: GobbyRunner) -> None:
     """Main daemon startup, event loop, and shutdown sequence."""
     from gobby.runner_maintenance import (
+        cleanup_comms_messages_loop,
         cleanup_pid_file,
         cleanup_zombie_messages_loop,
         expire_approval_timeouts_loop,
@@ -179,6 +180,12 @@ async def run_daemon(runner: GobbyRunner) -> None:
         runner._zombie_messages_task = asyncio.create_task(
             cleanup_zombie_messages_loop(runner.database, lambda: runner._shutdown_requested),
             name="zombie-message-cleanup",
+        )
+
+        # Start periodic comms message cleanup
+        runner._comms_messages_task = asyncio.create_task(
+            cleanup_comms_messages_loop(runner.database, lambda: runner._shutdown_requested),
+            name="comms-message-cleanup",
         )
 
         # Start code index maintenance loop

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,10 +43,10 @@ def make_store(channels: list[ChannelConfig] | None = None) -> MagicMock:
     store = MagicMock()
     store.list_channels.return_value = channels or []
     store.get_routing_rules.return_value = []
-    store.save_message.return_value = None
-    store.save_channel.return_value = None
+    store.create_message.return_value = None
+    store.create_channel.return_value = None
     store.delete_channel.return_value = None
-    store.get_identity.return_value = None
+    store.get_identity_by_external.return_value = None
     return store
 
 
@@ -80,7 +81,7 @@ async def test_start_loads_channels():
     secret_store = make_secret_store()
     config = make_config()
 
-    manager = CommunicationsManager(config, store, secret_store)
+    manager = CommunicationsManager(config, store, secret_store, MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -90,7 +91,11 @@ async def test_start_loads_channels():
 
     assert "test-channel" in manager._adapters
     mock_adapter.initialize.assert_called_once()
-    store.list_channels.assert_called_once_with(enabled_only=True)
+    # start() calls list_channels twice: once for _ensure_web_chat_channel (enabled_only=False)
+    # and once for loading active channels (enabled_only=True)
+    assert store.list_channels.call_count == 2
+    store.list_channels.assert_any_call(enabled_only=False)
+    store.list_channels.assert_any_call(enabled_only=True)
 
 
 @pytest.mark.asyncio
@@ -98,7 +103,7 @@ async def test_start_skips_unknown_adapter():
     """start() logs error but continues if adapter type is unknown."""
     channel = make_channel(channel_type="unknown_type")
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     with patch("gobby.communications.manager.get_adapter_class", return_value=None):
         await manager.start()
@@ -111,7 +116,7 @@ async def test_stop_shuts_down_all_adapters():
     """stop() calls shutdown on all active adapters and clears state."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -131,7 +136,7 @@ async def test_send_message_success():
     """send_message() sends and stores message, returns CommsMessage."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -146,14 +151,14 @@ async def test_send_message_success():
     assert msg.status == "sent"
     assert msg.platform_message_id == "platform-msg-id-1"
     mock_adapter.send_message.assert_called_once()
-    store.save_message.assert_called_once()
+    store.create_message.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_send_message_unknown_channel_raises():
     """send_message() raises ValueError for unknown channel."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     with pytest.raises(ValueError, match="not found or not active"):
         await manager.send_message("no-such-channel", "Hello!")
@@ -164,7 +169,7 @@ async def test_send_message_adapter_failure_marks_failed():
     """send_message() marks message failed if adapter raises."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter.send_message = AsyncMock(side_effect=RuntimeError("network error"))
@@ -177,7 +182,7 @@ async def test_send_message_adapter_failure_marks_failed():
 
     assert msg.status == "failed"
     assert "network error" in (msg.error or "")
-    store.save_message.assert_called_once()
+    store.create_message.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -185,14 +190,14 @@ async def test_send_message_fires_event_callback():
     """send_message() fires event_callback after send."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
 
     callback_events = []
 
-    async def cb(event_type: str, **kwargs):
+    async def cb(event_type: str, **kwargs: Any) -> None:
         callback_events.append((event_type, kwargs))
 
     with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
@@ -210,7 +215,7 @@ async def test_send_event_routes_to_channels():
     """send_event() uses router to find channels and sends to each."""
     channel = make_channel(channel_id="chan-1")
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -219,7 +224,7 @@ async def test_send_event_routes_to_channels():
         await manager.start()
 
     # Mock router to return our channel id
-    manager._router.match_channels = AsyncMock(return_value=["chan-1"])
+    manager._router.match_channels = AsyncMock(return_value=["chan-1"])  # type: ignore[method-assign]
 
     msgs = await manager.send_event("task.created", "A task was created!")
 
@@ -231,9 +236,9 @@ async def test_send_event_routes_to_channels():
 async def test_send_event_skips_inactive_channels():
     """send_event() skips channel IDs that don't have active adapters."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
-    manager._router.match_channels = AsyncMock(return_value=["chan-inactive"])
+    manager._router.match_channels = AsyncMock(return_value=["chan-inactive"])  # type: ignore[method-assign]
 
     msgs = await manager.send_event("task.created", "Hello!")
     assert msgs == []
@@ -244,7 +249,7 @@ async def test_handle_inbound_stores_messages():
     """handle_inbound() parses and stores messages."""
     channel = make_channel(webhook_secret=None)
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     parsed_msg = CommsMessage(
         id="msg-1",
@@ -265,7 +270,7 @@ async def test_handle_inbound_stores_messages():
 
     assert len(stored) == 1
     assert stored[0].content == "Hi there!"
-    store.save_message.assert_called_once()
+    store.create_message.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -273,7 +278,7 @@ async def test_handle_inbound_webhook_verification_failure():
     """handle_inbound() raises ValueError if webhook signature fails."""
     channel = make_channel(webhook_secret="mysecret")
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter.verify_webhook.return_value = False
@@ -300,7 +305,7 @@ async def test_handle_inbound_resolves_identity():
         updated_at="2024-01-01T00:00:00",
         session_id="session-abc",
     )
-    store.get_identity.return_value = identity
+    store.get_identity_by_external.return_value = identity
 
     parsed_msg = CommsMessage(
         id="msg-1",
@@ -315,7 +320,7 @@ async def test_handle_inbound_resolves_identity():
     mock_adapter.parse_webhook.return_value = [parsed_msg]
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
 
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
         await manager.start()
@@ -329,7 +334,7 @@ async def test_handle_inbound_resolves_identity():
 async def test_add_channel_creates_and_initializes():
     """add_channel() saves to DB and initializes adapter."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter(channel_type="slack")
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -339,7 +344,7 @@ async def test_add_channel_creates_and_initializes():
 
     assert channel.name == "my-slack"
     assert channel.channel_type == "slack"
-    store.save_channel.assert_called_once()
+    store.create_channel.assert_called_once()
     assert "my-slack" in manager._adapters
 
 
@@ -348,7 +353,7 @@ async def test_remove_channel_shuts_down_and_deletes():
     """remove_channel() shuts down adapter and deletes from DB."""
     channel = make_channel()
     store = make_store([channel])
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     mock_adapter_cls = MagicMock(return_value=mock_adapter)
@@ -367,7 +372,7 @@ async def test_remove_channel_shuts_down_and_deletes():
 async def test_remove_channel_not_found_noop():
     """remove_channel() is a no-op for unknown channel names."""
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     # Should not raise
     await manager.remove_channel("nonexistent")
@@ -379,7 +384,7 @@ def test_list_channels():
     channels = [make_channel("ch1"), make_channel("ch2", channel_id="chan-2")]
     store = make_store(channels)
     store.list_channels.return_value = channels
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     result = manager.list_channels()
     assert len(result) == 2
@@ -390,7 +395,7 @@ def test_get_channel_status_active():
     """get_channel_status() returns active status for running adapter."""
     channel = make_channel()
     store = make_store()
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     mock_adapter = make_adapter()
     manager._adapters["test-channel"] = mock_adapter
@@ -407,7 +412,7 @@ def test_get_channel_status_inactive():
     channel = make_channel()
     store = make_store()
     store.list_channels.return_value = [channel]
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     status = manager.get_channel_status("test-channel")
     assert status["status"] == "inactive"
@@ -418,8 +423,87 @@ def test_get_channel_status_not_found():
     """get_channel_status() returns not_found for unknown channel."""
     store = make_store()
     store.list_channels.return_value = []
-    manager = CommunicationsManager(make_config(), store, make_secret_store())
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
 
     status = manager.get_channel_status("ghost-channel")
     assert status["status"] == "not_found"
     assert status["active"] is False
+
+
+@pytest.mark.asyncio
+async def test_send_message_propagates_thread_id():
+    """send_message() should include platform_thread_id from thread map."""
+    channel = make_channel(webhook_secret=None)
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_adapter = make_adapter()
+    mock_adapter.send_message.return_value = "out-msg-1"
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    manager._thread_map["test-channel:session-123"] = "thread-456"
+
+    msg = await manager.send_message("test-channel", "Hello reply", session_id="session-123")
+
+    assert msg.platform_thread_id == "thread-456"
+    assert msg.status == "sent"
+
+
+@pytest.mark.asyncio
+async def test_handle_inbound_populates_thread_map_and_handles_reactions():
+    """handle_inbound_messages() should populate thread map and dispatch reactions."""
+    channel = make_channel(webhook_secret=None)
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_identity = CommsIdentity(
+        id="id-1",
+        channel_id="chan-1",
+        external_user_id="user-1",
+        session_id="session-123",
+        created_at="",
+        updated_at="",
+    )
+
+    manager._resolve_identity = AsyncMock(return_value=mock_identity)
+
+    manager.reaction_handler = AsyncMock()
+
+    inbound_msg = CommsMessage(
+        id="msg-1",
+        channel_id="chan-1",
+        direction="inbound",
+        content="Hello",
+        platform_thread_id="thread-456",
+        created_at="",
+        identity_id="user-1",
+    )
+
+    rxn_msg = CommsMessage(
+        id="rxn-1",
+        channel_id="chan-1",
+        direction="inbound",
+        content="+1",
+        platform_message_id="msg-123",
+        content_type="reaction",
+        created_at="",
+        identity_id="user-1",
+    )
+
+    # Needs to be dict with .get("channel_type") so _channel_by_name works, but manager.start() does that
+    mock_adapter = make_adapter()
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    await manager.handle_inbound_messages("test-channel", [inbound_msg, rxn_msg])
+
+    assert manager._thread_map["test-channel:session-123"] == "thread-456"
+
+    # reaction should have called handler
+    manager.reaction_handler.handle_reaction.assert_awaited_once_with(
+        "test-channel", "msg-123", "+1", "user-1"
+    )

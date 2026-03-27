@@ -275,7 +275,7 @@ class TestCheckDeadAgents:
             session_coordinator=mock_coordinator,
         )
 
-        run = _make_terminal_run(
+        _make_terminal_run(
             agent_run_manager,
             sample_session,
             run_id="run-wt",
@@ -773,7 +773,6 @@ class TestCheckIdleAgents:
 
         assert handled == 0
 
-
     @pytest.mark.asyncio
     async def test_recent_session_activity_skips_pane_check(
         self,
@@ -815,9 +814,7 @@ class TestCheckIdleAgents:
             child_session_id=child.id,
         )
 
-        with patch.object(
-            mon._tmux, "capture_pane", new_callable=AsyncMock
-        ) as mock_capture:
+        with patch.object(mon._tmux, "capture_pane", new_callable=AsyncMock) as mock_capture:
             handled = await mon.check_idle_agents()
 
         assert handled == 0
@@ -889,7 +886,6 @@ class TestCheckIdleAgents:
         # Pane capture SHOULD have been called since session was stale
         mock_capture.assert_called_once()
         mock_send.assert_called_once()
-
 
     @pytest.mark.asyncio
     async def test_stale_session_overrides_active_pane(

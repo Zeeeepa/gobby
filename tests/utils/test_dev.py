@@ -52,6 +52,6 @@ class TestIsDevMode:
     def test_false_for_random_dir(self, tmp_path: Path) -> None:
         assert is_dev_mode(tmp_path) is False
 
-    def test_defaults_to_cwd(self, monkeypatch: "pytest.MonkeyPatch", tmp_path: Path) -> None:
+    def test_defaults_to_cwd(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.chdir(tmp_path)
         assert is_dev_mode() is False

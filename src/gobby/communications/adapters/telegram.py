@@ -1,0 +1,269 @@
+"""Telegram communication channel adapter."""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from collections.abc import Callable
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import httpx
+
+from gobby.communications.adapters import register_adapter
+from gobby.communications.adapters.base import BaseChannelAdapter
+from gobby.communications.models import (
+    ChannelCapabilities,
+    ChannelConfig,
+    CommsAttachment,
+    CommsMessage,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class TelegramAdapter(BaseChannelAdapter):
+    """Adapter for the Telegram Bot API."""
+
+    def __init__(self) -> None:
+        """Initialize the Telegram adapter."""
+        self._client: httpx.AsyncClient | None = None
+        self._bot_token: str | None = None
+        self._api_base: str | None = None
+        self._offset: int = 0
+
+    @property
+    def channel_type(self) -> str:
+        """The unique type identifier for this channel."""
+        return "telegram"
+
+    @property
+    def max_message_length(self) -> int:
+        """Maximum message length supported by the platform."""
+        return 4096
+
+    @property
+    def supports_webhooks(self) -> bool:
+        """Whether this adapter supports inbound webhooks."""
+        return True
+
+    @property
+    def supports_polling(self) -> bool:
+        """Whether this adapter supports message polling."""
+        return True
+
+    async def initialize(
+        self, config: ChannelConfig, secret_resolver: Callable[[str], str | None]
+    ) -> None:
+        """Set up API clients, validate credentials."""
+        token_ref = config.config_json.get("bot_token")
+        if not token_ref:
+            raise ValueError("Telegram bot_token not found in channel config")
+
+        if token_ref.startswith("$secret:"):
+            secret_key = token_ref.replace("$secret:", "")
+            self._bot_token = secret_resolver(secret_key)
+        else:
+            self._bot_token = token_ref
+
+        if not self._bot_token:
+            raise ValueError("Could not resolve Telegram bot token")
+
+        self._api_base = f"https://api.telegram.org/bot{self._bot_token}"
+        self._client = httpx.AsyncClient(timeout=30.0)
+
+        # Optionally call setWebhook if webhook_base_url is configured
+        webhook_base_url = config.config_json.get("webhook_base_url")
+        if webhook_base_url:
+            webhook_url = f"{webhook_base_url.rstrip('/')}/v1/comms/webhooks/{config.id}"
+
+            payload: dict[str, Any] = {"url": webhook_url}
+
+            webhook_secret = config.webhook_secret
+            if webhook_secret:
+                payload["secret_token"] = webhook_secret
+
+            response = await self._client.post(f"{self._api_base}/setWebhook", json=payload)
+            response.raise_for_status()
+            logger.info("Successfully registered Telegram webhook")
+        else:
+            # If polling is intended, delete webhook
+            response = await self._client.post(f"{self._api_base}/deleteWebhook")
+            response.raise_for_status()
+            logger.info("Cleared Telegram webhook for polling mode")
+
+    async def send_message(self, message: CommsMessage) -> str | None:
+        """Send message and return platform message ID."""
+        if not self._client or not self._api_base:
+            raise RuntimeError("Adapter not initialized")
+
+        chat_id = message.metadata_json.get("chat_id")
+
+        if not chat_id:
+            raise ValueError("No chat_id provided in message to send")
+
+        # Handle message chunking
+        content = message.content
+        chunks = [
+            content[i : i + self.max_message_length]
+            for i in range(0, len(content), self.max_message_length)
+        ]
+
+        last_message_id = None
+        for chunk in chunks:
+            payload: dict[str, Any] = {
+                "chat_id": chat_id,
+                "text": chunk,
+                "parse_mode": "MarkdownV2",
+            }
+
+            if message.platform_thread_id:
+                payload["reply_to_message_id"] = message.platform_thread_id
+
+            response = await self._client.post(f"{self._api_base}/sendMessage", json=payload)
+            response.raise_for_status()
+
+            data = response.json()
+            if data.get("ok"):
+                last_message_id = str(data["result"]["message_id"])
+
+        return last_message_id
+
+    async def send_attachment(
+        self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
+    ) -> str | None:
+        """Send a file via Telegram sendDocument API."""
+        if not self._client or not self._api_base:
+            raise RuntimeError("Adapter not initialized")
+
+        chat_id = message.metadata_json.get("chat_id")
+        if not chat_id:
+            raise ValueError("No chat_id provided in message metadata")
+
+        with open(file_path, "rb") as f:
+            files = {"document": (attachment.filename, f, attachment.content_type)}
+            data: dict[str, Any] = {"chat_id": chat_id}
+            if message.content:
+                data["caption"] = message.content[:1024]
+            if message.platform_thread_id:
+                data["reply_to_message_id"] = message.platform_thread_id
+
+            response = await self._client.post(
+                f"{self._api_base}/sendDocument", data=data, files=files
+            )
+            response.raise_for_status()
+            result = response.json()
+            if result.get("ok"):
+                return str(result["result"]["message_id"])
+        return None
+
+    async def shutdown(self) -> None:
+        """Cleanly close connections."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+    def capabilities(self) -> ChannelCapabilities:
+        """Return channel capabilities."""
+        return ChannelCapabilities(
+            threading=True,
+            reactions=False,
+            files=True,
+            markdown=True,
+            max_message_length=self.max_message_length,
+        )
+
+    def parse_webhook(
+        self, payload: dict[str, Any] | bytes, headers: dict[str, str]
+    ) -> list[CommsMessage]:
+        """Normalize inbound webhook payload."""
+        import json
+
+        if isinstance(payload, bytes):
+            payload_dict = json.loads(payload)
+        else:
+            payload_dict = payload
+
+        if "message" not in payload_dict:
+            return []
+
+        msg_data = payload_dict["message"]
+        text = msg_data.get("text")
+        if not text:
+            # We only support text messages currently
+            return []
+
+        chat = msg_data.get("chat", {})
+        chat_id = str(chat.get("id"))
+        message_id = str(msg_data.get("message_id"))
+
+        from_user = msg_data.get("from", {})
+        user_id = str(from_user.get("id"))
+        username = from_user.get("username")
+
+        metadata = {
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "username": username,
+        }
+
+        platform_thread_id = (
+            str(msg_data.get("message_thread_id"))
+            if msg_data.get("message_thread_id")
+            else message_id
+        )
+
+        return [
+            CommsMessage(
+                id=str(uuid.uuid4()),
+                channel_id="",  # Will be set by the orchestrator
+                direction="inbound",
+                content=text,
+                content_type="text",
+                platform_message_id=message_id,
+                platform_thread_id=platform_thread_id,
+                metadata_json=metadata,
+                created_at=datetime.now(UTC).isoformat(),
+            )
+        ]
+
+    def verify_webhook(self, payload: bytes, headers: dict[str, str], secret: str) -> bool:
+        """Verify webhook signature."""
+        # Telegram sends the secret token in the lowercased header name or as defined by the user
+        header_secret = headers.get("x-telegram-bot-api-secret-token")
+        if not header_secret:
+            return False
+
+        return header_secret == secret
+
+    async def poll(self) -> list[CommsMessage]:
+        """Call getUpdates with offset tracking for polling fallback."""
+        if not self._client or not self._api_base:
+            raise RuntimeError("Adapter not initialized")
+
+        response = await self._client.get(
+            f"{self._api_base}/getUpdates", params={"offset": self._offset, "timeout": 30}
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not data.get("ok"):
+            return []
+
+        updates = data.get("result", [])
+        messages = []
+
+        for update in updates:
+            update_id = update["update_id"]
+            if update_id >= self._offset:
+                self._offset = update_id + 1
+
+            msg_list = self.parse_webhook(update, {})
+            messages.extend(msg_list)
+
+        return messages
+
+
+# Register the adapter
+register_adapter("telegram", TelegramAdapter)

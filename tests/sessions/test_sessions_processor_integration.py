@@ -8,7 +8,6 @@ via session_manager.  It does NOT write to a session_messages table.
 import asyncio
 import json
 from collections.abc import AsyncGenerator
-from unittest.mock import MagicMock
 
 import pytest
 

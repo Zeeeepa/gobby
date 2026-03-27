@@ -207,3 +207,31 @@ def setup_cron_event_broadcasting(
 
     cron_scheduler.on_run_complete = on_run_complete
     logger.debug("Cron event broadcasting enabled")
+
+
+def setup_communications_event_broadcasting(
+    websocket_server: WebSocketServer,
+    communications_manager: Any,
+) -> None:
+    """Set up WebSocket broadcasting for communications events."""
+
+    async def broadcast_comms_event(event: str, **kwargs: Any) -> None:
+        """Broadcast communications events via WebSocket."""
+        if websocket_server:
+            # message can be a dict or a Pydantic model
+            # We convert to dict if needed to ensure JSON serializability
+            safe_kwargs = {}
+            for k, v in kwargs.items():
+                if hasattr(v, "model_dump"):
+                    safe_kwargs[k] = v.model_dump()
+                elif hasattr(v, "__dict__"):
+                    safe_kwargs[k] = str(v)
+                else:
+                    safe_kwargs[k] = v
+            await websocket_server.broadcast_communications_event(
+                event=event,
+                **safe_kwargs,
+            )
+
+    communications_manager.event_callback = broadcast_comms_event
+    logger.debug("Communications event broadcasting enabled")
