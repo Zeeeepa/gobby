@@ -47,7 +47,7 @@ def test_install_copilot_shared_content_error(tmp_path: Path) -> None:
         "version": 1,
         "hooks": {
             "sessionStart": [
-                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+                {"type": "command", "bash": "uv run hook_dispatcher.py", "timeoutSec": 30}
             ]
         },
     }
@@ -75,7 +75,7 @@ def test_install_copilot_creates_github_hooks_dir(tmp_path: Path) -> None:
         "version": 1,
         "hooks": {
             "sessionStart": [
-                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+                {"type": "command", "bash": "uv run hook_dispatcher.py", "timeoutSec": 30}
             ]
         },
     }
@@ -158,7 +158,7 @@ def test_install_copilot_existing_file_json_decode_error(tmp_path: Path) -> None
         "version": 1,
         "hooks": {
             "sessionStart": [
-                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+                {"type": "command", "bash": "uv run hook_dispatcher.py", "timeoutSec": 30}
             ]
         },
     }
@@ -185,7 +185,7 @@ def test_install_copilot_existing_file_os_error(tmp_path: Path) -> None:
         "version": 1,
         "hooks": {
             "sessionStart": [
-                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+                {"type": "command", "bash": "uv run hook_dispatcher.py", "timeoutSec": 30}
             ]
         },
     }
@@ -257,7 +257,7 @@ def test_install_copilot_write_error(tmp_path: Path) -> None:
         "version": 1,
         "hooks": {
             "sessionStart": [
-                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+                {"type": "command", "bash": "uv run hook_dispatcher.py", "timeoutSec": 30}
             ]
         },
     }
@@ -281,7 +281,7 @@ def test_install_copilot_write_error_with_backup_restore(tmp_path: Path) -> None
         "version": 1,
         "hooks": {
             "sessionStart": [
-                {"type": "command", "bash": "uv run python hook_dispatcher.py", "timeoutSec": 30}
+                {"type": "command", "bash": "uv run hook_dispatcher.py", "timeoutSec": 30}
             ]
         },
     }

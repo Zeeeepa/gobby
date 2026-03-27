@@ -38,8 +38,8 @@ class TestInstallGemini:
         template = gemini_dir / "hooks-template.json"
         template_content = {
             "hooks": {
-                "SessionStart": {"command": "uv run python $HOOKS_DIR/hook_dispatcher.py"},
-                "SessionEnd": {"command": "uv run python $HOOKS_DIR/hook_dispatcher.py"},
+                "SessionStart": {"command": "uv run $HOOKS_DIR/hook_dispatcher.py"},
+                "SessionEnd": {"command": "uv run $HOOKS_DIR/hook_dispatcher.py"},
             }
         }
         template.write_text(json.dumps(template_content))
@@ -231,7 +231,7 @@ class TestInstallGemini:
         template = mock_install_dir / "gemini" / "hooks-template.json"
         template_content = {
             "hooks": {
-                "SessionStart": {"command": "uv run python $HOOKS_DIR/hook_dispatcher.py"},
+                "SessionStart": {"command": "uv run $HOOKS_DIR/hook_dispatcher.py"},
             }
         }
         template.write_text(json.dumps(template_content))
@@ -260,7 +260,7 @@ class TestInstallGemini:
                 settings = json.load(f)
 
             hook_command = settings["hooks"]["SessionStart"]["command"]
-            assert "/custom/path/to/uv run python" in hook_command
+            assert "/custom/path/to/uv run" in hook_command
 
     def test_install_gemini_uv_fallback_when_not_found(
         self,
@@ -935,7 +935,7 @@ class TestInstallGeminiEdgeCases:
         template = gemini_dir / "hooks-template.json"
         template_content = {
             "hooks": {
-                "SessionStart": {"command": "uv run python $HOOKS_DIR/hook_dispatcher.py"},
+                "SessionStart": {"command": "uv run $HOOKS_DIR/hook_dispatcher.py"},
             }
         }
         template.write_text(json.dumps(template_content))

@@ -122,10 +122,10 @@ def install_gemini(project_path: Path, mode: str = "global") -> dict[str, Any]:
     # Replace $HOOKS_DIR with absolute hooks directory path
     gobby_settings_str = gobby_settings_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
 
-    # Also replace "uv run python" with absolute path if found
-    # The template uses "uv run python" by default
+    # Also replace "uv run" with absolute uv path if found
+    # The template uses "uv run" by default
     if uv_path != "uv":
-        gobby_settings_str = gobby_settings_str.replace("uv run python", f"{uv_path} run python")
+        gobby_settings_str = gobby_settings_str.replace("uv run", f"{uv_path} run")
 
     gobby_settings = json.loads(gobby_settings_str)
 
