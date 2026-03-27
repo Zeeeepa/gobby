@@ -95,18 +95,8 @@ steps:
       tool: pipeline_eval
       arguments:
         data:
-          clean: "${{ try_merge.output.get('merged', try_merge.output.success) and not try_merge.output.get('has_conflicts', false) }}"
+          clean: "${{ not try_merge.output.get('has_conflicts', false) }}"
           has_conflicts: "${{ try_merge.output.get('has_conflicts', false) }}"
-          non_conflict_error: "${{ not try_merge.output.success }}"
-
-  # Fail fast on non-conflict errors (e.g. branch not found)
-  - id: fail_non_conflict
-    condition: "${{ check_merge.output.non_conflict_error }}"
-    mcp:
-      server: gobby-workflows
-      tool: fail_pipeline
-      arguments:
-        message: "Merge failed (not a conflict): ${{ try_merge.output.get('error', 'unknown error') }}"
 
   # ── PHASE 3: AI CONFLICT RESOLUTION (conditional) ──
 
@@ -128,7 +118,7 @@ steps:
       tool: pipeline_eval
       arguments:
         data:
-          ai_resolved: "${{ ai_resolve.output.success if ai_resolve.output else false }}"
+          ai_resolved: "${{ not ai_resolve.output.get('needs_human_review', true) if ai_resolve.output else false }}"
           needs_human: "${{ ai_resolve.output.get('needs_human_review', false) if ai_resolve.output else false }}"
           resolution_id: "${{ ai_resolve.output.get('resolution_id', '') if ai_resolve.output else '' }}"
 
@@ -177,13 +167,13 @@ steps:
   # ── PHASE 4: TEST VALIDATION (conditional) ──
 
   - id: run_tests
-    condition: "${{ inputs.test_command and (check_merge.output.clean or (apply_resolution.output and apply_resolution.output.success)) }}"
+    condition: "${{ inputs.test_command and (check_merge.output.clean or (apply_resolution.output)) }}"
     exec: "cd ${{ resolve_branches.output.worktree_path }} && ${{ inputs.test_command }}"
 
   # ── PHASE 5: PUSH (with approval gate) ──
 
   - id: push_gate
-    condition: "${{ not inputs.dry_run and (check_merge.output.clean or (apply_resolution.output and apply_resolution.output.success)) }}"
+    condition: "${{ not inputs.dry_run and (check_merge.output.clean or (apply_resolution.output)) }}"
     mcp:
       server: gobby-workflows
       tool: pipeline_eval
@@ -220,7 +210,7 @@ steps:
         data:
           success: true
           merge_method: "${{ 'clean' if check_merge.output.clean else 'ai_resolved' }}"
-          pushed: "${{ bool(push_merge.output and push_merge.output.success) if not inputs.dry_run else false }}"
+          pushed: "${{ bool(push_merge.output and push_merge.output.get('pushed', false)) if not inputs.dry_run else false }}"
           dry_run: "${{ inputs.dry_run }}"
           worktree_path: "${{ resolve_branches.output.worktree_path }}"
           conflicts_resolved: "${{ len(ai_resolve.output.get('resolved_files', [])) if ai_resolve.output else 0 }}"
