@@ -16,6 +16,15 @@ def _make_git_result(returncode: int, stdout: str = "", stderr: str = "") -> Mag
     return result
 
 
+# Stash sequence: stash list (before), stash push, stash list (after), ... , stash pop
+_STASH_BEFORE = [
+    _make_git_result(0, stdout=""),  # stash list (before)
+    _make_git_result(0),  # stash push
+    _make_git_result(0, stdout="stash@{0}"),  # stash list (after) — different = stash created
+]
+_STASH_POP = [_make_git_result(0)]  # stash pop
+
+
 def _make_registry_context(
     worktree_path: str = "/tmp/wt", branch: str = "feat", base: str = "main"
 ):
@@ -38,10 +47,11 @@ async def test_merge_worktree_success_returns_worktree_path():
 
     ctx = _make_registry_context()
 
-    # fetch succeeds, merge succeeds
     ctx.git_manager._run_git.side_effect = [
         _make_git_result(0),  # fetch
-        _make_git_result(0),  # merge
+        *_STASH_BEFORE,
+        _make_git_result(0),  # merge succeeds
+        *_STASH_POP,
     ]
 
     registry = create_sync_registry(ctx)
@@ -64,12 +74,13 @@ async def test_merge_worktree_conflict_returns_worktree_path():
 
     ctx = _make_registry_context()
 
-    # fetch succeeds, merge fails, diff shows conflict, merge --abort succeeds
     ctx.git_manager._run_git.side_effect = [
         _make_git_result(0),  # fetch
+        *_STASH_BEFORE,
         _make_git_result(1, stderr="CONFLICT"),  # merge fails
         _make_git_result(0, stdout="src/main.py\n"),  # diff --name-only
         _make_git_result(0),  # merge --abort
+        *_STASH_POP,
     ]
 
     registry = create_sync_registry(ctx)
@@ -100,12 +111,13 @@ async def test_merge_worktree_auto_resolves_trivial_conflicts():
 
     ctx = _make_registry_context()
 
-    # fetch, merge fails, diff shows only trivial files, commit succeeds
     ctx.git_manager._run_git.side_effect = [
         _make_git_result(0),  # fetch
+        *_STASH_BEFORE,
         _make_git_result(1, stderr="CONFLICT"),  # merge fails
         _make_git_result(0, stdout=".gobby/tasks.jsonl\n"),  # diff --name-only
         _make_git_result(0),  # commit --no-edit
+        *_STASH_POP,
     ]
 
     registry = create_sync_registry(ctx)
@@ -137,11 +149,12 @@ async def test_merge_worktree_push_failure_returns_worktree_path():
 
     ctx = _make_registry_context()
 
-    # fetch, merge succeeds, push fails
     ctx.git_manager._run_git.side_effect = [
         _make_git_result(0),  # fetch
-        _make_git_result(0),  # merge
+        *_STASH_BEFORE,
+        _make_git_result(0),  # merge succeeds
         _make_git_result(1, stderr="rejected"),  # push fails
+        *_STASH_POP,
     ]
 
     registry = create_sync_registry(ctx)
@@ -165,11 +178,12 @@ async def test_merge_worktree_non_conflict_error_returns_worktree_path():
 
     ctx = _make_registry_context()
 
-    # fetch, merge fails with no conflicts
     ctx.git_manager._run_git.side_effect = [
         _make_git_result(0),  # fetch
+        *_STASH_BEFORE,
         _make_git_result(128, stdout="fatal: not a git repo", stderr=""),  # merge fails
         _make_git_result(0, stdout=""),  # diff --name-only (no conflicts)
+        *_STASH_POP,
     ]
 
     registry = create_sync_registry(ctx)
@@ -184,3 +198,31 @@ async def test_merge_worktree_non_conflict_error_returns_worktree_path():
     assert result["success"] is False
     assert result["has_conflicts"] is False
     assert result["worktree_path"] == "/tmp/wt"
+
+
+@pytest.mark.asyncio
+async def test_merge_worktree_stash_restores_on_success():
+    """Stash pop is called after successful merge."""
+    from gobby.mcp_proxy.tools.worktrees._sync import create_sync_registry
+
+    ctx = _make_registry_context()
+
+    ctx.git_manager._run_git.side_effect = [
+        _make_git_result(0),  # fetch
+        *_STASH_BEFORE,
+        _make_git_result(0),  # merge succeeds
+        *_STASH_POP,
+    ]
+
+    registry = create_sync_registry(ctx)
+    merge_tool = registry.get_tool("merge_worktree")
+
+    with patch(
+        "gobby.mcp_proxy.tools.worktrees._sync.resolve_project_context",
+        return_value=(ctx.git_manager, "test-project", None),
+    ):
+        await merge_tool("wt-123")
+
+    # Last call should be stash pop
+    last_call_args = ctx.git_manager._run_git.call_args_list[-1]
+    assert last_call_args[0][0] == ["stash", "pop"]

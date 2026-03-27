@@ -141,115 +141,158 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if fetch_result.returncode != 0:
             logger.warning(f"Fetch failed in worktree (non-fatal): {fetch_result.stderr.strip()}")
 
-        # Step 2: Merge target INTO source branch (in worktree)
+        # Step 2: Stash dirty .gobby/ sync files to prevent merge blocking
+        # Compare stash list before/after to reliably detect if a stash was created
+        # (same pattern as merge_clone)
+        stash_created = False
+        stash_list_before = await asyncio.to_thread(
+            resolved_git_mgr._run_git, ["stash", "list"], cwd=wt_path, timeout=10
+        )
+        stash_push = await asyncio.to_thread(
+            resolved_git_mgr._run_git,
+            ["stash", "push", "-m", "gobby-merge: auto-stash sync files", "--", ".gobby/"],
+            cwd=wt_path,
+            timeout=10,
+        )
+        if stash_push.returncode == 0:
+            stash_list_after = await asyncio.to_thread(
+                resolved_git_mgr._run_git, ["stash", "list"], cwd=wt_path, timeout=10
+            )
+            stash_created = stash_list_after.stdout != stash_list_before.stdout
+
+        # Step 3: Merge target INTO source branch (in worktree)
+        # Wrapped in try/finally to ensure stashed .gobby/ files are always restored
         merge_ref = (
             f"origin/{merge_target}" if not merge_target.startswith("origin/") else merge_target
         )
-        merge_result = await asyncio.to_thread(
-            resolved_git_mgr._run_git,
-            ["merge", merge_ref, "--no-edit"],
-            cwd=wt_path,
-            timeout=60,
-        )
 
-        if merge_result.returncode != 0:
-            # Detect unmerged (conflicted) files via git index — more reliable
-            # than parsing human-readable merge output for "CONFLICT" strings
-            unmerged_result = await asyncio.to_thread(
-                resolved_git_mgr._run_git,
-                ["diff", "--name-only", "--diff-filter=U"],
-                cwd=wt_path,
-                timeout=10,
-            )
-            conflicted_files = [
-                f.strip() for f in unmerged_result.stdout.strip().split("\n") if f.strip()
-            ]
-            if conflicted_files:
-                # Auto-resolve trivial conflicts (.gobby/*.jsonl)
-                from gobby.worktrees.merge.resolver import auto_resolve_trivial_conflicts
-
-                remaining = await auto_resolve_trivial_conflicts(conflicted_files, wt_path)
-
-                if not remaining:
-                    # All conflicts were trivial — commit the merge and continue
-                    commit_result = await asyncio.to_thread(
-                        resolved_git_mgr._run_git,
-                        ["commit", "--no-edit"],
-                        cwd=wt_path,
-                        timeout=30,
-                    )
-                    if commit_result.returncode == 0:
-                        ctx.worktree_storage.mark_merged(worktree_id)
-                        return {
-                            "success": True,
-                            "message": (
-                                f"Merged (auto-resolved {len(conflicted_files)} trivial conflict(s))"
-                            ),
-                            "worktree_path": wt_path,
-                            "source_branch": effective_source,
-                            "target_branch": merge_target,
-                            "pushed": False,
-                            "auto_resolved": conflicted_files,
-                        }
-
-                # Still have real conflicts — abort and report
-                await asyncio.to_thread(
-                    resolved_git_mgr._run_git, ["merge", "--abort"], cwd=wt_path, timeout=10
+        async def _restore_stash() -> None:
+            """Restore stashed .gobby/ files if any were stashed."""
+            if stash_created:
+                pop_result = await asyncio.to_thread(
+                    resolved_git_mgr._run_git, ["stash", "pop"], cwd=wt_path, timeout=10
                 )
-                return {
-                    "success": False,
-                    "has_conflicts": True,
-                    "conflicted_files": remaining,
-                    "auto_resolved": [f for f in conflicted_files if f not in remaining],
-                    "worktree_path": wt_path,
-                    "error": "merge_conflict",
-                    "message": (
-                        f"Merge conflicts detected in {len(remaining)} file(s) "
-                        f"({len(conflicted_files) - len(remaining)} trivial auto-resolved). "
-                        "Use gobby-merge tools to resolve."
-                    ),
-                }
-            merge_output = merge_result.stdout + merge_result.stderr
-            return {
-                "success": False,
-                "has_conflicts": False,
-                "worktree_path": wt_path,
-                "error": merge_output.strip(),
-            }
+                if pop_result.returncode != 0:
+                    logger.warning(
+                        f"Failed to restore stashed .gobby/ files: "
+                        f"{pop_result.stderr or pop_result.stdout}"
+                    )
 
-        # Mark as merged in storage
-        ctx.worktree_storage.mark_merged(worktree_id)
-
-        # Step 3 (optional): Push source branch to origin as target
-        if push:
-            push_result = await asyncio.to_thread(
+        try:
+            merge_result = await asyncio.to_thread(
                 resolved_git_mgr._run_git,
-                ["push", "--no-verify", "origin", f"{effective_source}:{merge_target}"],
+                ["merge", merge_ref, "--no-edit"],
                 cwd=wt_path,
                 timeout=60,
             )
-            if push_result.returncode != 0:
+
+            if merge_result.returncode != 0:
+                # Detect unmerged (conflicted) files via git index — more reliable
+                # than parsing human-readable merge output for "CONFLICT" strings
+                unmerged_result = await asyncio.to_thread(
+                    resolved_git_mgr._run_git,
+                    ["diff", "--name-only", "--diff-filter=U"],
+                    cwd=wt_path,
+                    timeout=10,
+                )
+                conflicted_files = [
+                    f.strip() for f in unmerged_result.stdout.strip().split("\n") if f.strip()
+                ]
+                if conflicted_files:
+                    # Auto-resolve trivial conflicts (.gobby/*.jsonl)
+                    from gobby.worktrees.merge.resolver import auto_resolve_trivial_conflicts
+
+                    remaining = await auto_resolve_trivial_conflicts(conflicted_files, wt_path)
+
+                    if not remaining:
+                        # All conflicts were trivial — commit the merge and continue
+                        commit_result = await asyncio.to_thread(
+                            resolved_git_mgr._run_git,
+                            ["commit", "--no-edit"],
+                            cwd=wt_path,
+                            timeout=30,
+                        )
+                        if commit_result.returncode == 0:
+                            ctx.worktree_storage.mark_merged(worktree_id)
+                            return {
+                                "success": True,
+                                "message": (
+                                    f"Merged (auto-resolved {len(conflicted_files)} trivial conflict(s))"
+                                ),
+                                "worktree_path": wt_path,
+                                "source_branch": effective_source,
+                                "target_branch": merge_target,
+                                "pushed": False,
+                                "auto_resolved": conflicted_files,
+                            }
+
+                    # Still have real conflicts — abort and report
+                    await asyncio.to_thread(
+                        resolved_git_mgr._run_git,
+                        ["merge", "--abort"],
+                        cwd=wt_path,
+                        timeout=10,
+                    )
+                    return {
+                        "success": False,
+                        "has_conflicts": True,
+                        "conflicted_files": remaining,
+                        "auto_resolved": [f for f in conflicted_files if f not in remaining],
+                        "worktree_path": wt_path,
+                        "error": "merge_conflict",
+                        "message": (
+                            f"Merge conflicts detected in {len(remaining)} file(s) "
+                            f"({len(conflicted_files) - len(remaining)} trivial auto-resolved). "
+                            "Use gobby-merge tools to resolve."
+                        ),
+                    }
+                merge_output = merge_result.stdout + merge_result.stderr
                 return {
                     "success": False,
-                    "error": f"Push failed: {push_result.stderr.strip()}",
-                    "merge_succeeded": True,
+                    "has_conflicts": False,
                     "worktree_path": wt_path,
-                    "source_branch": effective_source,
-                    "target_branch": merge_target,
+                    "error": merge_output.strip(),
                 }
 
-        return {
-            "success": True,
-            "message": f"Merged and {'pushed' if push else 'ready to push'}",
-            "worktree_path": wt_path,
-            "source_branch": effective_source,
-            "target_branch": merge_target,
-            "pushed": push,
-            **(
-                {"push_command": f"git push --no-verify origin {effective_source}:{merge_target}"}
-                if not push
-                else {}
-            ),
-        }
+            # Mark as merged in storage
+            ctx.worktree_storage.mark_merged(worktree_id)
+
+            # Step 4 (optional): Push source branch to origin as target
+            if push:
+                push_result = await asyncio.to_thread(
+                    resolved_git_mgr._run_git,
+                    ["push", "--no-verify", "origin", f"{effective_source}:{merge_target}"],
+                    cwd=wt_path,
+                    timeout=60,
+                )
+                if push_result.returncode != 0:
+                    return {
+                        "success": False,
+                        "error": f"Push failed: {push_result.stderr.strip()}",
+                        "merge_succeeded": True,
+                        "worktree_path": wt_path,
+                        "source_branch": effective_source,
+                        "target_branch": merge_target,
+                    }
+
+            return {
+                "success": True,
+                "message": f"Merged and {'pushed' if push else 'ready to push'}",
+                "worktree_path": wt_path,
+                "source_branch": effective_source,
+                "target_branch": merge_target,
+                "pushed": push,
+                **(
+                    {
+                        "push_command": (
+                            f"git push --no-verify origin {effective_source}:{merge_target}"
+                        )
+                    }
+                    if not push
+                    else {}
+                ),
+            }
+        finally:
+            await _restore_stash()
 
     return registry
