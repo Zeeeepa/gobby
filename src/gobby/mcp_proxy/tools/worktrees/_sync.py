@@ -165,16 +165,47 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 f.strip() for f in unmerged_result.stdout.strip().split("\n") if f.strip()
             ]
             if conflicted_files:
+                # Auto-resolve trivial conflicts (.gobby/*.jsonl)
+                from gobby.worktrees.merge.resolver import auto_resolve_trivial_conflicts
+
+                remaining = await auto_resolve_trivial_conflicts(conflicted_files, wt_path)
+
+                if not remaining:
+                    # All conflicts were trivial — commit the merge and continue
+                    commit_result = await asyncio.to_thread(
+                        resolved_git_mgr._run_git,
+                        ["commit", "--no-edit"],
+                        cwd=wt_path,
+                        timeout=30,
+                    )
+                    if commit_result.returncode == 0:
+                        ctx.worktree_storage.mark_merged(worktree_id)
+                        return {
+                            "success": True,
+                            "message": (
+                                f"Merged (auto-resolved {len(conflicted_files)} trivial conflict(s))"
+                            ),
+                            "worktree_path": wt_path,
+                            "source_branch": effective_source,
+                            "target_branch": merge_target,
+                            "pushed": False,
+                            "auto_resolved": conflicted_files,
+                        }
+
+                # Still have real conflicts — abort and report
                 await asyncio.to_thread(
                     resolved_git_mgr._run_git, ["merge", "--abort"], cwd=wt_path, timeout=10
                 )
                 return {
                     "success": False,
                     "has_conflicts": True,
-                    "conflicted_files": conflicted_files,
+                    "conflicted_files": remaining,
+                    "auto_resolved": [f for f in conflicted_files if f not in remaining],
+                    "worktree_path": wt_path,
                     "error": "merge_conflict",
                     "message": (
-                        f"Merge conflicts detected in {len(conflicted_files)} file(s). "
+                        f"Merge conflicts detected in {len(remaining)} file(s) "
+                        f"({len(conflicted_files) - len(remaining)} trivial auto-resolved). "
                         "Use gobby-merge tools to resolve."
                     ),
                 }
@@ -182,6 +213,7 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {
                 "success": False,
                 "has_conflicts": False,
+                "worktree_path": wt_path,
                 "error": merge_output.strip(),
             }
 
@@ -201,6 +233,7 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "success": False,
                     "error": f"Push failed: {push_result.stderr.strip()}",
                     "merge_succeeded": True,
+                    "worktree_path": wt_path,
                     "source_branch": effective_source,
                     "target_branch": merge_target,
                 }
@@ -208,6 +241,7 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
         return {
             "success": True,
             "message": f"Merged and {'pushed' if push else 'ready to push'}",
+            "worktree_path": wt_path,
             "source_branch": effective_source,
             "target_branch": merge_target,
             "pushed": push,

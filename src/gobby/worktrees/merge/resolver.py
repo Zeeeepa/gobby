@@ -19,6 +19,73 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Patterns for files that always conflict trivially in merges
+# These are append-only sync files that get re-synced from the DB anyway
+TRIVIAL_CONFLICT_PATTERNS = (
+    ".gobby/tasks.jsonl",
+    ".gobby/memories.jsonl",
+)
+
+
+async def auto_resolve_trivial_conflicts(
+    conflicted_files: list[str],
+    worktree_path: str,
+) -> list[str]:
+    """Auto-resolve trivial conflicts (.gobby/*.jsonl) and return remaining conflicts.
+
+    Trivial conflicts are append-only sync files that always conflict in merges
+    but don't carry meaningful merge semantics — they get re-synced from the DB.
+    We resolve them by accepting the incoming (theirs) version.
+
+    Args:
+        conflicted_files: List of conflicted file paths (relative to worktree)
+        worktree_path: Absolute path to the git worktree
+
+    Returns:
+        List of remaining non-trivial conflicted files
+    """
+    trivial = []
+    remaining = []
+
+    for f in conflicted_files:
+        if any(f == pattern or f.endswith(pattern) for pattern in TRIVIAL_CONFLICT_PATTERNS):
+            trivial.append(f)
+        else:
+            remaining.append(f)
+
+    if not trivial:
+        return conflicted_files
+
+    for f in trivial:
+        # Accept incoming version for trivial files
+        checkout = await asyncio.create_subprocess_exec(
+            "git",
+            "checkout",
+            "--theirs",
+            f,
+            cwd=worktree_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await checkout.communicate()
+
+        # Stage the resolution
+        add = await asyncio.create_subprocess_exec(
+            "git",
+            "add",
+            f,
+            cwd=worktree_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await add.communicate()
+
+    logger.info(
+        f"Auto-resolved {len(trivial)} trivial conflict(s) in worktree {worktree_path}: {trivial}"
+    )
+
+    return remaining
+
 
 class ResolutionTier(Enum):
     """Resolution strategy tiers, from fastest to most expensive."""
