@@ -33,7 +33,7 @@ async def test_git_merge_success(resolver):
         mock_process.communicate.return_value = (b"", b"")
         mock_exec.return_value = mock_process
 
-        result = await resolver._git_merge("/tmp/repo", "feature", "main")
+        result = await resolver._git_merge("/tmp/test-repo", "feature", "test-target")
 
         assert result["success"] is True
         assert result["conflicts"] == []
@@ -44,8 +44,8 @@ async def test_git_merge_success(resolver):
             "merge",
             "--no-commit",
             "--no-ff",
-            "feature",
-            cwd="/tmp/repo",
+            "origin/test-target",
+            cwd="/tmp/test-repo",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -77,7 +77,7 @@ async def test_git_merge_conflict(resolver):
             "read_text",
             return_value="<<<<<<< HEAD\nA\n=======\nB\n>>>>>>> feature\n",
         ):
-            result = await resolver._git_merge("/tmp/repo", "feature", "main")
+            result = await resolver._git_merge("/tmp/test-repo", "feature", "test-target")
 
             assert result["success"] is False
             assert len(result["conflicts"]) == 1

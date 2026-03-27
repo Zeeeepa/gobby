@@ -345,12 +345,16 @@ class MergeResolver:
             Dict with 'success' bool and 'conflicts' list if any
         """
         # Run git merge without committing
+        # Merge target INTO the worktree branch (worktree is on source_branch)
+        merge_ref = (
+            f"origin/{target_branch}" if not target_branch.startswith("origin/") else target_branch
+        )
         process = await asyncio.create_subprocess_exec(
             "git",
             "merge",
             "--no-commit",
             "--no-ff",
-            source_branch,
+            merge_ref,
             cwd=worktree_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
