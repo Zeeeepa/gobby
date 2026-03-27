@@ -98,6 +98,7 @@ class GobbyRunner:
     _code_index_shutdown: asyncio.Event | None
     _savings_rollup_task: asyncio.Task[None] | None
     _approval_timeout_task: asyncio.Task[None] | None
+    _expired_isolation_task: asyncio.Task[None] | None
     database: LocalDatabase
     secret_store: SecretStore
     config_store: ConfigStore

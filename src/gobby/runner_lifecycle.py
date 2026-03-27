@@ -24,6 +24,7 @@ async def run_daemon(runner: GobbyRunner) -> None:
     """Main daemon startup, event loop, and shutdown sequence."""
     from gobby.runner_maintenance import (
         cleanup_comms_messages_loop,
+        cleanup_expired_isolation_loop,
         cleanup_pid_file,
         cleanup_zombie_messages_loop,
         expire_approval_timeouts_loop,
@@ -186,6 +187,12 @@ async def run_daemon(runner: GobbyRunner) -> None:
         runner._comms_messages_task = asyncio.create_task(
             cleanup_comms_messages_loop(runner.database, lambda: runner._shutdown_requested),
             name="comms-message-cleanup",
+        )
+
+        # Start periodic expired worktree/clone cleanup (every hour)
+        runner._expired_isolation_task = asyncio.create_task(
+            cleanup_expired_isolation_loop(runner.database, lambda: runner._shutdown_requested),
+            name="expired-isolation-cleanup",
         )
 
         # Start code index maintenance loop
@@ -466,6 +473,14 @@ async def run_daemon(runner: GobbyRunner) -> None:
             runner._zombie_messages_task.cancel()
             try:
                 await asyncio.wait_for(runner._zombie_messages_task, timeout=2.0)
+            except (asyncio.CancelledError, TimeoutError):
+                pass
+
+        # Cancel expired isolation cleanup task
+        if runner._expired_isolation_task and not runner._expired_isolation_task.done():
+            runner._expired_isolation_task.cancel()
+            try:
+                await asyncio.wait_for(runner._expired_isolation_task, timeout=2.0)
             except (asyncio.CancelledError, TimeoutError):
                 pass
 

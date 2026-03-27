@@ -402,7 +402,7 @@ class LocalWorktreeManager:
 
     def find_expired(
         self,
-        project_id: str,
+        project_id: str | None = None,
         limit: int = 50,
     ) -> list[Worktree]:
         """
@@ -412,25 +412,38 @@ class LocalWorktreeManager:
         (cleanup_after) has elapsed. Safe to delete — work is in target branch.
 
         Args:
-            project_id: Project ID
+            project_id: Optional project filter (None = all projects)
             limit: Maximum number of results
 
         Returns:
             List of expired Worktree instances
         """
         now = datetime.now(UTC).isoformat()
-        rows = self.db.fetchall(
-            """
-            SELECT * FROM worktrees
-            WHERE project_id = ?
-              AND status = ?
-              AND cleanup_after IS NOT NULL
-              AND cleanup_after < ?
-            ORDER BY cleanup_after ASC
-            LIMIT ?
-            """,
-            (project_id, WorktreeStatus.MERGED.value, now, limit),
-        )
+        if project_id:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM worktrees
+                WHERE project_id = ?
+                  AND status = ?
+                  AND cleanup_after IS NOT NULL
+                  AND cleanup_after < ?
+                ORDER BY cleanup_after ASC
+                LIMIT ?
+                """,
+                (project_id, WorktreeStatus.MERGED.value, now, limit),
+            )
+        else:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM worktrees
+                WHERE status = ?
+                  AND cleanup_after IS NOT NULL
+                  AND cleanup_after < ?
+                ORDER BY cleanup_after ASC
+                LIMIT ?
+                """,
+                (WorktreeStatus.MERGED.value, now, limit),
+            )
         return [Worktree.from_row(row) for row in rows]
 
     def cleanup_stale(
