@@ -369,7 +369,8 @@ export function ChatPage({
         onSetArtifactVersion={setVersion}
         planPendingApproval={
           (planPendingLocal || chat.planPendingApproval) &&
-          activeArtifact?.id === planArtifactIdRef.current
+          activeArtifact?.id === planArtifactIdRef.current &&
+          activeArtifact?.type === 'text'
         }
         onApprovePlan={handleApprovePlan}
         onRequestPlanChanges={handleRequestPlanChanges}

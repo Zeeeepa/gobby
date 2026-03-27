@@ -252,6 +252,16 @@ export function useCronJobs(projectId?: string | null) {
     }
   }, [])
 
+  // Sync selectedJob with fresh data after fetchJobs updates jobs list
+  useEffect(() => {
+    if (selectedJob) {
+      const updated = jobs.find(j => j.id === selectedJob.id)
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedJob)) {
+        setSelectedJob(updated)
+      }
+    }
+  }, [jobs]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fetch on mount and when filters change
   useEffect(() => {
     setIsLoading(true)

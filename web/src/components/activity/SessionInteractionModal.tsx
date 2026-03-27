@@ -302,7 +302,7 @@ export function SessionInteractionModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className={mode === "command" ? "max-w-lg" : "max-w-md"}>
+      <DialogContent className={mode === "command" ? "max-w-lg" : "max-w-md md:max-w-2xl"}>
         <DialogTitle>{config.title}</DialogTitle>
         <DialogDescription>
           {config.description}
