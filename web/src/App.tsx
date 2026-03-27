@@ -83,11 +83,6 @@ const WorkflowsPage = lazy(() =>
     default: m.WorkflowsPage,
   })),
 );
-const GitHubPage = lazy(() =>
-  import("./components/source-control/GitHubPage").then((m) => ({
-    default: m.GitHubPage,
-  })),
-);
 const ReportsPage = lazy(() =>
   import("./components/workflows/ReportsPage").then((m) => ({
     default: m.ReportsPage,
@@ -322,7 +317,6 @@ export default function App() {
       "tasks",
       "workflows",
       "reports",
-      "source-control",
       "cron",
       "traces",
       "memory",
@@ -1041,7 +1035,6 @@ export default function App() {
       { id: "tasks", label: "Tasks" },
       { id: "workflows", label: "Workflows" },
       { id: "reports", label: "Reports" },
-      { id: "source-control", label: "GitHub" },
       { id: "cron", label: "Cron Jobs" },
       { id: "traces", label: "Traces" },
       { id: "memory", label: "Memory" },
@@ -1092,7 +1085,7 @@ export default function App() {
   const navItems = [
     { id: "chat", label: "Chat", icon: <ChatIcon /> },
     { id: "dashboard", label: "Dashboard", icon: <DashboardIcon />, separator: true },
-    { id: "projects", label: "Projects", icon: <ProjectsIcon /> },
+    { id: "projects", label: "Project", icon: <ProjectsIcon /> },
     { id: "tasks", label: "Tasks", icon: <TasksIcon /> },
     { id: "workflows", label: "Workflows", icon: <WorkflowsIcon /> },
     { id: "cron", label: "Cron Jobs", icon: <CronIcon /> },
@@ -1321,8 +1314,6 @@ export default function App() {
                 projectId={effectiveProjectId}
                 onNavigateToTrace={handleNavigateToTrace}
               />
-            ) : activeTab === "source-control" ? (
-              <GitHubPage projectId={effectiveProjectId} />
             ) : activeTab === "configuration" ? (
               <ConfigurationPage />
             ) : activeTab === "dashboard" ? (

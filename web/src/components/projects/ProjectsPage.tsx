@@ -6,11 +6,9 @@ import { useSourceControl } from "../../hooks/useSourceControl";
 import { CodeGraphExplorer } from "../code-graph/CodeGraphExplorer";
 import { ProjectSettings } from "./ProjectSettings";
 import { ProjectSummary } from "./ProjectSummary";
-import { BranchesView } from "../source-control/BranchesView";
+import { SourceControlView } from "../source-control/SourceControlView";
 import { PullRequestsView } from "../source-control/PullRequestsView";
 import { IssuesView } from "../source-control/IssuesView";
-import { WorktreesView } from "../source-control/WorktreesView";
-import { ClonesView } from "../source-control/ClonesView";
 import { CICDView } from "../source-control/CICDView";
 import { FilesTab } from "../activity/FilesTab";
 
@@ -18,9 +16,7 @@ type ProjectsTab =
   | "overview"
   | "files"
   | "graph"
-  | "branches"
-  | "worktrees"
-  | "clones"
+  | "source-control"
   | "issues"
   | "prs"
   | "cicd"
@@ -30,9 +26,7 @@ const TABS = [
   { id: "overview", label: "Overview" },
   { id: "files", label: "Files" },
   { id: "graph", label: "Graph" },
-  { id: "branches", label: "Branches" },
-  { id: "worktrees", label: "Worktrees" },
-  { id: "clones", label: "Clones" },
+  { id: "source-control", label: "Source Control" },
   { id: "issues", label: "Issues" },
   { id: "prs", label: "PR" },
   { id: "cicd", label: "CI/CD" },
@@ -121,29 +115,19 @@ export function ProjectsPage({ projectId }: ProjectsPageProps = {}) {
           <CodeGraphExplorer projectId={projectId ?? null} />
         )}
 
-        {activeTab === "branches" && (
-          <BranchesView
+        {activeTab === "source-control" && (
+          <SourceControlView
             branches={sc.branches}
+            worktrees={sc.worktrees}
+            clones={sc.clones}
             currentBranch={sc.status?.current_branch || null}
             fetchCommits={sc.fetchCommits}
             fetchDiff={sc.fetchDiff}
-          />
-        )}
-
-        {activeTab === "worktrees" && (
-          <WorktreesView
-            worktrees={sc.worktrees}
-            onDelete={sc.deleteWorktree}
-            onSync={sc.syncWorktree}
-            onCleanup={sc.cleanupWorktrees}
-          />
-        )}
-
-        {activeTab === "clones" && (
-          <ClonesView
-            clones={sc.clones}
-            onDelete={sc.deleteClone}
-            onSync={sc.syncClone}
+            onSyncWorktree={sc.syncWorktree}
+            onDeleteWorktree={sc.deleteWorktree}
+            onSyncClone={sc.syncClone}
+            onDeleteClone={sc.deleteClone}
+            onCleanupWorktrees={sc.cleanupWorktrees}
           />
         )}
 
