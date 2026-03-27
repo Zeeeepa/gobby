@@ -262,9 +262,9 @@ class WorktreeIsolationHandler(IsolationHandler):
         self._created_worktree_id = worktree.id
 
         # Copy CLI hooks to worktree so hooks fire correctly
-        await self._copy_cli_hooks(
-            main_repo_path=str(self._git_manager.repo_path),
-            worktree_path=worktree_path,
+        await _copy_cli_hooks(
+            source_path=str(self._git_manager.repo_path),
+            target_path=worktree_path,
             provider=config.provider,
         )
 
@@ -348,62 +348,6 @@ Commit your changes to the worktree branch when done.
         # Sanitize branch name for use in path
         safe_branch = branch_name.replace("/", "-").replace("\\", "-")
         return str(Path.home() / ".gobby" / "worktrees" / project_name / safe_branch)
-
-    async def _copy_cli_hooks(
-        self,
-        main_repo_path: str,
-        worktree_path: str,
-        provider: str,
-    ) -> None:
-        """
-        Copy CLI-specific hooks to the worktree.
-
-        Without these hooks, the spawned agent won't trigger SessionStart
-        and other lifecycle hooks, breaking Gobby integration.
-
-        Args:
-            main_repo_path: Path to the main repository
-            worktree_path: Path to the newly created worktree
-            provider: CLI provider (gemini, claude, codex)
-        """
-        import shutil
-
-        # Map provider to CLI hook directory
-        cli_dirs = {
-            "gemini": ".gemini",
-            "claude": ".claude",
-            "codex": ".codex",
-            "cursor": ".claude",
-            "windsurf": ".claude",
-            "copilot": ".claude",
-        }
-
-        cli_dir = cli_dirs.get(provider)
-        if not cli_dir:
-            logger.debug(f"No CLI hooks directory defined for provider: {provider}")
-            return
-
-        src_path = Path(main_repo_path) / cli_dir
-        dst_path = Path(worktree_path) / cli_dir
-
-        if not src_path.exists():
-            logger.debug(f"CLI hooks directory not found in main repo: {src_path}")
-            return
-
-        try:
-            # Copy entire CLI hooks directory (non-blocking)
-            await asyncio.to_thread(shutil.copytree, src_path, dst_path, dirs_exist_ok=True)
-            logger.info(f"Copied CLI hooks from {src_path} to {dst_path}")
-        except shutil.Error:
-            logger.warning(
-                f"Failed to copy CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
-                exc_info=True,
-            )
-        except OSError:
-            logger.warning(
-                f"Filesystem error copying CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
-                exc_info=True,
-            )
 
 
 class CloneIsolationHandler(IsolationHandler):
@@ -532,9 +476,9 @@ class CloneIsolationHandler(IsolationHandler):
         self._created_clone_id = clone.id
 
         # Copy CLI hooks to clone so hooks fire correctly
-        await self._copy_cli_hooks(
-            source_repo_path=config.project_path,
-            clone_path=clone_path,
+        await _copy_cli_hooks(
+            source_path=config.project_path,
+            target_path=clone_path,
             provider=config.provider,
         )
 
@@ -617,61 +561,58 @@ Push your changes when ready to share with the original.
         safe_branch = branch_name.replace("/", "-").replace("\\", "-")
         return str(Path.home() / ".gobby" / "clones" / project_name / safe_branch)
 
-    async def _copy_cli_hooks(
-        self,
-        source_repo_path: str,
-        clone_path: str,
-        provider: str,
-    ) -> None:
-        """
-        Copy CLI-specific hooks to the clone.
 
-        Without these hooks, the spawned agent won't trigger SessionStart
-        and other lifecycle hooks, breaking Gobby integration.
+async def _copy_cli_hooks(
+    source_path: str,
+    target_path: str,
+    provider: str,
+) -> None:
+    """Copy CLI-specific hooks to an isolated environment.
 
-        Args:
-            source_repo_path: Path to the source repository
-            clone_path: Path to the newly created clone
-            provider: CLI provider (gemini, claude, codex)
-        """
-        import shutil
+    Without these hooks, the spawned agent won't trigger SessionStart
+    and other lifecycle hooks, breaking Gobby integration.
 
-        # Map provider to CLI hook directory
-        cli_dirs = {
-            "gemini": ".gemini",
-            "claude": ".claude",
-            "codex": ".codex",
-            "cursor": ".claude",
-            "windsurf": ".claude",
-            "copilot": ".claude",
-        }
+    Args:
+        source_path: Path to the source repository
+        target_path: Path to the isolated environment (worktree or clone)
+        provider: CLI provider (gemini, claude, codex, cursor, windsurf, copilot)
+    """
+    import shutil
 
-        cli_dir = cli_dirs.get(provider)
-        if not cli_dir:
-            logger.debug(f"No CLI hooks directory defined for provider: {provider}")
-            return
+    cli_dirs = {
+        "gemini": ".gemini",
+        "claude": ".claude",
+        "codex": ".codex",
+        "cursor": ".claude",
+        "windsurf": ".claude",
+        "copilot": ".claude",
+    }
 
-        src_path = Path(source_repo_path) / cli_dir
-        dst_path = Path(clone_path) / cli_dir
+    cli_dir = cli_dirs.get(provider)
+    if not cli_dir:
+        logger.debug(f"No CLI hooks directory defined for provider: {provider}")
+        return
 
-        if not src_path.exists():
-            logger.debug(f"CLI hooks directory not found in source repo: {src_path}")
-            return
+    src_path = Path(source_path) / cli_dir
+    dst_path = Path(target_path) / cli_dir
 
-        try:
-            # Copy entire CLI hooks directory (non-blocking)
-            await asyncio.to_thread(shutil.copytree, src_path, dst_path, dirs_exist_ok=True)
-            logger.info(f"Copied CLI hooks from {src_path} to {dst_path}")
-        except shutil.Error:
-            logger.warning(
-                f"Failed to copy CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
-                exc_info=True,
-            )
-        except OSError:
-            logger.warning(
-                f"Filesystem error copying CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
-                exc_info=True,
-            )
+    if not src_path.exists():
+        logger.debug(f"CLI hooks directory not found in source repo: {src_path}")
+        return
+
+    try:
+        await asyncio.to_thread(shutil.copytree, src_path, dst_path, dirs_exist_ok=True)
+        logger.info(f"Copied CLI hooks from {src_path} to {dst_path}")
+    except shutil.Error:
+        logger.warning(
+            f"Failed to copy CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
+            exc_info=True,
+        )
+    except OSError:
+        logger.warning(
+            f"Filesystem error copying CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
+            exc_info=True,
+        )
 
 
 async def _patch_mcp_config_for_isolation(
