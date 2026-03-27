@@ -1,6 +1,6 @@
 name: orchestrator
 type: pipeline
-version: "5.7"
+version: "5.8"
 description: |
   Tick-based orchestration pipeline. Each cron tick does one pass:
   scan task state, dispatch agents, exit. The cron schedule IS the loop.
@@ -20,7 +20,7 @@ inputs:
   task_id: null
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
-  developer_provider: "gemini"
+  developer_provider: "claude"
   developer_mode: "terminal"
   qa_provider: "claude"
   qa_mode: "terminal"
@@ -245,10 +245,10 @@ steps:
       tool: update_observed_files
       arguments:
         task_id: "${{ scan_needs_review.output.tasks[0].id }}"
-        require_commits: true
+        require_commits: false
 
   - id: dispatch_qa
-    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
+    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) and annotate_observed.output and annotate_observed.output.get('commits_processed', 0) > 0 }}"
     mcp:
       server: gobby-agents
       tool: spawn_agent
