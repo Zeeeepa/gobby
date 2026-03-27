@@ -188,16 +188,13 @@ steps:
         Approve to push to origin.
       timeout_seconds: 86400
 
+  - id: commit_merge
+    condition: "${{ not inputs.dry_run and check_merge.output.has_conflicts }}"
+    exec: "cd ${{ resolve_branches.output.worktree_path }} && git commit --no-edit"
+
   - id: push_merge
     condition: "${{ not inputs.dry_run }}"
-    mcp:
-      server: gobby-worktrees
-      tool: merge_worktree
-      arguments:
-        worktree_id: "${{ inputs.worktree_id }}"
-        source_branch: "${{ resolve_branches.output.source }}"
-        target_branch: "${{ resolve_branches.output.target }}"
-        push: true
+    exec: "cd ${{ resolve_branches.output.worktree_path }} && git push --no-verify origin ${{ resolve_branches.output.source }}:${{ resolve_branches.output.target }}"
 
   # ── RESULT ──
 
@@ -208,7 +205,7 @@ steps:
       arguments:
         data:
           merge_method: "${{ 'clean' if check_merge.output.clean else 'ai_resolved' }}"
-          pushed: "${{ bool(push_merge.output and push_merge.output.get('pushed', false)) if not inputs.dry_run else false }}"
+          pushed: "${{ not inputs.dry_run and push_merge.output and push_merge.output.get('exit_code', 1) == 0 }}"
           dry_run: "${{ inputs.dry_run }}"
           worktree_path: "${{ resolve_branches.output.worktree_path }}"
           conflicts_resolved: "${{ len(ai_resolve.output.get('resolved_files', [])) if ai_resolve.output else 0 }}"
