@@ -33,6 +33,11 @@ def mock_task_manager():
     manager.update_task = MagicMock()
     manager.get_task = MagicMock()
     manager.list_tasks = MagicMock(return_value=[])
+    # Mock db.connection() for dedup queries — return no existing tasks by default
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = None
+    manager.db.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
+    manager.db.connection.return_value.__exit__ = MagicMock(return_value=False)
     return manager
 
 
@@ -189,6 +194,51 @@ class TestGitHubSyncServiceImport:
 
         with pytest.raises(RuntimeError, match="GitHub"):
             await service.import_github_issues(repo="owner/repo")
+
+
+class TestGitHubSyncServiceDedup:
+    """Test import deduplication behavior."""
+
+    @pytest.mark.asyncio
+    async def test_import_updates_existing_task_instead_of_creating(
+        self, sync_service, mock_mcp_manager, mock_task_manager
+    ):
+        """Re-importing an issue updates the existing task instead of creating a duplicate."""
+        mock_mcp_manager.call_tool.return_value = {
+            "issues": [{"number": 1, "title": "Updated Title", "body": "Updated body"}]
+        }
+
+        # Simulate existing task found by dedup query
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = {"id": "existing-task-id"}
+        mock_task_manager.db.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_task_manager.db.connection.return_value.__exit__ = MagicMock(return_value=False)
+
+        existing_task = MagicMock()
+        existing_task.id = "existing-task-id"
+        existing_task.to_dict.return_value = {"id": "existing-task-id", "title": "Updated Title"}
+        mock_task_manager.get_task.return_value = existing_task
+
+        result = await sync_service.import_github_issues(repo="owner/repo")
+
+        # Should update, not create
+        mock_task_manager.update_task.assert_called_once()
+        mock_task_manager.create_task.assert_not_called()
+        assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_import_creates_new_task_when_no_existing(
+        self, sync_service, mock_mcp_manager, mock_task_manager
+    ):
+        """Importing a new issue creates a task when no existing task matches."""
+        mock_mcp_manager.call_tool.return_value = {
+            "issues": [{"number": 99, "title": "New Issue", "body": "New body"}]
+        }
+
+        result = await sync_service.import_github_issues(repo="owner/repo")
+
+        mock_task_manager.create_task.assert_called_once()
+        assert len(result) == 1
 
 
 class TestGitHubSyncServiceSync:

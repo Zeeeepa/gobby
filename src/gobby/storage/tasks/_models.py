@@ -293,5 +293,8 @@ class Task:
             "escalated_at": self.escalated_at,
             "start_date": self.start_date,
             "due_date": self.due_date,
+            "github_issue_number": self.github_issue_number,
+            "github_repo": self.github_repo,
+            "github_pr_number": self.github_pr_number,
             "id": self.id,  # UUID at end for backwards compat
         }
