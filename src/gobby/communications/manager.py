@@ -70,6 +70,9 @@ class CommunicationsManager:
 
     async def start(self) -> None:
         """Load enabled channels from DB, initialize adapters, configure rate limiter."""
+        # Auto-create web_chat channel if none exists
+        await self._ensure_web_chat_channel()
+
         channels = self._store.list_channels(enabled_only=True)
         for channel in channels:
             try:
@@ -585,6 +588,55 @@ class CommunicationsManager:
                 logger.info(f"Removed channel {name!r}")
             except Exception as e:
                 logger.error(f"Failed to delete channel {name!r} from DB: {e}")
+
+    async def _ensure_web_chat_channel(self) -> None:
+        """Auto-create a web_chat channel if one doesn't already exist.
+
+        The web_chat channel is an internal bridge that allows routing
+        rules to target the web UI.  Unlike external channels, it needs
+        no credentials.
+        """
+        channels = self._store.list_channels(enabled_only=False)
+        if any(c.channel_type == "web_chat" for c in channels):
+            return
+
+        from gobby.communications.adapters import get_adapter_class
+
+        if get_adapter_class("web_chat") is None:
+            logger.debug("web_chat adapter not registered, skipping auto-create")
+            return
+
+        now = datetime.now(UTC).isoformat()
+        channel = ChannelConfig(
+            id=str(uuid.uuid4()),
+            channel_type="web_chat",
+            name="web_chat",
+            enabled=True,
+            config_json={},
+            created_at=now,
+            updated_at=now,
+        )
+        try:
+            self._store.create_channel(channel)
+            logger.info("Auto-created web_chat channel for unified routing")
+        except Exception as e:
+            logger.error(f"Failed to auto-create web_chat channel: {e}", exc_info=True)
+
+    def set_websocket_broadcast(self, broadcast: Any) -> None:
+        """Wire the WebSocket broadcast callable into the web_chat adapter.
+
+        Called by GobbyRunner after both CommunicationsManager and
+        WebSocketServer are initialized.
+
+        Args:
+            broadcast: The WebSocketServer.broadcast async method.
+        """
+        from gobby.communications.adapters.web_chat import WebChatAdapter
+
+        adapter = self._adapters.get("web_chat")
+        if isinstance(adapter, WebChatAdapter):
+            adapter.set_broadcast(broadcast)
+            logger.info("WebChatAdapter wired to WebSocket broadcast")
 
     def list_channels(self) -> list[ChannelConfig]:
         """List all channels (enabled and disabled) from DB.
