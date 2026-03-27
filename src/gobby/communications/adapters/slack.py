@@ -9,13 +9,19 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
-from gobby.communications.models import ChannelCapabilities, ChannelConfig, CommsMessage
+from gobby.communications.models import (
+    ChannelCapabilities,
+    ChannelConfig,
+    CommsAttachment,
+    CommsMessage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +118,42 @@ class SlackAdapter(BaseChannelAdapter):
             last_ts = data.get("ts")
 
         return last_ts
+
+    async def send_attachment(
+        self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
+    ) -> str | None:
+        """Send a file via Slack files.upload API."""
+        if not self._client:
+            raise RuntimeError("Slack adapter not initialized")
+
+        with open(file_path, "rb") as f:
+            data: dict[str, Any] = {
+                "channels": message.channel_id,
+                "filename": attachment.filename,
+                "title": attachment.filename,
+            }
+            if message.content:
+                data["initial_comment"] = message.content
+            if message.platform_thread_id:
+                data["thread_ts"] = message.platform_thread_id
+
+            response = await self._client.post(
+                "files.upload",
+                data=data,
+                files={"file": (attachment.filename, f, attachment.content_type)},
+            )
+            response.raise_for_status()
+            result = response.json()
+            if not result.get("ok"):
+                raise ValueError(f"Failed to upload Slack file: {result.get('error')}")
+
+            file_info = result.get("file", {})
+            shares = file_info.get("shares", {})
+            for channel_shares in shares.values():
+                for share_list in channel_shares.values():
+                    if share_list:
+                        return share_list[0].get("ts")
+        return None
 
     async def shutdown(self) -> None:
         """Cleanly close connections."""

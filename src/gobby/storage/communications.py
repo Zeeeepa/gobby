@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.communications.models import (
     ChannelConfig,
+    CommsAttachment,
     CommsIdentity,
     CommsMessage,
     CommsRoutingRule,
@@ -399,3 +400,57 @@ class LocalCommunicationsStore:
         """Delete a routing rule by ID."""
         with self.db.transaction() as conn:
             conn.execute("DELETE FROM comms_routing_rules WHERE id = ?", (rule_id,))
+
+    # --- Attachments ---
+
+    def create_attachment(self, attachment: CommsAttachment) -> CommsAttachment:
+        """Save a new attachment to the database."""
+        if not attachment.id:
+            attachment.id = generate_prefixed_id("ca")
+
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO comms_attachments (
+                    id, message_id, filename, content_type, size_bytes,
+                    local_path, platform_url, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    attachment.id,
+                    attachment.message_id,
+                    attachment.filename,
+                    attachment.content_type,
+                    attachment.size_bytes,
+                    attachment.local_path,
+                    attachment.platform_url,
+                    attachment.created_at,
+                ),
+            )
+        return attachment
+
+    def get_attachment(self, attachment_id: str) -> CommsAttachment | None:
+        """Get an attachment by ID."""
+        row = self.db.fetchone("SELECT * FROM comms_attachments WHERE id = ?", (attachment_id,))
+        return CommsAttachment.from_row(dict(row)) if row else None
+
+    def list_attachments(self, message_id: str) -> list[CommsAttachment]:
+        """List all attachments for a message."""
+        rows = self.db.fetchall(
+            "SELECT * FROM comms_attachments WHERE message_id = ? ORDER BY created_at",
+            (message_id,),
+        )
+        return [CommsAttachment.from_row(dict(row)) for row in rows]
+
+    def delete_attachment(self, attachment_id: str) -> None:
+        """Delete an attachment by ID."""
+        with self.db.transaction() as conn:
+            conn.execute("DELETE FROM comms_attachments WHERE id = ?", (attachment_id,))
+
+    def delete_attachments_for_message(self, message_id: str) -> int:
+        """Delete all attachments for a message."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM comms_attachments WHERE message_id = ?", (message_id,)
+            )
+            return cursor.rowcount

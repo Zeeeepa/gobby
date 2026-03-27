@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 173
+BASELINE_VERSION = 174
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -203,6 +203,23 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         );
         CREATE INDEX IF NOT EXISTS idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
         CREATE INDEX IF NOT EXISTS idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);
+        """,
+    ),
+    (
+        174,
+        "Add comms_attachments table for file attachments",
+        """
+        CREATE TABLE IF NOT EXISTS comms_attachments (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL REFERENCES comms_messages(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL,
+            content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+            size_bytes INTEGER NOT NULL DEFAULT 0,
+            local_path TEXT,
+            platform_url TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_comms_attachments_message ON comms_attachments(message_id);
         """,
     ),
 ]

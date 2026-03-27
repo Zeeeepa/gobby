@@ -8,13 +8,19 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
-from gobby.communications.models import ChannelCapabilities, ChannelConfig, CommsMessage
+from gobby.communications.models import (
+    ChannelCapabilities,
+    ChannelConfig,
+    CommsAttachment,
+    CommsMessage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +161,31 @@ class DiscordAdapter(BaseChannelAdapter):
             last_id = data.get("id")
 
         return last_id
+
+    async def send_attachment(
+        self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
+    ) -> str | None:
+        """Send a file via Discord multipart form data."""
+        if not self._client:
+            raise RuntimeError("Discord adapter not initialized")
+
+        channel_id = message.platform_thread_id or message.channel_id
+        with open(file_path, "rb") as f:
+            data: dict[str, Any] = {}
+            if message.content:
+                data["content"] = message.content
+            payload_json = json.dumps(data) if data else json.dumps({})
+            files: dict[str, Any] = {
+                "files[0]": (attachment.filename, f, attachment.content_type),
+            }
+            response = await self._client.post(
+                f"/channels/{channel_id}/messages",
+                data={"payload_json": payload_json},
+                files=files,
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get("id")
 
     async def shutdown(self) -> None:
         """Cleanly close connections."""

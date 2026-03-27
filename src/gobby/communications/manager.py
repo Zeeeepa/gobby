@@ -10,12 +10,20 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.communications.adapters import get_adapter_class
-from gobby.communications.models import ChannelConfig, CommsIdentity, CommsMessage
+from gobby.communications.attachments import AttachmentManager
+from gobby.communications.models import (
+    ChannelConfig,
+    CommsAttachment,
+    CommsIdentity,
+    CommsMessage,
+)
 from gobby.communications.polling import PollingManager
 from gobby.communications.rate_limiter import TokenBucketRateLimiter
 from gobby.communications.router import MessageRouter
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from gobby.communications.adapters.base import BaseChannelAdapter
     from gobby.config.communications import CommunicationsConfig
     from gobby.storage.communications import LocalCommunicationsStore
@@ -54,6 +62,7 @@ class CommunicationsManager:
         self._adapters: dict[str, BaseChannelAdapter] = {}
         self._channel_by_name: dict[str, ChannelConfig] = {}
         self._thread_map: dict[str, str] = {}  # "channel_name:session_id" -> platform_thread_id
+        self.attachment_manager = AttachmentManager()
         self._rate_limiter = TokenBucketRateLimiter.from_defaults(config.channel_defaults)
         self._router = MessageRouter(store)
         self._polling_manager = PollingManager(self)
@@ -193,6 +202,96 @@ class CommunicationsManager:
                 logger.debug(f"Event callback error on send_message: {e}", exc_info=True)
 
         return message
+
+    async def send_attachment(
+        self,
+        channel_name: str,
+        file_path: Path,
+        filename: str | None = None,
+        content_type: str = "application/octet-stream",
+        content: str = "",
+        session_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[CommsMessage, CommsAttachment]:
+        """Send a file attachment to a named channel."""
+        from pathlib import Path as PathType
+
+        file_path = PathType(file_path)
+        if not file_path.exists():
+            raise ValueError(f"Attachment file not found: {file_path}")
+
+        adapter = self._adapters.get(channel_name)
+        if adapter is None:
+            raise ValueError(f"Channel {channel_name!r} not found or not active")
+
+        channel = self._channel_by_name[channel_name]
+        size_bytes = file_path.stat().st_size
+
+        if not self.attachment_manager.validate_size(size_bytes, channel.channel_type):
+            limit = self.attachment_manager.get_size_limit(channel.channel_type)
+            raise ValueError(
+                f"File size {size_bytes} exceeds {channel.channel_type} limit of {limit} bytes"
+            )
+
+        await self._rate_limiter.wait_if_needed(channel.id)
+
+        platform_thread_id = None
+        if session_id:
+            platform_thread_id = self._thread_map.get(f"{channel_name}:{session_id}")
+
+        display_name = filename or file_path.name
+
+        message = CommsMessage(
+            id=str(uuid.uuid4()),
+            channel_id=channel.id,
+            direction="outbound",
+            content=content,
+            content_type="attachment",
+            session_id=session_id,
+            status="pending",
+            platform_thread_id=platform_thread_id,
+            metadata_json=metadata or {},
+            created_at=datetime.now(UTC).isoformat(),
+        )
+
+        attachment = CommsAttachment(
+            id=str(uuid.uuid4()),
+            message_id=message.id,
+            filename=display_name,
+            content_type=content_type,
+            size_bytes=size_bytes,
+            local_path=str(file_path),
+            created_at=datetime.now(UTC).isoformat(),
+        )
+
+        try:
+            platform_message_id = await adapter.send_attachment(message, attachment, file_path)
+            message.platform_message_id = platform_message_id
+            message.status = "sent"
+        except NotImplementedError:
+            message.status = "failed"
+            message.error = f"{channel.channel_type} adapter does not support file attachments"
+            logger.error(f"Adapter {channel_name!r} does not support attachments")
+        except Exception as e:
+            message.status = "failed"
+            message.error = str(e)
+            logger.error(f"Failed to send attachment to {channel_name!r}: {e}", exc_info=True)
+
+        try:
+            self._store.create_message(message)
+            self._store.create_attachment(attachment)
+        except Exception as e:
+            logger.error(f"Failed to store outbound attachment: {e}", exc_info=True)
+
+        if self.event_callback is not None:
+            try:
+                await self.event_callback(
+                    "comms.attachment_sent", message=message, attachment=attachment
+                )
+            except Exception as e:
+                logger.debug(f"Event callback error on send_attachment: {e}", exc_info=True)
+
+        return message, attachment
 
     async def send_event(
         self,

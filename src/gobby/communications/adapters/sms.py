@@ -9,6 +9,7 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl
 
@@ -16,7 +17,12 @@ import httpx
 
 from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
-from gobby.communications.models import ChannelCapabilities, ChannelConfig, CommsMessage
+from gobby.communications.models import (
+    ChannelCapabilities,
+    ChannelConfig,
+    CommsAttachment,
+    CommsMessage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +107,34 @@ class SMSAdapter(BaseChannelAdapter):
 
         return last_sid
 
+    async def send_attachment(
+        self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
+    ) -> str | None:
+        """Send a file via MMS using Twilio MediaUrl parameter."""
+        if not self._client or not self._from_number:
+            raise RuntimeError("SMS adapter not initialized")
+
+        if not attachment.platform_url:
+            raise ValueError(
+                "SMS/MMS attachments require a publicly accessible platform_url. "
+                "Twilio fetches media from the URL directly."
+            )
+
+        payload: dict[str, Any] = {
+            "To": message.channel_id,
+            "From": self._from_number,
+            "MediaUrl": attachment.platform_url,
+        }
+        if message.content:
+            payload["Body"] = message.content
+
+        response = await self._client.post("Messages.json", data=payload)
+        response.raise_for_status()
+        data = response.json()
+        if "sid" not in data:
+            raise ValueError(f"Failed to send MMS message: {data}")
+        return data["sid"]
+
     async def shutdown(self) -> None:
         """Cleanly close connections."""
         if self._client:
@@ -112,7 +146,7 @@ class SMSAdapter(BaseChannelAdapter):
         return ChannelCapabilities(
             threading=False,
             reactions=False,
-            files=False,
+            files=True,
             markdown=False,
             max_message_length=self.max_message_length,
         )

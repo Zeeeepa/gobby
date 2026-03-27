@@ -6,13 +6,19 @@ import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
-from gobby.communications.models import ChannelCapabilities, ChannelConfig, CommsMessage
+from gobby.communications.models import (
+    ChannelCapabilities,
+    ChannelConfig,
+    CommsAttachment,
+    CommsMessage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +129,34 @@ class TelegramAdapter(BaseChannelAdapter):
                 last_message_id = str(data["result"]["message_id"])
 
         return last_message_id
+
+    async def send_attachment(
+        self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
+    ) -> str | None:
+        """Send a file via Telegram sendDocument API."""
+        if not self._client or not self._api_base:
+            raise RuntimeError("Adapter not initialized")
+
+        chat_id = message.metadata_json.get("chat_id")
+        if not chat_id:
+            raise ValueError("No chat_id provided in message metadata")
+
+        with open(file_path, "rb") as f:
+            files = {"document": (attachment.filename, f, attachment.content_type)}
+            data: dict[str, Any] = {"chat_id": chat_id}
+            if message.content:
+                data["caption"] = message.content[:1024]
+            if message.platform_thread_id:
+                data["reply_to_message_id"] = message.platform_thread_id
+
+            response = await self._client.post(
+                f"{self._api_base}/sendDocument", data=data, files=files
+            )
+            response.raise_for_status()
+            result = response.json()
+            if result.get("ok"):
+                return str(result["result"]["message_id"])
+        return None
 
     async def shutdown(self) -> None:
         """Cleanly close connections."""

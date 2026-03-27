@@ -8,11 +8,17 @@ from collections.abc import Callable
 from datetime import datetime
 from email.message import EmailMessage
 from email.utils import make_msgid
+from pathlib import Path
 from typing import Any
 
 from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
-from gobby.communications.models import ChannelCapabilities, ChannelConfig, CommsMessage
+from gobby.communications.models import (
+    ChannelCapabilities,
+    ChannelConfig,
+    CommsAttachment,
+    CommsMessage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +129,37 @@ class EmailAdapter(BaseChannelAdapter):
             msg.set_content(message.content, subtype="html")
         else:
             msg.set_content(message.content)
+
+        await self._smtp_client.send_message(msg)
+        return msg_id
+
+    async def send_attachment(
+        self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
+    ) -> str | None:
+        """Send an email with a MIME attachment."""
+        if not HAS_SMTP or not self._smtp_client:
+            raise RuntimeError("Email SMTP client not initialized or aiosmtplib missing")
+
+        msg = EmailMessage()
+        msg["Subject"] = message.metadata_json.get("subject", "Message from Gobby")
+        msg["From"] = self._from_address
+        msg["To"] = message.channel_id
+
+        domain = self._from_address.split("@")[-1] if "@" in self._from_address else "gobby.local"
+        msg_id = make_msgid(domain=domain)
+        msg["Message-ID"] = msg_id
+
+        if message.platform_thread_id:
+            msg["In-Reply-To"] = message.platform_thread_id
+            msg["References"] = message.platform_thread_id
+
+        msg.set_content(message.content or "")
+
+        maintype, subtype = (attachment.content_type or "application/octet-stream").split("/", 1)
+        file_data = file_path.read_bytes()
+        msg.add_attachment(
+            file_data, maintype=maintype, subtype=subtype, filename=attachment.filename
+        )
 
         await self._smtp_client.send_message(msg)
         return msg_id

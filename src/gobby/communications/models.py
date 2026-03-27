@@ -170,6 +170,35 @@ class CommsIdentity:
 
 
 @dataclass
+class CommsAttachment:
+    """A file attachment on a communication message."""
+
+    id: str
+    message_id: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    local_path: str | None = None
+    platform_url: str | None = None
+    created_at: str = ""
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> CommsAttachment:
+        """Create from database row."""
+        data = dict(row)
+        return cls(
+            id=data["id"],
+            message_id=data.get("message_id", ""),
+            filename=data.get("filename", ""),
+            content_type=data.get("content_type", "application/octet-stream"),
+            size_bytes=int(data.get("size_bytes", 0)),
+            local_path=data.get("local_path"),
+            platform_url=data.get("platform_url"),
+            created_at=data.get("created_at", datetime.now().isoformat()),
+        )
+
+
+@dataclass
 class CommsRoutingRule:
     """A rule for routing inbound communication events."""
 

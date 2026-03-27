@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.communications.models import (
         ChannelCapabilities,
         ChannelConfig,
+        CommsAttachment,
         CommsMessage,
     )
 
@@ -62,6 +64,15 @@ class BaseChannelAdapter(ABC):
     @abstractmethod
     def verify_webhook(self, payload: bytes, headers: dict[str, str], secret: str) -> bool:
         """Verify webhook signature."""
+
+    async def send_attachment(
+        self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
+    ) -> str | None:
+        """Send a file attachment and return platform message ID.
+
+        Default raises NotImplementedError. Override in adapters that support files.
+        """
+        raise NotImplementedError(f"{self.channel_type} adapter does not support file attachments")
 
     async def poll(self) -> list[CommsMessage]:
         """Poll for new messages (default implementation returns empty list)."""
