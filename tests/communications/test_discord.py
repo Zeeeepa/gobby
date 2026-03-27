@@ -127,6 +127,63 @@ def test_parse_webhook(adapter):
     assert messages[0].identity_id == "user_123"
 
 
+def test_parse_webhook_reaction_added(adapter):
+    """parse_webhook() parses MESSAGE_REACTION_ADD into reaction CommsMessage."""
+    payload = {
+        "t": "MESSAGE_REACTION_ADD",
+        "d": {
+            "user_id": "user_789",
+            "channel_id": "channel_123",
+            "message_id": "msg_456",
+            "emoji": {"id": None, "name": "thumbsup"},
+        },
+    }
+
+    messages = adapter.parse_webhook(payload, {})
+
+    assert len(messages) == 1
+    msg = messages[0]
+    assert msg.content_type == "reaction"
+    assert msg.content == "thumbsup"
+    assert msg.platform_message_id == "msg_456"
+    assert msg.identity_id == "user_789"
+    assert msg.channel_id == "channel_123"
+
+
+def test_parse_webhook_extracts_thread_id(adapter):
+    """parse_webhook() extracts platform_thread_id from thread metadata."""
+    payload = {
+        "type": 0,
+        "channel_id": "channel_123",
+        "id": "msg_123",
+        "author": {"id": "user_123"},
+        "content": "Reply in thread",
+        "thread": {"id": "thread_999"},
+    }
+
+    messages = adapter.parse_webhook(payload, {})
+
+    assert len(messages) == 1
+    assert messages[0].platform_thread_id == "thread_999"
+
+
+def test_parse_webhook_extracts_thread_from_message_reference(adapter):
+    """parse_webhook() extracts thread from message_reference when no thread metadata."""
+    payload = {
+        "type": 0,
+        "channel_id": "channel_123",
+        "id": "msg_123",
+        "author": {"id": "user_123"},
+        "content": "Reply via reference",
+        "message_reference": {"channel_id": "thread_888", "message_id": "msg_original"},
+    }
+
+    messages = adapter.parse_webhook(payload, {})
+
+    assert len(messages) == 1
+    assert messages[0].platform_thread_id == "thread_888"
+
+
 def test_verify_webhook(adapter):
     # This requires ed25519 keys to properly test, we'll test the failure cases or mock
     # since cryptography is optional

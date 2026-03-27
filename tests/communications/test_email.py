@@ -131,6 +131,49 @@ async def test_poll(adapter, mock_secret_resolver):
         assert messages[0].metadata_json["subject"] == "Test Reply"
 
 
+@pytest.mark.asyncio
+async def test_send_message_with_threading(adapter, mock_secret_resolver):
+    """send_message() sets In-Reply-To and References headers when thread_id is present."""
+    config = ChannelConfig(
+        id="test",
+        channel_type="email",
+        name="test",
+        enabled=True,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        config_json={"from_address": "bot@example.com", "smtp_host": "smtp.example.com"},
+    )
+
+    with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL"):
+        mock_smtp_inst = AsyncMock()
+        MockSMTP.return_value = mock_smtp_inst
+        await adapter.initialize(config, mock_secret_resolver)
+
+    msg = CommsMessage(
+        id="test_id",
+        channel_id="user@example.com",
+        direction="outbound",
+        content="Thread reply",
+        metadata_json={"subject": "Re: Original"},
+        platform_thread_id="<original-msg-id@example.com>",
+        created_at="2024-01-01T00:00:00Z",
+    )
+
+    msg_id = await adapter.send_message(msg)
+    assert msg_id is not None
+
+    sent_msg = mock_smtp_inst.send_message.call_args[0][0]
+    assert sent_msg["In-Reply-To"] == "<original-msg-id@example.com>"
+    assert sent_msg["References"] == "<original-msg-id@example.com>"
+
+
+def test_capabilities_reports_threading(adapter):
+    """Email adapter capabilities should report threading=True."""
+    caps = adapter.capabilities()
+    assert caps.threading is True
+    assert caps.reactions is False
+
+
 def test_parse_webhook(adapter):
     with pytest.raises(NotImplementedError):
         adapter.parse_webhook({}, {})
