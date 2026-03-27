@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import type { WorktreeInfo } from '../../hooks/useSourceControl'
-import { StatusBadge } from './StatusBadge'
+import { ResourceCard, worktreeToFields } from './ResourceCard'
 
 interface Props {
   worktrees: WorktreeInfo[]
@@ -15,9 +15,8 @@ const STATUSES = ['active', 'stale', 'merged', 'abandoned'] as const
 
 export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null)
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmCleanup, setConfirmCleanup] = useState(false)
-  const [actionLoading, setActionLoading] = useState(new Set<string>())
+  const [cleanupLoading, setCleanupLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [cleanupHours, setCleanupHours] = useState(24)
   const filtered = statusFilter
@@ -32,41 +31,25 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
     return counts
   }, [worktrees])
 
-  const handleDelete = async (id: string) => {
-    setActionLoading(prev => new Set(prev).add(id))
-    setActionError(null)
-    try {
-      await onDelete(id)
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Failed to delete worktree')
-    } finally {
-      setActionLoading(prev => { const next = new Set(prev); next.delete(id); return next })
-      setConfirmDelete(null)
-    }
-  }
-
-  const handleSync = async (id: string) => {
-    setActionLoading(prev => new Set(prev).add(id))
-    setActionError(null)
-    try {
-      await onSync(id)
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Failed to sync worktree')
-    } finally {
-      setActionLoading(prev => { const next = new Set(prev); next.delete(id); return next })
-    }
-  }
-
   const handleCleanup = async () => {
-    setActionLoading(prev => new Set(prev).add('cleanup'))
+    setCleanupLoading(true)
     setActionError(null)
     try {
       await onCleanup(cleanupHours, false)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to cleanup worktrees')
     } finally {
-      setActionLoading(prev => { const next = new Set(prev); next.delete('cleanup'); return next })
+      setCleanupLoading(false)
       setConfirmCleanup(false)
+    }
+  }
+
+  const handleAction = async (action: (id: string) => Promise<boolean>, id: string, errorMsg: string) => {
+    setActionError(null)
+    try {
+      await action(id)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : errorMsg)
     }
   }
 
@@ -114,9 +97,9 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
               <button
                 className="sc-btn sc-btn--sm sc-btn--danger"
                 onClick={handleCleanup}
-                disabled={actionLoading.has('cleanup')}
+                disabled={cleanupLoading}
               >
-                {actionLoading.has('cleanup') ? 'Cleaning...' : 'Confirm'}
+                {cleanupLoading ? 'Cleaning...' : 'Confirm'}
               </button>
               <button
                 className="sc-btn sc-btn--sm"
@@ -141,69 +124,15 @@ export function WorktreesView({ worktrees, onDelete, onSync, onCleanup }: Props)
       ) : (
         <div className="sc-card-grid">
           {filtered.map((wt) => (
-            <div key={wt.id} className="sc-card">
-              <div className="sc-card__header">
-                <span className="sc-card__title">{wt.branch_name}</span>
-                <StatusBadge status={wt.status} />
-              </div>
-              <div className="sc-card__body">
-                <div className="sc-card__field">
-                  <span className="sc-card__label">Path</span>
-                  <code className="sc-card__value">{wt.worktree_path}</code>
-                </div>
-                {wt.task_id && (
-                  <div className="sc-card__field">
-                    <span className="sc-card__label">Task</span>
-                    <span className="sc-card__value">{wt.task_id}</span>
-                  </div>
-                )}
-                {wt.agent_session_id && (
-                  <div className="sc-card__field">
-                    <span className="sc-card__label">Session</span>
-                    <span className="sc-card__value sc-text-muted">{wt.agent_session_id}</span>
-                  </div>
-                )}
-                <div className="sc-card__field">
-                  <span className="sc-card__label">Created</span>
-                  <span className="sc-card__value sc-text-muted">
-                    {new Date(wt.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-              <div className="sc-card__actions">
-                <button
-                  className="sc-btn sc-btn--sm"
-                  onClick={() => handleSync(wt.id)}
-                  disabled={actionLoading.has(wt.id)}
-                >
-                  Sync
-                </button>
-                {confirmDelete === wt.id ? (
-                  <>
-                    <button
-                      className="sc-btn sc-btn--sm sc-btn--danger"
-                      onClick={() => handleDelete(wt.id)}
-                      disabled={actionLoading.has(wt.id)}
-                    >
-                      {actionLoading.has(wt.id) ? 'Deleting...' : 'Confirm'}
-                    </button>
-                    <button
-                      className="sc-btn sc-btn--sm"
-                      onClick={() => setConfirmDelete(null)}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="sc-btn sc-btn--sm sc-btn--danger"
-                    onClick={() => setConfirmDelete(wt.id)}
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            </div>
+            <ResourceCard
+              key={wt.id}
+              id={wt.id}
+              title={wt.branch_name}
+              status={wt.status}
+              fields={worktreeToFields(wt)}
+              onSync={(id) => handleAction(onSync, id, 'Failed to sync worktree')}
+              onDelete={(id) => handleAction(onDelete, id, 'Failed to delete worktree')}
+            />
           ))}
         </div>
       )}
