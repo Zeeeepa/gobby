@@ -8,10 +8,15 @@ configuration, and IDE terminal title setup.
 from __future__ import annotations
 
 import logging
+import platform
 import subprocess
+import sys
+import tarfile
+from io import BytesIO
 from pathlib import Path
 from shutil import copy2
 from typing import Any
+from urllib.request import urlopen
 
 import click
 
@@ -154,6 +159,16 @@ def run_daemon_setup(project_path: Path) -> None:
     except subprocess.TimeoutExpired:
         click.echo("Warning: ClawHub CLI install timed out")
 
+    # Install gsqz binary (output compressor for token optimization)
+    try:
+        gsqz_result = _install_gsqz()
+        if gsqz_result.get("installed"):
+            click.echo(f"Installed gsqz {gsqz_result.get('version', '')} (output compressor)")
+        elif gsqz_result.get("skipped"):
+            click.echo("gsqz already installed, skipping")
+    except Exception as e:
+        click.echo(f"Warning: Failed to install gsqz: {e}")
+
     # Configure VS Code terminal title (any CLI may run inside VS Code's terminal)
     try:
         from .installers.ide_config import configure_ide_terminal_title
@@ -163,3 +178,63 @@ def run_daemon_setup(project_path: Path) -> None:
             click.echo("Configured VS Code terminal title for tmux integration")
     except (ImportError, OSError, PermissionError, ValueError) as e:
         click.echo(f"Warning: Failed to configure VS Code terminal title: {e}")
+
+
+# GitHub release URL pattern for gsqz binaries
+_GSQZ_RELEASE_URL = "https://github.com/GobbyAI/gsqz/releases/latest/download/gsqz-{target}.tar.gz"
+
+# Platform → target triple mapping
+_GSQZ_TARGETS: dict[tuple[str, str], str] = {
+    ("darwin", "arm64"): "aarch64-apple-darwin",
+    ("darwin", "x86_64"): "x86_64-apple-darwin",
+    ("linux", "x86_64"): "x86_64-unknown-linux-gnu",
+    ("linux", "aarch64"): "aarch64-unknown-linux-gnu",
+}
+
+
+def _install_gsqz() -> dict[str, Any]:
+    """Download and install the gsqz binary from GitHub Releases.
+
+    Installs to ~/.gobby/bin/gsqz. Skips if already present.
+
+    Returns:
+        Dict with 'installed', 'skipped', and optionally 'version' keys.
+    """
+    bin_dir = Path.home() / ".gobby" / "bin"
+    gsqz_path = bin_dir / "gsqz"
+
+    if gsqz_path.exists():
+        return {"installed": False, "skipped": True}
+
+    # Detect platform
+    os_name = sys.platform  # 'darwin' or 'linux'
+    machine = platform.machine().lower()  # 'arm64', 'x86_64', 'aarch64'
+    target = _GSQZ_TARGETS.get((os_name, machine))
+    if target is None:
+        logger.warning("gsqz: unsupported platform %s/%s", os_name, machine)
+        return {
+            "installed": False,
+            "skipped": True,
+            "reason": f"unsupported platform {os_name}/{machine}",
+        }
+
+    # Download tarball
+    url = _GSQZ_RELEASE_URL.format(target=target)
+    logger.info("Downloading gsqz from %s", url)
+    with urlopen(url, timeout=30) as resp:  # noqa: S310
+        tarball = BytesIO(resp.read())
+
+    # Extract gsqz binary
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(fileobj=tarball, mode="r:gz") as tar:
+        # Find the gsqz binary in the archive
+        for member in tar.getmembers():
+            if member.name.endswith("/gsqz") or member.name == "gsqz":
+                member.name = "gsqz"  # Flatten path
+                tar.extract(member, path=bin_dir)
+                break
+        else:
+            raise FileNotFoundError("gsqz binary not found in release tarball")
+
+    gsqz_path.chmod(0o755)
+    return {"installed": True, "version": "latest"}
