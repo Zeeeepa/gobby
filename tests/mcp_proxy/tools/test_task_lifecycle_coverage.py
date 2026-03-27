@@ -156,6 +156,32 @@ class TestCloseTask:
         assert "open" in result["message"].lower()
 
     @pytest.mark.asyncio
+    async def test_close_epic_no_children_no_commit_succeeds(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """Closing an epic with no children succeeds without commits or changes_summary."""
+        epic = _make_task(task_type="epic", commits=None)
+        mock_task_manager.get_task.return_value = epic
+        mock_task_manager.list_tasks.return_value = []  # no children
+        mock_task_manager.close_task.return_value = epic
+
+        registry = _create_registry(mock_task_manager, mock_sync_manager)
+
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._lifecycle_close.validate_commit_requirements"
+        ) as mock_vcr:
+            result = await registry.call(
+                "close_task",
+                {"task_id": epic.id},
+            )
+            # commit check should NOT have been called — epics skip leaf validation
+            mock_vcr.assert_not_called()
+
+        assert "error" not in result
+        assert result.get("success", True) is not False
+        mock_task_manager.close_task.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_close_commit_requirements_fail(self, mock_task_manager, mock_sync_manager):
         """Returns error when commit requirements fail."""
         task = _make_task()

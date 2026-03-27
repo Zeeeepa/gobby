@@ -98,8 +98,13 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 return response
             is_parent_all_closed = True
 
+        # Epics are organizational containers — they never require own commits,
+        # changes_summary, or session-edit checks, regardless of child count.
+        is_epic = task.task_type == "epic"
+        skip_leaf_checks = is_parent_all_closed or is_epic
+
         # Require changes_summary for non-parent closes (agents must explain what changed)
-        if not is_parent_all_closed and not changes_summary:
+        if not skip_leaf_checks and not changes_summary:
             return {
                 "success": False,
                 "error": "missing_changes_summary",
@@ -107,8 +112,8 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 "Describe what was changed and why.",
             }
 
-        # Check for linked commits (unless parent with all children closed)
-        if not is_parent_all_closed:
+        # Check for linked commits (unless parent with all children closed or epic)
+        if not skip_leaf_checks:
             commit_result = validate_commit_requirements(task, reason, repo_path)
             if not commit_result.can_close:
                 return {
@@ -164,7 +169,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # Only skip for explicit skip_validation, NOT for close reasons like out_of_repo
         # (if the session edited in-repo files, those need commits regardless of reason)
         # Also skip for parent tasks with all children closed (no direct edits expected)
-        if not is_parent_all_closed and resolved_session_id and not skip_validation:
+        if not skip_leaf_checks and resolved_session_id and not skip_validation:
             try:
                 session = _session_manager.get(resolved_session_id)
 
@@ -188,7 +193,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 # Don't block close on internal error
                 logger.debug(f"Best-effort session edit check failed: {e}")
 
-        if not should_skip and not is_parent_all_closed:
+        if not should_skip and not skip_leaf_checks:
             # Check if task has children (is a parent task)
             parent_result = validate_parent_task(ctx, resolved_id)
             if not parent_result.can_close:
