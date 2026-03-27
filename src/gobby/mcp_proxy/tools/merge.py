@@ -101,7 +101,7 @@ def create_merge_registry(
             # Get worktree path from manager
             worktree_path = None
             if worktree_manager:
-                worktree = worktree_manager.get_worktree(worktree_id)
+                worktree = worktree_manager.get(worktree_id)
                 if worktree and worktree.worktree_path:
                     worktree_path = worktree.worktree_path
 
