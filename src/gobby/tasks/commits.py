@@ -584,7 +584,7 @@ def _resolve_branch_for_task(
     wt_mgr = LocalWorktreeManager(db)
     clone_mgr = LocalCloneManager(db)
 
-    current_id = task_id
+    current_id: str | None = task_id
     visited: set[str] = set()
     while current_id and current_id not in visited:
         visited.add(current_id)

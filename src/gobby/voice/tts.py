@@ -68,7 +68,7 @@ class KokoroTTS:
             def _load() -> Any:
                 from kokoro_onnx import Kokoro
 
-                return Kokoro.from_pretrained()
+                return Kokoro.from_pretrained()  # type: ignore[attr-defined]
 
             self._model = await asyncio.to_thread(_load)
             logger.info("Kokoro TTS model loaded successfully")

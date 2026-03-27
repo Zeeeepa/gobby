@@ -225,25 +225,25 @@ class EnforcementMixin:
         """
         step, instance, definition = self._get_step_for_session(session_id)
         if step is None or instance is None or definition is None:
-            return
+            return None
 
         # Only process successful MCP tool completions
         is_failure = event.metadata.get("is_failure", False) or event.data.get("is_error", False)
         if is_failure:
-            return
+            return None
 
         tool_name = event.data.get("tool_name", "")
         if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
-            return
+            return None
 
         tool_input = event.data.get("tool_input") or {}
         if not isinstance(tool_input, dict):
-            return
+            return None
 
         mcp_server = tool_input.get("server_name", "")
         mcp_tool_name = tool_input.get("tool_name", "")
         if not mcp_server or not mcp_tool_name:
-            return
+            return None
 
         # Check application-level failure in tool output
         tool_output = event.data.get("tool_output")
@@ -330,3 +330,5 @@ class EnforcementMixin:
         # Save if variables changed without transition
         if vars_changed:
             instance_mgr.save_instance(instance)
+
+        return None
