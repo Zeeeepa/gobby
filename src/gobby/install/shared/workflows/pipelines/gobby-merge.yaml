@@ -166,13 +166,13 @@ steps:
   # ── PHASE 4: TEST VALIDATION (conditional) ──
 
   - id: run_tests
-    condition: "${{ inputs.test_command and (check_merge.output.clean or (apply_resolution.output)) }}"
+    condition: "${{ inputs.test_command }}"
     exec: "cd ${{ resolve_branches.output.worktree_path }} && ${{ inputs.test_command }}"
 
   # ── PHASE 5: PUSH (with approval gate) ──
 
   - id: push_gate
-    condition: "${{ not inputs.dry_run and (check_merge.output.clean or (apply_resolution.output)) }}"
+    condition: "${{ not inputs.dry_run }}"
     mcp:
       server: gobby-workflows
       tool: pipeline_eval
@@ -189,7 +189,7 @@ steps:
       timeout_seconds: 86400
 
   - id: push_merge
-    condition: "${{ not inputs.dry_run and push_gate.output }}"
+    condition: "${{ not inputs.dry_run }}"
     mcp:
       server: gobby-worktrees
       tool: merge_worktree
