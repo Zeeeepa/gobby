@@ -133,7 +133,7 @@ class SMSAdapter(BaseChannelAdapter):
         data = response.json()
         if "sid" not in data:
             raise ValueError(f"Failed to send MMS message: {data}")
-        return data["sid"]
+        return str(data["sid"])
 
     async def shutdown(self) -> None:
         """Cleanly close connections."""

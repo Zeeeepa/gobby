@@ -152,7 +152,7 @@ class SlackAdapter(BaseChannelAdapter):
             for channel_shares in shares.values():
                 for share_list in channel_shares.values():
                     if share_list:
-                        return share_list[0].get("ts")
+                        return str(share_list[0].get("ts"))
         return None
 
     async def shutdown(self) -> None:

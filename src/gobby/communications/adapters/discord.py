@@ -185,7 +185,8 @@ class DiscordAdapter(BaseChannelAdapter):
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("id")
+            msg_id: str | None = result.get("id")
+            return msg_id
 
     async def shutdown(self) -> None:
         """Cleanly close connections."""
