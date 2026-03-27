@@ -39,17 +39,20 @@ class Worktree:
     updated_at: str
     merged_at: str | None
     merge_state: str | None = None  # "pending", "resolved", or None
+    cleanup_after: str | None = None  # ISO timestamp for auto-cleanup after merge
 
     @classmethod
     def from_row(cls, row: Any) -> Worktree:
         """Create Worktree from database row."""
-        # Handle merge_state which may not exist in older schemas
-        merge_state = row.get("merge_state") if hasattr(row, "get") else None
-        if merge_state is None:
+
+        def _safe_get(field: str) -> Any:
+            """Get a field that may not exist in older schemas."""
+            if hasattr(row, "get"):
+                return row.get(field)
             try:
-                merge_state = row["merge_state"]
+                return row[field]
             except (KeyError, IndexError):
-                pass
+                return None
 
         return cls(
             id=row["id"],
@@ -63,7 +66,8 @@ class Worktree:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             merged_at=row["merged_at"],
-            merge_state=merge_state,
+            merge_state=_safe_get("merge_state"),
+            cleanup_after=_safe_get("cleanup_after"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -81,6 +85,7 @@ class Worktree:
             "updated_at": self.updated_at,
             "merged_at": self.merged_at,
             "merge_state": self.merge_state,
+            "cleanup_after": self.cleanup_after,
         }
 
 
@@ -235,6 +240,7 @@ class LocalWorktreeManager:
             "updated_at",
             "merged_at",
             "merge_state",
+            "cleanup_after",
         }
     )
 
@@ -325,21 +331,26 @@ class LocalWorktreeManager:
         """
         return self.update(worktree_id, status=WorktreeStatus.STALE.value)
 
-    def mark_merged(self, worktree_id: str) -> Worktree | None:
+    def mark_merged(self, worktree_id: str, cleanup_days: int = 7) -> Worktree | None:
         """
-        Mark worktree as merged.
+        Mark worktree as merged and schedule cleanup.
 
         Args:
             worktree_id: Worktree ID
+            cleanup_days: Days until auto-cleanup (default: 7)
 
         Returns:
             Updated Worktree or None if not found
         """
-        now = datetime.now(UTC).isoformat()
+        from datetime import timedelta
+
+        now = datetime.now(UTC)
+        cleanup_after = (now + timedelta(days=cleanup_days)).isoformat()
         return self.update(
             worktree_id,
             status=WorktreeStatus.MERGED.value,
-            merged_at=now,
+            merged_at=now.isoformat(),
+            cleanup_after=cleanup_after,
         )
 
     def mark_abandoned(self, worktree_id: str) -> Worktree | None:
@@ -386,6 +397,39 @@ class LocalWorktreeManager:
             LIMIT ?
             """,
             (project_id, WorktreeStatus.ACTIVE.value, cutoff, limit),
+        )
+        return [Worktree.from_row(row) for row in rows]
+
+    def find_expired(
+        self,
+        project_id: str,
+        limit: int = 50,
+    ) -> list[Worktree]:
+        """
+        Find merged worktrees past their cleanup window.
+
+        These are worktrees where the merge succeeded and the grace period
+        (cleanup_after) has elapsed. Safe to delete — work is in target branch.
+
+        Args:
+            project_id: Project ID
+            limit: Maximum number of results
+
+        Returns:
+            List of expired Worktree instances
+        """
+        now = datetime.now(UTC).isoformat()
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM worktrees
+            WHERE project_id = ?
+              AND status = ?
+              AND cleanup_after IS NOT NULL
+              AND cleanup_after < ?
+            ORDER BY cleanup_after ASC
+            LIMIT ?
+            """,
+            (project_id, WorktreeStatus.MERGED.value, now, limit),
         )
         return [Worktree.from_row(row) for row in rows]
 

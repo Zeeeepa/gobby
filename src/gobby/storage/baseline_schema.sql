@@ -462,6 +462,7 @@ CREATE TABLE worktrees (
     status TEXT DEFAULT 'active',
     merge_state TEXT,
     merged_at TEXT,
+    cleanup_after TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
