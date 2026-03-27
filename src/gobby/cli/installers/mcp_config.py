@@ -234,11 +234,21 @@ def configure_mcp_server_json(settings_path: Path, server_name: str = "gobby") -
         existing_settings["mcpServers"] = {}
 
     # Add gobby MCP server config
-    # Use 'uv run gobby' since most users won't have gobby installed globally
-    existing_settings["mcpServers"][server_name] = {
-        "command": "uv",
-        "args": ["run", "gobby", "mcp-server"],
-    }
+    # Resolve the gobby binary from the same environment running this install,
+    # so the MCP config survives uv tool reinstalls and PATH changes.
+    import sys
+
+    gobby_bin = str(Path(sys.executable).parent / "gobby")
+    if Path(gobby_bin).exists():
+        existing_settings["mcpServers"][server_name] = {
+            "command": gobby_bin,
+            "args": ["mcp-server"],
+        }
+    else:
+        existing_settings["mcpServers"][server_name] = {
+            "command": "gobby",
+            "args": ["mcp-server"],
+        }
 
     # Write updated settings
     try:

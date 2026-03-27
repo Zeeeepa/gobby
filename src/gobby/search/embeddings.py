@@ -78,9 +78,14 @@ async def generate_embeddings(
 
     # Route local/ prefix models to the in-process backend
     if model.startswith("local/"):
-        from gobby.search.local_embeddings import generate_embeddings_local
+        try:
+            from gobby.search.local_embeddings import generate_embeddings_local
 
-        return await generate_embeddings_local(texts, model=model, is_query=is_query)
+            return await generate_embeddings_local(texts, model=model, is_query=is_query)
+        except (ImportError, RuntimeError) as e:
+            raise RuntimeError(
+                f"Local embeddings unavailable: {e}. Run: uv sync --extra local-embeddings"
+            ) from e
 
     try:
         import litellm

@@ -71,9 +71,6 @@ dependencies = [
     "opentelemetry-exporter-prometheus>=0.49b0",
     "opentelemetry-instrumentation-logging>=0.49b0",
     "opentelemetry-semantic-conventions>=0.49b0",
-    # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
-    # ~50MB wheel, no torch, auto-detects Metal/CUDA
-    "llama-cpp-python>=0.3.0",
     # LLM provider instrumentation for OpenTelemetry tracing
     "opentelemetry-instrumentation-anthropic>=0.34.0",
     "opentelemetry-instrumentation-openai>=0.34.0",
@@ -82,6 +79,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+local-embeddings = [
+    # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
+    # No pre-built wheels — builds from source via cmake. Install separately.
+    "llama-cpp-python>=0.3.0",
+]
 email = ["aiosmtplib>=2.0", "aioimaplib>=1.0"]
 
 [project.scripts]
