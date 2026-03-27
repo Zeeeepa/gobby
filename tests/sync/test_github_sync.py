@@ -33,11 +33,8 @@ def mock_task_manager():
     manager.update_task = MagicMock()
     manager.get_task = MagicMock()
     manager.list_tasks = MagicMock(return_value=[])
-    # Mock db.connection() for dedup queries — return no existing tasks by default
-    mock_conn = MagicMock()
-    mock_conn.execute.return_value.fetchone.return_value = None
-    manager.db.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
-    manager.db.connection.return_value.__exit__ = MagicMock(return_value=False)
+    # Mock db.execute() for dedup queries — return no existing tasks by default
+    manager.db.execute.return_value.fetchone.return_value = None
     return manager
 
 
@@ -209,10 +206,7 @@ class TestGitHubSyncServiceDedup:
         }
 
         # Simulate existing task found by dedup query
-        mock_conn = MagicMock()
-        mock_conn.execute.return_value.fetchone.return_value = {"id": "existing-task-id"}
-        mock_task_manager.db.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
-        mock_task_manager.db.connection.return_value.__exit__ = MagicMock(return_value=False)
+        mock_task_manager.db.execute.return_value.fetchone.return_value = {"id": "existing-task-id"}
 
         existing_task = MagicMock()
         existing_task.id = "existing-task-id"
