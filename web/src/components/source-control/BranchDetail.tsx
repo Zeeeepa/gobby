@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import type { GitCommit, DiffResult } from '../../hooks/useSourceControl'
 import { DiffViewer } from './DiffViewer'
 
@@ -8,9 +8,10 @@ interface Props {
   fetchCommits: (branch: string, limit?: number) => Promise<GitCommit[]>
   fetchDiff: (base: string, head: string) => Promise<DiffResult | null>
   onClose: () => void
+  children?: ReactNode
 }
 
-export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDiff, onClose }: Props) {
+export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDiff, onClose, children }: Props) {
   const [commits, setCommits] = useState<GitCommit[]>([])
   const [diff, setDiff] = useState<DiffResult | null>(null)
   const [showDiff, setShowDiff] = useState(false)
@@ -108,6 +109,8 @@ export function BranchDetail({ branchName, currentBranch, fetchCommits, fetchDif
           </div>
         )}
       </div>
+
+      {children}
     </div>
   )
 }
