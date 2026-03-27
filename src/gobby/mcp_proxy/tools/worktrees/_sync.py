@@ -234,12 +234,12 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
                         timeout=10,
                     )
                     return {
-                        "success": False,
+                        "success": True,
                         "has_conflicts": True,
+                        "merged": False,
                         "conflicted_files": remaining,
                         "auto_resolved": [f for f in conflicted_files if f not in remaining],
                         "worktree_path": wt_path,
-                        "error": "merge_conflict",
                         "message": (
                             f"Merge conflicts detected in {len(remaining)} file(s) "
                             f"({len(conflicted_files) - len(remaining)} trivial auto-resolved). "

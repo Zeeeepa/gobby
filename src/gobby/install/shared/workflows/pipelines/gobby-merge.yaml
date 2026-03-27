@@ -95,9 +95,9 @@ steps:
       tool: pipeline_eval
       arguments:
         data:
-          clean: "${{ try_merge.output.success }}"
-          has_conflicts: "${{ try_merge.output.get('has_conflicts', false) if not try_merge.output.success else false }}"
-          non_conflict_error: "${{ not try_merge.output.success and not try_merge.output.get('has_conflicts', false) }}"
+          clean: "${{ try_merge.output.get('merged', try_merge.output.success) and not try_merge.output.get('has_conflicts', false) }}"
+          has_conflicts: "${{ try_merge.output.get('has_conflicts', false) }}"
+          non_conflict_error: "${{ not try_merge.output.success }}"
 
   # Fail fast on non-conflict errors (e.g. branch not found)
   - id: fail_non_conflict
