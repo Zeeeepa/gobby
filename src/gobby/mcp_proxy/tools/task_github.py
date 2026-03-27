@@ -63,7 +63,7 @@ def _fetch_issues_via_gh(
     if result.returncode != 0:
         raise RuntimeError(f"gh issue list failed: {result.stderr.strip()}")
 
-    return json.loads(result.stdout)
+    return list(json.loads(result.stdout))
 
 
 def create_github_registry(
@@ -148,7 +148,7 @@ def create_github_registry(
                 if parent_task_id:
                     try:
                         resolved_parent = resolve_task_id_for_mcp(
-                            parent_task_id, task_manager, project_id
+                            task_manager, parent_task_id, project_id
                         )
                         task_manager.update_task(task.id, parent_task_id=resolved_parent)
                     except Exception as e:
@@ -199,7 +199,7 @@ def create_github_registry(
             },
             "required": ["repo", "session_id"],
         },
-        handler=import_github_issues,
+        func=import_github_issues,
     )
 
     # --- link_task_to_github_issue ---
@@ -214,7 +214,7 @@ def create_github_registry(
         project_id = context.get("id") if context else None
 
         try:
-            resolved_id = resolve_task_id_for_mcp(task_id, task_manager, project_id)
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id, project_id)
         except Exception as e:
             return {"success": False, "error": f"Could not resolve task: {e}"}
 
@@ -263,7 +263,7 @@ def create_github_registry(
             },
             "required": ["task_id", "repo", "issue_number"],
         },
-        handler=link_task_to_github_issue,
+        func=link_task_to_github_issue,
     )
 
     return registry
@@ -278,12 +278,11 @@ def _find_task_by_github_issue(
     """Find an existing task linked to a GitHub issue."""
     if issue_number is None:
         return None
-    with task_manager.db.connection() as conn:
-        row = conn.execute(
-            "SELECT id FROM tasks WHERE github_repo = ? AND github_issue_number = ? "
-            "AND project_id = ? LIMIT 1",
-            (repo, issue_number, project_id),
-        ).fetchone()
+    row = task_manager.db.execute(
+        "SELECT id FROM tasks WHERE github_repo = ? AND github_issue_number = ? "
+        "AND project_id = ? LIMIT 1",
+        (repo, issue_number, project_id),
+    ).fetchone()
     if row:
         return task_manager.get_task(row["id"])
     return None
