@@ -35,8 +35,21 @@ class ToolProxyService:
 
     # Common server name mismatches for auto-heal suggestions
     _SERVER_SUGGESTIONS = {
+        # Workflows subsystems (rules, pipelines, variables all live under gobby-workflows)
         "gobby-pipelines": "gobby-workflows",
         "gobby-pipeline": "gobby-workflows",
+        "gobby-rules": "gobby-workflows",
+        "gobby-rule": "gobby-workflows",
+        "gobby-variables": "gobby-workflows",
+        "gobby-variable": "gobby-workflows",
+        # Singular → plural
+        "gobby-task": "gobby-tasks",
+        "gobby-session": "gobby-sessions",
+        "gobby-agent": "gobby-agents",
+        "gobby-workflow": "gobby-workflows",
+        "gobby-skill": "gobby-skills",
+        "gobby-worktree": "gobby-worktrees",
+        "gobby-clone": "gobby-clones",
     }
 
     def __init__(
