@@ -40,7 +40,6 @@ inputs:
     description: "AI resolution strategy: auto, conflict_only, full_file, manual"
 
 outputs:
-  success: "${{ final_result.output.success }}"
   merge_method: "${{ final_result.output.merge_method }}"
   pushed: "${{ final_result.output.pushed }}"
   worktree_path: "${{ final_result.output.worktree_path }}"
@@ -208,7 +207,6 @@ steps:
       tool: pipeline_eval
       arguments:
         data:
-          success: true
           merge_method: "${{ 'clean' if check_merge.output.clean else 'ai_resolved' }}"
           pushed: "${{ bool(push_merge.output and push_merge.output.get('pushed', false)) if not inputs.dry_run else false }}"
           dry_run: "${{ inputs.dry_run }}"
