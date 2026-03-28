@@ -18,6 +18,144 @@ from gobby.storage.tasks import TaskNotFoundError
 
 logger = logging.getLogger(__name__)
 
+# Categories that get TDD sandwich wrapping
+_TDD_CATEGORIES = frozenset({"code", "config"})
+
+
+def _extract_phase_number(subtask: dict[str, Any]) -> int | None:
+    """Extract phase number from '### Plan Section: N.N' in description."""
+    desc = subtask.get("description", "")
+    match = re.search(r"###\s+Plan Section:\s*(\d+)\.", desc)
+    return int(match.group(1)) if match else None
+
+
+def _translate_deps(deps: list[int], old_to_new: dict[int, int]) -> list[int]:
+    """Translate original dependency indices to new indices."""
+    return [old_to_new[d] for d in deps if d in old_to_new]
+
+
+def _apply_tdd_sandwich(subtasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Wrap phases of code/config tasks with [TEST] and [REF] bookends.
+
+    Per phase with TDD-eligible tasks:
+        [TEST] -> [IMPL] -> [IMPL] -> ... -> [REF]
+
+    Between phases:
+        Phase N [REF] -> Phase N+1 [TEST]
+
+    Non-TDD categories (docs, research, planning, manual, test, refactor)
+    pass through without wrapping.
+    """
+    # Group subtasks by phase number
+    phase_groups: dict[int, list[int]] = {}
+    for i, st in enumerate(subtasks):
+        phase = _extract_phase_number(st)
+        if phase is None:
+            phase = 0  # Unphased tasks go to phase 0
+        phase_groups.setdefault(phase, []).append(i)
+
+    # If everything is phase 0 (no plan sections), treat as single phase
+    if list(phase_groups.keys()) == [0]:
+        phase_groups = {1: phase_groups[0]}
+    elif 0 in phase_groups:
+        # Move unphased tasks to end
+        max_phase = max(p for p in phase_groups if p > 0)
+        phase_groups[max_phase + 1] = phase_groups.pop(0)
+
+    sorted_phases = sorted(phase_groups.keys())
+
+    new_subtasks: list[dict[str, Any]] = []
+    old_to_new: dict[int, int] = {}  # original index -> new index
+    phase_ref_idx: dict[int, int] = {}  # phase -> new index of its [REF] task
+
+    for phase_num in sorted_phases:
+        orig_indices = phase_groups[phase_num]
+        orig_set = set(orig_indices)
+
+        has_tdd_tasks = any(subtasks[i].get("category") in _TDD_CATEGORIES for i in orig_indices)
+
+        if not has_tdd_tasks:
+            # Non-TDD phase: copy with translated deps
+            for orig_idx in orig_indices:
+                new_idx = len(new_subtasks)
+                old_to_new[orig_idx] = new_idx
+                st = dict(subtasks[orig_idx])
+                st["depends_on"] = _translate_deps(st.get("depends_on", []), old_to_new)
+                new_subtasks.append(st)
+            continue
+
+        # --- TDD phase: TEST -> IMPLs -> REF ---
+
+        # Collect cross-phase deps for the TEST task
+        cross_deps: set[int] = set()
+        for orig_idx in orig_indices:
+            for dep in subtasks[orig_idx].get("depends_on", []):
+                if dep not in orig_set and dep in old_to_new:
+                    dep_phase = _extract_phase_number(subtasks[dep])
+                    if dep_phase is not None and dep_phase in phase_ref_idx:
+                        cross_deps.add(phase_ref_idx[dep_phase])
+                    else:
+                        cross_deps.add(old_to_new[dep])
+
+        # Titles of TDD-eligible tasks for TEST description
+        impl_titles = [
+            subtasks[i]["title"]
+            for i in orig_indices
+            if subtasks[i].get("category") in _TDD_CATEGORIES
+        ]
+
+        # 1. [TEST] task
+        test_new_idx = len(new_subtasks)
+        new_subtasks.append(
+            {
+                "title": f"[TEST] Phase {phase_num}: Write failing tests",
+                "category": "test",
+                "description": (
+                    f"Write failing tests for Phase {phase_num} implementation tasks:\n\n"
+                    + "\n".join(f"- {t}" for t in impl_titles)
+                    + "\n\nTests should cover the expected behavior described in each "
+                    "task. All tests must fail (red) before implementation begins."
+                ),
+                "validation": (
+                    "Tests exist and fail with expected assertion errors (not import/syntax errors)"
+                ),
+                "priority": subtasks[orig_indices[0]].get("priority", 2),
+                "depends_on": sorted(cross_deps),
+            }
+        )
+
+        # 2. [IMPL] tasks (originals) — depend on TEST + intra-phase deps
+        for orig_idx in orig_indices:
+            new_idx = len(new_subtasks)
+            old_to_new[orig_idx] = new_idx
+            st = dict(subtasks[orig_idx])
+            new_deps = [test_new_idx]
+            for dep in st.get("depends_on", []):
+                if dep in orig_set and dep in old_to_new:
+                    new_deps.append(old_to_new[dep])
+            st["depends_on"] = new_deps
+            new_subtasks.append(st)
+
+        # 3. [REF] task — depends on all IMPLs in phase
+        ref_new_idx = len(new_subtasks)
+        phase_ref_idx[phase_num] = ref_new_idx
+        new_subtasks.append(
+            {
+                "title": f"[REF] Phase {phase_num}: Refactor with green tests",
+                "category": "refactor",
+                "description": (
+                    f"Refactor Phase {phase_num} while keeping all tests green.\n\n"
+                    "Review for: duplication, naming, complexity, method length.\n"
+                    "Run tests after each change."
+                ),
+                "validation": "All tests pass. Code reviewed for clarity and simplicity.",
+                "priority": subtasks[orig_indices[0]].get("priority", 2),
+                "depends_on": [old_to_new[i] for i in orig_indices],
+            }
+        )
+
+    return new_subtasks
+
 
 def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
     """Create a registry with task expansion tools.
@@ -103,6 +241,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         parent_task_id: str,
         session_id: str,
         project: str | None = None,
+        tdd: bool = False,
     ) -> dict[str, Any]:
         """Execute a saved expansion spec atomically.
 
@@ -157,6 +296,14 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         subtasks = spec.get("subtasks", [])
         if not subtasks:
             return {"error": "No subtasks in spec"}
+
+        # Apply TDD sandwich if requested (via param or spec flag)
+        apply_tdd = tdd or spec.get("tdd", False)
+        if apply_tdd:
+            subtasks = _apply_tdd_sandwich(subtasks)
+            logger.info(
+                f"Applied TDD sandwich to expansion: {len(spec['subtasks'])} -> {len(subtasks)} subtasks"
+            )
 
         # Build plan reference block if plan_file is in the spec
         plan_file = spec.get("plan_file")
@@ -497,6 +644,11 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "project": {
                     "type": "string",
                     "description": "Project name or UUID for task resolution",
+                },
+                "tdd": {
+                    "type": "boolean",
+                    "description": "Apply TDD sandwich pattern: wrap each phase with [TEST] and [REF] tasks",
+                    "default": False,
                 },
             },
             "required": ["parent_task_id", "session_id"],
