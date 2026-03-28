@@ -77,11 +77,18 @@ async def test_stop_all_cancels_all_tasks(polling_manager, mock_adapter):
 @pytest.mark.asyncio
 async def test_poll_loop_calls_adapter(polling_manager, mock_adapter, mock_manager):
     """poll loop should call adapter.poll() and handle messages."""
-    # Setup mock to return messages on first poll, then block or return nothing
     msg1 = MagicMock()
-    mock_adapter.poll.side_effect = [[msg1], []]
+    call_count = 0
 
-    # Start polling with very short interval
+    async def poll_side_effect():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return [msg1]
+        return []
+
+    mock_adapter.poll.side_effect = poll_side_effect
+
     polling_manager.start_polling("test-channel", mock_adapter, interval=0)
 
     # Allow event loop to run briefly
@@ -99,19 +106,27 @@ async def test_poll_loop_calls_adapter(polling_manager, mock_adapter, mock_manag
 @pytest.mark.asyncio
 async def test_poll_loop_error_handling(polling_manager, mock_adapter, mock_manager):
     """poll loop should catch errors and back off without crashing."""
-    # Setup mock to raise an error first, then succeed
-    mock_adapter.poll.side_effect = [Exception("Network error"), []]
+    call_count = 0
 
-    # Start polling with 0 interval to speed up test
+    async def poll_side_effect():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise Exception("Network error")
+        return []
+
+    mock_adapter.poll.side_effect = poll_side_effect
+
+    # Start polling — backoff after error is 5s, so task will be in backoff sleep
     polling_manager.start_polling("test-channel", mock_adapter, interval=0)
 
-    # Allow event loop to run briefly
-    await asyncio.sleep(0.01)
+    # Allow event loop to process the first (erroring) poll
+    await asyncio.sleep(0.05)
 
     # Task should still be running despite the error
     assert polling_manager.is_polling("test-channel")
 
     polling_manager.stop_all()
 
-    # poll should have been called multiple times (retried after error)
+    # poll should have been called at least once
     assert mock_adapter.poll.call_count >= 1
