@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -43,16 +44,17 @@ class AttachmentManager:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(url, headers=headers or {}, follow_redirects=True)
             response.raise_for_status()
-            dest.write_bytes(response.content)
+            await asyncio.to_thread(dest.write_bytes, response.content)
 
-        logger.info(f"Downloaded attachment {safe_filename} ({dest.stat().st_size} bytes)")
+        size = (await asyncio.to_thread(dest.stat)).st_size
+        logger.info(f"Downloaded attachment {safe_filename} ({size} bytes)")
         return dest
 
     async def store(self, content: bytes, filename: str) -> Path:
         """Store raw bytes as a file."""
         safe_filename = self._safe_filename(filename)
         dest = self._storage_dir / safe_filename
-        dest.write_bytes(content)
+        await asyncio.to_thread(dest.write_bytes, content)
         logger.info(f"Stored attachment {safe_filename} ({len(content)} bytes)")
         return dest
 

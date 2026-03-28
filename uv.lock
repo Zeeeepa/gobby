@@ -1144,6 +1144,8 @@ local-embeddings = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "aioimaplib" },
+    { name = "aiosmtplib" },
     { name = "bandit" },
     { name = "black" },
     { name = "mypy" },
@@ -1216,6 +1218,8 @@ provides-extras = ["local-embeddings", "email"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aioimaplib", specifier = ">=1.0" },
+    { name = "aiosmtplib", specifier = ">=2.0" },
     { name = "bandit", specifier = ">=1.8.0" },
     { name = "black", specifier = ">=26.3.1" },
     { name = "mypy", specifier = ">=1.8.0" },

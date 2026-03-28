@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 import logging
@@ -142,21 +143,19 @@ class TelegramAdapter(BaseChannelAdapter):
         if not chat_id:
             raise ValueError("No chat_id provided in message metadata")
 
-        with open(file_path, "rb") as f:
-            files = {"document": (attachment.filename, f, attachment.content_type)}
-            data: dict[str, Any] = {"chat_id": chat_id}
-            if message.content:
-                data["caption"] = message.content[:1024]
-            if message.platform_thread_id:
-                data["reply_to_message_id"] = message.platform_thread_id
+        file_bytes = await asyncio.to_thread(file_path.read_bytes)
+        files = {"document": (attachment.filename, file_bytes, attachment.content_type)}
+        data: dict[str, Any] = {"chat_id": chat_id}
+        if message.content:
+            data["caption"] = message.content[:1024]
+        if message.platform_thread_id:
+            data["reply_to_message_id"] = message.platform_thread_id
 
-            response = await self._client.post(
-                f"{self._api_base}/sendDocument", data=data, files=files
-            )
-            response.raise_for_status()
-            result = response.json()
-            if result.get("ok"):
-                return str(result["result"]["message_id"])
+        response = await self._client.post(f"{self._api_base}/sendDocument", data=data, files=files)
+        response.raise_for_status()
+        result = response.json()
+        if result.get("ok"):
+            return str(result["result"]["message_id"])
         return None
 
     async def shutdown(self) -> None:

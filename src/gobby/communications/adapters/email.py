@@ -237,16 +237,16 @@ class EmailAdapter(BaseChannelAdapter):
         if self._smtp_client:
             try:
                 await self._smtp_client.quit()
-            except Exception as e:
-                logger.warning(f"Error during SMTP shutdown: {e}")
+            except Exception:
+                logger.warning("Error during SMTP shutdown", exc_info=True)
             self._smtp_client = None
 
         if self._imap_client:
             try:
                 await self._imap_client.close()
                 await self._imap_client.logout()
-            except Exception as e:
-                logger.warning(f"Error during IMAP shutdown: {e}")
+            except Exception:
+                logger.warning("Error during IMAP shutdown", exc_info=True)
             self._imap_client = None
 
     def capabilities(self) -> ChannelCapabilities:

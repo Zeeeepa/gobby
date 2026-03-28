@@ -419,31 +419,14 @@ class LocalWorktreeManager:
             List of expired Worktree instances
         """
         now = datetime.now(UTC).isoformat()
+        sql = "SELECT * FROM worktrees WHERE status = ? AND cleanup_after IS NOT NULL AND cleanup_after < ?"
+        params: list[Any] = [WorktreeStatus.MERGED.value, now]
         if project_id:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM worktrees
-                WHERE project_id = ?
-                  AND status = ?
-                  AND cleanup_after IS NOT NULL
-                  AND cleanup_after < ?
-                ORDER BY cleanup_after ASC
-                LIMIT ?
-                """,
-                (project_id, WorktreeStatus.MERGED.value, now, limit),
-            )
-        else:
-            rows = self.db.fetchall(
-                """
-                SELECT * FROM worktrees
-                WHERE status = ?
-                  AND cleanup_after IS NOT NULL
-                  AND cleanup_after < ?
-                ORDER BY cleanup_after ASC
-                LIMIT ?
-                """,
-                (WorktreeStatus.MERGED.value, now, limit),
-            )
+            sql += " AND project_id = ?"
+            params.append(project_id)
+        sql += " ORDER BY cleanup_after ASC LIMIT ?"
+        params.append(limit)
+        rows = self.db.fetchall(sql, tuple(params))
         return [Worktree.from_row(row) for row in rows]
 
     def cleanup_stale(

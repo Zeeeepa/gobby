@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -126,33 +127,33 @@ class SlackAdapter(BaseChannelAdapter):
         if not self._client:
             raise RuntimeError("Slack adapter not initialized")
 
-        with open(file_path, "rb") as f:
-            data: dict[str, Any] = {
-                "channels": message.channel_id,
-                "filename": attachment.filename,
-                "title": attachment.filename,
-            }
-            if message.content:
-                data["initial_comment"] = message.content
-            if message.platform_thread_id:
-                data["thread_ts"] = message.platform_thread_id
+        file_bytes = await asyncio.to_thread(file_path.read_bytes)
+        data: dict[str, Any] = {
+            "channels": message.channel_id,
+            "filename": attachment.filename,
+            "title": attachment.filename,
+        }
+        if message.content:
+            data["initial_comment"] = message.content
+        if message.platform_thread_id:
+            data["thread_ts"] = message.platform_thread_id
 
-            response = await self._client.post(
-                "files.upload",
-                data=data,
-                files={"file": (attachment.filename, f, attachment.content_type)},
-            )
-            response.raise_for_status()
-            result = response.json()
-            if not result.get("ok"):
-                raise ValueError(f"Failed to upload Slack file: {result.get('error')}")
+        response = await self._client.post(
+            "files.upload",
+            data=data,
+            files={"file": (attachment.filename, file_bytes, attachment.content_type)},
+        )
+        response.raise_for_status()
+        result = response.json()
+        if not result.get("ok"):
+            raise ValueError(f"Failed to upload Slack file: {result.get('error')}")
 
-            file_info = result.get("file", {})
-            shares = file_info.get("shares", {})
-            for channel_shares in shares.values():
-                for share_list in channel_shares.values():
-                    if share_list:
-                        return str(share_list[0].get("ts"))
+        file_info = result.get("file", {})
+        shares = file_info.get("shares", {})
+        for channel_shares in shares.values():
+            for share_list in channel_shares.values():
+                if share_list:
+                    return str(share_list[0].get("ts"))
         return None
 
     async def shutdown(self) -> None:

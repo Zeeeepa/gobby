@@ -170,23 +170,23 @@ class DiscordAdapter(BaseChannelAdapter):
             raise RuntimeError("Discord adapter not initialized")
 
         channel_id = message.platform_thread_id or message.channel_id
-        with open(file_path, "rb") as f:
-            data: dict[str, Any] = {}
-            if message.content:
-                data["content"] = message.content
-            payload_json = json.dumps(data) if data else json.dumps({})
-            files: dict[str, Any] = {
-                "files[0]": (attachment.filename, f, attachment.content_type),
-            }
-            response = await self._client.post(
-                f"/channels/{channel_id}/messages",
-                data={"payload_json": payload_json},
-                files=files,
-            )
-            response.raise_for_status()
-            result = response.json()
-            msg_id: str | None = result.get("id")
-            return msg_id
+        file_bytes = await asyncio.to_thread(file_path.read_bytes)
+        data: dict[str, Any] = {}
+        if message.content:
+            data["content"] = message.content
+        payload_json = json.dumps(data) if data else json.dumps({})
+        files: dict[str, Any] = {
+            "files[0]": (attachment.filename, file_bytes, attachment.content_type),
+        }
+        response = await self._client.post(
+            f"/channels/{channel_id}/messages",
+            data={"payload_json": payload_json},
+            files=files,
+        )
+        response.raise_for_status()
+        result = response.json()
+        msg_id: str | None = result.get("id")
+        return msg_id
 
     async def shutdown(self) -> None:
         """Cleanly close connections."""

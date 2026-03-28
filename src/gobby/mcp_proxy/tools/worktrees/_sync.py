@@ -275,23 +275,19 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
                         "target_branch": merge_target,
                     }
 
-            return {
+            result = {
                 "success": True,
                 "message": f"Merged and {'pushed' if push else 'ready to push'}",
                 "worktree_path": wt_path,
                 "source_branch": effective_source,
                 "target_branch": merge_target,
                 "pushed": push,
-                **(
-                    {
-                        "push_command": (
-                            f"git push --no-verify origin {effective_source}:{merge_target}"
-                        )
-                    }
-                    if not push
-                    else {}
-                ),
             }
+            if not push:
+                result["push_command"] = (
+                    f"git push --no-verify origin {effective_source}:{merge_target}"
+                )
+            return result
         finally:
             await _restore_stash()
 

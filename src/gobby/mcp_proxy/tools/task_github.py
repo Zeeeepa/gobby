@@ -94,6 +94,7 @@ def create_github_registry(
         parent_task_id: str | None = None,
     ) -> dict[str, Any]:
         """Import GitHub issues as gobby tasks with deduplication."""
+        logger.info("Importing GitHub issues from %s (session=%s)", repo, session_id)
         # Validate repo format
         if "/" not in repo or repo.count("/") != 1:
             return {

@@ -271,8 +271,8 @@ class Task:
         Use get_task(brief=False) for full task details.
 
         This follows the progressive discovery pattern used for MCP tools:
-        - list_tasks() returns brief format (~18 fields)
-        - get_task() returns brief format by default, full with brief=False (~33 fields)
+        - list_tasks() returns brief format (~22 fields)
+        - get_task() returns brief format by default, full with brief=False (~35 fields)
         """
         return {
             "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
