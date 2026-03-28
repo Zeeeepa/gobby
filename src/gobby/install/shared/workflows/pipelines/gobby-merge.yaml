@@ -167,7 +167,10 @@ steps:
 
   - id: run_tests
     condition: "${{ inputs.test_command }}"
-    exec: "cd ${{ resolve_branches.output.worktree_path }} && ${{ inputs.test_command }}"
+    env:
+      TEST_CMD: "${{ inputs.test_command }}"
+      WORKTREE: "${{ resolve_branches.output.worktree_path }}"
+    exec: "cd \"$WORKTREE\" && eval \"$TEST_CMD\""
 
   # ── PHASE 5: PUSH (with approval gate) ──
 

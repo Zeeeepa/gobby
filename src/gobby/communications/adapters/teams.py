@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 import jwt
+from jwt import PyJWKClient
 
 from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
@@ -186,8 +187,12 @@ class TeamsAdapter(BaseChannelAdapter):
 
         return [msg]
 
+    _BOTFRAMEWORK_JWKS_URL = "https://login.botframework.com/v1/.well-known/keys"
+    _BOTFRAMEWORK_ISSUER = "https://api.botframework.com"
+    _jwk_client: PyJWKClient | None = None
+
     def verify_webhook(self, payload: bytes, headers: dict[str, str], secret: str) -> bool:
-        """Verify webhook signature."""
+        """Verify webhook JWT signature against Bot Framework JWKS."""
         auth_header = ""
         for k, v in headers.items():
             if k.lower() == "authorization":
@@ -200,18 +205,27 @@ class TeamsAdapter(BaseChannelAdapter):
         token = auth_header[7:]
 
         try:
-            decoded = jwt.decode(token, options={"verify_signature": False})
-            aud = decoded.get("aud")
-            iss = decoded.get("iss")
+            if self._jwk_client is None:
+                self._jwk_client = PyJWKClient(self._BOTFRAMEWORK_JWKS_URL)
 
-            if aud != self._app_id:
-                return False
+            signing_key = self._jwk_client.get_signing_key_from_jwt(token)
+            decoded = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                audience=self._app_id,
+                issuer=self._BOTFRAMEWORK_ISSUER,
+            )
 
-            if iss and "botframework.com" not in iss.lower():
+            # Additional serviceUrl claim validation if present
+            if "serviceUrl" in decoded and not decoded["serviceUrl"].startswith("https://"):
                 return False
 
             return True
-        except Exception:
+        except (jwt.InvalidTokenError, jwt.PyJWKClientError) as e:
+            import logging
+
+            logging.getLogger(__name__).debug("Teams webhook JWT verification failed: %s", e)
             return False
 
 

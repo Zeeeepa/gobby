@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import jwt
 import pytest
 
 from gobby.communications.adapters.teams import TeamsAdapter
@@ -118,23 +119,36 @@ def test_parse_webhook(adapter):
 def test_verify_webhook(adapter):
     adapter._app_id = "app_id_123"
 
-    with patch("jwt.decode") as mock_decode:
+    mock_jwk_client = MagicMock()
+    mock_signing_key = MagicMock()
+    mock_signing_key.key = "test-key"
+    mock_jwk_client.get_signing_key_from_jwt.return_value = mock_signing_key
+
+    with patch("jwt.decode") as mock_decode, patch.object(
+        type(adapter), "_jwk_client", new=mock_jwk_client
+    ):
         # Valid case
         mock_decode.return_value = {"aud": "app_id_123", "iss": "https://api.botframework.com"}
         headers = {"Authorization": "Bearer some.jwt.token"}
         result = adapter.verify_webhook(b"", headers, "secret")
         assert result
 
-        # Invalid aud
-        mock_decode.return_value = {"aud": "wrong_app_id", "iss": "https://api.botframework.com"}
-        result = adapter.verify_webhook(b"", headers, "secret")
-        assert not result
-
-        # Invalid iss
-        mock_decode.return_value = {"aud": "app_id_123", "iss": "https://example.com"}
-        result = adapter.verify_webhook(b"", headers, "secret")
-        assert not result
+        # jwt.decode is called with proper signature verification args
+        mock_decode.assert_called_with(
+            "some.jwt.token",
+            "test-key",
+            algorithms=["RS256"],
+            audience="app_id_123",
+            issuer="https://api.botframework.com",
+        )
 
         # Missing auth header
         result = adapter.verify_webhook(b"", {}, "secret")
+        assert not result
+
+    # JWT verification failure returns False
+    with patch.object(type(adapter), "_jwk_client", new=mock_jwk_client):
+        mock_jwk_client.get_signing_key_from_jwt.side_effect = jwt.PyJWKClientError("bad token")
+        headers = {"Authorization": "Bearer bad.jwt.token"}
+        result = adapter.verify_webhook(b"", headers, "secret")
         assert not result

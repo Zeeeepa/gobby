@@ -191,16 +191,35 @@ def test_parse_webhook(adapter: TeamsAdapter) -> None:
 
 
 def test_verify_webhook_success(adapter: TeamsAdapter) -> None:
-    """Test webhook verification success."""
+    """Test webhook verification success with mocked JWKS."""
     adapter._app_id = "test-app-id"
+
+    mock_jwk_client = MagicMock()
+    mock_signing_key = MagicMock()
+    mock_signing_key.key = "test-rsa-key"
+    mock_jwk_client.get_signing_key_from_jwt.return_value = mock_signing_key
 
     token = jwt.encode(
         {"aud": "test-app-id", "iss": "https://api.botframework.com"}, "secret", algorithm="HS256"
     )
-
     headers = {"Authorization": f"Bearer {token}"}
 
-    assert adapter.verify_webhook(b"", headers, "not-used") is True
+    with patch("jwt.decode") as mock_decode, patch.object(
+        type(adapter), "_jwk_client", new=mock_jwk_client
+    ):
+        mock_decode.return_value = {
+            "aud": "test-app-id",
+            "iss": "https://api.botframework.com",
+        }
+        assert adapter.verify_webhook(b"", headers, "not-used") is True
+
+        mock_decode.assert_called_once_with(
+            token,
+            "test-rsa-key",
+            algorithms=["RS256"],
+            audience="test-app-id",
+            issuer="https://api.botframework.com",
+        )
 
 
 def test_verify_webhook_failure(adapter: TeamsAdapter) -> None:
@@ -210,17 +229,31 @@ def test_verify_webhook_failure(adapter: TeamsAdapter) -> None:
     # Missing auth header
     assert adapter.verify_webhook(b"", {}, "not-used") is False
 
-    # Wrong audience
-    token1 = jwt.encode(
-        {"aud": "wrong-app-id", "iss": "https://api.botframework.com"}, "secret", algorithm="HS256"
-    )
-    assert adapter.verify_webhook(b"", {"Authorization": f"Bearer {token1}"}, "not-used") is False
+    # JWT verification error (invalid signature, wrong audience, wrong issuer)
+    mock_jwk_client = MagicMock()
+    mock_signing_key = MagicMock()
+    mock_signing_key.key = "test-rsa-key"
+    mock_jwk_client.get_signing_key_from_jwt.return_value = mock_signing_key
 
-    # Wrong issuer
-    token2 = jwt.encode(
-        {"aud": "test-app-id", "iss": "https://sts.windows.net/"}, "secret", algorithm="HS256"
+    token = jwt.encode(
+        {"aud": "test-app-id", "iss": "https://api.botframework.com"}, "secret", algorithm="HS256"
     )
-    assert adapter.verify_webhook(b"", {"Authorization": f"Bearer {token2}"}, "not-used") is False
+
+    with patch("jwt.decode") as mock_decode, patch.object(
+        type(adapter), "_jwk_client", new=mock_jwk_client
+    ):
+        mock_decode.side_effect = jwt.InvalidTokenError("bad signature")
+        assert (
+            adapter.verify_webhook(b"", {"Authorization": f"Bearer {token}"}, "not-used") is False
+        )
+
+    # JWKS fetch failure
+    mock_bad_client = MagicMock()
+    mock_bad_client.get_signing_key_from_jwt.side_effect = jwt.PyJWKClientError("fetch failed")
+    with patch.object(type(adapter), "_jwk_client", new=mock_bad_client):
+        assert (
+            adapter.verify_webhook(b"", {"Authorization": f"Bearer {token}"}, "not-used") is False
+        )
 
 
 def test_capabilities(adapter: TeamsAdapter) -> None:

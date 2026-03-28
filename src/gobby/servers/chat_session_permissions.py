@@ -132,13 +132,13 @@ class ChatSessionPermissionsMixin:
             try:
                 await asyncio.wait_for(self._pending_plan_event.wait(), timeout=600.0)
             except TimeoutError:
-                self._pending_plan_decision = "approve"
+                self._pending_plan_decision = "deny"
                 logger.warning(
-                    "Plan approval timed out, defaulting to approve",
+                    "Plan approval timed out, defaulting to deny",
                     extra={"conversation_id": self.conversation_id},
                 )
 
-            decision = self._pending_plan_decision or "approve"
+            decision = self._pending_plan_decision or "deny"
 
             # Clear pending state
             self._pending_plan_event = None
