@@ -244,10 +244,14 @@ class ToolProxyService:
                 if self._tool_filter and session_id:
                     tools = self._tool_filter.filter_tools(tools, session_id)
                 return {"success": True, "tools": tools, "tool_count": len(tools)}
+            error_msg = f"Internal server '{server_name}' not found"
+            suggestion = self._get_server_suggestion(server_name)
+            if suggestion:
+                error_msg += f". Did you mean '{suggestion}'?"
             return {
                 "success": False,
                 "tools": [],
-                "error": f"Internal server '{server_name}' not found",
+                "error": error_msg,
             }
 
         # Check external servers
@@ -275,10 +279,14 @@ class ToolProxyService:
                 ext_brief_tools = self._tool_filter.filter_tools(ext_brief_tools, session_id)
             return {"success": True, "tools": ext_brief_tools, "tool_count": len(ext_brief_tools)}
 
+        error_msg = f"Server '{server_name}' not found"
+        suggestion = self._get_server_suggestion(server_name)
+        if suggestion:
+            error_msg += f". Did you mean '{suggestion}'?"
         return {
             "success": False,
             "tools": [],
-            "error": f"Server '{server_name}' not found",
+            "error": error_msg,
         }
 
     async def call_tool(
