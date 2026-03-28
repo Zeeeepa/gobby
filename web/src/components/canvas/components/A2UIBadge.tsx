@@ -5,7 +5,7 @@ import { Badge } from '../../chat/ui/Badge';
 export const A2UIBadge: React.FC<A2UIComponentProps> = ({ def, dataModel }) => {
   const text = resolveBoundValue(def.text, dataModel);
   const style = def.style || 'default'; // default, secondary, destructive, outline
-  
+
   if (!text) return null;
 
   let variant: "default" | "success" | "warning" | "error" | "info" = "default";

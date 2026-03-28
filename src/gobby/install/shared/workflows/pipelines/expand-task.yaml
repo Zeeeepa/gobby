@@ -29,6 +29,11 @@ inputs:
   model: null
   wait_timeout: 600
   qa_wait_timeout: 120
+  tdd:
+    type: boolean
+    required: false
+    description: "Apply TDD sandwich pattern (wrap phases with [TEST] and [REF] tasks)"
+    default: true
 
 outputs:
   created: "${{ steps.execute.output.created }}"
@@ -82,6 +87,7 @@ steps:
       arguments:
         parent_task_id: "${{ inputs.task_id }}"
         session_id: "${{ inputs.session_id or session_id }}"
+        tdd: "${{ inputs.tdd }}"
 
   # --- 6. Spawn the QA agent to validate expansion ---
   - id: spawn_qa

@@ -61,12 +61,12 @@ export interface A2UIComponentProps {
 
 const resolvePath = (obj: any, path: string): any => {
   if (!path || !obj) return undefined;
-  
+
   // Handle simple dot notation (e.g. "user.name")
   // Note: JSON pointer uses "/" but dot notation is common. Let's support dot notation for simplicity
   // or real JSON pointer if requested. The doc says "path is JSON pointer" so let's allow basic dot notation.
   const parts = path.replace(/^\//, "").split(/[\/\.]/);
-  
+
   let current = obj;
   for (const part of parts) {
     if (current === undefined || current === null) return undefined;
@@ -83,7 +83,7 @@ export const resolveBoundValue = (bv?: BoundValue, dataModel?: Record<string, an
 };
 
 export const resolveActionContext = (
-  context?: Record<string, BoundValue>, 
+  context?: Record<string, BoundValue>,
   dataModel?: Record<string, any>
 ): Record<string, any> => {
   if (!context) return {};

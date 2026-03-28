@@ -524,6 +524,13 @@ class TmuxSessionManager:
                 return False
 
         if send_enter:
+            # Brief pause so TUI apps (Claude Code, Gemini CLI) finish
+            # processing literal text before receiving the Enter keystroke.
+            # Without this, Enter can arrive before the TUI has committed
+            # the preceding characters to its input state, causing it to
+            # be silently dropped.
+            if text:
+                await asyncio.sleep(0.05)
             rc, _stdout, stderr = await self._run(
                 "send-keys",
                 "-t",

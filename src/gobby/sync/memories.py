@@ -101,12 +101,15 @@ class MemoryBackupManager:
 
         return await asyncio.to_thread(self._import_memories_sync, memories_file)
 
-    def backup_sync(self) -> int:
+    def backup_sync(self, project_id: str | None = None) -> int:
         """
         Backup memories to filesystem synchronously (blocking).
 
         Used to force a backup write before the async loop starts.
         This is a one-way export for backup purposes only.
+
+        Args:
+            project_id: Optional project to scope export to.
         """
         if not self.config.enabled:
             return 0
@@ -116,7 +119,7 @@ class MemoryBackupManager:
 
         try:
             memories_file = self._get_export_path()
-            return self._export_to_files_sync(memories_file)
+            return self._export_to_files_sync(memories_file, project_id=project_id)
         except Exception as e:
             logger.warning(f"Failed to backup memories: {e}")
             return 0
@@ -165,12 +168,15 @@ class MemoryBackupManager:
             logger.warning(f"Failed to import memories: {e}")
             return 0
 
-    async def export_to_files(self) -> int:
+    async def export_to_files(self, project_id: str | None = None) -> int:
         """
         Backup memories to filesystem as JSONL.
 
         This exports all memories to a JSONL file for backup purposes.
         The file can be used for disaster recovery or migration.
+
+        Args:
+            project_id: Optional project to scope export to.
 
         Returns:
             Count of backed up memories
@@ -182,11 +188,13 @@ class MemoryBackupManager:
             return 0
 
         memories_file = self._get_export_path()
-        return await asyncio.to_thread(self._export_to_files_sync, memories_file)
+        return await asyncio.to_thread(
+            self._export_to_files_sync, memories_file, project_id=project_id
+        )
 
-    def _export_to_files_sync(self, memories_file: Path) -> int:
+    def _export_to_files_sync(self, memories_file: Path, project_id: str | None = None) -> int:
         """Synchronous implementation of export."""
-        return self._export_memories_sync(memories_file)
+        return self._export_memories_sync(memories_file, project_id=project_id)
 
     def _import_memories_sync(self, file_path: Path) -> int:
         """Import memories from JSONL file (sync)."""
@@ -327,12 +335,18 @@ class MemoryBackupManager:
                     seen_content[normalized] = memory
         return list(seen_content.values())
 
-    def _export_memories_sync(self, file_path: Path) -> int:
+    def _export_memories_sync(self, file_path: Path, project_id: str | None = None) -> int:
         """Export memories to JSONL file (sync) with merge, deduplication, and path sanitization.
 
         Merges DB records with existing file records so that memories from other
         machines (pulled via git) are preserved. DB records are authoritative for
         shared content; file-only records survive untouched.
+
+        Args:
+            file_path: Target JSONL file path.
+            project_id: Optional project to scope export to. When set, only
+                memories for this project (plus global memories) are exported,
+                and file records from other projects are dropped.
         """
         if not self.memory_manager:
             return 0
@@ -363,7 +377,9 @@ class MemoryBackupManager:
             page_size = 1000
             offset = 0
             while True:
-                page = self.memory_manager.list_memories(limit=page_size, offset=offset)
+                page = self.memory_manager.list_memories(
+                    limit=page_size, offset=offset, project_id=project_id
+                )
                 memories.extend(page)
                 if len(page) < page_size:
                     break
@@ -383,10 +399,22 @@ class MemoryBackupManager:
                     "updated_at": memory.updated_at,
                     "source": memory.source_type,
                     "source_id": memory.source_session_id,
+                    "project_id": memory.project_id,
                 }
 
             # 3. Merge: file-first, DB overrides shared content
-            merged = {**existing_by_content, **db_by_content}
+            # When scoped to a project, drop file records that belong to
+            # other projects. Preserve records without a project_id (from
+            # other machines or legacy exports).
+            if project_id:
+                filtered_existing = {
+                    k: v
+                    for k, v in existing_by_content.items()
+                    if not v.get("project_id") or v.get("project_id") == project_id
+                }
+                merged = {**filtered_existing, **db_by_content}
+            else:
+                merged = {**existing_by_content, **db_by_content}
 
             # 4. Sort deterministically by ID (fall back to content for file-only
             #    records that may lack an id field) to ensure stable output order

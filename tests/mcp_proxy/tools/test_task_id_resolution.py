@@ -137,15 +137,9 @@ class TestMCPGetTaskWithHashFormat:
         get_task_func = registry._tools["get_task"].func
 
         # Call with #1 format
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
-            patch(
-                "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
+            return_value={"id": "proj-1"},
         ):
             result = get_task_func(task_id="#1")
 
@@ -165,15 +159,9 @@ class TestMCPGetTaskWithHashFormat:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
         get_task_func = registry._tools["get_task"].func
 
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
-            patch(
-                "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
+            return_value={"id": "proj-1"},
         ):
             result = get_task_func(task_id=sample_task_uuid.id)
 
@@ -190,15 +178,9 @@ class TestMCPGetTaskWithHashFormat:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
         get_task_func = registry._tools["get_task"].func
 
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
-            patch(
-                "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
+            return_value={"id": "proj-1"},
         ):
             result = get_task_func(task_id="gt-abc123")
 
@@ -223,15 +205,9 @@ class TestMCPUpdateTaskWithHashFormat:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
         update_task_func = registry._tools["update_task"].func
 
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
-            patch(
-                "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
+            return_value={"id": "proj-1"},
         ):
             # Note: status="in_progress", "closed", "review" are blocked
             # Use priority update instead to test #N format resolution
@@ -261,15 +237,9 @@ class TestMCPCloseTaskWithHashFormat:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
         close_task_func = registry._tools["close_task"].func
 
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
-            patch(
-                "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
-                return_value={"id": "proj-1"},
-            ),
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
+            return_value={"id": "proj-1"},
         ):
             await close_task_func(
                 task_id="#10",
@@ -303,7 +273,7 @@ class TestIntegrationMCPTaskIdResolution:
         # Test #1 resolution
         with (
             patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
+                "gobby.mcp_proxy.tools.tasks._context.get_project_context",
                 return_value={"id": project_id},
             ),
             patch(
@@ -319,7 +289,7 @@ class TestIntegrationMCPTaskIdResolution:
         # Test #2 resolution
         with (
             patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
+                "gobby.mcp_proxy.tools.tasks._context.get_project_context",
                 return_value={"id": project_id},
             ),
             patch(
@@ -353,7 +323,7 @@ class TestIntegrationMCPTaskIdResolution:
         # Test path resolution (1.2)
         with (
             patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
+                "gobby.mcp_proxy.tools.tasks._context.get_project_context",
                 return_value={"id": project_id},
             ),
             patch(
@@ -384,7 +354,7 @@ class TestIntegrationMCPTaskIdResolution:
 
         with (
             patch(
-                "gobby.mcp_proxy.tools.tasks._crud.get_project_context",
+                "gobby.mcp_proxy.tools.tasks._context.get_project_context",
                 return_value={"id": project_id},
             ),
             patch(

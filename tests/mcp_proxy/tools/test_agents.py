@@ -343,16 +343,25 @@ class TestListRunningAgents:
         """Create test agents."""
         return [
             _make_mock_agent_run(
-                run_id="run-1", session_id="sess-1",
-                parent_session_id="parent-1", mode="terminal", pid=1001,
+                run_id="run-1",
+                session_id="sess-1",
+                parent_session_id="parent-1",
+                mode="terminal",
+                pid=1001,
             ),
             _make_mock_agent_run(
-                run_id="run-2", session_id="sess-2",
-                parent_session_id="parent-1", mode="autonomous", pid=1002,
+                run_id="run-2",
+                session_id="sess-2",
+                parent_session_id="parent-1",
+                mode="autonomous",
+                pid=1002,
             ),
             _make_mock_agent_run(
-                run_id="run-3", session_id="sess-3",
-                parent_session_id="parent-2", mode="terminal", pid=1003,
+                run_id="run-3",
+                session_id="sess-3",
+                parent_session_id="parent-2",
+                mode="terminal",
+                pid=1003,
             ),
         ]
 
@@ -415,9 +424,13 @@ class TestGetRunningAgent:
         """Test getting an existing running agent."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
-            pid=12345, provider="claude", status="running",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
+            pid=12345,
+            provider="claude",
+            status="running",
         )
         runner.run_storage.get.return_value = mock_run
 
@@ -544,8 +557,10 @@ class TestKillAgent:
         """Test that session_id resolves to run_id via DB."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
         )
         runner.run_storage.get_by_session.return_value = mock_run
         runner.get_run.return_value = mock_run
@@ -583,8 +598,10 @@ class TestKillAgent:
         """Test that kill_agent does full cleanup by default."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -606,8 +623,10 @@ class TestKillAgent:
         """Test that debug=True preserves workflow state."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -633,8 +652,10 @@ class TestKillAgentSelfTerminationViaRunId:
         """When agent calls kill_agent(run_id=...) and _context matches, default to success."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
         )
         runner.get_run.return_value = mock_run
         runner.complete_run.return_value = True
@@ -663,8 +684,10 @@ class TestKillAgentSelfTerminationViaRunId:
         """When parent kills agent via run_id, _context doesn't match, default to cancelled."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -692,8 +715,10 @@ class TestKillAgentSelfTerminationViaRunId:
         """Without _context, run_id path defaults to cancelled (backward compat)."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -738,16 +763,24 @@ class TestRunningAgentStats:
         runner = _make_runner_with_run_storage()
         runner.run_storage.list_active.return_value = [
             _make_mock_agent_run(
-                run_id="run-1", parent_session_id="parent-1", mode="terminal",
+                run_id="run-1",
+                parent_session_id="parent-1",
+                mode="terminal",
             ),
             _make_mock_agent_run(
-                run_id="run-2", parent_session_id="parent-1", mode="terminal",
+                run_id="run-2",
+                parent_session_id="parent-1",
+                mode="terminal",
             ),
             _make_mock_agent_run(
-                run_id="run-3", parent_session_id="parent-2", mode="autonomous",
+                run_id="run-3",
+                parent_session_id="parent-2",
+                mode="autonomous",
             ),
             _make_mock_agent_run(
-                run_id="run-4", parent_session_id="parent-3", mode="autonomous",
+                run_id="run-4",
+                parent_session_id="parent-3",
+                mode="autonomous",
             ),
         ]
 
@@ -809,8 +842,10 @@ class TestFireSyntheticStop:
         """Test that kill_agent calls _fire_synthetic_stop after cleanup."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
-            run_id="run-123", session_id="sess-456",
-            parent_session_id="sess-parent", mode="terminal",
+            run_id="run-123",
+            session_id="sess-456",
+            parent_session_id="sess-parent",
+            mode="terminal",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True

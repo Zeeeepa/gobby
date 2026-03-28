@@ -81,10 +81,10 @@ class TestHookSkillManager:
         from gobby.hooks.skill_manager import HookSkillManager
 
         manager = HookSkillManager()
-        skill = manager.get_skill_by_name("committing-changes")
+        skill = manager.get_skill_by_name("source-control")
 
         assert skill is not None
-        assert skill.name == "committing-changes"
+        assert skill.name == "source-control"
 
     def test_get_skill_by_name_not_found(self) -> None:
         """Test getting a non-existent skill returns None."""

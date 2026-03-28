@@ -1084,7 +1084,7 @@ class TestStopSignalEndpoints:
         assert data["session_id"] == "test-session-123"
         assert data["reason"] == "User requested stop"
         assert data["source"] == "dashboard"
-        assert "signal_id" in data
+        assert "signal_id" not in data
         assert "signaled_at" in data
 
     def test_post_stop_signal_default_values(self, stop_client: TestClient) -> None:
@@ -1111,7 +1111,7 @@ class TestStopSignalEndpoints:
         data = response.json()
         assert data["has_signal"] is True
         assert data["session_id"] == "check-session"
-        assert "signal_id" in data
+        assert "signal_id" not in data
         assert "reason" in data
 
     def test_get_stop_signal_absent(self, stop_client: TestClient) -> None:

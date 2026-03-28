@@ -55,6 +55,25 @@ class DaemonProxy:
     def __init__(self, port: int):
         self.port = port
         self.base_url = f"http://localhost:{port}"
+        self._project_id: str | None = self._read_project_id()
+        self._session_id: str | None = None  # Learned from first tool call
+
+    @staticmethod
+    def _read_project_id() -> str | None:
+        """Read project_id from .gobby/project.json in CWD.
+
+        The stdio process runs in the PROJECT directory (spawned by the CLI).
+        Its os.getcwd() is the correct project, unlike the daemon's CWD.
+        """
+        import json as _json
+
+        try:
+            with open(".gobby/project.json") as f:
+                data = _json.load(f)
+            pid = data.get("id")
+            return pid if isinstance(pid, str) else None
+        except (FileNotFoundError, PermissionError, _json.JSONDecodeError, OSError):
+            return None
 
     async def _request(
         self,
@@ -64,12 +83,26 @@ class DaemonProxy:
         timeout: float = 30.0,
     ) -> dict[str, Any]:
         """Make HTTP request to daemon."""
+        # Learn session_id from tool arguments (sticky — first one wins)
+        if self._session_id is None and isinstance(json, dict):
+            sid = json.get("session_id")
+            if isinstance(sid, str) and sid:
+                self._session_id = sid
+
+        # Build context headers so the daemon resolves the correct project
+        headers: dict[str, str] = {}
+        if self._project_id:
+            headers["X-Gobby-Project-Id"] = self._project_id
+        if self._session_id:
+            headers["X-Gobby-Session-Id"] = self._session_id
+
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.request(
                     method,
                     f"{self.base_url}{path}",
                     json=json,
+                    headers=headers,
                     timeout=timeout,
                 )
                 if resp.status_code == 200:

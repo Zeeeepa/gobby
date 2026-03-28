@@ -12,6 +12,7 @@ These tools query the hub database directly (not the project db).
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +36,7 @@ def create_hub_registry(
     """
     registry = InternalToolRegistry(
         name="gobby-hub",
-        description="Hub (cross-project) queries and system info - get_machine_id, list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats",
+        description="Hub (cross-project) queries and system info - get_machine_id, list_all_projects (for cross-project task creation), list_cross_project_tasks, list_cross_project_sessions, hub_stats",
     )
 
     def _get_hub_db() -> LocalDatabase | None:
@@ -72,71 +73,57 @@ def create_hub_registry(
 
     @registry.tool(
         name="list_all_projects",
-        description="List all unique projects in the hub database.",
+        description="List all initialized gobby projects with names and repo paths. Use project names with create_task(project='name') for cross-project task creation.",
     )
-    async def list_all_projects() -> dict[str, Any]:
+    async def list_all_projects(
+        include_system: bool = False,
+    ) -> dict[str, Any]:
         """
-        List all unique projects stored in the hub database.
+        List all initialized gobby projects.
 
-        Returns project IDs with task and session counts.
+        Returns project names and repo paths from the projects table.
+        Use project names with create_task(project="name") for cross-project
+        task creation.
+
+        Args:
+            include_system: Include system projects (_orphaned, _migrated, _personal, _global)
         """
         hub_db = _get_hub_db()
         if hub_db is None:
             return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
-            # Query unique projects from tasks table
-            task_projects = hub_db.fetchall(
+            rows = await asyncio.to_thread(
+                hub_db.fetchall,
                 """
-                SELECT project_id, COUNT(*) as task_count
-                FROM tasks
-                WHERE project_id IS NOT NULL
-                GROUP BY project_id
-                """
+                SELECT p.id, p.name, p.repo_path,
+                       COUNT(DISTINCT t.id) as task_count,
+                       COUNT(DISTINCT s.id) as session_count
+                FROM projects p
+                LEFT JOIN tasks t ON t.project_id = p.id
+                LEFT JOIN sessions s ON s.project_id = p.id
+                WHERE p.deleted_at IS NULL
+                GROUP BY p.id, p.name, p.repo_path
+                ORDER BY p.name
+                """,
             )
-
-            # Query unique projects from sessions table
-            session_projects = hub_db.fetchall(
-                """
-                SELECT project_id, COUNT(*) as session_count
-                FROM sessions
-                WHERE project_id IS NOT NULL
-                GROUP BY project_id
-                """
-            )
-
-            # Merge results
-            projects: dict[str, dict[str, int]] = {}
-            for row in task_projects:
-                project_id = row["project_id"]
-                if project_id:
-                    projects[project_id] = {
-                        "task_count": row["task_count"],
-                        "session_count": 0,
-                    }
-
-            for row in session_projects:
-                project_id = row["project_id"]
-                if project_id:
-                    if project_id in projects:
-                        projects[project_id]["session_count"] = row["session_count"]
-                    else:
-                        projects[project_id] = {
-                            "task_count": 0,
-                            "session_count": row["session_count"],
-                        }
-
+            projects = [
+                {
+                    "project_id": r["id"],
+                    "name": r["name"],
+                    "repo_path": r["repo_path"],
+                    "task_count": r["task_count"],
+                    "session_count": r["session_count"],
+                }
+                for r in rows
+            ]
+            if not include_system:
+                system_prefixes = ("_orphaned", "_migrated", "_personal", "_global")
+                projects = [p for p in projects if not p["name"].startswith(system_prefixes)]
             return {
                 "success": True,
                 "project_count": len(projects),
-                "projects": [
-                    {
-                        "project_id": pid,
-                        "task_count": data["task_count"],
-                        "session_count": data["session_count"],
-                    }
-                    for pid, data in sorted(projects.items())
-                ],
+                "projects": projects,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -162,7 +149,8 @@ def create_hub_registry(
 
         try:
             if status:
-                rows = hub_db.fetchall(
+                rows = await asyncio.to_thread(
+                    hub_db.fetchall,
                     """
                     SELECT id, project_id, title, status, task_type, priority, created_at, updated_at
                     FROM tasks
@@ -173,7 +161,8 @@ def create_hub_registry(
                     (status, limit),
                 )
             else:
-                rows = hub_db.fetchall(
+                rows = await asyncio.to_thread(
+                    hub_db.fetchall,
                     """
                     SELECT id, project_id, title, status, task_type, priority, created_at, updated_at
                     FROM tasks
@@ -223,7 +212,8 @@ def create_hub_registry(
             return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
-            rows = hub_db.fetchall(
+            rows = await asyncio.to_thread(
+                hub_db.fetchall,
                 """
                 SELECT id, project_id, source, status, machine_id, created_at, updated_at
                 FROM sessions
@@ -268,11 +258,10 @@ def create_hub_registry(
         if hub_db is None:
             return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
-        try:
+        def _collect_stats(db: LocalDatabase) -> dict[str, Any]:
             stats: dict[str, Any] = {}
 
-            # Count unique projects
-            project_count_result = hub_db.fetchone(
+            project_count_result = db.fetchone(
                 """
                 SELECT COUNT(DISTINCT project_id) as count
                 FROM (
@@ -284,8 +273,7 @@ def create_hub_registry(
             )
             stats["project_count"] = project_count_result["count"] if project_count_result else 0
 
-            # Count tasks by status
-            task_stats = hub_db.fetchall(
+            task_stats = db.fetchall(
                 """
                 SELECT status, COUNT(*) as count
                 FROM tasks
@@ -297,8 +285,7 @@ def create_hub_registry(
                 "by_status": {row["status"]: row["count"] for row in task_stats},
             }
 
-            # Count sessions by status
-            session_stats = hub_db.fetchall(
+            session_stats = db.fetchall(
                 """
                 SELECT status, COUNT(*) as count
                 FROM sessions
@@ -310,13 +297,16 @@ def create_hub_registry(
                 "by_status": {row["status"]: row["count"] for row in session_stats},
             }
 
-            # Count memories if table exists
             try:
-                memory_count = hub_db.fetchone("SELECT COUNT(*) as count FROM memories")
+                memory_count = db.fetchone("SELECT COUNT(*) as count FROM memories")
                 stats["memories"] = memory_count["count"] if memory_count else 0
             except Exception:
                 stats["memories"] = 0
 
+            return stats
+
+        try:
+            stats = await asyncio.to_thread(_collect_stats, hub_db)
             return {"success": True, "stats": stats}
         except Exception as e:
             return {"success": False, "error": str(e)}

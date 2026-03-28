@@ -10,8 +10,8 @@ interface MessageListProps {
   isStreaming: boolean
   isThinking: boolean
   isLoadingMessages?: boolean
-  onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespondToQuestion?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
@@ -32,21 +32,31 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
   }))
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
-    userScrolledUpRef.current = !atBottom
-  }, [])
+    // Don't flip the flag during streaming — content growth can briefly
+    // push us past atBottomThreshold before followOutput scrolls back,
+    // which causes the "bounce" where auto-scroll stops mid-stream.
+    if (!isStreaming) {
+      userScrolledUpRef.current = !atBottom
+    }
+  }, [isStreaming])
 
+  // Reset scroll flag when streaming starts so stale scroll-up state
+  // from before the agent began doesn't prevent auto-scroll.
   useEffect(() => {
-    if (isStreaming && !userScrolledUpRef.current) {
+    if (isStreaming) {
+      userScrolledUpRef.current = false
+    }
+  }, [isStreaming])
+
+  // Scroll to bottom on non-streaming appends (e.g. loading history).
+  // During streaming, Virtuoso's followOutput handles scroll-following
+  // natively — adding manual scrollToIndex calls here causes bounce
+  // because they compete with followOutput's own smooth scroll.
+  useEffect(() => {
+    if (!isStreaming && !userScrolledUpRef.current && messages.length > 0) {
       virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
     }
-  }, [isStreaming, messages])
-
-  // Scroll to bottom on new messages (non-streaming appends)
-  useEffect(() => {
-    if (!userScrolledUpRef.current && messages.length > 0) {
-      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
-    }
-  }, [messages.length])
+  }, [messages.length, isStreaming])
 
   const Footer = useCallback(() => (
     <>
@@ -96,6 +106,9 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
       data={messages}
       itemContent={itemContent}
       followOutput={() => {
+        // Always follow during streaming — the agent is working and
+        // the viewport should stay pinned to the bottom.
+        if (isStreaming) return 'smooth'
         if (userScrolledUpRef.current) return false
         return 'smooth'
       }}

@@ -7,12 +7,21 @@ interface VoiceState {
   isListening: boolean
   isSpeechDetected: boolean
   isTranscribing: boolean
+  isSpeaking: boolean
   voiceError: string | null
 }
 
 export interface UseVoiceReturn extends VoiceState {
   toggleVoiceMode: () => void
   handleVoiceMessage: (data: Record<string, unknown>) => void
+  handleBinaryMessage: (data: ArrayBuffer) => void
+  stopTTS: () => void
+}
+
+interface TTSMeta {
+  sampleRate: number
+  format: string
+  chunkIndex: number
 }
 
 export function useVoice(
@@ -24,6 +33,7 @@ export function useVoice(
   const [isListening, setIsListening] = useState(false)
   const [isSpeechDetected, setIsSpeechDetected] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
 
   const vadRef = useRef<MicVAD | null>(null)
@@ -36,12 +46,130 @@ export function useVoice(
 
   const voiceModeRef = useRef(false)
 
+  // --- TTS playback state ---
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioQueueRef = useRef<AudioBuffer[]>([])
+  const isPlayingRef = useRef(false)
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const pendingTTSMetaRef = useRef<TTSMeta | null>(null)
+
   // Set a voice error that auto-clears after a delay
   const setTransientError = useCallback((msg: string, ms = 3000) => {
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     setVoiceError(msg)
     errorTimerRef.current = setTimeout(() => setVoiceError(null), ms)
   }, [])
+
+  // --- TTS audio playback ---
+
+  const getAudioContext = useCallback((): AudioContext | null => {
+    try {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new AudioContext()
+      }
+      // Resume if suspended (browser autoplay policy)
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().catch(() => {})
+      }
+      return audioContextRef.current
+    } catch (err) {
+      console.error('Voice: Failed to create AudioContext:', err)
+      return null
+    }
+  }, [])
+
+  const playNextChunk = useCallback(() => {
+    const buffer = audioQueueRef.current.shift()
+    if (!buffer) {
+      isPlayingRef.current = false
+      setIsSpeaking(false)
+      return
+    }
+
+    const ctx = getAudioContext()
+    if (!ctx) {
+      isPlayingRef.current = false
+      setIsSpeaking(false)
+      return
+    }
+
+    try {
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(ctx.destination)
+      source.onended = playNextChunk
+      source.start()
+      currentSourceRef.current = source
+    } catch (err) {
+      console.error('Voice: Failed to play audio chunk:', err)
+      // Skip this chunk and try the next
+      playNextChunk()
+    }
+  }, [getAudioContext])
+
+  const queueAudioChunk = useCallback((pcmData: ArrayBuffer, sampleRate: number) => {
+    const ctx = getAudioContext()
+    if (!ctx) return
+
+    try {
+      // Convert PCM int16 little-endian to float32 for AudioBuffer
+      const int16 = new Int16Array(pcmData)
+      const float32 = new Float32Array(int16.length)
+      for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / 32768
+      }
+
+      const audioBuffer = ctx.createBuffer(1, float32.length, sampleRate)
+      audioBuffer.getChannelData(0).set(float32)
+
+      audioQueueRef.current.push(audioBuffer)
+      setIsSpeaking(true)
+
+      // Start playback if not already playing
+      if (!isPlayingRef.current) {
+        isPlayingRef.current = true
+        playNextChunk()
+      }
+    } catch (err) {
+      console.error('Voice: Failed to queue audio chunk:', err)
+    }
+  }, [getAudioContext, playNextChunk])
+
+  const stopTTS = useCallback(() => {
+    // Stop current playback
+    try {
+      currentSourceRef.current?.stop()
+    } catch {
+      // Already stopped
+    }
+    currentSourceRef.current = null
+
+    // Clear queue
+    audioQueueRef.current = []
+    isPlayingRef.current = false
+    pendingTTSMetaRef.current = null
+    setIsSpeaking(false)
+
+    // Tell backend to stop synthesizing
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'tts_stop',
+        conversation_id: conversationIdRef.current,
+      }))
+    }
+  }, [wsRef])
+
+  // Handle binary WebSocket messages (TTS audio data)
+  const handleBinaryMessage = useCallback((data: ArrayBuffer) => {
+    const meta = pendingTTSMetaRef.current
+    if (!meta) {
+      // No pending metadata — stale or out-of-order binary frame, ignore
+      return
+    }
+    pendingTTSMetaRef.current = null
+    queueAudioChunk(data, meta.sampleRate)
+  }, [queueAudioChunk])
 
   // Check voice availability on mount (STT availability via /api/voice/status)
   useEffect(() => {
@@ -90,6 +218,8 @@ export function useVoice(
 
           onSpeechStart: () => {
             setIsSpeechDetected(true)
+            // Barge-in: stop TTS when user starts speaking
+            stopTTS()
           },
 
           onSpeechEnd: (audio: Float32Array) => {
@@ -144,8 +274,9 @@ export function useVoice(
         console.error('Failed to start VAD:', err)
       }
     } else {
-      // Disable: destroy VAD, cleanup
+      // Disable: destroy VAD, stop TTS, cleanup
       voiceModeRef.current = false
+      stopTTS()
       if (vadRef.current) {
         vadRef.current.destroy()
         vadRef.current = null
@@ -155,9 +286,9 @@ export function useVoice(
       setIsSpeechDetected(false)
       setIsTranscribing(false)
     }
-  }, [voiceMode, wsRef, conversationId, setTransientError])
+  }, [voiceMode, wsRef, conversationId, setTransientError, stopTTS])
 
-  // Cleanup VAD on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       voiceModeRef.current = false
@@ -165,6 +296,14 @@ export function useVoice(
         vadRef.current.destroy()
         vadRef.current = null
       }
+      // Stop TTS playback
+      try {
+        currentSourceRef.current?.stop()
+      } catch { /* noop */ }
+      audioQueueRef.current = []
+      try {
+        audioContextRef.current?.close()
+      } catch { /* noop */ }
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     }
   }, [])
@@ -187,6 +326,19 @@ export function useVoice(
         setIsTranscribing(true)
         setVoiceError(null)
       }
+    } else if (type === 'tts_audio') {
+      // Store metadata — next binary frame is the audio data
+      pendingTTSMetaRef.current = {
+        sampleRate: (data.sample_rate as number) || 24000,
+        format: (data.format as string) || 'pcm_s16le',
+        chunkIndex: (data.chunk_index as number) || 0,
+      }
+    } else if (type === 'tts_status') {
+      const status = data.status as string
+      if (status === 'idle') {
+        // Backend stopped TTS — clear any pending meta
+        pendingTTSMetaRef.current = null
+      }
     }
   }, [setTransientError])
 
@@ -196,8 +348,11 @@ export function useVoice(
     isListening,
     isSpeechDetected,
     isTranscribing,
+    isSpeaking,
     voiceError,
     toggleVoiceMode,
     handleVoiceMessage,
+    handleBinaryMessage,
+    stopTTS,
   }
 }

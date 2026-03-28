@@ -13,7 +13,13 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends, HTTPException, Request
 
 from gobby.servers.routes.dependencies import get_internal_manager, get_mcp_manager, get_server
+from gobby.storage.session_resolution import resolve_session_reference
 from gobby.telemetry.instruments import inc_counter, observe_histogram
+from gobby.utils.project_context import (
+    reset_project_context,
+    set_project_context,
+    set_project_context_from_session,
+)
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -21,6 +27,93 @@ if TYPE_CHECKING:
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
+
+
+def _set_project_context_for_request(
+    server: "HTTPServer", arguments: Any, request: Request | None = None
+) -> Any:
+    """Set project context var from the best available source.
+
+    Priority:
+      1. session_id from tool arguments (most specific — tool knows its session)
+      2. X-Gobby-Session-Id header (injected by stdio proxy from learned session)
+      3. X-Gobby-Project-Id header (injected by stdio proxy from CWD project.json)
+
+    The stdio process runs in the CLI's project directory, so its CWD-derived
+    project_id is always correct. The daemon's CWD is NOT — it points to the
+    gobby project regardless of which project the caller is in.
+
+    Returns a context var token for reset, or None.
+    """
+    # 1. Try session_id from tool arguments
+    session_id = arguments.get("session_id") if isinstance(arguments, dict) else None
+
+    # 2. Try session_id from header (stdio proxy injects this once learned)
+    if not session_id and request:
+        session_id = request.headers.get("x-gobby-session-id")
+
+    # Resolve session → project (authoritative: session knows its project)
+    if session_id and server.session_manager:
+        # If session_id is a #N or numeric reference, resolve to UUID first.
+        # set_project_context_from_session expects a UUID — passing #N causes
+        # silent failure and falls through to the header fallback, which can
+        # resolve to a different project's session with the same seq_num.
+        resolved_id = session_id
+        ref = session_id.lstrip("#") if session_id.startswith("#") else session_id
+        if ref.isdigit():
+            bootstrap_project_id = request.headers.get("x-gobby-project-id") if request else None
+            try:
+                resolved_id = resolve_session_reference(
+                    server.session_manager.db, session_id, bootstrap_project_id
+                )
+            except (ValueError, Exception) as e:
+                logger.debug(
+                    f"Failed to resolve session ref '{session_id}' "
+                    f"(project_id={bootstrap_project_id}): {e}"
+                )
+                resolved_id = None
+
+        if resolved_id:
+            try:
+                token = set_project_context_from_session(
+                    resolved_id, server.session_manager, server.session_manager.db
+                )
+                if token is not None:
+                    return token
+            except Exception as e:
+                logger.debug(f"Failed to set project context from session_id '{resolved_id}': {e}")
+
+    # 3. Fallback: project_id from header (always available from stdio startup)
+    if request:
+        project_id = request.headers.get("x-gobby-project-id")
+        if project_id:
+            # Enrich from DB if possible (gives tools project_path, name, etc.)
+            if server.session_manager:
+                try:
+                    from gobby.storage.projects import LocalProjectManager
+
+                    pm = LocalProjectManager(server.session_manager.db)
+                    project = pm.get(project_id)
+                    if project:
+                        return set_project_context(
+                            {
+                                "id": project.id,
+                                "name": project.name,
+                                "project_path": project.repo_path,
+                            }
+                        )
+                except Exception as e:
+                    logger.debug(f"Failed to enrich project context for '{project_id}': {e}")
+            # Minimal fallback — id alone is enough for scoping
+            return set_project_context({"id": project_id})
+
+    return None
+
+
+def _reset_project_context(token: Any) -> None:
+    """Reset project context var if a token was set."""
+    if token is not None:
+        reset_project_context(token)
 
 
 def _process_tool_proxy_result(
@@ -406,45 +499,50 @@ async def call_mcp_tool(
                 detail={"success": False, "error": "Required fields: server_name, tool_name"},
             )
 
-        # Route through ToolProxyService for consistent error enrichment
-        if server.tool_proxy:
-            result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
+        # Set project context from session_id or stdio proxy headers
+        ctx_token = _set_project_context_for_request(server, arguments, request)
+        try:
+            # Route through ToolProxyService for consistent error enrichment
+            if server.tool_proxy:
+                result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
 
-        # Fallback: no tool_proxy available, use direct registry calls
-        # Check internal first
-        if server._internal_manager and server._internal_manager.is_internal(server_name):
-            registry = server._internal_manager.get_registry(server_name)
-            if registry:
-                return await _call_internal_tool(
-                    registry, server_name, tool_name, arguments, start_time
+            # Fallback: no tool_proxy available, use direct registry calls
+            # Check internal first
+            if server._internal_manager and server._internal_manager.is_internal(server_name):
+                registry = server._internal_manager.get_registry(server_name)
+                if registry:
+                    return await _call_internal_tool(
+                        registry, server_name, tool_name, arguments, start_time
+                    )
+
+            if server.mcp_manager is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
                 )
 
-        if server.mcp_manager is None:
-            raise HTTPException(
-                status_code=503,
-                detail={"success": False, "error": "MCP manager not available"},
-            )
+            # Call external MCP tool
+            try:
+                result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                inc_counter("mcp_tool_calls_succeeded_total")
 
-        # Call external MCP tool
-        try:
-            result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            inc_counter("mcp_tool_calls_succeeded_total")
+                return {
+                    "success": True,
+                    "result": result,
+                    "response_time_ms": response_time_ms,
+                }
 
-            return {
-                "success": True,
-                "result": result,
-                "response_time_ms": response_time_ms,
-            }
-
-        except Exception as e:
-            inc_counter("mcp_tool_calls_failed_total")
-            error_msg = str(e) or f"{type(e).__name__}: (no message)"
-            raise HTTPException(
-                status_code=500, detail={"success": False, "error": error_msg}
-            ) from e
+            except Exception as e:
+                inc_counter("mcp_tool_calls_failed_total")
+                error_msg = str(e) or f"{type(e).__name__}: (no message)"
+                raise HTTPException(
+                    status_code=500, detail={"success": False, "error": error_msg}
+                ) from e
+        finally:
+            _reset_project_context(ctx_token)
 
     except HTTPException:
         raise
@@ -485,75 +583,83 @@ async def mcp_proxy(
                 detail={"success": False, "error": f"Invalid JSON in request body: {e}"},
             ) from e
 
-        # Route through ToolProxyService for consistent error enrichment
-        if server.tool_proxy:
-            result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
-
-        # Fallback: no tool_proxy available, use direct registry calls
-        # Check internal registries first (gobby-tasks, gobby-memory, etc.)
-        if server._internal_manager and server._internal_manager.is_internal(server_name):
-            registry = server._internal_manager.get_registry(server_name)
-            if registry:
-                return await _call_internal_tool(
-                    registry, server_name, tool_name, arguments, start_time
-                )
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "success": False,
-                    "error": f"Internal server '{server_name}' not found",
-                },
-            )
-
-        if server.mcp_manager is None:
-            raise HTTPException(
-                status_code=503,
-                detail={"success": False, "error": "MCP manager not available"},
-            )
-
-        # Call MCP tool
+        # Set project context from session_id or stdio proxy headers
+        ctx_token = _set_project_context_for_request(server, arguments, request)
         try:
-            result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
+            # Route through ToolProxyService for consistent error enrichment
+            if server.tool_proxy:
+                result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
 
-            response_time_ms = (time.perf_counter() - start_time) * 1000
+            # Fallback: no tool_proxy available, use direct registry calls
+            # Check internal registries first (gobby-tasks, gobby-memory, etc.)
+            if server._internal_manager and server._internal_manager.is_internal(server_name):
+                registry = server._internal_manager.get_registry(server_name)
+                if registry:
+                    return await _call_internal_tool(
+                        registry, server_name, tool_name, arguments, start_time
+                    )
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "success": False,
+                        "error": f"Internal server '{server_name}' not found",
+                    },
+                )
 
-            logger.debug(
-                f"MCP tool call successful: {server_name}.{tool_name}",
-                extra={
-                    "server": server_name,
-                    "tool": tool_name,
+            if server.mcp_manager is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
+                )
+
+            # Call MCP tool
+            try:
+                result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                logger.debug(
+                    f"MCP tool call successful: {server_name}.{tool_name}",
+                    extra={
+                        "server": server_name,
+                        "tool": tool_name,
+                        "response_time_ms": response_time_ms,
+                    },
+                )
+
+                inc_counter("mcp_tool_calls_succeeded_total")
+
+                return {
+                    "success": True,
+                    "result": result,
                     "response_time_ms": response_time_ms,
-                },
-            )
+                }
 
-            inc_counter("mcp_tool_calls_succeeded_total")
+            except ValueError as e:
+                inc_counter("mcp_tool_calls_failed_total")
+                logger.warning(
+                    f"MCP tool not found: {server_name}.{tool_name}",
+                    extra={"server": server_name, "tool": tool_name, "error": str(e)},
+                )
+                raise HTTPException(
+                    status_code=404, detail={"success": False, "error": str(e)}
+                ) from e
+            except Exception as e:
+                inc_counter("mcp_tool_calls_failed_total")
+                error_msg = str(e) or f"{type(e).__name__}: (no message)"
+                logger.error(
+                    f"MCP tool call error: {server_name}.{tool_name}",
+                    exc_info=True,
+                    extra={"server": server_name, "tool": tool_name},
+                )
+                raise HTTPException(
+                    status_code=500, detail={"success": False, "error": error_msg}
+                ) from e
 
-            return {
-                "success": True,
-                "result": result,
-                "response_time_ms": response_time_ms,
-            }
-
-        except ValueError as e:
-            inc_counter("mcp_tool_calls_failed_total")
-            logger.warning(
-                f"MCP tool not found: {server_name}.{tool_name}",
-                extra={"server": server_name, "tool": tool_name, "error": str(e)},
-            )
-            raise HTTPException(status_code=404, detail={"success": False, "error": str(e)}) from e
-        except Exception as e:
-            inc_counter("mcp_tool_calls_failed_total")
-            error_msg = str(e) or f"{type(e).__name__}: (no message)"
-            logger.error(
-                f"MCP tool call error: {server_name}.{tool_name}",
-                exc_info=True,
-                extra={"server": server_name, "tool": tool_name},
-            )
-            raise HTTPException(
-                status_code=500, detail={"success": False, "error": error_msg}
-            ) from e
+        finally:
+            _reset_project_context(ctx_token)
 
     except HTTPException:
         raise

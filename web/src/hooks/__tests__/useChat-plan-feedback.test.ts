@@ -83,7 +83,8 @@ describe('useChat plan feedback', () => {
     })
 
     // 4. Advance timers to trigger auto-send setTimeout
-    act(() => {
+    // Use async act to flush microtasks from sendMessage state updates
+    await act(async () => {
       vi.advanceTimersByTime(200)
     })
 

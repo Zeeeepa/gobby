@@ -1071,3 +1071,49 @@ class TestCallToolStringArgumentCoercion:
         assert result["success"] is False
         assert "expected dict" in result["error"]
         assert "list" in result["error"]
+
+
+class TestServerSuggestions:
+    """Tests for _SERVER_SUGGESTIONS and _get_server_suggestion."""
+
+    @pytest.fixture
+    def proxy_service(self):
+        manager = MagicMock()
+        manager.project_id = "test-project"
+        return ToolProxyService(mcp_manager=manager)
+
+    @pytest.mark.parametrize(
+        "wrong_name,expected",
+        [
+            # Workflows subsystems
+            ("gobby-pipelines", "gobby-workflows"),
+            ("gobby-pipeline", "gobby-workflows"),
+            ("gobby-rules", "gobby-workflows"),
+            ("gobby-rule", "gobby-workflows"),
+            ("gobby-variables", "gobby-workflows"),
+            ("gobby-variable", "gobby-workflows"),
+            # Singular → plural
+            ("gobby-task", "gobby-tasks"),
+            ("gobby-session", "gobby-sessions"),
+            ("gobby-agent", "gobby-agents"),
+            ("gobby-workflow", "gobby-workflows"),
+            ("gobby-skill", "gobby-skills"),
+            ("gobby-worktree", "gobby-worktrees"),
+            ("gobby-clone", "gobby-clones"),
+        ],
+    )
+    def test_server_suggestion_mapping(
+        self, proxy_service: ToolProxyService, wrong_name: str, expected: str
+    ) -> None:
+        """Test that misspelled server names map to correct suggestions."""
+        assert proxy_service._get_server_suggestion(wrong_name) == expected
+
+    def test_no_suggestion_for_valid_server(self, proxy_service: ToolProxyService) -> None:
+        """Test that valid server names return no suggestion."""
+        assert proxy_service._get_server_suggestion("gobby-tasks") is None
+        assert proxy_service._get_server_suggestion("gobby-workflows") is None
+        assert proxy_service._get_server_suggestion("gobby-memory") is None
+
+    def test_no_suggestion_for_unknown_server(self, proxy_service: ToolProxyService) -> None:
+        """Test that completely unknown names return no suggestion."""
+        assert proxy_service._get_server_suggestion("nonexistent") is None

@@ -13,6 +13,7 @@ import os
 import signal
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from gobby.cli.utils import get_gobby_home
@@ -151,6 +152,33 @@ async def cleanup_zombie_messages_loop(
             logger.error(f"Error in zombie message cleanup loop: {e}")
 
 
+async def cleanup_comms_messages_loop(
+    db: Any,
+    is_shutdown_requested: Callable[[], bool],
+    retention_days: int = 30,
+) -> None:
+    from gobby.storage.communications import LocalCommunicationsStore
+
+    interval_seconds = 24 * 60 * 60
+
+    store = LocalCommunicationsStore(db)
+
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+            cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+
+            deleted_messages = store.delete_messages_before(cutoff)
+
+            if deleted_messages > 0:
+                logger.info(f"Comms message cleanup: removed {deleted_messages} old messages")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in comms message cleanup loop: {e}")
+
+
 async def expire_approval_timeouts_loop(
     pipeline_execution_manager: Any,
     is_shutdown_requested: Callable[[], bool],
@@ -253,6 +281,99 @@ async def metric_snapshot_loop(
             await asyncio.sleep(interval_seconds)
         except asyncio.CancelledError:
             break
+
+
+async def cleanup_expired_isolation_loop(
+    db: Any,
+    is_shutdown_requested: Callable[[], bool],
+    interval_hours: int = 1,
+) -> None:
+    """Reap expired worktrees and clones whose cleanup_after window has passed.
+
+    After a successful merge, worktrees/clones get a 7-day grace period
+    (cleanup_after). Once that expires, this loop deletes the directory,
+    git branch (worktrees only), and database record.
+    """
+    import shutil
+
+    from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.worktrees import LocalWorktreeManager
+
+    worktree_storage = LocalWorktreeManager(db)
+    clone_storage = LocalCloneManager(db)
+    interval_seconds = interval_hours * 3600
+
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+
+            # Reap expired worktrees
+            expired_worktrees = worktree_storage.find_expired()
+            for wt in expired_worktrees:
+                try:
+                    path = wt.worktree_path
+                    # Try git worktree remove first, fall back to shutil
+                    removed = False
+                    try:
+                        result = await asyncio.to_thread(
+                            _run_git_command,
+                            ["git", "worktree", "remove", "--force", path],
+                        )
+                        removed = result == 0
+                    except Exception as e:
+                        logger.debug("git worktree remove failed for %s: %s", path, e)
+                    if not removed and os.path.exists(path):
+                        await asyncio.to_thread(shutil.rmtree, path, ignore_errors=True)
+                    # Prune stale worktree references
+                    await asyncio.to_thread(_run_git_command, ["git", "worktree", "prune"])
+                    # Delete the branch
+                    if wt.branch_name:
+                        await asyncio.to_thread(
+                            _run_git_command,
+                            ["git", "branch", "-D", wt.branch_name],
+                        )
+                    # Remove DB record
+                    worktree_storage.delete(wt.id)
+                    logger.info(
+                        f"Expired worktree cleanup: deleted {wt.id} "
+                        f"(branch={wt.branch_name}, path={path})"
+                    )
+                except Exception:
+                    logger.error(
+                        f"Failed to clean up expired worktree {wt.id}",
+                        exc_info=True,
+                    )
+
+            # Reap expired clones
+            expired_clones = clone_storage.find_expired()
+            for clone in expired_clones:
+                try:
+                    path = clone.clone_path
+                    if os.path.exists(path):
+                        await asyncio.to_thread(shutil.rmtree, path, ignore_errors=True)
+                    clone_storage.delete(clone.id)
+                    logger.info(
+                        f"Expired clone cleanup: deleted {clone.id} "
+                        f"(branch={clone.branch_name}, path={path})"
+                    )
+                except Exception:
+                    logger.error(
+                        f"Failed to clean up expired clone {clone.id}",
+                        exc_info=True,
+                    )
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in expired isolation cleanup loop: {e}")
+
+
+def _run_git_command(args: list[str]) -> int:
+    """Run a git command and return the exit code."""
+    import subprocess
+
+    result = subprocess.run(args, capture_output=True, timeout=30)  # noqa: S603
+    return result.returncode
 
 
 def write_shutdown_source(source: str, sender_pid: int | None = None) -> None:

@@ -8,7 +8,6 @@ import pytest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.skills import LocalSkillManager, Skill, SkillFile
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -161,7 +160,7 @@ class TestSkillFileCRUD:
         # Modify one file's content
         files[0].content = "# Updated API docs"
         files[0].content_hash = _hash("# Updated API docs")
-        files[0].size_bytes = len("# Updated API docs".encode())
+        files[0].size_bytes = len(b"# Updated API docs")
 
         changed = storage.set_skill_files(sample_skill.id, files)
         assert changed == 1

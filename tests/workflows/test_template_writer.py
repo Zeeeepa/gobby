@@ -7,7 +7,7 @@ class TestWriteRuleTemplate:
     """Tests for write_rule_template."""
 
     def test_round_trip(self, tmp_path):
-        from gobby.workflows.template_writer import write_rule_template, read_template
+        from gobby.workflows.template_writer import read_template, write_rule_template
 
         definition = {
             "event": {"type": "pre_tool_use"},
@@ -78,7 +78,7 @@ class TestWritePipelineTemplate:
     """Tests for write_pipeline_template."""
 
     def test_round_trip(self, tmp_path):
-        from gobby.workflows.template_writer import write_pipeline_template, read_template
+        from gobby.workflows.template_writer import read_template, write_pipeline_template
 
         definition = {
             "name": "my-pipe",
@@ -102,7 +102,7 @@ class TestWriteAgentTemplate:
     """Tests for write_agent_template."""
 
     def test_round_trip(self, tmp_path):
-        from gobby.workflows.template_writer import write_agent_template, read_template
+        from gobby.workflows.template_writer import read_template, write_agent_template
 
         definition = {
             "name": "my-agent",
@@ -125,7 +125,7 @@ class TestWriteVariableTemplate:
     """Tests for write_variable_template."""
 
     def test_round_trip(self, tmp_path):
-        from gobby.workflows.template_writer import write_variable_template, read_template
+        from gobby.workflows.template_writer import read_template, write_variable_template
 
         path = write_variable_template(
             name="my-var",
@@ -144,7 +144,7 @@ class TestDeleteTemplateFile:
     """Tests for delete_template_file."""
 
     def test_deletes_existing(self, tmp_path):
-        from gobby.workflows.template_writer import write_rule_template, delete_template_file
+        from gobby.workflows.template_writer import delete_template_file, write_rule_template
 
         write_rule_template(
             name="doomed",

@@ -236,6 +236,24 @@ def register_mark_task_review_approved(
         except ValueError as e:
             return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
+        # Best-effort: link commits before transitioning to review_approved.
+        # QA agents may fix issues and commit before approving.
+        try:
+            from gobby.tasks.commits import auto_link_commits
+
+            session = ctx.session_manager.get(resolved_session_id)
+            repo_path = ctx.get_project_repo_path(task.project_id)
+            if session:
+                auto_link_commits(
+                    task_manager=ctx.task_manager,
+                    task_id=resolved_id,
+                    since=session.created_at,
+                    cwd=repo_path,
+                    project_id=task.project_id,
+                )
+        except Exception:
+            pass  # nosec B110 # best-effort, SESSION_END is the backstop
+
         # Build update kwargs
         update_kwargs: dict[str, Any] = {"status": "review_approved"}
 
@@ -329,6 +347,25 @@ def register_mark_task_needs_review(registry: InternalToolRegistry, ctx: Registr
             resolved_session_id = ctx.resolve_session_id(session_id)
         except ValueError as e:
             return {"error": f"Cannot resolve session '{session_id}': {e}"}
+
+        # Best-effort: link commits before transitioning to needs_review.
+        # Prevents the race where the orchestrator picks up the task
+        # before SESSION_END auto-linking completes.
+        try:
+            from gobby.tasks.commits import auto_link_commits
+
+            session = ctx.session_manager.get(resolved_session_id)
+            repo_path = ctx.get_project_repo_path(task.project_id)
+            if session:
+                auto_link_commits(
+                    task_manager=ctx.task_manager,
+                    task_id=resolved_id,
+                    since=session.created_at,
+                    cwd=repo_path,
+                    project_id=task.project_id,
+                )
+        except Exception:
+            pass  # nosec B110 # best-effort, SESSION_END is the backstop
 
         # Build update kwargs
         update_kwargs: dict[str, Any] = {"status": "needs_review"}

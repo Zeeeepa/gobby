@@ -406,7 +406,9 @@ def _register_routes(app: FastAPI, server: "HTTPServer") -> None:
         create_admin_router,
         create_agent_spawn_router,
         create_agents_router,
+        create_chat_router,
         create_code_index_router,
+        create_communications_router,
         create_configuration_router,
         create_cron_router,
         create_files_router,
@@ -433,6 +435,7 @@ def _register_routes(app: FastAPI, server: "HTTPServer") -> None:
     app.include_router(create_admin_router(server))
     app.include_router(create_agent_spawn_router(server))
     app.include_router(create_agents_router(server))
+    app.include_router(create_chat_router(server))
     app.include_router(create_sessions_router(server))
     app.include_router(create_memory_router(server))
     app.include_router(create_tasks_router(server))
@@ -452,6 +455,10 @@ def _register_routes(app: FastAPI, server: "HTTPServer") -> None:
     app.include_router(create_source_control_router(server))
     app.include_router(create_traces_router(server))
     app.include_router(create_metrics_router(server))
+
+    comms_config = getattr(server.services.config, "communications", None)
+    if comms_config and comms_config.enabled:
+        app.include_router(create_communications_router(server))
 
 
 def _mount_ws_proxy(app: FastAPI, server: "HTTPServer") -> None:

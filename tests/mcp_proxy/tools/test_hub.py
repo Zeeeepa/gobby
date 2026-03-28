@@ -105,8 +105,8 @@ def populated_hub_db(temp_hub_db: Path) -> Path:
 class TestListAllProjects:
     """Tests for list_all_projects tool."""
 
-    def test_list_all_projects_returns_unique_list(self, populated_hub_db: Path) -> None:
-        """Test that list_all_projects returns unique project list."""
+    def test_list_all_projects_returns_names_and_paths(self, populated_hub_db: Path) -> None:
+        """Test that list_all_projects returns project names and repo paths."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_all_projects")
 
@@ -114,25 +114,57 @@ class TestListAllProjects:
 
         assert result["success"] is True
         assert result["project_count"] == 2
-        project_ids = [p["project_id"] for p in result["projects"]]
-        assert "project-alpha" in project_ids
-        assert "project-beta" in project_ids
+        names = [p["name"] for p in result["projects"]]
+        assert "Project Alpha" in names
+        assert "Project Beta" in names
 
-    def test_list_all_projects_includes_counts(self, populated_hub_db: Path) -> None:
-        """Test that list_all_projects includes task and session counts."""
+    def test_list_all_projects_includes_repo_path(self, populated_hub_db: Path) -> None:
+        """Test that list_all_projects includes id, name, and repo_path."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_all_projects")
 
         result = asyncio.run(tool())
 
         assert result["success"] is True
-        alpha = next(p for p in result["projects"] if p["project_id"] == "project-alpha")
-        beta = next(p for p in result["projects"] if p["project_id"] == "project-beta")
+        alpha = next(p for p in result["projects"] if p["id"] == "project-alpha")
+        beta = next(p for p in result["projects"] if p["id"] == "project-beta")
 
-        assert alpha["task_count"] == 2
-        assert alpha["session_count"] == 2
-        assert beta["task_count"] == 1
-        assert beta["session_count"] == 1
+        assert alpha["name"] == "Project Alpha"
+        assert alpha["repo_path"] == "/path/alpha"
+        assert beta["name"] == "Project Beta"
+        assert beta["repo_path"] == "/path/beta"
+
+    def test_list_all_projects_filters_system_by_default(self, temp_hub_db: Path) -> None:
+        """Test that system projects are excluded by default."""
+        db = LocalDatabase(temp_hub_db)
+        db.execute(
+            """
+            INSERT INTO projects (id, name, repo_path, github_url, created_at, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            """,
+            ("real-project", "my-app", "/path/app", None),
+        )
+        db.execute(
+            """
+            INSERT INTO projects (id, name, repo_path, github_url, created_at, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            """,
+            ("system-1", "_orphaned_test", None, None),
+        )
+
+        registry = create_hub_registry(hub_db_path=temp_hub_db)
+        tool = registry.get_tool("list_all_projects")
+
+        result = asyncio.run(tool())
+        assert result["project_count"] == 1
+        assert result["projects"][0]["name"] == "my-app"
+
+        # include_system=True shows all (including 4 baseline system projects)
+        result_all = asyncio.run(tool(include_system=True))
+        assert result_all["project_count"] == 6
+        names = {p["name"] for p in result_all["projects"]}
+        assert "my-app" in names
+        assert "_orphaned_test" in names
 
     def test_list_all_projects_empty_database(self, temp_hub_db: Path) -> None:
         """Test list_all_projects handles empty database gracefully."""

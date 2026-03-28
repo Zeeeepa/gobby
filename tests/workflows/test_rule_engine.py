@@ -1726,6 +1726,46 @@ class TestEditWritePending:
         response = await engine.evaluate(stop_event, session_id="sess-1", variables=variables)
         assert response.decision == "allow"
 
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_cleared_by_non_edit_success(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Any successful non-edit tool should clear a stale edit_write_pending flag.
+
+        Regression test: edit_write_pending could stay True after Edit succeeded
+        (e.g. AFTER_TOOL lost or tool_name mismatch), causing false-positive
+        edit-write-recovery blocks on stop.
+        """
+        engine = RuleEngine(db)
+        # Simulate stale flag (Edit succeeded but flag wasn't cleared)
+        variables: dict[str, Any] = {"edit_write_pending": True}
+
+        # Successful Read should clear the stale flag
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Read"})
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["edit_write_pending"] is False
+
+        # Stop should be allowed
+        stop_event = _make_event(HookEventType.STOP)
+        response = await engine.evaluate(stop_event, session_id="sess-1", variables=variables)
+        assert response.decision == "allow"
+
+    @pytest.mark.asyncio
+    async def test_edit_write_pending_not_cleared_by_failed_non_edit(
+        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
+    ) -> None:
+        """Failed non-edit tool should NOT clear edit_write_pending."""
+        engine = RuleEngine(db)
+        variables: dict[str, Any] = {"edit_write_pending": True}
+
+        # Failed Bash should NOT clear the flag
+        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Bash"})
+        event.metadata["is_failure"] = True
+        await engine.evaluate(event, session_id="sess-1", variables=variables)
+
+        assert variables["edit_write_pending"] is True
+
 
 class TestRuleEngineHelpers:
     """Tests for internal helper methods of RuleEngine."""

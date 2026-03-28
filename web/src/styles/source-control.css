@@ -427,6 +427,54 @@
   border-bottom: 1px solid var(--border);
 }
 
+.sc-detail-panel__section {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.sc-detail-panel__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.sc-detail-panel__cards .sc-card {
+  background: var(--bg-tertiary);
+}
+
+/* Orphaned resources */
+
+.sc-source-control__orphans {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.sc-source-control__orphans-toggle {
+  font-size: calc(var(--font-size-base) * 0.8);
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.sc-source-control__orphans-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.sc-source-control__orphans .sc-card-grid {
+  margin-top: 0.75rem;
+}
+
+/* Resource cell in branch table */
+
+.sc-table__cell--resources {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
 /* Overview */
 
 .sc-overview {
@@ -1031,7 +1079,7 @@
   font-size: 0.8rem;
   color: var(--text-secondary);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
   margin: 0;
   font-family: var(--font-sans);
   line-height: 1.5;

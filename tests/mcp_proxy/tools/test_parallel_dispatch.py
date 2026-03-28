@@ -201,6 +201,8 @@ class TestSuggestNextTasks:
 
         assert len(result["suggestions"]) == 3
         assert result["conflicts_avoided"] == 0
+        assert result["max_count"] == 3
+        assert result["skipped_refs"] == []
 
     def test_conflicting_tasks_excluded(self, mock_project_context) -> None:
         """Tasks sharing files should not be in the same batch."""
@@ -230,6 +232,8 @@ class TestSuggestNextTasks:
         assert len(result["suggestions"]) == 1
         assert result["suggestions"][0]["id"] == "t1"
         assert result["conflicts_avoided"] == 1
+        assert result["max_count"] == 3
+        assert result["skipped_refs"] == ["#t2"]
 
     def test_no_file_annotations_treated_as_non_conflicting(self, mock_project_context) -> None:
         """Tasks with no file annotations are allowed (optimistic)."""
@@ -258,6 +262,7 @@ class TestSuggestNextTasks:
 
         assert len(result["suggestions"]) == 2
         assert result["conflicts_avoided"] == 0
+        assert result["skipped_refs"] == []
 
     def test_max_count_respected(self, mock_project_context) -> None:
         """Should not return more than max_count tasks."""
@@ -278,6 +283,7 @@ class TestSuggestNextTasks:
 
         assert len(result["suggestions"]) == 2
         assert result["total_ready"] == 5
+        assert result["max_count"] == 2
 
     def test_in_progress_files_excluded(self, mock_project_context) -> None:
         """Files from in-progress tasks should block candidate selection."""
@@ -316,6 +322,31 @@ class TestSuggestNextTasks:
         # ready task conflicts with in-progress file
         assert len(result["suggestions"]) == 0
         assert result["conflicts_avoided"] == 1
+        assert result["skipped_refs"] == ["#ready"]
+
+    def test_skipped_refs_capped_at_ten(self, mock_project_context) -> None:
+        """skipped_refs should be capped at 10 entries."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+
+        tm = MagicMock()
+        # 1 high-priority task + 15 conflicting tasks
+        tasks = [self._make_task("winner", priority=0)]
+        tasks += [self._make_task(f"skip{i}", priority=2) for i in range(15)]
+        tm.list_ready_tasks.return_value = tasks
+        tm.list_tasks.return_value = []
+
+        with patch("gobby.mcp_proxy.tools.task_readiness.TaskAffectedFileManager") as MockAFM:
+            mock_af = MockAFM.return_value
+            # All tasks touch the same file
+            mock_af.get_files.return_value = [self._make_af("src/shared.py")]
+
+            registry = create_readiness_registry(task_manager=tm)
+            suggest_tasks = registry.get_tool("suggest_next_tasks")
+            result = suggest_tasks(max_count=10)
+
+        assert len(result["suggestions"]) == 1
+        assert result["conflicts_avoided"] == 15
+        assert len(result["skipped_refs"]) == 10  # Capped
 
     def test_no_ready_tasks_returns_empty(self, mock_project_context) -> None:
         """Should handle no ready tasks gracefully."""

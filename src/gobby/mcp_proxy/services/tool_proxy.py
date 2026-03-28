@@ -33,6 +33,25 @@ class ToolProxyService:
     # names like "gobby-tasks", "gobby-sessions", etc.
     _PROXY_NAMESPACE = "gobby"
 
+    # Common server name mismatches for auto-heal suggestions
+    _SERVER_SUGGESTIONS = {
+        # Workflows subsystems (rules, pipelines, variables all live under gobby-workflows)
+        "gobby-pipelines": "gobby-workflows",
+        "gobby-pipeline": "gobby-workflows",
+        "gobby-rules": "gobby-workflows",
+        "gobby-rule": "gobby-workflows",
+        "gobby-variables": "gobby-workflows",
+        "gobby-variable": "gobby-workflows",
+        # Singular → plural
+        "gobby-task": "gobby-tasks",
+        "gobby-session": "gobby-sessions",
+        "gobby-agent": "gobby-agents",
+        "gobby-workflow": "gobby-workflows",
+        "gobby-skill": "gobby-skills",
+        "gobby-worktree": "gobby-worktrees",
+        "gobby-clone": "gobby-clones",
+    }
+
     def __init__(
         self,
         mcp_manager: MCPClientManager,
@@ -46,6 +65,14 @@ class ToolProxyService:
         self._fallback_resolver = fallback_resolver
         self._validate_arguments = validate_arguments
         self._tool_filter = tool_filter
+
+    def _resolve_server_name(self, server_name: str) -> str:
+        """Auto-redirect known server name aliases to the correct server."""
+        return self._SERVER_SUGGESTIONS.get(server_name, server_name)
+
+    def _get_server_suggestion(self, server_name: str) -> str | None:
+        """Get a suggestion for a possibly misspelled server name."""
+        return self._SERVER_SUGGESTIONS.get(server_name)
 
     def _is_proxy_namespace(self, server_name: str) -> bool:
         """Check if the server name is the proxy namespace rather than a real server."""
@@ -188,6 +215,7 @@ class ToolProxyService:
         Returns:
             Dict with tool metadata: {"success": true, "tools": [...], "tool_count": N}
         """
+        server_name = self._resolve_server_name(server_name)
         # Handle proxy namespace: aggregate tools from all internal registries
         if self._is_proxy_namespace(server_name):
             logger.warning(
@@ -221,10 +249,14 @@ class ToolProxyService:
                 if self._tool_filter and session_id:
                     tools = self._tool_filter.filter_tools(tools, session_id)
                 return {"success": True, "tools": tools, "tool_count": len(tools)}
+            error_msg = f"Internal server '{server_name}' not found"
+            suggestion = self._get_server_suggestion(server_name)
+            if suggestion:
+                error_msg += f". Did you mean '{suggestion}'?"
             return {
                 "success": False,
                 "tools": [],
-                "error": f"Internal server '{server_name}' not found",
+                "error": error_msg,
             }
 
         # Check external servers
@@ -252,10 +284,14 @@ class ToolProxyService:
                 ext_brief_tools = self._tool_filter.filter_tools(ext_brief_tools, session_id)
             return {"success": True, "tools": ext_brief_tools, "tool_count": len(ext_brief_tools)}
 
+        error_msg = f"Server '{server_name}' not found"
+        suggestion = self._get_server_suggestion(server_name)
+        if suggestion:
+            error_msg += f". Did you mean '{suggestion}'?"
         return {
             "success": False,
             "tools": [],
-            "error": f"Server '{server_name}' not found",
+            "error": error_msg,
         }
 
     async def call_tool(
@@ -287,6 +323,7 @@ class ToolProxyService:
                 them.  Missing-required and type errors still fail.
 
         """
+        server_name = self._resolve_server_name(server_name)
         arguments = arguments or {}
         if isinstance(arguments, str):
             try:
@@ -383,7 +420,12 @@ class ToolProxyService:
                 registry = self._internal_manager.get_registry(server_name)
                 if registry:
                     return await registry.call(tool_name, arguments, context=call_context)
-                raise MCPError(f"Internal server '{server_name}' not found")
+
+                error_msg = f"Internal server '{server_name}' not found"
+                suggestion = self._get_server_suggestion(server_name)
+                if suggestion:
+                    error_msg += f". Did you mean '{suggestion}'?"
+                raise MCPError(error_msg)
 
             # Use MCP manager for external servers
             return await self._mcp_manager.call_tool(
@@ -451,6 +493,7 @@ class ToolProxyService:
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get full schema for a specific tool."""
+        server_name = self._resolve_server_name(server_name)
         # Handle proxy namespace: auto-resolve to the real server
         if self._is_proxy_namespace(server_name):
             resolved = self._resolve_server_for_tool(tool_name)
@@ -473,10 +516,19 @@ class ToolProxyService:
                     "success": False,
                     "error": f"Tool '{tool_name}' not found on '{server_name}'",
                 }
-            return {"success": False, "error": f"Internal server '{server_name}' not found"}
+
+            error_msg = f"Internal server '{server_name}' not found"
+            suggestion = self._get_server_suggestion(server_name)
+            if suggestion:
+                error_msg += f". Did you mean '{suggestion}'?"
+            return {"success": False, "error": error_msg}
 
         if not self._mcp_manager.has_server(server_name):
-            return {"success": False, "error": f"Server '{server_name}' not found"}
+            error_msg = f"Server '{server_name}' not found"
+            suggestion = self._get_server_suggestion(server_name)
+            if suggestion:
+                error_msg += f". Did you mean '{suggestion}'?"
+            return {"success": False, "error": error_msg}
 
         # Use MCP manager for external servers
         try:

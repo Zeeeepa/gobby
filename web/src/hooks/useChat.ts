@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { ChatMessage, ToolCall, ChatMode, ContentBlock, TokenUsage, ToolResult } from "../types/chat";
+import type {
+  ChatMessage,
+  ToolCall,
+  ChatMode,
+  ContentBlock,
+  TokenUsage,
+  ToolResult,
+} from "../types/chat";
 import { classifyTool } from "../types/chat";
 import type { QueuedFile } from "../types/chat";
 import type { A2UISurfaceState, UserAction } from "../components/canvas/types";
@@ -66,7 +73,6 @@ interface ModelSwitchedMessage {
   new_model: string;
 }
 
-
 interface VoiceTranscriptionMessage {
   type: "voice_transcription";
   text: string;
@@ -126,7 +132,7 @@ interface ApiMessage {
   tool_use_id?: string;
   timestamp: string;
   message_index?: number;
-  content_blocks?: ContentBlock[];  // Snake case from RenderedMessage shape
+  content_blocks?: ContentBlock[]; // Snake case from RenderedMessage shape
   model?: string | null;
   usage?: TokenUsage | null;
 }
@@ -165,7 +171,10 @@ function appendToolBlock(msg: ChatMessage, tc: ToolCall) {
 }
 
 /** Find a tool call by its tool_use_id across contentBlocks and flat toolCalls. */
-function findToolCallById(msg: ChatMessage, toolUseId: string): ToolCall | undefined {
+function findToolCallById(
+  msg: ChatMessage,
+  toolUseId: string,
+): ToolCall | undefined {
   if (msg.contentBlocks) {
     for (const block of msg.contentBlocks) {
       if (block.type === "tool_chain") {
@@ -184,7 +193,9 @@ function findPendingToolCall(msg: ChatMessage): ToolCall | undefined {
     for (let i = msg.contentBlocks.length - 1; i >= 0; i--) {
       const block = msg.contentBlocks[i];
       if (block.type === "tool_chain") {
-        const pending = block.tool_calls.find((tc) => tc.status !== "completed");
+        const pending = block.tool_calls.find(
+          (tc) => tc.status !== "completed",
+        );
         if (pending) return pending;
       }
     }
@@ -200,14 +211,17 @@ function extractServerName(toolName: string): string {
 }
 
 function isHookFeedback(content: string): boolean {
-  return /^Stop hook feedback:/.test(content) ||
+  return (
+    /^Stop hook feedback:/.test(content) ||
     /^(Pre|Post)ToolUse hook/.test(content) ||
-    /^UserPromptSubmit hook/.test(content);
+    /^UserPromptSubmit hook/.test(content)
+  );
 }
 
 function extractUserText(content: string): string | null {
   if (!content.startsWith("[") || !content.endsWith("]")) return null;
-  let blocks: Array<{ type?: string; text?: string; content?: string }> | null = null;
+  let blocks: Array<{ type?: string; text?: string; content?: string }> | null =
+    null;
   try {
     const parsed = JSON.parse(content);
     if (Array.isArray(parsed)) blocks = parsed;
@@ -219,9 +233,18 @@ function extractUserText(content: string): string | null {
   for (const block of blocks) {
     const text = block.text ?? block.content ?? "";
     if (!text) continue;
-    if (text.includes("<hook_context>") || text.includes("</hook_context>")) continue;
-    if (text.includes("<system-reminder>") || text.includes("</system-reminder>")) continue;
-    if (text.includes("<system_instructions>") || text.includes("</system_instructions>")) continue;
+    if (text.includes("<hook_context>") || text.includes("</hook_context>"))
+      continue;
+    if (
+      text.includes("<system-reminder>") ||
+      text.includes("</system-reminder>")
+    )
+      continue;
+    if (
+      text.includes("<system_instructions>") ||
+      text.includes("</system_instructions>")
+    )
+      continue;
     texts.push(text);
   }
   return texts.length > 0 ? texts.join("\n\n") : "";
@@ -257,9 +280,13 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
       // Extract toolCalls and thinkingContent for legacy component compatibility
       for (const block of m.content_blocks) {
         if (block.type === "tool_chain" && block.tool_calls) {
-          chatMsg.toolCalls = [...(chatMsg.toolCalls || []), ...block.tool_calls];
+          chatMsg.toolCalls = [
+            ...(chatMsg.toolCalls || []),
+            ...block.tool_calls,
+          ];
         } else if (block.type === "thinking") {
-          chatMsg.thinkingContent = (chatMsg.thinkingContent || "") + block.content;
+          chatMsg.thinkingContent =
+            (chatMsg.thinkingContent || "") + block.content;
         }
       }
 
@@ -292,13 +319,16 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
       // Hook feedback → attach to last tool call as error, or render as system message
       if (isHookFeedback(content)) {
         if (currentAssistant?.toolCalls?.length) {
-          const lastTc = currentAssistant.toolCalls[currentAssistant.toolCalls.length - 1];
+          const lastTc =
+            currentAssistant.toolCalls[currentAssistant.toolCalls.length - 1];
           lastTc.error = content;
           lastTc.status = "error";
           if (currentAssistant.contentBlocks) {
             for (const block of currentAssistant.contentBlocks) {
               if (block.type === "tool_chain") {
-                const tcMatch = block.tool_calls.find((c) => c.id === lastTc.id);
+                const tcMatch = block.tool_calls.find(
+                  (c) => c.id === lastTc.id,
+                );
                 if (tcMatch) {
                   tcMatch.error = content;
                   tcMatch.status = "error";
@@ -308,7 +338,12 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           }
         } else {
           flushAssistant();
-          result.push({ id, role: "system", content, timestamp: new Date(m.timestamp) });
+          result.push({
+            id,
+            role: "system",
+            content,
+            timestamp: new Date(m.timestamp),
+          });
         }
         continue;
       }
@@ -319,7 +354,12 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
         if (extracted !== null) {
           if (!extracted.trim()) continue;
           flushAssistant();
-          result.push({ id, role: "user", content: extracted, timestamp: new Date(m.timestamp) });
+          result.push({
+            id,
+            role: "user",
+            content: extracted,
+            timestamp: new Date(m.timestamp),
+          });
           continue;
         }
       }
@@ -355,7 +395,9 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
           arguments: tryParseJSON(m.tool_input) as
             | Record<string, unknown>
             | undefined,
-          result: m.tool_result ? tryParseJSON(m.tool_result) as ToolResult : undefined,
+          result: m.tool_result
+            ? (tryParseJSON(m.tool_result) as ToolResult)
+            : undefined,
         };
         // Add to flat list (backward compat)
         currentAssistant.toolCalls = [
@@ -379,7 +421,10 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
         // Assistant message that is a JSON array of tool_use blocks
         try {
           const calls = JSON.parse(content) as Array<{
-            type?: string; id?: string; name?: string; input?: unknown;
+            type?: string;
+            id?: string;
+            name?: string;
+            input?: unknown;
           }>;
           const tools = calls.filter((c) => c.type === "tool_use");
           if (tools.length > 0) {
@@ -391,17 +436,28 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
                 server_name: extractServerName(toolName),
                 tool_type: classifyTool(toolName),
                 status: "completed" as const,
-                arguments: typeof t.input === "object" && t.input !== null
-                  ? (t.input as Record<string, unknown>) : undefined,
+                arguments:
+                  typeof t.input === "object" && t.input !== null
+                    ? (t.input as Record<string, unknown>)
+                    : undefined,
               };
             });
             if (!currentAssistant) {
               currentAssistant = {
-                id, role: "assistant", content: "", timestamp: new Date(m.timestamp),
-                toolCalls, contentBlocks: [{ type: "tool_chain", tool_calls: [...toolCalls] }],
+                id,
+                role: "assistant",
+                content: "",
+                timestamp: new Date(m.timestamp),
+                toolCalls,
+                contentBlocks: [
+                  { type: "tool_chain", tool_calls: [...toolCalls] },
+                ],
               };
             } else {
-              currentAssistant.toolCalls = [...(currentAssistant.toolCalls || []), ...toolCalls];
+              currentAssistant.toolCalls = [
+                ...(currentAssistant.toolCalls || []),
+                ...toolCalls,
+              ];
               for (const tc of toolCalls) appendToolBlock(currentAssistant, tc);
             }
             continue;
@@ -412,14 +468,19 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
         // Regular assistant text
         if (currentAssistant) {
           if (content) {
-            if (currentAssistant.content && !currentAssistant.content.endsWith("\n"))
+            if (
+              currentAssistant.content &&
+              !currentAssistant.content.endsWith("\n")
+            )
               currentAssistant.content += "\n";
             currentAssistant.content += content;
             appendTextBlock(currentAssistant, content);
           }
         } else {
           currentAssistant = {
-            id, role: "assistant", content: content || "",
+            id,
+            role: "assistant",
+            content: content || "",
             timestamp: new Date(m.timestamp),
             contentBlocks: content ? [{ type: "text", content }] : [],
           };
@@ -428,7 +489,10 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
         // Regular assistant text
         if (currentAssistant) {
           if (m.content) {
-            if (currentAssistant.content && !currentAssistant.content.endsWith("\n"))
+            if (
+              currentAssistant.content &&
+              !currentAssistant.content.endsWith("\n")
+            )
               currentAssistant.content += "\n";
             currentAssistant.content += m.content;
             appendTextBlock(currentAssistant, m.content);
@@ -439,7 +503,9 @@ function mapApiMessages(messages: ApiMessage[]): ChatMessage[] {
             role: "assistant",
             content: m.content || "",
             timestamp: new Date(m.timestamp),
-            contentBlocks: m.content ? [{ type: "text", content: m.content }] : [],
+            contentBlocks: m.content
+              ? [{ type: "text", content: m.content }]
+              : [],
           };
         }
       }
@@ -476,6 +542,7 @@ export function useChat() {
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -511,16 +578,18 @@ export function useChat() {
   // Session viewing tracking (read-only observation of CLI sessions via REST)
   const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
   const viewingSessionIdRef = useRef<string | null>(null);
-  const [viewingSessionMeta, setViewingSessionMeta] =
-    useState<import("../types/chat").SessionObservationMeta | null>(null);
+  const [viewingSessionMeta, setViewingSessionMeta] = useState<
+    import("../types/chat").SessionObservationMeta | null
+  >(null);
 
   // Session attachment tracking (interactive observation via WS subscription)
   const [attachedSessionId, setAttachedSessionId] = useState<string | null>(
     null,
   );
   const attachedSessionIdRef = useRef<string | null>(null);
-  const [attachedSessionMeta, setAttachedSessionMeta] =
-    useState<import("../types/chat").SessionObservationMeta | null>(null);
+  const [attachedSessionMeta, setAttachedSessionMeta] = useState<
+    import("../types/chat").SessionObservationMeta | null
+  >(null);
 
   // Keep a ref so onopen/reconnect can read the current agent
   const activeAgentRef = useRef(activeAgent);
@@ -556,10 +625,23 @@ export function useChat() {
 
   // Callback when artifact event arrives from backend (show_file)
   const onArtifactEventRef = useRef<
-    ((type: string, content: string, language?: string, title?: string) => void) | null
+    | ((
+        type: string,
+        content: string,
+        language?: string,
+        title?: string,
+      ) => void)
+    | null
   >(null);
   const setOnArtifactEvent = useCallback(
-    (fn: (type: string, content: string, language?: string, title?: string) => void) => {
+    (
+      fn: (
+        type: string,
+        content: string,
+        language?: string,
+        title?: string,
+      ) => void,
+    ) => {
       onArtifactEventRef.current = fn;
     },
     [],
@@ -589,9 +671,7 @@ export function useChat() {
 
   // Stable ref to sendMessage for use inside WS handlers / callbacks
   // defined before sendMessage itself. Updated after sendMessage is created.
-  const sendMessageRef = useRef<
-    ((content: string) => boolean) | null
-  >(null);
+  const sendMessageRef = useRef<((content: string) => boolean) | null>(null);
 
   // Context usage tracking — accumulated across turns.
   // totalInputTokens = uncached + cacheRead + cacheCreation (the real context size).
@@ -620,6 +700,12 @@ export function useChat() {
   // Track the active chat request to filter stale stream chunks from cancelled requests
   const activeRequestIdRef = useRef<string | null>(null);
 
+  // Track last seen message sequence for reconnect backfill
+  const lastSeqRef = useRef<number>(0);
+
+  // Queue for messages sent while disconnected — flushed on reconnect
+  const pendingMessagesRef = useRef<string[]>([]);
+
   /** Returns true if the chunk belongs to the currently active request. */
   function isActiveRequest(requestId?: string): boolean {
     return requestId === activeRequestIdRef.current;
@@ -642,6 +728,9 @@ export function useChat() {
   const handleVoiceMessageRef = useRef<(data: Record<string, unknown>) => void>(
     () => {},
   );
+  const handleBinaryMessageRef = useRef<(data: ArrayBuffer) => void>(
+    () => {},
+  );
 
   // Connect to WebSocket
   const connect = useCallback(() => {
@@ -652,11 +741,60 @@ export function useChat() {
 
     console.log("Connecting to WebSocket:", wsUrl);
     const ws = new WebSocket(wsUrl);
+    ws.binaryType = 'arraybuffer';  // For TTS audio binary frames
     wsRef.current = ws;
 
     ws.onopen = () => {
       console.log("WebSocket connected");
       setIsConnected(true);
+      setIsReconnecting(false);
+
+      // Flush queued messages that were sent while disconnected
+      if (pendingMessagesRef.current.length > 0) {
+        const queued = [...pendingMessagesRef.current];
+        pendingMessagesRef.current = [];
+        // Send each queued message after a brief delay to let WS fully initialize
+        setTimeout(() => {
+          for (const msg of queued) {
+            sendMessageRef.current?.(msg);
+          }
+        }, 500);
+      }
+
+      // Backfill missed messages on reconnect (lastSeqRef > 0 means we had messages before)
+      if (lastSeqRef.current > 0 && conversationIdRef.current) {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+        const convId = conversationIdRef.current;
+        const afterSeq = lastSeqRef.current;
+        fetch(`${baseUrl}/api/chat/${convId}/messages?after_seq=${afterSeq}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (!data?.messages?.length) return;
+            const backfilled: ChatMessage[] = data.messages.map(
+              (m: {
+                id: string;
+                role: string;
+                content: string;
+                tool_calls?: ToolCall[];
+                seq: number;
+                created_at: string;
+              }) => ({
+                id: m.id,
+                role: m.role as "user" | "assistant" | "system",
+                content: [{ type: "text" as const, content: m.content }],
+                toolCalls: m.tool_calls ?? [],
+                timestamp: new Date(m.created_at),
+              }),
+            );
+            setMessages((prev) => {
+              const existingIds = new Set(prev.map((m) => m.id));
+              const newMsgs = backfilled.filter((m) => !existingIds.has(m.id));
+              return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
+            });
+            if (data.max_seq) lastSeqRef.current = data.max_seq;
+          })
+          .catch((err) => console.error("Failed to backfill messages:", err));
+      }
 
       ws.send(
         JSON.stringify({
@@ -711,11 +849,22 @@ export function useChat() {
     ws.onclose = () => {
       console.log("WebSocket disconnected");
       setIsConnected(false);
-      setIsStreaming(false);
-      setIsThinking(false);
-      activeRequestIdRef.current = null;
+      setIsReconnecting(true);
+      // Don't clear isStreaming/isThinking/activeRequestIdRef — the backend
+      // may still be working. Clearing these causes post-reconnect tool_status
+      // updates to be dropped as "stale". Only clear on explicit cancel or
+      // if reconnect timeout expires (30s).
+      const disconnectTimer = window.setTimeout(() => {
+        // If still disconnected after 30s, assume the stream is dead
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          setIsStreaming(false);
+          setIsThinking(false);
+          activeRequestIdRef.current = null;
+        }
+      }, 30_000);
 
       reconnectTimeoutRef.current = window.setTimeout(() => {
+        clearTimeout(disconnectTimer);
         connect();
       }, 2000);
     };
@@ -725,6 +874,16 @@ export function useChat() {
     };
 
     ws.onmessage = (event) => {
+      // Binary frames are TTS audio data — route to voice handler
+      if (event.data instanceof ArrayBuffer) {
+        try {
+          handleBinaryMessageRef.current(event.data);
+        } catch (err) {
+          console.error('TTS binary message error:', err);
+        }
+        return;
+      }
+
       try {
         const data = JSON.parse(event.data) as WebSocketMessage;
         console.log("WebSocket message:", data.type, data);
@@ -744,7 +903,9 @@ export function useChat() {
         } else if (
           data.type === "voice_transcription" ||
           data.type === "voice_audio_chunk" ||
-          data.type === "voice_status"
+          data.type === "voice_status" ||
+          data.type === "tts_audio" ||
+          data.type === "tts_status"
         ) {
           try {
             // When STT transcription arrives, inject it as a user message and
@@ -843,7 +1004,10 @@ export function useChat() {
           if (ref) setSessionRef(ref);
           const dbSid = info.db_session_id as string | undefined;
           const infoConvId = info.conversation_id as string | undefined;
-          if (dbSid && (!infoConvId || infoConvId === conversationIdRef.current)) {
+          if (
+            dbSid &&
+            (!infoConvId || infoConvId === conversationIdRef.current)
+          ) {
             setDbSessionId(dbSid);
           }
           const branch = info.current_branch as string | undefined;
@@ -971,12 +1135,17 @@ export function useChat() {
           const msgs = (result.messages as ApiMessage[]) || [];
           const mapped = mapApiMessages(msgs);
           // Preserve REST-loaded transcript when re-attaching to viewed session
-          if (viewingSessionIdRef.current === sid && messagesRef.current.length > 0) {
-            const mappedById = new Map(mapped.map(m => [m.id, m]));
+          if (
+            viewingSessionIdRef.current === sid &&
+            messagesRef.current.length > 0
+          ) {
+            const mappedById = new Map(mapped.map((m) => [m.id, m]));
             // Merge updates into existing messages, then append truly new ones
-            const existingIds = new Set(messagesRef.current.map(m => m.id));
-            const merged = messagesRef.current.map(m => mappedById.get(m.id) ?? m);
-            const newMsgs = mapped.filter(m => !existingIds.has(m.id));
+            const existingIds = new Set(messagesRef.current.map((m) => m.id));
+            const merged = messagesRef.current.map(
+              (m) => mappedById.get(m.id) ?? m,
+            );
+            const newMsgs = mapped.filter((m) => !existingIds.has(m.id));
             if (newMsgs.length > 0 || mappedById.size > 0) {
               setMessages([...merged, ...newMsgs]);
             }
@@ -1007,10 +1176,7 @@ export function useChat() {
               const idx = msg.index as number | undefined;
               const msgId = `cli-msg-${idx ?? Date.now()}`;
 
-              if (
-                role === "assistant" &&
-                contentType === "tool_use"
-              ) {
+              if (role === "assistant" && contentType === "tool_use") {
                 // Tool invocation — append to last assistant message's toolCalls + contentBlocks
                 const toolUseId = (msg.tool_use_id as string) || msgId;
                 setMessages((prev) => {
@@ -1034,9 +1200,15 @@ export function useChat() {
                     const blocks = [...(last.contentBlocks || [])];
                     const lastBlock = blocks[blocks.length - 1];
                     if (lastBlock?.type === "tool_chain") {
-                      blocks[blocks.length - 1] = { ...lastBlock, tool_calls: [...lastBlock.tool_calls, toolCall] };
+                      blocks[blocks.length - 1] = {
+                        ...lastBlock,
+                        tool_calls: [...lastBlock.tool_calls, toolCall],
+                      };
                     } else {
-                      blocks.push({ type: "tool_chain" as const, tool_calls: [toolCall] });
+                      blocks.push({
+                        type: "tool_chain" as const,
+                        tool_calls: [toolCall],
+                      });
                     }
                     updated[lastIdx] = {
                       ...last,
@@ -1053,14 +1225,13 @@ export function useChat() {
                       content: "",
                       timestamp: new Date(),
                       toolCalls: [toolCall],
-                      contentBlocks: [{ type: "tool_chain" as const, tool_calls: [toolCall] }],
+                      contentBlocks: [
+                        { type: "tool_chain" as const, tool_calls: [toolCall] },
+                      ],
                     },
                   ];
                 });
-              } else if (
-                contentType === "tool_result" ||
-                role === "tool"
-              ) {
+              } else if (contentType === "tool_result" || role === "tool") {
                 // Tool result — prefer ID-based match, fall back to positional
                 const resultToolUseId = msg.tool_use_id as string | undefined;
                 setMessages((prev) => {
@@ -1070,15 +1241,17 @@ export function useChat() {
                     // Prefer ID-based match when tool_use_id is available
                     const pendingIdx = resultToolUseId
                       ? m.toolCalls.findIndex((tc) => tc.id === resultToolUseId)
-                      : m.toolCalls.findIndex((tc) => tc.status !== "completed");
+                      : m.toolCalls.findIndex(
+                          (tc) => tc.status !== "completed",
+                        );
                     if (pendingIdx < 0) continue;
                     const updated = [...prev];
                     const updatedCalls = [...m.toolCalls];
                     const callRef: ToolCall = {
                       ...updatedCalls[pendingIdx],
-                      result: tryParseJSON(
-                        msg.tool_result ?? msg.content,
-                      ) as ToolResult | undefined,
+                      result: tryParseJSON(msg.tool_result ?? msg.content) as
+                        | ToolResult
+                        | undefined,
                       status: "completed" as const,
                     };
                     updatedCalls[pendingIdx] = callRef;
@@ -1087,16 +1260,25 @@ export function useChat() {
                     for (let bi = 0; bi < blocks.length; bi++) {
                       const block = blocks[bi];
                       if (block.type === "tool_chain") {
-                        const tcIdx = block.tool_calls.findIndex((c) => c.id === callRef.id);
+                        const tcIdx = block.tool_calls.findIndex(
+                          (c) => c.id === callRef.id,
+                        );
                         if (tcIdx >= 0) {
                           const updatedBlockCalls = [...block.tool_calls];
                           updatedBlockCalls[tcIdx] = callRef;
-                          blocks[bi] = { ...block, tool_calls: updatedBlockCalls };
+                          blocks[bi] = {
+                            ...block,
+                            tool_calls: updatedBlockCalls,
+                          };
                           break;
                         }
                       }
                     }
-                    updated[i] = { ...m, toolCalls: updatedCalls, contentBlocks: blocks };
+                    updated[i] = {
+                      ...m,
+                      toolCalls: updatedCalls,
+                      contentBlocks: blocks,
+                    };
                     return updated;
                   }
                   return prev;
@@ -1150,15 +1332,11 @@ export function useChat() {
                   // Regular text — append to existing assistant msg or create new
                   const lastIdx = prev.length - 1;
                   const last = lastIdx >= 0 ? prev[lastIdx] : null;
-                  if (
-                    last?.role === "assistant" &&
-                    !last.toolCalls?.length
-                  ) {
+                  if (last?.role === "assistant" && !last.toolCalls?.length) {
                     const updated = [...prev];
                     updated[lastIdx] = {
                       ...last,
-                      content:
-                        last.content + ((msg.content as string) ?? ""),
+                      content: last.content + ((msg.content as string) ?? ""),
                     };
                     return updated;
                   }
@@ -1192,6 +1370,20 @@ export function useChat() {
             .conversation_id as string;
           console.log("Chat cleared confirmed:", cid);
           onChatClearedRef.current?.(cid);
+        } else if (data.type === "conversation_id_changed") {
+          const d = data as Record<string, unknown>;
+          const newId = d.new_id as string;
+          if (newId && newId !== conversationIdRef.current) {
+            console.log(
+              "Conversation ID changed:",
+              conversationIdRef.current,
+              "→",
+              newId,
+            );
+            conversationIdRef.current = newId;
+            setConversationId(newId);
+            saveConversationId(newId);
+          }
         }
       } catch (e) {
         console.error("Failed to parse WebSocket message:", e);
@@ -1224,7 +1416,10 @@ export function useChat() {
         if (chunk.content) {
           const lastBlock = blocks[blocks.length - 1];
           if (lastBlock?.type === "text") {
-            blocks[blocks.length - 1] = { ...lastBlock, content: lastBlock.content + chunk.content };
+            blocks[blocks.length - 1] = {
+              ...lastBlock,
+              content: lastBlock.content + chunk.content,
+            };
           } else {
             blocks.push({ type: "text", content: chunk.content });
           }
@@ -1243,7 +1438,9 @@ export function useChat() {
             role: "assistant" as const,
             content: chunk.content,
             timestamp: new Date(),
-            contentBlocks: chunk.content ? [{ type: "text" as const, content: chunk.content }] : [],
+            contentBlocks: chunk.content
+              ? [{ type: "text" as const, content: chunk.content }]
+              : [],
           },
         ];
       }
@@ -1373,7 +1570,9 @@ export function useChat() {
             content: "",
             timestamp: new Date(),
             toolCalls: [newCall],
-            contentBlocks: [{ type: "tool_chain" as const, tool_calls: [newCall] }],
+            contentBlocks: [
+              { type: "tool_chain" as const, tool_calls: [newCall] },
+            ],
           },
         ];
       }
@@ -1417,7 +1616,9 @@ export function useChat() {
         for (let bi = 0; bi < blocks.length; bi++) {
           const block = blocks[bi];
           if (block.type === "tool_chain") {
-            const tcIdx = block.tool_calls.findIndex((c) => c.id === status.tool_call_id);
+            const tcIdx = block.tool_calls.findIndex(
+              (c) => c.id === status.tool_call_id,
+            );
             if (tcIdx >= 0) {
               const updatedCalls = [...block.tool_calls];
               updatedCalls[tcIdx] = callRef;
@@ -1430,7 +1631,10 @@ export function useChat() {
         // New tool call — append to last tool_chain or create new one
         const lastBlock = blocks[blocks.length - 1];
         if (lastBlock?.type === "tool_chain") {
-          blocks[blocks.length - 1] = { ...lastBlock, tool_calls: [...lastBlock.tool_calls, callRef] };
+          blocks[blocks.length - 1] = {
+            ...lastBlock,
+            tool_calls: [...lastBlock.tool_calls, callRef],
+          };
         } else {
           blocks.push({ type: "tool_chain" as const, tool_calls: [callRef] });
         }
@@ -1541,6 +1745,8 @@ export function useChat() {
     setWorktreePath(null);
     setCanvasSurfaces(new Map());
     setCanvasPanel(null);
+    setPlanPendingApproval(false);
+    planContentRef.current = null;
     setContextUsage({
       totalInputTokens: 0,
       outputTokens: 0,
@@ -1562,7 +1768,9 @@ export function useChat() {
     if (dbSessionId) {
       setIsLoadingMessages(true);
       const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-      fetch(`${baseUrl}/api/sessions/${dbSessionId}/messages?limit=100&offset=0`)
+      fetch(
+        `${baseUrl}/api/sessions/${dbSessionId}/messages?limit=100&offset=0`,
+      )
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (!data?.messages?.length || conversationIdRef.current !== id)
@@ -1572,9 +1780,7 @@ export function useChat() {
             setMessages(mapped);
           }
         })
-        .catch((err) =>
-          console.error("Failed to fetch session messages:", err),
-        )
+        .catch((err) => console.error("Failed to fetch session messages:", err))
         .finally(() => setIsLoadingMessages(false));
 
       // Hydrate context usage and chat mode from persisted session data
@@ -1646,6 +1852,8 @@ export function useChat() {
     setWorktreePath(null);
     setCanvasSurfaces(new Map());
     setCanvasPanel(null);
+    setPlanPendingApproval(false);
+    planContentRef.current = null;
     setContextUsage({
       totalInputTokens: 0,
       outputTokens: 0,
@@ -1956,11 +2164,22 @@ export function useChat() {
         files?.length,
       );
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        console.error(
-          "WebSocket not connected, state:",
-          wsRef.current?.readyState,
-        );
-        return false;
+        // Queue the message to send on reconnect
+        console.warn("WebSocket disconnected — queuing message for reconnect");
+        pendingMessagesRef.current.push(content);
+        // Still add the user message to the UI so it's visible
+        const queuedId = `user-${uuid()}`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: queuedId,
+            role: "user" as const,
+            content,
+            toolCalls: [],
+            timestamp: new Date(),
+          },
+        ]);
+        return true;
       }
 
       // Route to CLI session if attached (bidirectional messaging)
@@ -2059,10 +2278,12 @@ export function useChat() {
   // Update sendMessageRef with the latest sendMessage callback
   sendMessageRef.current = sendMessage;
 
-  // Respond to an AskUserQuestion pending in the backend
+  // Respond to an AskUserQuestion pending in the backend.
+  // Returns false if WS is not connected (caller can show feedback).
   const respondToQuestion = useCallback(
-    (toolCallId: string, answers: Record<string, string>) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    (toolCallId: string, answers: Record<string, string>): boolean => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+        return false;
       wsRef.current.send(
         JSON.stringify({
           type: "ask_user_response",
@@ -2071,14 +2292,20 @@ export function useChat() {
           answers,
         }),
       );
+      return true;
     },
     [],
   );
 
-  // Respond to a tool approval request
+  // Respond to a tool approval request.
+  // Returns false if WS is not connected (caller can show feedback).
   const respondToApproval = useCallback(
-    (toolCallId: string, decision: "approve" | "reject" | "approve_always") => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    (
+      toolCallId: string,
+      decision: "approve" | "reject" | "approve_always",
+    ): boolean => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+        return false;
       wsRef.current.send(
         JSON.stringify({
           type: "tool_approval_response",
@@ -2087,6 +2314,7 @@ export function useChat() {
           decision,
         }),
       );
+      return true;
     },
     [],
   );
@@ -2153,7 +2381,10 @@ export function useChat() {
   // View a CLI session (read-only, no WS subscription — loads via REST)
   const viewSession = useCallback((sessionId: string) => {
     // Skip if already viewing/attached to this session
-    if (viewingSessionIdRef.current === sessionId || attachedSessionIdRef.current === sessionId) {
+    if (
+      viewingSessionIdRef.current === sessionId ||
+      attachedSessionIdRef.current === sessionId
+    ) {
       return;
     }
 
@@ -2190,9 +2421,7 @@ export function useChat() {
         const mapped = mapApiMessages(data.messages);
         setMessages(mapped);
       })
-      .catch((err) =>
-        console.error("Failed to fetch session messages:", err),
-      );
+      .catch((err) => console.error("Failed to fetch session messages:", err));
 
     // Fetch session metadata
     fetch(`${baseUrl}/api/sessions/${sessionId}`)
@@ -2232,9 +2461,7 @@ export function useChat() {
           });
         }
       })
-      .catch((err) =>
-        console.error("Failed to fetch session metadata:", err),
-      );
+      .catch((err) => console.error("Failed to fetch session metadata:", err));
   }, []);
 
   // Clear viewing state and restore previous web chat
@@ -2277,9 +2504,7 @@ export function useChat() {
           const mapped = mapApiMessages(data.messages);
           if (mapped.length > 0) setMessages(mapped);
         })
-        .catch((err) =>
-          console.error("Failed to restore messages:", err),
-        );
+        .catch((err) => console.error("Failed to restore messages:", err));
 
       // Restore chat mode from DB (prevents stale mode from viewed session)
       fetch(`${baseUrl}/api/sessions/${prevDbSid}`)
@@ -2363,11 +2588,89 @@ export function useChat() {
     ]);
   }, []);
 
-  // Connect on mount
+  // Connect on mount, handle page lifecycle and heartbeat
   useEffect(() => {
+    // Restore chat messages from server if we have an existing conversation
+    const existingConvId = conversationIdRef.current;
+    if (existingConvId) {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      setIsLoadingMessages(true);
+      fetch(`${baseUrl}/api/chat/${existingConvId}/messages`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (
+            !data?.messages?.length ||
+            conversationIdRef.current !== existingConvId
+          )
+            return;
+          const restored: ChatMessage[] = data.messages.map(
+            (m: {
+              id: string;
+              role: string;
+              content: string;
+              tool_calls?: ToolCall[];
+              seq: number;
+              created_at: string;
+            }) => ({
+              id: m.id,
+              role: m.role as "user" | "assistant" | "system",
+              content: [{ type: "text" as const, content: m.content }],
+              toolCalls: m.tool_calls ?? [],
+              timestamp: new Date(m.created_at),
+            }),
+          );
+          setMessages(restored);
+          if (data.max_seq) lastSeqRef.current = data.max_seq;
+        })
+        .catch((err) => console.error("Failed to restore chat messages:", err))
+        .finally(() => setIsLoadingMessages(false));
+    }
+
     connect();
 
+    // Immediate reconnect when returning to tab (mobile app switch, screen lock).
+    // If already connected, send a heartbeat to reset idle timeout on the backend
+    // (JS timers are throttled/suspended while backgrounded, so scheduled heartbeats
+    // won't fire reliably — this catch-up heartbeat on return is the critical one).
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        // WS dropped while backgrounded — reconnect immediately
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+        connect();
+      } else if (conversationIdRef.current) {
+        // Still connected — send immediate heartbeat to reset idle timer
+        wsRef.current.send(
+          JSON.stringify({
+            type: "heartbeat",
+            conversation_id: conversationIdRef.current,
+          }),
+        );
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Heartbeat every 60s to keep backend session alive during idle periods
+    const heartbeatInterval = window.setInterval(() => {
+      if (
+        wsRef.current?.readyState === WebSocket.OPEN &&
+        conversationIdRef.current
+      ) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "heartbeat",
+            conversation_id: conversationIdRef.current,
+          }),
+        );
+      }
+    }, 60_000);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(heartbeatInterval);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -2385,6 +2688,7 @@ export function useChat() {
     currentBranch,
     worktreePath,
     isConnected,
+    isReconnecting,
     isStreaming,
     isThinking,
     isLoadingMessages,
@@ -2426,6 +2730,7 @@ export function useChat() {
     attachedSessionMeta,
     wsRef,
     handleVoiceMessageRef,
+    handleBinaryMessageRef,
     setOnChatDeleted,
     setOnChatCleared,
   };

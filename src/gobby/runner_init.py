@@ -145,6 +145,7 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
     runner._span_cleanup_task = None
     runner._metrics_archive_task = None
     runner._metric_snapshot_task = None
+    runner._expired_isolation_task = None
 
     # Initialize local storage with dual-write if in project context
     runner.database = init_hub_database(runner.config)
@@ -557,7 +558,12 @@ def init_orchestration(runner: GobbyRunner) -> None:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+        except TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            raise RuntimeError(f"tmux send-keys to {pane_id} timed out after 10s") from None
         if proc.returncode != 0:
             raise RuntimeError(
                 f"tmux send-keys to {pane_id} failed: {stderr.decode(errors='replace')}"
@@ -793,6 +799,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
                 config=runner.config.communications,
                 store=comms_store,
                 secret_store=runner.secret_store,
+                session_store=runner.session_manager,
             )
             logger.debug("CommunicationsManager initialized")
         except Exception as e:
@@ -847,6 +854,13 @@ def init_servers(runner: GobbyRunner) -> None:
     )
 
     set_app_context(services)
+
+    if runner.communications_manager:
+        from gobby.communications.reactions import ReactionHandler
+
+        runner.communications_manager.reaction_handler = ReactionHandler(
+            runner.communications_manager._store, services
+        )
 
     # Optionally create CodexAppServerClient for rich event lifecycle
     codex_client = None
@@ -907,6 +921,7 @@ def init_servers(runner: GobbyRunner) -> None:
         # Register agent event callback for WebSocket broadcasting
         from gobby.runner_broadcasting import (
             setup_agent_event_broadcasting,
+            setup_communications_event_broadcasting,
             setup_cron_event_broadcasting,
             setup_pipeline_event_broadcasting,
         )
@@ -920,3 +935,10 @@ def init_servers(runner: GobbyRunner) -> None:
         # Register cron event callback for WebSocket broadcasting
         if runner.cron_scheduler:
             setup_cron_event_broadcasting(runner.websocket_server, runner.cron_scheduler)
+
+        # Register communications event callback for WebSocket broadcasting
+        if runner.communications_manager:
+            setup_communications_event_broadcasting(
+                runner.websocket_server,
+                runner.communications_manager,
+            )

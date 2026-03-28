@@ -10,15 +10,25 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.communications.adapters import get_adapter_class
-from gobby.communications.models import ChannelConfig, CommsMessage
+from gobby.communications.attachments import AttachmentManager
+from gobby.communications.models import (
+    ChannelConfig,
+    CommsAttachment,
+    CommsIdentity,
+    CommsMessage,
+)
+from gobby.communications.polling import PollingManager
 from gobby.communications.rate_limiter import TokenBucketRateLimiter
 from gobby.communications.router import MessageRouter
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from gobby.communications.adapters.base import BaseChannelAdapter
     from gobby.config.communications import CommunicationsConfig
     from gobby.storage.communications import LocalCommunicationsStore
     from gobby.storage.secrets import SecretStore
+    from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +45,7 @@ class CommunicationsManager:
         config: CommunicationsConfig,
         store: LocalCommunicationsStore,
         secret_store: SecretStore,
+        session_store: LocalSessionManager,
     ) -> None:
         """Initialize the communications manager.
 
@@ -42,18 +53,27 @@ class CommunicationsManager:
             config: Communications configuration.
             store: Local communications storage manager.
             secret_store: Secret store for resolving $secret: references.
+            session_store: Session store for creating auto-sessions.
         """
         self._config = config
         self._store = store
         self._secret_store = secret_store
+        self._session_store = session_store
         self._adapters: dict[str, BaseChannelAdapter] = {}
         self._channel_by_name: dict[str, ChannelConfig] = {}
+        self._thread_map: dict[str, str] = {}  # "channel_name:session_id" -> platform_thread_id
+        self._thread_map_max_size = 10000  # Evict oldest entries beyond this limit
+        self.attachment_manager = AttachmentManager()
         self._rate_limiter = TokenBucketRateLimiter.from_defaults(config.channel_defaults)
         self._router = MessageRouter(store)
+        self._polling_manager = PollingManager(self)
         self.event_callback: Callable[..., Any] | None = None
 
     async def start(self) -> None:
         """Load enabled channels from DB, initialize adapters, configure rate limiter."""
+        # Auto-create web_chat channel if none exists
+        await self._ensure_web_chat_channel()
+
         channels = self._store.list_channels(enabled_only=True)
         for channel in channels:
             try:
@@ -70,6 +90,12 @@ class CommunicationsManager:
                     self._config.channel_defaults.burst,
                 )
                 self._rate_limiter.configure_channel(channel.id, int(rate), int(burst))
+
+                # Start polling if supported and no webhook URL configured
+                if adapter.supports_polling and not self._config.webhook_base_url:
+                    interval = channel.config_json.get("poll_interval")
+                    self._polling_manager.start_polling(channel.name, adapter, interval)
+
                 logger.info(
                     f"Communications: initialized channel {channel.name!r} ({channel.channel_type})",
                 )
@@ -79,6 +105,7 @@ class CommunicationsManager:
 
     async def stop(self) -> None:
         """Shutdown all adapters and clear state."""
+        self._polling_manager.stop_all()
         for name, adapter in list(self._adapters.items()):
             try:
                 await adapter.shutdown()
@@ -137,6 +164,11 @@ class CommunicationsManager:
         # Rate limit check — waits until a token is available
         await self._rate_limiter.wait_if_needed(channel.id)
 
+        # Look up thread if we have a session
+        platform_thread_id = None
+        if session_id:
+            platform_thread_id = self._thread_map.get(f"{channel_name}:{session_id}")
+
         # Build CommsMessage
         message = CommsMessage(
             id=str(uuid.uuid4()),
@@ -145,6 +177,7 @@ class CommunicationsManager:
             content=content,
             session_id=session_id,
             status="pending",
+            platform_thread_id=platform_thread_id,
             metadata_json=metadata or {},
             created_at=datetime.now(UTC).isoformat(),
         )
@@ -161,7 +194,7 @@ class CommunicationsManager:
 
         # Store in DB
         try:
-            self._store.save_message(message)
+            self._store.create_message(message)
         except Exception as e:
             logger.error(f"Failed to store outbound message: {e}", exc_info=True)
 
@@ -173,6 +206,96 @@ class CommunicationsManager:
                 logger.debug(f"Event callback error on send_message: {e}", exc_info=True)
 
         return message
+
+    async def send_attachment(
+        self,
+        channel_name: str,
+        file_path: Path,
+        filename: str | None = None,
+        content_type: str = "application/octet-stream",
+        content: str = "",
+        session_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[CommsMessage, CommsAttachment]:
+        """Send a file attachment to a named channel."""
+        from pathlib import Path as PathType
+
+        file_path = PathType(file_path)
+        if not file_path.exists():
+            raise ValueError(f"Attachment file not found: {file_path}")
+
+        adapter = self._adapters.get(channel_name)
+        if adapter is None:
+            raise ValueError(f"Channel {channel_name!r} not found or not active")
+
+        channel = self._channel_by_name[channel_name]
+        size_bytes = file_path.stat().st_size
+
+        if not self.attachment_manager.validate_size(size_bytes, channel.channel_type):
+            limit = self.attachment_manager.get_size_limit(channel.channel_type)
+            raise ValueError(
+                f"File size {size_bytes} exceeds {channel.channel_type} limit of {limit} bytes"
+            )
+
+        await self._rate_limiter.wait_if_needed(channel.id)
+
+        platform_thread_id = None
+        if session_id:
+            platform_thread_id = self._thread_map.get(f"{channel_name}:{session_id}")
+
+        display_name = filename or file_path.name
+
+        message = CommsMessage(
+            id=str(uuid.uuid4()),
+            channel_id=channel.id,
+            direction="outbound",
+            content=content,
+            content_type="attachment",
+            session_id=session_id,
+            status="pending",
+            platform_thread_id=platform_thread_id,
+            metadata_json=metadata or {},
+            created_at=datetime.now(UTC).isoformat(),
+        )
+
+        attachment = CommsAttachment(
+            id=str(uuid.uuid4()),
+            message_id=message.id,
+            filename=display_name,
+            content_type=content_type,
+            size_bytes=size_bytes,
+            local_path=str(file_path),
+            created_at=datetime.now(UTC).isoformat(),
+        )
+
+        try:
+            platform_message_id = await adapter.send_attachment(message, attachment, file_path)
+            message.platform_message_id = platform_message_id
+            message.status = "sent"
+        except NotImplementedError:
+            message.status = "failed"
+            message.error = f"{channel.channel_type} adapter does not support file attachments"
+            logger.error(f"Adapter {channel_name!r} does not support attachments")
+        except Exception as e:
+            message.status = "failed"
+            message.error = str(e)
+            logger.error(f"Failed to send attachment to {channel_name!r}: {e}", exc_info=True)
+
+        try:
+            self._store.create_message(message)
+            self._store.create_attachment(attachment)
+        except Exception as e:
+            logger.error(f"Failed to store outbound attachment: {e}", exc_info=True)
+
+        if self.event_callback is not None:
+            try:
+                await self.event_callback(
+                    "comms.attachment_sent", message=message, attachment=attachment
+                )
+            except Exception as e:
+                logger.debug(f"Event callback error on send_attachment: {e}", exc_info=True)
+
+        return message, attachment
 
     async def send_event(
         self,
@@ -212,6 +335,139 @@ class CommunicationsManager:
 
         return messages
 
+    def _find_cross_channel_identity(self, external_username: str) -> str | None:
+        """Search for matching identity on other channels by username pattern."""
+        identities = self._store.find_identities_by_username(external_username)
+        for identity in identities:
+            if identity.session_id:
+                return str(identity.session_id)
+        return None
+
+    def _bridge_identity(self, identity_id: str, session_id: str) -> None:
+        """Link existing identity to a session."""
+        identity = self._store.get_identity(identity_id)
+        if identity:
+            identity.session_id = session_id
+            self._store.update_identity(identity)
+
+    async def _resolve_identity(
+        self, channel_id: str, external_user_id: str, external_username: str | None = None
+    ) -> CommsIdentity:
+        """Resolve identity and auto-create/link session if needed."""
+        identity = self._store.get_identity_by_external(channel_id, external_user_id)
+
+        session_id = None
+        if identity and identity.session_id:
+            session_id = identity.session_id
+        elif external_username:
+            session_id = self._find_cross_channel_identity(external_username)
+
+        if not session_id and self._config.auto_create_sessions:
+            session = self._session_store.register(
+                external_id=f"comms:{channel_id}:{external_user_id}",
+                machine_id="comms",
+                source="comms",
+                project_id="",
+                title=f"Comms: {external_username or external_user_id}",
+            )
+            session_id = session.id
+
+        if identity:
+            needs_update = False
+            if session_id and identity.session_id != session_id:
+                identity.session_id = session_id
+                needs_update = True
+            if external_username and identity.external_username != external_username:
+                identity.external_username = external_username
+                needs_update = True
+            if needs_update:
+                self._store.update_identity(identity)
+        else:
+            identity = CommsIdentity(
+                id="",
+                channel_id=channel_id,
+                external_user_id=external_user_id,
+                external_username=external_username,
+                session_id=session_id,
+                created_at="",
+                updated_at="",
+            )
+            identity = self._store.create_identity(identity)
+
+        return identity
+
+    async def handle_inbound_messages(
+        self, channel_name: str, messages: list[CommsMessage]
+    ) -> list[CommsMessage]:
+        """Process, resolve identity, and store a list of inbound messages.
+
+        Args:
+            channel_name: Name of the channel the messages came from.
+            messages: List of parsed CommsMessage objects.
+
+        Returns:
+            List of stored CommsMessages.
+
+        Raises:
+            ValueError: If channel is not found or not active.
+        """
+        channel = self._channel_by_name.get(channel_name)
+        if channel is None:
+            raise ValueError(f"Channel {channel_name!r} not found or not active")
+
+        stored: list[CommsMessage] = []
+        for message in messages:
+            if message.content_type == "reaction":
+                if hasattr(self, "reaction_handler") and self.reaction_handler:
+                    try:
+                        await self.reaction_handler.handle_reaction(
+                            channel_name,
+                            message.platform_message_id,
+                            message.content,
+                            message.identity_id,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to handle reaction: {e}", exc_info=True)
+                continue
+
+            # Ensure channel_id is set
+            if not message.channel_id:
+                message.channel_id = channel.id
+
+            # Resolve identity: if identity_id looks like an external_user_id, resolve it
+            if message.identity_id:
+                external_username = message.metadata_json.get("external_username")
+                identity = await self._resolve_identity(
+                    channel.id, message.identity_id, external_username
+                )
+                message.session_id = identity.session_id
+                message.identity_id = identity.id
+
+            if message.session_id and message.platform_thread_id:
+                self._thread_map[f"{channel_name}:{message.session_id}"] = (
+                    message.platform_thread_id
+                )
+                # Evict oldest entries if map exceeds limit
+                while len(self._thread_map) > self._thread_map_max_size:
+                    self._thread_map.pop(next(iter(self._thread_map)))
+
+            # Store message
+            try:
+                self._store.create_message(message)
+                stored.append(message)
+            except Exception as e:
+                logger.error(f"Failed to store inbound message: {e}")
+
+        # Fire event callback for each stored message
+        if self.event_callback is not None:
+            for msg in stored:
+                try:
+                    await self.event_callback("comms.message_received", message=msg)
+                except Exception as e:
+                    logger.debug(f"Event callback error on handle_inbound_messages: {e}")
+
+        return stored
+
     async def handle_inbound(
         self,
         channel_name: str,
@@ -249,35 +505,7 @@ class CommunicationsManager:
         payload_for_parse: dict[str, Any] | bytes = payload
         parsed: list[CommsMessage] = adapter.parse_webhook(payload_for_parse, headers)
 
-        stored: list[CommsMessage] = []
-        for message in parsed:
-            # Ensure channel_id is set
-            if not message.channel_id:
-                message.channel_id = channel.id
-
-            # Resolve identity: if identity_id looks like an external_user_id, resolve it
-            if message.identity_id:
-                identity = self._store.get_identity(channel.id, message.identity_id)
-                if identity:
-                    message.session_id = identity.session_id
-                    message.identity_id = identity.id
-
-            # Store message
-            try:
-                self._store.save_message(message)
-                stored.append(message)
-            except Exception as e:
-                logger.error(f"Failed to store inbound message: {e}")
-
-        # Fire event callback for each stored message
-        if self.event_callback is not None:
-            for msg in stored:
-                try:
-                    await self.event_callback("comms.message_received", message=msg)
-                except Exception as e:
-                    logger.debug(f"Event callback error on handle_inbound: {e}")
-
-        return stored
+        return await self.handle_inbound_messages(channel_name, parsed)
 
     async def add_channel(
         self,
@@ -310,7 +538,7 @@ class CommunicationsManager:
         )
 
         # Save to DB
-        self._store.save_channel(channel_config)
+        self._store.create_channel(channel_config)
 
         # Initialize adapter
         try:
@@ -327,6 +555,12 @@ class CommunicationsManager:
                 self._config.channel_defaults.burst,
             )
             self._rate_limiter.configure_channel(channel_config.id, int(rate), int(burst))
+
+            # Also start polling if newly added channel supports it
+            if adapter.supports_polling and not self._config.webhook_base_url:
+                interval = channel_config.config_json.get("poll_interval")
+                self._polling_manager.start_polling(name, adapter, interval)
+
             logger.info(f"Added channel {name!r} ({channel_type})")
         except Exception as e:
             logger.error(f"Failed to initialize adapter for new channel {name!r}: {e}")
@@ -343,6 +577,7 @@ class CommunicationsManager:
         channel = self._channel_by_name.pop(name, None)
 
         if adapter is not None:
+            self._polling_manager.stop_polling(name)
             try:
                 await adapter.shutdown()
             except Exception as e:
@@ -355,6 +590,53 @@ class CommunicationsManager:
                 logger.info(f"Removed channel {name!r}")
             except Exception as e:
                 logger.error(f"Failed to delete channel {name!r} from DB: {e}")
+
+    async def _ensure_web_chat_channel(self) -> None:
+        """Auto-create a web_chat channel if one doesn't already exist.
+
+        The web_chat channel is an internal bridge that allows routing
+        rules to target the web UI.  Unlike external channels, it needs
+        no credentials.
+        """
+        channels = self._store.list_channels(enabled_only=False)
+        if any(c.channel_type == "web_chat" for c in channels):
+            return
+
+        if get_adapter_class("web_chat") is None:
+            logger.debug("web_chat adapter not registered, skipping auto-create")
+            return
+
+        now = datetime.now(UTC).isoformat()
+        channel = ChannelConfig(
+            id=str(uuid.uuid4()),
+            channel_type="web_chat",
+            name="web_chat",
+            enabled=True,
+            config_json={},
+            created_at=now,
+            updated_at=now,
+        )
+        try:
+            self._store.create_channel(channel)
+            logger.info("Auto-created web_chat channel for unified routing")
+        except Exception as e:
+            logger.error(f"Failed to auto-create web_chat channel: {e}", exc_info=True)
+
+    def set_websocket_broadcast(self, broadcast: Any) -> None:
+        """Wire the WebSocket broadcast callable into the web_chat adapter.
+
+        Called by GobbyRunner after both CommunicationsManager and
+        WebSocketServer are initialized.
+
+        Args:
+            broadcast: The WebSocketServer.broadcast async method.
+        """
+        from gobby.communications.adapters.web_chat import WebChatAdapter
+
+        adapter = self._adapters.get("web_chat")
+        if isinstance(adapter, WebChatAdapter):
+            adapter.set_broadcast(broadcast)
+            logger.info("WebChatAdapter wired to WebSocket broadcast")
 
     def list_channels(self) -> list[ChannelConfig]:
         """List all channels (enabled and disabled) from DB.
@@ -385,6 +667,7 @@ class CommunicationsManager:
                 "enabled": channel.enabled,
                 "supports_webhooks": adapter.supports_webhooks,
                 "supports_polling": adapter.supports_polling,
+                "is_polling": self._polling_manager.is_polling(name),
             }
 
         # Channel not active — check DB

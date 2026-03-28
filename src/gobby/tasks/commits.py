@@ -566,6 +566,46 @@ class AutoLinkResult:
     skipped: int = 0
 
 
+def _resolve_branch_for_task(
+    task_manager: "LocalTaskManager",
+    task_id: str,
+) -> str | None:
+    """Resolve the worktree/clone branch name for a task.
+
+    Walks up the parent chain to find the epic, then looks up the
+    worktree or clone record to get the branch name.
+
+    Returns the branch name, or None if no isolation is configured.
+    """
+    from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.worktrees import LocalWorktreeManager
+
+    db = task_manager.db
+    wt_mgr = LocalWorktreeManager(db)
+    clone_mgr = LocalCloneManager(db)
+
+    current_id: str | None = task_id
+    visited: set[str] = set()
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+
+        wt = wt_mgr.get_by_task(current_id)
+        if wt and wt.branch_name:
+            return wt.branch_name
+
+        clone = clone_mgr.get_by_task(current_id)
+        if clone and clone.branch_name:
+            return clone.branch_name
+
+        try:
+            task = task_manager.get_task(current_id)
+            current_id = task.parent_task_id if task else None
+        except Exception:
+            break
+
+    return None
+
+
 def auto_link_commits(
     task_manager: "LocalTaskManager",
     task_id: str | None = None,
@@ -600,6 +640,13 @@ def auto_link_commits(
     # Build git log command
     # Format: "sha|message" for easy parsing
     git_cmd = ["git", "log", "--pretty=format:%h|%s"]
+
+    # When a task_id is provided, resolve the isolation branch so we
+    # search the correct branch even when cwd is the main repo.
+    if task_id:
+        branch = _resolve_branch_for_task(task_manager, task_id)
+        if branch:
+            git_cmd.append(branch)
 
     if since:
         git_cmd.append(f"--since={since}")

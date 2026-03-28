@@ -37,7 +37,7 @@ Users invoke skills with `/gobby skillname` syntax:
 /gobby merge         # AI merge conflict resolution
 /gobby agents        # Agent spawning
 /gobby doctor        # Systems diagnostics
-/gobby commit        # Resolves to committing-changes
+/gobby commit        # Resolves to source-control
 ```
 
 ## MCP Server Discovery

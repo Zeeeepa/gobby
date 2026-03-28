@@ -800,7 +800,7 @@ class TestHookTemplates:
         }
         assert set(HOOK_TEMPLATES.keys()) == expected_hooks
 
-    def test_precommit_template_contains_gobby_sync(self) -> None:
-        """Test that pre-commit template contains gobby sync command."""
-        content = HOOK_TEMPLATES["pre-commit"]
+    def test_prepush_template_contains_gobby_sync(self) -> None:
+        """Test that pre-push template contains gobby sync command."""
+        content = HOOK_TEMPLATES["pre-push"]
         assert "gobby tasks sync" in content

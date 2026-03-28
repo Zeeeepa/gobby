@@ -94,6 +94,12 @@ export interface Issue {
   comments: number
 }
 
+export interface IssueDetail {
+  title: string
+  body: string | null
+  [key: string]: unknown
+}
+
 export interface DiffResult {
   diff_stat: string
   files: { status: string; path: string }[]
@@ -336,7 +342,7 @@ export function useSourceControl(projectId: string | null = null) {
   )
 
   const fetchIssueDetail = useCallback(
-    async (number: number): Promise<Record<string, unknown> | null> => {
+    async (number: number): Promise<IssueDetail | null> => {
       try {
         const r = await fetch(
           `${getBaseUrl()}/api/source-control/issues/${number}?${buildParams()}`

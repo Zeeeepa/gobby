@@ -7,6 +7,7 @@ Provides commands for syncing gobby tasks with Linear issues.
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 import click
 
@@ -29,7 +30,7 @@ def get_linear_deps() -> tuple[LocalTaskManager, MCPClientManager, LocalProjectM
     project_manager = LocalProjectManager(db)
     mcp_manager = MCPClientManager()
 
-    ctx = get_project_context()
+    ctx = get_project_context(cwd=Path.cwd())
     if not ctx or not ctx.get("id"):
         raise click.ClickException("Not in a gobby project directory. Run 'gobby init' first.")
 

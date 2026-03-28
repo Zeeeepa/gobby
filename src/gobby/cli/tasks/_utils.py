@@ -407,11 +407,13 @@ def resolve_task_id(
     Returns:
         The resolved Task, or None if not found (with error message printed)
     """
+    from pathlib import Path
+
     from gobby.storage.tasks import TaskNotFoundError
 
     # Get project_id from context if not provided
     if project_id is None:
-        ctx = get_project_context()
+        ctx = get_project_context(cwd=Path.cwd())
         project_id = ctx.get("id") if ctx else None
 
     # Try #N format, numeric format (treated as #N), or path format (requires project_id)

@@ -749,6 +749,10 @@ async def test_close_task_uses_commit_diff_when_commits_linked(
         patch("gobby.tasks.commits.get_task_diff") as mock_diff,
         patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", return_value="abc123"),
+        patch(
+            "gobby.utils.git.normalize_commit_sha",
+            side_effect=lambda sha, cwd=None: sha,
+        ),
     ):
         mock_diff.return_value = TaskDiffResult(
             diff="diff content from commits",

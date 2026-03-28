@@ -12,7 +12,6 @@ from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.projects import PERSONAL_PROJECT_ID
 from gobby.storage.task_dependencies import DependencyCycleError
 from gobby.storage.tasks import TaskNotFoundError
-from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +69,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Created task dict with id (minimal) or full task details based on config.
         """
-        # Resolve project: explicit param > context > personal workspace
+        # Resolve session_id first — needed for project resolution and DB insert
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError as e:
+            return {"error": f"Cannot resolve session '{session_id}': {e}"}
+
+        # Resolve project: explicit param > session (authoritative) > context > personal
         if project:
             try:
                 resolved = ctx.resolve_project_filter(project)
@@ -78,11 +83,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 return {"error": str(e)}
             project_id: str = resolved or PERSONAL_PROJECT_ID
         else:
-            project_ctx = get_project_context()
-            if project_ctx and project_ctx.get("id"):
-                project_id = project_ctx["id"]
-            else:
-                project_id = PERSONAL_PROJECT_ID
+            project_id = ctx.resolve_project_from_session(session_id)
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -99,12 +100,6 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "error": "Code tasks require validation_criteria. "
                 "Describe what 'done' looks like so validate_task can check your diff against it."
             }
-
-        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-        try:
-            resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError as e:
-            return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
         # Create task
         create_result = ctx.task_manager.create_task_with_decomposition(
@@ -304,7 +299,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=create_task,
     )
 
-    def get_task(task_id: str) -> dict[str, Any]:
+    def get_task(task_id: str, brief: bool = True) -> dict[str, Any]:
         """Get task details including dependencies."""
         # Resolve task reference (supports #N, path, UUID formats)
         try:
@@ -318,28 +313,51 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not task:
             return {"error": f"Task {task_id} not found", "found": False}
 
-        result: dict[str, Any] = task.to_dict()
+        result: dict[str, Any] = task.to_brief() if brief else task.to_dict()
 
         # Enrich with dependency info
         blockers = ctx.dep_manager.get_blockers(resolved_id)
         blocking = ctx.dep_manager.get_blocking(resolved_id)
 
-        result["dependencies"] = {
-            "blocked_by": [b.to_dict() for b in blockers],
-            "blocking": [b.to_dict() for b in blocking],
-        }
+        if brief:
+
+            def _dep_brief(dep: Any, linked_task_id: str) -> dict[str, Any]:
+                linked = ctx.task_manager.get_task(linked_task_id)
+                if linked:
+                    return {
+                        "ref": f"#{linked.seq_num}" if linked.seq_num else linked.id[:8],
+                        "title": linked.title,
+                        "status": linked.status,
+                        "dep_type": dep.dep_type,
+                    }
+                return dict(dep.to_dict())
+
+            result["dependencies"] = {
+                "blocked_by": [_dep_brief(b, b.depends_on) for b in blockers],
+                "blocking": [_dep_brief(b, b.task_id) for b in blocking],
+            }
+        else:
+            result["dependencies"] = {
+                "blocked_by": [b.to_dict() for b in blockers],
+                "blocking": [b.to_dict() for b in blocking],
+            }
 
         return result
 
     registry.register(
         name="get_task",
-        description="Get task details including dependencies. Task ID can be #N (e.g., #1), path (e.g., 1.2.3), or UUID.",
+        description="Get task details including dependencies. Task ID can be #N (e.g., #1), path (e.g., 1.2.3), or UUID. Returns brief format by default; set brief=false for full details including description.",
         input_schema={
             "type": "object",
             "properties": {
                 "task_id": {
                     "type": "string",
                     "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "brief": {
+                    "type": "boolean",
+                    "description": "If true (default), return compact format (~18 fields). If false, return full details (~33 fields including description, validation, integration).",
+                    "default": True,
                 },
             },
             "required": ["task_id"],
@@ -679,7 +697,7 @@ def build_task_tree(
     """
     from gobby.tasks.tree_builder import TaskTreeBuilder
 
-    # Resolve project: explicit param > context > personal workspace
+    # Resolve project: explicit param > session (authoritative) > context > personal
     if project:
         try:
             resolved = ctx.resolve_project_filter(project)
@@ -687,11 +705,7 @@ def build_task_tree(
             return {"success": False, "error": str(e)}
         project_id: str = resolved or PERSONAL_PROJECT_ID
     else:
-        project_ctx = get_project_context()
-        if project_ctx and project_ctx.get("id"):
-            project_id = project_ctx["id"]
-        else:
-            project_id = PERSONAL_PROJECT_ID
+        project_id = ctx.resolve_project_from_session(session_id)
 
     # Build the tree
     builder = TaskTreeBuilder(

@@ -61,7 +61,7 @@ Collect configuration through 8 sequential prompts. Show the default for each an
 
 Run `git status`. If there are uncommitted changes:
 - Ask: "You have uncommitted changes. Commit them before proceeding? (Y/n)"
-- If yes, use the committing-changes skill to commit everything
+- If yes, use the source-control skill to commit everything
 - If no, warn that uncommitted changes won't be in the worktree/clone
 
 #### Prompt 2: Target Task/Epic
@@ -123,16 +123,26 @@ Ask: "Agent isolation mode? (default: worktree)"
 - **none** — Agents work in the main directory (no isolation, use for debugging)
 - Default: `isolation="worktree"`
 
-#### Prompt 6: Developer Provider/Model
+#### Prompt 6: Developer Provider/Model/Mode
 
 Ask: "Developer agent provider and model? (default: gemini / provider-default)"
 - Parse as `provider / model` or just `provider`
 - Default: `developer_provider="gemini"`, `developer_model=null`
 
-#### Prompt 7: QA Provider/Model
+Then ask: "Developer agent mode? (default: terminal)"
+- **terminal** — Agent runs in a tmux terminal session (visible, interactive)
+- **background** — Agent runs as a background process (headless)
+- Default: `developer_mode="terminal"`
+
+#### Prompt 7: QA Provider/Model/Mode
 
 Ask: "QA agent provider and model? (default: claude / opus)"
 - Default: `qa_provider="claude"`, `qa_model="opus"`
+
+Then ask: "QA agent mode? (default: terminal)"
+- **terminal** — Agent runs in a tmux terminal session (visible, interactive)
+- **background** — Agent runs as a background process (headless)
+- Default: `qa_mode="terminal"`
 
 #### Prompt 8: Operational Parameters + Confirm
 
@@ -158,8 +168,8 @@ Then display the full configuration:
 Epic:           #{N} "{title}"
 Subtasks:       {count} tasks
 Isolation:      {worktree|clone|none}
-Dev Agent:      {provider} / {model}
-QA Agent:       {provider} / {model}
+Dev Agent:      {provider} / {model} ({mode})
+QA Agent:       {provider} / {model} ({mode})
 Timeout:        {N}s
 Cron Interval:  {N}s ({N}m)
 Max Concurrent: {N}
@@ -188,7 +198,9 @@ job = call_tool("gobby-cron", "create_cron_job", {
             "developer_agent": "developer",
             "qa_agent": "qa-reviewer",
             "developer_provider": "<dev_provider>",
+            "developer_mode": "<dev_mode>",
             "qa_provider": "<qa_provider>",
+            "qa_mode": "<qa_mode>",
             "developer_model": "<dev_model>",
             "qa_model": "<qa_model>",
             "agent_timeout": <timeout>,
@@ -533,8 +545,8 @@ Create as `.gobby/orchestrations/{slug}.md` during Phase 2:
 - **Cron Job ID**: {cron_job_id}
 - **Current Branch**: {branch}
 - **Merge Target**: {branch}
-- **Dev Provider/Model**: {provider} / {model}
-- **QA Provider/Model**: {provider} / {model}
+- **Dev Provider/Model**: {provider} / {model} ({mode})
+- **QA Provider/Model**: {provider} / {model} ({mode})
 - **Agent Timeout**: {N}s
 - **Cron Interval**: {N}s
 - **Max Concurrent**: {N}

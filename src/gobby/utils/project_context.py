@@ -111,6 +111,13 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         # CWD doesn't match — return minimal context with just the ID
         return {"id": override_id}
 
+    # Only search the filesystem when an explicit cwd was provided.
+    # When cwd is None, the caller is in daemon context where os.getcwd()
+    # points to the daemon's directory, NOT the calling session's project.
+    # The stdio proxy injects the correct project via HTTP headers instead.
+    if cwd is None:
+        return None
+
     root = find_project_root(cwd)
     if not root:
         return None
@@ -124,6 +131,62 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
     except (FileNotFoundError, PermissionError, json.JSONDecodeError, OSError) as e:
         logger.warning(f"Failed to read project context: {e}")
         return None
+
+
+def set_project_context_from_session(
+    session_id: str,
+    session_manager: Any,
+    db: Any,
+) -> contextvars.Token[dict[str, Any] | None] | None:
+    """Look up session's project and set project context var.
+
+    Shared utility for any dispatch path that needs to set the project
+    context from a session_id. Used by MCPProxyServer.call_tool (rules engine
+    path) and ToolProxyService.call_tool (HTTP dispatch path).
+
+    Args:
+        session_id: Resolved session UUID.
+        session_manager: LocalSessionManager instance.
+        db: Database connection for project lookup.
+
+    Returns:
+        Context var token for reset (via reset_project_context), or None.
+    """
+    session = session_manager.get(session_id)
+    if not session or not session.project_id:
+        return None
+
+    try:
+        from gobby.storage.projects import LocalProjectManager
+
+        pm = LocalProjectManager(db)
+        project = pm.get(session.project_id)
+        if project:
+            ctx: dict[str, Any] = {
+                "id": project.id,
+                "name": project.name,
+                "project_path": project.repo_path,
+            }
+            if project.repo_path:
+                project_file = Path(project.repo_path) / ".gobby" / "project.json"
+                if project_file.exists():
+                    try:
+                        data = json.loads(project_file.read_text())
+                        fs_id = data.get("id")
+                        if fs_id and fs_id != project.id:
+                            logger.warning(
+                                f"Project ID mismatch: session='{project.id}', "
+                                f"filesystem='{fs_id}' at {project.repo_path}. Using filesystem.",
+                            )
+                        data["project_path"] = project.repo_path
+                        return set_project_context(data)
+                    except (json.JSONDecodeError, OSError) as e:
+                        logger.debug(f"Failed to read project.json at {project_file}: {e}")
+            return set_project_context(ctx)
+    except (ImportError, OSError) as e:
+        logger.debug(f"Failed to enrich project context for session {session_id}: {e}")
+
+    return set_project_context({"id": session.project_id})
 
 
 def get_workflow_project_path(cwd: Path | None = None) -> Path | None:

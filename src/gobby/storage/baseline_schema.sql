@@ -462,6 +462,7 @@ CREATE TABLE worktrees (
     status TEXT DEFAULT 'active',
     merge_state TEXT,
     merged_at TEXT,
+    cleanup_after TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1016,6 +1017,18 @@ CREATE TABLE comms_routing_rules (
 CREATE INDEX idx_comms_routing_rules_channel ON comms_routing_rules(channel_id);
 CREATE INDEX idx_comms_routing_rules_enabled ON comms_routing_rules(enabled);
 
+CREATE TABLE comms_attachments (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL REFERENCES comms_messages(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    local_path TEXT,
+    platform_url TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_comms_attachments_message ON comms_attachments(message_id);
+
 CREATE TABLE metrics_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_type TEXT NOT NULL,
@@ -1048,3 +1061,15 @@ CREATE TABLE metrics_events_archive (
     allow_count INTEGER NOT NULL DEFAULT 0,
     UNIQUE(event_type, project_id, server_name, name)
 );
+
+CREATE TABLE chat_messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    tool_calls_json TEXT,
+    metadata_json TEXT,
+    seq INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_chat_messages_conv_seq ON chat_messages(conversation_id, seq);

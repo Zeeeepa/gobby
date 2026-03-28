@@ -253,7 +253,7 @@ describe('useSessions', () => {
 
   it('retries fetching projects on failure', async () => {
     mockFetch.resetRoutes()
-    
+
     // First call fails, second succeeds
     let calls = 0
     mockFetch.fn.mockImplementation(async (input: RequestInfo | URL) => {
@@ -287,7 +287,7 @@ describe('useSessions', () => {
 
   it('eventually fails projects fetch after 3 retries', async () => {
     mockFetch.resetRoutes()
-    
+
     // All 4 attempts fail
     let calls = 0
     mockFetch.fn.mockImplementation(async (input: RequestInfo | URL) => {

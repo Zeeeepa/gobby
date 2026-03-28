@@ -66,6 +66,24 @@ def validate_commit_requirements(
             ),
         )
 
+    # Re-verify stored SHAs actually exist as commits in the repo
+    if requires_commit_check and task.commits and repo_path:
+        from gobby.utils.git import normalize_commit_sha
+
+        stale_shas = [sha for sha in task.commits if not normalize_commit_sha(sha, cwd=repo_path)]
+        if stale_shas:
+            return ValidationResult(
+                can_close=False,
+                error_type="stale_commits",
+                message=(
+                    f"Linked commit(s) no longer exist in the repository: "
+                    f"{', '.join(stale_shas)}\n\n"
+                    "These SHAs may have been rebased away or linked from a different repo.\n"
+                    "Unlink them and link the correct commit SHA before closing."
+                ),
+                extra={"stale_shas": stale_shas},
+            )
+
     return ValidationResult(can_close=True)
 
 

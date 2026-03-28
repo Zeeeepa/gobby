@@ -5,7 +5,7 @@ import { Input } from '../../chat/ui/Input';
 export const A2UITextField: React.FC<A2UIComponentProps> = ({ def, dataModel, updateField, completed }) => {
   const label = resolveBoundValue(def.label, dataModel);
   const placeholder = resolveBoundValue(def.placeholder, dataModel) || '';
-  
+
   // Data binding
   const path = def.text?.path;
   const value = path ? resolveBoundValue(def.text, dataModel) : (def.text?.literalString || '');

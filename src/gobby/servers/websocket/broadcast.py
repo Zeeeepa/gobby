@@ -397,6 +397,20 @@ class BroadcastMixin:
         }
         await self.broadcast(message)
 
+    async def broadcast_communications_event(
+        self,
+        event: str,
+        **kwargs: Any,
+    ) -> None:
+        """Broadcast communications event."""
+        message = {
+            "type": "communications_event",
+            "event": event,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+        await self.broadcast(message)
+
     async def broadcast_canvas_event(
         self,
         event: str,

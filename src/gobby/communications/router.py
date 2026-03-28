@@ -42,7 +42,7 @@ class MessageRouter:
             List of matched channel IDs, sorted by priority (highest first).
         """
         # rules should already be sorted by priority from store
-        rules = self.store.get_routing_rules(enabled_only=True)
+        rules = self.store.list_routing_rules(enabled_only=True)
         # Handle both sync and async return from store if needed in future
         if asyncio.iscoroutine(rules):
             rules = await rules

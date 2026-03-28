@@ -3,7 +3,7 @@ import { A2UIComponentProps, resolveBoundValue } from '../types';
 
 export const A2UICheckBox: React.FC<A2UIComponentProps> = ({ componentId, def, dataModel, updateField, completed }) => {
   const label = resolveBoundValue(def.label, dataModel);
-  
+
   // Data binding
   const path = def.checked?.path;
   const checked = path ? resolveBoundValue(def.checked, dataModel) === true : (def.checked?.literalString === 'true');

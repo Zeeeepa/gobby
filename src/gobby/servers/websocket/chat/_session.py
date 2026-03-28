@@ -152,6 +152,15 @@ class ChatSessionMixin:
         if session:
             await session.drain_pending_response()
 
+        # Cancel any active TTS pipeline for this conversation.
+        # This ensures barge-in (new message, stop button, etc.) also
+        # stops audio synthesis, not just the LLM stream.
+        if hasattr(self, "_cancel_tts"):
+            try:
+                await self._cancel_tts(conversation_id)
+            except Exception:
+                logger.debug("TTS cancel during chat interrupt failed", exc_info=True)
+
     async def _create_chat_session(
         self,
         conversation_id: str,

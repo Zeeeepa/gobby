@@ -31,7 +31,7 @@ HOOK_TEMPLATES = {
 # - Runs gobby verification commands (if configured)
 # - Runs pre-commit framework if available
 # - Auto-commits formatting fixes separately
-# - Syncs tasks before commit
+# - Task/memory JSONL sync moved to pre-push
 
 # Run Gobby verification commands for pre-commit stage
 if command -v gobby >/dev/null 2>&1; then
@@ -80,18 +80,6 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then
         exit $PRECOMMIT_EXIT
     fi
 fi
-
-# Gobby sync - export tasks and memories before commit
-# Skip for spawned agents to avoid JSONL contamination in worktrees
-if [ -z "$GOBBY_AGENT_RUN_ID" ] && command -v gobby >/dev/null 2>&1; then
-    gobby tasks sync --export --quiet 2>/dev/null || true
-    gobby memory backup --quiet 2>/dev/null || true
-
-    # Stage exported files if they exist
-    for f in .gobby/tasks.jsonl .gobby/memories.jsonl; do
-        [ -f "$f" ] && git add "$f" 2>/dev/null || true
-    done
-fi
 """,
     "pre-push": """
 # Gobby verification runner for pre-push
@@ -107,6 +95,26 @@ while read local_ref local_sha remote_ref remote_sha; do
 done
 if [ "$DELETE_ONLY" = true ]; then
     exit 0
+fi
+
+# Gobby sync — export tasks and memories before push
+# Skip for spawned agents to avoid JSONL contamination in worktrees
+if [ -z "$GOBBY_AGENT_RUN_ID" ] && command -v gobby >/dev/null 2>&1; then
+    gobby tasks sync --export --quiet 2>/dev/null || true
+    gobby memory backup --quiet 2>/dev/null || true
+
+    # Stage and amend tip commit if JSONL files changed
+    JSONL_CHANGED=false
+    for f in .gobby/tasks.jsonl .gobby/memories.jsonl; do
+        if [ -f "$f" ] && ! git diff --quiet -- "$f" 2>/dev/null; then
+            git add "$f" 2>/dev/null || true
+            JSONL_CHANGED=true
+        fi
+    done
+
+    if [ "$JSONL_CHANGED" = true ]; then
+        git commit -m "gobby: sync tasks/memories" --no-verify 2>/dev/null || true
+    fi
 fi
 
 if command -v gobby >/dev/null 2>&1; then
@@ -152,13 +160,9 @@ if [ "$3" = "1" ] && [ -z "$GOBBY_AGENT_RUN_ID" ]; then
 fi
 """,
     "post-commit": """
-# Gobby task sync + incremental code indexing after commit
+# Gobby incremental code indexing after commit
+# NOTE: JSONL export moved to pre-push to avoid contamination in agent worktrees
 if command -v gobby >/dev/null 2>&1; then
-    # Skip task sync for spawned agents to avoid JSONL contamination in worktrees
-    if [ -z "$GOBBY_AGENT_RUN_ID" ]; then
-        gobby tasks sync --export --quiet 2>/dev/null || true
-    fi
-
     # Read daemon port from bootstrap config, default to 60887
     GOBBY_PORT=60887
     BOOTSTRAP_YAML="$HOME/.gobby/bootstrap.yaml"

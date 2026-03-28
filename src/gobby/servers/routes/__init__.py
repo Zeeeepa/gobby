@@ -7,7 +7,9 @@ Each module contains an APIRouter with related endpoints.
 from gobby.servers.routes.admin import create_admin_router
 from gobby.servers.routes.agent_spawn import create_agent_spawn_router
 from gobby.servers.routes.agents import create_agents_router
+from gobby.servers.routes.chat import create_chat_router
 from gobby.servers.routes.code_index import create_code_index_router
+from gobby.servers.routes.communications import create_communications_router
 from gobby.servers.routes.configuration import create_configuration_router
 from gobby.servers.routes.cron import create_cron_router
 from gobby.servers.routes.files import create_files_router
@@ -34,6 +36,8 @@ __all__ = [
     "create_agent_spawn_router",
     "create_code_index_router",
     "create_agents_router",
+    "create_chat_router",
+    "create_communications_router",
     "create_configuration_router",
     "create_cron_router",
     "create_files_router",

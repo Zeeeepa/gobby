@@ -272,6 +272,15 @@ class ChatMessagingMixin:
         accumulated_text = ""
         after_tool_call = False  # Track tool→text transitions to prevent sentence collisions
         has_sent_text = False  # Survives accumulated_text flushes for separator injection
+
+        # TTS pipeline: create if voice mode is active for this conversation.
+        # Errors here are non-fatal — TTS is optional enhancement.
+        tts_pipeline = None
+        try:
+            if hasattr(self, "_create_tts_pipeline"):
+                tts_pipeline = self._create_tts_pipeline(conversation_id)
+        except Exception:
+            logger.debug("TTS pipeline creation failed", exc_info=True)
         ws_connected = True
 
         def _base_msg(**fields: Any) -> dict[str, Any]:
@@ -281,17 +290,32 @@ class ChatMessagingMixin:
             return msg
 
         async def _safe_send(msg: dict[str, Any]) -> bool:
-            """Send a message to the WebSocket, returning False if disconnected."""
+            """Send a message to all WebSocket clients in this conversation.
+
+            Broadcasts to every client whose conversation_id matches, so
+            multiple tabs/devices all receive streaming updates.  Returns
+            False only when *no* clients remain connected.
+            """
             nonlocal ws_connected
             if not ws_connected:
                 return False
-            try:
-                await websocket.send(json.dumps(msg))
-                return True
-            except (ConnectionClosed, ConnectionClosedError):
+            encoded = json.dumps(msg)
+            any_sent = False
+            for ws, meta in list(self.clients.items()):
+                cid = meta.get("conversation_id") if meta else None
+                if cid is not None and cid != conversation_id:
+                    continue
+                try:
+                    await ws.send(encoded)
+                    any_sent = True
+                except (ConnectionClosed, ConnectionClosedError):
+                    pass
+            if not any_sent:
                 ws_connected = False
-                logger.debug(f"Client disconnected during chat stream for {conversation_id[:8]}")
-                return False
+                logger.debug(
+                    f"All clients disconnected during chat stream for {conversation_id[:8]}"
+                )
+            return any_sent
 
         def _session_ref() -> str | None:
             """Get the session ref (#N) for the current conversation."""
@@ -301,17 +325,38 @@ class ChatMessagingMixin:
             return None
 
         async def _persist_message(session: Any, role: str, text: str) -> None:
-            """Message persistence removed (session_messages table dropped)."""
-            pass
+            """Persist a chat message to the chat_messages table for display recovery."""
+            try:
+                from gobby.storage import chat_messages as cm_store
+
+                sm = getattr(self, "session_manager", None)
+                if sm and sm.db:
+                    await asyncio.to_thread(
+                        cm_store.save_message,
+                        sm.db,
+                        conversation_id=conversation_id,
+                        role=role,
+                        content=text,
+                    )
+            except Exception as e:
+                logger.debug(f"Failed to persist chat message: {e}")
+
+        # Track the tool_call_id used for the pending_approval message so we
+        # can transition (dismiss) the approval card when the real ToolCallEvent
+        # arrives with the SDK's tool_call_id.
+        pending_approval_id: str | None = None
 
         async def _emit_pending_approval(tool_name: str, arguments: dict[str, Any]) -> None:
             """Emit pending_approval tool_status to the client."""
+            nonlocal pending_approval_id
+            approval_id = f"approval-{uuid4().hex[:8]}"
+            pending_approval_id = approval_id
             await _safe_send(
                 _base_msg(
                     type="tool_status",
                     message_id=assistant_message_id,
                     conversation_id=conversation_id,
-                    tool_call_id=f"approval-{uuid4().hex[:8]}",
+                    tool_call_id=approval_id,
                     status="pending_approval",
                     tool_name=tool_name,
                     arguments=arguments,
@@ -492,6 +537,14 @@ class ChatMessagingMixin:
                         )
                     ):
                         break
+
+                    # Feed text to TTS pipeline (non-blocking, fire-and-forget)
+                    if tts_pipeline and content.strip():
+                        try:
+                            tts_pipeline.feed_text(content)
+                        except Exception:
+                            logger.debug("TTS feed_text failed", exc_info=True)
+
                 elif isinstance(event, ToolCallEvent):
                     # Flush accumulated text as a separate message before tool calls.
                     # This prevents text segments from merging across tool boundaries
@@ -499,6 +552,22 @@ class ChatMessagingMixin:
                     if accumulated_text.strip():
                         await _persist_message(session, "assistant", accumulated_text)
                         accumulated_text = ""
+                    # If there's a pending approval card, transition it so
+                    # the frontend dismisses the approval dialog.
+                    if pending_approval_id is not None:
+                        await _safe_send(
+                            _base_msg(
+                                type="tool_status",
+                                message_id=assistant_message_id,
+                                conversation_id=conversation_id,
+                                tool_call_id=pending_approval_id,
+                                status="calling",
+                                tool_name=event.tool_name,
+                                server_name=event.server_name,
+                                arguments=event.arguments,
+                            )
+                        )
+                        pending_approval_id = None
                     # Track pending tool call for persistence on result
                     pending_tool_calls[event.tool_call_id] = {
                         "tool_name": event.tool_name,
@@ -545,6 +614,13 @@ class ChatMessagingMixin:
                     ):
                         break
                 elif isinstance(event, DoneEvent):
+                    # Flush remaining TTS buffer (non-blocking)
+                    if tts_pipeline:
+                        try:
+                            await tts_pipeline.flush()
+                        except Exception:
+                            logger.debug("TTS flush failed", exc_info=True)
+
                     # Persist remaining assistant text (after last tool call, if any)
                     if accumulated_text.strip():
                         await _persist_message(session, "assistant", accumulated_text)
@@ -603,10 +679,33 @@ class ChatMessagingMixin:
                             self._active_chat_tasks[sdk_sid] = self._active_chat_tasks.pop(
                                 conversation_id
                             )
+                        # Update client metadata so broadcasts use the new ID
+                        old_cid = conversation_id
+                        for _ws_client, ws_meta in list(self.clients.items()):
+                            if ws_meta and ws_meta.get("conversation_id") == old_cid:
+                                ws_meta["conversation_id"] = sdk_sid
+
                         logger.info(
                             f"Re-keyed web chat session {conversation_id[:8]} → {sdk_sid[:8]}",
                         )
                         conversation_id = sdk_sid
+
+                        # Notify all connected clients to update their conversation_id
+                        rekey_msg = json.dumps(
+                            {
+                                "type": "conversation_id_changed",
+                                "old_id": old_cid,
+                                "new_id": sdk_sid,
+                            }
+                        )
+                        for ws_client, ws_meta in list(self.clients.items()):
+                            cid = ws_meta.get("conversation_id") if ws_meta else None
+                            if cid is not None and cid != sdk_sid:
+                                continue
+                            try:
+                                await ws_client.send(rekey_msg)
+                            except (ConnectionClosed, ConnectionClosedError):
+                                pass
 
                     await _safe_send(done_msg)
 
@@ -768,3 +867,13 @@ class ChatMessagingMixin:
             return
 
         session.provide_approval(decision)
+
+    async def _handle_heartbeat(self, websocket: Any, data: dict[str, Any]) -> None:
+        """Handle heartbeat from web UI to keep session alive during idle periods."""
+        conversation_id = data.get("conversation_id")
+        session = self._chat_sessions.get(conversation_id) if conversation_id else None
+        if session:
+            session.last_activity = datetime.now(UTC)
+            logger.debug(
+                f"Heartbeat received for conversation {conversation_id[:8] if conversation_id else '?'}"
+            )

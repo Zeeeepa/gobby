@@ -702,29 +702,29 @@ class TestNormalizeCommitSha:
     """Tests for normalize_commit_sha function."""
 
     def test_normalizes_short_sha(self, temp_dir: Path) -> None:
-        """Test short SHA is normalized via git rev-parse --short."""
+        """Test short SHA is normalized via cat-file + rev-parse --short."""
         with patch("gobby.utils.git.run_git_command") as mock_run:
-            mock_run.return_value = "abc1234"
+            mock_run.side_effect = ["commit", "abc1234"]
 
             result = normalize_commit_sha("abc1234", cwd=temp_dir)
 
             assert result == "abc1234"
-            mock_run.assert_called_once_with(
-                ["git", "rev-parse", "--short", "abc1234"], cwd=temp_dir
-            )
+            assert mock_run.call_count == 2
+            mock_run.assert_any_call(["git", "cat-file", "-t", "abc1234"], cwd=temp_dir)
+            mock_run.assert_any_call(["git", "rev-parse", "--short", "abc1234"], cwd=temp_dir)
 
     def test_normalizes_full_sha_to_short(self, temp_dir: Path) -> None:
-        """Test full SHA is shortened via git rev-parse --short."""
+        """Test full SHA is shortened via cat-file + rev-parse --short."""
         full_sha = "abc1234567890abcdef1234567890abcdef123456"
         with patch("gobby.utils.git.run_git_command") as mock_run:
-            mock_run.return_value = "abc1234"
+            mock_run.side_effect = ["commit", "abc1234"]
 
             result = normalize_commit_sha(full_sha, cwd=temp_dir)
 
             assert result == "abc1234"
-            mock_run.assert_called_once_with(
-                ["git", "rev-parse", "--short", full_sha], cwd=temp_dir
-            )
+            assert mock_run.call_count == 2
+            mock_run.assert_any_call(["git", "cat-file", "-t", full_sha], cwd=temp_dir)
+            mock_run.assert_any_call(["git", "rev-parse", "--short", full_sha], cwd=temp_dir)
 
     def test_returns_none_for_invalid_sha(self, temp_dir: Path) -> None:
         """Test returns None when git can't resolve the SHA."""
@@ -732,6 +732,34 @@ class TestNormalizeCommitSha:
             mock_run.return_value = None
 
             result = normalize_commit_sha("invalidsha", cwd=temp_dir)
+
+            assert result is None
+
+    def test_returns_none_for_non_commit_object(self, temp_dir: Path) -> None:
+        """Test returns None when SHA resolves to a tree or blob, not a commit."""
+        with patch("gobby.utils.git.run_git_command") as mock_run:
+            mock_run.return_value = "tree"
+
+            result = normalize_commit_sha("abc1234", cwd=temp_dir)
+
+            assert result is None
+            mock_run.assert_called_once_with(["git", "cat-file", "-t", "abc1234"], cwd=temp_dir)
+
+    def test_returns_none_for_blob_object(self, temp_dir: Path) -> None:
+        """Test returns None when SHA resolves to a blob."""
+        with patch("gobby.utils.git.run_git_command") as mock_run:
+            mock_run.return_value = "blob"
+
+            result = normalize_commit_sha("abc1234", cwd=temp_dir)
+
+            assert result is None
+
+    def test_returns_none_for_tag_object(self, temp_dir: Path) -> None:
+        """Test returns None when SHA resolves to a tag object."""
+        with patch("gobby.utils.git.run_git_command") as mock_run:
+            mock_run.return_value = "tag"
+
+            result = normalize_commit_sha("abc1234", cwd=temp_dir)
 
             assert result is None
 
@@ -757,13 +785,15 @@ class TestNormalizeCommitSha:
             patch("pathlib.Path.cwd") as mock_cwd,
         ):
             mock_cwd.return_value = Path("/current/dir")
-            mock_run.return_value = "abc1234"
+            mock_run.side_effect = ["commit", "abc1234"]
 
             result = normalize_commit_sha("abc1234")
 
             assert result == "abc1234"
             mock_cwd.assert_called_once()
-            mock_run.assert_called_once_with(
+            assert mock_run.call_count == 2
+            mock_run.assert_any_call(["git", "cat-file", "-t", "abc1234"], cwd=Path("/current/dir"))
+            mock_run.assert_any_call(
                 ["git", "rev-parse", "--short", "abc1234"], cwd=Path("/current/dir")
             )
 

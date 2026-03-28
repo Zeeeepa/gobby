@@ -36,11 +36,14 @@ async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
     return {"imported": {"memories": count}}
 
 
-async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
+async def memory_sync_export(
+    memory_sync_manager: Any, project_id: str | None = None
+) -> dict[str, Any]:
     """Export memories to filesystem.
 
     Args:
         memory_sync_manager: The memory sync manager instance
+        project_id: Optional project to scope export to.
 
     Returns:
         Dict with exported count or error
@@ -48,7 +51,7 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
     if not memory_sync_manager:
         return {"error": "Memory Sync Manager not available"}
 
-    count = await memory_sync_manager.export_to_files()
+    count = await memory_sync_manager.export_to_files(project_id=project_id)
     logger.info(f"Memory sync export: {count} memories exported")
     return {"exported": {"memories": count}}
 

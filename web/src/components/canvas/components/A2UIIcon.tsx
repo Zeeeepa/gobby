@@ -13,7 +13,7 @@ const customIcons = {
 export const A2UIIcon: React.FC<A2UIComponentProps> = ({ def, dataModel }) => {
   const name = resolveBoundValue(def.name, dataModel);
   const color = def.color || "currentColor";
-  
+
   const iconPath = customIcons[name as keyof typeof customIcons] || customIcons.help;
   const sizeClass = def.size === 'large' ? 'h-6 w-6' : def.size === 'small' ? 'h-3 w-3' : 'h-4 w-4';
 

@@ -5,6 +5,7 @@ Module-level utility functions used across worktree tool handlers.
 
 from __future__ import annotations
 
+import importlib
 import logging
 import re
 from functools import lru_cache
@@ -131,6 +132,18 @@ def copy_project_json_to_worktree(
     ensure_project_json_for_isolation(repo_path, worktree_path)
 
 
+# Registry: (module_path, function_name, uses_mode_param)
+_PROVIDER_INSTALLERS: dict[str, tuple[str, str, bool]] = {
+    "claude": ("gobby.cli.installers.claude", "install_claude", True),
+    "cursor": ("gobby.cli.installers.cursor", "install_cursor", True),
+    "windsurf": ("gobby.cli.installers.windsurf", "install_windsurf", True),
+    "copilot": ("gobby.cli.installers.copilot", "install_copilot", True),
+    "gemini": ("gobby.cli.installers.gemini", "install_gemini", False),
+    "antigravity": ("gobby.cli.installers.antigravity", "install_antigravity", False),
+    # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
+}
+
+
 def install_provider_hooks(
     provider: Literal["claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"]
     | None,
@@ -148,17 +161,6 @@ def install_provider_hooks(
     if not provider:
         return False
 
-    # Registry: (module_path, function_name, uses_mode_param)
-    _PROVIDER_INSTALLERS: dict[str, tuple[str, str, bool]] = {
-        "claude": ("gobby.cli.installers.claude", "install_claude", True),
-        "cursor": ("gobby.cli.installers.cursor", "install_cursor", True),
-        "windsurf": ("gobby.cli.installers.windsurf", "install_windsurf", True),
-        "copilot": ("gobby.cli.installers.copilot", "install_copilot", True),
-        "gemini": ("gobby.cli.installers.gemini", "install_gemini", False),
-        "antigravity": ("gobby.cli.installers.antigravity", "install_antigravity", False),
-        # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
-    }
-
     entry = _PROVIDER_INSTALLERS.get(provider)
     if not entry:
         return False
@@ -166,8 +168,6 @@ def install_provider_hooks(
     module_path, func_name, uses_mode = entry
     worktree_path_obj = Path(worktree_path)
     try:
-        import importlib
-
         mod = importlib.import_module(module_path)
         installer = getattr(mod, func_name)
         result = (

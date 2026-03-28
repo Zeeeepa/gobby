@@ -499,7 +499,7 @@ class TestWorktreeIsolationHandler:
         )
 
         # Make _copy_cli_hooks raise
-        with patch.object(handler, "_copy_cli_hooks", side_effect=OSError("Permission denied")):
+        with patch("gobby.agents.isolation._copy_cli_hooks", side_effect=OSError("Permission denied")):
             config = SpawnConfig(
                 prompt="Test",
                 task_id=None,
@@ -900,7 +900,7 @@ class TestCloneIsolationHandler:
             clone_storage=mock_clone_storage,
         )
 
-        with patch.object(handler, "_copy_cli_hooks", side_effect=OSError("Permission denied")):
+        with patch("gobby.agents.isolation._copy_cli_hooks", side_effect=OSError("Permission denied")):
             config = SpawnConfig(
                 prompt="Test",
                 task_id=None,

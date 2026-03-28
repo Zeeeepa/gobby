@@ -124,6 +124,8 @@ export function useTasks(projectId?: string | null) {
   const [tasks, setTasks] = useState<GobbyTask[]>([])
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState<TaskStats>({})
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState<TaskFilters>({
     status: 'open',
     priority: null,
@@ -143,8 +145,6 @@ export function useTasks(projectId?: string | null) {
       return { ...f, projectId: newId }
     })
   }, [projectId])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Fetch tasks list
   const fetchTasks = useCallback(async () => {
@@ -351,7 +351,7 @@ export function useTasks(projectId?: string | null) {
   useEffect(() => {
     setIsLoading(true)
     fetchTasks()
-    
+
     return () => {
       if (debouncedRefetchRef.current) window.clearTimeout(debouncedRefetchRef.current)
     }

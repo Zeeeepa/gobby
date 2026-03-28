@@ -42,9 +42,9 @@ describe('A2UIRenderer (Server Render)', () => {
     };
 
     const html = renderToStaticMarkup(
-      <A2UIRenderer 
-        surfaceState={surfaceState} 
-        onAction={vi.fn()} 
+      <A2UIRenderer
+        surfaceState={surfaceState}
+        onAction={vi.fn()}
       />
     );
 
@@ -68,9 +68,9 @@ describe('A2UIRenderer (Server Render)', () => {
     };
 
     const html = renderToStaticMarkup(
-      <A2UIRenderer 
-        surfaceState={surfaceState} 
-        onAction={vi.fn()} 
+      <A2UIRenderer
+        surfaceState={surfaceState}
+        onAction={vi.fn()}
       />
     );
 

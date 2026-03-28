@@ -318,8 +318,8 @@ class TestConfigureMcpServerJson:
         settings = json.loads(settings_path.read_text())
         assert "mcpServers" in settings
         assert "gobby" in settings["mcpServers"]
-        assert settings["mcpServers"]["gobby"]["command"] == "uv"
-        assert settings["mcpServers"]["gobby"]["args"] == ["run", "gobby", "mcp-server"]
+        assert settings["mcpServers"]["gobby"]["command"].endswith("gobby")
+        assert settings["mcpServers"]["gobby"]["args"] == ["mcp-server"]
 
     def test_configure_existing_settings_no_mcp(self, temp_dir: Path) -> None:
         """Test adding MCP server to existing settings without mcpServers."""

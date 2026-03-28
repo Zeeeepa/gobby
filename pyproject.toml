@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.3.0"
+version = "0.3.1"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "Apache-2.0"
@@ -48,10 +48,12 @@ dependencies = [
     # python-multipart 0.0.21 has CVE-2026-24486 - pin to fixed version
     "python-multipart>=0.0.22",
     "protobuf>=5.29.6,<6.0.0",
-    # cryptography <46.0.5 has CVE-2026-26007
-    "cryptography>=46.0.5",
+    # cryptography <46.0.6 has CVE-2026-26007, CVE-2026-34073
+    "cryptography>=46.0.6",
     # faster-whisper for voice STT
     "faster-whisper>=1.0.0",
+    # kokoro-onnx for local TTS (82M params, Apache 2.0, async streaming)
+    "kokoro-onnx>=0.5.0",
     "cisco-ai-skill-scanner>=0.1.1",
     # pyjwt <2.12.0 has CVE-2026-32597 (transitive via mcp)
     "pyjwt>=2.12.0",
@@ -69,15 +71,20 @@ dependencies = [
     "opentelemetry-exporter-prometheus>=0.49b0",
     "opentelemetry-instrumentation-logging>=0.49b0",
     "opentelemetry-semantic-conventions>=0.49b0",
-    # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
-    # ~50MB wheel, no torch, auto-detects Metal/CUDA
-    "llama-cpp-python>=0.3.0",
     # LLM provider instrumentation for OpenTelemetry tracing
     "opentelemetry-instrumentation-anthropic>=0.34.0",
     "opentelemetry-instrumentation-openai>=0.34.0",
     "opentelemetry-instrumentation-google-genai>=0.1b0",
     "requests>=2.33.0",
 ]
+
+[project.optional-dependencies]
+local-embeddings = [
+    # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
+    # No pre-built wheels — builds from source via cmake. Install separately.
+    "llama-cpp-python>=0.3.0",
+]
+email = ["aiosmtplib>=2.0", "aioimaplib>=1.0"]
 
 [project.scripts]
 gobby = "gobby.cli:cli"
@@ -249,6 +256,8 @@ dev = [
     "ruff>=0.8.0",
     "types-croniter>=6.0.0.20250809",
     "types-PyYAML>=6.0.12.12",
+    "aiosmtplib>=2.0",
+    "aioimaplib>=1.0",
 ]
 
 [tool.coverage.run]

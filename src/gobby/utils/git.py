@@ -184,7 +184,8 @@ def normalize_commit_sha(sha: str, cwd: str | Path | None = None) -> str | None:
     """
     Normalize a commit SHA to dynamic short format.
 
-    Uses git rev-parse --short which returns the minimum characters
+    Verifies the object exists and is a commit (not a blob, tree, or tag),
+    then uses git rev-parse --short to return the minimum characters
     needed for uniqueness (typically 7, more in large repos).
 
     Args:
@@ -193,6 +194,7 @@ def normalize_commit_sha(sha: str, cwd: str | Path | None = None) -> str | None:
 
     Returns:
         Shortened SHA (7+ chars), or None if SHA cannot be resolved
+        or does not refer to a commit object
     """
     if not sha or len(sha) < 4:
         return None
@@ -200,7 +202,12 @@ def normalize_commit_sha(sha: str, cwd: str | Path | None = None) -> str | None:
     if cwd is None:
         cwd = Path.cwd()
 
-    # Use git rev-parse --short to get canonical short form
+    # Verify object exists and is a commit (not blob/tree/tag)
+    obj_type = run_git_command(["git", "cat-file", "-t", sha], cwd=cwd)
+    if obj_type != "commit":
+        return None
+
+    # Normalize to canonical short form
     result = run_git_command(["git", "rev-parse", "--short", sha], cwd=cwd)
     return result if result else None
 

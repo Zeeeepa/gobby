@@ -205,9 +205,13 @@ async def test_add_mcp_server(daemon_tools, mock_mcp_manager):
     mock_mcp_manager.add_server_config = MagicMock()
     mock_mcp_manager.connect_all = AsyncMock(return_value={"s1": True})
 
-    result = await daemon_tools.add_mcp_server(
-        name="s1", transport="http", url="http://localhost:8000"
-    )
+    with patch(
+        "gobby.utils.project_context.get_project_context",
+        return_value={"id": "test-project"},
+    ):
+        result = await daemon_tools.add_mcp_server(
+            name="s1", transport="http", url="http://localhost:8000"
+        )
     assert result["success"] is True
     mock_mcp_manager.add_server_config.assert_called_once()
 

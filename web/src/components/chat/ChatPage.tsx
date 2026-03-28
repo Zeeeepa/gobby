@@ -72,12 +72,13 @@ export function ChatPage({
     updateArtifact,
     openArtifact,
     closePanel: closeArtifactPanel,
+    clearArtifacts,
     setVersion,
   } = useArtifacts();
 
   const isMobile = useIsMobile();
   const canvas = useCanvasPanel();
-  const activity = useActivityPanel(isMobile);
+  const activity = useActivityPanel();
 
   // Modals
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -101,6 +102,13 @@ export function ChatPage({
   // to render the plan content WITHOUT the approval bar.
   const [planPendingLocal, setPlanPendingLocal] = useState(false);
 
+  // Clear artifacts and plan state on session switch / new chat
+  useEffect(() => {
+    clearArtifacts();
+    planArtifactIdRef.current = null;
+    setPlanPendingLocal(false);
+  }, [chat.conversationSwitchKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const openCodeAsArtifact = useCallback(
     (language: string, content: string, title?: string) => {
       createArtifact("code", content, language, title);
@@ -117,22 +125,26 @@ export function ChatPage({
     [createArtifact, activity.showTab],
   );
 
-  // Wire plan content to artifact panel when plan_pending_approval arrives
+  // Wire plan content to artifact panel when plan_pending_approval arrives.
+  // If a plan artifact already exists (revision after rejection), add a new
+  // version instead of creating a duplicate entry.
   const onPlanReady = useCallback(
     (content: string | null) => {
-      if (content) {
-        const id = createArtifact(
-          "text",
-          content,
-          "markdown",
-          "Implementation Plan",
-        );
+      if (!content) return;
+      const headingMatch = content.match(/^#\s+(.+)$/m);
+      const title = headingMatch?.[1]?.trim() || "Implementation Plan";
+
+      if (planArtifactIdRef.current && artifacts.has(planArtifactIdRef.current)) {
+        updateArtifact(planArtifactIdRef.current, content);
+        openArtifact(planArtifactIdRef.current);
+      } else {
+        const id = createArtifact("text", content, "markdown", title);
         planArtifactIdRef.current = id;
-        setPlanPendingLocal(true);
-        activity.showTab("artifacts");
       }
+      setPlanPendingLocal(true);
+      activity.showTab("artifacts");
     },
-    [createArtifact, activity.showTab],
+    [createArtifact, updateArtifact, openArtifact, artifacts, activity.showTab],
   );
 
   useEffect(() => {
@@ -180,19 +192,26 @@ export function ChatPage({
     [chat.onSend],
   );
 
-  // Plan approval — in tabbed model, don't close the panel
   const handleApprovePlan = useCallback(() => {
     setPlanPendingLocal(false);
     chat.onApprovePlan?.();
-  }, [chat.onApprovePlan]);
+    activity.setIsPinned(false);
+  }, [chat.onApprovePlan, activity.setIsPinned]);
 
   const handleRequestPlanChanges = useCallback(
     (feedback: string) => {
       setPlanPendingLocal(false);
       chat.onRequestPlanChanges?.(feedback);
+      activity.setIsPinned(false);
     },
-    [chat.onRequestPlanChanges],
+    [chat.onRequestPlanChanges, activity.setIsPinned],
   );
+
+  // Close artifact and auto-close activity panel if it was opened programmatically
+  const handleCloseArtifact = useCallback(() => {
+    closeArtifactPanel();
+    activity.closeIfAutoOpened();
+  }, [closeArtifactPanel, activity.closeIfAutoOpened]);
 
   // Expose callback for /plan command to reopen plan artifact
   useEffect(() => {
@@ -271,6 +290,13 @@ export function ChatPage({
         <ArtifactContext.Provider
           value={{ openCodeAsArtifact, openFileAsArtifact }}
         >
+          {/* Reconnecting banner */}
+          {chat.isReconnecting && (
+            <div className="bg-warning/20 text-warning-foreground text-xs text-center py-1 shrink-0">
+              Reconnecting...
+            </div>
+          )}
+
           {/* Messages */}
           <div className="grid flex-1 min-h-0">
             <MessageList
@@ -338,14 +364,20 @@ export function ChatPage({
         artifacts={artifacts}
         activeArtifact={activeArtifact}
         onOpenArtifact={openArtifact}
-        onCloseArtifact={closeArtifactPanel}
+        onCloseArtifact={handleCloseArtifact}
         onUpdateArtifactContent={updateArtifact}
         onSetArtifactVersion={setVersion}
-        planPendingApproval={planPendingLocal || chat.planPendingApproval}
+        planPendingApproval={
+          (planPendingLocal || chat.planPendingApproval) &&
+          activeArtifact?.id === planArtifactIdRef.current &&
+          activeArtifact?.type === 'text'
+        }
         onApprovePlan={handleApprovePlan}
         onRequestPlanChanges={handleRequestPlanChanges}
         canvasState={canvas.activeCanvas}
         onCloseCanvas={canvas.closeCanvas}
+        onClearArtifacts={clearArtifacts}
+        onClearCanvas={canvas.closeCanvas}
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
         onExpireSession={conversations.onExpireSession}
